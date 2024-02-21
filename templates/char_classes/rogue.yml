@@ -1,0 +1,54 @@
+---
+available_skills_choices: 4
+available_skills:
+  - acrobatics
+  - athletics
+  - deception
+  - insight
+  - intimidation
+  - investigation
+  - perception
+  - performance
+  - persuasion
+  - sleight_of_hand
+  - stealth
+class_features:
+  - sneak_attack
+hit_die: 1d8
+languages:
+  - thieves_cant
+proficiency_bonuses:
+  - 2
+  - 2
+  - 2
+  - 2
+  - 3
+  - 3
+  - 3
+  - 3
+  - 4
+  - 4
+  - 4
+  - 4
+  - 5
+  - 5
+  - 5
+  - 5
+  - 6
+  - 6
+  - 6
+  - 6
+progression:
+  level_2:
+    class_features:
+      - cunning_action
+saving_throw_proficiency:
+  - dex
+  - int
+weapon_proficiencies:
+  - light_armor
+  - longsword
+  - simple
+  - hand_crossbow
+  - rapier
+  - shortsword

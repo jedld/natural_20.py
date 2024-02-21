@@ -1,0 +1,50 @@
+---
+name: Gomerin
+race: elf
+subrace: high_elf
+pronoun: he/him/his
+classes:
+  fighter: 1
+description: A high elf fighter seeking for glory
+level: 1
+hit_die: inherit
+max_hp: 10
+ability:
+  str: 12
+  dex: 20
+  con: 16
+  int: 16
+  wis: 12
+  cha: 11
+saving_throw_proficiencies:
+- strength
+- constitution
+attributes:
+- dueling
+skills:
+- acrobatics
+- arcana
+- athletics
+- history
+- perception
+weapon_proficiencies:
+- martial
+- simple
+languages:
+- abyssal
+- celestial
+- goblin
+token:
+- G
+equipped:
+- rapier
+- longbow
+- leather_armor
+- shield
+inventory:
+- type: spear
+  qty: 1
+- type: arrows
+  qty: 20
+- type: healing_potion
+  qty: 1
