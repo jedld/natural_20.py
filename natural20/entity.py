@@ -6,6 +6,9 @@ class Entity():
         self.attributes = attributes
         self.statuses = []
         self.ability_scores = {}
+        self.entity_event_hooks = {}
+        self.effects = {}
+        self.casted_effects = []
     
     def __str__(self):
         return f"{self.name}"
@@ -36,6 +39,12 @@ class Entity():
         
     def dead(self):
         return 'dead' in self.statuses
+    
+    def unconscious(self):
+        return not self.dead() and 'unconscious' in self.statuses
+    
+    def conscious(self):
+        return not self.dead() and not self.unconscious()
     
     def initiative(self, battle = None):
       roll = DieRoll.roll(f"1d20+#{self.dex_mod()}", description="initiative", entity=self,
@@ -85,6 +94,47 @@ class Entity():
             if low <= value <= high:
                 return mod
         return None
+    
+    def reset_turn(self, battle):
+        entity_state = battle.entity_state_for(self)
+        entity_state.update({
+            'action': 1,
+            'bonus_action': 1,
+            'reaction': 1,
+            'movement': self.speed,
+            'free_object_interaction': 1,
+            'active_perception': 0,
+            'active_perception_disadvantage': 0,
+            'two_weapon': None
+        })
+
+        if 'dodge' in entity_state['statuses']:
+            entity_state['statuses'].remove('dodge')
+
+        if 'disengage' in entity_state['statuses']:
+            entity_state['statuses'].remove('disengage')
+
+        battle.dismiss_help_actions_for(self)
+        self.resolve_trigger('start_of_turn')
+        self._cleanup_effects()
+        return entity_state
+    
+    def resolve_trigger(self, event_type, opts={}):
+        if event_type in self.entity_event_hooks:
+            active_hook = [effect for effect in self.entity_event_hooks[event_type] if not effect.get('expiration') or effect['expiration'] > self.session.game_time][-1]
+            if active_hook:
+                active_hook['handler'].send(active_hook['method'], self, {**opts, 'effect': active_hook['effect']})
 
 
+    def _cleanup_effects(self):
+        for key, value in self.effects.items():
+            delete_effects = [f for f in value if f.get('expiration') and f['expiration'] <= self.session.game_time]
+            for effect in delete_effects:
+                self.dismiss_effect(effect)
+
+        self.entity_event_hooks = {k: [f for f in value if not f.get('expiration') or f['expiration'] > self.session.game_time] for k, value in self.entity_event_hooks.items()}
+
+        delete_casted_effects = [f for f in self.casted_effects if f.get('expiration') and f['expiration'] <= self.session.game_time]
+        for effect in delete_casted_effects:
+            self.dismiss_effect(effect['effect'])
 
