@@ -116,7 +116,6 @@ class GenericController:
 
         if len(enemy_positions.keys()) == 0 and len(investigate_location) == 0 and LookAction.can(entity, battle):
             action = LookAction(self.session, entity, "look")
-            print(f"{entity.name}: Where are you?")
             valid_actions.append(action)
 
         # try to stand if prone

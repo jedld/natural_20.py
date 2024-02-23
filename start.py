@@ -19,19 +19,20 @@ class CustomController(GenericController):
     def begin_turn(self, entity):
         print(f"=========================")
         print(f"{entity.name} begins turn")
+        print(f"he is at {entity.hp()} / {entity.max_hp()} health")
         print(f"=========================")
 
     def select_action(self, environment, entity, available_actions)-> Action:
         print(environment)
-        for resource, value in environment.resource.items():
-            print(f"{resource}: {value}")
+        print(f"{entity.name} looks around and sees the following objects:")
         for obj in environment.objects:
             print(f"{obj} equipped with {obj.weapons}")
+        
         if len(available_actions) > 0:
             action = random.choice(available_actions)
-            print(f"{entity.name}: {action}")
+            print(f"{entity.name} does the following action: {action}")
             return action
-        
+        print(f"{entity.name} ends turn.")
         # no action, end turn
         return None
 
