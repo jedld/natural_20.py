@@ -4,22 +4,41 @@ from natural20.player_character import PlayerCharacter
 from natural20.map_renderer import MapRenderer
 from natural20.die_roll import DieRoll
 from natural20.generic_controller import GenericController
-
-
+from natural20.utils.utils import Session
+from natural20.actions.move_action import MoveAction
+from natural20.action import Action
+import random
 
 # Number of RL episodes to run
-TRIALS = 5
+TRIALS = 1
 
 class CustomController(GenericController):
-    def __init__(self):
-        super(CustomController, self).__init__()
+    def __init__(self, session):
+        super(CustomController, self).__init__(session)
     
-    def select_action(self, entity, battle):
-        return 'attack'
+    def begin_turn(self, entity):
+        print(f"=========================")
+        print(f"{entity.name} begins turn")
+        print(f"=========================")
+
+    def select_action(self, environment, entity, available_actions)-> Action:
+        print(environment)
+        for resource, value in environment.resource.items():
+            print(f"{resource}: {value}")
+        for obj in environment.objects:
+            print(f"{obj} equipped with {obj.weapons}")
+        if len(available_actions) > 0:
+            action = random.choice(available_actions)
+            print(f"{entity.name}: {action}")
+            return action
+        
+        # no action, end turn
+        return None
 
 
-def game_loop(entity):
+def game_loop(battle: Battle, entity):
     start_combat = False
+    print(map_renderer.render(battle))
     if battle.has_controller_for(entity):
         cycles = 0
         move_path = []
@@ -27,6 +46,7 @@ def game_loop(entity):
             cycles += 1
             # session.save_game(battle)
             action = battle.move_for(entity)
+
             if action is None:
                 move_path = []
                 break
@@ -43,18 +63,21 @@ def game_loop(entity):
 
             if action is None or entity.unconscious():
                 break
+    return None
 
 
 for _ in range(TRIALS):
+    session = Session('templates')
     map = Map('templates/maps/game_map.yml')
-    battle = Battle(map)
-    fighter = PlayerCharacter('templates/characters/high_elf_fighter.yml', name="Gomerin")
-    rogue = PlayerCharacter('templates/characters/halfling_rogue.yml', name="Rogin")
+    battle = Battle(session, map)
+    fighter = PlayerCharacter(session, 'templates/characters/high_elf_fighter.yml', name="Gomerin")
+    rogue = PlayerCharacter(session, 'templates/characters/halfling_rogue.yml', name="Rogin")
     map_renderer = MapRenderer(map)
 
+
     # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
-    battle.add(fighter, 'a', position=[0, 0], token='G', add_to_initiative=True, controller=CustomController())
-    battle.add(rogue, 'b', position=[5, 5], token='R', add_to_initiative=True, controller=CustomController())
+    battle.add(fighter, 'a', position=[0, 0], token='G', add_to_initiative=True, controller=CustomController(session))
+    battle.add(rogue, 'b', position=[5, 5], token='R', add_to_initiative=True, controller=CustomController(session))
     print(map_renderer.render(battle))
     battle.start()
     print("Combat Initiative Order:")

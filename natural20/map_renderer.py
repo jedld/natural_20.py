@@ -38,7 +38,7 @@ class MapRenderer:
 
         token_data = self.tokens()[col_index][row_index]
 
-        if 'entity' in token_data:
+        if token_data and 'entity' in token_data:
           entity_token = self.tokens()[col_index][row_index].get('entity')
         else:
           entity_token = None

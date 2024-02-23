@@ -1,15 +1,63 @@
 from natural20.entity import Entity
+from natural20.utils.utils import Session
+from natural20.battle import Battle
+from natural20.die_roll import DieRoll
+from natural20.entity_class.fighter import Fighter
+from natural20.entity_class.rogue import Rogue
+from natural20.actions.attack_action import AttackAction
+from natural20.actions.look_action import LookAction
+from natural20.actions.move_action import MoveAction
+from natural20.actions.dodge_action import DodgeAction
+from natural20.utils.movement import compute_actual_moves
 import yaml
+import os
 
-class PlayerCharacter(Entity):
-  def __init__(self, template, name=None):
+class PlayerCharacter(Entity, Fighter, Rogue):
+  ACTION_LIST = [LookAction, AttackAction, MoveAction, DodgeAction]
+
+  def __init__(self, session, template, name=None):
     super(PlayerCharacter, self).__init__(name, f"PC {name}")
     with open(template, 'r') as file:
       self.properties = yaml.safe_load(file)
     race_file = self.properties['race']
+    self.session = session
+    self.equipped = self.properties['equipped']
+    self.inventory = {}
+
     with open(f"templates/races/{race_file}.yml") as file:
       self.race_properties = yaml.safe_load(file)
+
+
     self.ability_scores = self.properties.get('ability', {})
+
+    for inventory in self.properties.get('inventory', []):
+      inventory_type = inventory.get('type')
+      inventory_qty = inventory.get('qty')
+      if inventory_type:
+        if inventory_type not in self.inventory:
+          self.inventory[inventory_type] = {'type': inventory_type, 'qty': 0}
+        self.inventory[inventory_type]['qty'] += inventory_qty
+
+    self.class_properties = {}
+    self.current_hit_die = {}
+    self.max_hit_die = {}
+    self.resistances = []
+
+    for klass, level in self.properties.get('classes', {}).items():
+      setattr(self, f"{klass}_level", level)
+      getattr(self, f"initialize_{klass}")()
+
+      character_class_properties = yaml.safe_load(open(f"templates/char_classes/{klass}.yml"))
+      self.max_hit_die[klass] = level
+
+      hit_die_details = DieRoll.parse(character_class_properties['hit_die'])
+      self.current_hit_die[int(hit_die_details.die_type)] = level
+      self.class_properties[klass] = character_class_properties
+
+    self.attributes["hp"] = self.max_hp()      
+
+  def level(self):
+      return self.properties['level']
 
   def size(self):
       return self.properties.get("size") or self.race_properties.get('size')
@@ -27,3 +75,182 @@ class PlayerCharacter(Entity):
       effective_speed = self.eval_effect('speed_override', stacked=True, value=self.properties.get('speed'))
 
     return effective_speed
+  
+  def max_hp(self):
+    if self.class_feature('dwarven_toughness'):
+      return self.properties['max_hp'] + self.level
+    else:
+      return self.properties['max_hp']
+    
+  def melee_distance(self):
+    if not self.properties['equipped']:
+      return 5
+
+    max_range = 5
+    for item in self.properties['equipped']:
+      weapon_detail = self.session.load_weapon(item)
+      if weapon_detail is None:
+        continue
+      if weapon_detail['type'] == 'melee_attack':
+        max_range = max(max_range, weapon_detail['range'])
+
+    return max_range
+
+
+  def armor_class(self):
+    current_ac = self.equipped_ac()
+    if self.has_effect('ac_override'):
+      current_ac = self.eval_effect('ac_override', armor_class=self.equipped_ac)
+
+    if self.has_effect('ac_bonus'):
+      current_ac += self.eval_effect('ac_bonus')
+
+    return current_ac
+
+  def c_class(self):
+    return self.properties['classes']
+
+  def available_actions(self, session: Session, battle: Battle, opportunity_attack=False):
+    if self.unconscious():
+      return []
+
+    if opportunity_attack:
+      if AttackAction.can(self, battle, opportunity_attack=True):
+        return self._player_character_attack_actions(session, battle, opportunity_attack=True)
+      else:
+        return []
+
+    action_list = []
+
+    for action_type in self.ACTION_LIST:
+      if action_type.can(self, battle):
+        if action_type == LookAction:
+          action_list.append(LookAction(session, self, 'look'))
+        elif action_type == AttackAction:
+          action_list = action_list + self._player_character_attack_actions(session, battle)
+        elif action_type == DodgeAction:
+          action_list.append(DodgeAction(session, self, 'dodge'))
+        elif action_type == MoveAction:
+          # generate possible moves
+          cur_x, cur_y = battle.map.position_of(self)
+          for x_pos in range(-1, 2):
+            for y_pos in range(-1, 2):
+              if x_pos == 0 and y_pos == 0:
+                continue
+              if battle.map.passable(self, cur_x + x_pos, cur_y + y_pos, battle, allow_squeeze=False) and battle.map.placeable(self, cur_x + x_pos, cur_y + y_pos, battle):
+                chosen_path = [[cur_x, cur_y], [cur_x + x_pos, cur_y + y_pos]]
+                shortest_path = compute_actual_moves(self, chosen_path, battle.map, battle, self.available_movement(battle) // 5).movement
+                if len(shortest_path) > 1:
+                  move_action = MoveAction(session, self, 'move')
+                  move_action.move_path = shortest_path
+                  action_list.append(move_action)
+
+    return action_list
+
+  def _player_character_attack_actions(self, session, _battle, opportunity_attack=False):
+    # check all equipped and create attack for each
+    valid_weapon_types = ['melee_attack'] if opportunity_attack else ['ranged_attack', 'melee_attack']
+
+    weapon_attacks = []
+    for item in self.properties['equipped']:
+      weapon_detail = session.load_weapon(item)
+      if weapon_detail is None:
+        continue
+      if weapon_detail['type'] not in valid_weapon_types:
+        continue
+      if 'ammo' in weapon_detail and not self.item_count(weapon_detail['ammo']) > 0:
+        continue
+
+      attacks = []
+
+      action = AttackAction(session, self, 'attack')
+      action.using = item
+      attacks.append(action)
+      if not opportunity_attack and weapon_detail.get('properties') and 'thrown' in weapon_detail.get('properties', []):
+        action = AttackAction(session, self, 'attack')
+        action.using = item
+        action.thrown = True
+        attacks.append(action)
+
+      weapon_attacks.extend(attacks)
+
+    unarmed_attack = AttackAction(session, self, 'attack')
+    unarmed_attack.using = 'unarmed_attack'
+
+    return weapon_attacks + [unarmed_attack]
+
+
+  def prepared_spells(self):
+    return self.properties.get('cantrips', []) + self.properties.get('prepared_spells', [])
+
+  def class_feature(self, feature):
+    if feature in self.properties.get('class_features', []):
+      return True
+    if feature in self.properties.get('attributes', []):
+      return True
+    if feature in self.race_properties.get('race_features', []):
+      return True
+    if self.subrace() and feature in self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('class_features', []):
+      return True
+    if self.subrace() and feature in self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('race_features', []):
+      return True
+
+    for properties in self.class_properties.values():
+      if feature in properties.get('class_features', []):
+        return True
+
+    return False
+
+  def proficient_with_weapon(self, weapon):
+    if isinstance(weapon, str):
+      weapon = self.session.load_thing(weapon)
+
+    all_weapon_proficiencies = self.weapon_proficiencies()
+
+    if weapon['name'].lower() in all_weapon_proficiencies:
+      return True
+
+    return any(weapon['proficiency_type'] and prof in weapon['proficiency_type'] for prof in all_weapon_proficiencies)
+
+
+  def weapon_proficiencies(self):
+    all_weapon_proficiencies = [p['weapon_proficiencies'] for p in self.class_properties.values() if 'weapon_proficiencies' in p]
+    all_weapon_proficiencies += self.properties.get('weapon_proficiencies', [])
+    all_weapon_proficiencies += self.race_properties.get('weapon_proficiencies', [])
+
+    subrace = self.subrace()
+    if subrace:
+      all_weapon_proficiencies += self.race_properties.get('subrace', {}).get(subrace, {}).get('weapon_proficiencies', [])
+
+    return all_weapon_proficiencies
+
+
+  def _proficiency_bonus_table(self):
+    return [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6]
+  
+
+  def proficiency_bonus(self):
+    return self._proficiency_bonus_table()[self.level() - 1]
+  
+  def proficient(self, prof):
+    if any(prof in c.get('proficiencies', []) for c in self.class_properties.values()):
+      return True
+    if self.race_properties.get('skills') and prof in self.race_properties['skills']:
+      return True
+    if prof in self.weapon_proficiencies():
+      return True
+
+    return super().proficient(prof)
+
+
+  def equipped_ac(self):
+    equipments = yaml.load(open(os.path.join(self.session.root_path, 'items', 'equipment.yml')), Loader=yaml.FullLoader)
+    equipped_meta = [equipments[e] for e in self.equipped if e in equipments]
+    armor = next((equipment for equipment in equipped_meta if equipment['type'] == 'armor'), None)
+    shield = next((equipment for equipment in equipped_meta if equipment['type'] == 'shield'), None)
+
+    armor_ac = 10 + self.dex_mod() if armor is None else armor['ac'] + min(self.dex_mod(), armor['mod_cap'] if 'mod_cap' in armor else self.dex_mod()) + (1 if self.class_feature('defense') else 0)
+
+    return armor_ac + (0 if shield is None else shield['bonus_ac'])
+
+
