@@ -20,6 +20,9 @@ class MoveAction(Action):
 
     def __str__(self):
         return f"MoveAction: {self.move_path}"
+    
+    def __repr__(self):
+        return f"MoveAction: {self.move_path}"
 
     @staticmethod
     def can(entity, battle):

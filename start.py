@@ -26,8 +26,11 @@ class CustomController(GenericController):
         print(environment)
         print(f"{entity.name} looks around and sees the following objects:")
         for obj in environment.objects:
-            print(f"{obj} equipped with {obj.weapons}")
-        
+            print(f" - {obj} equipped with {obj.weapons}")
+        print(f"{entity.name} has the following available actions:")
+        for action in available_actions:
+            print(f" - {action}")
+
         if len(available_actions) > 0:
             action = random.choice(available_actions)
             print(f"{entity.name} does the following action: {action}")

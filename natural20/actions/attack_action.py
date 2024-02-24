@@ -101,7 +101,7 @@ class AttackAction(Action):
             AttackAction.consume_resource(battle, item)
         elif item['type'] == 'miss':
             AttackAction.consume_resource(battle, item)
-            print(f"{item['source'].name} rolls a {item['attack_roll']} and misses {item['target'].name}")
+            print(f"{item['source'].name} misses {item['target'].name}")
             # Natural20.EventManager.received_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], 'attack_thrown': item['thrown'], 'advantage_mod': item['advantage_mod'], 'as_reaction': bool(item['as_reaction']), 'adv_info': item['adv_info'], 'source': item['source'], 'target': item['target'], 'event': 'miss'})
     
     @staticmethod
@@ -183,11 +183,12 @@ class AttackAction(Action):
         attack_roll = DieRoll.roll(f"1d20+{attack_mod}", disadvantage=self.with_disadvantage(),
                                     advantage=self.with_advantage(), description='dice_roll.attack',
                                     entity=self.source, battle=battle)
-
+        print(f"{self.source.name} rolls a {attack_roll} to attack {target.name}")
         self.source.resolve_trigger('attack_resolved', {'target': target})
 
         if self.source.class_feature('lucky') and attack_roll.nat_1():
             attack_roll = attack_roll.reroll(lucky=True)
+            print(f"{self.source.name} uses lucky to reroll the attack roll to {attack_roll}")
 
         target_ac, _cover_ac = effective_ac(battle, self.source, target)
         after_attack_roll_hook(battle, target, self.source, attack_roll, target_ac)
@@ -195,6 +196,7 @@ class AttackAction(Action):
         if self.source.class_feature('sneak_attack') and (weapon.get('properties') and 'finesse' in weapon['properties'] or weapon['type'] == 'ranged_attack') and (self.with_advantage() or (battle and battle.enemy_in_melee_range(target, [self.source]))):
             sneak_attack_roll = DieRoll.roll(self.source.sneak_attack_level, crit=attack_roll.nat_20(),
                                                 description='dice_roll.sneak_attack', entity=self.source, battle=battle)
+            print(f"{self.source.name} rolls a {sneak_attack_roll} for sneak attack")
 
         damage = DieRoll.roll(damage_roll, crit=attack_roll.nat_20(), description='dice_roll.damage',
                                 entity=self.source, battle=battle)
