@@ -4,18 +4,20 @@ from natural20.actions.stand_action import StandAction
 from natural20.map_renderer import MapRenderer
 from natural20.entity import Entity
 from natural20.action import Action
+import copy
 
 class EnvObject:
-    def __init__(self, name, type, health, location, weapons):
+    def __init__(self, name, type, health, location, weapons, is_enemy = False):
         self.name = name
         self.type = type
         self.health = health
         self.location = location
         self.weapons = weapons
+        self.is_enemy = is_enemy
 
     def __str__(self):
-        return f"{self.name} is a {self.type} with {self.health * 100}% health at {self.location}"
-
+        return f"{self.name} ({self.is_enemy}) is a {self.type} with {self.health * 100}% health at {self.location}"
+   
 class Environment:
     def __init__(self, map, objects = [], resource = {}):
         map_renderer = MapRenderer(map)
@@ -59,13 +61,18 @@ class GenericController:
             equipped_items = []
             for item in enemy.equipped_items():
                 equipped_items.append(item['name'])
-            objects.append(EnvObject(enemy.name, 'pc', enemy.hp()/enemy.max_hp(), location, equipped_items))
+            is_enemy = enemy in battle.opponents_of(entity)
+            env_object = EnvObject(enemy.name, 'pc', enemy.hp()/enemy.max_hp(), location, equipped_items, is_enemy=is_enemy)
+            objects.append(env_object)
         environment = Environment(battle.map, objects, {
             "available_movement" : entity.available_movement(battle),
             "available_actions" : entity.total_actions(battle),
             "available_reactions" : entity.total_reactions(battle),
             "available_bonus_actions" : entity.total_bonus_actions(battle)
         })
+        # clone a copy of entity
+        entity = copy.deepcopy(entity)
+
         return self.select_action(environment, entity, available_actions)
     
         # gain information about enemies in a fair and realistic way (e.g. using line of sight)

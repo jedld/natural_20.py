@@ -13,8 +13,9 @@ import random
 TRIALS = 1
 
 class CustomController(GenericController):
-    def __init__(self, session):
+    def __init__(self, session, persistent_state = {}):
         super(CustomController, self).__init__(session)
+        self.persistent_state = persistent_state
     
     def begin_turn(self, entity):
         print(f"=========================")
@@ -38,6 +39,12 @@ class CustomController(GenericController):
         print(f"{entity.name} ends turn.")
         # no action, end turn
         return None
+    
+    def begin_trial(self, environment, entity):
+        print(f"{entity.name} begins the trial.")
+
+    def end_trial(self, environment, entity):
+        print(f"{entity.name} ends the trial.")
 
 
 def game_loop(battle: Battle, entity):
@@ -69,6 +76,12 @@ def game_loop(battle: Battle, entity):
                 break
     return None
 
+session = Session('templates')
+persistent_state_gomerin = {}
+persistent_state_rogin = {}
+controller_gomerin=CustomController(session, persistent_state_gomerin)
+controller_rogin=CustomController(session, persistent_state_rogin)
+
 
 for _ in range(TRIALS):
     session = Session('templates')
@@ -80,14 +93,21 @@ for _ in range(TRIALS):
 
 
     # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
-    battle.add(fighter, 'a', position=[0, 0], token='G', add_to_initiative=True, controller=CustomController(session))
-    battle.add(rogue, 'b', position=[5, 5], token='R', add_to_initiative=True, controller=CustomController(session))
+    battle.add(fighter, 'a', position=[0, 0], token='G', add_to_initiative=True, controller=controller_gomerin)
+    battle.add(rogue, 'b', position=[5, 5], token='R', add_to_initiative=True, controller=controller_rogin)
     print(map_renderer.render(battle))
+
     battle.start()
     print("Combat Initiative Order:")
     for index, entity in zip(range(len(battle.combat_order)),battle.combat_order):
         print(f"{index + 1}. {entity.name}")
     
+    controller_gomerin.begin_trial(map, fighter)
+    controller_rogin.begin_trial(map, rogue)
+
     result = battle.while_active(max_rounds=10, block=game_loop)
 
     print("simulation done.")
+
+    controller_gomerin.end_trial(map, fighter)
+    controller_rogin.end_trial(map, rogue)
