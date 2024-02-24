@@ -88,6 +88,9 @@ class Battle():
         return self.entities[entity]['controller']
 
 
+    def combat_ongoing(self):
+        return True
+
     def current_turn(self) -> Entity:
         return self.combat_order[self.current_turn_index]
 

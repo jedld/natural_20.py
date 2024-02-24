@@ -130,6 +130,8 @@ class GenericController:
                     valid_actions.append(action)
             elif action.action_type == "move":
                 valid_actions.append(action)
+            elif action.action_type == "disengage":
+                valid_actions.append(action)
             elif action.action_type == 'dodge':
                 valid_actions.append(action)
 

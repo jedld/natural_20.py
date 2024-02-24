@@ -32,11 +32,12 @@ class DodgeAction(Action):
         return self
 
     @staticmethod
-    def apply_(battle, item):
+    def apply(battle, item):
         item_type = item.get('type')
         if item_type == 'dodge':
-            Natural20.EventManager.received_event({'source': item.get('source'), 'event': 'dodge'})
-            item.get('source').dodging_(battle)
+            print(f"{item.get('source').name} dodges")
+            # Natural20.EventManager.received_event({'source': item.get('source'), 'event': 'dodge'})
+            item.get('source').do_dodge(battle)
 
             if item.get('as_bonus_action'):
                 battle.entity_state_for(item.get('source'))['bonus_action'] -= 1

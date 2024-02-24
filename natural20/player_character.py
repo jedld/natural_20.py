@@ -8,12 +8,13 @@ from natural20.actions.attack_action import AttackAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.dodge_action import DodgeAction
+from natural20.actions.disengage_action import DisengageAction
 from natural20.utils.movement import compute_actual_moves
 import yaml
 import os
 
 class PlayerCharacter(Entity, Fighter, Rogue):
-  ACTION_LIST = [LookAction, AttackAction, MoveAction, DodgeAction]
+  ACTION_LIST = [LookAction, AttackAction, MoveAction, DisengageAction, DodgeAction]
 
   def __init__(self, session, template, name=None):
     super(PlayerCharacter, self).__init__(name, f"PC {name}")
@@ -130,6 +131,8 @@ class PlayerCharacter(Entity, Fighter, Rogue):
           action_list = action_list + self._player_character_attack_actions(session, battle)
         elif action_type == DodgeAction:
           action_list.append(DodgeAction(session, self, 'dodge'))
+        elif action_type == DisengageAction:
+          action_list.append(DisengageAction(session, self, 'disengage'))
         elif action_type == MoveAction:
           # generate possible moves
           cur_x, cur_y = battle.map.position_of(self)

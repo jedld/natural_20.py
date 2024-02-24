@@ -108,6 +108,10 @@ class Entity():
         if entity_state and 'disengage' in entity_state.get('statuses', []):
             return True
         return False
+    
+    def do_disengage(self, battle):
+        entity_state = battle.entity_state_for(self)
+        entity_state['statuses'].add('disengage')
 
     def has_reaction(self, battle):
         return battle.entity_state_for(self).get('reaction', 0) > 0
@@ -320,6 +324,10 @@ class Entity():
     def squeezed(self):
         return 'squeezed' in self.statuses
     
+    def do_dodge(self, battle):
+        entity_state = battle.entity_state_for(self)
+        entity_state['statuses'].add('dodge')
+
     def dodge(self, battle):
         if not battle:
             return False
