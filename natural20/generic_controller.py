@@ -141,6 +141,10 @@ class GenericController:
                 valid_actions.append(action)
             elif action.action_type == 'dodge':
                 valid_actions.append(action)
+            elif action.action_type == 'dash':
+                valid_actions.append(action)
+            elif action.action_type == 'dash_bonus':
+                valid_actions.append(action)
 
         return valid_actions
 

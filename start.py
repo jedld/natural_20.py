@@ -10,7 +10,7 @@ from natural20.action import Action
 import random
 
 # Number of RL episodes to run
-TRIALS = 1
+TRIALS = 100
 
 class CustomController(GenericController):
     def __init__(self, session, persistent_state = {}):

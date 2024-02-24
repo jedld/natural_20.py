@@ -601,3 +601,20 @@ class Entity():
         controller = battle.controller_for(self)
         if controller and hasattr(controller, 'attack_listener'):
             controller.attack_listener(battle, self)
+
+    def eval_effect(self, effect_type, opts={}):
+        if not self.has_effect(effect_type):
+            return None
+
+        active_effects = [effect for effect in self.effects[effect_type] if not effect['expiration'] or effect['expiration'] > self.session.game_time]
+
+        if not opts.get('stacked'):
+            active_effects = [active_effects[-1]] if active_effects else []
+
+        if active_effects:
+            result = opts.get('value')
+            for active_effect in active_effects:
+                result = active_effect['handler'].send(active_effect['method'], self, opts.merge(effect=active_effect['effect'], value=result))
+            return result
+
+        return None
