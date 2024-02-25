@@ -633,6 +633,11 @@ class Entity():
 
         return None
     
+    def make_conscious(self):
+        self.statuses.remove("unconscious")
+        if 'stable' in self.statuses:
+            self.statuses.remove("stable")
+    
     def heal(self, amt):
         if self.dead():
             return
@@ -653,7 +658,7 @@ class Entity():
     def death_saving_throw(self, battle=None):
         roll = DieRoll.roll('1d20', description='dice_roll.death_saving_throw', entity=self, battle=battle)
         if roll.nat_20:
-            self.conscious()
+            self.make_conscious()
             self.heal(1)
             print(f"{self.name} rolled a natural 20 on a death saving throw and is now conscious with 1 hp")
             # Natural20.EventManager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
