@@ -6,8 +6,18 @@ from natural20.action import Action
 class DodgeAction(Action):
     as_bonus_action: bool
 
+    def __init__(self, session, source, action_type, opts=None):
+        super().__init__(session, source, action_type, opts)
+        self.as_bonus_action = False
+
+    def __repr__(self):
+        if self.as_bonus_action:
+            return "dodge as a bonus action"
+        else:
+            return "dodge"
+
     @staticmethod
-    def can_(entity, battle):
+    def can(entity, battle):
         return battle and entity.total_actions(battle) > 0
 
     def build_map(self):

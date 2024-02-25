@@ -28,15 +28,15 @@ class CustomController(GenericController):
         print(f"{entity.name} ({entity.hp()}/{entity.max_hp()}) looks around and sees the following objects:")
         for obj in environment.objects:
             print(f" - {obj} equipped with {obj.weapons}")
-        print(f"{entity.name} ({entity.hp()}/{entity.max_hp()}) has the following available actions:")
-        for action in available_actions:
-            print(f" - {action}")
+        # print(f"{entity.name} ({entity.hp()}/{entity.max_hp()}) has the following available actions:")
+        # for action in available_actions:
+        #     print(f" - {action}")
 
         if len(available_actions) > 0:
             action = random.choice(available_actions)
             print(f"{entity.name} ({entity.hp()}/{entity.max_hp()}) does the following action: {action}")
             return action
-        print(f"{entity.name} ({entity.hp()}/{entity.max_hp()}) ends turn.")
+        # print(f"{entity.name} ({entity.hp()}/{entity.max_hp()}) ends turn.")
         # no action, end turn
         return None
     
@@ -97,7 +97,11 @@ for i in range(TRIALS):
     map_renderer = MapRenderer(map)
 
     controller_gomerin=CustomController(session, persistent_state_gomerin)
+    controller_gomerin.register_handlers_on(fighter)
+
     controller_rogin=CustomController(session, persistent_state_rogin)
+    controller_rogin.register_handlers_on(rogue)
+
     # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
     battle.add(fighter, 'a', position=[0, 0], token='G', add_to_initiative=True, controller=controller_gomerin)
     battle.add(rogue, 'b', position=[5, 5], token='R', add_to_initiative=True, controller=controller_rogin)

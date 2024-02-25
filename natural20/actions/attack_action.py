@@ -30,7 +30,10 @@ class AttackAction(Action):
         if self.thrown:
             return f"{self.source} throws a {self.using} to {self.target}"
         else:
-            return f"{self.source} attacks {self.target} with {self.using}"
+            if self.as_reaction:
+                return f"{self.source} uses {self.using} as a reaction to attack {self.target}"
+            else:
+                return f"{self.source} attacks {self.target} with {self.using}"
 
     def to_dict(self):
         return {
@@ -365,7 +368,7 @@ class AttackAction(Action):
 
 class TwoWeaponAttackAction(AttackAction):
     @staticmethod
-    def can_(entity, battle, options={}):
+    def can(entity, battle, options={}):
         return battle is None or (entity.total_bonus_actions(battle) > 0 and battle.two_weapon_attack(entity) and (options.get('weapon') != battle.first_hand_weapon(entity) or len([a for a in entity.equipped_weapons if a == battle.first_hand_weapon(entity)]) >= 2))
 
     def second_hand(self):
@@ -373,7 +376,3 @@ class TwoWeaponAttackAction(AttackAction):
 
     def label(self):
         return f"Bonus Action -> {super().label()}"
-
-    @staticmethod
-    def apply_(battle, item):
-        pass

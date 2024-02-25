@@ -4,7 +4,7 @@ from natural20.battle import Battle
 from natural20.die_roll import DieRoll
 from natural20.entity_class.fighter import Fighter
 from natural20.entity_class.rogue import Rogue
-from natural20.actions.attack_action import AttackAction
+from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.dodge_action import DodgeAction
@@ -16,7 +16,10 @@ import os
 import copy
 
 class PlayerCharacter(Entity, Fighter, Rogue):
-  ACTION_LIST = [LookAction, AttackAction, MoveAction, DisengageAction, DodgeAction, DashAction, DashBonusAction]
+  ACTION_LIST = [
+    LookAction, AttackAction, MoveAction, DisengageAction, DodgeAction, DashAction, DashBonusAction,
+    TwoWeaponAttackAction
+  ]
 
   def __init__(self, session, template, name=None):
     super(PlayerCharacter, self).__init__(name, f"PC {name}", {})
@@ -118,7 +121,7 @@ class PlayerCharacter(Entity, Fighter, Rogue):
       return []
 
     if opportunity_attack:
-      if AttackAction.can(self, battle, opportunity_attack=True):
+      if AttackAction.can(self, battle, { 'opportunity_attack': True }):
         return self._player_character_attack_actions(session, battle, opportunity_attack=True)
       else:
         return []
@@ -131,6 +134,8 @@ class PlayerCharacter(Entity, Fighter, Rogue):
           action_list.append(LookAction(session, self, 'look'))
         elif action_type == AttackAction:
           action_list = action_list + self._player_character_attack_actions(session, battle)
+        elif action_type == TwoWeaponAttackAction:
+          action_list = action_list + self._player_character_attack_actions(session, battle, second_weapon=True)
         elif action_type == DodgeAction:
           action_list.append(DodgeAction(session, self, 'dodge'))
         elif action_type == DisengageAction:
@@ -159,7 +164,7 @@ class PlayerCharacter(Entity, Fighter, Rogue):
 
     return action_list
 
-  def _player_character_attack_actions(self, session, _battle, opportunity_attack=False):
+  def _player_character_attack_actions(self, session, _battle, opportunity_attack=False, second_weapon=False):
     # check all equipped and create attack for each
     valid_weapon_types = ['melee_attack'] if opportunity_attack else ['ranged_attack', 'melee_attack']
 
@@ -175,18 +180,24 @@ class PlayerCharacter(Entity, Fighter, Rogue):
 
       attacks = []
 
-      action = AttackAction(session, self, 'attack')
+      attack_class = AttackAction
+      attack_type = 'attack'
+      if second_weapon:
+        attack_class = TwoWeaponAttackAction
+        attack_type = 'two_weapon_attack'
+
+      action = attack_class(session, self, attack_type)
       action.using = item
       attacks.append(action)
       if not opportunity_attack and weapon_detail.get('properties') and 'thrown' in weapon_detail.get('properties', []):
-        action = AttackAction(session, self, 'attack')
+        action = attack_class(session, self, attack_type)
         action.using = item
         action.thrown = True
         attacks.append(action)
 
       weapon_attacks.extend(attacks)
 
-    unarmed_attack = AttackAction(session, self, 'attack')
+    unarmed_attack = attack_class(session, self, attack_type)
     unarmed_attack.using = 'unarmed_attack'
 
     return weapon_attacks + [unarmed_attack]

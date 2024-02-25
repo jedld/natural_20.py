@@ -239,7 +239,10 @@ class Battle():
         return self.entities[entity]['group']
     
     def ongoing(self):
-      return self.started    
+      return self.started
+    
+    def first_hand_weapon(self, entity):
+        return self.entity_state_for(entity)['two_weapon']
     
     def two_weapon_attack(self, entity):
         return bool(self.entity_state_for(entity)['two_weapon'])

@@ -4,6 +4,7 @@ from natural20.actions.stand_action import StandAction
 from natural20.map_renderer import MapRenderer
 from natural20.entity import Entity
 from natural20.action import Action
+import math
 import copy
 
 class EnvObject:
@@ -34,14 +35,32 @@ class GenericController:
         self.session = session
         self.battle_data = {}
 
+    # @param entity [Natural20::Entity]
+    def register_handlers_on(self, entity):
+        entity.attach_handler("opportunity_attack", self.opportunity_attack_listener)
+
     def begin_turn(self, entity):
         print(f"{entity.name} begins turn")
 
     def roll_for(self, entity, stat, advantage=False, disadvantage=False):
         return None
     
+    def opportunity_attack_listener(self, battle, session, entity, map, event):
+        actions = [s for s in entity.available_actions(session, battle, opportunity_attack=True)]
+
+        valid_actions = []
+        for action in actions:
+            valid_targets = battle.valid_targets_for(entity, action)
+            if event['target'] in valid_targets:
+                action.target = event['target']
+                action.as_reaction = True
+                valid_actions.append(action)
+
+        environment, entity = self._build_environment(battle, entity)
+        selected_action = self.select_action(environment, entity, valid_actions )
+        return selected_action
+
     def select_action(self, environment, entity, available_actions = []) -> Action:
-        print(environment)
         if len(available_actions) > 0:
             action = random.choice(available_actions)
             print(f"{entity.name}: {action}")
@@ -53,6 +72,12 @@ class GenericController:
     def move_for(self, entity: Entity, battle):
         # choose available moves at random and return it
         available_actions = self._compute_available_moves(entity, battle)
+
+        environment, entity = self._build_environment(battle, entity)
+        return self.select_action(environment, entity, available_actions)
+    
+    # Build a suitable environment for Reinforcement Learning
+    def _build_environment(self, battle, entity):
         enemy_positions = {}
         self._observe_enemies(battle, entity, enemy_positions)
         objects = []
@@ -72,10 +97,9 @@ class GenericController:
         })
         # clone a copy of entity
         entity = copy.deepcopy(entity)
+        return environment, entity
 
-        return self.select_action(environment, entity, available_actions)
-    
-        # gain information about enemies in a fair and realistic way (e.g. using line of sight)
+    # gain information about enemies in a fair and realistic way (e.g. using line of sight)
     # @param battle [Natural20::Battle]
     # @param entity [Natural20::Entity]
     def _observe_enemies(self, battle, entity, enemy_positions={}):

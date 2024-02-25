@@ -121,7 +121,7 @@ class MoveAction(Action):
             'as_bonus_action': self.as_bonus_action,
             'type': 'move',
             'path': movement.movement,
-            'move_cost': movement_budget - movement.budget,
+            'move_cost': movement_budget - movement.budget -1,
             'position': movement.movement[-1]
         })
         self.result += additional_effects
@@ -135,7 +135,7 @@ class MoveAction(Action):
                 attack_location = original_location[-1]
                 battle.trigger_opportunity_attack(enemy_opportunity['source'], entity, *attack_location)
 
-                if not grappled and not entity.conscious:
+                if not grappled and not entity.conscious():
                     return original_location
 
         return move_list
@@ -164,7 +164,7 @@ class MoveAction(Action):
             #                                       source_roll=item['source_roll'],
             #                                       target_roll=item['target_roll'])
         elif item_type == 'move':
-            print(f"{item['source'].name} moved to {item['position']} {item['move_cost']} feet")
+            print(f"{item['source'].name} moved to {item['position']} {item['move_cost'] * battle.map.feet_per_grid} feet")
             item['map'].move_to(item['source'], *item['position'], battle)
 
             if item['as_dash'] and item['as_bonus_action']:

@@ -12,6 +12,7 @@ class Entity():
         self.flying = False
         self.casted_effects = []
         self.death_fails = 0
+        self.event_handlers = {}
     
     def __str__(self):
         return f"{self.name}"
@@ -358,10 +359,9 @@ class Entity():
         entity_state['stealth'] = 0
 
     def trigger_event(self, event_name, battle, session, map, event):
-        event_handlers = {}
-        if event_name in event_handlers:
-            object, _ = event_handlers[event_name]
-            object.method_name(battle, session, self, map, event)
+        if event_name in self.event_handlers:
+            callback = self.event_handlers[event_name]
+            callback(battle, session, self, map, event)
 
     def npc(self):
         return False
@@ -577,6 +577,9 @@ class Entity():
             if transfer_inventory:
                 self.add_item(item_name)
 
+    def equipped_weapons(self):
+        return [item.name for item in self.equipped_items if item.subtype == 'weapon']
+
     def take_damage(self, dmg, battle=None, critical=False):
         self.attributes["hp"] -= dmg
 
@@ -643,7 +646,7 @@ class Entity():
 
         if self.hp() > 0 and amt > 0:
             if self.unconscious:
-                print(f"{self.name} is now conscious because of healing and has {self.hp} hp")
+                print(f"{self.name} is now conscious because of healing and has {self.hp()} hp")
                 self.conscious()
             # Natural20.EventManager.received_event({'source': self, 'event': 'heal', 'previous': prev_hp, 'new': self.hp, 'value': amt})
     
@@ -658,7 +661,7 @@ class Entity():
         elif roll.result >= 10:
             self.death_saves += 1
             complete = False
-
+            print(f"{self.name} succeeded a death saving throw ({self.death_saves}/3)")
             if self.death_saves >= 3:
                 complete = True
                 self.death_saves = 0
@@ -680,3 +683,7 @@ class Entity():
                 print(f"{self.name} failed a death saving throw")
             # Natural20.EventManager.received_event({'source': self, 'event': 'death_fail', 'roll': roll, 'saves': self.death_saves,
             #                                        'fails': self.death_fails, 'complete': complete})
+
+
+    def attach_handler(self, event_name, callback):
+        self.event_handlers[event_name] = callback
