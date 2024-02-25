@@ -1,3 +1,4 @@
+import pdb
 class MapRenderer:
     DEFAULT_TOKEN_COLOR = 'cyan'
 
@@ -107,8 +108,11 @@ class MapRenderer:
       return self.token(entity, pos_x, pos_y)
 
     def token(self, entity, pos_x, pos_y):
-      if entity['entity'].token!=None:
-        m_x, m_y = self.map.entities[entity['entity']]
-        return entity['entity'].token()[pos_y - m_y][pos_x - m_x]
-      else:
-        return self.map.tokens()[pos_x][pos_y]['token']
+
+        if entity['entity'].token!=None:
+            m_x, m_y = self.map.entities[entity['entity']]
+            return entity['entity'].token()[pos_y - m_y][pos_x - m_x]
+        else:
+            return self.map.tokens()[pos_x][pos_y]['token']
+
+        

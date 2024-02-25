@@ -10,7 +10,7 @@ from natural20.action import Action
 import random
 
 # Number of RL episodes to run
-TRIALS = 100
+TRIALS = 1
 
 class CustomController(GenericController):
     def __init__(self, session, persistent_state = {}):
@@ -18,25 +18,25 @@ class CustomController(GenericController):
         self.persistent_state = persistent_state
     
     def begin_turn(self, entity):
-        print(f"=========================")
+        print(f"\n=========================")
         print(f"{entity.name} begins turn")
         print(f"he is at {entity.hp()} / {entity.max_hp()} health")
         print(f"=========================")
 
     def select_action(self, environment, entity, available_actions)-> Action:
         print(environment)
-        print(f"{entity.name} looks around and sees the following objects:")
+        print(f"{entity.name} ({entity.hp()}/{entity.max_hp()}) looks around and sees the following objects:")
         for obj in environment.objects:
             print(f" - {obj} equipped with {obj.weapons}")
-        print(f"{entity.name} has the following available actions:")
+        print(f"{entity.name} ({entity.hp()}/{entity.max_hp()}) has the following available actions:")
         for action in available_actions:
             print(f" - {action}")
 
         if len(available_actions) > 0:
             action = random.choice(available_actions)
-            print(f"{entity.name} does the following action: {action}")
+            print(f"{entity.name} ({entity.hp()}/{entity.max_hp()}) does the following action: {action}")
             return action
-        print(f"{entity.name} ends turn.")
+        print(f"{entity.name} ({entity.hp()}/{entity.max_hp()}) ends turn.")
         # no action, end turn
         return None
     
@@ -76,14 +76,19 @@ def game_loop(battle: Battle, entity):
                 break
     return None
 
-session = Session('templates')
+
 persistent_state_gomerin = {}
 persistent_state_rogin = {}
-controller_gomerin=CustomController(session, persistent_state_gomerin)
-controller_rogin=CustomController(session, persistent_state_rogin)
 
+gomerin_wins = 0
+rogin_wins = 0
+draws = 0
 
-for _ in range(TRIALS):
+for i in range(TRIALS):
+    print("============")
+    print(f"Trial {i + 1}")
+    print("============\n\n")
+
     session = Session('templates')
     map = Map('templates/maps/game_map.yml')
     battle = Battle(session, map)
@@ -91,7 +96,8 @@ for _ in range(TRIALS):
     rogue = PlayerCharacter(session, 'templates/characters/halfling_rogue.yml', name="Rogin")
     map_renderer = MapRenderer(map)
 
-
+    controller_gomerin=CustomController(session, persistent_state_gomerin)
+    controller_rogin=CustomController(session, persistent_state_rogin)
     # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
     battle.add(fighter, 'a', position=[0, 0], token='G', add_to_initiative=True, controller=controller_gomerin)
     battle.add(rogue, 'b', position=[5, 5], token='R', add_to_initiative=True, controller=controller_rogin)
@@ -105,9 +111,28 @@ for _ in range(TRIALS):
     controller_gomerin.begin_trial(map, fighter)
     controller_rogin.begin_trial(map, rogue)
 
-    result = battle.while_active(max_rounds=10, block=game_loop)
+    result = battle.while_active(max_rounds=100, block=game_loop)
 
     print("simulation done.")
+    if (fighter.hp() > 0 and rogue.hp() > 0):
+        print(f"Both fighters are still standing!")
+        draws += 1
+    else:
+        if (fighter.hp() > 0):
+            print(f"Gomerin wins!")
+            gomerin_wins += 1
+        elif (rogue.hp() > 0):
+            print(f"Rogin wins!")
+            rogin_wins += 1
+        else:
+            print(f"Both fighters are down!")
+            print(f"{fighter.name} has {fighter.hp()} HP")
+            print(f"{rogue.name} has {rogue.hp()} HP")
+            draws += 1
 
     controller_gomerin.end_trial(map, fighter)
     controller_rogin.end_trial(map, rogue)
+
+print(f"Gomerin wins: {gomerin_wins}")
+print(f"Rogin wins: {rogin_wins}")
+print(f"Draws: {draws}")

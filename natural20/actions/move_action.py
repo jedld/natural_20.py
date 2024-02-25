@@ -19,10 +19,10 @@ class MoveAction(Action):
         self.as_bonus_action = False
 
     def __str__(self):
-        return f"MoveAction: {self.move_path}"
+        return f"move to {self.move_path[-1]}"
     
     def __repr__(self):
-        return f"MoveAction: {self.move_path}"
+        return f"move to {self.move_path[-1]}"
 
     @staticmethod
     def can(entity, battle):

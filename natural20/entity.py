@@ -87,6 +87,13 @@ class Entity():
                 self.statuses.remove('stable')
             if 'unconscious' in self.statuses:
                 self.statuses.remove('unconscious')
+
+    def make_unconscious(self):
+        if not self.unconscious() and not self.dead():
+            self.drop_grapple()
+            # Natural20.EventManager.received_event({ 'source': self, 'event': 'unconscious' })
+            print(f"{self.name} is unconscious.")
+            self.statuses.append('unconscious')
             
     def grappled(self):
         return 'grappled' in self.statuses
@@ -317,6 +324,10 @@ class Entity():
             c_speed = self.eval_effect('speed_override', stacked=True, value=c_speed)
 
         return c_speed
+    
+
+    def stable(self):
+        return 'stable' in self.statuses
     
     def prone(self):
         return 'prone' in self.statuses
@@ -588,7 +599,7 @@ class Entity():
             if battle and self.familiar():
                 battle.remove(self)
         elif self.hp() <= 0:
-            self.make_dead() if self.npc else self.unconscious()
+            self.make_dead() if self.npc() else self.make_unconscious()
             if battle and self.familiar():
                 battle.remove(self)
 
@@ -618,3 +629,54 @@ class Entity():
             return result
 
         return None
+    
+    def heal(self, amt):
+        if self.dead():
+            return
+
+        if self.has_effect("heal_override"):
+            amt = self.eval_effect("heal_override", {"heal": amt})
+
+        self.death_saves = 0
+        self.death_fails = 0
+        self.attributes["hp"] = min(self.max_hp(), self.hp() + amt)
+
+        if self.hp() > 0 and amt > 0:
+            if self.unconscious:
+                print(f"{self.name} is now conscious because of healing and has {self.hp} hp")
+                self.conscious()
+            # Natural20.EventManager.received_event({'source': self, 'event': 'heal', 'previous': prev_hp, 'new': self.hp, 'value': amt})
+    
+    def death_saving_throw(self, battle=None):
+        roll = DieRoll.roll('1d20', description='dice_roll.death_saving_throw', entity=self, battle=battle)
+        if roll.nat_20:
+            self.conscious()
+            self.heal(1)
+            print(f"{self.name} rolled a natural 20 on a death saving throw and is now conscious with 1 hp")
+            # Natural20.EventManager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
+            #                                        'fails': self.death_fails, 'complete': True, 'stable': True, 'success': True})
+        elif roll.result >= 10:
+            self.death_saves += 1
+            complete = False
+
+            if self.death_saves >= 3:
+                complete = True
+                self.death_saves = 0
+                self.death_fails = 0
+                self.make_stable()
+                print(f"{self.name} is now stable")
+            # Natural20.EventManager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
+            #                                        'fails': self.death_fails, 'complete': complete, 'stable': complete})
+        else:
+            self.death_fails += 2 if roll.nat_1 else 1
+            complete = False
+            if self.death_fails >= 3:
+                complete = True
+                self.make_dead()
+                self.death_saves = 0
+                self.death_fails = 0
+                print(f"{self.name} failed the final death saving throw and died")
+            else:
+                print(f"{self.name} failed a death saving throw")
+            # Natural20.EventManager.received_event({'source': self, 'event': 'death_fail', 'roll': roll, 'saves': self.death_saves,
+            #                                        'fails': self.death_fails, 'complete': complete})

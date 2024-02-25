@@ -3,6 +3,7 @@ from natural20.battle import Battle
 from natural20.entity import Entity
 from natural20.action import Action
 from natural20.die_roll import DieRoll
+import pdb
 
 def damage_event(item, battle):
     target = item['target']
@@ -36,6 +37,7 @@ def damage_event(item, battle):
     #     'total_damage': total_damage
     # })
 
+    print(f"{item['target'].name} takes {total_damage} damage!")
     item['target'].take_damage(total_damage, battle=battle, critical=item['attack_roll'].nat_20())
 
     if battle and total_damage > 0:

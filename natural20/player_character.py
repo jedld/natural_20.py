@@ -13,12 +13,13 @@ from natural20.actions.dash import DashAction, DashBonusAction
 from natural20.utils.movement import compute_actual_moves
 import yaml
 import os
+import copy
 
 class PlayerCharacter(Entity, Fighter, Rogue):
   ACTION_LIST = [LookAction, AttackAction, MoveAction, DisengageAction, DodgeAction, DashAction, DashBonusAction]
 
   def __init__(self, session, template, name=None):
-    super(PlayerCharacter, self).__init__(name, f"PC {name}")
+    super(PlayerCharacter, self).__init__(name, f"PC {name}", {})
     with open(template, 'r') as file:
       self.properties = yaml.safe_load(file)
     race_file = self.properties['race']
@@ -56,7 +57,7 @@ class PlayerCharacter(Entity, Fighter, Rogue):
       self.current_hit_die[int(hit_die_details.die_type)] = level
       self.class_properties[klass] = character_class_properties
 
-    self.attributes["hp"] = self.max_hp()      
+    self.attributes["hp"] = copy.deepcopy(self.max_hp())
 
   def level(self):
       return self.properties['level']
@@ -148,7 +149,7 @@ class PlayerCharacter(Entity, Fighter, Rogue):
             for y_pos in range(-1, 2):
               if x_pos == 0 and y_pos == 0:
                 continue
-              if battle.map.passable(self, cur_x + x_pos, cur_y + y_pos, battle, allow_squeeze=False) and battle.map.placeable(self, cur_x + x_pos, cur_y + y_pos, battle):
+              if battle.map.passable(self, cur_x + x_pos, cur_y + y_pos, battle, allow_squeeze=False) and battle.map.placeable(self, cur_x + x_pos, cur_y + y_pos, battle, squeeze=False):
                 chosen_path = [[cur_x, cur_y], [cur_x + x_pos, cur_y + y_pos]]
                 shortest_path = compute_actual_moves(self, chosen_path, battle.map, battle, self.available_movement(battle) // 5).movement
                 if len(shortest_path) > 1:

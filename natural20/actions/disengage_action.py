@@ -10,6 +10,12 @@ class DisengageAction(Action):
         super().__init__(session, source, action_type, opts)
         self.as_bonus_action = False
 
+    def __repr__(self):
+        if self.as_bonus_action:
+            return f"disengage as a bonus action"
+        else:
+            return f"disengage"        
+
     @staticmethod
     def can(entity, battle):
         return battle and battle.combat_ongoing() and entity.total_actions(battle) > 0

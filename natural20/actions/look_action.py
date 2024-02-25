@@ -11,6 +11,9 @@ class LookAction(Action):
     def can(entity, battle, options={}):
         return battle is None or not battle.ongoing or battle.entity_state_for(entity)["active_perception"] == 0
 
+    def __repr__(self) -> str:
+        return "Look(perception check)"
+
     def build_map(self):
         pass
 
