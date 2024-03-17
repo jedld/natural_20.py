@@ -11,7 +11,7 @@ class StandAction(Action):
         self.action_type = action_type
 
     @staticmethod
-    def can_(entity, battle):
+    def can(entity, battle):
         return battle and entity.prone and entity.speed > 0 and entity.available_movement(battle) >= StandAction.required_movement(entity)
 
     def build_map(self):
