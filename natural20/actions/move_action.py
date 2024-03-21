@@ -1,6 +1,5 @@
 from typing import List, Tuple
 from dataclasses import dataclass
-from collections import Callable
 from types import SimpleNamespace
 from natural20.action import Action
 from natural20.utils.movement import compute_actual_moves, retrieve_opportunity_attacks

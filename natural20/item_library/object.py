@@ -1,7 +1,6 @@
 from typing import List
 from dataclasses import dataclass
 from enum import Enum
-from collections import Set
 from typing import Optional
 from typing import Dict
 from typing import Tuple

@@ -2,3 +2,5 @@ pyyaml
 dndice
 python-i18n
 gymnasium
+inflect
+collections-extended

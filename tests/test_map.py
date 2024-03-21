@@ -1,11 +1,9 @@
 import unittest
-from natural_20.py.map import Terrain, Map
+from natural20.map import Map, Terrain
+from natural20.map_renderer import MapRenderer
 
 class TestController(unittest.TestCase):
     def test_controller(self):
-        terrain = Terrain("dirt", True, 1.0)
-        self.assertEqual(terrain.name, "dirt")
-        self.assertEqual(terrain.passable, True)
-        self.assertEqual(terrain.movement_cost, 1.0)
-        self.assertEqual(terrain.symbol, "D")
-        self.assertEqual(terrain.symbol(), "D")
+        map = Map('templates/maps/game_map.yml')
+        render = MapRenderer(map)
+        assert render.render() == ""
