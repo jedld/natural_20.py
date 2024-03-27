@@ -32,5 +32,6 @@ class TestGym(unittest.TestCase):
     def test_reset(self):
         env = make("dndenv-v0", render_mode="human")
         observation, info = env.reset(seed=42)
+        print(observation)
         assert env is not None
 
