@@ -20,12 +20,10 @@ import random
 This is a custom environment for the game Dungeons and Dragons 5e. It is based on the OpenAI Gym environment.
 """
 class dndenv(gym.Env):
-    def __init__(self, session: Session, map: Map, battle: Battle, view_port_size=(10, 10), render_mode = None):
-        self.session = session
-        self.map = map
-        self.battle = battle
+    def __init__(self, view_port_size=(10, 10), max_rounds=10, render_mode = None):
         self.render_mode = render_mode
         self.view_port_size = view_port_size
+        self.max_rounds = max_rounds
        
         self.observation_space = gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 4), dtype=int)
         self.action_space = gym.spaces.Sequence(gym.spaces.Dict(spaces={
@@ -34,6 +32,20 @@ class dndenv(gym.Env):
             "target": gym.spaces.Discrete(256),
             "as_reaction": gym.spaces.Discrete(2)
         }))
+
+        self.session = Session('templates')
+        self.map = Map('templates/maps/game_map.yml')
+        self.battle = Battle(self.session, self.map)
+        self.players = []
+
+        self.players.append(('a', 'G', PlayerCharacter(self.session, 'templates/characters/high_elf_fighter.yml', name="Gomerin"), [2, 0]))
+        self.players.append(('b', 'R', PlayerCharacter(self.session, 'templates/characters/halfling_rogue.yml', name="Rogin"), [2,4]))
+
+        # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
+        for group, token, player, position in self.players:
+            self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
+
+        self.battle.start()
 
         self.reward_range = (-1, 1)
         self.metadata = {}
@@ -76,45 +88,113 @@ class dndenv(gym.Env):
         return np.array(result)
     
     def reset(self, **kwargs) -> Dict[str, Any]:
-        return self._render_terrain(), {}
+        self.battle.start_turn()
+        if self.battle.current_turn().conscious():
+                self.battle.current_turn().reset_turn(self.battle)
+                
+        return self._render_terrain(), {"available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle) }
 
     def step(self, action):
-        pass
+        entity = self.battle.current_turn()
+        action_type, param1, param2, param3 = action
+        available_actions = entity.available_actions(self.session, self.battle)
+        for action in available_actions:
+            if action.action_type == "attack" and action_type == 0:
+                action.target = self.map.entity_at(param1, param2)
+                self.battle.action(action)
+                self.battle.commit(action)
+                break
+            elif action.action_type == "move" and action_type == 1:
+                action.move_path = [(self.map.position_of(entity)[0], self.map.position_of(entity)[1]), (param1, param2)]
+                self.battle.action(action)
+                self.battle.commit(action)
+                break
+            elif action.action_type == "disengage" and action_type == 2:
+                self.battle.action(action)
+                self.battle.commit(action)
+                break
+            elif action.action_type == "dodge" and action_type == 3:
+                self.battle.action(action)
+                self.battle.commit(action)
+                break
+            elif action.action_type == "dash" and action_type == 4:
+                self.battle.action(action)
+                self.battle.commit(action)
+                break
+            elif action.action_type == "dash_bonus" and action_type == 5:
+                self.battle.action(action)
+                self.battle.commit(action)
+                break
+            elif action.action_type == "stand" and action_type == 6:
+                self.battle.action(action)
+                self.battle.commit(action)
+                break
+        available_actions = entity.available_actions(self.session, self.battle)
+        
+        if len(available_actions) == 0:
+            self.battle.end_turn()
+            self.battle.start_turn()
+            if self.battle.current_turn().conscious():
+                self.battle.current_turn().reset_turn(self.battle)
+            result = self.battle.next_turn(max_rounds=self.max_rounds)
+            print(f"Result: {result}")
+            if result == 'tpk':
+                return 'tpk'
+            if result:
+                return result                
+
+    def _action_type_to_int(self, action_type):
+        if action_type == "attack":
+            return 0
+        elif action_type == "move":
+            return 1
+        elif action_type == "disengage":
+            return 2
+        elif action_type == "dodge":
+            return 3
+        elif action_type == "dash":
+            return 4
+        elif action_type == "dash_bonus":
+            return 5
+        elif action_type == "stand":
+            return 6
+        else:
+            return -1
 
     def _compute_available_moves(self, entity: Entity, battle):
-        self._initialize_battle_data(battle, entity)
-
-        enemy_positions = {}
         available_actions = entity.available_actions(self.session, battle)
 
         # generate available targets
-        valid_actions = []
-        # check if enemy positions is empty
-        
-
-        if len(enemy_positions.keys()) == 0 and LookAction.can(entity, battle):
-            action = LookAction(self.session, entity, "look")
-            valid_actions.append(action)
+        valid_actions = []       
 
         # try to stand if prone
         if entity.prone() and StandAction.can(entity, battle):
-            valid_actions.append(StandAction(None, entity, "stand"))
+            valid_actions.append((6, -1, -1, -1))
+        
+        entity_pos = self.map.position_of(entity)
 
         for action in available_actions:
             if action.action_type == "attack":
                 valid_targets = battle.valid_targets_for(entity, action)
                 if valid_targets:
                     action.target = valid_targets[0]
-                    valid_actions.append(action)
+                    targets = self.map.entity_squares(valid_targets[0])
+                    
+                    for target in targets:
+                        relative_pos = (target[0] - entity_pos[0], target[1] - entity_pos[1])
+                        if relative_pos[0] >=0 and relative_pos[0] < self.view_port_size[0] and relative_pos[1] >= 0 and relative_pos[1] < self.view_port_size[1]:
+                            valid_actions.append((0, relative_pos[0], relative_pos[1], -1))
             elif action.action_type == "move":
-                valid_actions.append(action)
+                relative_x = action.move_path[1][0] - entity_pos[0]
+                relative_y = action.move_path[1][1] - entity_pos[1]
+                valid_actions.append((1,relative_x, relative_y, 0))
             elif action.action_type == "disengage":
-                valid_actions.append(action)
+                valid_actions.append((2, -1, -1, -1))
             elif action.action_type == 'dodge':
-                valid_actions.append(action)
+                valid_actions.append((3, -1, -1, -1))
             elif action.action_type == 'dash':
-                valid_actions.append(action)
+                valid_actions.append((4, -1, -1, -1))
             elif action.action_type == 'dash_bonus':
-                valid_actions.append(action)
+                valid_actions.append((5, -1, -1, -1))
 
         return valid_actions

@@ -96,6 +96,9 @@ class Map():
 
         if entity is None:
             raise ValueError('entity param is required')
+        
+        if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
+            raise ValueError(f"Invalid position: {pos_x},{pos_y} should not exceed (0 - {self.size[0]- 1 }),(0 - {self.size[1] - 1})")
 
         entity_data = {'entity': entity, 'token': token or entity.name}
         self.tokens[pos_x][pos_y] = entity_data
