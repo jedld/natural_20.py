@@ -21,6 +21,10 @@ class TestGym(unittest.TestCase):
     def test_reset(self):
         env = make("dndenv-v0", render_mode="human")
         observation, info = env.reset(seed=42)
+        # sample a move from info
+        action = random.choice(info["available_moves"])
+        observation, reward, done, info = env.step(action)
+
         print(observation)
         print(info)
         assert env is not None

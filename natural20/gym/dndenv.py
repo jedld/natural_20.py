@@ -24,7 +24,9 @@ class dndenv(gym.Env):
         self.render_mode = render_mode
         self.view_port_size = view_port_size
         self.max_rounds = max_rounds
-       
+        self.metadata = {
+            'render.modes': ['ansi']
+        }
         self.observation_space = gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 4), dtype=int)
         self.action_space = gym.spaces.Sequence(gym.spaces.Dict(spaces={
             "action": gym.spaces.Discrete(256),
@@ -87,12 +89,53 @@ class dndenv(gym.Env):
             result.append(col_arr)
         return np.array(result)
     
+    def _render_terrain_ansi(self):
+        result = []
+        current_player = self.battle.current_turn()
+        pos_x, pos_y = self.map.position_of(current_player)
+        view_w, view_h = self.view_port_size
+        map_w, map_h = self.map.size
+        for x in range(-view_w//2, view_w//2):
+            col_arr = []
+            for y in range(-view_h//2, view_h//2):
+                if pos_x + x < 0 or pos_x + x >= map_w or pos_y + y < 0 or pos_y + y >= map_h:
+                    col_arr.append("*")
+                else:
+                    terrain = self.map.base_map[pos_x + x][pos_y + y]
+
+                    if terrain == None:
+                        terrain_int = 0
+                    else:
+                        terrain_int = 1
+
+                    entity = self.map.entity_at(pos_x + x, pos_y + y)
+
+                    if entity == None:
+                        entity_int = 0
+                    elif entity == current_player:
+                        entity_int = 1
+                    elif self.battle.opposing(current_player, entity):
+                        entity_int = 2
+                    else:
+                        entity_int = 3
+
+                    col_arr.append(f"{entity_int}")
+            
+            result.append(col_arr)
+        return np.array(result)
+
+    def render(self, mode='ansi'):
+        if mode == 'ansi':
+            return self._render_terrain_ansi()
+        else:
+            return None
+
     def reset(self, **kwargs) -> Dict[str, Any]:
         self.battle.start_turn()
         if self.battle.current_turn().conscious():
                 self.battle.current_turn().reset_turn(self.battle)
                 
-        return self._render_terrain(), {"available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle) }
+        return self._render_terrain(), { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }
 
     def step(self, action):
         entity = self.battle.current_turn()
@@ -131,6 +174,8 @@ class dndenv(gym.Env):
                 break
         available_actions = entity.available_actions(self.session, self.battle)
         
+        reward = 0
+        done = False
         if len(available_actions) == 0:
             self.battle.end_turn()
             self.battle.start_turn()
@@ -139,9 +184,8 @@ class dndenv(gym.Env):
             result = self.battle.next_turn(max_rounds=self.max_rounds)
             print(f"Result: {result}")
             if result == 'tpk':
-                return 'tpk'
-            if result:
-                return result                
+                reward = 1
+        return self._render_terrain(), reward, done, { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }      
 
     def _action_type_to_int(self, action_type):
         if action_type == "attack":
