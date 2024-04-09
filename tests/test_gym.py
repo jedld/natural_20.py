@@ -14,12 +14,8 @@ import random
 
 
 class TestGym(unittest.TestCase):
-    def setUp(self):
-        self.env = dndenv()
-        register(id='dndenv-v0', entry_point=lambda **kwargs: self.env)
-
     def test_reset(self):
-        env = make("dndenv-v0", render_mode="human")
+        env = make("dndenv-v0", render_mode="ansi")
         observation, info = env.reset(seed=42)
         # sample a move from info
         action = random.choice(info["available_moves"])
@@ -27,6 +23,7 @@ class TestGym(unittest.TestCase):
 
         print(observation)
         print(info)
+        print(env.render())
         assert env is not None
         assert info is not None
 

@@ -25,9 +25,15 @@ class dndenv(gym.Env):
         self.view_port_size = view_port_size
         self.max_rounds = max_rounds
         self.metadata = {
-            'render.modes': ['ansi']
+            'render_modes': ['ansi']
         }
-        self.observation_space = gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 4), dtype=int)
+
+        self.observation_space = gym.spaces.Dict(spaces={
+            "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 4), dtype=int),
+            "turn_info" : gym.spaces.Box(low=0, high=1, shape=(3,), dtype=int),
+            "movement": gym.spaces.Discrete(255)
+        })
+
         self.action_space = gym.spaces.Sequence(gym.spaces.Dict(spaces={
             "action": gym.spaces.Discrete(256),
             "direction": gym.spaces.Discrete(8),
@@ -99,33 +105,32 @@ class dndenv(gym.Env):
             col_arr = []
             for y in range(-view_h//2, view_h//2):
                 if pos_x + x < 0 or pos_x + x >= map_w or pos_y + y < 0 or pos_y + y >= map_h:
-                    col_arr.append("*")
+                    col_arr.append("#")
                 else:
+                    render_char = None
+                    
                     terrain = self.map.base_map[pos_x + x][pos_y + y]
-
-                    if terrain == None:
-                        terrain_int = 0
-                    else:
-                        terrain_int = 1
 
                     entity = self.map.entity_at(pos_x + x, pos_y + y)
 
                     if entity == None:
-                        entity_int = 0
+                        if terrain == None:
+                            render_char = "."
+                        else:
+                            render_char = "#"
                     elif entity == current_player:
-                        entity_int = 1
+                        render_char = "P"
                     elif self.battle.opposing(current_player, entity):
-                        entity_int = 2
+                        render_char = "E"
                     else:
-                        entity_int = 3
+                        render_char = "?"
 
-                    col_arr.append(f"{entity_int}")
-            
-            result.append(col_arr)
-        return np.array(result)
+                    col_arr.append(render_char)
+            result.append("".join(col_arr))
+        return "\n".join(result)
 
-    def render(self, mode='ansi'):
-        if mode == 'ansi':
+    def render(self):
+        if self.render_mode == 'ansi':
             return self._render_terrain_ansi()
         else:
             return None
@@ -134,8 +139,13 @@ class dndenv(gym.Env):
         self.battle.start_turn()
         if self.battle.current_turn().conscious():
                 self.battle.current_turn().reset_turn(self.battle)
-                
-        return self._render_terrain(), { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }
+        current_player = self.battle.current_turn()
+        observation = {
+            "map": self._render_terrain(),
+            "turn_info": [current_player.total_actions(self.battle), current_player.total_bonus_actions(self.battle), current_player.total_reactions(self.battle)],
+            "movement": self.battle.current_turn().available_movement(self.battle)
+        }
+        return observation, { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }
 
     def step(self, action):
         entity = self.battle.current_turn()
@@ -172,6 +182,10 @@ class dndenv(gym.Env):
                 self.battle.action(action)
                 self.battle.commit(action)
                 break
+            elif action.action_type == "end" and action_type == 99:
+                self.battle.end_turn()
+                self.battle.start_turn()
+                break
         available_actions = entity.available_actions(self.session, self.battle)
         
         reward = 0
@@ -185,7 +199,13 @@ class dndenv(gym.Env):
             print(f"Result: {result}")
             if result == 'tpk':
                 reward = 1
-        return self._render_terrain(), reward, done, { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }      
+
+        observation = {
+            "map": self._render_terrain(),
+            "turn_info": [entity.total_actions(self.battle), entity.total_bonus_actions(self.battle), entity.total_reactions(self.battle)],
+            "movement": self.battle.current_turn().available_movement(self.battle)
+        }              
+        return observation, reward, done, { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }      
 
     def _action_type_to_int(self, action_type):
         if action_type == "attack":
@@ -242,3 +262,5 @@ class dndenv(gym.Env):
                 valid_actions.append((5, -1, -1, -1))
 
         return valid_actions
+
+gym.register(id='dndenv-v0', entry_point=lambda **kwargs: dndenv(**kwargs))
