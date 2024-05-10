@@ -20,7 +20,7 @@ class TestGym(unittest.TestCase):
         # sample a move from info
         action = random.choice(info["available_moves"])
         observation, reward, done, info = env.step(action)
-
+        print(env.action_space.sample())
         print(observation)
         print(info)
         print(env.render())

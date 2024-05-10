@@ -20,7 +20,11 @@ import random
 This is a custom environment for the game Dungeons and Dragons 5e. It is based on the OpenAI Gym environment.
 """
 class dndenv(gym.Env):
-    def __init__(self, view_port_size=(10, 10), max_rounds=10, render_mode = None):
+    def __init__(self, view_port_size=(10, 10), max_rounds=10, render_mode = None, **kwargs):
+        super().__init__()
+
+
+
         self.render_mode = render_mode
         self.view_port_size = view_port_size
         self.max_rounds = max_rounds
@@ -51,7 +55,11 @@ class dndenv(gym.Env):
 
         # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
         for group, token, player, position in self.players:
-            self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
+            if group == 'b':
+                controller = GenericController(self.session)
+                controller.register_handlers_on(player)
+            else:
+                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
 
         self.battle.start()
 
@@ -151,6 +159,7 @@ class dndenv(gym.Env):
         entity = self.battle.current_turn()
         action_type, param1, param2, param3 = action
         available_actions = entity.available_actions(self.session, self.battle)
+        end_turn = False
         for action in available_actions:
             if action.action_type == "attack" and action_type == 0:
                 action.target = self.map.entity_at(param1, param2)
@@ -183,22 +192,39 @@ class dndenv(gym.Env):
                 self.battle.commit(action)
                 break
             elif action.action_type == "end" and action_type == 99:
-                self.battle.end_turn()
-                self.battle.start_turn()
+                end_turn = True
                 break
+            else:
+                reward = -1
+                
         available_actions = entity.available_actions(self.session, self.battle)
         
         reward = 0
         done = False
-        if len(available_actions) == 0:
+        if len(available_actions) == 0 or end_turn:
             self.battle.end_turn()
             self.battle.start_turn()
+            # if group b then let the adversary take a turn
+            if self.battle.entity_group_for(self.battle.current_turn()) == 'b':
+                controller = self.battle.controller_for(self.battle.current_turn())
+                while True:
+                    action = controller.move_for(self.battle.current_turn())
+                    if action is None:
+                        break
+                    self.battle.action(action)
+                    self.battle.commit(action)
+                self.battle.end_turn()
+                self.battle.start_turn()
+
             if self.battle.current_turn().conscious():
                 self.battle.current_turn().reset_turn(self.battle)
             result = self.battle.next_turn(max_rounds=self.max_rounds)
+
             print(f"Result: {result}")
-            if result == 'tpk':
-                reward = 1
+            if result == 'tpk' and entity.conscious() and self.battle.entity_group_for(entity) == 'a':
+                reward = 10
+            else:
+                reward = -1
 
         observation = {
             "map": self._render_terrain(),
