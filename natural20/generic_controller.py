@@ -92,7 +92,7 @@ class GenericController:
                 continue
             if not group:
                 continue
-            if not object.conscious:
+            if not object.conscious():
                 continue
 
             if group != my_group:
@@ -170,19 +170,20 @@ class GenericController:
                 closest_enemy = None
                 min_distance = math.inf
                 for enemy, location in enemy_positions.items():
-                    distance = battle.map.distance(action.source, location)
+                    distance = battle.map.distance(action.source, enemy, location)
                     if distance < min_distance:
                         min_distance = distance
                         closest_enemy = enemy
                 if closest_enemy:
                     # get the distance to the closest enemy
                     new_position = action.move_path[-1]
-
-                    distance = battle.map.distance(action.source, enemy_positions[closest_enemy])
-                    new_distance = battle.map.distance(action.source, enemy_positions[closest_enemy], entity_1_pos=new_position)
+                    print(f"closest_enemy {closest_enemy.name} {enemy_positions[closest_enemy]}")
+                    distance = battle.map.distance(action.source, closest_enemy)
+                    new_distance = battle.map.distance(action.source, closest_enemy, entity_1_pos=new_position)
 
                     # select movement which brings closer to the enemy
                     score = distance - new_distance
+                    print(f"scores {distance} {new_distance} {score}")
                     sorted_actions.append((action, score))
                 else:
                     sorted_actions.append((action, 0))

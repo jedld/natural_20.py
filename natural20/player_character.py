@@ -232,8 +232,14 @@ class PlayerCharacter(Entity, Fighter, Rogue):
 
     if weapon['name'].lower() in all_weapon_proficiencies:
       return True
-
-    return any(weapon['proficiency_type'] and prof in weapon['proficiency_type'] for prof in all_weapon_proficiencies)
+    
+    proficiency_type = weapon.get('proficiency_type', [])
+    
+    # if weapon in DnD 5e does not list any required proficiency, then it is considered a simple weapon
+    if len(proficiency_type) == 0:
+      return True
+    
+    return any(prof in proficiency_type for prof in all_weapon_proficiencies)
 
 
   def weapon_proficiencies(self):

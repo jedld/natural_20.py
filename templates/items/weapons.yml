@@ -367,11 +367,9 @@ torch:
   meta:
     noise_source: 5
     noise_target: 5
-  modifiers: null
   name: Torch
   proficiency_type:
     - martial
-  properties: null
   range: 5
   subtype: weapon
   type: melee_attack
@@ -385,7 +383,6 @@ unarmed_attack:
     noise_target: 5
   modifiers: null
   name: Unarmed Attack
-  properties: null
   range: 5
   subtype: weapon
   type: melee_attack

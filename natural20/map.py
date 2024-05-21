@@ -4,6 +4,7 @@ from natural20.utils.static_light_builder import StaticLightBuilder
 from natural20.entity import Entity
 from natural20.utils.movement import requires_squeeze
 import math
+import pdb
 
 class Terrain():
     def __init__(self, name, passable, movement_cost, symbol=None):
@@ -130,11 +131,14 @@ class Map():
     def look(self, entity, distance=None):
         visible_entities = {}
         for k, v in self.entities.items():
+            print(f"look {k.name} {v}")
             if k == entity:
                 continue
 
             pos1_x, pos1_y = v
+
             if not self.can_see(entity, k, distance=distance):
+                print(f"{entity.name} cannot see {k.name}")
                 continue
 
             visible_entities[k] = [pos1_x, pos1_y]
@@ -188,26 +192,34 @@ class Map():
         has_line_of_sight = False
         max_illumination = 0.0
         sighting_distance = None
-
+        # print(f"entity_1_squares {entity_1_squares}")
+        # print(f"entity_2_squares {entity_2_squares}")
         for pos1 in entity_1_squares:
             for pos2 in entity_2_squares:
                 pos1_x, pos1_y = pos1
                 pos2_x, pos2_y = pos2
                 if pos1_x >= self.size[0] or pos1_x < 0 or pos1_y >= self.size[1] or pos1_y < 0:
+                    print(f"pos1_x {pos1_x} pos1_y {pos1_y} size {self.size}")
                     continue
                 if pos2_x >= self.size[0] or pos2_x < 0 or pos2_y >= self.size[1] or pos2_y < 0:
+                    print(f"pos2_x {pos2_x} pos2_y {pos2_y} size {self.size}")
                     continue
-                if not self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, distance=distance):
+                line_of_sight_info = self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, distance=distance)
+                if line_of_sight_info==None:
+                    print(f"no line of sight from {pos1_x},{pos1_y} to {pos2_x},{pos2_y} {distance}")
                     continue
 
                 location_illumination = self.light_at(pos2_x, pos2_y)
+                # print(f"location_illumination {location_illumination}")
                 max_illumination = max(location_illumination, max_illumination)
                 sighting_distance = math.floor(math.sqrt((pos1_x - pos2_x)**2 + (pos1_y - pos2_y)**2))
                 has_line_of_sight = True
 
         if has_line_of_sight and max_illumination < 0.5:
-            return allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid)
-
+            has_line_of_sight =  allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid)
+        
+        if not has_line_of_sight:
+            pdb.set_trace()
         return has_line_of_sight
 
     def entity_squares(self, entity, squeeze=False):

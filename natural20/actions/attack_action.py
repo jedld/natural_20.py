@@ -160,12 +160,12 @@ class AttackAction(Action):
     def compute_hit_probability(self, battle, opts={}):
         weapon, _, attack_mod, _, _ = self.get_weapon_info(opts)
         advantage_mod, adv_info = target_advantage_condition(battle, self.source, self.target, weapon)
-        target_ac, _cover_ac = self.effective_ac(battle, self.target)
+        target_ac, _cover_ac = effective_ac(battle, self.source, self.target)
         return DieRoll.roll(f"1d20+{attack_mod}", advantage=advantage_mod > 0, disadvantage=advantage_mod < 0).prob(target_ac)
 
     def avg_damage(self, battle, opts={}):
         _, _, _, damage_roll, _ = self.get_weapon_info(opts)
-        return DieRoll.roll(damage_roll).expected
+        return DieRoll.roll(damage_roll).expected()
 
 
     def resolve(self, session, map, opts={}):

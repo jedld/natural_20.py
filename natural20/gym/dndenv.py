@@ -20,12 +20,14 @@ import random
 This is a custom environment for the game Dungeons and Dragons 5e. It is based on the OpenAI Gym environment.
 """
 class dndenv(gym.Env):
-    def __init__(self, view_port_size=(10, 10), max_rounds=10, render_mode = None, **kwargs):
+    def __init__(self, view_port_size=(10, 10), max_rounds=200, render_mode = None, **kwargs):
         super().__init__()
 
         self.render_mode = render_mode
         self.view_port_size = view_port_size
         self.max_rounds = max_rounds
+        self.current_round = 0
+        self.time_step = 0
         self.metadata = {
             'render_modes': ['ansi']
         }
@@ -42,25 +44,6 @@ class dndenv(gym.Env):
             "target": gym.spaces.Discrete(256),
             "as_reaction": gym.spaces.Discrete(2)
         }))
-
-        self.session = Session('templates')
-        self.map = Map('templates/maps/game_map.yml')
-        self.battle = Battle(self.session, self.map)
-        self.players = []
-
-        self.players.append(('a', 'G', PlayerCharacter(self.session, 'templates/characters/high_elf_fighter.yml', name="Gomerin"), [2, 0]))
-        self.players.append(('b', 'R', PlayerCharacter(self.session, 'templates/characters/halfling_rogue.yml', name="Rogin"), [2,4]))
-
-        # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
-        for group, token, player, position in self.players:
-            if group == 'b':
-                controller = GenericController(self.session)
-                controller.register_handlers_on(player)
-                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
-            else:
-                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
-
-        self.battle.start()
 
         self.reward_range = (-1, 1)
         self.metadata = {}
@@ -143,6 +126,36 @@ class dndenv(gym.Env):
             return None
 
     def reset(self, **kwargs) -> Dict[str, Any]:
+        # set seed
+        seed = kwargs.get('seed', 43)
+        random.seed(seed)
+        self.session = Session('templates')
+        self.map = Map('templates/maps/game_map.yml')
+        self.battle = Battle(self.session, self.map)
+        self.players = []
+        self.current_round = 0
+
+        enemy_pos = None
+        # set random starting positions
+        player_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
+
+        while  enemy_pos is None or enemy_pos==player_pos:
+            enemy_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
+
+        self.players.append(('a', 'G', PlayerCharacter(self.session, 'templates/characters/high_elf_fighter.yml', name="Gomerin"), player_pos))
+        self.players.append(('b', 'R', PlayerCharacter(self.session, 'templates/characters/halfling_rogue.yml', name="Rogin"), enemy_pos))
+
+        # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
+        for group, token, player, position in self.players:
+            if group == 'b':
+                controller = GenericController(self.session)
+                controller.register_handlers_on(player)
+                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
+            else:
+                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
+
+        self.battle.start()
+
         self.battle.start_turn()
         if self.battle.current_turn().conscious():
                 self.battle.current_turn().reset_turn(self.battle)
@@ -155,25 +168,35 @@ class dndenv(gym.Env):
         return observation, { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }
 
     def step(self, action):
+        if self.current_round >= self.max_rounds:
+            return None, 0, True, True, None
+        self.time_step += 1
         entity = self.battle.current_turn()
         action_type, param1, param2, param3 = action
         available_actions = entity.available_actions(self.session, self.battle)
+        truncated = False
         end_turn = False
         for action in available_actions:
             if action.action_type == "attack" and action_type == 0:
                 # convert from relative position to absolute map position
-                target_x = self.map.position_of(entity)[0] + param1
-                target_y = self.map.position_of(entity)[1] + param2
-                action.target = self.map.entity_at(target_x, target_y)
-                assert action.target is not None
-                self.battle.action(action)
-                self.battle.commit(action)
-                break
+                entity_position = self.map.position_of(entity)
+                target_x = entity_position[0] + param1
+                target_y = entity_position[1] + param2
+                target = self.map.entity_at(target_x, target_y)
+
+                if target == action.target:
+                    assert action.target is not None
+                    self.battle.action(action)
+                    self.battle.commit(action)
+                    break
             elif action.action_type == "move" and action_type == 1:
-                action.move_path = [(self.map.position_of(entity)[0], self.map.position_of(entity)[1]), (param1, param2)]
-                self.battle.action(action)
-                self.battle.commit(action)
-                break
+                entity_position = self.map.position_of(entity)
+                target_x = entity_position[0] + param1
+                target_y = entity_position[1] + param2
+                if action.move_path[-1] == [target_x, target_y]:
+                    self.battle.action(action)
+                    self.battle.commit(action)
+                    break
             elif action.action_type == "disengage" and action_type == 2:
                 self.battle.action(action)
                 self.battle.commit(action)
@@ -241,8 +264,13 @@ class dndenv(gym.Env):
                     current_player.reset_turn(self.battle)
 
                 print(f"Result: {result}")
-                if result == 'tpk' and entity.conscious() and self.battle.entity_group_for(entity) == 'a':
-                    reward = 10
+
+                if result == 'tpk':
+                    if entity.conscious() and self.battle.entity_group_for(entity) == 'a':
+                        reward = 10
+                    else:
+                        reward = -10
+                    done = True
                 else:
                     reward = -1
 
@@ -253,9 +281,19 @@ class dndenv(gym.Env):
         }
         _available_moves =   self._compute_available_moves(self.battle.current_turn(), self.battle)
         if not done:
-            print(f"Available moves: {available_actions}")
+            # print(f"Available moves: {available_actions}")
             assert len(_available_moves) > 0
-        return observation, reward, done, { "available_moves": _available_moves, "current_index" : self.battle.current_turn_index }      
+
+        self.current_round += 1
+        
+        if self.current_round >= self.max_rounds:
+            done = True
+            truncated = True
+
+        return observation, reward, done, truncated, { "available_moves": _available_moves,
+                                                       "current_index" : self.battle.current_turn_index,
+                                                       "time_step": self.time_step,
+                                                       "round" : self.current_round }      
 
     def _action_type_to_int(self, action_type):
         if action_type == "attack":
@@ -297,13 +335,13 @@ class dndenv(gym.Env):
                     targets = self.map.entity_squares(valid_targets[0])
                     
                     for target in targets:
-                        relative_pos = (entity_pos[0] - target[0], entity_pos[1] - target[1])
-                        if relative_pos[0] >=0 and relative_pos[0] < self.view_port_size[0] and relative_pos[1] >= 0 and relative_pos[1] < self.view_port_size[1]:
-                            valid_actions.append((0, relative_pos[0], relative_pos[1], -1))
+                        relative_pos = (target[0] - entity_pos[0], target[1] - entity_pos[1])
+                        valid_actions.append((0, relative_pos[0], relative_pos[1], -1))
             elif action.action_type == "move":
-                relative_x = action.move_path[1][0] - entity_pos[0]
-                relative_y = action.move_path[1][1] - entity_pos[1]
-                valid_actions.append((1,relative_x, relative_y, 0))
+                relative_x = action.move_path[-1][0]
+                relative_y = action.move_path[-1][1]
+                relative_pos = (relative_x - entity_pos[0], relative_y - entity_pos[1])
+                valid_actions.append((1, relative_pos[0], relative_pos[1], 0))
             elif action.action_type == "disengage":
                 valid_actions.append((2, -1, -1, -1))
             elif action.action_type == 'dodge':

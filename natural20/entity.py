@@ -1,5 +1,6 @@
 from natural20.die_roll import DieRoll
 import math
+import pdb
 class Entity():
     def __init__(self, name, description, attributes = {}):
         self.name = name
@@ -447,7 +448,10 @@ class Entity():
         modifier = 0
 
         if weapon['type'] == 'melee_attack':
-            if 'finesse' in weapon.get('properties', []):
+            weapon_properties = weapon.get('properties', [])
+            if weapon_properties is None:
+                weapon_properties = []
+            if 'finesse' in weapon_properties:
                 modifier = max(self.str_mod(), self.dex_mod())
             else:
                 modifier = self.str_mod()
