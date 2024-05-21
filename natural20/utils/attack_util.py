@@ -1,5 +1,4 @@
 from natural20.map import Map
-from natural20.battle import Battle
 from natural20.entity import Entity
 from natural20.action import Action
 from natural20.die_roll import DieRoll
@@ -68,7 +67,7 @@ def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, op
     return force_miss
 
 
-def effective_ac(battle: Battle, source: Entity, target: Entity):
+def effective_ac(battle, source: Entity, target: Entity):
     cover_ac_adjustments = 0
     if battle and battle.map:
         cover_ac_adjustments = calculate_cover_ac(battle.map, source, target)

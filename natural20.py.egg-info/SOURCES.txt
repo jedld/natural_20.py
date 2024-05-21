@@ -36,4 +36,5 @@ natural20/utils/attack_util.py
 natural20/utils/movement.py
 natural20/utils/static_light_builder.py
 natural20/utils/utils.py
+tests/test_gym.py
 tests/test_map.py

@@ -9,7 +9,7 @@ class LookAction(Action):
 
     @staticmethod
     def can(entity, battle, options={}):
-        return battle is None or not battle.ongoing or battle.entity_state_for(entity)["active_perception"] == 0
+        return battle is None or (battle.ongoing and entity.total_actions(battle) > 0 and battle.entity_state_for(entity)["active_perception"] == 0)
 
     def __repr__(self) -> str:
         return "Look(perception check)"
@@ -49,3 +49,4 @@ class LookAction(Action):
             # })
             if item["ui_callback"]:
                 item["ui_callback"].target_ui(item["source"], perception=item["die_roll"].result, look_mode=True)
+            battle.consume(item['source'], 'action')

@@ -23,8 +23,6 @@ class dndenv(gym.Env):
     def __init__(self, view_port_size=(10, 10), max_rounds=10, render_mode = None, **kwargs):
         super().__init__()
 
-
-
         self.render_mode = render_mode
         self.view_port_size = view_port_size
         self.max_rounds = max_rounds
@@ -58,6 +56,7 @@ class dndenv(gym.Env):
             if group == 'b':
                 controller = GenericController(self.session)
                 controller.register_handlers_on(player)
+                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
             else:
                 self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
 
@@ -162,7 +161,11 @@ class dndenv(gym.Env):
         end_turn = False
         for action in available_actions:
             if action.action_type == "attack" and action_type == 0:
-                action.target = self.map.entity_at(param1, param2)
+                # convert from relative position to absolute map position
+                target_x = self.map.position_of(entity)[0] + param1
+                target_y = self.map.position_of(entity)[1] + param2
+                action.target = self.map.entity_at(target_x, target_y)
+                assert action.target is not None
                 self.battle.action(action)
                 self.battle.commit(action)
                 break
@@ -191,6 +194,10 @@ class dndenv(gym.Env):
                 self.battle.action(action)
                 self.battle.commit(action)
                 break
+            elif action.action_type == "look" and action_type == 7:
+                self.battle.action(action)
+                self.battle.commit(action)
+                break
             elif action.action_type == "end" and action_type == 99:
                 end_turn = True
                 break
@@ -201,37 +208,54 @@ class dndenv(gym.Env):
         
         reward = 0
         done = False
+
         if len(available_actions) == 0 or end_turn:
             self.battle.end_turn()
-            self.battle.start_turn()
-            # if group b then let the adversary take a turn
-            if self.battle.entity_group_for(self.battle.current_turn()) == 'b':
-                controller = self.battle.controller_for(self.battle.current_turn())
-                while True:
-                    action = controller.move_for(self.battle.current_turn())
-                    if action is None:
-                        break
-                    self.battle.action(action)
-                    self.battle.commit(action)
-                self.battle.end_turn()
-                self.battle.start_turn()
-
-            if self.battle.current_turn().conscious():
-                self.battle.current_turn().reset_turn(self.battle)
+            print("==== end turn ===")
             result = self.battle.next_turn(max_rounds=self.max_rounds)
-
-            print(f"Result: {result}")
             if result == 'tpk' and entity.conscious() and self.battle.entity_group_for(entity) == 'a':
                 reward = 10
+                done = True
             else:
-                reward = -1
+                self.battle.start_turn()
+                current_player = self.battle.current_turn()
+                current_player.reset_turn(self.battle)
+                player_group = self.battle.entity_group_for(current_player)
+                print(f"==== current turn {current_player.name} {player_group}===")
+                # if group b then let the adversary take a turn
+                if player_group == 'b':
+                    controller = self.battle.controller_for(current_player)
+                    while True:
+                        action = controller.move_for(current_player, self.battle)
+                        if action is None:
+                            print(f"no move for {current_player.name}")
+                            break
+                        self.battle.action(action)
+                        self.battle.commit(action)
+                    self.battle.end_turn()
+                    result = self.battle.next_turn(max_rounds=self.max_rounds)
+                    self.battle.start_turn()
+                    current_player = self.battle.current_turn()
+
+                if current_player.conscious():
+                    current_player.reset_turn(self.battle)
+
+                print(f"Result: {result}")
+                if result == 'tpk' and entity.conscious() and self.battle.entity_group_for(entity) == 'a':
+                    reward = 10
+                else:
+                    reward = -1
 
         observation = {
             "map": self._render_terrain(),
             "turn_info": [entity.total_actions(self.battle), entity.total_bonus_actions(self.battle), entity.total_reactions(self.battle)],
             "movement": self.battle.current_turn().available_movement(self.battle)
-        }              
-        return observation, reward, done, { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }      
+        }
+        _available_moves =   self._compute_available_moves(self.battle.current_turn(), self.battle)
+        if not done:
+            print(f"Available moves: {available_actions}")
+            assert len(_available_moves) > 0
+        return observation, reward, done, { "available_moves": _available_moves, "current_index" : self.battle.current_turn_index }      
 
     def _action_type_to_int(self, action_type):
         if action_type == "attack":
@@ -248,6 +272,8 @@ class dndenv(gym.Env):
             return 5
         elif action_type == "stand":
             return 6
+        elif action_type == "look":
+            return 7
         else:
             return -1
 
@@ -271,7 +297,7 @@ class dndenv(gym.Env):
                     targets = self.map.entity_squares(valid_targets[0])
                     
                     for target in targets:
-                        relative_pos = (target[0] - entity_pos[0], target[1] - entity_pos[1])
+                        relative_pos = (entity_pos[0] - target[0], entity_pos[1] - target[1])
                         if relative_pos[0] >=0 and relative_pos[0] < self.view_port_size[0] and relative_pos[1] >= 0 and relative_pos[1] < self.view_port_size[1]:
                             valid_actions.append((0, relative_pos[0], relative_pos[1], -1))
             elif action.action_type == "move":
@@ -286,6 +312,10 @@ class dndenv(gym.Env):
                 valid_actions.append((4, -1, -1, -1))
             elif action.action_type == 'dash_bonus':
                 valid_actions.append((5, -1, -1, -1))
+            elif action.action_type == 'stand':
+                valid_actions.append((6, -1, -1, -1))
+            
+            
 
         return valid_actions
 

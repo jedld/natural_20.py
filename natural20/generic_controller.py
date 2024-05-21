@@ -1,6 +1,8 @@
 import random
 from natural20.actions.look_action import LookAction
 from natural20.actions.stand_action import StandAction
+from natural20.actions.attack_action import AttackAction
+from natural20.actions.move_action import MoveAction
 from natural20.gym.types import EnvObject, Environment
 from natural20.entity import Entity
 from natural20.action import Action
@@ -34,13 +36,13 @@ class GenericController:
                 action.as_reaction = True
                 valid_actions.append(action)
 
-        environment, entity = self._build_environment(battle, entity)
-        selected_action = self.select_action(environment, entity, valid_actions )
+        _, entity = self._build_environment(battle, entity)
+        selected_action = self.select_action(battle, entity, valid_actions )
         return selected_action
 
-    def select_action(self, environment, entity, available_actions = []) -> Action:
+    def select_action(self, battle, entity, available_actions = []) -> Action:
         if len(available_actions) > 0:
-            action = random.choice(available_actions)
+            action = self._sort_actions(battle, available_actions)[0]
             print(f"{entity.name}: {action}")
             return action
         
@@ -50,9 +52,8 @@ class GenericController:
     def move_for(self, entity: Entity, battle):
         # choose available moves at random and return it
         available_actions = self._compute_available_moves(entity, battle)
-
-        environment, entity = self._build_environment(battle, entity)
-        return self.select_action(environment, entity, available_actions)
+        # environment, entity = self._build_environment(battle, entity)
+        return self.select_action(battle, entity, available_actions)
     
     # Build a suitable environment for Reinforcement Learning
     def _build_environment(self, battle, entity):
@@ -150,4 +151,43 @@ class GenericController:
 
         return valid_actions
 
-        
+    def _get_enemy_positions(self, battle, entity):
+        enemy_positions = {}
+        self._observe_enemies(battle, entity, enemy_positions)
+        return enemy_positions
+    
+    # Sort actions based on success rate and damage
+    def _sort_actions(self, battle, available_actions):
+        sorted_actions = []
+        for action in available_actions:
+            if isinstance(action, AttackAction):
+                base_score = action.compute_hit_probability(battle) * action.avg_damage(battle)
+                sorted_actions.append((action, base_score))
+            elif isinstance(action, MoveAction):
+                # get known enemy position
+                enemy_positions = self._get_enemy_positions(battle, action.source)
+                # get the closest enemy
+                closest_enemy = None
+                min_distance = math.inf
+                for enemy, location in enemy_positions.items():
+                    distance = battle.map.distance(action.source, location)
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest_enemy = enemy
+                if closest_enemy:
+                    # get the distance to the closest enemy
+                    new_position = action.move_path[-1]
+
+                    distance = battle.map.distance(action.source, enemy_positions[closest_enemy])
+                    new_distance = battle.map.distance(action.source, enemy_positions[closest_enemy], entity_1_pos=new_position)
+
+                    # select movement which brings closer to the enemy
+                    score = distance - new_distance
+                    sorted_actions.append((action, score))
+                else:
+                    sorted_actions.append((action, 0))
+            else:
+                sorted_actions.append((action, 0))
+        sorted_actions.sort(key=lambda a: a[1], reverse=True)
+        sorted_actions = [a[0] for a in sorted_actions]
+        return sorted_actions
