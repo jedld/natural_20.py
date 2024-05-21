@@ -176,6 +176,8 @@ class dndenv(gym.Env):
         available_actions = entity.available_actions(self.session, self.battle)
         truncated = False
         end_turn = False
+        reward = 0
+
         for action in available_actions:
             if action.action_type == "attack" and action_type == 0:
                 # convert from relative position to absolute map position
@@ -229,7 +231,6 @@ class dndenv(gym.Env):
                 
         available_actions = entity.available_actions(self.session, self.battle)
         
-        reward = 0
         done = False
 
         if len(available_actions) == 0 or end_turn:
@@ -266,13 +267,12 @@ class dndenv(gym.Env):
                 print(f"Result: {result}")
 
                 if result == 'tpk':
+                    # Victory!!!!
                     if entity.conscious() and self.battle.entity_group_for(entity) == 'a':
                         reward = 10
                     else:
                         reward = -10
                     done = True
-                else:
-                    reward = -1
 
         observation = {
             "map": self._render_terrain(),
