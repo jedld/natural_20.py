@@ -177,7 +177,7 @@ class GenericController:
                 if closest_enemy:
                     # get the distance to the closest enemy
                     new_position = action.move_path[-1]
-                    print(f"closest_enemy {closest_enemy.name} {enemy_positions[closest_enemy]}")
+                    # print(f"closest_enemy {closest_enemy.name} {enemy_positions[closest_enemy]}")
                     distance = battle.map.distance(action.source, closest_enemy)
                     new_distance = battle.map.distance(action.source, closest_enemy, entity_1_pos=new_position)
 

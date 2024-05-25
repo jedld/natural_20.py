@@ -20,6 +20,7 @@ import random
 This is a custom environment for the game Dungeons and Dragons 5e. It is based on the OpenAI Gym environment.
 """
 class dndenv(gym.Env):
+    TOTAL_ACTIONS = 8
     def __init__(self, view_port_size=(10, 10), max_rounds=200, render_mode = None, **kwargs):
         super().__init__()
 
@@ -33,15 +34,15 @@ class dndenv(gym.Env):
         }
 
         self.observation_space = gym.spaces.Dict(spaces={
-            "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 4), dtype=int),
+            "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 2), dtype=int),
             "turn_info" : gym.spaces.Box(low=0, high=1, shape=(3,), dtype=int),
             "movement": gym.spaces.Discrete(255)
         })
 
         self.action_space = gym.spaces.Sequence(gym.spaces.Dict(spaces={
             "action": gym.spaces.Discrete(256),
-            "direction": gym.spaces.Discrete(8),
-            "target": gym.spaces.Discrete(256),
+            "param1": gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=int),
+            "param2": gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=int),
             "as_reaction": gym.spaces.Discrete(2)
         }))
 
@@ -60,7 +61,7 @@ class dndenv(gym.Env):
             col_arr = []
             for y in range(-view_h//2, view_h//2):
                 if pos_x + x < 0 or pos_x + x >= map_w or pos_y + y < 0 or pos_y + y >= map_h:
-                    col_arr.append([-1, 0, 0, 0])
+                    col_arr.append([-1, 0])
                 else:
                     terrain = self.map.base_map[pos_x + x][pos_y + y]
 
@@ -80,7 +81,7 @@ class dndenv(gym.Env):
                     else:
                         entity_int = 3
 
-                    col_arr.append([entity_int, terrain_int, 0, 0])
+                    col_arr.append([entity_int, terrain_int])
             
             result.append(col_arr)
         return np.array(result)
@@ -162,7 +163,7 @@ class dndenv(gym.Env):
         current_player = self.battle.current_turn()
         observation = {
             "map": self._render_terrain(),
-            "turn_info": [current_player.total_actions(self.battle), current_player.total_bonus_actions(self.battle), current_player.total_reactions(self.battle)],
+            "turn_info": np.array([current_player.total_actions(self.battle), current_player.total_bonus_actions(self.battle), current_player.total_reactions(self.battle)]),
             "movement": self.battle.current_turn().available_movement(self.battle)
         }
         return observation, { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }
@@ -193,8 +194,8 @@ class dndenv(gym.Env):
                     break
             elif action.action_type == "move" and action_type == 1:
                 entity_position = self.map.position_of(entity)
-                target_x = entity_position[0] + param1
-                target_y = entity_position[1] + param2
+                target_x = entity_position[0] + param1[0]
+                target_y = entity_position[1] + param1[1]
                 if action.move_path[-1] == [target_x, target_y]:
                     self.battle.action(action)
                     self.battle.commit(action)
@@ -276,7 +277,7 @@ class dndenv(gym.Env):
 
         observation = {
             "map": self._render_terrain(),
-            "turn_info": [entity.total_actions(self.battle), entity.total_bonus_actions(self.battle), entity.total_reactions(self.battle)],
+            "turn_info": np.array([entity.total_actions(self.battle), entity.total_bonus_actions(self.battle), entity.total_reactions(self.battle)]),
             "movement": self.battle.current_turn().available_movement(self.battle)
         }
         _available_moves =   self._compute_available_moves(self.battle.current_turn(), self.battle)
@@ -341,7 +342,7 @@ class dndenv(gym.Env):
                 relative_x = action.move_path[-1][0]
                 relative_y = action.move_path[-1][1]
                 relative_pos = (relative_x - entity_pos[0], relative_y - entity_pos[1])
-                valid_actions.append((1, relative_pos[0], relative_pos[1], 0))
+                valid_actions.append((1, (relative_pos[0], relative_pos[1]), 0, 0))
             elif action.action_type == "disengage":
                 valid_actions.append((2, -1, -1, -1))
             elif action.action_type == 'dodge':

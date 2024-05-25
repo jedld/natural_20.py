@@ -10,6 +10,5 @@ python -m unittest discover tests
 Run specific tests
 
 ```
-python -m unittest tests.test_models.TestModels.test_selectors_freeze
 python -m unittest tests.test_gym.TestGym.test_reset
 ```
