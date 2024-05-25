@@ -40,9 +40,9 @@ class dndenv(gym.Env):
         })
 
         self.action_space = gym.spaces.Sequence(gym.spaces.Dict(spaces={
-            "action": gym.spaces.Discrete(256),
+            "action": gym.spaces.Discrete(8),
             "param1": gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=int),
-            "param2": gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=int),
+            "param2": gym.spaces.Box(low=-view_port_size[0]//2, high=view_port_size[0]//2, shape=(2,), dtype=int),
             "as_reaction": gym.spaces.Discrete(2)
         }))
 
@@ -183,8 +183,8 @@ class dndenv(gym.Env):
             if action.action_type == "attack" and action_type == 0:
                 # convert from relative position to absolute map position
                 entity_position = self.map.position_of(entity)
-                target_x = entity_position[0] + param1
-                target_y = entity_position[1] + param2
+                target_x = entity_position[0] + param2[0]
+                target_y = entity_position[1] + param2[1]
                 target = self.map.entity_at(target_x, target_y)
 
                 if target == action.target:
@@ -324,7 +324,7 @@ class dndenv(gym.Env):
 
         # try to stand if prone
         if entity.prone() and StandAction.can(entity, battle):
-            valid_actions.append((6, -1, -1, -1))
+            valid_actions.append((6, -(1, -1), -1))
         
         entity_pos = self.map.position_of(entity)
 
@@ -337,22 +337,22 @@ class dndenv(gym.Env):
                     
                     for target in targets:
                         relative_pos = (target[0] - entity_pos[0], target[1] - entity_pos[1])
-                        valid_actions.append((0, relative_pos[0], relative_pos[1], -1))
+                        valid_actions.append((0, (0 , 0), (relative_pos[0], relative_pos[1]), -1))
             elif action.action_type == "move":
                 relative_x = action.move_path[-1][0]
                 relative_y = action.move_path[-1][1]
                 relative_pos = (relative_x - entity_pos[0], relative_y - entity_pos[1])
-                valid_actions.append((1, (relative_pos[0], relative_pos[1]), 0, 0))
+                valid_actions.append((1, (relative_pos[0], relative_pos[1]), (0, 0), 0))
             elif action.action_type == "disengage":
-                valid_actions.append((2, -1, -1, -1))
+                valid_actions.append((2, (-1, -1),(0, 0), 0))
             elif action.action_type == 'dodge':
-                valid_actions.append((3, -1, -1, -1))
+                valid_actions.append((3, (-1, -1),(0, 0), 0))
             elif action.action_type == 'dash':
-                valid_actions.append((4, -1, -1, -1))
+                valid_actions.append((4, (-1, -1),(0, 0), 0))
             elif action.action_type == 'dash_bonus':
-                valid_actions.append((5, -1, -1, -1))
+                valid_actions.append((5, (-1, -1),(0, 0), 0))
             elif action.action_type == 'stand':
-                valid_actions.append((6, -1, -1, -1))
+                valid_actions.append((6, (-1, -1),(0, 0), 0))
             
             
 
