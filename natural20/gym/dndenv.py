@@ -39,13 +39,13 @@ class dndenv(gym.Env):
             "movement": gym.spaces.Discrete(255)
         })
 
-        self.action_space = gym.spaces.Sequence(gym.spaces.Dict(spaces={
-            "action": gym.spaces.Discrete(8),
-            "param1": gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=int),
-            "param2": gym.spaces.Box(low=-view_port_size[0]//2, high=view_port_size[0]//2, shape=(2,), dtype=int),
-            "as_reaction": gym.spaces.Discrete(2)
-        }))
-
+        self.action_space = gym.spaces.Tuple([
+            gym.spaces.Box(low=-1, high=8, shape=(1,), dtype=int),
+            gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=int),
+            gym.spaces.Box(low=-view_port_size[0]//2, high=view_port_size[0]//2, shape=(2,), dtype=int),
+            gym.spaces.Discrete(2)
+        ])
+        
         self.reward_range = (-1, 1)
         self.metadata = {}
         self.spec = None
@@ -127,9 +127,15 @@ class dndenv(gym.Env):
             return None
 
     def reset(self, **kwargs) -> Dict[str, Any]:
-        # set seed
-        seed = kwargs.get('seed', 43)
+        # set seed, use random seed if not provided
+        seed = kwargs.get('seed', None)
+
+        if seed is None:
+            seed = random.randint(0, 1000000)
+
+        self.seed = seed # take note of seed for reproducibility
         random.seed(seed)
+
         self.session = Session('templates')
         self.map = Map('templates/maps/game_map.yml')
         self.battle = Battle(self.session, self.map)
@@ -173,6 +179,7 @@ class dndenv(gym.Env):
             return None, 0, True, True, None
         self.time_step += 1
         entity = self.battle.current_turn()
+        print(action)
         action_type, param1, param2, param3 = action
         available_actions = entity.available_actions(self.session, self.battle)
         truncated = False
@@ -187,8 +194,13 @@ class dndenv(gym.Env):
                 target_y = entity_position[1] + param2[1]
                 target = self.map.entity_at(target_x, target_y)
 
-                if target == action.target:
-                    assert action.target is not None
+                valid_targets = self.battle.valid_targets_for(entity, action)
+                if valid_targets:
+                    action.target = valid_targets[0]
+                    for valid_target in valid_targets:
+                        if target == valid_target:
+                            action.target = target
+                            break
                     self.battle.action(action)
                     self.battle.commit(action)
                     break
@@ -224,7 +236,7 @@ class dndenv(gym.Env):
                 self.battle.action(action)
                 self.battle.commit(action)
                 break
-            elif action.action_type == "end" and action_type == 99:
+            elif action_type == -1:
                 end_turn = True
                 break
             else:
@@ -245,25 +257,26 @@ class dndenv(gym.Env):
                 self.battle.start_turn()
                 current_player = self.battle.current_turn()
                 current_player.reset_turn(self.battle)
-                player_group = self.battle.entity_group_for(current_player)
-                print(f"==== current turn {current_player.name} {player_group}===")
-                # if group b then let the adversary take a turn
-                if player_group == 'b':
-                    controller = self.battle.controller_for(current_player)
-                    while True:
-                        action = controller.move_for(current_player, self.battle)
-                        if action is None:
-                            print(f"no move for {current_player.name}")
-                            break
-                        self.battle.action(action)
-                        self.battle.commit(action)
-                    self.battle.end_turn()
-                    result = self.battle.next_turn(max_rounds=self.max_rounds)
-                    self.battle.start_turn()
-                    current_player = self.battle.current_turn()
-
-                if current_player.conscious():
-                    current_player.reset_turn(self.battle)
+                print(f"==== current turn {current_player.name}===")
+                while True:
+                    player_group = self.battle.entity_group_for(current_player)
+                    if not player_group == 'a':
+                        controller = self.battle.controller_for(current_player)
+                        while True:
+                            action = controller.move_for(current_player, self.battle)
+                            if action is None:
+                                print(f"no move for {current_player.name}")
+                                break
+                            self.battle.action(action)
+                            self.battle.commit(action)
+                        self.battle.end_turn()
+                        result = self.battle.next_turn(max_rounds=self.max_rounds)
+                        self.battle.start_turn()
+                        current_player = self.battle.current_turn()
+                    elif player_group == 'a':
+                        if current_player.conscious():
+                            current_player.reset_turn(self.battle)
+                        break
 
                 print(f"Result: {result}")
 
@@ -280,7 +293,7 @@ class dndenv(gym.Env):
             "turn_info": np.array([entity.total_actions(self.battle), entity.total_bonus_actions(self.battle), entity.total_reactions(self.battle)]),
             "movement": self.battle.current_turn().available_movement(self.battle)
         }
-        _available_moves =   self._compute_available_moves(self.battle.current_turn(), self.battle)
+        _available_moves = self._compute_available_moves(self.battle.current_turn(), self.battle)
         if not done:
             # print(f"Available moves: {available_actions}")
             assert len(_available_moves) > 0
@@ -324,7 +337,7 @@ class dndenv(gym.Env):
 
         # try to stand if prone
         if entity.prone() and StandAction.can(entity, battle):
-            valid_actions.append((6, -(1, -1), -1))
+            valid_actions.append((6, (0, 0), (0, 0), 0))
         
         entity_pos = self.map.position_of(entity)
 
@@ -337,7 +350,7 @@ class dndenv(gym.Env):
                     
                     for target in targets:
                         relative_pos = (target[0] - entity_pos[0], target[1] - entity_pos[1])
-                        valid_actions.append((0, (0 , 0), (relative_pos[0], relative_pos[1]), -1))
+                        valid_actions.append((0, (0 , 0), (relative_pos[0], relative_pos[1]), 0))
             elif action.action_type == "move":
                 relative_x = action.move_path[-1][0]
                 relative_y = action.move_path[-1][1]
@@ -353,9 +366,7 @@ class dndenv(gym.Env):
                 valid_actions.append((5, (-1, -1),(0, 0), 0))
             elif action.action_type == 'stand':
                 valid_actions.append((6, (-1, -1),(0, 0), 0))
-            
-            
-
+        valid_actions.append((-1, (0, 0), (0, 0), 0))
         return valid_actions
 
 gym.register(id='dndenv-v0', entry_point=lambda **kwargs: dndenv(**kwargs))

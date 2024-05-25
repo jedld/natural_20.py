@@ -181,6 +181,22 @@ class Entity():
 
         return False
     
+    def hand_slots_required(self, item):
+        if item['type'] == 'armor':
+            return 0.0
+        elif item['light']:
+            return 0.5
+        elif item['two_handed']:
+            return 2.0
+        else:
+            return 1.0
+
+    def used_hand_slots(self, weapon_only=False):
+        equipped_items = [item for item in self.equipped_items() if item['subtype'] == 'weapon' or (not weapon_only and item['type'] == 'shield')]
+        hand_slots = sum(self.hand_slots_required(item) for item in equipped_items)
+
+        return hand_slots
+    
     @property
     def damage_vulnerabilities(self):
         return self.properties.get('damage_vulnerabilities', [])

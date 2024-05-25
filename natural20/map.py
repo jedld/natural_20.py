@@ -159,6 +159,9 @@ class Map():
     # @param pos_y [Integer]
     # @return [Natural20::Entity]
     def entity_at(self, pos_x, pos_y):
+        if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
+            return None
+        
         entity_data = self.tokens[pos_x][pos_y]
         if entity_data is None or len(entity_data) == 0:
             return None
