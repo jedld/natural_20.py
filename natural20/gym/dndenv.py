@@ -22,7 +22,7 @@ This is a custom environment for the game Dungeons and Dragons 5e. It is based o
 """
 class dndenv(gym.Env):
     TOTAL_ACTIONS = 8
-    def __init__(self, view_port_size=(10, 10), max_rounds=200, render_mode = None, **kwargs):
+    def __init__(self, view_port_size=(12, 12), max_rounds=200, render_mode = None, **kwargs):
         """
         Initializes the environment with the following parameters:
         - view_port_size: the size of the view port for the agent
@@ -77,7 +77,7 @@ class dndenv(gym.Env):
             col_arr = []
             for y in range(-view_h//2, view_h//2):
                 if pos_x + x < 0 or pos_x + x >= map_w or pos_y + y < 0 or pos_y + y >= map_h:
-                    col_arr.append([-1, 0, 0])
+                    col_arr.append([-1, -1, 0])
                 else:
                     terrain = self.map.base_map[pos_x + x][pos_y + y]
 
@@ -197,7 +197,7 @@ class dndenv(gym.Env):
         observation = {
             "map": self._render_terrain(),
             "turn_info": np.array([current_player.total_actions(self.battle), current_player.total_bonus_actions(self.battle), current_player.total_reactions(self.battle)]),
-            "health_pct": current_player.hp() / current_player.max_hp(),
+            "health_pct": np.array([current_player.hp() / current_player.max_hp()]),
             "movement": self.battle.current_turn().available_movement(self.battle)
         }
         return observation, { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }
@@ -222,15 +222,16 @@ class dndenv(gym.Env):
                 target = self.map.entity_at(target_x, target_y)
 
                 valid_targets = self.battle.valid_targets_for(entity, action)
-                if valid_targets:
-                    action.target = valid_targets[0]
-                    for valid_target in valid_targets:
-                        if target == valid_target:
-                            action.target = target
-                            break
-                    self.battle.action(action)
-                    self.battle.commit(action)
-                    break
+                if param3==0 or (param3 == 1 and action.ranged_attack()):
+                    if valid_targets:
+                        action.target = valid_targets[0]
+                        for valid_target in valid_targets:
+                            if target == valid_target:
+                                action.target = target
+                                break
+                        self.battle.action(action)
+                        self.battle.commit(action)
+                        break
             elif action.action_type == "move" and action_type == 1:
                 entity_position = self.map.position_of(entity)
                 target_x = entity_position[0] + param1[0]
@@ -318,7 +319,7 @@ class dndenv(gym.Env):
         observation = {
             "map": self._render_terrain(),
             "turn_info": np.array([entity.total_actions(self.battle), entity.total_bonus_actions(self.battle), entity.total_reactions(self.battle)]),
-            "health_pct": entity.hp() / entity.max_hp(),
+            "health_pct": np.array([entity.hp() / entity.max_hp()]),
             "movement": self.battle.current_turn().available_movement(self.battle)
         }
         _available_moves = self._compute_available_moves(self.battle.current_turn(), self.battle)
@@ -337,25 +338,7 @@ class dndenv(gym.Env):
                                                        "time_step": self.time_step,
                                                        "round" : self.current_round }      
 
-    def _action_type_to_int(self, action_type):
-        if action_type == "attack":
-            return 0
-        elif action_type == "move":
-            return 1
-        elif action_type == "disengage":
-            return 2
-        elif action_type == "dodge":
-            return 3
-        elif action_type == "dash":
-            return 4
-        elif action_type == "dash_bonus":
-            return 5
-        elif action_type == "stand":
-            return 6
-        elif action_type == "look":
-            return 7
-        else:
-            return -1
+    
 
     def _compute_available_moves(self, entity: Entity, battle):
         available_actions = entity.available_actions(self.session, battle)
@@ -378,7 +361,7 @@ class dndenv(gym.Env):
                     
                     for target in targets:
                         relative_pos = (target[0] - entity_pos[0], target[1] - entity_pos[1])
-                        valid_actions.append((0, (0 , 0), (relative_pos[0], relative_pos[1]), 0))
+                        valid_actions.append((0, (0 , 0), (relative_pos[0], relative_pos[1]), action.ranged_attack()))
             elif action.action_type == "move":
                 relative_x = action.move_path[-1][0]
                 relative_y = action.move_path[-1][1]
@@ -396,5 +379,25 @@ class dndenv(gym.Env):
                 valid_actions.append((6, (-1, -1),(0, 0), 0))
         valid_actions.append((-1, (0, 0), (0, 0), 0))
         return valid_actions
+
+def action_type_to_int(action_type):
+        if action_type == "attack":
+            return 0
+        elif action_type == "move":
+            return 1
+        elif action_type == "disengage":
+            return 2
+        elif action_type == "dodge":
+            return 3
+        elif action_type == "dash":
+            return 4
+        elif action_type == "dash_bonus":
+            return 5
+        elif action_type == "stand":
+            return 6
+        elif action_type == "look":
+            return 7
+        else:
+            return -1    
 
 gym.register(id='dndenv-v0', entry_point=lambda **kwargs: dndenv(**kwargs))
