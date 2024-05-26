@@ -86,17 +86,16 @@ class AttackAction(Action):
             }
         }
 
-    @staticmethod
     def build(session, source):
         action = AttackAction(session, source, 'attack')
         return action.build_map()
     
-    @staticmethod
     def apply(battle, item):
         if 'flavor' in item and item['flavor']:
-           print(item['flavor'])
-           # Natural20.EventManager.received_event({'event': 'flavor', 'source': item['source'], 'target': item['target'], 'text': item['flavor']})
-        
+            flavor = item['flavor']
+            if battle:
+                battle.session.log_event({'event': 'flavor', 'source': item['source'], 'target': item['target'], 'text': flavor})
+
         if item['type'] == 'prone':
             item['source'].prone()
         elif item['type'] == 'damage':
@@ -105,9 +104,8 @@ class AttackAction(Action):
         elif item['type'] == 'miss':
             AttackAction.consume_resource(battle, item)
             print(f"{item['source'].name} misses {item['target'].name}")
-            # Natural20.EventManager.received_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], 'attack_thrown': item['thrown'], 'advantage_mod': item['advantage_mod'], 'as_reaction': bool(item['as_reaction']), 'adv_info': item['adv_info'], 'source': item['source'], 'target': item['target'], 'event': 'miss'})
+            battle.session.log_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], 'attack_thrown': item['thrown'], 'advantage_mod': item['advantage_mod'], 'as_reaction': bool(item['as_reaction']), 'adv_info': item['adv_info'], 'source': item['source'], 'target': item['target'], 'event': 'miss'})
     
-    @staticmethod
     def consume_resource(battle, item):
         if item['ammo']:
             item['source'].deduct_item(item['ammo'], 1)
@@ -186,12 +184,12 @@ class AttackAction(Action):
         attack_roll = DieRoll.roll(f"1d20+{attack_mod}", disadvantage=self.with_disadvantage(),
                                     advantage=self.with_advantage(), description='dice_roll.attack',
                                     entity=self.source, battle=battle)
-        print(f"{self.source.name} rolls a {attack_roll} to attack {target.name}")
+        # print(f"{self.source.name} rolls a {attack_roll} to attack {target.name}")
         self.source.resolve_trigger('attack_resolved', {'target': target})
 
         if self.source.class_feature('lucky') and attack_roll.nat_1():
             attack_roll = attack_roll.reroll(lucky=True)
-            print(f"{self.source.name} uses lucky to reroll the attack roll to {attack_roll}")
+            # print(f"{self.source.name} uses lucky to reroll the attack roll to {attack_roll}")
 
         target_ac, _cover_ac = effective_ac(battle, self.source, target)
         after_attack_roll_hook(battle, target, self.source, attack_roll, target_ac)
@@ -199,7 +197,7 @@ class AttackAction(Action):
         if self.source.class_feature('sneak_attack') and (weapon.get('properties') and 'finesse' in weapon['properties'] or weapon['type'] == 'ranged_attack') and (self.with_advantage() or (battle and battle.enemy_in_melee_range(target, [self.source]))):
             sneak_attack_roll = DieRoll.roll(self.source.sneak_attack_level, crit=attack_roll.nat_20(),
                                                 description='dice_roll.sneak_attack', entity=self.source, battle=battle)
-            print(f"{self.source.name} rolls a {sneak_attack_roll} for sneak attack")
+            #  print(f"{self.source.name} rolls a {sneak_attack_roll} for sneak attack")
 
         damage = DieRoll.roll(damage_roll, crit=attack_roll.nat_20(), description='dice_roll.damage',
                                 entity=self.source, battle=battle)
@@ -209,8 +207,8 @@ class AttackAction(Action):
                 if roll in [1, 2]:
                     r = DieRoll.roll(f"1d{damage.die_sides}", description='dice_roll.great_weapon_fighting_reroll',
                                         entity=self.source, battle=battle)
-                    Natural20.EventManager.received_event({'roll': r, 'prev_roll': roll,
-                                                            'source': item['source'], 'event': 'great_weapon_fighting_roll'})
+                    battle.session.log_event({'roll': r, 'prev_roll': roll,
+                                               'source': self.source, 'event': 'great_weapon_fighting_roll'})
                     damage.rolls[i] = r.result
 
         damage = self.check_weapon_bonuses(battle, weapon, damage, attack_roll)

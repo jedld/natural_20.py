@@ -131,7 +131,6 @@ class Map():
     def look(self, entity, distance=None):
         visible_entities = {}
         for k, v in self.entities.items():
-            print(f"look {k.name} {v}")
             if k == entity:
                 continue
 

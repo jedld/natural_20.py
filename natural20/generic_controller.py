@@ -183,7 +183,7 @@ class GenericController:
 
                     # select movement which brings closer to the enemy
                     score = distance - new_distance
-                    print(f"scores {distance} {new_distance} {score}")
+                    # print(f"scores {distance} {new_distance} {score}")
                     sorted_actions.append((action, score))
                 else:
                     sorted_actions.append((action, 0))

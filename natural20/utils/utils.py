@@ -1,6 +1,6 @@
 import yaml
 import os
-from collections import defaultdict
+from collections import defaultdict, deque
 # typed: true
 class Session:
     def __init__(self, root_path=None):
@@ -16,7 +16,7 @@ class Session:
             'manual_dice_roll': False
         }
         self.game_time = 0
-
+        self.event_log = deque(maxlen=100)
         self.load_path = []
         self.load_path.append(os.path.join(self.root_path, 'locales'))
         self.default_locale = 'en'
@@ -40,6 +40,12 @@ class Session:
     @staticmethod
     def set_session(session):
         Session.session = session
+
+    def clear_event_log(self):
+        self.event_log.clear()
+
+    def log_event(self, event):
+        self.event_log.append(event)
 
     def update_settings(self, settings):
         valid_settings = ['manual_dice_roll']

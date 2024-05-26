@@ -34,8 +34,9 @@ class dndenv(gym.Env):
         }
 
         self.observation_space = gym.spaces.Dict(spaces={
-            "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 2), dtype=int),
+            "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 3), dtype=int),
             "turn_info" : gym.spaces.Box(low=0, high=1, shape=(3,), dtype=int),
+            "health_pct": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "movement": gym.spaces.Discrete(255)
         })
 
@@ -61,7 +62,7 @@ class dndenv(gym.Env):
             col_arr = []
             for y in range(-view_h//2, view_h//2):
                 if pos_x + x < 0 or pos_x + x >= map_w or pos_y + y < 0 or pos_y + y >= map_h:
-                    col_arr.append([-1, 0])
+                    col_arr.append([-1, 0, 0])
                 else:
                     terrain = self.map.base_map[pos_x + x][pos_y + y]
 
@@ -81,7 +82,12 @@ class dndenv(gym.Env):
                     else:
                         entity_int = 3
 
-                    col_arr.append([entity_int, terrain_int])
+                    if entity is not None:
+                        health_pct = int((entity.hp() / (entity.max_hp() + 0.00001)) * 255)
+                    else:
+                        health_pct = 0
+
+                    col_arr.append([entity_int, terrain_int, health_pct])
             
             result.append(col_arr)
         return np.array(result)
@@ -170,6 +176,7 @@ class dndenv(gym.Env):
         observation = {
             "map": self._render_terrain(),
             "turn_info": np.array([current_player.total_actions(self.battle), current_player.total_bonus_actions(self.battle), current_player.total_reactions(self.battle)]),
+            "health_pct": current_player.hp() / current_player.max_hp(),
             "movement": self.battle.current_turn().available_movement(self.battle)
         }
         return observation, { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }
@@ -179,7 +186,6 @@ class dndenv(gym.Env):
             return None, 0, True, True, None
         self.time_step += 1
         entity = self.battle.current_turn()
-        print(action)
         action_type, param1, param2, param3 = action
         available_actions = entity.available_actions(self.session, self.battle)
         truncated = False
@@ -291,6 +297,7 @@ class dndenv(gym.Env):
         observation = {
             "map": self._render_terrain(),
             "turn_info": np.array([entity.total_actions(self.battle), entity.total_bonus_actions(self.battle), entity.total_reactions(self.battle)]),
+            "health_pct": entity.hp() / entity.max_hp(),
             "movement": self.battle.current_turn().available_movement(self.battle)
         }
         _available_moves = self._compute_available_moves(self.battle.current_turn(), self.battle)
