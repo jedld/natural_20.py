@@ -25,12 +25,15 @@ class PlayerCharacter(Entity, Fighter, Rogue):
     super(PlayerCharacter, self).__init__(name, f"PC {name}", {})
     with open(template, 'r') as file:
       self.properties = yaml.safe_load(file)
+
+    if name is None:
+      self.name = self.properties['name']
+      
     race_file = self.properties['race']
     self.session = session
     self.equipped = self.properties['equipped']
     self.inventory = {}
-
-    with open(f"templates/races/{race_file}.yml") as file:
+    with open(f"{self.session.root_path}/races/{race_file}.yml") as file:
       self.race_properties = yaml.safe_load(file)
 
 
@@ -53,7 +56,7 @@ class PlayerCharacter(Entity, Fighter, Rogue):
       setattr(self, f"{klass}_level", level)
       getattr(self, f"initialize_{klass}")()
 
-      character_class_properties = yaml.safe_load(open(f"templates/char_classes/{klass}.yml"))
+      character_class_properties = yaml.safe_load(open(f"{self.session.root_path}/char_classes/{klass}.yml"))
       self.max_hit_die[klass] = level
 
       hit_die_details = DieRoll.parse(character_class_properties['hit_die'])

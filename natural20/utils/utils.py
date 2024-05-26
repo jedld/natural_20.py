@@ -26,7 +26,7 @@ class Session:
             with open(game_file, 'r') as f:
                 self.game_properties = yaml.safe_load(f)
         else:
-            raise Exception('Missing game')
+            raise Exception(f'Missing game {game_file} file')
 
     @staticmethod
     def new_session(root_path=None):

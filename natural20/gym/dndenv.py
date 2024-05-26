@@ -15,6 +15,7 @@ from natural20.entity import Entity
 from natural20.actions.look_action import LookAction
 from natural20.actions.stand_action import StandAction
 import random
+import os
 
 """
 This is a custom environment for the game Dungeons and Dragons 5e. It is based on the OpenAI Gym environment.
@@ -22,6 +23,16 @@ This is a custom environment for the game Dungeons and Dragons 5e. It is based o
 class dndenv(gym.Env):
     TOTAL_ACTIONS = 8
     def __init__(self, view_port_size=(10, 10), max_rounds=200, render_mode = None, **kwargs):
+        """
+        Initializes the environment with the following parameters:
+        - view_port_size: the size of the view port for the agent
+        - max_rounds: the maximum number of rounds before the game ends
+        - render_mode: the mode to render the game in
+        - root_path: the root path for the game
+        - map_file: the file to load the map from
+        - profiles: the profiles to load for the heroes
+        - enemies: the profiles to load for the enemies
+        """
         super().__init__()
 
         self.render_mode = render_mode
@@ -51,6 +62,10 @@ class dndenv(gym.Env):
         self.metadata = {}
         self.spec = None
         self._seed = None
+        self.root_path = kwargs.get('root_path', 'templates')
+        self.map_file = kwargs.get('map_file', 'maps/game_map.yml')
+        self.heroes = kwargs.get('profiles', ['high_elf_fighter.yml'])
+        self.enemies = kwargs.get('enemies', ['halfling_rogue.yml'])
 
     def _render_terrain(self):
         result = []
@@ -136,14 +151,16 @@ class dndenv(gym.Env):
         # set seed, use random seed if not provided
         seed = kwargs.get('seed', None)
 
+
         if seed is None:
             seed = random.randint(0, 1000000)
 
         self.seed = seed # take note of seed for reproducibility
         random.seed(seed)
-
-        self.session = Session('templates')
-        self.map = Map('templates/maps/game_map.yml')
+        map_location = kwargs.get('map_location', os.path.join(self.root_path, self.map_file))
+        print("loading map from ", map_location)
+        self.session = Session(self.root_path)
+        self.map = Map(map_location)
         self.battle = Battle(self.session, self.map)
         self.players = []
         self.current_round = 0
@@ -155,8 +172,12 @@ class dndenv(gym.Env):
         while  enemy_pos is None or enemy_pos==player_pos:
             enemy_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
 
-        self.players.append(('a', 'G', PlayerCharacter(self.session, 'templates/characters/high_elf_fighter.yml', name="Gomerin"), player_pos))
-        self.players.append(('b', 'R', PlayerCharacter(self.session, 'templates/characters/halfling_rogue.yml', name="Rogin"), enemy_pos))
+        character_sheet_path = os.path.join(self.root_path, 'characters')
+        for p in self.heroes:
+            self.players.append(('a', 'H', PlayerCharacter(self.session, f'{character_sheet_path}/{p}'), player_pos))
+
+        for p in self.enemies:
+            self.players.append(('b', 'E', PlayerCharacter(self.session, f'{character_sheet_path}/{p}'), enemy_pos))
 
         # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
         for group, token, player, position in self.players:
