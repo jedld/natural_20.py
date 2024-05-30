@@ -122,6 +122,11 @@ class StateToPrompt:
                 message = f"help action\n"
             elif action_type == action_type_to_int("hide"):
                 message = f"hide action\n"
+            elif action_type == action_type_to_int("stand"):
+                message = f"stand action\n"
+            else:
+                message = f"unknown action {action_type}\n"
+                raise ValueError(f"Unknown action type {action_type}")
 
             prompt += f"{index + 1}: {message}\n"
         return prompt
@@ -164,7 +169,7 @@ class StateToPrompt:
 
 MAX_EPISODES = 100
 
-api_key='OPENAI API KEY HERE'
+api_key='OPEN AI KEY HERE'
 env = make("dndenv-v0", root_path="templates", render_mode="ansi")
 observation, info = env.reset(seed=42)
 

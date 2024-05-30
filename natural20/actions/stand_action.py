@@ -12,7 +12,7 @@ class StandAction(Action):
 
     @staticmethod
     def can(entity, battle):
-        return battle and entity.prone and entity.speed > 0 and entity.available_movement(battle) >= StandAction.required_movement(entity)
+        return battle and entity.prone() and entity.speed() > 0 and entity.available_movement(battle) >= StandAction.required_movement(entity)
 
     def build_map(self):
         return SimpleNamespace(param=None, next=lambda: self)
@@ -31,10 +31,11 @@ class StandAction(Action):
         return self
 
     @staticmethod
-    def apply_(battle, item):
+    def apply(battle, item):
         if item["type"] == "stand":
+            print(f"{item['source'].name} stands up.")
             item["source"].stand()
-            battle.consume(item["source"], "movement", (item["source"].speed // 2))
+            battle.consume(item["source"], "movement", (item["source"].speed() // 2))
 
     @staticmethod
     def required_movement(entity: Entity):

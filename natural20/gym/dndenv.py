@@ -320,6 +320,10 @@ class dndenv(gym.Env):
 
                         self.battle.end_turn()
                         result = self.battle.next_turn(max_rounds=self.max_rounds)
+
+                        if result == 'tpk':
+                            break
+                        
                         self.battle.start_turn()
                         current_player = self.battle.current_turn()
                     elif player_group == 'a':

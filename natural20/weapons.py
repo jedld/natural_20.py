@@ -52,15 +52,15 @@ def compute_advantages_and_disadvantages(battle, source, target, weapon, source_
         advantage += advantage_mod
         disadvantage += disadvantage_mod
 
-    if source.prone:
+    if source.prone():
         disadvantage.append('prone')
-    if source.squeezed:
+    if source.squeezed():
         disadvantage.append('squeezed')
     if target.dodge(battle):
         disadvantage.append('target_dodge')
     if not source.proficient_with_equipped_armor():
         disadvantage.append('armor_proficiency')
-    if target.squeezed:
+    if target.squeezed():
         advantage.append('squeezed')
     if battle and battle.help_with(target):
         advantage.append('being_helped')
@@ -68,7 +68,7 @@ def compute_advantages_and_disadvantages(battle, source, target, weapon, source_
     if weapon and weapon['type'] == 'ranged_attack' and battle.map:
         if battle.enemy_in_melee_range(source, source_pos=source_pos):
             disadvantage.append('ranged_with_enemy_in_melee')
-        if target.prone:
+        if target.prone():
             disadvantage.append('target_is_prone_range')
         if weapon['range'] and battle.map.distance(source, target, entity_1_pos=source_pos) > weapon['range']:
             disadvantage.append('target_long_range')

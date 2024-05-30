@@ -76,7 +76,7 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
             break
 
         if not fixed_movement and (map.jump_required(entity, *m) or manual_jump and index in manual_jump):
-            if entity.prone:  # can't jump if prone
+            if entity.prone():  # can't jump if prone
                 impediment = 'prone_need_to_jump'
                 break
 

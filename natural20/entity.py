@@ -95,6 +95,8 @@ class Entity():
             self.drop_grapple()
             # Natural20.EventManager.received_event({ 'source': self, 'event': 'unconscious' })
             print(f"{self.name} is unconscious.")
+
+            self.statuses.append('prone')
             self.statuses.append('unconscious')
             
     def grappled(self):
@@ -106,6 +108,9 @@ class Entity():
     def conscious(self):
         return not self.dead() and not self.unconscious()
     
+    def stand(self):
+        self.statuses.remove('prone')
+
     def standing_jump_distance(self):
         return int(self.ability_scores.get('str') / 2)
     
@@ -349,6 +354,8 @@ class Entity():
     
     def prone(self):
         return 'prone' in self.statuses
+    
+
     
     def squeezed(self):
         return 'squeezed' in self.statuses
