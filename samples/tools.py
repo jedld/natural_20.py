@@ -45,10 +45,19 @@ class StateToPrompt:
             print(f"response time: {end_time - start_time}")
             print(f"response: {response}")
         # parse the response and return the action
-        # e.g. 1: attack enemy with ranged weapon
+        # e.g. 1: attack enemy with ranged weapon or Let's proceed with option [4], or just extract the first number
+        # from the response
 
-        response = response.split(":")[0].strip()
-        action = info['available_moves'][int(response) - 1]
+        for char in response:
+            if char.isdigit():
+                response = char
+                break 
+
+        try:
+            print(f"response: {response}")
+            action = info['available_moves'][int(response) - 1]
+        except:
+            print(f"unusual response: {response}")
         return action
 
 
@@ -152,11 +161,26 @@ class StateToPrompt:
 
         return prompt
 
-api_key='<YOUR_OPENAI_API_KEY>'
-env = make("dndenv-v0", root_path="templates")
-observation, info = env.reset(seed=42)
-print(observation)
 
-prompt = StateToPrompt(api_key=api_key, debug=True)
+MAX_EPISODES = 100
+
+api_key='OPENAI API KEY HERE'
+env = make("dndenv-v0", root_path="templates", render_mode="ansi")
+observation, info = env.reset(seed=42)
+
+prompt = StateToPrompt(api_key=api_key, debug=False)
 action = prompt.select_action_for_state(observation, info)
 print(f"selected action: {action}")
+
+terminal = False
+episode = 0
+
+while not terminal and episode < MAX_EPISODES:
+    observation, reward, terminal, truncated, info = env.step(action)
+    if not terminal and not truncated:
+        action = prompt.select_action_for_state(observation, info)
+        # print(f"selected action: {action}")
+        print(env.render())
+    if terminal or truncated:
+        print(f"Reward: {reward}")
+        break

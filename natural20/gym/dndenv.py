@@ -40,6 +40,7 @@ class dndenv(gym.Env):
         self.max_rounds = max_rounds
         self.current_round = 0
         self.time_step = 0
+        self.terminal = False
         self.metadata = {
             'render_modes': ['ansi']
         }
@@ -164,6 +165,7 @@ class dndenv(gym.Env):
         self.battle = Battle(self.session, self.map)
         self.players = []
         self.current_round = 0
+        self.terminal = False
 
         enemy_pos = None
         # set random starting positions
@@ -203,6 +205,10 @@ class dndenv(gym.Env):
         return observation, { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }
 
     def step(self, action):
+        if self.terminal:
+            observation, info = self._terminal_observation()
+            return observation, 0, True, False, info
+        
         if self.current_round >= self.max_rounds:
             return None, 0, True, True, None
         self.time_step += 1
@@ -269,9 +275,20 @@ class dndenv(gym.Env):
                 break
             else:
                 reward = -1
-                
+
+        # additional check for tpk
+        if self.battle.battle_ends():
+            if entity.conscious() and self.battle.entity_group_for(entity) == 'a':
+                reward = 10
+            else:
+                reward = -10
+            done = True
+            self.terminal = True
+
+            observation, info = self._terminal_observation()
+            return observation, reward, True, False, info
+
         available_actions = entity.available_actions(self.session, self.battle)
-        
         done = False
 
         if len(available_actions) == 0 or end_turn:
@@ -285,7 +302,7 @@ class dndenv(gym.Env):
                 self.battle.start_turn()
                 current_player = self.battle.current_turn()
                 current_player.reset_turn(self.battle)
-                print(f"==== current turn {current_player.name}===")
+                print(f"==== current turn {current_player.name} {current_player.hp()}/{current_player.max_hp()}===")
                 while True:
                     player_group = self.battle.entity_group_for(current_player)
                     if not player_group == 'a':
@@ -297,6 +314,10 @@ class dndenv(gym.Env):
                                 break
                             self.battle.action(action)
                             self.battle.commit(action)
+
+                            if self.battle.battle_ends():
+                                break
+
                         self.battle.end_turn()
                         result = self.battle.next_turn(max_rounds=self.max_rounds)
                         self.battle.start_turn()
@@ -339,7 +360,21 @@ class dndenv(gym.Env):
                                                        "round" : self.current_round }      
 
     
-
+    def _terminal_observation(self):
+        observation = {
+            "map": self._render_terrain(),
+            "turn_info": np.array([0, 0, 0]),
+            "health_pct": np.array([0]),
+            "movement": 0
+        }
+        info = {
+            "available_moves": [],
+            "current_index" : self.battle.current_turn_index,
+            "time_step": self.time_step,
+            "round" : self.current_round
+        }
+        return observation, info
+    
     def _compute_available_moves(self, entity: Entity, battle):
         available_actions = entity.available_actions(self.session, battle)
 
