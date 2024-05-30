@@ -13,6 +13,7 @@ class Entity():
         self.flying = False
         self.casted_effects = []
         self.death_fails = 0
+        self.death_saves = 0
         self.event_handlers = {}
     
     def __str__(self):
@@ -677,20 +678,20 @@ class Entity():
         self.attributes["hp"] = min(self.max_hp(), self.hp() + amt)
 
         if self.hp() > 0 and amt > 0:
-            if self.unconscious:
+            if self.unconscious():
                 print(f"{self.name} is now conscious because of healing and has {self.hp()} hp")
                 self.conscious()
             # Natural20.EventManager.received_event({'source': self, 'event': 'heal', 'previous': prev_hp, 'new': self.hp, 'value': amt})
     
     def death_saving_throw(self, battle=None):
         roll = DieRoll.roll('1d20', description='dice_roll.death_saving_throw', entity=self, battle=battle)
-        if roll.nat_20:
+        if roll.nat_20():
             self.make_conscious()
             self.heal(1)
             print(f"{self.name} rolled a natural 20 on a death saving throw and is now conscious with 1 hp")
             # Natural20.EventManager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
             #                                        'fails': self.death_fails, 'complete': True, 'stable': True, 'success': True})
-        elif roll.result >= 10:
+        elif roll.result() >= 10:
             self.death_saves += 1
             complete = False
             print(f"{self.name} succeeded a death saving throw ({self.death_saves}/3)")
@@ -703,7 +704,7 @@ class Entity():
             # Natural20.EventManager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
             #                                        'fails': self.death_fails, 'complete': complete, 'stable': complete})
         else:
-            self.death_fails += 2 if roll.nat_1 else 1
+            self.death_fails += 2 if roll.nat_1() else 1
             complete = False
             if self.death_fails >= 3:
                 complete = True

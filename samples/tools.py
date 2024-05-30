@@ -124,6 +124,8 @@ class StateToPrompt:
                 message = f"hide action\n"
             elif action_type == action_type_to_int("stand"):
                 message = f"stand action\n"
+            elif action_type == action_type_to_int("second_wind"):
+                message = f"second wind action\n"
             else:
                 message = f"unknown action {action_type}\n"
                 raise ValueError(f"Unknown action type {action_type}")

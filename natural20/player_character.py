@@ -10,6 +10,7 @@ from natural20.actions.move_action import MoveAction
 from natural20.actions.dodge_action import DodgeAction
 from natural20.actions.disengage_action import DisengageAction
 from natural20.actions.dash import DashAction, DashBonusAction
+from natural20.actions.second_wind_action import SecondWindAction
 from natural20.utils.movement import compute_actual_moves
 import yaml
 import os
@@ -18,7 +19,7 @@ import copy
 class PlayerCharacter(Entity, Fighter, Rogue):
   ACTION_LIST = [
     LookAction, AttackAction, MoveAction, DisengageAction, DodgeAction, DashAction, DashBonusAction,
-    TwoWeaponAttackAction
+    TwoWeaponAttackAction, SecondWindAction
   ]
 
   def __init__(self, session, template, name=None):
@@ -143,6 +144,8 @@ class PlayerCharacter(Entity, Fighter, Rogue):
           action_list.append(DodgeAction(session, self, 'dodge'))
         elif action_type == DisengageAction:
           action_list.append(DisengageAction(session, self, 'disengage'))
+        elif action_type == SecondWindAction:
+          action_list.append(SecondWindAction(session, self, 'second_wind'))
         if action_type == DashBonusAction:
           action = DashBonusAction(session, self, 'dash_bonus')
           action.as_bonus_action = True

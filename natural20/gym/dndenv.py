@@ -270,6 +270,10 @@ class dndenv(gym.Env):
                 self.battle.action(action)
                 self.battle.commit(action)
                 break
+            elif action.action_type == "second_wind" and action_type == 8:
+                self.battle.action(action)
+                self.battle.commit(action)
+                break
             elif action_type == -1:
                 end_turn = True
                 break
@@ -323,7 +327,7 @@ class dndenv(gym.Env):
 
                         if result == 'tpk':
                             break
-                        
+
                         self.battle.start_turn()
                         current_player = self.battle.current_turn()
                     elif player_group == 'a':
@@ -416,6 +420,8 @@ class dndenv(gym.Env):
                 valid_actions.append((5, (-1, -1),(0, 0), 0))
             elif action.action_type == 'stand':
                 valid_actions.append((6, (-1, -1),(0, 0), 0))
+            elif action.action_type == 'second_wind':
+                valid_actions.append((8, (-1, -1),(0, 0), 0))
         valid_actions.append((-1, (0, 0), (0, 0), 0))
         return valid_actions
 
@@ -436,6 +442,8 @@ def action_type_to_int(action_type):
             return 6
         elif action_type == "look":
             return 7
+        elif action_type == "second_wind":
+            return 8
         else:
             return -1    
 

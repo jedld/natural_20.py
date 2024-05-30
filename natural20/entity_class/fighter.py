@@ -12,7 +12,7 @@ class Fighter():
 
     def second_wind_die(self):
         return f"1d10+{self.fighter_level}"
-
+    
     def second_wind(self, amt):
         self.second_wind_count -= 1
         self.heal(amt)
