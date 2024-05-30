@@ -38,8 +38,7 @@ class SecondWindAction(Action):
     @staticmethod
     def apply(battle, item):
         if item['type'] == 'second_wind':
-            # Natural20.EventManager.received_event(action=SecondWindAction, source=item['source'], roll=item['roll'],
-            #                                       event='second_wind')
+            print(f"{item['source'].name} uses Second Wind with {item['roll']} healing")
             item['source'].second_wind(item['roll'].result())
             battle.entity_state_for(item['source'])['bonus_action'] -= 1
 

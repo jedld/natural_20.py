@@ -56,7 +56,8 @@ class StateToPrompt:
         try:
             print(f"response: {response}")
             action = info['available_moves'][int(response) - 1]
-        except:
+        except Exception as e:
+            print(e)
             print(f"unusual response: {response}")
         return action
 
@@ -78,7 +79,8 @@ class StateToPrompt:
         prompt = instruction_prompt        
         prompt += self.map_to_prompt(map)
         prompt += self.action_to_prompt(info['available_moves'])
-        prompt += "\n\nPlease choose the number corresponding to the action you would like to take. No need to explain and elaborate.\n"
+        prompt += "\n\nPlease choose the number corresponding to the action you would like to take.\n"
+        prompt += "No need to explain and elaborate.\n"
         return prompt
     
     def action_to_prompt(self, actions):
@@ -138,7 +140,7 @@ class StateToPrompt:
         prompt += "areas with no characters are represented by a dot (.)\n"
         prompt += "the hero character is represented by a P\n"
         prompt += "the enemy character is represented by an E\n"
-        prompt += "areas outside of the map are represented by a hash (#)\n"
+        prompt += "areas outside of the map are represented by a hash (#), you cannot move to areas with #\n"
         prompt += "areas with obstacles are represented by an asterisk (*)\n"
         prompt += "Each tile of the map is 5ft by 5ft\n"
         prompt += "Here is the map:\n"
@@ -181,8 +183,9 @@ print(f"selected action: {action}")
 
 terminal = False
 episode = 0
-
 while not terminal and episode < MAX_EPISODES:
+    episode += 1
+
     observation, reward, terminal, truncated, info = env.step(action)
     if not terminal and not truncated:
         action = prompt.select_action_for_state(observation, info)
