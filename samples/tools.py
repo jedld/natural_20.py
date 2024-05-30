@@ -179,7 +179,7 @@ class StateToPrompt:
 
 MAX_EPISODES = 20
 
-api_key='PLACE OPEN AI KEY HERE'
+api_key='OPEN AI API KEY HERE'
 env = make("dndenv-v0", root_path="templates", render_mode="ansi")
 observation, info = env.reset(seed=42)
 

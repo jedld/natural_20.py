@@ -710,7 +710,12 @@ class Entity():
             # Natural20.EventManager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
             #                                        'fails': self.death_fails, 'complete': complete, 'stable': complete})
         else:
-            self.death_fails += 2 if roll.nat_1() else 1
+            if roll.nat_1():
+                print(f"{self.name} rolled a natural 1 on a death saving throw :(")
+                self.death_fails += 2 
+            else:
+                self.death_fails += 1
+
             complete = False
             if self.death_fails >= 3:
                 complete = True
