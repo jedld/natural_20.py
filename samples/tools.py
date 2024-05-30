@@ -29,7 +29,7 @@ class StateToPrompt:
         start_time = time.time()
 
         if self.debug:
-            print(f"prompt: {prompt}")
+            print(f"prompt: -------------------------------\n{prompt}\n---------------------------------")
         chat_completion = self.client.chat.completions.create(
             messages=[
                 {
@@ -55,7 +55,10 @@ class StateToPrompt:
 
         try:
             print(f"response: {response}")
-            action = info['available_moves'][int(response) - 1]
+            if int(response) == 0:
+                action = (-1, (0, 0), (0, 0), 0)
+            else:
+                action = info['available_moves'][int(response) - 1]
         except Exception as e:
             print(e)
             print(f"unusual response: {response}")
@@ -80,11 +83,14 @@ class StateToPrompt:
         prompt += self.map_to_prompt(map)
         prompt += self.action_to_prompt(info['available_moves'])
         prompt += "\n\nPlease choose the number corresponding to the action you would like to take.\n"
-        prompt += "No need to explain and elaborate.\n"
+        prompt += "Provide the number as your first answer in the following format, for example:\n"
+        prompt += "1: attack enemy with ranged weapon\n"
+        prompt += "No need to explain just provide the answer."
         return prompt
     
     def action_to_prompt(self, actions):
         prompt = "\n\nHere are the available actions you can take, please choose the number corresponding to the action:\n"
+        prompt += "0: end my turn\n"
         for index, action in enumerate(actions):
             action_type, param1, param2, param3 = action
             if action_type == action_type_to_int("move"):
@@ -106,7 +112,6 @@ class StateToPrompt:
                     message += f"up and to the right\n"
                 elif (x > 0 and y > 0):
                     message += f"down and to the right\n"
-
                 
             elif action_type == action_type_to_int("attack"):
                 message = f"attack enemy "
@@ -133,6 +138,7 @@ class StateToPrompt:
                 raise ValueError(f"Unknown action type {action_type}")
 
             prompt += f"{index + 1}: {message}\n"
+        
         return prompt
 
     def map_to_prompt(self, map):
@@ -140,7 +146,7 @@ class StateToPrompt:
         prompt += "areas with no characters are represented by a dot (.)\n"
         prompt += "the hero character is represented by a P\n"
         prompt += "the enemy character is represented by an E\n"
-        prompt += "areas outside of the map are represented by a hash (#), you cannot move to areas with #\n"
+        prompt += "areas outside of the map are represented by a hash (_), you cannot move to areas with _\n"
         prompt += "areas with obstacles are represented by an asterisk (*)\n"
         prompt += "Each tile of the map is 5ft by 5ft\n"
         prompt += "Here is the map:\n"
@@ -152,7 +158,7 @@ class StateToPrompt:
                 entity, terrain, health_pct = col
 
                 if terrain == -1:
-                    token = "#"
+                    token = "_"
                 elif terrain == 1:
                     token = "*"
                 elif terrain == 0:
@@ -171,26 +177,28 @@ class StateToPrompt:
         return prompt
 
 
-MAX_EPISODES = 100
+MAX_EPISODES = 20
 
-api_key='OPEN AI KEY HERE'
+api_key='PLACE OPEN AI KEY HERE'
 env = make("dndenv-v0", root_path="templates", render_mode="ansi")
 observation, info = env.reset(seed=42)
 
-prompt = StateToPrompt(api_key=api_key, debug=False)
+prompt = StateToPrompt(api_key=api_key, debug=True)
 action = prompt.select_action_for_state(observation, info)
 print(f"selected action: {action}")
-
 terminal = False
 episode = 0
 while not terminal and episode < MAX_EPISODES:
     episode += 1
-
     observation, reward, terminal, truncated, info = env.step(action)
     if not terminal and not truncated:
+        # print(env.render())
+        # for action in info['available_moves']:
+        #     print(action)
+        # action = random.choice(info['available_moves'])
         action = prompt.select_action_for_state(observation, info)
-        # print(f"selected action: {action}")
-        print(env.render())
+        print(f"selected action: {action}")
+
     if terminal or truncated:
         print(f"Reward: {reward}")
         break

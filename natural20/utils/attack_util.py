@@ -4,6 +4,13 @@ from natural20.action import Action
 from natural20.die_roll import DieRoll
 import pdb
 
+def to_advantage_str(item):
+    if 'adv_info' not in item:
+        return ''
+    advantage_info, disadvantage_info = item['adv_info']
+    advantage_str = f' with advantage{advantage_info}' if item['advantage_mod'] > 0 else f' with disadvantage{disadvantage_info}' if item['advantage_mod'] < 0 else ''
+    return advantage_str
+
 def damage_event(item, battle):
     target = item['target']
     dmg = item['damage'].result() if isinstance(item['damage'], DieRoll) else item['damage']
@@ -16,7 +23,7 @@ def damage_event(item, battle):
     else:
         total_damage = dmg
     
-    print(f"{item['source'].name} attacks {item['target'].name} using {item['attack_name']} for ({item['damage']}) {total_damage} damage!")
+    print(f"{item['source'].name} attacks {item['target'].name}{to_advantage_str(item)} using {item['attack_name']} for ({item['damage']}) {total_damage} damage!")
 
     # Natural20.EventManager.received_event({
     #     'source': item['source'],

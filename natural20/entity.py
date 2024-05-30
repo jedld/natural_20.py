@@ -355,9 +355,7 @@ class Entity():
     
     def prone(self):
         return 'prone' in self.statuses
-    
-
-    
+   
     def squeezed(self):
         return 'squeezed' in self.statuses
     
@@ -511,6 +509,7 @@ class Entity():
 
         for item in shields_and_armor:
             if not self.proficient_with_armor(item['name']):
+                print(f"not proficient with {item['name']}")
                 return False
 
         return True
@@ -518,6 +517,7 @@ class Entity():
     def proficient(self, prof):
         return (prof in self.properties.get('skills', []) or
                 prof in self.properties.get('tools', []) or
+                prof in self.properties.get('weapon_proficiencies', []) or
                 f"{prof}_save" in self.properties.get('saving_throw_proficiencies', []))
     
     def proficient_with_armor(self, item):
@@ -529,6 +529,7 @@ class Entity():
 
         if armor['type'] == 'armor':
             return self.proficient(f"{armor['subtype']}_armor")
+        
         elif armor['type'] == 'shield':
             return self.proficient('shields')
 
@@ -660,6 +661,11 @@ class Entity():
             return result
 
         return None
+    
+    def make_stable(self):
+        self.statuses.append("stable")
+        self.death_fails = 0
+        self.death_saves = 0
     
     def make_conscious(self):
         self.statuses.remove("unconscious")

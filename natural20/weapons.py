@@ -37,9 +37,8 @@ def target_advantage_condition(battle, source, target, weapon, source_pos=None, 
     advantages, disadvantages = compute_advantages_and_disadvantages(battle, source, target, weapon,
                                                                      source_pos=source_pos, overrides=overrides)
     advantage_ctr = 0
-    advantage_ctr += 1 if not advantages else 0
-    advantage_ctr -= 1 if not disadvantages else 0
-
+    advantage_ctr += 1 if advantages else 0
+    advantage_ctr -= 1 if disadvantages else 0
     return [advantage_ctr, [advantages, disadvantages]]
 
 def compute_advantages_and_disadvantages(battle, source, target, weapon, source_pos=None, overrides={}):
@@ -79,7 +78,7 @@ def compute_advantages_and_disadvantages(battle, source, target, weapon, source_
     if weapon and 'heavy' in weapon.get('properties', []) and source.size == 'small':
         disadvantage.append('small_creature_using_heavy')
 
-    if weapon and weapon['type'] == 'melee_attack' and target.prone:
+    if weapon and weapon['type'] == 'melee_attack' and target.prone():
         advantage.append('target_is_prone')
 
     if battle and battle.map and not battle.can_see(target, source, entity_2_pos=source_pos):

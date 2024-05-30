@@ -74,9 +74,9 @@ class dndenv(gym.Env):
         pos_x, pos_y = self.map.position_of(current_player)
         view_w, view_h = self.view_port_size
         map_w, map_h = self.map.size
-        for x in range(-view_w//2, view_w//2):
+        for y in range(-view_w//2, view_w//2):
             col_arr = []
-            for y in range(-view_h//2, view_h//2):
+            for x in range(-view_h//2, view_h//2):
                 if pos_x + x < 0 or pos_x + x >= map_w or pos_y + y < 0 or pos_y + y >= map_h:
                     col_arr.append([-1, -1, 0])
                 else:
@@ -114,9 +114,9 @@ class dndenv(gym.Env):
         pos_x, pos_y = self.map.position_of(current_player)
         view_w, view_h = self.view_port_size
         map_w, map_h = self.map.size
-        for x in range(-view_w//2, view_w//2):
+        for y in range(-view_w//2, view_w//2):
             col_arr = []
-            for y in range(-view_h//2, view_h//2):
+            for x in range(-view_h//2, view_h//2):
                 if pos_x + x < 0 or pos_x + x >= map_w or pos_y + y < 0 or pos_y + y >= map_h:
                     col_arr.append("#")
                 else:
@@ -307,6 +307,17 @@ class dndenv(gym.Env):
                 current_player = self.battle.current_turn()
                 current_player.reset_turn(self.battle)
                 print(f"==== current turn {current_player.name} {current_player.hp()}/{current_player.max_hp()}===")
+
+                if current_player.dead():
+                    print(f"{current_player.name} is dead")
+                    if self.battle.entity_group_for(entity) == 'a':
+                        reward = 10
+                    else:
+                        reward = -10
+
+                    observation, info = self._terminal_observation()
+                    return observation, reward, True, False, info
+                
                 while True:
                     player_group = self.battle.entity_group_for(current_player)
                     if not player_group == 'a':

@@ -193,9 +193,9 @@ class DieRoll:
         rolls = []
         for r in self.rolls:
             if self.advantage:
-                rolls.append(' | '.join(self.color_roll(i).bold if i == max(r) else str(i) for i in r))
+                rolls.append(' | '.join(self.color_roll(i) if i == max(r) else str(i) for i in r))
             elif self.disadvantage:
-                rolls.append(' | '.join(self.color_roll(i).bold if i == min(r) else str(i) for i in r))
+                rolls.append(' | '.join(self.color_roll(i) if i == min(r) else str(i) for i in r))
             else:
                 rolls.append(self.color_roll(r))
 
@@ -226,7 +226,7 @@ class DieRoll:
             return DieRolls([self, other])
 
     @staticmethod
-    def parse(roll_str):
+    def parse(roll_str: str):
         die_count_str = ''
         die_type_str = ''
         modifier_str = ''

@@ -2,7 +2,7 @@ from natural20.action import Action
 from natural20.die_roll import DieRoll
 from natural20.entity import Entity
 from natural20.weapons import damage_modifier, target_advantage_condition
-from natural20.utils.attack_util import cover_calculation, effective_ac, after_attack_roll_hook, damage_event
+from natural20.utils.attack_util import cover_calculation, effective_ac, after_attack_roll_hook, damage_event, to_advantage_str
 
 class AttackAction(Action):
 #   include Natural20::Cover
@@ -103,7 +103,8 @@ class AttackAction(Action):
             AttackAction.consume_resource(battle, item)
         elif item['type'] == 'miss':
             AttackAction.consume_resource(battle, item)
-            print(f"{item['source'].name} misses {item['target'].name}")
+            advantage_str = to_advantage_str(item)
+            print(f"{item['source'].name} rolls {item['attack_roll']}={item['attack_roll'].result()}{advantage_str} using { item['attack_name']} and misses {item['target'].name}")
             battle.session.log_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], 'attack_thrown': item['thrown'], 'advantage_mod': item['advantage_mod'], 'as_reaction': bool(item['as_reaction']), 'adv_info': item['adv_info'], 'source': item['source'], 'target': item['target'], 'event': 'miss'})
     
     def consume_resource(battle, item):
@@ -195,7 +196,7 @@ class AttackAction(Action):
         after_attack_roll_hook(battle, target, self.source, attack_roll, target_ac)
 
         if self.source.class_feature('sneak_attack') and (weapon.get('properties') and 'finesse' in weapon['properties'] or weapon['type'] == 'ranged_attack') and (self.with_advantage() or (battle and battle.enemy_in_melee_range(target, [self.source]))):
-            sneak_attack_roll = DieRoll.roll(self.source.sneak_attack_level, crit=attack_roll.nat_20(),
+            sneak_attack_roll = DieRoll.roll(self.source.sneak_attack_level(), crit=attack_roll.nat_20(),
                                                 description='dice_roll.sneak_attack', entity=self.source, battle=battle)
             #  print(f"{self.source.name} rolls a {sneak_attack_roll} for sneak attack")
 

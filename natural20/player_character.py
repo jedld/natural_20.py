@@ -164,6 +164,7 @@ class PlayerCharacter(Entity, Fighter, Rogue):
                 chosen_path = [[cur_x, cur_y], [cur_x + x_pos, cur_y + y_pos]]
                 shortest_path = compute_actual_moves(self, chosen_path, battle.map, battle, self.available_movement(battle) // 5).movement
                 if len(shortest_path) > 1:
+                  # print(f"shortest_path: {shortest_path}")
                   move_action = MoveAction(session, self, 'move')
                   move_action.move_path = shortest_path
                   action_list.append(move_action)
@@ -249,14 +250,16 @@ class PlayerCharacter(Entity, Fighter, Rogue):
 
 
   def weapon_proficiencies(self):
-    all_weapon_proficiencies = [p['weapon_proficiencies'] for p in self.class_properties.values() if 'weapon_proficiencies' in p]
+    all_weapon_proficiencies = []
+    for p in self.class_properties.values():
+      if 'weapon_proficiencies' in p:
+        all_weapon_proficiencies += p['weapon_proficiencies']
     all_weapon_proficiencies += self.properties.get('weapon_proficiencies', [])
     all_weapon_proficiencies += self.race_properties.get('weapon_proficiencies', [])
 
     subrace = self.subrace()
     if subrace:
       all_weapon_proficiencies += self.race_properties.get('subrace', {}).get(subrace, {}).get('weapon_proficiencies', [])
-
     return all_weapon_proficiencies
 
 
