@@ -12,6 +12,7 @@ from natural20.gym.dndenv import dndenv, action_type_to_int
 from gymnasium import register, envs, make
 from openai import OpenAI
 import time
+import os
 
 import random
 
@@ -177,13 +178,16 @@ class StateToPrompt:
         return prompt
 
 
-MAX_EPISODES = 20
+MAX_EPISODES = 100
 
-api_key='OPEN AI API KEY HERE'
+api_key = os.getenv("OPENAI_API_KEY")
+if api_key is None:
+    raise ValueError("Please set the OPENAI_API_KEY environment variable")
+
 env = make("dndenv-v0", root_path="templates", render_mode="ansi")
 observation, info = env.reset(seed=42)
 
-prompt = StateToPrompt(api_key=api_key, debug=True)
+prompt = StateToPrompt(api_key=api_key, debug=False)
 action = prompt.select_action_for_state(observation, info)
 print(f"selected action: {action}")
 terminal = False
@@ -192,9 +196,7 @@ while not terminal and episode < MAX_EPISODES:
     episode += 1
     observation, reward, terminal, truncated, info = env.step(action)
     if not terminal and not truncated:
-        # print(env.render())
-        # for action in info['available_moves']:
-        #     print(action)
+        print(env.render())
         # action = random.choice(info['available_moves'])
         action = prompt.select_action_for_state(observation, info)
         print(f"selected action: {action}")

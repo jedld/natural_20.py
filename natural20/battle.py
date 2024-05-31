@@ -366,5 +366,5 @@ class Battle():
         }
         action = entity.trigger_event('opportunity_attack', self, self.session, self.map, event)
         if action:
-            action.resolve(self.session, self.map, battle=self)
+            self.action(action)
             self.commit(action)

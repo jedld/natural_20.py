@@ -176,10 +176,14 @@ class dndenv(gym.Env):
 
         character_sheet_path = os.path.join(self.root_path, 'characters')
         for p in self.heroes:
-            self.players.append(('a', 'H', PlayerCharacter(self.session, f'{character_sheet_path}/{p}'), player_pos))
+            pc = PlayerCharacter(self.session, f'{character_sheet_path}/{p}')
+            self._describe_hero(pc)
+            self.players.append(('a', 'H', pc, player_pos))
 
         for p in self.enemies:
-            self.players.append(('b', 'E', PlayerCharacter(self.session, f'{character_sheet_path}/{p}'), enemy_pos))
+            pc = PlayerCharacter(self.session, f'{character_sheet_path}/{p}')
+            self._describe_hero(pc)
+            self.players.append(('b', 'E', pc , enemy_pos))
 
         # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
         for group, token, player, position in self.players:
@@ -203,6 +207,20 @@ class dndenv(gym.Env):
             "movement": self.battle.current_turn().available_movement(self.battle)
         }
         return observation, { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }
+
+    def _describe_hero(self, pc: Entity):
+        print("==== Player Character ====")
+        print("name: ", pc.name)
+        print("level: ", pc.level())
+        print("character class: ", pc.c_class())
+        print("hp: ", pc.hp())
+        print("max hp: ", pc.max_hp())
+        print("ac: ", pc.armor_class())
+        print("speed: ", pc.speed())
+        print("\n\n")
+
+
+        
 
     def step(self, action):
         if self.terminal:

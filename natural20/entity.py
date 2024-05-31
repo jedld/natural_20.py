@@ -182,7 +182,7 @@ class Entity():
                 distance = math.floor(math.sqrt((cur_x - pos_x)**2 + (cur_y - pos_y)**2) * map.feet_per_grid) # one square - 5 ft
 
                 # determine melee options
-                if distance <= self.melee_distance():
+                if distance <= self.melee_distance() + 0.5:
                     return True
 
         return False
