@@ -10,44 +10,51 @@ from natural20.actions.move_action import MoveAction
 from natural20.action import Action
 from natural20.gym.dndenv import dndenv, action_type_to_int
 from gymnasium import register, envs, make
-from openai import OpenAI
+
 import time
 import os
 
 import random
 
-# action functions for the GPT-4o model
-from openai import OpenAI
-client = OpenAI()
+import requests
 
-tools = [
-  {
-    "type": "function",
-    "function": {
-      "name": "get_action",
-      "description": "get action for agent to execute",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "action": {
-            "type": "integer",
-            "description": "action to take",
-          }
-        },
-        "required": ["action"],
-      },
+def generate_text_with_regex(prompt, regex):
+    url = "http://127.0.0.1:8000/generate"
+    data = {
+        "prompt": prompt,
+        "regex": regex
     }
-  }
-]
+    
+    response = requests.post(url, json=data)
+    
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return None
 
+import re
+
+def extract_last_number(text):
+    # Regular expression to match numbers
+    #number_regex = r'-?\d+(\.\d+)?'
+    
+    # Find all matches in the text
+    text = text.split(".")[-1]
+    #print("hello: ",text)
+
+    # matches = re.findall(number_regex, text)
+    
+    # Return the last match or None if no match is found
+    #return matches if matches else None
+    return int(text)
 
 class StateToPrompt:
     def __init__(self, api_key, debug=False):
         self.debug = debug
-        self.client = OpenAI(
+        #self.client = OpenAI(
             # This is the default and can be omitted
-            api_key=api_key
-        )
+        #    api_key=api_key
+        #)
 
     def select_action_for_state(self, state, info):
         prompt = self.dndenv_state_to_prompt(state, info)
@@ -56,26 +63,35 @@ class StateToPrompt:
 
         if self.debug:
             print(f"prompt: -------------------------------\n{prompt}\n---------------------------------")
-        chat_completion = self.client.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            model="gpt-4o",
+        #chat_completion = self.client.chat.completions.create(
+        #    messages=[
+        #        {
+        #            "role": "user",
+        #            "content": prompt,
+        #        }
+        #    ],
+        #    model="gpt-4o",
             
             # add the action function to the completion
-           tools=tools,
-            tool_choice="required"
-        )
+        #   tools=tools,
+        #    tool_choice="required"
+        #)
         
         #response = chat_completion.choices[0].message.content
         import json
-        json_response = chat_completion.choices[0].message.tool_calls[0].function.arguments#json.loads(chat_completion.choices[0].message.function_call.arguments)
-        json_response = json.loads(json_response)
-        print(json_response)
-        response = json_response['action']
+        # Example usage
+        regex = "\d"
+
+        json_response = generate_text_with_regex(prompt, regex)
+        
+        #json_response = chat_completion.choices[0].message.tool_calls[0].function.arguments#json.loads(chat_completion.choices[0].message.function_call.arguments)
+        #json_response = json.loads(json_response)
+        print("*"*50)
+        print(json_response['text'][0])
+        print("*"*50)
+        response = extract_last_number(json_response['text'][0])
+        print(response)
+        #response = json_response['action']
         
         end_time = time.time()
         if self.debug:
@@ -218,6 +234,7 @@ class StateToPrompt:
 MAX_EPISODES = 100
 
 api_key = os.getenv("OPENAI_API_KEY")
+api_key = "EMPTY"
 if api_key is None:
     raise ValueError("Please set the OPENAI_API_KEY environment variable")
 
