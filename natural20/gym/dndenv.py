@@ -123,7 +123,6 @@ class dndenv(gym.Env):
                     render_char = None
                     
                     terrain = self.map.base_map[pos_x + x][pos_y + y]
-
                     entity = self.map.entity_at(pos_x + x, pos_y + y)
 
                     if entity == None:
@@ -152,7 +151,6 @@ class dndenv(gym.Env):
         # set seed, use random seed if not provided
         seed = kwargs.get('seed', None)
 
-
         if seed is None:
             seed = random.randint(0, 1000000)
 
@@ -168,21 +166,22 @@ class dndenv(gym.Env):
         self.terminal = False
 
         enemy_pos = None
-        # set random starting positions
-        player_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
-
-        while  enemy_pos is None or enemy_pos==player_pos:
-            enemy_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
+        player_pos = None
 
         character_sheet_path = os.path.join(self.root_path, 'characters')
         for p in self.heroes:
             pc = PlayerCharacter(self.session, f'{character_sheet_path}/{p}')
             self._describe_hero(pc)
+             # set random starting positions, make sure there are no obstacles in the map
+            while player_pos is None or self.map.placeable(pc, player_pos[0], player_pos[1]) == False:
+                player_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
             self.players.append(('a', 'H', pc, player_pos))
 
         for p in self.enemies:
             pc = PlayerCharacter(self.session, f'{character_sheet_path}/{p}')
             self._describe_hero(pc)
+            while  enemy_pos is None or enemy_pos==player_pos or self.map.placeable(pc, enemy_pos[0], enemy_pos[1]) == False:
+                enemy_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
             self.players.append(('b', 'E', pc , enemy_pos))
 
         # add fighter to the battle at position (0, 0) with token 'G' and group 'a'

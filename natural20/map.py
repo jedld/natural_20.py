@@ -54,6 +54,11 @@ class Map():
                 row.append([])
             self.tokens.append(row)
 
+        for cur_y, lines in enumerate(self.properties.get('map', {}).get('base', [])):
+            for cur_x, c in enumerate(lines):
+                if not c=='.':
+                    self.base_map[cur_x][cur_y] = c
+
         self.light_builder = StaticLightBuilder(self)
         self.triggers = self.properties.get('triggers', {})
         self._compute_lights()
