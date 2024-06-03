@@ -22,10 +22,12 @@ class LLMInterfacer:
         actions, bonus_actions, reactions = state["turn_info"]
 
         health_pct = state["health_pct"]
+        health_enemy = state["health_enemy"]
         movement = state["movement"]
         instruction_prompt = "We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play \n" + \
                              "as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. \n"
         instruction_prompt += f"Your health is at {health_pct*100}%\n"
+        instruction_prompt += f"Your Enemies health is at {health_enemy*100}%\n"
         instruction_prompt += "You have the following available actions and movement available:\n\n"
         instruction_prompt += f"Available movement: {movement}ft\n"
         instruction_prompt += f"Available actions: {actions}\n"
@@ -130,7 +132,7 @@ class LLMInterfacer:
     
 
 class GPT4Interfacer(LLMInterfacer):
-    def __init__(self, variant="gpt-4o", debug=False):
+    def __init__(self, variant="gpt-4o", debug=False, api_key=None):
         """
         Args:
             api_key: the openai api key to use
@@ -139,10 +141,11 @@ class GPT4Interfacer(LLMInterfacer):
         """
         super().__init__(debug)
         
-        api_key = os.getenv("OPENAI_API_KEY")
         if api_key is None:
-            raise ValueError("Please set the OPENAI_API_KEY environment variable")
-        
+            api_key = os.getenv("OPENAI_API_KEY")
+            if api_key is None:
+                raise ValueError("Please set the OPENAI_API_KEY environment variable")
+            
         self.variant = variant
         self.debug = debug
         self.client = OpenAI(
@@ -193,14 +196,7 @@ class GPT4Interfacer(LLMInterfacer):
         #response = chat_completion.choices[0].message.content
 
         json_response = chat_completion.choices[0].message.tool_calls[0].function.arguments#json.loads(chat_completion.choices[0].message.function_call.arguments)
-        json_response = json.loads(json_response)
-        print(json_response)
-        response = json_response['action']
-        
-        end_time = time.time()
-        if self.debug:
-            print(f"response time: {end_time - start_time}")
-            print(f"response: {response}")
+
         # parse the response and return the action
         # e.g. 1: attack enemy with ranged weapon or Let's proceed with option [4], or just extract the first number
         # from the response
@@ -211,14 +207,22 @@ class GPT4Interfacer(LLMInterfacer):
         #        break 
 
         try:
-            print(f"response: {response}")
+            json_response = json.loads(json_response)
+            print(json_response)
+            response = json_response['action']
+            
+            end_time = time.time()
+            if self.debug:
+                print(f"response time: {end_time - start_time}")
+                print(f"response: {response}")
+                print(f"response: {response}")
             if int(response) == 0:
                 action = (-1, (0, 0), (0, 0), 0)
             else:
                 action = info['available_moves'][int(response) - 1]
         except Exception as e:
             print(e)
-            print(f"unusual response: {response}")
+            print(f"unusual response: {json_response}")
             action = random.choice(info['available_moves']) # assign random action instead
         return action
     

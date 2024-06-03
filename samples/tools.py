@@ -18,8 +18,8 @@ MAX_EPISODES = 20
 env = make("dndenv-v0", root_path="templates", render_mode="ansi")
 observation, info = env.reset(seed=42)
 
-# prompt = GPT4Interfacer(debug=False)
-prompt = LLama3Interface("http://127.0.0.1:8000/generate",debug=True)
+prompt = GPT4Interfacer(debug=True)
+# prompt = LLama3Interface("http://202.92.159.241:8000/generate", debug=True)
 action = prompt.select_action_for_state(observation, info)
 
 print(f"selected action: {action}")

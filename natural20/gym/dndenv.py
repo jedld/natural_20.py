@@ -49,6 +49,7 @@ class dndenv(gym.Env):
             "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 3), dtype=int),
             "turn_info" : gym.spaces.Box(low=0, high=1, shape=(3,), dtype=int),
             "health_pct": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
+            "health_enemy": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "movement": gym.spaces.Discrete(255)
         })
 
@@ -66,7 +67,9 @@ class dndenv(gym.Env):
         self.root_path = kwargs.get('root_path', 'templates')
         self.map_file = kwargs.get('map_file', 'maps/game_map.yml')
         self.heroes = kwargs.get('profiles', ['high_elf_fighter.yml'])
-        self.enemies = kwargs.get('enemies', ['halfling_rogue.yml'])
+        self.enemies = kwargs.get('enemies', ['high_elf_fighter.yml'])
+        self.hero_names = kwargs.get('hero_names', ['gomerin'])
+        self.enemy_names = kwargs.get('enemy_names', ['rumblebelly'])
 
     def _render_terrain(self):
         result = []
@@ -169,16 +172,22 @@ class dndenv(gym.Env):
         player_pos = None
 
         character_sheet_path = os.path.join(self.root_path, 'characters')
-        for p in self.heroes:
-            pc = PlayerCharacter(self.session, f'{character_sheet_path}/{p}')
+        for index, p in enumerate(self.heroes):
+            if index < len(self.hero_names):
+                name = self.hero_names[index]
+
+            pc = PlayerCharacter(self.session, f'{character_sheet_path}/{p}', name=name)
             self._describe_hero(pc)
              # set random starting positions, make sure there are no obstacles in the map
             while player_pos is None or self.map.placeable(pc, player_pos[0], player_pos[1]) == False:
                 player_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
             self.players.append(('a', 'H', pc, player_pos))
 
-        for p in self.enemies:
-            pc = PlayerCharacter(self.session, f'{character_sheet_path}/{p}')
+        for index, p in enumerate(self.enemies):
+            if index < len(self.enemy_names):
+                name = self.enemy_names[index]
+
+            pc = PlayerCharacter(self.session, f'{character_sheet_path}/{p}', name=name)
             self._describe_hero(pc)
             while  enemy_pos is None or enemy_pos==player_pos or self.map.placeable(pc, enemy_pos[0], enemy_pos[1]) == False:
                 enemy_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
@@ -199,13 +208,25 @@ class dndenv(gym.Env):
         if self.battle.current_turn().conscious():
                 self.battle.current_turn().reset_turn(self.battle)
         current_player = self.battle.current_turn()
+
+        # get the first player which is not the same group as the current one
+        
+        enemy_health = self._enemy_health(current_player)
+
         observation = {
             "map": self._render_terrain(),
             "turn_info": np.array([current_player.total_actions(self.battle), current_player.total_bonus_actions(self.battle), current_player.total_reactions(self.battle)]),
             "health_pct": np.array([current_player.hp() / current_player.max_hp()]),
+            "health_enemy" : np.array([enemy_health]),
             "movement": self.battle.current_turn().available_movement(self.battle)
         }
         return observation, { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }
+
+    def _enemy_health(self, current_player):
+        for player in self.battle.entities.keys():
+            if self.battle.entity_group_for(player) != self.battle.entity_group_for(current_player):
+                return player.hp() / player.max_hp()
+        return 0
 
     def _describe_hero(self, pc: Entity):
         print("==== Player Character ====")
@@ -372,13 +393,17 @@ class dndenv(gym.Env):
                     else:
                         reward = -10
                     done = True
+        
+        enemy_health = self._enemy_health(entity)
 
         observation = {
             "map": self._render_terrain(),
             "turn_info": np.array([entity.total_actions(self.battle), entity.total_bonus_actions(self.battle), entity.total_reactions(self.battle)]),
             "health_pct": np.array([entity.hp() / entity.max_hp()]),
+            "health_enemy" : np.array([enemy_health]),
             "movement": self.battle.current_turn().available_movement(self.battle)
         }
+
         _available_moves = self._compute_available_moves(self.battle.current_turn(), self.battle)
         if not done:
             # print(f"Available moves: {available_actions}")
