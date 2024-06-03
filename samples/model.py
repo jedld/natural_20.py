@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class QNetwork(nn.Module):
-    def __init__(self, num_actions=255):
+    def __init__(self, device='cpu'):
         super(QNetwork, self).__init__()
         
         # CNN layers for the map
@@ -12,35 +12,58 @@ class QNetwork(nn.Module):
         self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
         
         # Fully connected layers for scalar inputs, flattened map, and action components
-        self.fc1 = nn.Linear(64 * 12 * 12 + 1 + 1 + 3 + 1 + 2 + 2 + 2, 512)
+        self.fc1 = nn.Linear(64 * 12 * 12 + 1 + 1 + 3 + 3 + 2 + 2 + 2 + 8, 512)
         
         # Embedding for discrete movement and binary action
         self.movement_embedding = nn.Embedding(256, 10)
         self.binary_action_embedding = nn.Embedding(2, 2)  # Embedding for binary action
-        
-        # Final layer to output the Q-values for each action
-        self.out = nn.Linear(512 + 10 + 2, num_actions)
+        # Final layer to output the Q-value for the action
+        self.fc2 = nn.Linear(512, 64)
+        self.out = nn.Linear(64, 1)
+        self.device = device 
 
-    
+    def convert_batch(self, batch_x, batch_action, device='cpu'):
+        map_inputs = []
+        health_enemys = []
+        health_pcts = []
+        movements = []
+        turn_infos = []
+        
+        for x in batch_x:
+            print(x)
+            health_enemy, health_pct, map_input, movement, turn_info = \
+                x['health_enemy'], x['health_pct'], x['map'], x['movement'], x['turn_info']
+            map_input = torch.tensor(x['map'], dtype=torch.float32)
+            map_input = map_input.permute(2, 0, 1)
+            map_inputs.append(map_input)
+            health_enemys.append(torch.tensor(health_enemy, dtype=torch.float32))
+            health_pcts.append(torch.tensor(health_pct, dtype=torch.float32))
+            movements.append(torch.tensor(movement, dtype=torch.long))
+            turn_infos.append(torch.tensor(turn_info, dtype=torch.float32))
+
+        action1s = []
+        action2s = []
+        action3s = []
+        action4s = []
+
+        for action in batch_action:
+            action1, action2, action3, action4 = action
+            action1 = torch.tensor(action1, dtype=torch.float32)
+            action1s.append(action1.unsqueeze(0))
+            action2s.append(torch.tensor(action2, dtype=torch.float32))
+            action3s.append(torch.tensor(action3, dtype=torch.float32))
+            action4s.append(torch.tensor(action4, dtype=torch.long))
+
+            
+        return torch.stack(map_inputs).to(device), torch.stack(health_enemys).to(device), torch.stack(health_pcts).to(device), \
+               torch.stack(movements).to(device), torch.stack(turn_infos).to(device), torch.stack(action1s).to(device), \
+               torch.stack(action2s).to(device), torch.stack(action3s).to(device), torch.stack(action4s).to(device)
 
     def forward(self, x, action):
-        health_enemy, health_pct, map_input, movement, turn_info = \
-            x['health_enemy'], x['health_pct'], x['map'], x['movement'], x['turn_info']
-        
-        map_input = torch.tensor(x['map'], dtype=torch.float32)
-        map_input = map_input.permute(2, 0, 1).unsqueeze(0)
-
-        health_enemy = torch.tensor(health_enemy, dtype=torch.float32).unsqueeze(0)
-        health_pct = torch.tensor(health_pct, dtype=torch.float32).unsqueeze(0)
-        movement = torch.tensor(movement, dtype=torch.long).unsqueeze(0)
-        turn_info = torch.tensor(turn_info, dtype=torch.float32).unsqueeze(0)
-
-        action1, action2, action3, action4 = action
-
-        action1 = torch.tensor(action1, dtype=torch.float32).unsqueeze(0)
-        action2 = torch.tensor(action2, dtype=torch.float32).unsqueeze(0)
-        action3 = torch.tensor(action3, dtype=torch.float32).unsqueeze(0)
-        action4 = torch.tensor(action4, dtype=torch.long).unsqueeze(0)
+        if isinstance(x, dict):
+            map_input, health_enemy, health_pct, movement, turn_info, action1, action2, action3, action4 = self.convert_batch([x], [action], self.device)
+        else:
+            map_input, health_enemy, health_pct, movement, turn_info, action1, action2, action3, action4 = self.convert_batch(x, action, self.device)
         
         # Normalize map
         map_input = (map_input + 1.0) / 256.0
@@ -54,8 +77,8 @@ class QNetwork(nn.Module):
         
         # Concatenate all features
         health_info = torch.cat((health_enemy, health_pct, turn_info), dim=1)
-        print(f"action shapes: {action1.shape}, {action2.shape}, {action3.shape}")
-        
+
+
         action_features = torch.cat((action1, action2, action3), dim=1)
         movement_embed = self.movement_embedding(movement)
         action4_embed = self.binary_action_embedding(action4)
@@ -64,7 +87,7 @@ class QNetwork(nn.Module):
         
         # Fully connected layer
         x = F.relu(self.fc1(x))
-        
+        x = F.relu(self.fc2(x))        
         # Output layer
         x = self.out(x)
         return x
