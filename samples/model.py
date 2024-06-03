@@ -30,7 +30,6 @@ class QNetwork(nn.Module):
         turn_infos = []
         
         for x in batch_x:
-            print(x)
             health_enemy, health_pct, map_input, movement, turn_info = \
                 x['health_enemy'], x['health_pct'], x['map'], x['movement'], x['turn_info']
             map_input = torch.tensor(x['map'], dtype=torch.float32)

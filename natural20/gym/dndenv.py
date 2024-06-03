@@ -70,7 +70,17 @@ class dndenv(gym.Env):
         self.enemies = kwargs.get('enemies', ['high_elf_fighter.yml'])
         self.hero_names = kwargs.get('hero_names', ['gomerin'])
         self.enemy_names = kwargs.get('enemy_names', ['rumblebelly'])
+        self.show_logs = kwargs.get('show_logs', True)
 
+    
+    def seed(self, seed=None):
+        self._seed = seed
+        return [seed]
+    
+    def log(self, msg):
+        if self.show_logs:
+            print(msg)
+    
     def _render_terrain(self):
         result = []
         current_player = self.battle.current_turn()
@@ -160,7 +170,7 @@ class dndenv(gym.Env):
         self.seed = seed # take note of seed for reproducibility
         random.seed(seed)
         map_location = kwargs.get('map_location', os.path.join(self.root_path, self.map_file))
-        print("loading map from ", map_location)
+        self.log(f"loading map from {map_location}")
         self.session = Session(self.root_path)
         self.map = Map(map_location)
         self.battle = Battle(self.session, self.map)
@@ -229,15 +239,15 @@ class dndenv(gym.Env):
         return 0
 
     def _describe_hero(self, pc: Entity):
-        print("==== Player Character ====")
-        print("name: ", pc.name)
-        print("level: ", pc.level())
-        print("character class: ", pc.c_class())
-        print("hp: ", pc.hp())
-        print("max hp: ", pc.max_hp())
-        print("ac: ", pc.armor_class())
-        print("speed: ", pc.speed())
-        print("\n\n")
+        self.log("==== Player Character ====")
+        self.log(f"name: {pc.name}")
+        self.log(f"level: {pc.level()}")
+        self.log(f"character class: {pc.c_class()}")
+        self.log(f"hp: {pc.hp()}")
+        self.log(f"max hp: {pc.max_hp()}")
+        self.log(f"ac: {pc.armor_class()}")
+        self.log(f"speed: {pc.speed()}")
+        self.log("\n\n")
 
 
         
@@ -335,7 +345,7 @@ class dndenv(gym.Env):
 
         if len(available_actions) == 0 or end_turn:
             self.battle.end_turn()
-            print("==== end turn ===")
+            self.log("==== end turn ===")
             result = self.battle.next_turn(max_rounds=self.max_rounds)
             if result == 'tpk' and entity.conscious() and self.battle.entity_group_for(entity) == 'a':
                 reward = 10
@@ -344,10 +354,10 @@ class dndenv(gym.Env):
                 self.battle.start_turn()
                 current_player = self.battle.current_turn()
                 current_player.reset_turn(self.battle)
-                print(f"==== current turn {current_player.name} {current_player.hp()}/{current_player.max_hp()}===")
+                self.log(f"==== current turn {current_player.name} {current_player.hp()}/{current_player.max_hp()}===")
 
                 if current_player.dead():
-                    print(f"{current_player.name} is dead")
+                    self.log(f"{current_player.name} is dead")
                     if self.battle.entity_group_for(entity) == 'a':
                         reward = 10
                     else:
@@ -363,7 +373,7 @@ class dndenv(gym.Env):
                         while True:
                             action = controller.move_for(current_player, self.battle)
                             if action is None:
-                                print(f"no move for {current_player.name}")
+                                self.log(f"no move for {current_player.name}")
                                 break
                             self.battle.action(action)
                             self.battle.commit(action)
@@ -384,7 +394,7 @@ class dndenv(gym.Env):
                             current_player.reset_turn(self.battle)
                         break
 
-                print(f"Result: {result}")
+                self.log(f"Result: {result}")
 
                 if result == 'tpk':
                     # Victory!!!!
@@ -426,6 +436,7 @@ class dndenv(gym.Env):
             "map": self._render_terrain(),
             "turn_info": np.array([0, 0, 0]),
             "health_pct": np.array([0]),
+            "health_enemy" : np.array([0]),
             "movement": 0
         }
         info = {
