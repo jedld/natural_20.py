@@ -14,6 +14,8 @@ from natural20.gym.types import EnvObject, Environment
 from natural20.entity import Entity
 from natural20.actions.look_action import LookAction
 from natural20.actions.stand_action import StandAction
+from natural20.gym.dndenv_controller import DndenvController
+from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, render_terrain
 import random
 import os
 
@@ -71,6 +73,8 @@ class dndenv(gym.Env):
         self.hero_names = kwargs.get('hero_names', ['gomerin'])
         self.enemy_names = kwargs.get('enemy_names', ['rumblebelly'])
         self.show_logs = kwargs.get('show_logs', True)
+        self.custom_controller = kwargs.get('custom_controller', None)
+        self.custom_agent = kwargs.get('custom_agent', None)
 
     
     def seed(self, seed=None):
@@ -81,45 +85,7 @@ class dndenv(gym.Env):
         if self.show_logs:
             print(msg)
     
-    def _render_terrain(self):
-        result = []
-        current_player = self.battle.current_turn()
-        pos_x, pos_y = self.map.position_of(current_player)
-        view_w, view_h = self.view_port_size
-        map_w, map_h = self.map.size
-        for y in range(-view_w//2, view_w//2):
-            col_arr = []
-            for x in range(-view_h//2, view_h//2):
-                if pos_x + x < 0 or pos_x + x >= map_w or pos_y + y < 0 or pos_y + y >= map_h:
-                    col_arr.append([-1, -1, 0])
-                else:
-                    terrain = self.map.base_map[pos_x + x][pos_y + y]
 
-                    if terrain == None:
-                        terrain_int = 0
-                    else:
-                        terrain_int = 1
-
-                    entity = self.map.entity_at(pos_x + x, pos_y + y)
-
-                    if entity == None:
-                        entity_int = 0
-                    elif entity == current_player:
-                        entity_int = 1
-                    elif self.battle.opposing(current_player, entity):
-                        entity_int = 2
-                    else:
-                        entity_int = 3
-
-                    if entity is not None:
-                        health_pct = int((entity.hp() / (entity.max_hp() + 0.00001)) * 255)
-                    else:
-                        health_pct = 0
-
-                    col_arr.append([entity_int, terrain_int, health_pct])
-            
-            result.append(col_arr)
-        return np.array(result)
     
     def _render_terrain_ansi(self):
         result = []
@@ -206,8 +172,17 @@ class dndenv(gym.Env):
         # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
         for group, token, player, position in self.players:
             if group == 'b':
-                controller = GenericController(self.session)
-                controller.register_handlers_on(player)
+                if self.custom_agent:
+                    self.log(f"Setting up custom agent for enemy player {self.custom_agent}")
+                    controller = DndenvController(self.session, self.custom_agent)
+                    controller.register_handlers_on(player)
+                elif self.custom_controller:
+                    controller = self.custom_controller
+                    controller.register_handlers_on(player)
+                else: # basic AI
+                    controller = GenericController(self.session)
+                    controller.register_handlers_on(player)
+
                 self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
             else:
                 self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
@@ -224,13 +199,13 @@ class dndenv(gym.Env):
         enemy_health = self._enemy_health(current_player)
 
         observation = {
-            "map": self._render_terrain(),
+            "map": render_terrain(self.battle, self.map, self.view_port_size),
             "turn_info": np.array([current_player.total_actions(self.battle), current_player.total_bonus_actions(self.battle), current_player.total_reactions(self.battle)]),
             "health_pct": np.array([current_player.hp() / current_player.max_hp()]),
             "health_enemy" : np.array([enemy_health]),
             "movement": self.battle.current_turn().available_movement(self.battle)
         }
-        return observation, { "available_moves": self._compute_available_moves(self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }
+        return observation, { "available_moves": compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }
 
     def _enemy_health(self, current_player):
         for player in self.battle.entities.keys():
@@ -249,9 +224,6 @@ class dndenv(gym.Env):
         self.log(f"speed: {pc.speed()}")
         self.log("\n\n")
 
-
-        
-
     def step(self, action):
         if self.terminal:
             observation, info = self._terminal_observation()
@@ -261,72 +233,21 @@ class dndenv(gym.Env):
             return None, 0, True, True, None
         self.time_step += 1
         entity = self.battle.current_turn()
-        action_type, param1, param2, param3 = action
+
         available_actions = entity.available_actions(self.session, self.battle)
         truncated = False
         end_turn = False
         reward = 0
 
-        for action in available_actions:
-            if action.action_type == "attack" and action_type == 0:
-                # convert from relative position to absolute map position
-                entity_position = self.map.position_of(entity)
-                target_x = entity_position[0] + param2[0]
-                target_y = entity_position[1] + param2[1]
-                target = self.map.entity_at(target_x, target_y)
-
-                valid_targets = self.battle.valid_targets_for(entity, action)
-                if param3==0 or (param3 == 1 and action.ranged_attack()):
-                    if valid_targets:
-                        action.target = valid_targets[0]
-                        for valid_target in valid_targets:
-                            if target == valid_target:
-                                action.target = target
-                                break
-                        self.battle.action(action)
-                        self.battle.commit(action)
-                        break
-            elif action.action_type == "move" and action_type == 1:
-                entity_position = self.map.position_of(entity)
-                target_x = entity_position[0] + param1[0]
-                target_y = entity_position[1] + param1[1]
-                if action.move_path[-1] == [target_x, target_y]:
-                    self.battle.action(action)
-                    self.battle.commit(action)
-                    break
-            elif action.action_type == "disengage" and action_type == 2:
-                self.battle.action(action)
-                self.battle.commit(action)
-                break
-            elif action.action_type == "dodge" and action_type == 3:
-                self.battle.action(action)
-                self.battle.commit(action)
-                break
-            elif action.action_type == "dash" and action_type == 4:
-                self.battle.action(action)
-                self.battle.commit(action)
-                break
-            elif action.action_type == "dash_bonus" and action_type == 5:
-                self.battle.action(action)
-                self.battle.commit(action)
-                break
-            elif action.action_type == "stand" and action_type == 6:
-                self.battle.action(action)
-                self.battle.commit(action)
-                break
-            elif action.action_type == "look" and action_type == 7:
-                self.battle.action(action)
-                self.battle.commit(action)
-                break
-            elif action.action_type == "second_wind" and action_type == 8:
-                self.battle.action(action)
-                self.battle.commit(action)
-                break
-            elif action_type == -1:
-                end_turn = True
-                break
-            else:
-                reward = -1
+        # convert from Gym action space to Natural20 action space
+        action = dndenv_action_to_nat20action(entity, self.battle, self.map, available_actions, action)
+        if action is None:
+            reward = -1
+        elif action == -1:
+            end_turn = True
+        else:
+            self.battle.action(action)
+            self.battle.commit(action)
 
         # additional check for tpk
         if self.battle.battle_ends():
@@ -372,7 +293,7 @@ class dndenv(gym.Env):
                         controller = self.battle.controller_for(current_player)
                         while True:
                             action = controller.move_for(current_player, self.battle)
-                            if action is None:
+                            if action is None or action == -1:
                                 self.log(f"no move for {current_player.name}")
                                 break
                             self.battle.action(action)
@@ -404,17 +325,8 @@ class dndenv(gym.Env):
                         reward = -10
                     done = True
         
-        enemy_health = self._enemy_health(entity)
-
-        observation = {
-            "map": self._render_terrain(),
-            "turn_info": np.array([entity.total_actions(self.battle), entity.total_bonus_actions(self.battle), entity.total_reactions(self.battle)]),
-            "health_pct": np.array([entity.hp() / entity.max_hp()]),
-            "health_enemy" : np.array([enemy_health]),
-            "movement": self.battle.current_turn().available_movement(self.battle)
-        }
-
-        _available_moves = self._compute_available_moves(self.battle.current_turn(), self.battle)
+        observation = build_observation(self.battle, self.map, entity, self.view_port_size)
+        _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle)
         if not done:
             # print(f"Available moves: {available_actions}")
             assert len(_available_moves) > 0
@@ -433,7 +345,7 @@ class dndenv(gym.Env):
     
     def _terminal_observation(self):
         observation = {
-            "map": self._render_terrain(),
+            "map": render_terrain(self.battle, self.map, self.view_port_size),
             "turn_info": np.array([0, 0, 0]),
             "health_pct": np.array([0]),
             "health_enemy" : np.array([0]),
@@ -446,69 +358,27 @@ class dndenv(gym.Env):
             "round" : self.current_round
         }
         return observation, info
-    
-    def _compute_available_moves(self, entity: Entity, battle):
-        available_actions = entity.available_actions(self.session, battle)
-
-        # generate available targets
-        valid_actions = []       
-
-        # try to stand if prone
-        if entity.prone() and StandAction.can(entity, battle):
-            valid_actions.append((6, (0, 0), (0, 0), 0))
-        
-        entity_pos = self.map.position_of(entity)
-
-        for action in available_actions:
-            if action.action_type == "attack":
-                valid_targets = battle.valid_targets_for(entity, action)
-                if valid_targets:
-                    action.target = valid_targets[0]
-                    targets = self.map.entity_squares(valid_targets[0])
-                    
-                    for target in targets:
-                        relative_pos = (target[0] - entity_pos[0], target[1] - entity_pos[1])
-                        valid_actions.append((0, (0 , 0), (relative_pos[0], relative_pos[1]), action.ranged_attack()))
-            elif action.action_type == "move":
-                relative_x = action.move_path[-1][0]
-                relative_y = action.move_path[-1][1]
-                relative_pos = (relative_x - entity_pos[0], relative_y - entity_pos[1])
-                valid_actions.append((1, (relative_pos[0], relative_pos[1]), (0, 0), 0))
-            elif action.action_type == "disengage":
-                valid_actions.append((2, (-1, -1),(0, 0), 0))
-            elif action.action_type == 'dodge':
-                valid_actions.append((3, (-1, -1),(0, 0), 0))
-            elif action.action_type == 'dash':
-                valid_actions.append((4, (-1, -1),(0, 0), 0))
-            elif action.action_type == 'dash_bonus':
-                valid_actions.append((5, (-1, -1),(0, 0), 0))
-            elif action.action_type == 'stand':
-                valid_actions.append((6, (-1, -1),(0, 0), 0))
-            elif action.action_type == 'second_wind':
-                valid_actions.append((8, (-1, -1),(0, 0), 0))
-        valid_actions.append((-1, (0, 0), (0, 0), 0))
-        return valid_actions
 
 def action_type_to_int(action_type):
-        if action_type == "attack":
-            return 0
-        elif action_type == "move":
-            return 1
-        elif action_type == "disengage":
-            return 2
-        elif action_type == "dodge":
-            return 3
-        elif action_type == "dash":
-            return 4
-        elif action_type == "dash_bonus":
-            return 5
-        elif action_type == "stand":
-            return 6
-        elif action_type == "look":
-            return 7
-        elif action_type == "second_wind":
-            return 8
-        else:
-            return -1    
+    if action_type == "attack":
+        return 0
+    elif action_type == "move":
+        return 1
+    elif action_type == "disengage":
+        return 2
+    elif action_type == "dodge":
+        return 3
+    elif action_type == "dash":
+        return 4
+    elif action_type == "dash_bonus":
+        return 5
+    elif action_type == "stand":
+        return 6
+    elif action_type == "look":
+        return 7
+    elif action_type == "second_wind":
+        return 8
+    else:
+        return -1    
 
 gym.register(id='dndenv-v0', entry_point=lambda **kwargs: dndenv(**kwargs))
