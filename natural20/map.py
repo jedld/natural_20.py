@@ -189,8 +189,32 @@ class Map():
                 entity_1_squares.append([pos1_x + ofs_x, pos1_y + ofs_y])
         return entity_1_squares
 
+    def can_see_square(self, entity, pos2_x, pos2_y, allow_dark_vision=True):
+        has_line_of_sight = False
+        max_illumination = 0.0
+        sighting_distance = None
+
+        entity_1_squares = self.entity_squares(entity)
+        for pos1 in entity_1_squares:
+            pos1_x, pos1_y = pos1
+            if [pos1_x, pos1_y] == [pos2_x, pos2_y]:
+                return True
+            if not self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=False):
+                continue
+
+            location_illumination = self.light_at(pos2_x, pos2_y)
+            max_illumination = max(location_illumination, max_illumination)
+            sighting_distance = math.floor(math.sqrt((pos1_x - pos2_x)**2 + (pos1_y - pos2_y)**2))
+            has_line_of_sight = True
+
+        if has_line_of_sight and max_illumination < 0.5:
+            return allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid)
+
+        return has_line_of_sight
+
     def can_see(self, entity, entity2, distance=None, entity_1_pos=None, entity_2_pos=None, allow_dark_vision=True, active_perception=0, active_perception_disadvantage=0):
         if entity not in self.entities and entity not in self.interactable_objects:
+            print(self.entities)
             raise ValueError('Invalid entity passed')
 
         entity_1_squares = self.entity_squares_at_pos(entity, *entity_1_pos) if entity_1_pos else self.entity_squares(entity)

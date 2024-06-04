@@ -77,14 +77,16 @@ def render_terrain(battle, map, view_port_size=(12, 12)):
     pos_x, pos_y = map.position_of(current_player)
     view_w, view_h = view_port_size
     map_w, map_h = map.size
-    for y in range(-view_w//2, view_w//2):
+    for x in range(-view_w//2, view_w//2):
         col_arr = []
-        for x in range(-view_h//2, view_h//2):
+        for y in range(-view_h//2, view_h//2):
             if pos_x + x < 0 or pos_x + x >= map_w or pos_y + y < 0 or pos_y + y >= map_h:
                 col_arr.append([-1, -1, 0])
             else:
                 terrain = map.base_map[pos_x + x][pos_y + y]
-
+                if not map.can_see_square(current_player, pos_x + x, pos_y + y):
+                    col_arr.append([-2, -2, 0])
+                    continue
                 if terrain == None:
                     terrain_int = 0
                 else:

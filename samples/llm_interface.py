@@ -110,8 +110,9 @@ class LLMInterfacer:
             for col in row:
                 token = None
                 entity, terrain, health_pct = col
-
-                if terrain == -1:
+                if terrain == -2:
+                    token = " "
+                elif terrain == -1:
                     token = "_"
                 elif terrain == 1:
                     token = "*"

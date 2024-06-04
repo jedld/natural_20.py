@@ -201,6 +201,7 @@ class StateToPrompt:
         prompt += "the hero character is represented by a P\n"
         prompt += "the enemy character is represented by an E\n"
         prompt += "areas outside of the map are represented by a hash (_), you cannot move to areas with _\n"
+        prompt += "areas that you can't see are represented by a space\n    "
         prompt += "areas with obstacles are represented by an asterisk (*)\n"
         prompt += "Each tile of the map is 5ft by 5ft\n"
         prompt += "Here is the map:\n"

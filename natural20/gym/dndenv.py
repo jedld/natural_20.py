@@ -48,7 +48,7 @@ class dndenv(gym.Env):
         }
 
         self.observation_space = gym.spaces.Dict(spaces={
-            "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 3), dtype=int),
+            "map": gym.spaces.Box(low=-2, high=255, shape=(view_port_size[0], view_port_size[0], 3), dtype=int),
             "turn_info" : gym.spaces.Box(low=0, high=1, shape=(3,), dtype=int),
             "health_pct": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "health_enemy": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
@@ -104,7 +104,9 @@ class dndenv(gym.Env):
                     terrain = self.map.base_map[pos_x + x][pos_y + y]
                     entity = self.map.entity_at(pos_x + x, pos_y + y)
 
-                    if entity == None:
+                    if not self.map.can_see_square(current_player, pos_x + x, pos_y + y):
+                        render_char = " "
+                    elif entity == None:
                         if terrain == None:
                             render_char = "."
                         else:

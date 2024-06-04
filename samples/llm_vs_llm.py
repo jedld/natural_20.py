@@ -13,7 +13,7 @@ from gymnasium import register, envs, make
 from llm_interface import GPT4Interfacer, LLama3Interface
 from natural20.gym.dndenv_controller import DndenvController
 
-MAX_EPISODES = 20
+MAX_EPISODES = 30
 
 
 prompt = GPT4Interfacer()
