@@ -12,6 +12,8 @@ from natural20.gym.dndenv import dndenv, action_type_to_int
 from gymnasium import register, envs, make
 from llm_interface import GPT4Interfacer, LLama3Interface
 from natural20.gym.dndenv_controller import DndenvController
+import os
+import time
 
 MAX_EPISODES = 20
 
@@ -42,11 +44,26 @@ action = prompt.select_action_for_state(observation, info)
 print(f"selected action: {action}")
 terminal = False
 episode = 0
+timestamp = time.strftime("%Y%m%d-%H%M%S")
+output_folder = f"output_{timestamp}"
+
+
+os.makedirs(output_folder, exist_ok=True)
+
 while not terminal and episode < MAX_EPISODES:
     episode += 1
     observation, reward, terminal, truncated, info = env.step(action)
     if not terminal and not truncated:
-        print(env.render())
+        episode_name_with_padding = str(episode).zfill(3)
+
+        with open(f"{output_folder}/battle_{episode_name_with_padding}.txt", "w") as f:
+            # display entity healths
+            f.write(f"Turn {info['current_index']}\n")
+            f.write(f"Reward: {reward}\n")
+            f.write(f"health hero: {observation['health_pct']}\n")
+            f.write(f"health enemy: {observation['health_enemy']}\n")
+            f.write(env.render())
+        
         # action = random.choice(info['available_moves'])
         action = prompt.select_action_for_state(observation, info)
         print(f"selected action: {action}")
