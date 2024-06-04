@@ -19,7 +19,7 @@ MAX_EPISODES = 20
 
 
 prompt = GPT4Interfacer()
-prompt2 = LLama3Interface("http://202.92.159.241:8000/generate")
+prompt2 = LLama3Interface("your endpoint here")
 
 class CustomAgent:
     def __init__(self, llm_interface):
