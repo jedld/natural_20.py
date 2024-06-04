@@ -135,13 +135,13 @@ def main():
     total_decision_time = 0
     survival_count = 0
 
-    observations = []
-    actions = []
-    rewards = []
-    next_observations =[]
-    terminals = []
-
     for episode in range(1, MAX_EPISODES + 1):
+        observations = []
+        actions = []
+        rewards = []
+        next_observations =[]
+        terminals = []
+        
         for _ in range(T_HORIZON):
           observation, info = env.reset(seed=42)
           terminal = False
