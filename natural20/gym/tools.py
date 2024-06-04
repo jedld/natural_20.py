@@ -1,5 +1,7 @@
 import numpy as np
 from natural20.entity import Entity
+from natural20.actions.look_action import LookAction
+from natural20.actions.stand_action import StandAction
 
 def enemy_health(battle, current_player):
     for player in battle.entities.keys():
