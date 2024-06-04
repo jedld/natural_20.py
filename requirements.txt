@@ -4,3 +4,7 @@ python-i18n
 gymnasium
 inflect
 collections-extended
+openai
+pandas
+requests
+openpyxl
