@@ -4,6 +4,7 @@ from natural20.battle import Battle
 from natural20.die_roll import DieRoll
 from natural20.entity_class.fighter import Fighter
 from natural20.entity_class.rogue import Rogue
+from natural20.entity_class.wizard import Wizard
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.move_action import MoveAction
@@ -16,23 +17,22 @@ import yaml
 import os
 import copy
 
-class PlayerCharacter(Entity, Fighter, Rogue):
+class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   ACTION_LIST = [
     LookAction, AttackAction, MoveAction, DisengageAction, DodgeAction, DashAction, DashBonusAction,
     TwoWeaponAttackAction, SecondWindAction
   ]
 
-  def __init__(self, session, template, name=None):
+  def __init__(self, session, properties, name=None):
     super(PlayerCharacter, self).__init__(name, f"PC {name}", {})
-    with open(template, 'r') as file:
-      self.properties = yaml.safe_load(file)
-
+    self.properties = properties
+    
     if name is None:
       self.name = self.properties['name']
       
     race_file = self.properties['race']
     self.session = session
-    self.equipped = self.properties['equipped']
+    self.equipped = self.properties.get('equipped', [])
     self.inventory = {}
     with open(f"{self.session.root_path}/races/{race_file}.yml") as file:
       self.race_properties = yaml.safe_load(file)
@@ -56,8 +56,8 @@ class PlayerCharacter(Entity, Fighter, Rogue):
     for klass, level in self.properties.get('classes', {}).items():
       setattr(self, f"{klass}_level", level)
       getattr(self, f"initialize_{klass}")()
-
-      character_class_properties = yaml.safe_load(open(f"{self.session.root_path}/char_classes/{klass}.yml"))
+      with open(f"{self.session.root_path}/char_classes/{klass}.yml") as file:
+        character_class_properties = yaml.safe_load(file)
       self.max_hit_die[klass] = level
 
       hit_die_details = DieRoll.parse(character_class_properties['hit_die'])
@@ -66,6 +66,13 @@ class PlayerCharacter(Entity, Fighter, Rogue):
 
     self.attributes["hp"] = copy.deepcopy(self.max_hp())
 
+  @staticmethod
+  def load(session: Session, path, override={}):
+    with open(os.path.join(session.root_path, path), 'r') as file:
+      properties = yaml.safe_load(file)
+    properties.update(override)
+    return PlayerCharacter(session, properties)
+
   def level(self):
       return self.properties['level']
 
@@ -73,7 +80,7 @@ class PlayerCharacter(Entity, Fighter, Rogue):
       return self.properties.get("size") or self.race_properties.get('size')
   
   def token(self):
-      return self.properties['token']
+      return self.properties.get('token',['P'])
   
   def subrace(self):
       return self.properties['subrace']
@@ -282,7 +289,8 @@ class PlayerCharacter(Entity, Fighter, Rogue):
 
 
   def equipped_ac(self):
-    equipments = yaml.load(open(os.path.join(self.session.root_path, 'items', 'equipment.yml')), Loader=yaml.FullLoader)
+    with open(os.path.join(self.session.root_path, 'items', 'equipment.yml')) as file:
+      equipments = yaml.load(file, Loader=yaml.FullLoader)
     equipped_meta = [equipments[e] for e in self.equipped if e in equipments]
     armor = next((equipment for equipment in equipped_meta if equipment['type'] == 'armor'), None)
     shield = next((equipment for equipment in equipped_meta if equipment['type'] == 'shield'), None)

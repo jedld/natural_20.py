@@ -15,15 +15,24 @@ import random
 
 class TestGym(unittest.TestCase):
     def test_reset(self):
-        env = make("dndenv-v0", render_mode="ansi")
+        env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True)
         observation, info = env.reset(seed=42)
         # sample a move from info
-        action = random.choice(info["available_moves"])
-        observation, reward, done, truncated, info = env.step(action)
-        print(env.action_space.sample())
-        print(observation)
-        print(info)
-        print(env.render())
+        while True:
+            action = random.choice(info["available_moves"])
+            observation, reward, done, truncated, info = env.step(action)
+            assert observation is not None
+            assert reward is not None
+            if done or truncated:
+                break
         assert env is not None
         assert info is not None
+
+    def test_render(self):
+        env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True)
+        observation, info = env.reset(seed=42)
+        
+        # sample a move from info
+        render = env.render()
+        assert render=="", f"render: {render}"
 

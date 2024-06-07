@@ -148,20 +148,20 @@ class MoveAction(Action):
         elif item_type in ['acrobatics', 'athletics']:
             if item['success']:
                 print(f"{item['source'].name} {item_type} check success")
-                # Natural20.EventManager.received_event(source=item['source'], event=item_type, success=True,
-                #                                      roll=item['roll'])
+                EventManager.received_event(source=item['source'], event=item_type, success=True,
+                                                     roll=item['roll'])
             else:
                 print(f"{item['source'].name} {item_type} check failed and is now prone")
-                # Natural20.EventManager.received_event(source=item['source'], event=item_type, success=False,
-                #                                      roll=item['roll'])
+                EventManager.received_event(source=item['source'], event=item_type, success=False,
+                                                     roll=item['roll'])
                 item['source'].prone()
         elif item_type == 'drop_grapple':
             item['target'].escape_grapple_from(item['source'])
             print(f"{item['source'].name} dropped grapple on {item['target'].name}")
-            # Natural20.EventManager.received_event(event='drop_grapple',
-            #                                       target=item['target'], source=item['source'],
-            #                                       source_roll=item['source_roll'],
-            #                                       target_roll=item['target_roll'])
+            EventManager.received_event(event='drop_grapple',
+                                                  target=item['target'], source=item['source'],
+                                                  source_roll=item['source_roll'],
+                                                  target_roll=item['target_roll'])
         elif item_type == 'move':
             print(f"{item['source'].name} moved to {item['position']} {item['move_cost'] * battle.map.feet_per_grid} feet")
             item['map'].move_to(item['source'], *item['position'], battle)

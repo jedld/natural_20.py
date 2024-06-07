@@ -2,6 +2,7 @@ from typing import Callable
 from dataclasses import dataclass
 from types import SimpleNamespace
 from natural20.action import Action
+from natural20.event_manager import EventManager
 
 class DashAction(Action):
     def __init__(self, session, source, action_type, opts={}):
@@ -37,7 +38,7 @@ class DashAction(Action):
     @staticmethod
     def apply(battle, item):
         if item['type'] == 'dash':
-            # Natural20.EventManager.received_event({'source': item['source'], 'event': 'dash'})
+            EventManager.received_event({'source': item['source'], 'event': 'dash'})
             battle.entity_state_for(item['source'])['movement'] += item['source'].speed()
             if item['as_bonus_action']:
                 print(f"{item['source'].name} dashes as a bonus action")

@@ -1,6 +1,7 @@
 from natural20.die_roll import DieRoll
 import math
 import pdb
+from natural20.event_manager import EventManager
 class Entity():
     def __init__(self, name, description, attributes = {}):
         self.name = name
@@ -82,7 +83,7 @@ class Entity():
     
     def make_dead(self):
         if not self.dead():
-            # Natural20.EventManager.received_event({ 'source': self, 'event': 'died' })
+            EventManager.received_event({ 'source': self, 'event': 'died' })
             print(f"{self.name} died. :(")
             self.drop_grapple()
             self.statuses.append('dead')
@@ -94,7 +95,7 @@ class Entity():
     def make_unconscious(self):
         if not self.unconscious() and not self.dead():
             self.drop_grapple()
-            # Natural20.EventManager.received_event({ 'source': self, 'event': 'unconscious' })
+            EventManager.received_event({ 'source': self, 'event': 'unconscious' })
             print(f"{self.name} is unconscious.")
 
             self.statuses.append('prone')
@@ -166,7 +167,17 @@ class Entity():
 
     def is_flying(self):
         return bool(self.flying)
-
+    
+    def fly(self):
+        if self.properties.get('speed_fly'):
+            self.flying = True 
+    
+    def can_fly(self):
+        return self.properties.get('speed_fly')
+    
+    def is_flying(self):
+        return self.flying
+    
     def melee_distance(self):
         return 0
     
@@ -214,7 +225,10 @@ class Entity():
         roll = DieRoll.roll(f"1d20+{self.dex_mod()}", description="initiative", entity=self, battle=battle)
         value = float(roll.result()) + self.ability_scores.get('dex') / 100.0
         print(f"{self.name} -> initiative roll: {roll} value: {value}")
-        # Natural20::EventManager.received_event({ source: self, event: :initiative, roll: roll, value: value })
+        EventManager.received_event({ "source": self,
+                                     "event": "initiative",
+                                     "roll": roll,
+                                     "value" : value })
         return value
 
     def str_mod(self):
@@ -254,6 +268,9 @@ class Entity():
                      [30, 30, 10]]
 
         for low, high, mod in mod_table:
+            if value is None:
+                pdb.set_trace()
+                raise ValueError(f"invalid value {value}")
             if low <= value <= high:
                 return mod
         return None
@@ -342,7 +359,7 @@ class Entity():
       return self.properties.get('familiar')
 
     def speed(self):
-        c_speed = self.properties['speed_fly'] if self.flying else self.properties['speed']
+        c_speed = self.properties['speed_fly'] if self.is_flying() else self.properties['speed']
 
         if self.has_effect('speed_override'):
             c_speed = self.eval_effect('speed_override', stacked=True, value=c_speed)
@@ -609,7 +626,7 @@ class Entity():
     def equipped_weapons(self):
         return [item.name for item in self.equipped_items if item.subtype == 'weapon']
 
-    def take_damage(self, dmg, battle=None, critical=False):
+    def take_damage(self, dmg: int, battle=None, critical=False):
         self.attributes["hp"] -= dmg
 
         if self.unconscious:
@@ -623,8 +640,8 @@ class Entity():
                 self.make_dead()
                 self.death_saves = 0
                 self.death_fails = 0
-            # Natural20.EventManager.received_event({'source': self, 'event': 'death_fail', 'saves': self.death_saves,
-            #                                        'fails': self.death_fails, 'complete': complete})
+            EventManager.received_event({'source': self, 'event': 'death_fail', 'saves': self.death_saves,
+                                                    'fails': self.death_fails, 'complete': complete})
 
         if self.hp() < 0 and abs(self.hp()) >= self.properties['max_hp']:
             self.make_dead()
@@ -638,7 +655,7 @@ class Entity():
         if self.hp() <= 0:
             self.attributes["hp"] = 0
 
-        # Natural20.EventManager.received_event({'source': self, 'event': 'damage', 'value': dmg})
+        EventManager.received_event({'source': self, 'event': 'damage', 'value': dmg})
             
     def on_take_damage(self, battle, _damage_params):
         controller = battle.controller_for(self)
@@ -678,7 +695,8 @@ class Entity():
 
         if self.has_effect("heal_override"):
             amt = self.eval_effect("heal_override", {"heal": amt})
-
+            
+        prev_hp = self.hp()
         self.death_saves = 0
         self.death_fails = 0
         self.attributes["hp"] = min(self.max_hp(), self.hp() + amt)
@@ -687,7 +705,7 @@ class Entity():
             if self.unconscious():
                 print(f"{self.name} is now conscious because of healing and has {self.hp()} hp")
                 self.conscious()
-            # Natural20.EventManager.received_event({'source': self, 'event': 'heal', 'previous': prev_hp, 'new': self.hp, 'value': amt})
+            EventManager.received_event({'source': self, 'event': 'heal', 'previous': prev_hp, 'new': self.hp, 'value': amt})
     
     def death_saving_throw(self, battle=None):
         roll = DieRoll.roll('1d20', description='dice_roll.death_saving_throw', entity=self, battle=battle)
@@ -695,8 +713,8 @@ class Entity():
             self.make_conscious()
             self.heal(1)
             print(f"{self.name} rolled a natural 20 on a death saving throw and is now conscious with 1 hp")
-            # Natural20.EventManager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
-            #                                        'fails': self.death_fails, 'complete': True, 'stable': True, 'success': True})
+            EventManager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
+                                                    'fails': self.death_fails, 'complete': True, 'stable': True, 'success': True})
         elif roll.result() >= 10:
             self.death_saves += 1
             complete = False
@@ -707,8 +725,8 @@ class Entity():
                 self.death_fails = 0
                 self.make_stable()
                 print(f"{self.name} is now stable")
-            # Natural20.EventManager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
-            #                                        'fails': self.death_fails, 'complete': complete, 'stable': complete})
+            EventManager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
+                                                    'fails': self.death_fails, 'complete': complete, 'stable': complete})
         else:
             if roll.nat_1():
                 print(f"{self.name} rolled a natural 1 on a death saving throw :(")

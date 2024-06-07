@@ -1,0 +1,42 @@
+name: Natural20::Battle Sim
+description: Map for Natural20::Battle Sim
+map:
+  base:
+    - ......
+    - ......
+    - ......
+    - ......
+    - ......
+    - ......
+  meta:
+    - ....C.
+    - ......
+    - ......
+    - ..AD..
+    - ......
+    - .B....
+legend:
+  A:
+    name: spawn_point_1
+    type: spawn_point
+  B:
+    name: spawn_point_2
+    type: spawn_point
+  C:
+    name: spawn_point_3
+    type: spawn_point
+  D:
+    name: spawn_point_4
+    type: spawn_point
+player:
+  - position: [0, 1]
+    sheet: characters/halfling_rogue.yml
+npc:
+  - position: [0, 0]
+    type: npc
+    sub_type: goblin
+    overrides:
+      battle_defaults:
+        statuses:
+          - hiding
+        stealth: 1d20+6

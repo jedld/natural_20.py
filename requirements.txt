@@ -1,6 +1,6 @@
 pyyaml
 dndice
-python-i18n
+python-i18n[YAML]
 gymnasium
 inflect
 collections-extended
@@ -8,3 +8,7 @@ openai
 pandas
 requests
 openpyxl
+pytest
+termcolor
+prompt_toolkit
+lark

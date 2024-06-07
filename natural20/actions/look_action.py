@@ -42,11 +42,11 @@ class LookAction(Action):
         if item["type"] == "look":
             battle.entity_state_for(item["source"])["active_perception"] = item["die_roll"].result()
             battle.entity_state_for(item["source"])["active_perception_disadvantage"] = item["die_roll_disadvantage"].result
-            # Natural20.EventManager.received_event({
-            #     "source": item["source"],
-            #     "perception_roll": item["die_roll"],
-            #     "event": "perception"
-            # })
+            EventManager.received_event({
+                "source": item["source"],
+                "perception_roll": item["die_roll"],
+                "event": "perception"
+            })
             if item["ui_callback"]:
                 item["ui_callback"].target_ui(item["source"], perception=item["die_roll"].result, look_mode=True)
             battle.consume(item['source'], 'action')

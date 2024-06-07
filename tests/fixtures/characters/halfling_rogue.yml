@@ -1,0 +1,47 @@
+---
+name: RumbleBelly
+race: halfling
+subrace: lightfoot
+pronoun: he/him/his
+classes:
+  rogue: 1
+description: A halfling rogue with a dark past
+level: 1
+hit_die: inherit
+max_hp: 8
+ability:
+  str: 11
+  dex: 20
+  con: 16
+  int: 11
+  wis: 12
+  cha: 17
+skills:
+- acrobatics
+- arcana
+- athletics
+- history
+- perception
+token:
+  - R
+tools:
+- thieves_tools
+- carpenters_tools
+weapon_proficiencies:
+- martial
+- simple
+equipped:
+- dagger
+- torch
+- leather_armor
+inventory:
+- type: shortbow
+  qty: 1
+- type: dagger
+  qty: 1
+- type: arrows
+  qty: 20
+- type: thieves_tools
+  qty: 1
+- type: healing_potion
+  qty: 1

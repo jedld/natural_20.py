@@ -90,7 +90,7 @@ for i in range(TRIALS):
     print("============\n\n")
 
     session = Session('templates')
-    map = Map('templates/maps/game_map.yml')
+    map = Map(session, 'templates/maps/game_map.yml')
     battle = Battle(session, map)
     fighter = PlayerCharacter(session, 'templates/characters/high_elf_fighter.yml', name="Gomerin")
     rogue = PlayerCharacter(session, 'templates/characters/halfling_rogue.yml', name="Rogin")

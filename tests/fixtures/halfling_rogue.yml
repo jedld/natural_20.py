@@ -1,0 +1,41 @@
+---
+name: RumbleBelly
+race: halfling
+subrace: lightfoot
+classes:
+  rogue: 1
+level: 1
+hit_die: inherit
+max_hp: 67
+ability:
+  str: 11
+  dex: 20
+  con: 16
+  int: 11
+  wis: 12
+  cha: 17
+class_features:
+- cunning_action
+skills:
+- acrobatics
+- arcana
+- athletics
+- history
+- perception
+expertise:
+- stealth
+- thieves_tools
+tools:
+- thieves_tools
+- carpenters_tools
+weapon_proficiencies:
+- simple
+equipped:
+- dagger
+- torch
+- studded_leather
+inventory:
+- type: arrows
+  qty: 20
+- type: thieves_tools
+  qty: 1

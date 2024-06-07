@@ -224,6 +224,8 @@ class AttackAction(Action):
             target_ac, cover_ac_adjustments = effective_ac(battle, self.source, target)
             hit = attack_roll.result() >= target_ac
 
+        assert damage is not None, 'damage is required'
+        
         if hit:
             self.result.append({
                 'source': self.source,
@@ -271,6 +273,7 @@ class AttackAction(Action):
                     else:
                         target.apply_effect(effect['effect'])
         else:
+            
             self.result.append({
                 'attack_name': attack_name,
                 'source': self.source,
@@ -349,7 +352,7 @@ class AttackAction(Action):
                                                                                 source=entity, attacker=self.source):
                     continue
 
-                Natural20.EventManager.received_event(event='feature_protection', target=target, source=entity,
+                EventManager.received_event(event='feature_protection', target=target, source=entity,
                                                         attacker=self.source)
                 _advantage, disadvantage = adv_info
                 disadvantage.append('protection')

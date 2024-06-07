@@ -1,0 +1,134 @@
+---
+arrows:
+  cost: 0.05
+  name: Arrows
+  type: ammunition
+  weight: 0.05
+bolts:
+  cost: 0.05
+  name: Crossbow Bolts
+  type: ammunition
+  weight: 0.05
+chain_mail:
+  ac: 16
+  cost: 75
+  name: Chain Mail
+  subtype: heavy
+  type: armor
+  metallic: true
+  weight: 55
+chain_shirt:
+  ac: 13
+  cost: 50
+  mod_cap: 2
+  name: Chain Shirt
+  metallic: true
+  subtype: light
+  type: armor
+  weight: 13
+component_pouch:
+  cost: 25
+  name: Component Pouch
+  type: other
+  weight: 2
+copper_piece:
+  cost: 0.01
+  name: Copper Piece (cp)
+  type: currency
+  weight: 0.02
+crystal:
+  cost: 10
+  name: Crystal
+  type: arcane_focus
+  weight: 1
+electronum:
+  cost: 0.5
+  name: Electronum (ep)
+  type: currency
+  weight: 0.02
+gold_piece:
+  cost: 1
+  name: Gold Piece (gp)
+  type: currency
+  weight: 0.02
+healing_potion:
+  consumable: true
+  hp_regained: 2d4+2
+  item_class: ItemLibrary::HealingPotion
+  name: Potion of Healing
+  type: potion
+  usable: true
+leather_armor:
+  ac: 11
+  cost: 10
+  name: Leather
+  subtype: light
+  type: armor
+  weight: 10
+orb:
+  cost: 20
+  name: Orb
+  type: arcane_focus
+  weight: 3
+padded:
+  ac: 11
+  cost: 5
+  disadvantage:
+    - stealth
+  name: Padded Armor
+  subtype: light
+  type: armor
+  weight: 8
+platinum:
+  cost: 10
+  name: platinum (pp)
+  type: currency
+  weight: 0.02
+rod:
+  cost: 10
+  name: Rod
+  type: arcane_focus
+  weight: 2
+ruby_gem:
+  cost: 5000
+  name: Ruby Gemstone
+  type: gemstone
+  weight: 1
+shield:
+  bonus_ac: 2
+  name: Shield
+  type: shield
+  metallic: true
+  weight: 6
+silver_piece:
+  cost: 0.1
+  name: Silver Piece (sp)
+  type: currency
+  weight: 0.02
+staff:
+  cost: 5
+  name: Staff
+  type: arcane_focus
+  weight: 4
+studded_leather:
+  ac: 12
+  cost: 45
+  name: Studded Leather
+  subtype: light
+  type: armor
+  weight: 13
+thieves_tools:
+  cost: 25
+  name: Thieves Tools
+  type: tool
+  weight: 1
+wand:
+  cost: 10
+  name: Wand
+  type: arcane_focus
+  weight: 1
+wooden_door_key:
+  cost: 0.05
+  name: Wooden Door Key
+  type: tool
+  weight: 0.05

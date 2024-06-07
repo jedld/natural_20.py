@@ -7,6 +7,7 @@ setup(
     install_requires=[
         "pyyaml",
         "dndice",
-        "python-i18n"
+        "python-i18n",
+        "fantasynames"
     ]
 )

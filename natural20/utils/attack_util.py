@@ -1,7 +1,7 @@
 from natural20.map import Map
 from natural20.entity import Entity
 from natural20.action import Action
-from natural20.die_roll import DieRoll
+from natural20.die_roll import DieRoll, DieRolls, Rollable
 import pdb
 
 def to_advantage_str(item):
@@ -13,9 +13,11 @@ def to_advantage_str(item):
 
 def damage_event(item, battle):
     target = item['target']
-    dmg = item['damage'].result() if isinstance(item['damage'], DieRoll) else item['damage']
+    dmg = item['damage'].result() if isinstance(item['damage'], Rollable) else item['damage']
     dmg += item['sneak_attack'].result() if item['sneak_attack'] is not None else 0
 
+    if dmg is None:
+        pdb.set_trace()    
     if target.resistant_to(item['damage_type']):
         total_damage = int(dmg / 2)
     elif target.vulnerable_to(item['damage_type']):
@@ -42,7 +44,7 @@ def damage_event(item, battle):
     #     'value': dmg,
     #     'total_damage': total_damage
     # })
-
+    
     print(f"{item['target'].name} takes {total_damage} damage!")
     item['target'].take_damage(total_damage, battle=battle, critical=item['attack_roll'].nat_20())
 

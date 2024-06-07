@@ -46,7 +46,7 @@ class DodgeAction(Action):
         item_type = item.get('type')
         if item_type == 'dodge':
             print(f"{item.get('source').name} dodges")
-            # Natural20.EventManager.received_event({'source': item.get('source'), 'event': 'dodge'})
+            EventManager.received_event({'source': item.get('source'), 'event': 'dodge'})
             item.get('source').do_dodge(battle)
 
             if item.get('as_bonus_action'):

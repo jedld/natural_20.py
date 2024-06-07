@@ -6,6 +6,10 @@ class DieRollDetail:
         self.die_type = None  # String
         self.modifier = None  # Integer
         self.modifier_op = None  # Symbol
+
+class Rollable:
+    def result(self):
+        pass
 class Roller:
     def __init__(self, roll_str, crit=False, disadvantage=False, advantage=False, description=None, entity=None, battle=None, controller=None):
         self.roll_str = roll_str
@@ -56,7 +60,7 @@ class Roller:
     def t(self, key, options=None):
         return i18n.t(key, **options)
 
-class DieRolls:
+class DieRolls(Rollable):
     def __init__(self, rolls=[]):
         self.rolls = rolls
 
@@ -91,7 +95,7 @@ class DieRolls:
     def __str__(self):
         return ' + '.join(str(roll) for roll in self.rolls)
 
-class DieRoll:
+class DieRoll(Rollable):
     def __init__(self, rolls, modifier, die_sides=20, advantage=False, disadvantage=False, description=None, roller=None):
         self.rolls = rolls
         self.modifier = modifier

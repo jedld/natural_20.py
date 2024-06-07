@@ -6,7 +6,8 @@ from natural20.weapons import compute_max_weapon_range
 from natural20.map import Map
 from natural20.utils.utils import Session
 from natural20.entity import Entity
-
+from natural20.event_manager import EventManager
+import pdb
 class Battle():
     def __init__(self, session: Session, map: Map):
         self.map = map
@@ -70,9 +71,10 @@ class Battle():
         for entity, v in _combat_order:
             v['initiative'] = entity.initiative(self)
 
-        self.combat_order = [entity for entity in self.combat_order]
+        self.combat_order = [entity for entity, _ in _combat_order]
         self.started = True
         self.current_turn_index = 0
+
         self.combat_order = sorted(self.combat_order, key=lambda a: self.entities[a]['initiative'], reverse=True)
 
     def roll_for(self, entity, die_type, number_of_times, description, advantage=False, disadvantage=False, controller=None):
@@ -97,21 +99,19 @@ class Battle():
     def check_combat(self):
         if not self.started and not self.battle_ends():
             self.start()
-            # Natural20.EventManager.received_event(source=self, event='start_of_combat', target=self.current_turn,
-            #                                       combat_order=[[e, self.entities[e]['initiative']] for e in self.combat_order])
+            EventManager.received_event(source=self, event='start_of_combat', target=self.current_turn,
+                                                  combat_order=[[e, self.entities[e]['initiative']] for e in self.combat_order])
             print(f"Combat starts with {self.combat_order[0].name}.")
             return True
         return False
 
     def start_turn(self):
         print(f"{self.current_turn().name} starts their turn.")
-
         if self.current_turn().unconscious() and not self.current_turn().stable():
             self.current_turn().death_saving_throw(self)
 
     def end_turn(self):
-        pass
-        # self.trigger_event!('end_of_round', self, target=self.current_turn())
+        self.trigger_event('end_of_round', self,  { "target" : self.current_turn()})
     
     def battle_ends(self):
         # check if the entities that are alive are all in the same group
@@ -122,10 +122,9 @@ class Battle():
         return len(groups) == 1                
 
     def next_turn(self, max_rounds=None):
-        #  self.trigger_event!('end_of_round', self, target=self.current_turn())
-
+        self.trigger_event('end_of_round', self, { "target" : self.current_turn()})
         if self.started and self.battle_ends():
-            # Natural20.EventManager.received_event(source=self, event='end_of_combat')
+            EventManager.received_event({"source" : self, "event" : 'end_of_combat'})
             self.started = False
             print('tpk')
             return 'tpk'
@@ -135,22 +134,25 @@ class Battle():
             self.current_turn_index = 0
             self.round += 1
 
-            # Natural20.EventManager.received_event(source=self, event='top_of_the_round', round=self.round,
-            #                                       target=self.current_turn())
+            EventManager.received_event({ "source" : self,
+                                          "event" : 'top_of_the_round',
+                                          "round" : self.round,
+                                          "target" : self.current_turn()})
 
             if max_rounds is not None and self.round > max_rounds:
                 return True
         return False
 
-    def while_active(self, max_rounds=None, block=None):
+    def while_active(self, max_rounds=None, callback=lambda x: x):
         while True:
             self.start_turn()
             if self.controller_for(self.current_turn()):
                 self.controller_for(self.current_turn()).begin_turn(self.current_turn())
             if self.current_turn().conscious():
                 self.current_turn().reset_turn(self)
-                if block(self, self.current_turn()):
+                if callback(self.current_turn()):
                     continue
+
             self.current_turn().resolve_trigger('end_of_turn')
             print("Next turn")
             result = self.next_turn(max_rounds)
@@ -214,6 +216,11 @@ class Battle():
             'battle': self
         }
         return action.resolve(self.session, self.map, opts)
+    
+    def resolve_action(self, source, action_type, opts={}):
+        action = next((act for act in source.available_actions(self.session, self) if act.action_type == action_type), None)
+        opts['battle'] = self
+        return action.resolve(self.session, self.map, opts) if action else None
     
     def commit(self, action):
         if action is None:

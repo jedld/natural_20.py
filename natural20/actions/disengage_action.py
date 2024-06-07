@@ -1,6 +1,7 @@
 from typing import Callable
 from dataclasses import dataclass
 from natural20.action import Action
+from natural20.event_manager import EventManager
 
 @dataclass
 class DisengageAction(Action):
@@ -44,7 +45,7 @@ class DisengageAction(Action):
     def apply(battle, item):
         if item['type'] == 'disengage':
             print(f"{item['source'].name} disengages")
-            # Natural20.EventManager.received_event({'source': item['source'], 'event': 'disengage'})
+            EventManager.received_event({'source': item['source'], 'event': 'disengage'})
             item['source'].do_dodge(battle)
             if item['as_bonus_action']:
                 battle.consume(item['source'], 'bonus_action')

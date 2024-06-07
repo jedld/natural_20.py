@@ -1,6 +1,7 @@
 import yaml
 import os
 from collections import defaultdict, deque
+from natural20.npc import Npc
 # typed: true
 class Session:
     def __init__(self, root_path=None):

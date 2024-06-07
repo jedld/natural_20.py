@@ -138,7 +138,7 @@ class dndenv(gym.Env):
         map_location = kwargs.get('map_location', os.path.join(self.root_path, self.map_file))
         self.log(f"loading map from {map_location}")
         self.session = Session(self.root_path)
-        self.map = Map(map_location)
+        self.map = Map(self.session, map_location)
         self.battle = Battle(self.session, self.map)
         self.players = []
         self.current_round = 0
@@ -147,12 +147,12 @@ class dndenv(gym.Env):
         enemy_pos = None
         player_pos = None
 
-        character_sheet_path = os.path.join(self.root_path, 'characters')
+        character_sheet_path = 'characters'
         for index, p in enumerate(self.heroes):
             if index < len(self.hero_names):
                 name = self.hero_names[index]
 
-            pc = PlayerCharacter(self.session, f'{character_sheet_path}/{p}', name=name)
+            pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', { "name" : name})
             self._describe_hero(pc)
              # set random starting positions, make sure there are no obstacles in the map
             while player_pos is None or self.map.placeable(pc, player_pos[0], player_pos[1]) == False:
@@ -163,7 +163,7 @@ class dndenv(gym.Env):
             if index < len(self.enemy_names):
                 name = self.enemy_names[index]
 
-            pc = PlayerCharacter(self.session, f'{character_sheet_path}/{p}', name=name)
+            pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', {"name":  name})
             self._describe_hero(pc)
             while  enemy_pos is None or enemy_pos==player_pos or self.map.placeable(pc, enemy_pos[0], enemy_pos[1]) == False:
                 enemy_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]

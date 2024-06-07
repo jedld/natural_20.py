@@ -5,6 +5,7 @@ from natural20.entity import Entity
 from natural20.utils.movement import requires_squeeze
 import math
 import pdb
+import os
 
 class Terrain():
     def __init__(self, name, passable, movement_cost, symbol=None):
@@ -21,13 +22,14 @@ def dirt():
     return Terrain("dirt", True, 1.0)
 
 class Map():
-    def __init__(self, map_file_path):
+    def __init__(self, session, map_file_path):
+        self.session = session
         self.terrain = {}
         self.area_triggers = {}
         self.map = []
         self.properties = self.load(map_file_path)
         base = self.properties.get('map', {}).get('base', [])
-        
+
         self.size = [len(base[0]), len(base)]
         print(f"map size: {self.size}")
         self.feet_per_grid = self.properties.get('grid_size', 5)
@@ -36,21 +38,21 @@ class Map():
         self.tokens = []
         self.entities = {}  # Assuming entities is a dictionary
         
-        for _ in range(self.size[1]):
+        for _ in range(self.size[0]):
             row = []
-            for _ in range(self.size[0]):
+            for _ in range(self.size[1]):
                 row.append(None)
             self.base_map.append(row)
 
-        for _ in range(self.size[1]):
+        for _ in range(self.size[0]):
             row = []
-            for _ in range(self.size[0]):
+            for _ in range(self.size[1]):
                 row.append([])
             self.objects.append(row)
 
-        for _ in range(self.size[1]):
+        for _ in range(self.size[0]):
             row = []
-            for _ in range(self.size[0]):
+            for _ in range(self.size[1]):
                 row.append([])
             self.tokens.append(row)
 
@@ -69,6 +71,11 @@ class Map():
 
 
     def load(self, map_file_path):
+        # Add .yml extension if not present
+        if not map_file_path.endswith('.yml'):
+            map_file_path += '.yml'
+        if not os.path.exists(map_file_path):
+            map_file_path = os.path.join(self.session.root_path, map_file_path)
         with open(map_file_path, 'r') as file:
             data = yaml.safe_load(file)
             return data
@@ -188,6 +195,29 @@ class Map():
 
                 entity_1_squares.append([pos1_x + ofs_x, pos1_y + ofs_y])
         return entity_1_squares
+    
+    def can_see_square(self, entity, pos2: tuple, allow_dark_vision=True):
+        has_line_of_sight = False
+        max_illumination = 0.0
+        sighting_distance = None
+        pos2_x, pos2_y = pos2
+        entity_1_squares = self.entity_squares(entity)
+        for pos1 in entity_1_squares:
+            pos1_x, pos1_y = pos1
+            if [pos1_x, pos1_y] == [pos2_x, pos2_y]:
+                return True
+            if not self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=False):
+                continue
+
+            location_illumination = self.light_at(pos2_x, pos2_y)
+            max_illumination = max(location_illumination, max_illumination)
+            sighting_distance = math.floor(math.sqrt((pos1_x - pos2_x)**2 + (pos1_y - pos2_y)**2))
+            has_line_of_sight = True
+
+        if has_line_of_sight and max_illumination < 0.5:
+            return allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid)
+
+        return has_line_of_sight
 
     def can_see(self, entity, entity2, distance=None, entity_1_pos=None, entity_2_pos=None, allow_dark_vision=True, active_perception=0, active_perception_disadvantage=0):
         if entity not in self.entities and entity not in self.interactable_objects:
@@ -316,14 +346,35 @@ class Map():
 
             squares_results.append([self.cover_at(*s, entity), s])
         return squares_results
+    
+
+    def light_in_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, min_distance=None, distance=None, inclusive=False, entity=False):
+        squares = self.squares_in_path(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive)
+        min_distance_reached = True
+
+        for index, s in enumerate(squares):
+            if min_distance and index >= (min_distance - 1):
+                min_distance_reached = False
+            if distance and index >= (distance - 1):
+                return [False, False]
+            if self.opaque(*s):
+                return [False, False]
+            if self.cover_at(*s) == 'total':
+                return [False, False]
+
+        return [min_distance_reached, True]
         
     def opaque(self, pos_x, pos_y):
+        if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
+            raise ValueError(f"Invalid position: {pos_x},{pos_y} should not exceed (0 - {self.size[0]- 1 }),(0 - {self.size[1] - 1})")
+        
         if self.base_map[pos_x][pos_y] == '#':
             return True
         elif self.base_map[pos_x][pos_y] == '.':
             return False
         else:
             return self.object_at(pos_x, pos_y).opaque() if self.object_at(pos_x, pos_y) else None
+
 
 
     def squares_in_path(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, inclusive=True):
