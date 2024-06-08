@@ -263,7 +263,7 @@ class AttackAction(Action):
                             raise Exception('invalid save type')
 
                         save_roll = target.saving_throw(save_type, battle=battle)
-                        if save_roll.result >= int(dc):
+                        if save_roll.result() >= int(dc):
                             if effect.get('success'):
                                 self.result.append(target.apply_effect(effect['success'], battle=battle,
                                                                         flavor=effect['flavor_success']))

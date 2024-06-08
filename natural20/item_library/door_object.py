@@ -87,7 +87,7 @@ class DoorObject(Object):
         elif action == "lockpick":
             lock_pick_roll = entity.lockpick(opts["battle"])
 
-            if lock_pick_roll.result >= self.lockpick_dc():
+            if lock_pick_roll.result() >= self.lockpick_dc():
                 return {"action": "lockpick_success", "roll": lock_pick_roll, "cost": "action"}
             else:
                 return {"action": "lockpick_fail", "roll": lock_pick_roll, "cost": "action"}

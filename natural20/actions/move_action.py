@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from natural20.action import Action
 from natural20.utils.movement import compute_actual_moves, retrieve_opportunity_attacks
+from natural20.event_manager import EventManager
 # typed: true
 class MoveAction(Action):
     move_path: List[Tuple[int, int]]
@@ -174,15 +175,15 @@ class MoveAction(Action):
                 # print(f"available movement {battle.entity_state_for(item['source'])['movement']} {item['move_cost']}")
                 battle.entity_state_for(item['source'])['movement'] -= item['move_cost'] * battle.map.feet_per_grid
 
-            # Natural20.EventManager.received_event({
-            #     'event': 'move',
-            #     'source': item['source'],
-            #     'position': item['position'],
-            #     'path': item['path'],
-            #     'feet_per_grid': battle.map.feet_per_grid if battle.map else None,
-            #     'as_dash': item['as_dash'],
-            #     'as_bonus': item['as_bonus_action']
-            # })
+            EventManager.received_event({
+                'event': 'move',
+                'source': item['source'],
+                'position': item['position'],
+                'path': item['path'],
+                'feet_per_grid': battle.map.feet_per_grid if battle.map else None,
+                'as_dash': item['as_dash'],
+                'as_bonus': item['as_bonus_action']
+            })
 
     def check_movement_acrobatics(self, actual_moves, dexterity_checks, battle):
         cutoff = len(actual_moves) - 1
@@ -191,7 +192,7 @@ class MoveAction(Action):
                 continue
 
             acrobatics_roll = self.source.acrobatics_check(battle)
-            if acrobatics_roll.result >= 10:
+            if acrobatics_roll.result() >= 10:
                 self.result.append({
                     'source': self.source,
                     'type': 'acrobatics',
@@ -219,7 +220,7 @@ class MoveAction(Action):
                 continue
 
             athletics_roll = self.source.athletics_check(battle)
-            if athletics_roll.result >= 10:
+            if athletics_roll.result() >= 10:
                 self.result.append({
                     'source': self.source,
                     'type': 'athletics',
