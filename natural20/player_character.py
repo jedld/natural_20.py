@@ -1,6 +1,5 @@
 from natural20.entity import Entity
 from natural20.utils.utils import Session
-from natural20.battle import Battle
 from natural20.die_roll import DieRoll
 from natural20.entity_class.fighter import Fighter
 from natural20.entity_class.rogue import Rogue
@@ -127,7 +126,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   def c_class(self):
     return self.properties['classes']
 
-  def available_actions(self, session: Session, battle: Battle, opportunity_attack=False):
+  def available_actions(self, session: Session, battle, opportunity_attack=False):
     if self.unconscious():
       return []
 

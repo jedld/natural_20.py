@@ -354,7 +354,6 @@ class Entity():
     def available_spells(self):
         return []
     
-
     def familiar(self):
       return self.properties.get('familiar')
 
@@ -706,6 +705,29 @@ class Entity():
                 print(f"{self.name} is now conscious because of healing and has {self.hp()} hp")
                 self.conscious()
             EventManager.received_event({'source': self, 'event': 'heal', 'previous': prev_hp, 'new': self.hp, 'value': amt})
+
+
+    def light_properties(self):
+        if not self.equipped_items():
+            return None
+
+        bright = [0]
+        dim = [0]
+
+        for item in self.equipped_items():
+            if not item.get('light_properties'):
+                continue
+
+            bright.append(item['light_properties'].get('bright', 0))
+            dim.append(item['light_properties'].get('dim', 0))
+
+        bright = max(bright)
+        dim = max(dim)
+
+        if dim <= 0 and bright <= 0:
+            return None
+
+        return {'dim': dim, 'bright': bright}
     
     def death_saving_throw(self, battle=None):
         roll = DieRoll.roll('1d20', description='dice_roll.death_saving_throw', entity=self, battle=battle)

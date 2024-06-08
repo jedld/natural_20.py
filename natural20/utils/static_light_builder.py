@@ -42,11 +42,15 @@ class StaticLightBuilder:
 
     def light_at(self, pos_x, pos_y):
         intensity = 0.0
-        for entity in self.map.entities.keys() + self.map.interactable_objects.keys():
-            if entity.light_properties is None:
+        entity_keys = []
+        entity_keys += self.map.entities.keys()
+        entity_keys += self.map.interactable_objects.keys()
+
+        for entity in entity_keys:
+            if entity.light_properties() is None:
                 continue
 
-            light = entity.light_properties
+            light = entity.light_properties()
             bright_light = light.get('bright', 0.0) / self.map.feet_per_grid
             dim_light = light.get('dim', 0.0) / self.map.feet_per_grid
 

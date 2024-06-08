@@ -163,7 +163,7 @@ class Battle():
                 return result
             
     def entity_state_for(self, entity):
-      return self.entities[entity]
+      return self.entities.get(entity, None)
     
 
     def dismiss_help_actions_for(self, source):
@@ -354,7 +354,7 @@ class Battle():
             for object, _position in self.map.interactable_objects.items():
                 if object.dead():
                     continue
-                if not target_types.include('ignore_los') and not self.can_see(entity, object, active_perception=active_perception):
+                if not 'ignore_los' in target_types and not self.can_see(entity, object, active_perception=active_perception):
                     continue
                 if self.map.distance(object, entity) * self.map.feet_per_grid > attack_range:
                     continue

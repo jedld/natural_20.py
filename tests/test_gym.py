@@ -31,8 +31,21 @@ class TestGym(unittest.TestCase):
     def test_render(self):
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True)
         observation, info = env.reset(seed=42)
-        
+        assert observation is not None
+        assert info is not None
         # sample a move from info
         render = env.render()
-        assert render=="", f"render: {render}"
+        expected = """____________
+____________
+____________
+____________
+____________
+____________
+_.....P_____
+_......_____
+_......_____
+_..##.._____
+_.   .._____
+_   ..._____"""
+        assert render==expected, f"render: {render}"
 

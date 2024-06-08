@@ -97,24 +97,28 @@ class dndenv(gym.Env):
             col_arr = []
             for x in range(-view_h//2, view_h//2):
                 if pos_x + x < 0 or pos_x + x >= map_w or pos_y + y < 0 or pos_y + y >= map_h:
-                    col_arr.append("#")
+                    col_arr.append("_")
                 else:
                     render_char = None
-                    
-                    terrain = self.map.base_map[pos_x + x][pos_y + y]
-                    entity = self.map.entity_at(pos_x + x, pos_y + y)
+                    abs_x = pos_x + x
+                    abs_y = pos_y + y
 
-                    if entity == None:
-                        if terrain == None:
-                            render_char = "."
+                    terrain = self.map.base_map[abs_x][abs_y]
+                    entity = self.map.entity_at(abs_x, abs_y)
+                    if self.map.can_see_square(current_player, (abs_x, abs_y)):
+                        if entity == None:
+                            if terrain == None:
+                                render_char = "."
+                            else:
+                                render_char = "#"
+                        elif entity == current_player:
+                            render_char = "P"
+                        elif self.battle.opposing(current_player, entity):
+                            render_char = "E"
                         else:
-                            render_char = "#"
-                    elif entity == current_player:
-                        render_char = "P"
-                    elif self.battle.opposing(current_player, entity):
-                        render_char = "E"
+                            render_char = "?"
                     else:
-                        render_char = "?"
+                        render_char = " "
 
                     col_arr.append(render_char)
             result.append("".join(col_arr))

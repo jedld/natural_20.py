@@ -1,4 +1,3 @@
-from natural20.map import Map
 from natural20.entity import Entity
 from natural20.action import Action
 from natural20.die_roll import DieRoll, DieRolls, Rollable
@@ -85,10 +84,10 @@ def effective_ac(battle, source: Entity, target: Entity):
         ac = target.armor_class()
     return [ac, cover_ac_adjustments]
 
-def calculate_cover_ac(map: Map, source: Entity, target: Entity):
+def calculate_cover_ac(map, source: Entity, target: Entity):
     return cover_calculation(map, source, target)
 
-def cover_calculation(map: Map, source, target, entity_1_pos=None, entity_2_pos=None, naturally_stealthy=False):
+def cover_calculation(map, source, target, entity_1_pos=None, entity_2_pos=None, naturally_stealthy=False):
     source_squares = map.entity_squares_at_pos(source, *entity_1_pos) if entity_1_pos else map.entity_squares(source)
     target_squares = map.entity_squares_at_pos(target, *entity_2_pos) if entity_2_pos else map.entity_squares(target)
     source_position = map.position_of(source)

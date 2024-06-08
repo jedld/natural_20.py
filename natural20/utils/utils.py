@@ -178,7 +178,9 @@ class Session:
         if object_name not in self.objects:
             objects = self.load_yaml_file('items', 'objects')
             self.objects[object_name] = objects.get(object_name)
+            assert self.objects[object_name], f'Object {object_name} not found'
         return self.objects[object_name]
+    
 
     def t(self, token, options={}):
         return token

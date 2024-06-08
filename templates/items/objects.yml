@@ -42,7 +42,7 @@ briar:
     - ▓
 chest:
   color: yellow
-  item_class: ItemLibrary::Chest
+  item_class: Chest
   name: Treasure Chest
   passable: true
   placeable: false
@@ -53,7 +53,7 @@ ground:
 pit_trap:
   damage_die: 1d10
   damage_type: piercing
-  item_class: ItemLibrary::PitTrap
+  item_class: PitTrap
   name: Pit Trap
   notes:
     - highlight: true
@@ -62,7 +62,7 @@ pit_trap:
 stone_wall:
   color: light_magenta
   default_ac: 17
-  item_class: ItemLibrary::StoneWall
+  item_class: StoneWall
   max_hp: 27
   name: Stone Wall
   opaque: true
@@ -93,7 +93,7 @@ wooden_door:
   default_ac: 15
   hp_die: 4d8
   interactable: true
-  item_class: ItemLibrary::DoorObject
+  item_class: DoorObject
   max_hp: 18
   name: Wooden Door
   token:

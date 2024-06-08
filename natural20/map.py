@@ -3,6 +3,10 @@ from natural20.item_library.object import Object
 from natural20.utils.static_light_builder import StaticLightBuilder
 from natural20.entity import Entity
 from natural20.utils.movement import requires_squeeze
+from natural20.item_library.common import StoneWall, Ground
+from natural20.item_library.door_object import DoorObject
+from natural20.player_character import PlayerCharacter
+from natural20.utils.list_utils import remove_duplicates, bresenham_line_of_sight
 import math
 import pdb
 import os
@@ -37,6 +41,8 @@ class Map():
         self.objects = []
         self.tokens = []
         self.entities = {}  # Assuming entities is a dictionary
+        self.interactable_objects = {}
+        self.legend = self.properties.get('legend', {})
         
         for _ in range(self.size[0]):
             row = []
@@ -64,11 +70,72 @@ class Map():
         self.light_builder = StaticLightBuilder(self)
         self.triggers = self.properties.get('triggers', {})
         self._compute_lights()
+        self._setup_objects()
 
     def _compute_lights(self):
         self.light_map = self.light_builder.build_map()
 
+    def _setup_objects(self):
+        for pos_x in range(self.size[0]):
+            for pos_y in range(self.size[1]):
+                tokens = self.base_map[pos_x][pos_y]
 
+                if not tokens:
+                    continue
+
+                for token in tokens:
+                    if token == '#':
+                        object_info = self.session.load_object('stone_wall')
+                        obj = StoneWall(self, object_info)
+                        self.interactable_objects[obj] = [pos_x, pos_y]
+                        self.place_object(obj, pos_x, pos_y)
+                    elif token == '?':
+                        pass
+                    elif token == '.':
+                        self.place_object(Ground(self, name='ground'), pos_x, pos_y)
+                    else:
+                        object_meta = self.legend[token]
+                        if object_meta is None:
+                            raise Exception(f"unknown object token {token}")
+                        if object_meta['type'] == 'mask':
+                            continue
+                        object_info = self.session.load_object(object_meta['type'])
+                        self.place_object(object_info, pos_x, pos_y, object_meta)
+
+
+    def _setup_npcs(self):
+        for player in self.properties.get('player', []):
+            column_index, row_index = player['position']
+            player = PlayerCharacter.load(self.session, player['sheet'])
+            self.add(player, column_index, row_index, group='a')
+
+        for npc in self.properties.get('npc', []):
+            npc_meta = npc
+            column_index, row_index = npc['position']
+            if not npc_meta['sub_type']:
+                raise Exception('npc type requires sub_type as well')
+
+            entity = self.session.npc(npc_meta['sub_type'], name=npc_meta['name'], overrides=npc_meta['overrides'], rand_life=True)
+
+            self.add(entity, column_index, row_index, group=npc_meta['group'])
+
+        if self.meta_map:
+            for column_index, meta_row in enumerate(self.meta_map):
+                for row_index, token in enumerate(meta_row):
+                    token_type = self.legend.get(token, {}).get('type')
+
+                    if token_type == 'npc':
+                        npc_meta = self.legend.get(token)
+                        if not npc_meta['sub_type']:
+                            raise Exception('npc type requires sub_type as well')
+
+                        entity = self.session.npc(npc_meta['sub_type'], name=npc_meta['name'], overrides=npc_meta['overrides'], rand_life=True)
+
+                        self.add(entity, column_index, row_index, group=npc_meta['group'])
+                    elif token_type == 'spawn_point':
+                        self.spawn_points[self.legend.get(token, {}).get('name')] = {
+                            'location': [column_index, row_index]
+                        }
 
     def load(self, map_file_path):
         # Add .yml extension if not present
@@ -76,6 +143,7 @@ class Map():
             map_file_path += '.yml'
         if not os.path.exists(map_file_path):
             map_file_path = os.path.join(self.session.root_path, map_file_path)
+        print("loading map file: ", map_file_path)
         with open(map_file_path, 'r') as file:
             data = yaml.safe_load(file)
             return data
@@ -130,6 +198,48 @@ class Map():
                 return obj
         return None
     
+    def place_object(self, object_info, pos_x, pos_y, object_meta={}):
+        if object_info is None:
+            return
+
+        if isinstance(object_info, Object):
+            obj = object_info
+        elif object_info.get('item_class'):
+            item_klass = globals()[object_info['item_class']]            
+            object_info = object_info.copy()
+            object_info.update(object_meta)
+
+            item_obj = item_klass(self, object_info)
+            if 'ItemLibrary.AreaTrigger' in item_klass.__module__:
+                self.area_triggers[item_obj] = {}
+            obj = item_obj
+        else:
+            object_meta.update(object_info)
+            obj = Object(self, object_meta)
+
+        self.interactable_objects[obj] = [pos_x, pos_y]
+
+        if isinstance(obj.token, list):
+            for y, line in enumerate(obj.token):
+                for x, t in enumerate(line):
+                    if t == '.':
+                        continue
+                    self.objects[pos_x + x][pos_y + y].append(obj)
+        else:
+            self.objects[pos_x][pos_y].append(obj)
+
+        return obj
+    
+
+    def wall(self, pos_x, pos_y):
+        if pos_x < 0 or pos_y < 0:
+            return True
+        if pos_x >= self.size[0] or pos_y >= self.size[1]:
+            return True
+        if self.object_at(pos_x, pos_y) and self.object_at(pos_x, pos_y).wall():
+            return True
+        return False
+
     # Get object at map location
     # @param pos_x [Integer]
     # @param pos_y [Integer]
@@ -206,7 +316,7 @@ class Map():
             pos1_x, pos1_y = pos1
             if [pos1_x, pos1_y] == [pos2_x, pos2_y]:
                 return True
-            if not self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=False):
+            if self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=False)==None:
                 continue
 
             location_illumination = self.light_at(pos2_x, pos2_y)
@@ -255,8 +365,7 @@ class Map():
         if has_line_of_sight and max_illumination < 0.5:
             has_line_of_sight =  allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid)
         
-        if not has_line_of_sight:
-            pdb.set_trace()
+
         return has_line_of_sight
 
     def entity_squares(self, entity, squeeze=False):
@@ -333,10 +442,13 @@ class Map():
         else:
             return self.entities[thing]
         
-    def line_of_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, inclusive=False, entity=False):
+    def line_of_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, inclusive=False, entity=False, log_path=False):
         squares = self.squares_in_path(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive)
         squares_results = []
         for index, s in enumerate(squares):
+            if log_path:
+                print(f"checking {s}")
+                self.base_map[s[1]][s[0]] = 'H'
             if distance and index == (distance - 1):
                 return None
             if self.opaque(*s):
@@ -379,45 +491,17 @@ class Map():
 
     def squares_in_path(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, inclusive=True):
         if [pos1_x, pos1_y] == [pos2_x, pos2_y]:
-            return [[pos1_x, pos1_y]] if inclusive else []
+            return [(pos1_x, pos1_y)] if inclusive else []
 
-        arrs = []
-        if pos2_x == pos1_x:
-            scanner = range(pos1_y, pos2_y + 1) if pos2_y > pos1_y else range(pos2_y, pos1_y + 1)
+        arrs = bresenham_line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y)
 
-            for index, y in enumerate(scanner):
-                if distance is not None and index >= distance:
-                    break
-                if not inclusive and (y == pos1_y or y == pos2_y):
-                    continue
+        if inclusive and arrs[-1] != (pos2_x, pos2_y):
+            arrs.append((pos2_x, pos2_y))
+        
+        if not inclusive and arrs[-1] == (pos2_x, pos2_y):
+            arrs.pop()
 
-                arrs.append([pos1_x, y])
-        else:
-            m = (pos2_y - pos1_y) / (pos2_x - pos1_x)
-            scanner = range(pos1_x, pos2_x + 1) if pos2_x > pos1_x else range(pos2_x, pos1_x + 1)
-            if m == 0:
-                for index, x in enumerate(scanner):
-                    if distance is not None and index >= distance:
-                        break
-                    if not inclusive and (x == pos1_x or x == pos2_x):
-                        continue
-
-                    arrs.append([x, pos2_y])
-            else:
-                b = pos1_y - m * pos1_x
-                step = 1 / abs(m) if abs(m) > 1 else abs(m)
-
-                for index, x in enumerate(scanner):
-                    y = round(m * x + b)
-
-                    if distance is not None and index >= distance:
-                        break
-                    if not inclusive and ((round(x) == pos1_x and y == pos1_y) or (round(x) == pos2_x and y == pos2_y)):
-                        continue
-
-                    arrs.append([round(x), y])
-
-        return list(set(map(tuple, arrs)))
+        return remove_duplicates(arrs)
 
     def cover_at(self, pos_x, pos_y, entity=False):
         if self.object_at(pos_x, pos_y) and self.object_at(pos_x, pos_y).half_cover():

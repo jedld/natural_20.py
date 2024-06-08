@@ -1,6 +1,7 @@
 from collections import namedtuple
 from natural20.die_roll import DieRoll
 from natural20.action import Action
+from natural20.event_manager import EventManager
 
 class LookAction(Action):
     def __init__(self, session, source, action_type, opts={}):

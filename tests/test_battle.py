@@ -5,14 +5,19 @@ from natural20.player_character import PlayerCharacter
 from natural20.event_manager import EventManager
 from natural20.die_roll import DieRoll
 from natural20.map_renderer import MapRenderer
+from natural20.actions.attack_action import AttackAction
 import unittest
 import random
 import pdb
 
 
 class TestBattle(unittest.TestCase):
+
+    def make_session(self):
+        return Session(root_path='tests/fixtures')
+    
     def test_battle(self):
-        session = Session(root_path='tests/fixtures')
+        session = self.make_session()
         battle_map = Map(session, 'tests/fixtures/battle_sim.yml')
         battle = Battle(session, battle_map)
         fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
@@ -48,7 +53,7 @@ class TestBattle(unittest.TestCase):
         assert [x.name for x in battle.combat_order] == ['Gomerin', 'b', 'a'], [x.name for x in battle.combat_order]
 
     def test_death_saving_throws_failure(self):
-        session = Session(root_path='tests/fixtures')
+        session = self.make_session()
         battle_map = Map(session, 'tests/fixtures/battle_sim_objects')
         battle = Battle(session, battle_map)
         map_renderer = MapRenderer(battle_map)
@@ -68,7 +73,7 @@ class TestBattle(unittest.TestCase):
         assert fighter.dead()
 
     def test_death_saving_throws_success(self):
-        session = Session(root_path='tests/fixtures')
+        session = self.make_session()
         battle_map = Map(session, 'tests/fixtures/battle_sim_objects')
         battle = Battle(session, battle_map)
         map_renderer = MapRenderer(battle_map)
@@ -86,7 +91,7 @@ class TestBattle(unittest.TestCase):
         assert fighter.stable()
 
     def test_death_saving_throws_critical_success(self):
-        session = Session(root_path='tests/fixtures')
+        session = self.make_session()
         battle_map = Map(session, 'tests/fixtures/battle_sim_objects')
         battle = Battle(session, battle_map)
         map_renderer = MapRenderer(battle_map)
@@ -103,25 +108,25 @@ class TestBattle(unittest.TestCase):
         battle.while_active(3, lambda entity: False)
         assert fighter.conscious()
 
-    # def test_valid_targets_for():
-    #     session = Session()
-    #     battle_map = BattleMap(session, 'fixtures/battle_sim_objects')
-    #     battle = Battle(session, battle_map)
-    #     map_renderer = MapRenderer(battle_map)
-    #     fighter = PlayerCharacter.load(session, 'fixtures/high_elf_fighter.yml')
-    #     npc = session.npc('goblin', name='a')
-    #     battle_map.place(0, 5, fighter, 'G')
-    #     battle.add(fighter, 'a')
-    #     door = battle_map.object_at(1, 4)
+    def test_valid_targets_for(self):
+        session = self.make_session()
+        battle_map = Map(session, 'battle_sim_objects')
+        battle = Battle(session, battle_map)
+        map_renderer = MapRenderer(battle_map)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        npc = session.npc('goblin', { "name" : 'a'})
+        battle_map.place((0, 5), fighter, 'G')
+        battle.add(fighter, 'a')
+        door = battle_map.object_at(1, 4)
 
-    #     action = AttackAction(session, fighter, 'attack')
-    #     action.using = 'vicious_rapier'
-    #     print(map_renderer.render())
-    #     assert battle.valid_targets_for(fighter, action) == []
-    #     battle.add(npc, 'b', position=(1, 5))
-    #     print(map_renderer.render())
-    #     assert battle.valid_targets_for(fighter, action) == [npc]
-    #     assert npc in battle.valid_targets_for(fighter, action, include_objects=True)
+        action = AttackAction(session, fighter, 'attack')
+        action.using = 'vicious_rapier'
+        print(map_renderer.render())
+        assert battle.valid_targets_for(fighter, action) == []
+        battle.add(npc, 'b', position=(1, 5))
+        print(map_renderer.render())
+        assert battle.valid_targets_for(fighter, action) == [npc]
+        assert npc in battle.valid_targets_for(fighter, action, include_objects=True)
 
     # def test_has_controller_for():
     #     session = Session()
