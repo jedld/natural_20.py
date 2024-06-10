@@ -14,7 +14,11 @@ import pdb
 class TestBattle(unittest.TestCase):
 
     def make_session(self):
-        return Session(root_path='tests/fixtures')
+        event_manager = EventManager()
+        event_manager.register_event_listener(['died'], lambda event: print(f"{event['source'].name} died."))
+        event_manager.register_event_listener(['unconscious'], lambda event: print(f"{event['source'].name} unconscious."))
+        event_manager.register_event_listener(['initiative'], lambda event: print(f"{event['source'].name} rolled a {event['roll']} = ({event['value']}) with dex tie break for initiative."))
+        return Session(root_path='tests/fixtures', event_manager=event_manager)
     
     def test_battle(self):
         session = self.make_session()
@@ -31,9 +35,7 @@ class TestBattle(unittest.TestCase):
         npc.reset_turn(battle)
         npc2.reset_turn(battle)
         
-        EventManager.register_event_listener(['died'], lambda event: print(f"{event['source'].name} died."))
-        EventManager.register_event_listener(['unconscious'], lambda event: print(f"{event['source'].name} unconscious."))
-        EventManager.register_event_listener(['initiative'], lambda event: print(f"{event['source'].name} rolled a {event['roll']} = ({event['value']}) with dex tie break for initiative."))
+       
         random.seed(7000)
 
         battle.start()
@@ -62,7 +64,6 @@ class TestBattle(unittest.TestCase):
         battle.add(fighter, 'a')
         battle.add(npc2, 'b')
 
-        EventManager.standard_cli()
         random.seed(3000)
         battle.start()
         fighter.take_damage(DieRoll([20], 80).result())
@@ -82,7 +83,7 @@ class TestBattle(unittest.TestCase):
         battle.add(fighter, 'a')
         battle.add(npc2, 'b')
 
-        EventManager.standard_cli()
+        
         random.seed(2003)
         battle.start()
         fighter.take_damage(DieRoll([20], 80).result())
@@ -100,7 +101,7 @@ class TestBattle(unittest.TestCase):
         battle.add(fighter, 'a')
         battle.add(npc2, 'b')
     
-        EventManager.standard_cli()
+
         random.seed(1004)
         battle.start()
         fighter.take_damage(DieRoll([20], 80).result())

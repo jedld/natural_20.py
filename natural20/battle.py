@@ -9,7 +9,7 @@ from natural20.entity import Entity
 from natural20.event_manager import EventManager
 import pdb
 class Battle():
-    def __init__(self, session: Session, map: Map):
+    def __init__(self, session: Session, map: Map,):
         self.map = map
         self.session = session
         self.combat_order = []
@@ -99,7 +99,7 @@ class Battle():
     def check_combat(self):
         if not self.started and not self.battle_ends():
             self.start()
-            EventManager.received_event(source=self, event='start_of_combat', target=self.current_turn,
+            self.event_manager.received_event(source=self, event='start_of_combat', target=self.current_turn,
                                                   combat_order=[[e, self.entities[e]['initiative']] for e in self.combat_order])
             print(f"Combat starts with {self.combat_order[0].name}.")
             return True
@@ -124,7 +124,7 @@ class Battle():
     def next_turn(self, max_rounds=None):
         self.trigger_event('end_of_round', self, { "target" : self.current_turn()})
         if self.started and self.battle_ends():
-            EventManager.received_event({"source" : self, "event" : 'end_of_combat'})
+            self.session.event_manager.received_event({"source" : self, "event" : 'end_of_combat'})
             self.started = False
             print('tpk')
             return 'tpk'
@@ -134,7 +134,7 @@ class Battle():
             self.current_turn_index = 0
             self.round += 1
 
-            EventManager.received_event({ "source" : self,
+            self.session.event_manager.received_event({ "source" : self,
                                           "event" : 'top_of_the_round',
                                           "round" : self.round,
                                           "target" : self.current_turn()})

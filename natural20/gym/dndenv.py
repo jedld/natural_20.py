@@ -34,6 +34,12 @@ class dndenv(gym.Env):
         - map_file: the file to load the map from
         - profiles: the profiles to load for the heroes
         - enemies: the profiles to load for the enemies
+        - hero_names: the names of the heroes
+        - enemy_names: the names of the enemies
+        - show_logs: whether to show logs
+        - custom_controller: a custom controller to use
+        - custom_agent: a custom agent to use
+        - custom_initializer: a custom initializer to use
         """
         super().__init__()
 
@@ -75,6 +81,7 @@ class dndenv(gym.Env):
         self.show_logs = kwargs.get('show_logs', True)
         self.custom_controller = kwargs.get('custom_controller', None)
         self.custom_agent = kwargs.get('custom_agent', None)
+        self.custom_initializer = kwargs.get('custom_initializer', None)
 
     
     def seed(self, seed=None):
@@ -151,48 +158,50 @@ class dndenv(gym.Env):
         enemy_pos = None
         player_pos = None
 
-        character_sheet_path = 'characters'
-        for index, p in enumerate(self.heroes):
-            if index < len(self.hero_names):
-                name = self.hero_names[index]
+        if self.custom_initializer:
+            enemy_pos, player_pos = self.custom_initializer(self.map, self.battle)
+        else:
+            character_sheet_path = 'characters'
+            for index, p in enumerate(self.heroes):
+                if index < len(self.hero_names):
+                    name = self.hero_names[index]
 
-            pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', { "name" : name})
-            self._describe_hero(pc)
-             # set random starting positions, make sure there are no obstacles in the map
-            while player_pos is None or self.map.placeable(pc, player_pos[0], player_pos[1]) == False:
-                player_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
-            self.players.append(('a', 'H', pc, player_pos))
+                pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', { "name" : name})
+                self._describe_hero(pc)
+                # set random starting positions, make sure there are no obstacles in the map
+                while player_pos is None or self.map.placeable(pc, player_pos[0], player_pos[1]) == False:
+                    player_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
+                self.players.append(('a', 'H', pc, player_pos))
 
-        for index, p in enumerate(self.enemies):
-            if index < len(self.enemy_names):
-                name = self.enemy_names[index]
+            for index, p in enumerate(self.enemies):
+                if index < len(self.enemy_names):
+                    name = self.enemy_names[index]
 
-            pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', {"name":  name})
-            self._describe_hero(pc)
-            while  enemy_pos is None or enemy_pos==player_pos or self.map.placeable(pc, enemy_pos[0], enemy_pos[1]) == False:
-                enemy_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
-            self.players.append(('b', 'E', pc , enemy_pos))
+                pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', {"name":  name})
+                self._describe_hero(pc)
+                while  enemy_pos is None or enemy_pos==player_pos or self.map.placeable(pc, enemy_pos[0], enemy_pos[1]) == False:
+                    enemy_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
+                self.players.append(('b', 'E', pc , enemy_pos))
 
-        # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
-        for group, token, player, position in self.players:
-            if group == 'b':
-                if self.custom_agent:
-                    self.log(f"Setting up custom agent for enemy player {self.custom_agent}")
-                    controller = DndenvController(self.session, self.custom_agent)
-                    controller.register_handlers_on(player)
-                elif self.custom_controller:
-                    controller = self.custom_controller
-                    controller.register_handlers_on(player)
-                else: # basic AI
-                    controller = GenericController(self.session)
-                    controller.register_handlers_on(player)
+            # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
+            for group, token, player, position in self.players:
+                if group == 'b':
+                    if self.custom_agent:
+                        self.log(f"Setting up custom agent for enemy player {self.custom_agent}")
+                        controller = DndenvController(self.session, self.custom_agent)
+                        controller.register_handlers_on(player)
+                    elif self.custom_controller:
+                        controller = self.custom_controller
+                        controller.register_handlers_on(player)
+                    else: # basic AI
+                        controller = GenericController(self.session)
+                        controller.register_handlers_on(player)
 
-                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
-            else:
-                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
+                    self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
+                else:
+                    self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
 
         self.battle.start()
-
         self.battle.start_turn()
         if self.battle.current_turn().conscious():
                 self.battle.current_turn().reset_turn(self.battle)

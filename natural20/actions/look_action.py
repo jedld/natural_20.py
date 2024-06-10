@@ -43,7 +43,7 @@ class LookAction(Action):
         if item["type"] == "look":
             battle.entity_state_for(item["source"])["active_perception"] = item["die_roll"].result()
             battle.entity_state_for(item["source"])["active_perception_disadvantage"] = item["die_roll_disadvantage"].result
-            EventManager.received_event({
+            battle.session.event_manager.received_event({
                 "source": item["source"],
                 "perception_roll": item["die_roll"],
                 "event": "perception"

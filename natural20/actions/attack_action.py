@@ -352,8 +352,9 @@ class AttackAction(Action):
                                                                                 source=entity, attacker=self.source):
                     continue
 
-                EventManager.received_event(event='feature_protection', target=target, source=entity,
-                                                        attacker=self.source)
+                battle.session.event_manager.received_event({
+                    "event" : 'feature_protection', "target" : target, "source": entity,
+                                                        "attacker": self.source})
                 _advantage, disadvantage = adv_info
                 disadvantage.append('protection')
                 self.advantage_mod = -1

@@ -149,11 +149,11 @@ class MoveAction(Action):
         elif item_type in ['acrobatics', 'athletics']:
             if item['success']:
                 print(f"{item['source'].name} {item_type} check success")
-                EventManager.received_event(source=item['source'], event=item_type, success=True,
+                battle.session.event_manager.received_event(source=item['source'], event=item_type, success=True,
                                                      roll=item['roll'])
             else:
                 print(f"{item['source'].name} {item_type} check failed and is now prone")
-                EventManager.received_event(source=item['source'], event=item_type, success=False,
+                battle.session.event_manager.received_event(source=item['source'], event=item_type, success=False,
                                                      roll=item['roll'])
                 item['source'].prone()
         elif item_type == 'drop_grapple':
@@ -175,7 +175,7 @@ class MoveAction(Action):
                 # print(f"available movement {battle.entity_state_for(item['source'])['movement']} {item['move_cost']}")
                 battle.entity_state_for(item['source'])['movement'] -= item['move_cost'] * battle.map.feet_per_grid
 
-            EventManager.received_event({
+            battle.session.event_manager.received_event({
                 'event': 'move',
                 'source': item['source'],
                 'position': item['position'],

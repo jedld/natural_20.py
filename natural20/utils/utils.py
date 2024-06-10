@@ -2,9 +2,10 @@ import yaml
 import os
 from collections import defaultdict, deque
 from natural20.npc import Npc
+from natural20.event_manager import EventManager
 # typed: true
 class Session:
-    def __init__(self, root_path=None):
+    def __init__(self, root_path=None, event_manager=EventManager()):
         self.root_path = root_path or '.'
         self.session_state = {}
         self.weapons = {}
@@ -21,6 +22,7 @@ class Session:
         self.load_path = []
         self.load_path.append(os.path.join(self.root_path, 'locales'))
         self.default_locale = 'en'
+        self.event_manager = event_manager
 
         game_file = os.path.join(self.root_path, 'game.yml')
         if os.path.exists(game_file):

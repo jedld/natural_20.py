@@ -1,17 +1,5 @@
-import unittest
-from natural20.map import Map, Terrain
-from natural20.battle import Battle
-from natural20.player_character import PlayerCharacter
-from natural20.map_renderer import MapRenderer
-from natural20.die_roll import DieRoll
-from natural20.generic_controller import GenericController
-from natural20.utils.utils import Session
-from natural20.actions.move_action import MoveAction
-from natural20.action import Action
-from natural20.gym.dndenv import dndenv, action_type_to_int
-from gymnasium import register, envs, make
-from llm_interface import GPT4Interfacer, LLama3Interface
-
+from gymnasium import make
+from llm_interface import GPT4Interfacer
 
 MAX_EPISODES = 20
 

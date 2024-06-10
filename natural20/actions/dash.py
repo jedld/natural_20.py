@@ -38,7 +38,7 @@ class DashAction(Action):
     @staticmethod
     def apply(battle, item):
         if item['type'] == 'dash':
-            EventManager.received_event({'source': item['source'], 'event': 'dash'})
+            battle.session.event_manager.received_event({'source': item['source'], 'event': 'dash'})
             battle.entity_state_for(item['source'])['movement'] += item['source'].speed()
             if item['as_bonus_action']:
                 print(f"{item['source'].name} dashes as a bonus action")
