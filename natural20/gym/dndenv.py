@@ -15,6 +15,7 @@ from natural20.entity import Entity
 from natural20.actions.look_action import LookAction
 from natural20.actions.stand_action import StandAction
 from natural20.gym.dndenv_controller import DndenvController
+from natural20.event_manager import EventManager
 from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, render_terrain
 import random
 import os
@@ -78,10 +79,11 @@ class dndenv(gym.Env):
         self.enemies = kwargs.get('enemies', ['high_elf_fighter.yml'])
         self.hero_names = kwargs.get('hero_names', ['gomerin'])
         self.enemy_names = kwargs.get('enemy_names', ['rumblebelly'])
-        self.show_logs = kwargs.get('show_logs', True)
+        self.show_logs = kwargs.get('show_logs', False)
         self.custom_controller = kwargs.get('custom_controller', None)
         self.custom_agent = kwargs.get('custom_agent', None)
         self.custom_initializer = kwargs.get('custom_initializer', None)
+        self.event_manager = kwargs.get('event_manager', None)
 
     
     def seed(self, seed=None):
@@ -91,8 +93,6 @@ class dndenv(gym.Env):
     def log(self, msg):
         if self.show_logs:
             print(msg)
-    
-
     
     def _render_terrain_ansi(self):
         result = []
@@ -147,8 +147,17 @@ class dndenv(gym.Env):
         self.seed = seed # take note of seed for reproducibility
         random.seed(seed)
         map_location = kwargs.get('map_location', os.path.join(self.root_path, self.map_file))
+        event_manager = self.event_manager
+
         self.log(f"loading map from {map_location}")
-        self.session = Session(self.root_path)
+
+        if event_manager is None:
+            self.log("Creating new event manager")
+            event_manager = EventManager()
+            if self.show_logs:
+                event_manager.standard_cli()
+
+        self.session = Session(self.root_path, event_manager=event_manager)
         self.map = Map(self.session, map_location)
         self.battle = Battle(self.session, self.map)
         self.players = []

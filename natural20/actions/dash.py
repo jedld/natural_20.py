@@ -41,10 +41,8 @@ class DashAction(Action):
             battle.session.event_manager.received_event({'source': item['source'], 'event': 'dash'})
             battle.entity_state_for(item['source'])['movement'] += item['source'].speed()
             if item['as_bonus_action']:
-                print(f"{item['source'].name} dashes as a bonus action")
                 battle.entity_state_for(item['source'])['bonus_action'] -= 1
             else:
-                print(f"{item['source'].name} dashes")
                 battle.entity_state_for(item['source'])['action'] -= 1
 
 

@@ -14,6 +14,13 @@ class SecondWindAction(Action):
 
     def label(self):
         return 'Second Wind'
+    
+    def __str__(self):
+        return f"uses Second Wind"
+    
+    def __repr__(self):
+        return f"uses Second Wind"
+
 
     def build_map(self):
         ActionMap = namedtuple('ActionMap', ['action', 'param', 'next'])
@@ -38,7 +45,8 @@ class SecondWindAction(Action):
     @staticmethod
     def apply(battle, item):
         if item['type'] == 'second_wind':
-            print(f"{item['source'].name} uses Second Wind with {item['roll']} healing")
+            # print(f"{item['source'].name} uses Second Wind with {item['roll']} healing")
+            battle.event_manager.received_event({'source': item['source'], 'value': item['roll'], 'event': 'second_wind'})
             item['source'].second_wind(item['roll'].result())
             battle.entity_state_for(item['source'])['bonus_action'] -= 1
 

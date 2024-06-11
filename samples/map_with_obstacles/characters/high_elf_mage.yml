@@ -1,0 +1,31 @@
+---
+name: Crysania
+race: elf
+subrace: high_elf
+pronoun: she/her/hers
+classes:
+  wizard: 1
+description: A high elf mage with a mysterious noble background
+level: 1
+hit_die: inherit
+max_hp: 6
+ability:
+  str: 10
+  dex: 15
+  con: 14
+  int: 18
+  wis: 12
+  cha: 8
+:prepared_spells:
+- chill_touch
+- firebolt
+- ray_of_frost
+- mage_armor
+- magic_missile
+- shield
+:spellbook:
+- mage_armor
+- magic_missile
+- shield
+equipped:
+- dagger

@@ -21,6 +21,7 @@ class Battle():
         self.late_comers = []
         self.battle_log = []
         self.standard_controller = GenericController
+        self.event_manager = session.event_manager
         self.opposing_groups = {
         'a': ['b'],
         'b': ['a'],
@@ -101,12 +102,11 @@ class Battle():
             self.start()
             self.event_manager.received_event(source=self, event='start_of_combat', target=self.current_turn,
                                                   combat_order=[[e, self.entities[e]['initiative']] for e in self.combat_order])
-            print(f"Combat starts with {self.combat_order[0].name}.")
+            # print(f"Combat starts with {self.combat_order[0].name}.")
             return True
         return False
 
     def start_turn(self):
-        print(f"{self.current_turn().name} starts their turn.")
         if self.current_turn().unconscious() and not self.current_turn().stable():
             self.current_turn().death_saving_throw(self)
 
@@ -126,7 +126,7 @@ class Battle():
         if self.started and self.battle_ends():
             self.session.event_manager.received_event({"source" : self, "event" : 'end_of_combat'})
             self.started = False
-            print('tpk')
+            # print('tpk')
             return 'tpk'
 
         self.current_turn_index += 1
@@ -154,9 +154,9 @@ class Battle():
                     continue
 
             self.current_turn().resolve_trigger('end_of_turn')
-            print("Next turn")
+            # print("Next turn")
             result = self.next_turn(max_rounds)
-            print(f"Result: {result}")
+            # print(f"Result: {result}")
             if result == 'tpk':
                 return 'tpk'
             if result:

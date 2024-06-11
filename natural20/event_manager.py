@@ -1,6 +1,7 @@
 import os
 from typing import List, Union
 import i18n
+from natural20.utils.attack_util import to_advantage_str
 
 class EventLogger:
     def __init__(self, log_level: Union[int, str]):
@@ -44,17 +45,28 @@ class EventManager:
 
     def standard_cli(self):
         self.clear()
+
         event_handlers = {
+            'second_wind': lambda event: print(f"{self.show_name(event)} uses second wind to recover {event['value']}={event['value'].result()} hit points."),    
+            'disengage': lambda event: print(f"{self.show_name(event)} disengages."),
+            'dodge': lambda event: print(f"{self.show_name(event)} dodges."),
             'died': lambda event: print(f"{self.show_name(event)} died."),
             'unconscious': lambda event: print(f"{self.show_name(event)} unconscious."),
-            'attacked': lambda event: print(f"{self.show_name(event)} attacked."),
-            # Add more event handlers here
+            'attacked': lambda event: print(f"{self.show_name(event)} attacked {self.show_target_name(event)}{to_advantage_str(event)} with {event['attack_name']} and hits with {event['attack_roll']}= {event['attack_roll'].result()}."),
+            'damage': lambda event: print(f"{self.show_name(event)} took {event['value']} damage."),
+            'miss': lambda event: print(f"{self.show_name(event)} tried to attack {self.show_target_name(event)}{to_advantage_str(event)} with {event['attack_name']} but missed with {event['attack_roll']}= {event['attack_roll'].result()}."),
+            'move': lambda event: print(f"{self.show_name(event)} moved to {event['position']} {event['move_cost']} feet"),
+            'initiative': lambda event: print(f"{self.show_name(event)} rolled initiative {event['roll']} value {event['value']}"),
+            'start_of_turn': lambda event: print(f"{self.show_name(event)} starts their turn."),
         }
         for event, handler in event_handlers.items():
             self.register_event_listener(event, handler)
 
     def show_name(self, event):
         return self.decorate_name(event['source'])
+    
+    def show_target_name(self, event):
+        return self.decorate_name(event['target'])
 
     def output(self, string):
         print(f"{string}")

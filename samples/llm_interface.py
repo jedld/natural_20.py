@@ -102,7 +102,8 @@ class LLMInterfacer:
         prompt += "the enemy character is represented by an E\n"
         prompt += "areas outside of the map are represented by a hash (_), you cannot move to areas with _\n"
         prompt += "areas with obstacles are represented by an asterisk (*)\n"
-        prompt += "Each tile of the map is 5ft by 5ft\n"
+        prompt += "areas that the player can't see are just blanks/space\n"
+        prompt += "Each tile of the map is 5ft by 5ft.\n\n"
         prompt += "Here is the map:\n"
 
         for row in map:
@@ -111,7 +112,9 @@ class LLMInterfacer:
                 token = None
                 entity, terrain, health_pct = col
 
-                if terrain == -1:
+                if terrain == 255:
+                    token = " "
+                elif terrain == -1:
                     token = "_"
                 elif terrain == 1:
                     token = "*"
@@ -130,7 +133,6 @@ class LLMInterfacer:
 
         return prompt
     
-
 class GPT4Interfacer(LLMInterfacer):
     def __init__(self, variant="gpt-4o", debug=False, api_key=None):
         """
@@ -306,8 +308,6 @@ class LLama3Interface(LLMInterfacer):
             return response.json()
         else:
             return None
-
-
 
     def _extract_last_number(self, text):
         # Regular expression to match numbers

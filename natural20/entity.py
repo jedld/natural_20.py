@@ -85,7 +85,7 @@ class Entity():
     def make_dead(self):
         if not self.dead():
             self.event_manager.received_event({ 'source': self, 'event': 'died' })
-            print(f"{self.name} died. :(")
+            # print(f"{self.name} died. :(")
             self.drop_grapple()
             self.statuses.append('dead')
             if 'stable' in self.statuses:
@@ -97,7 +97,7 @@ class Entity():
         if not self.unconscious() and not self.dead():
             self.drop_grapple()
             self.event_manager.received_event({ 'source': self, 'event': 'unconscious' })
-            print(f"{self.name} is unconscious.")
+            # print(f"{self.name} is unconscious.")
 
             self.statuses.append('prone')
             self.statuses.append('unconscious')
@@ -225,11 +225,10 @@ class Entity():
     def initiative(self, battle=None):
         roll = DieRoll.roll(f"1d20+{self.dex_mod()}", description="initiative", entity=self, battle=battle)
         value = float(roll.result()) + self.ability_scores.get('dex') / 100.0
-        print(f"{self.name} -> initiative roll: {roll} value: {value}")
         self.event_manager.received_event({ "source": self,
                                      "event": "initiative",
                                      "roll": roll,
-                                     "value" : value })
+                                     "value" : value})
         return value
 
     def str_mod(self):
@@ -296,6 +295,7 @@ class Entity():
             entity_state['statuses'].remove('disengage')
 
         battle.dismiss_help_actions_for(self)
+        battle.event_manager.received_event({'source': self, 'event': 'start_of_turn'})
         self.resolve_trigger('start_of_turn')
         self._cleanup_effects()
         return entity_state
@@ -640,7 +640,8 @@ class Entity():
                 self.make_dead()
                 self.death_saves = 0
                 self.death_fails = 0
-            self.event_manager.received_event({'source': self, 'event': 'death_fail', 'saves': self.death_saves,
+            if battle:
+                battle.event_manager.received_event({'source': self, 'event': 'death_fail', 'saves': self.death_saves,
                                                     'fails': self.death_fails, 'complete': complete})
 
         if self.hp() < 0 and abs(self.hp()) >= self.properties['max_hp']:
@@ -655,7 +656,8 @@ class Entity():
         if self.hp() <= 0:
             self.attributes["hp"] = 0
 
-        self.event_manager.received_event({'source': self, 'event': 'damage', 'value': dmg})
+        if battle:
+            battle.event_manager.received_event({'source': self, 'event': 'damage', 'value': dmg})
             
     def on_take_damage(self, battle, _damage_params):
         controller = battle.controller_for(self)
@@ -735,24 +737,24 @@ class Entity():
         if roll.nat_20():
             self.make_conscious()
             self.heal(1)
-            print(f"{self.name} rolled a natural 20 on a death saving throw and is now conscious with 1 hp")
+            # print(f"{self.name} rolled a natural 20 on a death saving throw and is now conscious with 1 hp")
             self.event_manager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
                                                     'fails': self.death_fails, 'complete': True, 'stable': True, 'success': True})
         elif roll.result() >= 10:
             self.death_saves += 1
             complete = False
-            print(f"{self.name} succeeded a death saving throw ({self.death_saves}/3)")
+            # print(f"{self.name} succeeded a death saving throw ({self.death_saves}/3)")
             if self.death_saves >= 3:
                 complete = True
                 self.death_saves = 0
                 self.death_fails = 0
                 self.make_stable()
-                print(f"{self.name} is now stable")
+                # print(f"{self.name} is now stable")
             self.event_manager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
                                                     'fails': self.death_fails, 'complete': complete, 'stable': complete})
         else:
             if roll.nat_1():
-                print(f"{self.name} rolled a natural 1 on a death saving throw :(")
+                # print(f"{self.name} rolled a natural 1 on a death saving throw :(")
                 self.death_fails += 2 
             else:
                 self.death_fails += 1
@@ -763,9 +765,8 @@ class Entity():
                 self.make_dead()
                 self.death_saves = 0
                 self.death_fails = 0
-                print(f"{self.name} failed the final death saving throw and died")
-            else:
-                print(f"{self.name} failed a death saving throw")
+                # print(f"{self.name} failed the final death saving throw and died")
+
             self.event_manager.received_event({'source': self, 'event': 'death_fail', 'roll': roll, 'saves': self.death_saves,
                                                    'fails': self.death_fails, 'complete': complete})
 

@@ -1,8 +1,9 @@
 from natural20.action import Action
 from natural20.die_roll import DieRoll
 from natural20.entity import Entity
+from natural20.item_library.common import Ground
 from natural20.weapons import damage_modifier, target_advantage_condition
-from natural20.utils.attack_util import cover_calculation, effective_ac, after_attack_roll_hook, damage_event, to_advantage_str
+from natural20.utils.attack_util import cover_calculation, effective_ac, after_attack_roll_hook, damage_event
 
 class AttackAction(Action):
 #   include Natural20::Cover
@@ -48,12 +49,12 @@ class AttackAction(Action):
 
     def label(self):
         if self.npc_action:
-            return self.t('action.npc_action', name=str(self.action_type).humanize(), action_name=self.npc_action['name'])
+            return self.t('action.npc_action', name=str(self.action_type), action_name=self.npc_action['name'])
         else:
             weapon = self.session.load_weapon(self.opts.get('using') or self.using)
             attack_mod = self.source.attack_roll_mod(weapon)
             i18n_token = 'action.attack_action_throw' if self.thrown else 'action.attack_action'
-            return self.t(i18n_token, name=str(self.action_type).humanize(), weapon_name=weapon['name'],
+            return self.t(i18n_token, name=str(self.action_type), weapon_name=weapon['name'],
                      mod=f"+{attack_mod}" if attack_mod >= 0 else attack_mod,
                      dmg=damage_modifier(self.source, weapon, second_hand=self.second_hand))
 
@@ -103,8 +104,6 @@ class AttackAction(Action):
             AttackAction.consume_resource(battle, item)
         elif item['type'] == 'miss':
             AttackAction.consume_resource(battle, item)
-            advantage_str = to_advantage_str(item)
-            print(f"{item['source'].name} rolls {item['attack_roll']}={item['attack_roll'].result()}{advantage_str} using { item['attack_name']} and misses {item['target'].name}")
             battle.session.log_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], 'attack_thrown': item['thrown'], 'advantage_mod': item['advantage_mod'], 'as_reaction': bool(item['as_reaction']), 'adv_info': item['adv_info'], 'source': item['source'], 'target': item['target'], 'event': 'miss'})
     
     def consume_resource(battle, item):
@@ -121,7 +120,7 @@ class AttackAction(Action):
                 item['target'].add_item(item['weapon'])
             else:
                 ground_pos = item['battle'].map.entity_or_object_pos(item['target'])
-                ground_object = next((o for o in item['battle'].map.objects_at(*ground_pos) if isinstance(o, ItemLibrary.Ground)), None)
+                ground_object = next((o for o in item['battle'].map.objects_at(*ground_pos) if isinstance(o, Ground)), None)
                 if ground_object:
                     ground_object.add_item(item['weapon'])
         

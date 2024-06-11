@@ -35,7 +35,7 @@ class Map():
         base = self.properties.get('map', {}).get('base', [])
 
         self.size = [len(base[0]), len(base)]
-        print(f"map size: {self.size}")
+        # print(f"map size: {self.size}")
         self.feet_per_grid = self.properties.get('grid_size', 5)
         self.base_map = []
         self.objects = []
@@ -143,7 +143,7 @@ class Map():
             map_file_path += '.yml'
         if not os.path.exists(map_file_path):
             map_file_path = os.path.join(self.session.root_path, map_file_path)
-        print("loading map file: ", map_file_path)
+        # print("loading map file: ", map_file_path)
         with open(map_file_path, 'r') as file:
             data = yaml.safe_load(file)
             return data
@@ -259,7 +259,7 @@ class Map():
             pos1_x, pos1_y = v
 
             if not self.can_see(entity, k, distance=distance):
-                print(f"{entity.name} cannot see {k.name}")
+                # print(f"{entity.name} cannot see {k.name}")
                 continue
 
             visible_entities[k] = [pos1_x, pos1_y]
@@ -346,14 +346,14 @@ class Map():
                 pos1_x, pos1_y = pos1
                 pos2_x, pos2_y = pos2
                 if pos1_x >= self.size[0] or pos1_x < 0 or pos1_y >= self.size[1] or pos1_y < 0:
-                    print(f"pos1_x {pos1_x} pos1_y {pos1_y} size {self.size}")
+                    # print(f"pos1_x {pos1_x} pos1_y {pos1_y} size {self.size}")
                     continue
                 if pos2_x >= self.size[0] or pos2_x < 0 or pos2_y >= self.size[1] or pos2_y < 0:
-                    print(f"pos2_x {pos2_x} pos2_y {pos2_y} size {self.size}")
+                    # print(f"pos2_x {pos2_x} pos2_y {pos2_y} size {self.size}")
                     continue
                 line_of_sight_info = self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, distance=distance)
                 if line_of_sight_info==None:
-                    print(f"no line of sight from {pos1_x},{pos1_y} to {pos2_x},{pos2_y} {distance}")
+                    # print(f"no line of sight from {pos1_x},{pos1_y} to {pos2_x},{pos2_y} {distance}")
                     continue
 
                 location_illumination = self.light_at(pos2_x, pos2_y)
@@ -384,7 +384,7 @@ class Map():
         return entity_1_squares
     
     def passable(self, entity, pos_x, pos_y, battle=None, allow_squeeze=True):
-        effective_token_size = entity.token_size() - 1 if allow_squeeze else entity.token_size()
+        effective_token_size = entity.token_size() - 1 if allow_squeeze and entity.token_size() > 1 else entity.token_size()
         for ofs_x in range(effective_token_size):
             for ofs_y in range(effective_token_size):
                 relative_x = pos_x + ofs_x

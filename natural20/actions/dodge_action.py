@@ -46,7 +46,7 @@ class DodgeAction(Action):
     def apply(battle, item):
         item_type = item.get('type')
         if item_type == 'dodge':
-            print(f"{item.get('source').name} dodges")
+            # print(f"{item.get('source').name} dodges")
             battle.session.event_manager.received_event({'source': item.get('source'), 'event': 'dodge'})
             item.get('source').do_dodge(battle)
 

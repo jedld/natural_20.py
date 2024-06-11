@@ -146,7 +146,10 @@ class MapRenderer:
     def token(self, entity, pos_x, pos_y):
         if entity['entity'].token():
             m_x, m_y = self.map.entities[entity['entity']]
-            return entity['entity'].token()[pos_y - m_y][pos_x - m_x]
+            try:
+                return entity['entity'].token()[pos_x - m_x][pos_y - m_y]
+            except:
+                pdb.set_trace()
         else:
             return self.map.tokens[pos_x][pos_y]['token']
 

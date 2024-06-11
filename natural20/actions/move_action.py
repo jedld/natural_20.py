@@ -6,6 +6,9 @@ from natural20.utils.movement import compute_actual_moves, retrieve_opportunity_
 from natural20.event_manager import EventManager
 # typed: true
 class MoveAction(Action):
+    """
+    Move action
+    """
     move_path: List[Tuple[int, int]]
     jump_index: List[int]
     as_dash: bool
@@ -159,12 +162,11 @@ class MoveAction(Action):
         elif item_type == 'drop_grapple':
             item['target'].escape_grapple_from(item['source'])
             print(f"{item['source'].name} dropped grapple on {item['target'].name}")
-            EventManager.received_event(event='drop_grapple',
+            battle.session.event_manager.received_event(event='drop_grapple',
                                                   target=item['target'], source=item['source'],
                                                   source_roll=item['source_roll'],
                                                   target_roll=item['target_roll'])
         elif item_type == 'move':
-            print(f"{item['source'].name} moved to {item['position']} {item['move_cost'] * battle.map.feet_per_grid} feet")
             item['map'].move_to(item['source'], *item['position'], battle)
 
             if item['as_dash'] and item['as_bonus_action']:
@@ -180,6 +182,7 @@ class MoveAction(Action):
                 'source': item['source'],
                 'position': item['position'],
                 'path': item['path'],
+                'move_cost' : item['move_cost'],
                 'feet_per_grid': battle.map.feet_per_grid if battle.map else None,
                 'as_dash': item['as_dash'],
                 'as_bonus': item['as_bonus_action']

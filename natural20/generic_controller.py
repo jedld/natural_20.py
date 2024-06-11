@@ -20,7 +20,8 @@ class GenericController:
         entity.attach_handler("opportunity_attack", self.opportunity_attack_listener)
 
     def begin_turn(self, entity):
-        print(f"{entity.name} begins turn")
+        # print(f"{entity.name} begins turn")
+        pass
 
     def roll_for(self, entity, stat, advantage=False, disadvantage=False):
         return None
@@ -43,7 +44,7 @@ class GenericController:
     def select_action(self, battle, entity, available_actions = []) -> Action:
         if len(available_actions) > 0:
             action = self._sort_actions(battle, available_actions)[0]
-            print(f"{entity.name}: {action}")
+            # print(f"{entity.name}: {action}")
             return action
         
         # no action, end turn
@@ -122,7 +123,6 @@ class GenericController:
         # generate available targets
         valid_actions = []
         # check if enemy positions is empty
-        
 
         if len(enemy_positions.keys()) == 0 and len(investigate_location) == 0 and LookAction.can(entity, battle):
             action = LookAction(self.session, entity, "look")

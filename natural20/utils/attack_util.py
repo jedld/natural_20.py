@@ -1,6 +1,5 @@
-from natural20.entity import Entity
 from natural20.action import Action
-from natural20.die_roll import DieRoll, DieRolls, Rollable
+from natural20.die_roll import Rollable
 import pdb
 
 def to_advantage_str(item):
@@ -24,27 +23,25 @@ def damage_event(item, battle):
     else:
         total_damage = dmg
     
-    print(f"{item['source'].name} attacks {item['target'].name}{to_advantage_str(item)} using {item['attack_name']} for ({item['damage']}) {total_damage} damage!")
+    battle.event_manager.received_event({
+        'source': item['source'],
+        'attack_roll': item['attack_roll'],
+        'target': item['target'],
+        'event': 'attacked',
+        'attack_name': item['attack_name'],
+        'damage_type': item['damage_type'],
+        'advantage_mod': item['advantage_mod'],
+        'as_reaction': item['as_reaction'],
+        'damage_roll': item['damage'],
+        'sneak_attack': item['sneak_attack'],
+        'adv_info': item['adv_info'],
+        'resistant': target.resistant_to(item['damage_type']),
+        'vulnerable': target.vulnerable_to(item['damage_type']),
+        'value': dmg,
+        'total_damage': total_damage
+    })
+   
 
-    # Natural20.EventManager.received_event({
-    #     'source': item['source'],
-    #     'attack_roll': item['attack_roll'],
-    #     'target': item['target'],
-    #     'event': 'attacked',
-    #     'attack_name': item['attack_name'],
-    #     'damage_type': item['damage_type'],
-    #     'advantage_mod': item['advantage_mod'],
-    #     'as_reaction': item['as_reaction'],
-    #     'damage_roll': item['damage'],
-    #     'sneak_attack': item['sneak_attack'],
-    #     'adv_info': item['adv_info'],
-    #     'resistant': target.resistant_to(item['damage_type']),
-    #     'vulnerable': target.vulnerable_to(item['damage_type']),
-    #     'value': dmg,
-    #     'total_damage': total_damage
-    # })
-    
-    print(f"{item['target'].name} takes {total_damage} damage!")
     item['target'].take_damage(total_damage, battle=battle, critical=item['attack_roll'].nat_20())
 
     if battle and total_damage > 0:
@@ -75,7 +72,7 @@ def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, op
     return force_miss
 
 
-def effective_ac(battle, source: Entity, target: Entity):
+def effective_ac(battle, source, target):
     cover_ac_adjustments = 0
     if battle and battle.map:
         cover_ac_adjustments = calculate_cover_ac(battle.map, source, target)
@@ -84,7 +81,7 @@ def effective_ac(battle, source: Entity, target: Entity):
         ac = target.armor_class()
     return [ac, cover_ac_adjustments]
 
-def calculate_cover_ac(map, source: Entity, target: Entity):
+def calculate_cover_ac(map, source, target):
     return cover_calculation(map, source, target)
 
 def cover_calculation(map, source, target, entity_1_pos=None, entity_2_pos=None, naturally_stealthy=False):
