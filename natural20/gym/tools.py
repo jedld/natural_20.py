@@ -39,14 +39,16 @@ def dndenv_action_to_nat20action(entity, battle, map, available_actions, action)
             target = map.entity_at(target_x, target_y)
 
             valid_targets = battle.valid_targets_for(entity, action)
-            if param3==0 or (param3 == 1 and action.ranged_attack()):
-                if valid_targets:
-                    action.target = valid_targets[0]
+            if valid_targets:
+                action.target = valid_targets[0]
+                if param3==0 or (param3 == 1 and action.ranged_attack()):
                     for valid_target in valid_targets:
                         if target == valid_target:
                             action.target = target
                             break
                     return action
+                
+                return action
         elif action.action_type == "move" and action_type == 1:
             entity_position = map.position_of(entity)
             target_x = entity_position[0] + param1[0]
@@ -133,7 +135,10 @@ def compute_available_moves(session, map, entity: Entity, battle):
                 
                 for target in targets:
                     relative_pos = (target[0] - entity_pos[0], target[1] - entity_pos[1])
-                    valid_actions.append((0, (0 , 0), (relative_pos[0], relative_pos[1]), action.ranged_attack()))
+                    attack_type = 0
+                    if action.ranged_attack():
+                        attack_type = 1
+                    valid_actions.append((0, (0 , 0), (relative_pos[0], relative_pos[1]), attack_type))
         elif action.action_type == "move":
             relative_x = action.move_path[-1][0]
             relative_y = action.move_path[-1][1]

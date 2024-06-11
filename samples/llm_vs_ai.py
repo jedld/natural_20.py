@@ -2,9 +2,9 @@ from gymnasium import make
 from llm_interface import GPT4Interfacer, LLama3Interface
 import os
 
-MAX_EPISODES = 20
+MAX_EPISODES = 30
 
-env = make("dndenv-v0", root_path="samples/map_with_obstacles", render_mode="ansi")
+env = make("dndenv-v0", root_path="samples/map_with_obstacles", render_mode="ansi", show_logs=True)
 observation, info = env.reset(seed=42)
 
 URL = os.getenv("LLAMA3_URL", "http://localhost:8001/generate")
