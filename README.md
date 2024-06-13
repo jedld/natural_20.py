@@ -88,6 +88,8 @@ The `DieRoll` class provides a powerful and flexible way to handle dice rolls wi
 ### Basic Usage
 
 ```python
+from natural20.die_roll import DieRoll
+
 # Rolling a single d20 die
 result = DieRoll.roll('1d20').result()
 print("Result of a d20 roll: ", result)
