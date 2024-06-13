@@ -88,40 +88,40 @@ The `DieRoll` class provides a powerful and flexible way to handle dice rolls wi
 ### Basic Usage
 
 ```python
-
 # Rolling a single d20 die
 result = DieRoll.roll('1d20').result()
 print("Result of a d20 roll: ", result)
+# Result of a d20 roll:  7
 
 # Rolling two d6 dice with a +2 modifier
 result = DieRoll.roll('2d6+2').result()
 print("Result of 2d6 + 2: ", result)
 
+
 # Rolling with advantage
 advantage_roll = DieRoll.roll('1d20', advantage=True)
 print("Roll with advantage: ", advantage_roll)
+# Roll with advantage:  (5 | 15)
 
 # Rolling with disadvantage
 disadvantage_roll = DieRoll.roll('1d20', disadvantage=True)
 print("Roll with disadvantage: ", disadvantage_roll)
+# Roll with disadvantage:  (15 | 3)
 
-
-# Rolling with a possibility of a critical hit
-
+# Critical hit dice rolls e.g. indicated Die are rolled twice
 critical_roll = DieRoll.roll('1d6', crit=True)
 print("Critical roll (double dice): ", critical_roll)
-
-# Custom description for a roll
-custom_roll = DieRoll.roll('2d8', description='Sneak Attack')
-print("Custom roll description: ", custom_roll)
+# Critical roll (double dice):  (5 + 1)
 
 # Expected value of rolling 1d6 + 2
 expected_value = DieRoll.roll('1d6+2').expected()
 print("Expected value of 1d6 + 2: ", expected_value)
+# Expected value of 1d6 + 2:  5.5
 
 # Probability of rolling at least 10 on 1d20+5
 probability = DieRoll.roll('1d20+5').prob(10)
 print("Probability of rolling at least 10 on 1d20+5: ", round(probability, 2))
+# Probability of rolling at least 10 on 1d20+5:  0.8
 ```
 
 Running Tests
