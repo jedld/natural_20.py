@@ -11,7 +11,7 @@ from natural20.action import Action
 from natural20.gym.dndenv import dndenv
 from gymnasium import register, envs, make
 import random
-
+import numpy as np
 
 class TestGym(unittest.TestCase):
     def test_reset(self):
@@ -28,11 +28,22 @@ class TestGym(unittest.TestCase):
         assert env is not None
         assert info is not None
 
+    def test_ability_info(self):
+        env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True)
+        observation, info = env.reset(seed=42)
+        assert observation['ability_info'][0] == 1
+        _, _, main_player, _ = env.players[0]
+        main_player.second_wind_count = 0
+        observation = env.generate_observation(main_player)
+        assert observation['ability_info'][0] == 0
+
     def test_render(self):
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True)
         observation, info = env.reset(seed=42)
         assert observation is not None
         assert info is not None
+
+        
         # sample a move from info
         render = env.render()
         expected = """____________

@@ -134,10 +134,7 @@ class GenericController:
 
         for action in available_actions:
             if action.action_type == "attack":
-                valid_targets = battle.valid_targets_for(entity, action)
-                if valid_targets:
-                    action.target = valid_targets[0]
-                    valid_actions.append(action)
+                valid_actions.append(action)
             elif action.action_type == "move":
                 valid_actions.append(action)
             elif action.action_type == "disengage":

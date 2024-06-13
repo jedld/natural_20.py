@@ -117,7 +117,7 @@ class Battle():
         # check if the entities that are alive are all in the same group
         groups = set()
         for entity in self.combat_order:
-            if not entity.dead():
+            if entity.conscious():
                 groups.add(self.entities[entity]['group'])
         return len(groups) == 1                
 

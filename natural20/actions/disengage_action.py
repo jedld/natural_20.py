@@ -46,7 +46,7 @@ class DisengageAction(Action):
         if item['type'] == 'disengage':
             # print(f"{item['source'].name} disengages")
             battle.session.event_manager.received_event({'source': item['source'], 'event': 'disengage'})
-            item['source'].do_dodge(battle)
+            item['source'].do_disengage(battle)
             if item['as_bonus_action']:
                 battle.consume(item['source'], 'bonus_action')
             else:

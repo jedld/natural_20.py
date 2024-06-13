@@ -12,33 +12,40 @@ class QNetwork(nn.Module):
         self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
         
         # Fully connected layers for scalar inputs, flattened map, and action components
-        self.fc1 = nn.Linear(64 * 12 * 12 + 1 + 1 + 3 + 3 + 2 + 2 + 2 + 8, 512)
+        self.fc1 = nn.Linear(64 * 12 * 12 + 1 + 1 + 1 + 3 + 3 + 2 + 2 + 2 + 8 + 8, 64)
         
         # Embedding for discrete movement and binary action
         self.movement_embedding = nn.Embedding(256, 10)
         self.binary_action_embedding = nn.Embedding(2, 2)  # Embedding for binary action
         # Final layer to output the Q-value for the action
-        self.fc2 = nn.Linear(512, 64)
-        self.out = nn.Linear(64, 1)
+        self.fc2 = nn.Linear(64, 32)
+        self.fc3 = nn.Linear(32, 16)
+        self.out = nn.Linear(16, 1)
         self.device = device 
 
     def convert_batch(self, batch_x, batch_action, device='cpu'):
         map_inputs = []
         health_enemys = []
+        enemy_reactions = []
         health_pcts = []
         movements = []
         turn_infos = []
+        ability_infos = []
         
         for x in batch_x:
-            health_enemy, health_pct, map_input, movement, turn_info = \
-                x['health_enemy'], x['health_pct'], x['map'], x['movement'], x['turn_info']
+            health_enemy, health_pct, enemy_reaction, map_input, movement, turn_info, ability_info = \
+                x['health_enemy'], x['health_pct'], x['enemy_reactions'], x['map'], x['movement'], \
+                      x['turn_info'], x['ability_info']
+            
             map_input = torch.tensor(x['map'], dtype=torch.float32)
             map_input = map_input.permute(2, 0, 1)
             map_inputs.append(map_input)
             health_enemys.append(torch.tensor(health_enemy, dtype=torch.float32))
             health_pcts.append(torch.tensor(health_pct, dtype=torch.float32))
+            enemy_reactions.append(torch.tensor(enemy_reaction, dtype=torch.long))
             movements.append(torch.tensor(movement, dtype=torch.long))
             turn_infos.append(torch.tensor(turn_info, dtype=torch.float32))
+            ability_infos.append(torch.tensor(ability_info, dtype=torch.long))
 
         action1s = []
         action2s = []
@@ -55,19 +62,19 @@ class QNetwork(nn.Module):
 
             
         return torch.stack(map_inputs).to(device), torch.stack(health_enemys).to(device), torch.stack(health_pcts).to(device), \
+               torch.stack(enemy_reactions).to(device), torch.stack(ability_infos).to(device),\
                torch.stack(movements).to(device), torch.stack(turn_infos).to(device), torch.stack(action1s).to(device), \
                torch.stack(action2s).to(device), torch.stack(action3s).to(device), torch.stack(action4s).to(device)
 
     def forward(self, x, action):
         if isinstance(x, dict):
-            map_input, health_enemy, health_pct, movement, turn_info, action1, action2, action3, action4 = self.convert_batch([x], [action], self.device)
+            map_input, health_enemy, health_pct, enemy_reaction, ability_info, movement, turn_info, action1, action2, action3, action4 = self.convert_batch([x], [action], self.device)
         else:
-            map_input, health_enemy, health_pct, movement, turn_info, action1, action2, action3, action4 = self.convert_batch(x, action, self.device)
+            map_input, health_enemy, health_pct, enemy_reaction, ability_info, movement, turn_info, action1, action2, action3, action4 = self.convert_batch(x, action, self.device)
         
         # Normalize map
         map_input = (map_input + 1.0) / 256.0
         
-
         # Pass map through CNN
         x = F.relu(self.conv1(map_input))
         x = F.relu(self.conv2(x))
@@ -76,17 +83,20 @@ class QNetwork(nn.Module):
         
         # Concatenate all features
         health_info = torch.cat((health_enemy, health_pct, turn_info), dim=1)
-
-
         action_features = torch.cat((action1, action2, action3), dim=1)
         movement_embed = self.movement_embedding(movement)
         action4_embed = self.binary_action_embedding(action4)
+
+        # normalize ability info
+        ability_info = ability_info.float() / 256.0
         
-        x = torch.cat((x, health_info, movement_embed, action_features, action4_embed), dim=1)
+        x = torch.cat((x, health_info, enemy_reaction, movement_embed, action_features, action4_embed, ability_info), dim=1)
         
         # Fully connected layer
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))        
+        x = F.relu(self.fc2(x))    
+        x = F.relu(self.fc3(x))
+
         # Output layer
         x = self.out(x)
         return x

@@ -177,7 +177,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
 
     return action_list
 
-  def _player_character_attack_actions(self, session, _battle, opportunity_attack=False, second_weapon=False):
+  def _player_character_attack_actions(self, session, battle, opportunity_attack=False, second_weapon=False):
     # check all equipped and create attack for each
     valid_weapon_types = ['melee_attack'] if opportunity_attack else ['ranged_attack', 'melee_attack']
 
@@ -213,7 +213,17 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
     unarmed_attack = attack_class(session, self, attack_type)
     unarmed_attack.using = 'unarmed_attack'
 
-    return weapon_attacks + [unarmed_attack]
+    pre_target_attack_list = weapon_attacks + [unarmed_attack]
+
+    # assign possible attack targets
+    final_attack_list = []
+    for action in pre_target_attack_list:
+      valid_targets = battle.valid_targets_for(self, action)
+      for target in valid_targets:
+        targeted_action = copy.copy(action)
+        targeted_action.target = target
+        final_attack_list.append(targeted_action)
+    return final_attack_list
 
 
   def prepared_spells(self):

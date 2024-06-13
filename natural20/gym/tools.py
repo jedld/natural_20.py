@@ -3,32 +3,53 @@ from natural20.entity import Entity
 from natural20.actions.look_action import LookAction
 from natural20.actions.stand_action import StandAction
 
-def enemy_health(battle, current_player):
+def enemy_stats(battle, current_player):
     for player in battle.entities.keys():
         if battle.entity_group_for(player) != battle.entity_group_for(current_player):
-            return player.hp() / player.max_hp()
-    return 0
+            enemy_hp = player.hp() / player.max_hp()
+            enemy_reactions = player.total_reactions(battle)
+            return enemy_hp, enemy_reactions
+    return 0, 0
 
 def build_observation(battle, map, entity, view_port_size=(12, 12)):
     """
     Builds the observation for the environment
     """
-    e_health = enemy_health(battle, entity)
+    e_health, e_reactions = enemy_stats(battle, entity)
     obs = {
         "map": render_terrain(battle, map, view_port_size),
         "turn_info": np.array([entity.total_actions(battle), entity.total_bonus_actions(battle), entity.total_reactions(battle)]),
         "health_pct": np.array([entity.hp() / entity.max_hp()]),
         "health_enemy" : np.array([e_health]),
+        "enemy_reactions" : np.array([e_reactions]),
+        "ability_info": ability_info(entity),
         "movement": battle.current_turn().available_movement(battle)
     }
     return obs
 
-def dndenv_action_to_nat20action(entity, battle, map, available_actions, action):
+def ability_info(entity):
+    """
+    Returns the ability information for the entity
+    """
+    ability_info = np.zeros((8))
+    
+    SECOND_WIND = 0
+
+    if hasattr(entity, 'second_wind_count'):
+        ability_info[SECOND_WIND] = entity.second_wind_count
+        
+    return ability_info
+
+def dndenv_action_to_nat20action(entity, battle, map, available_actions, gym_action):
     """
     Converts the simple gym vector action to a Natural20 action. This
     basically finds the closest action in the available actions list
     """
-    action_type, param1, param2, param3 = action
+    action_type, param1, param2, param3 = gym_action
+
+    if len(available_actions) == 0:
+        if action_type == -1:
+            return -1
 
     for action in available_actions:
         if action.action_type == "attack" and action_type == 0:
@@ -36,18 +57,8 @@ def dndenv_action_to_nat20action(entity, battle, map, available_actions, action)
             entity_position = map.position_of(entity)
             target_x = entity_position[0] + param2[0]
             target_y = entity_position[1] + param2[1]
-            target = map.entity_at(target_x, target_y)
 
-            valid_targets = battle.valid_targets_for(entity, action)
-            if valid_targets:
-                action.target = valid_targets[0]
-                if param3==0 or (param3 == 1 and action.ranged_attack()):
-                    for valid_target in valid_targets:
-                        if target == valid_target:
-                            action.target = target
-                            break
-                    return action
-                
+            if param3==0 or (param3 == 1 and action.ranged_attack()):
                 return action
         elif action.action_type == "move" and action_type == 1:
             entity_position = map.position_of(entity)
@@ -71,7 +82,7 @@ def dndenv_action_to_nat20action(entity, battle, map, available_actions, action)
             return action
         elif action_type == -1:
             return -1
-    return None
+    raise ValueError(f"No action match for {gym_action}")
 
 def render_terrain(battle, map, view_port_size=(12, 12)):
     result = []

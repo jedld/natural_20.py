@@ -95,7 +95,7 @@ class AttackAction(Action):
         if 'flavor' in item and item['flavor']:
             flavor = item['flavor']
             if battle:
-                battle.session.log_event({'event': 'flavor', 'source': item['source'], 'target': item['target'], 'text': flavor})
+                battle.event_manager.received_event({'event': 'flavor', 'source': item['source'], 'target': item['target'], 'text': flavor})
 
         if item['type'] == 'prone':
             item['source'].prone()
@@ -104,7 +104,7 @@ class AttackAction(Action):
             AttackAction.consume_resource(battle, item)
         elif item['type'] == 'miss':
             AttackAction.consume_resource(battle, item)
-            battle.session.log_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], 'attack_thrown': item['thrown'], 'advantage_mod': item['advantage_mod'], 'as_reaction': bool(item['as_reaction']), 'adv_info': item['adv_info'], 'source': item['source'], 'target': item['target'], 'event': 'miss'})
+            battle.event_manager.received_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], 'attack_thrown': item['thrown'], 'advantage_mod': item['advantage_mod'], 'as_reaction': bool(item['as_reaction']), 'adv_info': item['adv_info'], 'source': item['source'], 'target': item['target'], 'event': 'miss'})
     
     def consume_resource(battle, item):
         if item['ammo']:

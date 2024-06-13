@@ -129,6 +129,33 @@ class TestBattle(unittest.TestCase):
         assert battle.valid_targets_for(fighter, action) == [npc]
         assert npc in battle.valid_targets_for(fighter, action, include_objects=True)
 
+    def test_valid_targets_for_line_of_sight(self):
+        session = self.make_session()
+        battle_map = Map(session, 'battle_sim_4')
+        battle = Battle(session, battle_map)
+        map_renderer = MapRenderer(battle_map)
+        fighter1 = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        battle_map.place((1, 1), fighter1, 'A')
+        battle.add(fighter1, 'a')
+        fighter2 = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        battle_map.place((1, 5), fighter2, 'B')
+        battle.add(fighter2, 'b')
+        fighter3 = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        battle_map.place((5, 1), fighter3, 'C')
+        battle.add(fighter3, 'b')
+        print(map_renderer.render())
+        action = AttackAction(session, fighter1, 'attack')
+        action.using = 'longbow'
+        valid_targets = battle.valid_targets_for(fighter1, action)
+        print(valid_targets)
+        assert fighter2 not in valid_targets, valid_targets
+        assert fighter3 in valid_targets, valid_targets
+        action = AttackAction(session, fighter2, 'attack')
+        action.using = 'longbow'
+        valid_targets2 = battle.valid_targets_for(fighter2, action)
+        print(valid_targets2)
+        assert fighter1 not in valid_targets2, valid_targets2
+
     # def test_has_controller_for():
     #     session = Session()
     #     battle_map = BattleMap(session, 'fixtures/battle_sim_objects')

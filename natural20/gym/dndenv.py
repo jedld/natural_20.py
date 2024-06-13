@@ -41,6 +41,8 @@ class dndenv(gym.Env):
         - custom_controller: a custom controller to use
         - custom_agent: a custom agent to use
         - custom_initializer: a custom initializer to use
+        - control_groups: the control groups that the agent controls
+        - damage_based_reward: whether to use damage based rewards, -10 * (enemy final hp / enemy initial hp)
         """
         super().__init__()
 
@@ -59,6 +61,8 @@ class dndenv(gym.Env):
             "turn_info" : gym.spaces.Box(low=0, high=1, shape=(3,), dtype=int),
             "health_pct": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "health_enemy": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
+            "enemy_reactions": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int),
+            "ability_info": gym.spaces.Box(low=0, high=1, shape=(8,), dtype=int),
             "movement": gym.spaces.Discrete(255)
         })
 
@@ -84,6 +88,8 @@ class dndenv(gym.Env):
         self.custom_agent = kwargs.get('custom_agent', None)
         self.custom_initializer = kwargs.get('custom_initializer', None)
         self.event_manager = kwargs.get('event_manager', None)
+        self.control_groups = kwargs.get('control_groups', ['a'])
+        self.damage_based_reward = kwargs.get('damage_based_reward', False)
 
     
     def seed(self, seed=None):
@@ -164,51 +170,10 @@ class dndenv(gym.Env):
         self.current_round = 0
         self.terminal = False
 
-        enemy_pos = None
-        player_pos = None
-
         if self.custom_initializer:
-            enemy_pos, player_pos = self.custom_initializer(self.map, self.battle)
+            self.custom_initializer(self.map, self.battle)
         else:
-            character_sheet_path = 'characters'
-            for index, p in enumerate(self.heroes):
-                if index < len(self.hero_names):
-                    name = self.hero_names[index]
-
-                pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', { "name" : name})
-                self._describe_hero(pc)
-                # set random starting positions, make sure there are no obstacles in the map
-                while player_pos is None or self.map.placeable(pc, player_pos[0], player_pos[1]) == False:
-                    player_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
-                self.players.append(('a', 'H', pc, player_pos))
-
-            for index, p in enumerate(self.enemies):
-                if index < len(self.enemy_names):
-                    name = self.enemy_names[index]
-
-                pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', {"name":  name})
-                self._describe_hero(pc)
-                while  enemy_pos is None or enemy_pos==player_pos or self.map.placeable(pc, enemy_pos[0], enemy_pos[1]) == False:
-                    enemy_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
-                self.players.append(('b', 'E', pc , enemy_pos))
-
-            # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
-            for group, token, player, position in self.players:
-                if group == 'b':
-                    if self.custom_agent:
-                        self.log(f"Setting up custom agent for enemy player {self.custom_agent}")
-                        controller = DndenvController(self.session, self.custom_agent)
-                        controller.register_handlers_on(player)
-                    elif self.custom_controller:
-                        controller = self.custom_controller
-                        controller.register_handlers_on(player)
-                    else: # basic AI
-                        controller = GenericController(self.session)
-                        controller.register_handlers_on(player)
-
-                    self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
-                else:
-                    self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
+            self._setup_up_default_1v1()
 
         self.battle.start()
         self.battle.start_turn()
@@ -216,24 +181,13 @@ class dndenv(gym.Env):
                 self.battle.current_turn().reset_turn(self.battle)
         current_player = self.battle.current_turn()
 
+        current_player, _ = self._game_loop(current_player)
+
         # get the first player which is not the same group as the current one
+        observation = self.generate_observation(current_player)
         
-        enemy_health = self._enemy_health(current_player)
+        return observation, { "available_moves": compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index, "group": self.battle.entity_group_for(current_player) }
 
-        observation = {
-            "map": render_terrain(self.battle, self.map, self.view_port_size),
-            "turn_info": np.array([current_player.total_actions(self.battle), current_player.total_bonus_actions(self.battle), current_player.total_reactions(self.battle)]),
-            "health_pct": np.array([current_player.hp() / current_player.max_hp()]),
-            "health_enemy" : np.array([enemy_health]),
-            "movement": self.battle.current_turn().available_movement(self.battle)
-        }
-        return observation, { "available_moves": compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index }
-
-    def _enemy_health(self, current_player):
-        for player in self.battle.entities.keys():
-            if self.battle.entity_group_for(player) != self.battle.entity_group_for(current_player):
-                return player.hp() / player.max_hp()
-        return 0
 
     def _describe_hero(self, pc: Entity):
         self.log("==== Player Character ====")
@@ -246,6 +200,104 @@ class dndenv(gym.Env):
         self.log(f"speed: {pc.speed()}")
         self.log("\n\n")
 
+    def _game_loop(self, current_player):
+        """
+        Main game loop for the environment, make moves for groups that are not controlled by the agent
+        """
+        result = None
+        while True:
+            player_group = self.battle.entity_group_for(current_player)
+            if not player_group in self.control_groups:
+                controller = self.battle.controller_for(current_player)
+                while True:
+                    action = controller.move_for(current_player, self.battle)
+                    if action is None or action == -1:
+                        self.log(f"no move for {current_player.name}")
+                        break
+                    self.battle.action(action)
+                    self.battle.commit(action)
+
+                    if self.battle.battle_ends():
+                        break
+
+                self.battle.end_turn()
+                result = self.battle.next_turn(max_rounds=self.max_rounds)
+
+                if result == 'tpk':
+                    break
+
+                self.battle.start_turn()
+                current_player = self.battle.current_turn()
+                self.log(f"==== current turn {current_player.name} {current_player.hp()}/{current_player.max_hp()}===")
+            elif player_group in self.control_groups:
+                if current_player.conscious():
+                    current_player.reset_turn(self.battle)
+                break
+        return current_player, result
+    
+    def _setup_up_default_1v1(self):
+        enemy_pos = None
+        player_pos = None
+
+        character_sheet_path = 'characters'
+        for index, p in enumerate(self.heroes):
+            if index < len(self.hero_names):
+                name = self.hero_names[index]
+
+            pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', { "name" : name})
+            self._describe_hero(pc)
+            # set random starting positions, make sure there are no obstacles in the map
+            while player_pos is None or self.map.placeable(pc, player_pos[0], player_pos[1]) == False:
+                player_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
+            self.players.append(('a', 'H', pc, player_pos))
+
+        for index, p in enumerate(self.enemies):
+            if index < len(self.enemy_names):
+                name = self.enemy_names[index]
+
+            pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', {"name":  name})
+            self._describe_hero(pc)
+            while enemy_pos is None or enemy_pos==player_pos or self.map.placeable(pc, enemy_pos[0], enemy_pos[1]) == False:
+                enemy_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
+            self.players.append(('b', 'E', pc , enemy_pos))
+
+        # add fighter to the battle at position (0, 0) with token 'G' and group 'a'
+        for group, token, player, position in self.players:
+            if group not in self.control_groups:
+                if self.custom_agent:
+                    self.log(f"Setting up custom agent for enemy player {self.custom_agent}")
+                    controller = DndenvController(self.session, self.custom_agent)
+                    controller.register_handlers_on(player)
+                elif self.custom_controller:
+                    controller = self.custom_controller
+                    controller.register_handlers_on(player)
+                else: # basic AI
+                    controller = GenericController(self.session)
+                    controller.register_handlers_on(player)
+
+                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
+            else:
+                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
+
+    def _enemy_hp_pct(self, entity):
+        current_group = self.battle.entity_group_for(entity)
+        enemy_players = []
+        for _, _, player, _ in self.players:
+            if self.battle.entity_group_for(player) != current_group:
+                enemy_players.append(player)
+        # get avg hp percentage of enemies
+        total_hp = 0
+        total_max_hp = 0
+
+        for player in enemy_players:
+            total_hp += player.hp()
+            total_max_hp += player.max_hp()
+
+        if total_max_hp > 0:
+            return (total_hp / total_max_hp)
+        
+        return 1.0
+    
     def step(self, action):
         if self.terminal:
             observation, info = self._terminal_observation()
@@ -273,10 +325,13 @@ class dndenv(gym.Env):
 
         # additional check for tpk
         if self.battle.battle_ends():
-            if entity.conscious() and self.battle.entity_group_for(entity) == 'a':
+            if entity.conscious() and self.battle.entity_group_for(entity) in self.control_groups:
                 reward = 10
             else:
-                reward = -10
+                if self.damage_based_reward:
+                    reward = -10 * self._enemy_hp_pct(entity)
+                else:
+                    reward = -10
             done = True
             self.terminal = True
 
@@ -289,8 +344,12 @@ class dndenv(gym.Env):
         if len(available_actions) == 0 or end_turn:
             self.battle.end_turn()
             self.log("==== end turn ===")
+            # show health bar of each entity
+            for _, _, player, _ in self.players:
+                self.log(f"{player.name} {player.hp()}/{player.max_hp()}")
+            
             result = self.battle.next_turn(max_rounds=self.max_rounds)
-            if result == 'tpk' and entity.conscious() and self.battle.entity_group_for(entity) == 'a':
+            if result == 'tpk' and entity.conscious() and self.battle.entity_group_for(entity) in self.control_groups:
                 reward = 10
                 done = True
             else:
@@ -301,53 +360,33 @@ class dndenv(gym.Env):
 
                 if current_player.dead():
                     self.log(f"{current_player.name} is dead")
-                    if self.battle.entity_group_for(entity) == 'a':
+                    if self.battle.entity_group_for(entity) in self.control_groups:
                         reward = 10
                     else:
-                        reward = -10
+                        if self.damage_based_reward:
+                            reward = -10 * self._enemy_hp_pct(entity)
+                        else:
+                            reward = -10
 
                     observation, info = self._terminal_observation()
                     return observation, reward, True, False, info
                 
-                while True:
-                    player_group = self.battle.entity_group_for(current_player)
-                    if not player_group == 'a':
-                        controller = self.battle.controller_for(current_player)
-                        while True:
-                            action = controller.move_for(current_player, self.battle)
-                            if action is None or action == -1:
-                                self.log(f"no move for {current_player.name}")
-                                break
-                            self.battle.action(action)
-                            self.battle.commit(action)
-
-                            if self.battle.battle_ends():
-                                break
-
-                        self.battle.end_turn()
-                        result = self.battle.next_turn(max_rounds=self.max_rounds)
-
-                        if result == 'tpk':
-                            break
-
-                        self.battle.start_turn()
-                        current_player = self.battle.current_turn()
-                    elif player_group == 'a':
-                        if current_player.conscious():
-                            current_player.reset_turn(self.battle)
-                        break
+                _, result = self._game_loop(current_player)
 
                 self.log(f"Result: {result}")
 
                 if result == 'tpk':
                     # Victory!!!!
-                    if entity.conscious() and self.battle.entity_group_for(entity) == 'a':
+                    if entity.conscious() and self.battle.entity_group_for(entity) in self.control_groups:
                         reward = 10
                     else:
-                        reward = -10
+                        if self.damage_based_reward:
+                            reward = -10 * self._enemy_hp_pct(entity)
+                        else:
+                            reward = -10
                     done = True
         
-        observation = build_observation(self.battle, self.map, entity, self.view_port_size)
+        observation = self.generate_observation(entity)
         _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle)
         if not done:
             # print(f"Available moves: {available_actions}")
@@ -364,6 +403,8 @@ class dndenv(gym.Env):
                                                        "time_step": self.time_step,
                                                        "round" : self.current_round }      
 
+    def generate_observation(self, entity):
+        return build_observation(self.battle, self.map, entity, self.view_port_size)
     
     def _terminal_observation(self):
         observation = {
@@ -371,6 +412,8 @@ class dndenv(gym.Env):
             "turn_info": np.array([0, 0, 0]),
             "health_pct": np.array([0]),
             "health_enemy" : np.array([0]),
+            "enemy_reactions": np.array([0]),
+            "ability_info": np.array([0, 0, 0, 0, 0, 0, 0, 0]), # tracks usage of class specific abilities (e.g. second wind, rage, etc.)
             "movement": 0
         }
         info = {

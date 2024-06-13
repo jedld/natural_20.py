@@ -43,6 +43,7 @@ natural20/utils/list_utils.py
 natural20/utils/movement.py
 natural20/utils/static_light_builder.py
 natural20/utils/utils.py
+tests/__init__.py
 tests/test_battle.py
 tests/test_dieroll.py
 tests/test_gym.py

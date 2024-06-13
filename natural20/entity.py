@@ -401,7 +401,7 @@ class Entity():
     def trigger_event(self, event_name, battle, session, map, event):
         if event_name in self.event_handlers:
             callback = self.event_handlers[event_name]
-            callback(battle, session, self, map, event)
+            return callback(battle, session, self, map, event)
 
     def npc(self):
         return False
