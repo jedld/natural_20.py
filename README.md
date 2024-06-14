@@ -1,7 +1,14 @@
 A Dungeons and Dragons game engine that can be used for AI related research
 
 This project provides a complete Gymnasium compatible environment for performing
-AI related research on the Dungeons and Dragons 5th edition RPGs.
+AI related research on the Dungeons and Dragons 5th edition RPGs. 
+
+Disclaimer
+==========
+
+Note that this library is meant as an independent research project for AI research. The developers and researchers in this project is in no way affiliated with Wizards of the Coast or any of its subsidiaries. Please note that "Dungeons and Dragons" is a registered trademark of the aformentioned company.
+
+Rules implementation and "assets" in this library are based on the DnD 5e System Reference Document (SRD). No specific content like characters, spells and abilities that are outside the SRD and come from official published sources will be included in this library.
 
 Features
 ========
@@ -83,7 +90,7 @@ Natural20.py comes with a complete Dungeons and Dragons die rolls simulator that
 
 ## DieRoll Class Usage
 
-The `DieRoll` class provides a powerful and flexible way to handle dice rolls within tabletop RPGs and similar games. Below are examples on how to utilize this class effectively in your game sessions.
+The `DieRoll` class provides a powerful and flexible way to handle dice rolls within tabletop RPGs and similar games. Below are examples on how to utilize this class effectively in your game sessions. It also parses the same die roll string format presented in DnD books and materials.
 
 ### Basic Usage
 
@@ -124,6 +131,44 @@ print("Expected value of 1d6 + 2: ", expected_value)
 probability = DieRoll.roll('1d20+5').prob(10)
 print("Probability of rolling at least 10 on 1d20+5: ", round(probability, 2))
 # Probability of rolling at least 10 on 1d20+5:  0.8
+```
+
+These also feature the fact that you are able to extract the details of the individual die rolls
+and not just the end result.
+
+### Extracting Individual Die Roll Details
+Get a die roll for 3d6: 
+
+
+# Roll multiple dice
+```python
+print("Get a die roll for 3d6: ")
+multi_die_roll = DieRoll.roll('3d6')
+
+print("Final Result: ", multi_die_roll.result())
+# Final Result:  7
+```
+
+# Access individual rolls
+```python
+individual_rolls = multi_die_roll.rolls
+print("Individual rolls: ", individual_rolls)
+# Individual rolls:  [1, 2, 4]
+```
+
+# Print each die roll from a complex roll with advantage
+```python
+complex_roll = DieRoll.roll('2d20', advantage=True)
+for roll_pair in complex_roll.rolls:
+    print("Roll pair: ", roll_pair, " -> Chosen roll: ", max(roll_pair))
+# Roll pair:  (10, 11)  -> Chosen roll:  11
+```
+
+# Using detailed information to check for specific conditions
+```python
+contains_max = any(roll == complex_roll.die_sides for roll in complex_roll.rolls)
+print("Contains a roll equal to max die side: ", contains_max)
+# Contains a roll equal to max die side:  False
 ```
 
 Running Tests
