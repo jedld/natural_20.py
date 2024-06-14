@@ -81,7 +81,13 @@ while not terminal and episode < MAX_EPISODES:
 Samples
 =======
 
-Please see the samples directory for more samples.
+Please see the samples directory for more samples. In particular, the notebook at samples/dnd_dqn.ipynb illustrates how to train an agent using Reinforcement Learning against a Rules-based AI (see generic_controller.py)
+
+Environment and Setup
+=====================
+
+Building of maps and setting up of obstacles and walls can be done by editing the "game" .yml files. The number of possible customizations is extensive. The templates folder contains a directory that comprises the entire setup of the game
+including npcs, races, the player character sheets, maps etc.
 
 Dice Rolls
 ==========
