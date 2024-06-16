@@ -87,6 +87,8 @@ class LLMInterfacer:
                 message = f"stand action\n"
             elif action_type == action_type_to_int("second_wind"):
                 message = f"second wind action\n"
+            elif action_type == action_type_to_int("two_weapon_attack"):
+                message = f"two weapon attack bonus action\n"
             else:
                 message = f"unknown action {action_type}\n"
                 raise ValueError(f"Unknown action type {action_type}")
@@ -102,6 +104,7 @@ class LLMInterfacer:
         prompt += "the enemy character is represented by an E\n"
         prompt += "areas outside of the map are represented by a hash (_), you cannot move to areas with _\n"
         prompt += "areas with obstacles are represented by an asterisk (*)\n"
+        prompt += "areas with water are represented by a tilde (~) and are difficult terrain\n"
         prompt += "areas that the player can't see are just blanks/space\n"
         prompt += "Each tile of the map is 5ft by 5ft.\n\n"
         prompt += "Here is the map:\n"
@@ -118,6 +121,8 @@ class LLMInterfacer:
                     token = "_"
                 elif terrain == 1:
                     token = "*"
+                elif terrain == 2:
+                    token = "~"
                 elif terrain == 0:
                     token = "."
                 else:

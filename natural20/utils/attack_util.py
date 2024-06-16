@@ -35,6 +35,7 @@ def damage_event(item, battle):
         'damage_roll': item['damage'],
         'sneak_attack': item['sneak_attack'],
         'adv_info': item['adv_info'],
+        'thrown': item['thrown'],
         'resistant': target.resistant_to(item['damage_type']),
         'vulnerable': target.vulnerable_to(item['damage_type']),
         'value': dmg,

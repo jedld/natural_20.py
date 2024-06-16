@@ -26,9 +26,10 @@ class ModelPolicy:
     def __init__(self):
         self.model = QNetwork(device=device)
         self.model.to(device)
-        if not os.path.exists('samples/model_best_dnd_egreedy.pt'):
-            raise FileNotFoundError("Model file not found. Please run dnd_dqn.ipynb notebook to train an agent.")
-        self.model.load_state_dict(torch.load('samples/model_best_dnd_egreedy.pt'))
+        fname = "samples/model_best_dnd_egreedy.pt"
+        if not os.path.exists(fname):
+            raise FileNotFoundError(f"Model file {fname} not found. Please run dnd_dqn.ipynb notebook to train an agent.")
+        self.model.load_state_dict(torch.load(fname))
 
     def action(self, state, info):
         available_moves = info["available_moves"]

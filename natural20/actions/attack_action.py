@@ -60,7 +60,7 @@ class AttackAction(Action):
 
     def ranged_attack(self):
         weapon = self.get_attack_info(self.opts)
-        return weapon['type'] == 'ranged_attack'
+        return weapon['type'] == 'ranged_attack' or self.thrown
 
     def unarmed(self):
         weapon = self.get_attack_info(self.opts)

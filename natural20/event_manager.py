@@ -53,7 +53,7 @@ class EventManager:
             'died': lambda event: print(f"{self.show_name(event)} died."),
             'dash': lambda event: print(f"{self.show_name(event)} dashes."),
             'unconscious': lambda event: print(f"{self.show_name(event)} unconscious."),
-            'attacked': lambda event: print(f"{self.show_name(event)} attacked {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']} and hits with {event['attack_roll']}= {event['attack_roll'].result()}."),
+            'attacked': lambda event: print(f"{self.show_name(event)} attacked {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']}{'(thrown)' if event['thrown'] else ''} and hits with {event['attack_roll']}= {event['attack_roll'].result()}."),
             'damage': lambda event: print(f"{self.show_name(event)} took {event['value']} damage."),
             'miss': lambda event: print(f"{self.show_name(event)} tried to attack {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']} but missed with {event['attack_roll']}= {event['attack_roll'].result()}."),
             'move': lambda event: print(f"{self.show_name(event)} moved to {event['position']} {event['move_cost']} feet"),

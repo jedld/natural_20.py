@@ -3,7 +3,7 @@ def compute_max_weapon_range(session, action, range=None):
         return 5
     elif action.action_type == 'help':
         return 5
-    elif action.action_type == 'attack':
+    elif action.action_type in ['attack', 'two_weapon_attack']:
         if action.npc_action:
             return action.npc_action.get('range_max') or action.npc_action.get('range')
         elif action.using:

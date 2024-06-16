@@ -8,7 +8,7 @@ classes:
 description: A halfling rogue with a dark past
 level: 1
 hit_die: inherit
-max_hp: 8
+max_hp: 18
 ability:
   str: 11
   dex: 20

@@ -87,7 +87,7 @@ water:
   name: Water
   passable: true
   token:
-    - ^
+    - '~'
 wooden_door:
   color: magenta
   default_ac: 15

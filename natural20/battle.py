@@ -321,6 +321,7 @@ class Battle():
         active_perception = active_perception if active_perception is not None else self.active_perception_for(entity)
         target_types = [target_type.lower() for target_type in target_types] if target_types else ['enemies']
         entity_group = self.entities[entity]['group']
+ 
         attack_range = compute_max_weapon_range(self.session, action, range)
 
         if attack_range is None:

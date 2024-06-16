@@ -1,5 +1,4 @@
 from natural20.entity import Entity
-from natural20.utils.utils import Session
 from natural20.die_roll import DieRoll
 from natural20.entity_class.fighter import Fighter
 from natural20.entity_class.rogue import Rogue
@@ -66,7 +65,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
     self.attributes["hp"] = copy.deepcopy(self.max_hp())
 
   @staticmethod
-  def load(session: Session, path, override={}):
+  def load(session, path, override={}):
     with open(os.path.join(session.root_path, path), 'r') as file:
       properties = yaml.safe_load(file)
     properties.update(override)
@@ -126,7 +125,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   def c_class(self):
     return self.properties['classes']
 
-  def available_actions(self, session: Session, battle, opportunity_attack=False):
+  def available_actions(self, session, battle, opportunity_attack=False):
     if self.unconscious():
       return []
 

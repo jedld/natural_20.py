@@ -56,4 +56,4 @@ class DisengageAction(Action):
 class DisengageBonusAction(DisengageAction):
     @staticmethod
     def can(entity, battle):
-        return battle and battle.combat and entity.any_class_feature(['cunning_action', 'nimble_escape']) and entity.total_bonus_actions(battle) > 0
+        return battle and battle.combat_ongoing() and entity.any_class_feature(['cunning_action', 'nimble_escape']) and entity.total_bonus_actions(battle) > 0

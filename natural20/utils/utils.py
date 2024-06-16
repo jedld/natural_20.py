@@ -3,6 +3,8 @@ import os
 from collections import defaultdict, deque
 from natural20.npc import Npc
 from natural20.event_manager import EventManager
+from natural20.player_character import PlayerCharacter
+
 # typed: true
 class Session:
     def __init__(self, root_path=None, event_manager=EventManager()):
@@ -30,6 +32,10 @@ class Session:
                 self.game_properties = yaml.safe_load(f)
         else:
             raise Exception(f'Missing game {game_file} file')
+        
+    def reset(self):
+        self.game_time = 0
+        self.event_log = deque(maxlen=100)
 
     @staticmethod
     def new_session(root_path=None):

@@ -67,10 +67,11 @@ class dndenv(gym.Env):
         })
 
         self.action_space = gym.spaces.Tuple([
-            gym.spaces.Box(low=-1, high=8, shape=(1,), dtype=int),
+            gym.spaces.Box(low=-1, high=255, shape=(1,), dtype=int),
             gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=int),
             gym.spaces.Box(low=-view_port_size[0]//2, high=view_port_size[0]//2, shape=(2,), dtype=int),
-            gym.spaces.Discrete(2)
+            gym.spaces.Discrete(255),
+            gym.spaces.Discrete(255)
         ])
         
         self.reward_range = (-1, 1)
@@ -79,7 +80,7 @@ class dndenv(gym.Env):
         self._seed = None
         self.root_path = kwargs.get('root_path', 'templates')
         self.map_file = kwargs.get('map_file', 'maps/game_map.yml')
-        self.heroes = kwargs.get('profiles', ['high_elf_fighter.yml'])
+        self.heroes = kwargs.get('profiles', ['halfling_rogue.yml'])
         self.enemies = kwargs.get('enemies', ['high_elf_fighter.yml'])
         self.hero_names = kwargs.get('hero_names', ['gomerin'])
         self.enemy_names = kwargs.get('enemy_names', ['rumblebelly'])
@@ -90,7 +91,9 @@ class dndenv(gym.Env):
         self.event_manager = kwargs.get('event_manager', None)
         self.control_groups = kwargs.get('control_groups', ['a'])
         self.damage_based_reward = kwargs.get('damage_based_reward', False)
-
+        self.custom_session = kwargs.get('custom_session', None)
+        self.weapon_embeddings = kwargs.get('weapon_embeddings', 'weapon_token_map.csv')
+        self.weapon_mappings = None
     
     def seed(self, seed=None):
         self._seed = seed
@@ -122,6 +125,8 @@ class dndenv(gym.Env):
                         if entity == None:
                             if terrain == None:
                                 render_char = "."
+                            elif terrain == "w":
+                                render_char = "~"
                             else:
                                 render_char = "#"
                         elif entity == current_player:
@@ -163,7 +168,21 @@ class dndenv(gym.Env):
             if self.show_logs:
                 event_manager.standard_cli()
 
-        self.session = Session(self.root_path, event_manager=event_manager)
+        if self.custom_session:
+            self.session = self.custom_session
+        else:
+            self.session = Session(self.root_path, event_manager=event_manager)
+
+        if self.weapon_embeddings and self.weapon_mappings is None:
+            # read CSV file in the folloing format name,idx
+            self.weapon_mappings = {}
+            fname = os.path.join(self.session.root_path, self.weapon_embeddings)
+            
+            with open(fname, 'r') as f:
+                for line in f:
+                    parts = line.strip().split(',')
+                    self.weapon_mappings[parts[0]] = int(parts[1])
+
         self.map = Map(self.session, map_location)
         self.battle = Battle(self.session, self.map)
         self.players = []
@@ -185,8 +204,11 @@ class dndenv(gym.Env):
 
         # get the first player which is not the same group as the current one
         observation = self.generate_observation(current_player)
+        _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle, weapon_mappings=self.weapon_mappings)
         
-        return observation, { "available_moves": compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index, "group": self.battle.entity_group_for(current_player) }
+        assert len(_available_moves) > 0, "There should be at least one available move for the agent."
+
+        return observation, { "available_moves": _available_moves, "current_index" : self.battle.current_turn_index, "group": self.battle.entity_group_for(current_player) }
 
 
     def _describe_hero(self, pc: Entity):
@@ -314,7 +336,7 @@ class dndenv(gym.Env):
         reward = 0
 
         # convert from Gym action space to Natural20 action space
-        action = dndenv_action_to_nat20action(entity, self.battle, self.map, available_actions, action)
+        action = dndenv_action_to_nat20action(entity, self.battle, self.map, available_actions, action, weapon_mappings=self.weapon_mappings)
         if action is None:
             reward = -1
         elif action == -1:
@@ -387,10 +409,9 @@ class dndenv(gym.Env):
                     done = True
         
         observation = self.generate_observation(entity)
-        _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle)
-        if not done:
-            # print(f"Available moves: {available_actions}")
-            assert len(_available_moves) > 0
+        _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle, weapon_mappings=self.weapon_mappings)
+
+        assert len(_available_moves) > 0, "There should be at least one available move for the agent."
 
         self.current_round += 1
         
@@ -401,7 +422,7 @@ class dndenv(gym.Env):
         return observation, reward, done, truncated, { "available_moves": _available_moves,
                                                        "current_index" : self.battle.current_turn_index,
                                                        "time_step": self.time_step,
-                                                       "round" : self.current_round }      
+                                                       "round" : self.current_round }
 
     def generate_observation(self, entity):
         return build_observation(self.battle, self.map, entity, self.view_port_size)
@@ -417,12 +438,15 @@ class dndenv(gym.Env):
             "movement": 0
         }
         info = {
-            "available_moves": [],
+            "available_moves": end_of_turn_move(),
             "current_index" : self.battle.current_turn_index,
             "time_step": self.time_step,
             "round" : self.current_round
         }
         return observation, info
+    
+def end_of_turn_move():
+    return [(-1, (0,0), (0,0),0)]
 
 def action_type_to_int(action_type):
     if action_type == "attack":
@@ -443,6 +467,8 @@ def action_type_to_int(action_type):
         return 7
     elif action_type == "second_wind":
         return 8
+    elif action_type == "two_weapon_attack":
+        return 9
     else:
         return -1    
 
