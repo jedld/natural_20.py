@@ -446,7 +446,7 @@ class dndenv(gym.Env):
         return observation, info
     
 def end_of_turn_move():
-    return [(-1, (0,0), (0,0),0)]
+    return [(-1, (0,0), (0,0), 0, 0)]
 
 def action_type_to_int(action_type):
     if action_type == "attack":
