@@ -19,7 +19,7 @@ class StandAction(Action):
 
     @staticmethod
     def build(session, source):
-        action = StandAction(session, source, "attack")
+        action = StandAction(session, source, "stand")
         return action.build_map()
 
     def resolve(self, session, map_, opts=None):
@@ -33,7 +33,7 @@ class StandAction(Action):
     @staticmethod
     def apply(battle, item):
         if item["type"] == "stand":
-            print(f"{item['source'].name} stands up.")
+            battle.event_manager.received_event({'event': 'stand', 'source': item['source']})
             item["source"].stand()
             battle.consume(item["source"], "movement", (item["source"].speed() // 2))
 

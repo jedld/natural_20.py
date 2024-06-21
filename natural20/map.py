@@ -29,6 +29,7 @@ class Map():
     def __init__(self, session, map_file_path):
         self.session = session
         self.terrain = {}
+        self.spawn_points = {}
         self.area_triggers = {}
         self.map = []
         self.properties = self.load(map_file_path)
@@ -40,6 +41,7 @@ class Map():
         self.base_map = []
         self.objects = []
         self.tokens = []
+        self.unaware_npcs = []
         self.entities = {}  # Assuming entities is a dictionary
         self.interactable_objects = {}
         self.legend = self.properties.get('legend', {})
@@ -67,10 +69,18 @@ class Map():
                 if not c=='.':
                     self.base_map[cur_x][cur_y] = c
 
+        if self.properties.get('map', {}).get('meta'):
+            self.meta_map = [[None for _ in range(self.size[1])] for _ in range(self.size[0])]
+
+            for cur_y, lines in enumerate(self.properties.get('map', {}).get('meta')):
+                for cur_x, c in enumerate(lines):
+                    self.meta_map[cur_x][cur_y] = c
+
         self.light_builder = StaticLightBuilder(self)
         self.triggers = self.properties.get('triggers', {})
         self._compute_lights()
         self._setup_objects()
+        self._setup_npcs()
 
     def _compute_lights(self):
         self.light_map = self.light_builder.build_map()
@@ -129,13 +139,27 @@ class Map():
                         if not npc_meta['sub_type']:
                             raise Exception('npc type requires sub_type as well')
 
-                        entity = self.session.npc(npc_meta['sub_type'], name=npc_meta['name'], overrides=npc_meta['overrides'], rand_life=True)
+                        entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta['name'], "overrides" : npc_meta.get('overrides', {}), "rand_life" : True })
 
-                        self.add(entity, column_index, row_index, group=npc_meta['group'])
+                        self.add(entity, column_index, row_index, group=npc_meta.get('group', None))
                     elif token_type == 'spawn_point':
                         self.spawn_points[self.legend.get(token, {}).get('name')] = {
                             'location': [column_index, row_index]
                         }
+
+    def add(self, entity, pos_x, pos_y, group='b'):
+        self.unaware_npcs.append({'group': group if group else 'b', 'entity': entity})
+        self.entities[entity] = [pos_x, pos_y]
+        self.place((pos_x, pos_y), entity, None)
+
+    def remove(self, entity, battle=None):
+        pos_x, pos_y = self.entities.pop(entity)
+
+        source_token_size = entity.token_size() - 1 if requires_squeeze(entity, pos_x, pos_y, self, battle) else entity.token_size()
+
+        for ofs_x in range(source_token_size):
+            for ofs_y in range(source_token_size):
+                self.tokens[pos_x + ofs_x][pos_y + ofs_y] = None
 
     def load(self, map_file_path):
         # Add .yml extension if not present

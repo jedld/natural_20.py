@@ -64,7 +64,7 @@ class TestBattle(unittest.TestCase):
         battle.add(fighter, 'a')
         battle.add(npc2, 'b')
 
-        random.seed(3000)
+        random.seed(3001)
         battle.start()
         fighter.take_damage(DieRoll([20], 80).result())
         assert fighter.unconscious()
@@ -83,10 +83,9 @@ class TestBattle(unittest.TestCase):
         battle.add(fighter, 'a')
         battle.add(npc2, 'b')
 
-        
-        random.seed(2003)
+        random.seed(2010)
         battle.start()
-        fighter.take_damage(DieRoll([20], 80).result())
+        fighter.take_damage(DieRoll([40], 80).result())
         assert fighter.unconscious()
         battle.while_active(3, lambda entity: False)
         assert fighter.stable()

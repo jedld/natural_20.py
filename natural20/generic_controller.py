@@ -2,6 +2,7 @@ import random
 from natural20.actions.look_action import LookAction
 from natural20.actions.stand_action import StandAction
 from natural20.actions.attack_action import AttackAction
+from natural20.actions.prone_action import ProneAction
 from natural20.actions.move_action import MoveAction
 from natural20.gym.types import EnvObject, Environment
 from natural20.entity import Entity
@@ -146,6 +147,8 @@ class GenericController:
             elif action.action_type == 'dash_bonus':
                 valid_actions.append(action)
             elif action.action_type == 'second_wind':
+                valid_actions.append(action)
+            elif action.action_type == 'prone':
                 valid_actions.append(action)
 
         return valid_actions

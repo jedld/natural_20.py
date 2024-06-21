@@ -7,7 +7,7 @@ class QNetwork(nn.Module):
         super(QNetwork, self).__init__()
         
         # CNN layers for the map
-        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(4, 16, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
         self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
         

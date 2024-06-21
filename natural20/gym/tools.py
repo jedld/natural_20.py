@@ -85,9 +85,11 @@ def dndenv_action_to_nat20action(entity, battle, map, available_actions, gym_act
             return action
         elif action.action_type == "two_weapon_attack" and action_type == 9:
             return action
+        elif action.action_type == "prone" and action_type == 10:
+            return action
         elif action_type == -1:
             return -1
-    raise ValueError(f"No action match for {gym_action}")
+    raise ValueError(f"No action match for {gym_action} {action_type}")
 
 def render_terrain(battle, map, view_port_size=(12, 12)):
     result = []
@@ -99,10 +101,10 @@ def render_terrain(battle, map, view_port_size=(12, 12)):
         col_arr = []
         for x in range(-view_h//2, view_h//2):
             if pos_x + x < 0 or pos_x + x >= map_w or pos_y + y < 0 or pos_y + y >= map_h:
-                col_arr.append([-1, -1, 0])
+                col_arr.append([-1, -1, 0, 0])
             else:
                 if not map.can_see_square(current_player,(pos_x + x, pos_y + y)):
-                    col_arr.append([255, 255, 255])
+                    col_arr.append([255, 255, 255, 255])
                 else:
                     terrain = map.base_map[pos_x + x][pos_y + y]
 
@@ -129,7 +131,19 @@ def render_terrain(battle, map, view_port_size=(12, 12)):
                     else:
                         health_pct = 0
 
-                    col_arr.append([entity_int, terrain_int, health_pct])
+                    status_int = 0
+                    if entity is not None:
+                        # add an 8-bit mask for status effects
+                        if entity.prone():
+                            status_int |= 1
+                        if entity.dodge(battle):
+                            status_int |= 2
+                        if entity.unconscious():
+                            status_int |= 16
+                        if entity.dead():
+                            status_int |= 32
+ 
+                    col_arr.append([entity_int, terrain_int, health_pct, status_int])
         
         result.append(col_arr)
     return np.array(result)
@@ -139,10 +153,7 @@ def compute_available_moves(session, map, entity: Entity, battle, weapon_mapping
     # generate available targets
     valid_actions = []       
 
-    # try to stand if prone
-    if entity.prone() and StandAction.can(entity, battle):
-        valid_actions.append((6, (0, 0), (0, 0), 0, 0))
-    
+  
     entity_pos = map.position_of(entity)
 
     for action in available_actions:
@@ -178,6 +189,8 @@ def compute_available_moves(session, map, entity: Entity, battle, weapon_mapping
             valid_actions.append((6, (-1, -1),(0, 0), 0, 0))
         elif action.action_type == 'second_wind':
             valid_actions.append((8, (-1, -1),(0, 0), 0, 0))
+        elif action.action_type == 'prone':
+            valid_actions.append((10, (-1, -1),(0, 0), 0, 0))
 
     valid_actions.append((-1, (0, 0), (0, 0), 0, 0)) # end turn should always be available
     return valid_actions

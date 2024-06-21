@@ -62,6 +62,16 @@ class Battle():
 
             self.map.place(position, entity, token, self)
 
+    # remove an entity from the battle and from the map
+    def remove(self, entity):
+        del self.entities[entity]
+        if entity in self.late_comers:
+            self.late_comers.remove(entity)
+        if entity in self.combat_order:
+            self.combat_order.remove(entity)
+        if self.map:
+            self.map.remove(entity, battle=self)
+
     def start(self, combat_order=None):
         if combat_order:
             self.combat_order = combat_order

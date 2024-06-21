@@ -371,7 +371,7 @@ class AttackAction(Action):
 class TwoWeaponAttackAction(AttackAction):
     @staticmethod
     def can(entity, battle, options={}):
-        return battle is None or (entity.total_bonus_actions(battle) > 0 and battle.two_weapon_attack(entity) and (options.get('weapon') != battle.first_hand_weapon(entity) or len([a for a in entity.equipped_weapons if a == battle.first_hand_weapon(entity)]) >= 2))
+        return battle is None or (entity.total_bonus_actions(battle) > 0 and battle.two_weapon_attack(entity) and (options.get('weapon') != battle.first_hand_weapon(entity) or len([a for a in entity.equipped_weapons() if a == battle.first_hand_weapon(entity)]) >= 2))
 
     def second_hand(self):
         return True

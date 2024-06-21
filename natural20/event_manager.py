@@ -52,6 +52,8 @@ class EventManager:
             'dodge': lambda event: print(f"{self.show_name(event)} dodges."),
             'died': lambda event: print(f"{self.show_name(event)} died."),
             'dash': lambda event: print(f"{self.show_name(event)} dashes."),
+            'stand': lambda event: print(f"{self.show_name(event)} stands up."),
+            'prone': lambda event: print(f"{self.show_name(event)} goes prone."),
             'unconscious': lambda event: print(f"{self.show_name(event)} unconscious."),
             'attacked': lambda event: print(f"{self.show_name(event)} attacked {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']}{'(thrown)' if event['thrown'] else ''} and hits with {event['attack_roll']}= {event['attack_roll'].result()}."),
             'damage': lambda event: print(f"{self.show_name(event)} took {event['value']} damage."),

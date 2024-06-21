@@ -57,7 +57,7 @@ class dndenv(gym.Env):
         }
 
         self.observation_space = gym.spaces.Dict(spaces={
-            "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 3), dtype=int),
+            "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 4), dtype=int),
             "turn_info" : gym.spaces.Box(low=0, high=1, shape=(3,), dtype=int),
             "health_pct": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "health_enemy": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
@@ -81,7 +81,7 @@ class dndenv(gym.Env):
         self.root_path = kwargs.get('root_path', 'templates')
         self.map_file = kwargs.get('map_file', 'maps/game_map.yml')
         self.heroes = kwargs.get('profiles', ['halfling_rogue.yml'])
-        self.enemies = kwargs.get('enemies', ['high_elf_fighter.yml'])
+        self.enemies = kwargs.get('enemies', ['halfling_rogue.yml'])
         self.hero_names = kwargs.get('hero_names', ['gomerin'])
         self.enemy_names = kwargs.get('enemy_names', ['rumblebelly'])
         self.show_logs = kwargs.get('show_logs', False)
@@ -208,7 +208,16 @@ class dndenv(gym.Env):
         
         assert len(_available_moves) > 0, "There should be at least one available move for the agent."
 
-        return observation, { "available_moves": _available_moves, "current_index" : self.battle.current_turn_index, "group": self.battle.entity_group_for(current_player) }
+        return observation, self._info(_available_moves, current_player)
+
+    def _info(self, available_moves, current_player):
+        return  {
+                 "available_moves": available_moves,
+                 "current_index" : self.battle.current_turn_index,
+                 "group": self.battle.entity_group_for(current_player),
+                 "round" : self.current_round,
+                 "weapon_mappings": self.weapon_mappings,
+                }
 
 
     def _describe_hero(self, pc: Entity):
@@ -419,10 +428,7 @@ class dndenv(gym.Env):
             done = True
             truncated = True
 
-        return observation, reward, done, truncated, { "available_moves": _available_moves,
-                                                       "current_index" : self.battle.current_turn_index,
-                                                       "time_step": self.time_step,
-                                                       "round" : self.current_round }
+        return observation, reward, done, truncated, self._info(_available_moves, entity)
 
     def generate_observation(self, entity):
         return build_observation(self.battle, self.map, entity, self.view_port_size)
@@ -437,16 +443,11 @@ class dndenv(gym.Env):
             "ability_info": np.array([0, 0, 0, 0, 0, 0, 0, 0]), # tracks usage of class specific abilities (e.g. second wind, rage, etc.)
             "movement": 0
         }
-        info = {
-            "available_moves": end_of_turn_move(),
-            "current_index" : self.battle.current_turn_index,
-            "time_step": self.time_step,
-            "round" : self.current_round
-        }
-        return observation, info
+        
+        return observation, self._info(end_of_turn_move(), self.battle.current_turn())
     
 def end_of_turn_move():
-    return [(-1, (0,0), (0,0),0)]
+    return [(-1, (0,0), (0,0), 0, 0)]
 
 def action_type_to_int(action_type):
     if action_type == "attack":
@@ -469,6 +470,8 @@ def action_type_to_int(action_type):
         return 8
     elif action_type == "two_weapon_attack":
         return 9
+    elif action_type == "prone":
+        return 10
     else:
         return -1    
 

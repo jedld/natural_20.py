@@ -156,6 +156,8 @@ class DndenvController:
                 valid_actions.append(action)
             elif action.action_type == 'second_wind':
                 valid_actions.append(action)
+            elif action.action_type == 'prone':
+                valid_actions.append(action)
 
         return valid_actions
 

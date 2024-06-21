@@ -9,6 +9,8 @@ from natural20.entity import Entity
 from natural20.actions.dodge_action import DodgeAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.disengage_action import DisengageAction
+from natural20.actions.stand_action import StandAction
+from natural20.actions.attack_action import AttackAction
 
 import copy
 
@@ -33,10 +35,10 @@ class Npc(Entity):
         
         default_inventory = self.properties.get("default_inventory", [])
         for inventory in default_inventory:
-            self.inventory[inventory["type"]] = namedtuple("Inventory", ["qty"])(inventory["qty"])
+            self.inventory[inventory["type"]] =  { "qty": inventory["qty"] }
         
         for inventory in self.properties.get("inventory", []):
-            self.inventory[inventory["type"]] = namedtuple("Inventory", ["qty"])(inventory["qty"])
+            self.inventory[inventory["type"]] = { "qty": inventory["qty"]}
         
         self.npc_actions = self.properties["actions"]
         self.battle_defaults = self.properties.get("battle_defaults", None)
@@ -97,8 +99,9 @@ class Npc(Entity):
                 DodgeAction(session, self, "dodge"),
                 MoveAction(session, self, "move"),
                 DisengageAction(session, self, "disengage"),
+                StandAction(session, self, "stand"),
                 # HideAction(session, self, "hide"),
-                # StandAction(session, self, "stand"),
+   
                 # DashAction(session, self, "dash"),
                 # HelpAction(session, self, "help"),
                 # GrappleAction(session, self, "grapple"),
@@ -129,7 +132,7 @@ class Npc(Entity):
         return self.properties.get("prepared_spells", [])
     
     def generate_npc_attack_actions(self, battle, opportunity_attack=False):
-        if self.familiar:
+        if self.familiar():
             return []
         
         actions = []
@@ -139,7 +142,7 @@ class Npc(Entity):
                 continue
             if npc_action.get("if") and not self.eval_if(npc_action["if"]):
                 continue
-            if not AttackAction.can(self, battle, npc_action=npc_action, opportunity_attack=opportunity_attack):
+            if not AttackAction.can(self, battle, { "npc_action" : npc_action, "opportunity_attack" : opportunity_attack}):
                 continue
             
             action = AttackAction(self.session, self, "attack")
@@ -149,7 +152,7 @@ class Npc(Entity):
         return actions
     
     def setup_attributes(self):
-        self._max_hp = DieRoll.roll(self.properties.get("hp_die", "1d6")).result if self.opt.get("rand_life") else self.properties.get("max_hp", 0)
+        self._max_hp = DieRoll.roll(self.properties.get("hp_die", "1d6")).result() if self.opt.get("rand_life") else self.properties.get("max_hp", 0)
         self.attributes["hp"] = copy.deepcopy(min(self.properties.get("override_hp", self._max_hp), self._max_hp))
         hp_details = DieRoll.parse(self.properties.get("hp_die", "1d6"))
         self._max_hit_die = {self.npc_type: hp_details.die_count}

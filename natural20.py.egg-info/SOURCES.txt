@@ -27,6 +27,7 @@ natural20/actions/disengage_action.py
 natural20/actions/dodge_action.py
 natural20/actions/look_action.py
 natural20/actions/move_action.py
+natural20/actions/prone_action.py
 natural20/actions/second_wind_action.py
 natural20/actions/stand_action.py
 natural20/entity_class/__init__.py

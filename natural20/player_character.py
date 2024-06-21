@@ -10,6 +10,8 @@ from natural20.actions.dodge_action import DodgeAction
 from natural20.actions.disengage_action import DisengageAction
 from natural20.actions.dash import DashAction, DashBonusAction
 from natural20.actions.second_wind_action import SecondWindAction
+from natural20.actions.stand_action import StandAction
+from natural20.actions.prone_action import ProneAction
 from natural20.utils.movement import compute_actual_moves
 import yaml
 import os
@@ -18,7 +20,7 @@ import copy
 class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   ACTION_LIST = [
     LookAction, AttackAction, MoveAction, DisengageAction, DodgeAction, DashAction, DashBonusAction,
-    TwoWeaponAttackAction, SecondWindAction
+    TwoWeaponAttackAction, SecondWindAction, ProneAction
   ]
 
   def __init__(self, session, properties, name=None):
@@ -151,7 +153,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
           action_list.append(DisengageAction(session, self, 'disengage'))
         elif action_type == SecondWindAction:
           action_list.append(SecondWindAction(session, self, 'second_wind'))
-        if action_type == DashBonusAction:
+        elif action_type == DashBonusAction:
           action = DashBonusAction(session, self, 'dash_bonus')
           action.as_bonus_action = True
           action_list.append(action)
@@ -173,6 +175,12 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
                   move_action = MoveAction(session, self, 'move')
                   move_action.move_path = shortest_path
                   action_list.append(move_action)
+        elif action_type == ProneAction:
+          action = ProneAction(session, self, 'prone')
+          action_list.append(action)
+        elif action_type == StandAction:
+          action = StandAction(session, self, 'stand')
+          action_list.append(action)
 
     return action_list
 

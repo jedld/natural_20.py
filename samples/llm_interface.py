@@ -35,27 +35,22 @@ class LLMInterfacer:
         instruction_prompt += f"Reactions: {reactions}\n\n"
         prompt = instruction_prompt        
         prompt += self.map_to_prompt(map)
-        prompt += self.action_to_prompt(info['available_moves'])
+        prompt += self.action_to_prompt(info['available_moves'], info["weapon_mappings"])
         prompt += "\n\nPlease choose the number corresponding to the action you would like to take.\n"
         prompt += "Provide the number as your first answer in the following format, for example:\n"
         prompt += "1: attack enemy with ranged weapon\n"
         prompt += "No need to explain just provide the answer."
         return prompt
     
-    def action_to_prompt(self, actions):
+    def action_to_prompt(self, actions, weapon_mappings=None):
         prompt = "\n\nHere are the available actions you can take, please choose the number corresponding to the action:\n"
         prompt += "0: end my turn\n"
         for index, action in enumerate(actions):
-            action_type, param1, param2, param3 = action
+            action_type, param1, param2, param3, param4 = action
             if action_type == action_type_to_int("move"):
                 message = f"move 5ft "
                 x, y = param1
-                if (x < 0 and y==0):
-                    message += f"to the left\n"
-                elif (x > 0 and y==0):
-                    message += f"to the right\n"
-                elif (x == 0 and y < 0):
-                    message += f"up\n"
+                if (x < 0 and y==0):param4
                 elif (x == 0 and y > 0):
                     message += f"down\n"
                 elif (x < 0 and y < 0):
@@ -68,11 +63,12 @@ class LLMInterfacer:
                     message += f"down and to the right\n"
                 
             elif action_type == action_type_to_int("attack"):
+                attack_name = self._look_up_attack_name(param3, weapon_mappings)
                 message = f"attack enemy "
-                if param3 == 1:
-                    message += f"with ranged weapon\n"
+                if param4 == 1:
+                    message += f"with ranged weapon {attack_name}\n"
                 else:
-                    message += f"with melee weapon\n"
+                    message += f"with melee weapon {attack_name}\n"
             elif action_type == action_type_to_int("dash"):
                 message = f"dash action\n"
             elif action_type == action_type_to_int("disengage"):
@@ -89,6 +85,8 @@ class LLMInterfacer:
                 message = f"second wind action\n"
             elif action_type == action_type_to_int("two_weapon_attack"):
                 message = f"two weapon attack bonus action\n"
+            elif action_type == action_type_to_int("prone"):
+                message = f"go prone\n"
             else:
                 message = f"unknown action {action_type}\n"
                 raise ValueError(f"Unknown action type {action_type}")
@@ -113,7 +111,7 @@ class LLMInterfacer:
             row_str = ""
             for col in row:
                 token = None
-                entity, terrain, health_pct = col
+                entity, terrain, health_pct, status = col
 
                 if terrain == 255:
                     token = " "
@@ -138,8 +136,16 @@ class LLMInterfacer:
 
         return prompt
     
+    def _look_up_attack_name(self, weapon_id, weapon_mappings=None):
+        # swap the values and keys
+        weapon_mappings = {v: k for k, v in weapon_mappings.items()}
+        if weapon_mappings and weapon_id in weapon_mappings:
+            return weapon_mappings.get(weapon_id, "")
+        else:
+            return ""
+    
 class GPT4Interfacer(LLMInterfacer):
-    def __init__(self, variant="gpt-4o", debug=False, api_key=None):
+    def __init__(self, variant="NousResearch/Meta-Llama-3-8B-Instruct", debug=False, api_key=None, base_url=None, tools=True, weapon_mappings=None):
         """
         Args:
             api_key: the openai api key to use
@@ -148,7 +154,7 @@ class GPT4Interfacer(LLMInterfacer):
         """
         super().__init__(debug)
         
-        if api_key is None:
+        if api_key is None and base_url is None:
             api_key = os.getenv("OPENAI_API_KEY")
             if api_key is None:
                 raise ValueError("Please set the OPENAI_API_KEY environment variable")
@@ -156,28 +162,29 @@ class GPT4Interfacer(LLMInterfacer):
         self.variant = variant
         self.debug = debug
         self.client = OpenAI(
-            # This is the default and can be omitted
-            api_key=api_key
+            api_key=api_key,
+            base_url=base_url
         )
-        self.tools = [
-            {
-                "type": "function",
-                "function": {
-                "name": "get_action",
-                "description": "get action for agent to execute",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                    "action": {
-                        "type": "integer",
-                        "description": "action to take",
-                    }
+        if tools:
+            self.tools = [
+                {
+                    "type": "function",
+                    "function": {
+                    "name": "get_action",
+                    "description": "get action for agent to execute",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                        "action": {
+                            "type": "integer",
+                            "description": "action to take",
+                        }
+                        },
+                        "required": ["action"],
                     },
-                    "required": ["action"],
-                },
+                    }
                 }
-            }
-        ]
+            ]
     
     def select_action_for_state(self, state, info):
         prompt = self.dndenv_state_to_prompt(state, info)
@@ -196,27 +203,29 @@ class GPT4Interfacer(LLMInterfacer):
             model=self.variant,
             
             # add the action function to the completion
-        tools=self.tools,
-            tool_choice="required"
+            # tools=self.tools,
+            # tool_choice="required"
         )
         
-        #response = chat_completion.choices[0].message.content
-
-        json_response = chat_completion.choices[0].message.tool_calls[0].function.arguments#json.loads(chat_completion.choices[0].message.function_call.arguments)
+        response = chat_completion.choices[0].message.content
+        # print(chat_completion.choices[0].message.content)
+        # json_response = chat_completion.choices[0].message.tool_calls[0].function.arguments#json.loads(chat_completion.choices[0].message.function_call.arguments)
 
         # parse the response and return the action
         # e.g. 1: attack enemy with ranged weapon or Let's proceed with option [4], or just extract the first number
         # from the response
 
-        #for char in response:
-        #    if char.isdigit():
-        #        response = char
-        #        break 
+        for index, char in enumerate(response):
+           if char.isdigit():
+               response = char
+               if index + 1 < len(response) and response[index + 1].isdigit():
+                   response += response[index + 1]
+               break 
 
         try:
-            json_response = json.loads(json_response)
-            print(json_response)
-            response = json_response['action']
+            # json_response = json.loads(json_response)
+            # print(json_response)
+            # response = json_response['action']
             
             end_time = time.time()
             if self.debug:
@@ -224,7 +233,7 @@ class GPT4Interfacer(LLMInterfacer):
                 print(f"response: {response}")
                 print(f"response: {response}")
             if int(response) == 0:
-                action = (-1, (0, 0), (0, 0), 0)
+                action = (-1, (0, 0), (0, 0), 0, 0)
             else:
                 action = info['available_moves'][int(response) - 1]
         except Exception as e:
@@ -266,7 +275,7 @@ class LLama3Interface(LLMInterfacer):
         regex = "\d"
 
         json_response = self._generate_text_with_regex(prompt, regex)
-        
+        print(json_response)
         #json_response = chat_completion.choices[0].message.tool_calls[0].function.arguments#json.loads(chat_completion.choices[0].message.function_call.arguments)
         #json_response = json.loads(json_response)
         print("*"*50)
@@ -292,7 +301,7 @@ class LLama3Interface(LLMInterfacer):
         try:
             print(f"response: {response}")
             if int(response) == 0:
-                action = (-1, (0, 0), (0, 0), 0)
+                action = (-1, (0, 0), (0, 0), 0, 0)
             else:
                 action = info['available_moves'][int(response) - 1]
         except Exception as e:
@@ -312,6 +321,7 @@ class LLama3Interface(LLMInterfacer):
         if response.status_code == 200:
             return response.json()
         else:
+            print(response.text)
             return None
 
     def _extract_last_number(self, text):

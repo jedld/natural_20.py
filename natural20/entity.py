@@ -2,7 +2,8 @@ from natural20.die_roll import DieRoll
 import math
 import pdb
 from natural20.event_manager import EventManager
-class Entity():
+from natural20.evaluator.entity_state_evaluator import EntityStateEvaluator
+class Entity(EntityStateEvaluator):
     def __init__(self, name, description, attributes = {}, event_manager = EventManager()):
         self.name = name
         self.description = description
@@ -29,6 +30,13 @@ class Entity():
     
     def hp(self):
         return self.attributes["hp"]
+    
+    def darkvision(self, distance):
+        if not self.properties.get('darkvision'):
+            return False
+        if self.properties.get('darkvision', 0) < distance:
+            return False
+        return True
     
    
     def token_size(self):
@@ -67,6 +75,9 @@ class Entity():
     def long_jump_distance(self):
         return self.ability_scores.get('str')
 
+    def passive_perception(self):
+        return self.properties.get('passive_perception', 10 + self.wis_mod())
+
     def perception_check(self, battle):
         entity_state = battle.entity_state_for(self)
         if not entity_state:
@@ -82,6 +93,26 @@ class Entity():
     def dead(self):
         return 'dead' in self.statuses
     
+
+    # Checks if an item is equipped
+    # @param item_name [String,Symbol]
+    # @return [Boolean]
+    def equipped(self, item_name):
+        return item_name in [item['name'] for item in self.equipped_items()]
+    
+    # Equips an item
+    # @param item_name [String,Symbol]
+    def equip(self, item_name, ignore_inventory=False):
+        self.properties['equipped'] = self.properties.get('equipped', [])
+        if ignore_inventory:
+            self.properties['equipped'].append(str(item_name))
+            self.resolve_trigger('equip')
+            return
+        item = self.deduct_item(item_name)
+        if item:
+            self.properties['equipped'].append(str(item_name))
+            self.resolve_trigger('equip')
+
     def make_dead(self):
         if not self.dead():
             self.event_manager.received_event({ 'source': self, 'event': 'died' })
@@ -345,7 +376,7 @@ class Entity():
 
     def available_movement(self, battle):
         if battle is None:
-            return self.speed
+            return self.speed()
 
         if self.grappled() or self.unconscious():
             return 0
@@ -357,9 +388,9 @@ class Entity():
     
     def familiar(self):
       return self.properties.get('familiar')
-
+    
     def speed(self):
-        c_speed = self.properties['speed_fly'] if self.is_flying() else self.properties['speed']
+        c_speed = self.properties.get('speed_fly',0) if self.is_flying() else self.properties['speed']
 
         if self.has_effect('speed_override'):
             c_speed = self.eval_effect('speed_override', stacked=True, value=c_speed)
@@ -372,6 +403,9 @@ class Entity():
     
     def prone(self):
         return 'prone' in self.statuses
+    
+    def do_prone(self):
+        self.statuses.append('prone')
    
     def squeezed(self):
         return 'squeezed' in self.statuses
@@ -471,7 +505,6 @@ class Entity():
     def item_count(self, inventory_type):
         if inventory_type not in self.inventory:
             return 0
-
         return self.inventory[inventory_type]['qty']
     
     def attack_roll_mod(self, weapon):
