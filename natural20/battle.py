@@ -29,38 +29,41 @@ class Battle():
       }
 
     def add(self, entity, group, controller=None, position=None, token=None, add_to_initiative=False):
-            if entity in self.entities:
-                return
+        if entity in self.entities:
+            return
 
-            if entity is None:
-                raise ValueError('entity cannot be nil')
+        if entity is None:
+            raise ValueError('entity cannot be nil')
 
-            state = {
-                'group': group,
-                'action': 0,
-                'bonus_action': 0,
-                'reaction': 0,
-                'movement': 0,
-                'stealth': 0,
-                'statuses': set(),
-                'active_perception': 0,
-                'active_perception_disadvantage': 0,
-                'free_object_interaction': 0,
-                'target_effect': {},
-                'two_weapon': None,
-                'controller': controller,
-            }
+        state = {
+            'group': group,
+            'action': 0,
+            'bonus_action': 0,
+            'reaction': 0,
+            'movement': 0,
+            'stealth': 0,
+            'statuses': set(),
+            'active_perception': 0,
+            'active_perception_disadvantage': 0,
+            'free_object_interaction': 0,
+            'target_effect': {},
+            'two_weapon': None,
+            'controller': controller,
+        }
 
-            self.entities[entity] = state
-            self.groups.setdefault(group, set()).add(entity)
+        self.entities[entity] = state
+        self.groups.setdefault(group, set()).add(entity)
 
-            if add_to_initiative:
-                self.combat_order.append(entity)
+        if add_to_initiative:
+            self.combat_order.append(entity)
 
-            if position is None or self.map is None:
-                return
+        if position is None or self.map is None:
+            return
 
+        if isinstance(position, list):
             self.map.place(position, entity, token, self)
+        else:
+            self.map.place_at_spawn_point(position, entity, token)
 
     # remove an entity from the battle and from the map
     def remove(self, entity):

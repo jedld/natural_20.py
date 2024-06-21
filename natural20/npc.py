@@ -157,3 +157,6 @@ class Npc(Entity):
         hp_details = DieRoll.parse(self.properties.get("hp_die", "1d6"))
         self._max_hit_die = {self.npc_type: hp_details.die_count}
         self._current_hit_die = {int(hp_details.die_type): hp_details.die_count}
+
+    def is_npc(self):
+        return True

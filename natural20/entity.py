@@ -4,6 +4,23 @@ import pdb
 from natural20.event_manager import EventManager
 from natural20.evaluator.entity_state_evaluator import EntityStateEvaluator
 class Entity(EntityStateEvaluator):
+
+    ATTRIBUTE_TYPES = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']
+    ATTRIBUTE_TYPES_ABBV = ['str', 'dex', 'con', 'int', 'wis', 'cha']
+
+    ALL_SKILLS = ['acrobatics', 'animal_handling', 'arcana', 'athletics', 'deception', 'history',
+                  'insight', 'intimidation', 'investigation', 'medicine', 'nature', 'perception',
+                  'performance', 'persuasion', 'religion', 'sleight_of_hand', 'stealth', 'survival']
+
+    SKILL_AND_ABILITY_MAP = {
+        'dex': ['acrobatics', 'sleight_of_hand', 'stealth'],
+        'wis': ['animal_handling', 'insight', 'medicine', 'perception', 'survival'],
+        'int': ['arcana', 'history', 'investigation', 'nature', 'religion'],
+        'con': [],
+        'str': ['athletics'],
+        'cha': ['deception', 'intimidation', 'performance', 'persuasion']
+    }
+
     def __init__(self, name, description, attributes = {}, event_manager = EventManager()):
         self.name = name
         self.description = description
@@ -18,7 +35,37 @@ class Entity(EntityStateEvaluator):
         self.death_saves = 0
         self.event_handlers = {}
         self.event_manager = event_manager
-    
+        self.concentration = None
+
+        # Attach methods dynamically
+        for ability, skills in self.SKILL_AND_ABILITY_MAP.items():
+            for skill in skills:
+                setattr(self, f"{skill}_mod", self.make_skill_mod_function(skill, ability))
+                setattr(self, f"{skill}_check", self.make_skill_check_function(skill))
+
+    def is_npc(self):
+        return False
+
+    def make_skill_mod_function(self, skill, ability):
+        def skill_mod():
+            if self.is_npc() and skill in self.properties.get('skills', {}):
+                return self.properties['skills'][skill]
+
+            ability_mod = self.get_ability_modifier(ability)
+            if self.proficient_in(skill):
+                bonus = self.proficiency_bonus * 2 if self.has_expertise_in(skill) else self.proficiency_bonus
+            else:
+                bonus = 0
+            return ability_mod + bonus
+        return skill_mod
+
+    def make_skill_check_function(self, skill):
+        def skill_check(battle=None, **opts):
+            modifiers = getattr(self, f"{skill}_mod")()
+            description = opts.get('description', f"dice roll for {skill}")
+            return DieRoll.roll_with_lucky(self, f"1d20+{modifiers}", description=description, battle=battle)
+        return skill_check
+
     def __str__(self):
         return f"{self.name}"
     
@@ -30,6 +77,13 @@ class Entity(EntityStateEvaluator):
     
     def hp(self):
         return self.attributes["hp"]
+    
+    # Returns the character hit die
+    # @return [dict]
+    def hit_die(self):
+        return self._current_hit_die
+    
+  
     
     def darkvision(self, distance):
         if not self.properties.get('darkvision'):
@@ -94,6 +148,20 @@ class Entity(EntityStateEvaluator):
         return 'dead' in self.statuses
     
 
+    def ability_mod(self, type):
+        mod_type = {
+            'wisdom': 'wis',
+            'dexterity': 'dex',
+            'constitution': 'con',
+            'intelligence': 'int',
+            'charisma': 'cha',
+            'strength': 'str'
+        }.get(type, None)
+        if mod_type:
+            return self.modifier_table(self.ability_scores.get(mod_type))
+        else:
+            return None
+
     # Checks if an item is equipped
     # @param item_name [String,Symbol]
     # @return [Boolean]
@@ -132,7 +200,52 @@ class Entity(EntityStateEvaluator):
 
             self.statuses.append('prone')
             self.statuses.append('unconscious')
-            
+
+    def saving_throw(self, save_type, battle=None):
+        modifier = self.ability_mod(save_type)
+        modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
+        op = '+' if modifier >= 0 else ''
+        disadvantage = True if save_type in ['dex', 'str'] and not self.proficient_with_equipped_armor() else False
+        return DieRoll.roll(f"d20{op}{modifier}", disadvantage=disadvantage, battle=battle, entity=self,
+                            description=f"dice_roll.{save_type}_saving_throw")
+
+    def short_rest(self, battle, prompt=False):
+        controller = battle.controller_for(self)
+
+        # hit die management
+        if prompt and controller and hasattr(controller, 'prompt_hit_die_roll'):
+            while sum(self._current_hit_die.values()) > 0:
+                ans = controller.prompt_hit_die_roll(self, [k for k, v in self._current_hit_die.items() if v > 0])
+
+                if ans == 'skip':
+                    break
+                else:
+                    self.use_hit_die(ans, battle=battle)
+        else:
+            while self.hp() < self.max_hp():
+                available_die = [die for die, num in self._current_hit_die.items() if num > 0]
+                available_die.sort()
+
+                if not available_die:
+                    break
+
+                old_hp = self.hp
+
+                self.use_hit_die(available_die[0], battle=battle)
+
+                if self.hp == old_hp:
+                    break
+
+        if self.unconscious() and self.stable():
+            self.heal(1)
+
+    def use_hit_die(self, die_type, battle=None):
+        if die_type in self._current_hit_die and self._current_hit_die[die_type] > 0:
+            self._current_hit_die[die_type] -= 1
+            hit_die_roll = DieRoll.roll(f"d{die_type}", battle=battle, entity=self, description="hit die")
+            self.event_manager.received_event({'source': self, 'event': 'hit_die', 'roll': hit_die_roll})
+            self.heal(hit_die_roll.result())
+
     def grappled(self):
         return 'grappled' in self.statuses
     

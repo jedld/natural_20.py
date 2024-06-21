@@ -196,6 +196,14 @@ class Map():
 
         self.entities[entity] = [pos_x, pos_y]
 
+    def place_at_spawn_point(self, position, entity, token=None, battle=None):
+        if str(position) not in self.spawn_points:
+            raise Exception(f"unknown spawn position {position}. should be any of {','.join(self.spawn_points.keys())}")
+        
+        pos_x, pos_y = self.spawn_points[str(position)]['location']
+        self.place((pos_x, pos_y), entity, token, battle)
+        print(f"place {entity.name} at {pos_x}, {pos_y}")
+
     def place(self, position, entity, token=None, battle=None):
         pos_x, pos_y = position
 
