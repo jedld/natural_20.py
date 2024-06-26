@@ -25,7 +25,9 @@ class MoveAction(Action):
         return f"move to {self.move_path[-1]}"
     
     def __repr__(self):
-        return f"move to {self.move_path[-1]}"
+        if self.move_path:
+            return f"move to {self.move_path[-1]}"
+        return "move"
 
     @staticmethod
     def can(entity, battle):

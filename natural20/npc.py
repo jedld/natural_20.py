@@ -8,9 +8,20 @@ from natural20.die_roll import DieRoll
 from natural20.entity import Entity
 from natural20.actions.dodge_action import DodgeAction
 from natural20.actions.move_action import MoveAction
+from natural20.actions.dash import DashAction
 from natural20.actions.disengage_action import DisengageAction
 from natural20.actions.stand_action import StandAction
 from natural20.actions.attack_action import AttackAction
+from natural20.actions.hide_action import HideAction
+from natural20.actions.help_action import HelpAction
+from natural20.actions.grapple_action import GrappleAction
+from natural20.actions.escape_grapple_action import EscapeGrappleAction
+from natural20.actions.use_item_action import UseItemAction
+from natural20.actions.interact_action import InteractAction
+from natural20.actions.ground_interact_action import GroundInteractAction
+from natural20.actions.first_aid_action import FirstAidAction
+from natural20.actions.look_action import LookAction
+
 
 import copy
 
@@ -47,7 +58,7 @@ class Npc(Entity):
         self.statuses = []
         
         for stat in self.properties.get("statuses", []):
-            self.statuses.add(stat)
+            self.statuses.append(stat)
         
         auto_name = ""
         if type == "goblin":
@@ -98,19 +109,18 @@ class Npc(Entity):
             actions = self.generate_npc_attack_actions(battle) + [
                 DodgeAction(session, self, "dodge"),
                 MoveAction(session, self, "move"),
+                LookAction(session, self, "look"),
                 DisengageAction(session, self, "disengage"),
                 StandAction(session, self, "stand"),
-                # HideAction(session, self, "hide"),
-   
-                # DashAction(session, self, "dash"),
-                # HelpAction(session, self, "help"),
-                # GrappleAction(session, self, "grapple"),
-                # EscapeGrappleAction(session, self, "escape_grapple"),
-                # UseItemAction(session, self, "use_item"),
-                # InteractAction(session, self, "interact"),
-                # GroundInteractAction(session, self, "ground_interact"),
-                # InventoryAction(session, self, "inventory"),
-                # FirstAidAction(session, self, "first_aid")
+                HideAction(session, self, "hide"),
+                DashAction(session, self, "dash"),
+                HelpAction(session, self, "help"),
+                GrappleAction(session, self, "grapple"),
+                EscapeGrappleAction(session, self, "escape_grapple"),
+                UseItemAction(session, self, "use_item"),
+                InteractAction(session, self, "interact"),
+                GroundInteractAction(session, self, "ground_interact"),
+                FirstAidAction(session, self, "first_aid")
             ]
         
         return actions

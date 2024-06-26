@@ -60,7 +60,7 @@ class Battle():
         if position is None or self.map is None:
             return
 
-        if isinstance(position, list):
+        if isinstance(position, list) or isinstance(position, tuple):
             self.map.place(position, entity, token, self)
         else:
             self.map.place_at_spawn_point(position, entity, token)

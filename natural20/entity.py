@@ -749,9 +749,9 @@ class Entity(EntityStateEvaluator):
 
         entity_state = battle.entity_state_for(self)
 
-        if not entity_state["multiattack"]:
+        if not entity_state.get("multiattack", False):
             return False
-        if not npc_action["multiattack_group"]:
+        if not npc_action.get("multiattack_group", False):
             return False
 
         for group, attacks in entity_state["multiattack"].items():

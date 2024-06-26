@@ -79,12 +79,11 @@ class TestNpc(unittest.TestCase):
         assert not npc.equipped('scimitar')
         npc.equip('scimitar')
         assert npc.equipped('scimitar')
-        available_actions = [action.name for action in npc.available_actions(session, None)]
-        assert len(available_actions) == 6, len(available_actions)
+        available_actions = [action.name() for action in npc.available_actions(session, None)]
+        assert len(available_actions) == 16, len(available_actions)
         
-        # assert available_actions == [
-        #     'attack', 'attack', 'look', 'move', 'grapple', 'use_item', 'interact', 'ground_interact', 'inventory'
-        # ] 
+        assert available_actions == ['attack', 'attack', 'dodge', 'move', 'look', 'disengage',
+                                     'stand', 'hide', 'dash', 'help', 'grapple', 'escape_grapple', 'use_item', 'interact', 'ground_interact', 'first_aid'], available_actions
 
         assert npc.hit_die() == {6: 2}, npc.hit_die()
 
@@ -115,16 +114,20 @@ class TestNpc(unittest.TestCase):
 
         assert npc.darkvision(60)
 
-        assert len(npc.available_actions(session, None)) == 6, len(npc.available_actions(session, None))
-        # assert [action.name for action in npc.available_actions(session, None)] == [
-        #     'attack', 'attack', 'look', 'move', 'grapple', 'use_item', 'interact', 'ground_interact', 'inventory'
-        # ]
+        assert len(npc.available_actions(session, None)) == 16, len(npc.available_actions(session, None))
+        available_actions = [action.name() for action in npc.available_actions(session, None)]
+        print(available_actions)
+        assert available_actions == ['attack', 'attack', 'dodge', 'move', 'look', 'disengage',
+                                     'stand', 'hide', 'dash', 'help', 'grapple', 'escape_grapple',
+                                     'use_item', 'interact', 'ground_interact', 'first_aid'], available_actions
 
-        first_attack = [a for a in npc.available_actions(session, battle) if a.name == 'attack'][0]
+        first_attack = [a for a in npc.available_actions(session, battle) if a.name() == 'attack'][0]
         first_attack.target = fighter
         battle.action(first_attack)
         battle.commit(first_attack)
 
-        assert [action.name for action in npc.available_actions(session, battle)] == [
-            'attack', 'look', 'move', 'interact', 'inventory'
-        ]
+        available_actions = [action.name() for action in npc.available_actions(session, battle)]
+
+        assert available_actions == ['dodge', 'move', 'look', 'disengage', 'stand', 'hide',
+                                     'dash', 'help', 'grapple', 'escape_grapple', 'use_item',
+                                     'interact', 'ground_interact', 'first_aid'], available_actions

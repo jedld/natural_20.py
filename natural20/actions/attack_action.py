@@ -67,6 +67,21 @@ class AttackAction(Action):
         return 'unarmed' in weapon.get('properties', [])
 
     def build_map(self):
+        def set_target(target):
+            def set_weapon(weapon):
+                self.using = weapon
+                return {               
+                    'param': None,
+                    'next': lambda: self
+                }
+            self.target = target
+            return {
+                'param': [
+                    {'type': 'select_weapon'}
+                ],
+                'next': set_weapon
+            }
+            
         return {
             'action': self,
             'param': [
@@ -76,15 +91,8 @@ class AttackAction(Action):
                     'weapon': self.using
                 }
             ],
-            'next': lambda target: {
-                'param': [
-                    {'type': 'select_weapon'}
-                ],
-                'next': lambda weapon: {
-                    'param': None,
-                    'next': lambda: self
-                }
-            }
+            'next': set_target
+            
         }
 
     def build(session, source):
@@ -329,6 +337,11 @@ class AttackAction(Action):
         if self.source.npc():
             if npc_action is None:
                 npc_action = next((action for action in self.source.properties['actions'] if action['name'].lower() == using.lower()), None)
+            weapon = npc_action
+            attack_name = npc_action["name"]
+            attack_mod = npc_action["attack"]
+            damage_roll = npc_action["damage_die"]
+            ammo_type = npc_action.get("ammo", None)
         else:
             weapon = self.session.load_weapon(using)
             attack_name = weapon['name']
