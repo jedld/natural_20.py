@@ -12,9 +12,7 @@ import random
 class TestSpellAction(unittest.TestCase):
     def make_session(self):
         event_manager = EventManager()
-        event_manager.register_event_listener(['died'], lambda event: print(f"{event['source'].name} died."))
-        event_manager.register_event_listener(['unconscious'], lambda event: print(f"{event['source'].name} unconscious."))
-        event_manager.register_event_listener(['initiative'], lambda event: print(f"{event['source'].name} rolled a {event['roll']} = ({event['value']}) with dex tie break for initiative."))
+        event_manager.standard_cli()
         return Session(root_path='tests/fixtures', event_manager=event_manager)
     
     def setUp(self):
@@ -30,11 +28,11 @@ class TestSpellAction(unittest.TestCase):
     def test_firebolt(self):
         self.assertEqual(self.npc.hp(), 7)
         print(MapRenderer(self.battle_map).render())
-        action = SpellAction.build(self.session, self.entity).next.call('firebolt').next.call(self.npc).next.call()
-        action.resolve(self.session, self.battle_map, battle=self.battle)
+        action = SpellAction.build(self.session, self.entity)['next'](['firebolt',0])['next'](self.npc)['next']()
+        action.resolve(self.session, self.battle_map, { "battle": self.battle})
         self.assertEqual([s['type'] for s in action.result], ['spell_damage'])
         self.battle.commit(action)
-        self.assertEqual(self.npc.hp, 0)
+        self.assertEqual(self.npc.hp(), 0)
 
     def test_shocking_grasp(self):
         self.npc = self.session.npc('skeleton')
@@ -42,13 +40,15 @@ class TestSpellAction(unittest.TestCase):
         self.npc.reset_turn(self.battle)
         random.seed(7000)
         print(MapRenderer(self.battle_map).render())
-        action = SpellAction.build(self.session, self.entity)['next']('shocking_grasp')['next'](self.npc)['next']()
-        action.resolve(self.session, self.battle_map, battle=self.battle)
+        build = SpellAction.build(self.session, self.entity)['next'](['shocking_grasp', 0])
+        build = build['next'](self.npc)
+        action = build['next']()
+        action.resolve(self.session, self.battle_map, { "battle" : self.battle})
         self.assertEqual([s['type'] for s in action.result], ['spell_damage', 'shocking_grasp'])
         self.assertTrue(self.npc.has_reaction(self.battle))
         self.battle.commit(action)
         self.assertFalse(self.npc.has_reaction(self.battle))
-        self.assertEqual(self.npc.hp, 11)
+        self.assertEqual(self.npc.hp(), 12)
 
     # Add more test cases for other spells...
 

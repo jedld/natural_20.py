@@ -3,7 +3,7 @@ from natural20.die_roll import Rollable
 import pdb
 
 def to_advantage_str(item):
-    if 'adv_info' not in item:
+    if 'adv_info' not in item or item['adv_info'] is None:
         return ''
     advantage_info, disadvantage_info = item['adv_info']
     advantage_str = f' with advantage{advantage_info}' if item['advantage_mod'] > 0 else f' with disadvantage{disadvantage_info}' if item['advantage_mod'] < 0 else ''
@@ -12,7 +12,7 @@ def to_advantage_str(item):
 def damage_event(item, battle):
     target = item['target']
     dmg = item['damage'].result() if isinstance(item['damage'], Rollable) else item['damage']
-    dmg += item['sneak_attack'].result() if item['sneak_attack'] is not None else 0
+    dmg += item['sneak_attack'].result() if item.get('sneak_attack') is not None else 0
 
     if dmg is None:
         pdb.set_trace()    
@@ -31,11 +31,11 @@ def damage_event(item, battle):
         'attack_name': item['attack_name'],
         'damage_type': item['damage_type'],
         'advantage_mod': item['advantage_mod'],
-        'as_reaction': item['as_reaction'],
+        'as_reaction': item.get('as_reaction', False),
         'damage_roll': item['damage'],
-        'sneak_attack': item['sneak_attack'],
-        'adv_info': item['adv_info'],
-        'thrown': item['thrown'],
+        'sneak_attack': item.get('sneak_attack',False),
+        'adv_info': item.get('adv_info', None),
+        'thrown': item.get('thrown', False),
         'resistant': target.resistant_to(item['damage_type']),
         'vulnerable': target.vulnerable_to(item['damage_type']),
         'value': dmg,
@@ -123,3 +123,4 @@ def cover_calculation(map, source, target, entity_1_pos=None, entity_2_pos=None,
             return max_ac
 
     return 0
+

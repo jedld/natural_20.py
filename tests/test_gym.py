@@ -31,7 +31,7 @@ class TestGym(unittest.TestCase):
     def test_ability_info(self):
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True)
         observation, info = env.reset(seed=42)
-        assert observation['ability_info'][0] == 1
+        assert observation['ability_info'][0] == 1, observation['ability_info']
         _, _, main_player, _ = env.players[0]
         main_player.second_wind_count = 0
         observation = env.generate_observation(main_player)

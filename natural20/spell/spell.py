@@ -20,5 +20,5 @@ class Spell:
     def validate(self, action):
         self.errors.clear()
 
-    def t(self, token, options={}):
+    def t(self, token, spell=None, options={}):
         return token

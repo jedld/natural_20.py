@@ -741,6 +741,9 @@ class Entity(EntityStateEvaluator):
         qty = self.inventory[ammo_type]['qty']
         self.inventory[ammo_type]['qty'] = qty + amount
 
+    def ranged_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
+        return DieRoll.roll(f"1d20+{self.spell_attack_modifier()}", description=f"Ranged Spell Attack: {spell}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
+
     def multiattack(self, battle, npc_action):
         if not npc_action:
             return False
