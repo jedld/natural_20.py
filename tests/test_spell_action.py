@@ -50,7 +50,25 @@ class TestSpellAction(unittest.TestCase):
         self.assertFalse(self.npc.has_reaction(self.battle))
         self.assertEqual(self.npc.hp(), 12)
 
-    # Add more test cases for other spells...
+    def setupMageArmor(self):
+        self.assertEqual(self.entity.armor_class(), 12)
+        action = SpellAction.build(self.session, self.entity)['next'](['mage_armor', 0])['next'](self.entity)['next']()
+        action.resolve(self.session, self.battle_map, { "battle": self.battle})
+        self.assertEqual([s['type'] for s in action.result], ['mage_armor'])
+        self.battle.commit(action)
+        self.assertEqual(self.entity.armor_class(), 15)
+        return action
+
+    def test_mage_armor(self):
+        action = self.setupMageArmor()
+        self.assertTrue(self.entity.dismiss_effect(action.spell_action))
+        self.assertEqual(self.entity.armor_class(), 12)
+    
+    def test_equip_armor_cancels_effect(self):
+        action = self.setupMageArmor()
+        self.assertEqual(self.entity.armor_class(), 15)
+        self.entity.equip('studded_leather', ignore_inventory=True)
+        self.assertEqual(self.entity.armor_class(), 12)
 
 if __name__ == '__main__':
     unittest.main()

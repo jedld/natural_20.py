@@ -5,8 +5,10 @@ from natural20.utils.attack_util import damage_event
 from natural20.action import Action
 from natural20.spell.shocking_grasp_spell import ShockingGraspSpell
 from natural20.spell.firebolt_spell import FireboltSpell
+from natural20.spell.mage_armor_spell import MageArmorSpell
 from natural20.utils.string_utils import classify
 from natural20.spell.spell import Spell
+from natural20.utils.spell_attack_util import consume_resource
 from enum import Enum
 
 class SpellAction(Enum):
@@ -64,6 +66,8 @@ class SpellAction(Action):
                 spell_class = ShockingGraspSpell
             elif spell_name == 'FireboltSpell':
                 spell_class = FireboltSpell
+            elif spell_name == 'MageArmorSpell':
+                spell_class = MageArmorSpell
             else:
                 raise Exception(f"spell class not found {spell_name}")
             self.spell_action = spell_class(self.session, self.source, spell, self.spell)
@@ -104,13 +108,3 @@ class SpellAction(Action):
                 'event': 'miss'
             })
 
-def consume_resource(battle, item):
-    amt, resource = item["spell"]["casting_time"].split(":")
-    spell_level = item["spell"]["level"]
-
-    if resource == "action":
-        battle.consume(item["source"], "action")
-    elif resource == "reaction":
-        battle.consume(item["source"], "reaction")
-
-    battle.consume_spell_slot(item.source, spell_level) if spell_level > 0 else None

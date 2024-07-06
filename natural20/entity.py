@@ -147,6 +147,35 @@ class Entity(EntityStateEvaluator):
     def dead(self):
         return 'dead' in self.statuses
     
+    def add_casted_effect(self, effect):
+        if effect not in self.casted_effects:
+            self.casted_effects.append(effect)
+
+    def register_effect(self, effect_type, handler, method_name=None, effect=None, source=None, duration=None):
+        if effect_type not in self.effects:
+            self.effects[effect_type] = []
+        effect_descriptor = {
+            'handler': handler,
+            'method': method_name if method_name is not None else effect_type,
+            'effect': effect,
+            'source': source
+        }
+        if duration is not None:
+            effect_descriptor['expiration'] = self.session.game_time + int(duration)
+        self.effects[effect_type].append(effect_descriptor)
+
+    def register_event_hook(self, event_type, handler, method_name=None, source=None, effect=None, duration=None):
+        if event_type not in self.entity_event_hooks:
+            self.entity_event_hooks[event_type] = []
+        event_hook_descriptor = {
+            'handler': handler,
+            'method': method_name if method_name is not None else event_type,
+            'effect': effect,
+            'source': source
+        }
+        if duration is not None:
+            event_hook_descriptor['expiration'] = self.session.game_time + int(duration)
+        self.entity_event_hooks[event_type].append(event_hook_descriptor)
 
     def ability_mod(self, type):
         mod_type = {
@@ -419,6 +448,29 @@ class Entity(EntityStateEvaluator):
                 return mod
         return None
     
+    def dismiss_effect(self, effect):
+        if self.concentration == effect:
+            self.concentration = None
+
+        dismiss_count = 0
+        if effect.action.target:
+            dismiss_count = effect.action.target.remove_effect(effect)
+
+        dismiss_count += self.remove_effect(effect)
+        return dismiss_count
+    
+    def remove_effect(self, effect):
+        effect.source.casted_effects = [f for f in effect.source.casted_effects if f['effect'] != effect]
+        dismiss_count = 0
+        self.effects = {k: [f for f in value if f['effect'] != effect] for k, value in self.effects.items()}
+        self.entity_event_hooks = {k: [f for f in value if f['effect'] != effect] for k, value in self.entity_event_hooks.items()}
+        dismiss_count += sum(len(delete_effects) for delete_effects in self.effects.values())
+        dismiss_count += sum(len(delete_hooks) for delete_hooks in self.entity_event_hooks.values())
+        return dismiss_count
+    
+    def wearing_armor(self):
+        return any(item['type'] in ['armor', 'shield'] for item in self.equipped_items())
+    
     def reset_turn(self, battle):
         entity_state = battle.entity_state_for(self)
         entity_state.update({
@@ -448,7 +500,7 @@ class Entity(EntityStateEvaluator):
         if event_type in self.entity_event_hooks:
             active_hook = [effect for effect in self.entity_event_hooks[event_type] if not effect.get('expiration') or effect['expiration'] > self.session.game_time][-1]
             if active_hook:
-                active_hook['handler'].send(active_hook['method'], self, {**opts, 'effect': active_hook['effect']})
+                getattr(active_hook['handler'], active_hook['method'])(self, {**opts, 'effect': active_hook['effect']})
 
 
     def _cleanup_effects(self):
@@ -825,7 +877,7 @@ class Entity(EntityStateEvaluator):
         if active_effects:
             result = opts.get('value')
             for active_effect in active_effects:
-                result = active_effect['handler'].send(active_effect['method'], self, opts.merge(effect=active_effect['effect'], value=result))
+                result = getattr(active_effect['handler'], active_effect['method'])(self, opts.update( { "effect": active_effect['effect'], "value" : result }))
             return result
 
         return None

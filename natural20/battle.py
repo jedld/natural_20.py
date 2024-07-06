@@ -286,7 +286,9 @@ class Battle():
         if self.entity_state_for(entity):
             entity_state = self.entity_state_for(entity)
             entity_state[resource] = max(0, entity_state[resource] - qty)
-    
+
+
+
     def opposing(self, entity1, entity2):
         source_state1 = self.entity_state_for(entity1)
         source_state2 = self.entity_state_for(entity2)

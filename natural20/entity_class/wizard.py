@@ -27,7 +27,7 @@ class Wizard:
     self.wizard_level = 0
     self.wizard_spell_slots = {}
     self.arcane_recovery = 1
-    self.wizard_spell_slots['wizard'] = self.reset_spell_slots()
+    self.spell_slots['wizard'] = self.reset_spell_slots()
     self.arcane_recovery = 1
 
   def spell_attack_modifier(self):

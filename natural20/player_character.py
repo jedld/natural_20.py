@@ -34,6 +34,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
     self.session = session
     self.equipped = self.properties.get('equipped', [])
     self.inventory = {}
+    self.spell_slots = {}
     with open(f"{self.session.root_path}/races/{race_file}.yml") as file:
       self.race_properties = yaml.safe_load(file)
 
@@ -117,8 +118,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   def armor_class(self):
     current_ac = self.equipped_ac()
     if self.has_effect('ac_override'):
-      current_ac = self.eval_effect('ac_override', armor_class=self.equipped_ac)
-
+      current_ac = self.eval_effect('ac_override', { "armor_class" : self.equipped_ac() })
+  
     if self.has_effect('ac_bonus'):
       current_ac += self.eval_effect('ac_bonus')
 
@@ -235,6 +236,13 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
 
   def prepared_spells(self):
     return self.properties.get('cantrips', []) + self.properties.get('prepared_spells', [])
+
+  # Consumes a character's spell slot
+  def consume_spell_slot(self, level, character_class=None, qty=1):
+    if character_class is None:
+      character_class = list(self.spell_slots.keys())[0]
+    if self.spell_slots[character_class][level]:
+      self.spell_slots[character_class][level] = max(self.spell_slots[character_class][level] - qty, 0)
 
   def class_feature(self, feature):
     if feature in self.properties.get('class_features', []):

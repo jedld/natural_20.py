@@ -21,3 +21,15 @@ def evaluate_spell_attack(battle, entity, target, spell_properties, opts={}):
         hit = False
 
     return [hit, attack_roll, advantage_mod, cover_ac_adjustments]
+
+
+def consume_resource(battle, item):
+    amt, resource = item["spell"]["casting_time"].split(":")
+    spell_level = item["spell"]["level"]
+
+    if resource == "action":
+        battle.consume(item["source"], "action")
+    elif resource == "reaction":
+        battle.consume(item["source"], "reaction")
+
+    item["source"].consume_spell_slot(spell_level) if spell_level > 0 else None
