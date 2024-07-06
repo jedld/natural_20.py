@@ -47,7 +47,7 @@ def compute_advantages_and_disadvantages(battle, source, target, weapon, source_
     disadvantage = overrides.get('disadvantage', [])
 
     if source.has_effect('attack_advantage_modifier'):
-        advantage_mod, disadvantage_mod = source.eval_effect('attack_advantage_modifier', target=target)
+        advantage_mod, disadvantage_mod = source.eval_effect('attack_advantage_modifier', { "target" : target })
         advantage += advantage_mod
         disadvantage += disadvantage_mod
 

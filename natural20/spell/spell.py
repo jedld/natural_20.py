@@ -11,7 +11,7 @@ class Spell:
 
     @property
     def id(self):
-        return self.properties["id"]
+        return self.properties.get('id')
 
     @staticmethod
     def apply(battle, item):

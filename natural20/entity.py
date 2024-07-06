@@ -147,9 +147,16 @@ class Entity(EntityStateEvaluator):
     def dead(self):
         return 'dead' in self.statuses
     
+    def undead(self):
+        return 'undead' in self.properties.get('race', [])
+    
     def add_casted_effect(self, effect):
         if effect not in self.casted_effects:
             self.casted_effects.append(effect)
+
+    def has_spell_effect(self, spell):
+        active_effects = [effect for effects in self.effects.values() for effect in effects if not effect.get('expiration') or effect.get('expiration') > self.session.game_time]
+        return any(effect['effect'].id == spell for effect in active_effects)
 
     def register_effect(self, effect_type, handler, method_name=None, effect=None, source=None, duration=None):
         if effect_type not in self.effects:
@@ -879,7 +886,7 @@ class Entity(EntityStateEvaluator):
         if not self.has_effect(effect_type):
             return None
 
-        active_effects = [effect for effect in self.effects[effect_type] if not effect['expiration'] or effect['expiration'] > self.session.game_time]
+        active_effects = [effect for effect in self.effects[effect_type] if not effect.get('expiration') or effect['expiration'] > self.session.game_time]
 
         if not opts.get('stacked'):
             active_effects = [active_effects[-1]] if active_effects else []

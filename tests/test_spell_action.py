@@ -7,6 +7,7 @@ from natural20.npc import Npc
 from natural20.map import Map
 from natural20.battle import Battle
 from natural20.map_renderer import MapRenderer
+from natural20.weapons import target_advantage_condition
 import random
 
 class TestSpellAction(unittest.TestCase):
@@ -69,6 +70,35 @@ class TestSpellAction(unittest.TestCase):
         self.assertEqual(self.entity.armor_class(), 15)
         self.entity.equip('studded_leather', ignore_inventory=True)
         self.assertEqual(self.entity.armor_class(), 12)
+
+    def test_chill_touch(self):
+        self.assertEqual(self.npc.hp(), 7)
+        print(MapRenderer(self.battle_map).render())
+        action = SpellAction.build(self.session, self.entity)['next'](['chill_touch', 0])['next'](self.npc)['next']()
+        action.resolve(self.session, self.battle_map, { "battle": self.battle})
+        self.assertEqual([s['type'] for s in action.result], ['spell_damage', 'chill_touch'])
+        self.battle.commit(action)
+        self.assertEqual(self.npc.hp(), 0)
+        self.assertTrue(self.npc.has_spell_effect('chill_touch'))
+
+        # target cannot heal until effect ends
+        self.npc.heal(100)
+        self.assertEqual(self.npc.hp(), 0)
+
+        # drop effect until next turn
+        self.entity.reset_turn(self.battle)
+        self.npc.heal(100)
+        self.assertNotEqual(self.npc.hp(), 3)
+
+    def test_chill_touch_undead(self):
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[5, 5])
+        print(MapRenderer(self.battle_map).render())
+        action = SpellAction.build(self.session, self.entity)['next'](['chill_touch', 0])['next'](self.npc)['next']()
+        action.resolve(self.session, self.battle_map, { "battle" : self.battle})
+        self.battle.commit(action)
+        self.assertEqual(self.npc.hp(), 5)
+        self.assertEqual(target_advantage_condition(self.battle, self.npc, self.entity, None), [-1, [[], ['chill_touch_disadvantage']]])
 
 if __name__ == '__main__':
     unittest.main()

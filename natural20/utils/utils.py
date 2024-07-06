@@ -155,6 +155,7 @@ class Session:
         if spell not in self.spells:
             spells = self.load_yaml_file('items', 'spells')
             self.spells[spell] = spells.get(spell)
+            self.spells[spell]['id'] = spell
         return self.spells[spell]
 
     def load_class(self, klass):

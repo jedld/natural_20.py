@@ -6,6 +6,7 @@ from natural20.action import Action
 from natural20.spell.shocking_grasp_spell import ShockingGraspSpell
 from natural20.spell.firebolt_spell import FireboltSpell
 from natural20.spell.mage_armor_spell import MageArmorSpell
+from natural20.spell.chill_touch_spell import ChillTouchSpell
 from natural20.utils.string_utils import classify
 from natural20.spell.spell import Spell
 from natural20.utils.spell_attack_util import consume_resource
@@ -68,6 +69,8 @@ class SpellAction(Action):
                 spell_class = FireboltSpell
             elif spell_name == 'MageArmorSpell':
                 spell_class = MageArmorSpell
+            elif spell_name == 'ChillTouchSpell':
+                spell_class = ChillTouchSpell
             else:
                 raise Exception(f"spell class not found {spell_name}")
             self.spell_action = spell_class(self.session, self.source, spell, self.spell)
