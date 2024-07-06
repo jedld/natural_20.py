@@ -442,7 +442,6 @@ class Entity(EntityStateEvaluator):
 
         for low, high, mod in mod_table:
             if value is None:
-                pdb.set_trace()
                 raise ValueError(f"invalid value {value}")
             if low <= value <= high:
                 return mod
@@ -461,11 +460,22 @@ class Entity(EntityStateEvaluator):
     
     def remove_effect(self, effect):
         effect.source.casted_effects = [f for f in effect.source.casted_effects if f['effect'] != effect]
+        
         dismiss_count = 0
-        self.effects = {k: [f for f in value if f['effect'] != effect] for k, value in self.effects.items()}
-        self.entity_event_hooks = {k: [f for f in value if f['effect'] != effect] for k, value in self.entity_event_hooks.items()}
-        dismiss_count += sum(len(delete_effects) for delete_effects in self.effects.values())
-        dismiss_count += sum(len(delete_hooks) for delete_hooks in self.entity_event_hooks.values())
+        
+        new_effects = {}
+        for key, value in self.effects.items():
+            delete_effects = [f for f in value if f['effect'] == effect]
+            dismiss_count += len(delete_effects)
+            new_effects[key] = [f for f in value if f not in delete_effects]
+        self.effects = new_effects
+        
+        new_entity_event_hooks = {}
+        for key, value in self.entity_event_hooks.items():
+            delete_hooks = [f for f in value if f['effect'] == effect]
+            dismiss_count += len(delete_hooks)
+            new_entity_event_hooks[key] = [f for f in value if f not in delete_hooks]
+        self.entity_event_hooks = new_entity_event_hooks
         return dismiss_count
     
     def wearing_armor(self):
