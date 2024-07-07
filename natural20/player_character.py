@@ -7,7 +7,7 @@ from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.dodge_action import DodgeAction
-from natural20.actions.disengage_action import DisengageAction
+from natural20.actions.disengage_action import DisengageAction, DisengageBonusAction
 from natural20.actions.dash import DashAction, DashBonusAction
 from natural20.actions.second_wind_action import SecondWindAction
 from natural20.actions.stand_action import StandAction
@@ -19,8 +19,10 @@ import copy
 
 class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   ACTION_LIST = [
-    LookAction, AttackAction, MoveAction, DisengageAction, DodgeAction, DashAction, DashBonusAction,
-    TwoWeaponAttackAction, SecondWindAction, ProneAction
+    AttackAction, DashAction, DashBonusAction, DisengageAction,
+    DisengageBonusAction,
+    DodgeAction, LookAction, MoveAction, ProneAction, SecondWindAction,
+    StandAction, TwoWeaponAttackAction
   ]
 
   def __init__(self, session, properties, name=None):
@@ -182,6 +184,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
         elif action_type == StandAction:
           action = StandAction(session, self, 'stand')
           action_list.append(action)
+        elif action_type == DisengageBonusAction:
+          action = DisengageBonusAction(session, self, 'disengage_bonus')
+          action_list.append(action)
 
     return action_list
 
@@ -279,7 +284,6 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
     
     return any(prof in proficiency_type for prof in all_weapon_proficiencies)
 
-
   def weapon_proficiencies(self):
     all_weapon_proficiencies = []
     for p in self.class_properties.values():
@@ -311,7 +315,6 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
 
     return super().proficient(prof)
 
-
   def equipped_ac(self):
     with open(os.path.join(self.session.root_path, 'items', 'equipment.yml')) as file:
       equipments = yaml.load(file, Loader=yaml.FullLoader)
@@ -323,4 +326,74 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
 
     return armor_ac + (0 if shield is None else shield['bonus_ac'])
 
+  def any_class_feature(self, features):
+    return any(self.class_feature(f) for f in features)
+  
+  def proficiency_bonus(self):
+    proficiency_bonus_table = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6]
+    return proficiency_bonus_table[self.level() - 1]
+  
+  def darkvision(self, distance):
+    if super():
+      return True
 
+    return bool(self.race_properties.get('darkvision') and self.race_properties['darkvision'] >= distance)
+  
+  def spell_slots_count(self, level, character_class=None):
+    if character_class is None:
+      character_class = list(self.spell_slots.keys())[0]
+    return self.spell_slots[character_class].get(level, 0)
+
+
+  # Returns the number of spell slots
+  # @param level [Integer]
+  # @return [Integer]
+  def max_spell_slots(self, level, character_class=None):
+    if character_class is None:
+      character_class = list(self.spell_slots.keys())[0]
+
+    if hasattr(self, f"max_slots_for_{character_class}"):
+      return getattr(self, f"max_slots_for_{character_class}")(level)
+
+    return 0
+  
+  def languages(self):
+    class_languages = []
+    for prop in self.class_properties.values():
+      class_languages += prop.get('languages', [])
+
+    racial_languages = self.race_properties.get('languages', [])
+
+    return sorted(super().languages() + class_languages + racial_languages)
+  
+  def passive_investigation(self):
+    return 10 + self.int_mod() + self.investigation_proficiency()
+
+  def passive_insight(self):
+    return 10 + self.wis_mod() + self.insight_proficiency()
+  
+  def investigation_proficiency(self):
+    return self.proficiency_bonus() if self.investigation_proficient() else 0
+  
+  def insight_proficiency(self):
+    return self.proficiency_bonus() if self.insight_proficient() else 0
+  
+  def to_dict(self):
+    return {
+      'name': self.name,
+      'classes': self.c_class(),
+      'hp': self.attributes['hp'],
+      'ability': {
+        'str': self.ability_scores.get('str'),
+        'dex': self.ability_scores.get('dex'),
+        'con': self.ability_scores.get('con'),
+        'int': self.ability_scores.get('int'),
+        'wis': self.ability_scores.get('wis'),
+        'cha': self.ability_scores.get('cha')
+      },
+      'passive': {
+        'perception': self.passive_perception(),
+        'investigation': self.passive_investigation(),
+        'insight': self.passive_insight()
+      }
+    }

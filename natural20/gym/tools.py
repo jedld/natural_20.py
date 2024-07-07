@@ -87,6 +87,8 @@ def dndenv_action_to_nat20action(entity, battle, map, available_actions, gym_act
             return action
         elif action.action_type == "prone" and action_type == 10:
             return action
+        elif action.action_type == "disengage_bonus" and action_type == 11:
+            return action
         elif action_type == -1:
             return -1
     raise ValueError(f"No action match for {gym_action} {action_type}")
@@ -123,8 +125,10 @@ def render_terrain(battle, map, view_port_size=(12, 12)):
                         entity_int = 1
                     elif battle.opposing(current_player, entity):
                         entity_int = 2
-                    else:
+                    elif battle.allies(current_player, entity):
                         entity_int = 3
+                    else:
+                        entity_int = 4
 
                     if entity is not None:
                         health_pct = int((entity.hp() / (entity.max_hp() + 0.00001)) * 255)
@@ -153,7 +157,6 @@ def compute_available_moves(session, map, entity: Entity, battle, weapon_mapping
     # generate available targets
     valid_actions = []       
 
-  
     entity_pos = map.position_of(entity)
 
     for action in available_actions:
@@ -191,6 +194,8 @@ def compute_available_moves(session, map, entity: Entity, battle, weapon_mapping
             valid_actions.append((8, (-1, -1),(0, 0), 0, 0))
         elif action.action_type == 'prone':
             valid_actions.append((10, (-1, -1),(0, 0), 0, 0))
+        elif action.action_type == 'disengage_bonus':
+            valid_actions.append((11, (-1, -1),(0, 0), 0, 0))
 
     valid_actions.append((-1, (0, 0), (0, 0), 0, 0)) # end turn should always be available
     return valid_actions

@@ -131,6 +131,8 @@ class dndenv(gym.Env):
                                 render_char = "#"
                         elif entity == current_player:
                             render_char = "P"
+                        elif self.battle.allies(current_player, entity):
+                            render_char = "A"
                         elif self.battle.opposing(current_player, entity):
                             render_char = "E"
                         else:

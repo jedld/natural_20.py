@@ -175,8 +175,12 @@ class StateToPrompt:
                     message += f"with melee weapon\n"
             elif action_type == action_type_to_int("dash"):
                 message = f"dash action\n"
+            elif action_type == action_type_to_int("dash_bonus"):
+                message = f"dash as a bonus action\n"
             elif action_type == action_type_to_int("disengage"):
                 message = f"disengage action\n"
+            elif action_type == action_type_to_int("disengage_bonus"):
+                message = f"disengage as a bonus action\n"
             elif action_type == action_type_to_int("dodge"):
                 message = f"dodge action\n"
             elif action_type == action_type_to_int("help"):

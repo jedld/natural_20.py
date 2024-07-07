@@ -45,18 +45,26 @@ class Entity(EntityStateEvaluator):
 
     def is_npc(self):
         return False
+    
+    def expertise(self, prof):
+        return prof in self.properties.get('expertise', [])
+    
+    # Returns the proficiency bonus of this entity
+    # @return [Integer]
+    def proficiency_bonus(self):
+        return self.properties.get('proficiency_bonus', 2)
 
     def make_skill_mod_function(self, skill, ability):
         def skill_mod():
             if self.is_npc() and skill in self.properties.get('skills', {}):
                 return self.properties['skills'][skill]
 
-            ability_mod = self.get_ability_modifier(ability)
-            if self.proficient_in(skill):
-                bonus = self.proficiency_bonus * 2 if self.has_expertise_in(skill) else self.proficiency_bonus
+            modifiers = getattr(self, f"{ability}_mod")()
+            if self.proficient(skill):
+                bonus = self.proficiency_bonus() * 2 if self.expertise(skill) else self.proficiency_bonus()
             else:
                 bonus = 0
-            return ability_mod + bonus
+            return modifiers + bonus
         return skill_mod
 
     def make_skill_check_function(self, skill):
@@ -82,8 +90,6 @@ class Entity(EntityStateEvaluator):
     # @return [dict]
     def hit_die(self):
         return self._current_hit_die
-    
-  
     
     def darkvision(self, distance):
         if not self.properties.get('darkvision'):
@@ -125,6 +131,9 @@ class Entity(EntityStateEvaluator):
             return 5
         else:
             raise ValueError(f"invalid size {square_size}")
+        
+    def languages(self):
+        return self.properties.get('languages', [])
         
     def long_jump_distance(self):
         return self.ability_scores.get('str')
@@ -991,3 +1000,80 @@ class Entity(EntityStateEvaluator):
 
     def attach_handler(self, event_name, callback):
         self.event_handlers[event_name] = callback
+
+    def usable_items(self):
+        usable = []
+        for k, v in self.inventory.items():
+            item_details = self.session.load_equipment(v['type'])
+
+            if not item_details or not item_details.get('usable', False):
+                continue
+            if item_details['consumable'] and v['qty'] == 0:
+                continue
+            
+            usable.append({
+                'name': str(k),
+                'label': item_details.get('name', k),
+                'item': item_details,
+                'qty': v['qty'],
+                'consumable': item_details['consumable']
+            })
+        return usable       
+
+    def has_spells(self):
+        if not self.properties['prepared_spells']:
+            return False
+        return len(self.properties['prepared_spells']) > 0
+    
+    # Returns items in the "backpack" of the entity
+    # @return [List]
+    def inventory_items(self, session):
+        items = []
+        for k, v in self.inventory.items():
+            item = session.load_thing(k)
+            if item is None:
+                raise Exception(f"unable to load unknown item {k}")
+            if v['qty'] > 0:
+                items.append({
+                    'name': k,
+                    'label': v['label'] if v.get('label',None) else str(k),
+                    'qty': v['qty'],
+                    'equipped': False,
+                    'weight': item.get('weight', None)
+                })
+        return items
+    
+    # Returns the weight of all items in the inventory in lbs
+    # @return [float] weight in lbs
+    def inventory_weight(self, session):
+        total_weight = 0.0
+        for item in self.inventory_items(session) + self.equipped_items():
+            weight = float(item['weight']) if item.get('weight', None) else 0.0
+            total_weight += weight * item['qty']
+        return total_weight
+    
+    def dexterity_check(self, bonus=0, battle=None, description=None):
+        disadvantage = not self.proficient_with_equipped_armor() if battle is None else False
+        return DieRoll.roll_with_lucky(self, f"1d20+{self.dex_mod() + bonus}", disadvantage=disadvantage, description=description or 'dice_roll.dexterity', battle=battle)
+
+    def perception_proficient(self):
+        return self.proficient('perception')
+
+    def investigation_proficient(self):
+        return self.proficient('investigation')
+
+    def insight_proficient(self):
+        return self.proficient('insight')
+
+    def stealth_proficient(self):
+        return self.proficient('stealth')
+
+    def acrobatics_proficient(self):
+        return self.proficient('acrobatics')
+
+    def athletics_proficient(self):
+        return self.proficient('athletics')
+
+    def medicine_proficient(self):
+        return self.proficient('medicine')
+  

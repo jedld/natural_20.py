@@ -100,6 +100,8 @@ class LLMInterfacer:
         prompt += "areas with no characters are represented by a dot (.)\n"
         prompt += "the hero character is represented by a P\n"
         prompt += "the enemy character is represented by an E\n"
+        prompt += "Allies or Party Members are represented by an A\n"
+        prompt += "Neutral characters are represented by a question mark (?)\n"
         prompt += "areas outside of the map are represented by a hash (_), you cannot move to areas with _\n"
         prompt += "areas with obstacles are represented by an asterisk (*)\n"
         prompt += "areas with water are represented by a tilde (~) and are difficult terrain\n"
@@ -130,6 +132,10 @@ class LLMInterfacer:
                     token = "P"
                 elif entity == 2:
                     token = "E"
+                elif entity == 3:
+                    token = "A"
+                elif entity == 4:
+                    token = "?"
                 
                 row_str += token
             prompt += row_str + "\n"

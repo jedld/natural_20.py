@@ -300,6 +300,16 @@ class Battle():
 
         return source_group2 in self.opposing_groups.get(source_group1, [])
     
+    def allies(self, entity1, entity2):
+        source_state1 = self.entity_state_for(entity1)
+        source_state2 = self.entity_state_for(entity2)
+        if source_state1 is None or source_state2 is None:
+            return False
+
+        source_group1 = source_state1['group']
+        source_group2 = source_state2['group']
+
+        return source_group1 == source_group2
 
     def trigger_event(self, event, source, opt={}):
         if event in self.battle_field_events:
