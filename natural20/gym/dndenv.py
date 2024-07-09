@@ -68,7 +68,7 @@ class dndenv(gym.Env):
 
         self.action_space = gym.spaces.Tuple([
             gym.spaces.Box(low=-1, high=255, shape=(1,), dtype=int),
-            gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=int),
+            gym.spaces.Box(low=-1, high=255, shape=(2,), dtype=int),
             gym.spaces.Box(low=-view_port_size[0]//2, high=view_port_size[0]//2, shape=(2,), dtype=int),
             gym.spaces.Discrete(255),
             gym.spaces.Discrete(255)
@@ -439,8 +439,8 @@ class dndenv(gym.Env):
         observation = {
             "map": render_terrain(self.battle, self.map, self.view_port_size),
             "turn_info": np.array([0, 0, 0]),
-            "health_pct": np.array([0]),
-            "health_enemy" : np.array([0]),
+            "health_pct": np.array([0.0]),
+            "health_enemy" : np.array([0.0]),
             "enemy_reactions": np.array([0]),
             "ability_info": np.array([0, 0, 0, 0, 0, 0, 0, 0]), # tracks usage of class specific abilities (e.g. second wind, rage, etc.)
             "movement": 0

@@ -17,6 +17,7 @@ class Battle():
         self.battle_field_events = {}
         self.round = 0
         self.entities = {}
+        self.started = False
         self.groups = {}
         self.late_comers = []
         self.battle_log = []

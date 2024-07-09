@@ -1076,4 +1076,30 @@ class Entity(EntityStateEvaluator):
 
     def medicine_proficient(self):
         return self.proficient('medicine')
+    
+    # removes all equipped. Used for tests
+    def unequip_all(self):
+        self.properties['equipped'].clear()
+
+    # Checks if item can be equipped
+    # @param item_name [String,Symbol]
+    # @return [str]
+    def check_equip(self, item_name):
+        item_name = item_name
+        weapon = self.session.load_thing(item_name)
+        if weapon and weapon['subtype'] == 'weapon' or weapon['type'] in ['shield', 'armor']:
+            hand_slots = self.used_hand_slots() + self.hand_slots_required(self._to_item(item_name, weapon))
+            armor_slots = len([item for item in self.equipped_items() if item['type'] == 'armor'])
+            if hand_slots > 2.0:
+                return 'hands_full'
+            elif armor_slots >= 1 and weapon['type'] == 'armor':
+                return 'armor_equipped'
+            else:
+                return 'ok'
+        else:
+            return 'unequippable'
   
+    # Returns the carrying capacity of an entity in lbs
+    # @return [float] carrying capacity in lbs
+    def carry_capacity(self):
+        return self.ability_scores.get('str', 1) * 15.0

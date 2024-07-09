@@ -24,1156 +24,38 @@ speed: 30
 
 gomerin starts their turn.
 gomerin starts their turn.
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 30ft
-Available actions: 1
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-____________
-_.....P.____
-_.......____
-_.......____
-_.~***..____
-_~    ..____
-_     ..____
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: move 5ft 
-2: move 5ft down and to the left
-
-3: move 5ft down
-
-4: move 5ft 
-5: move 5ft down and to the right
-
-6: disengage action
-
-7: dodge action
-
-8: dash action
-
-9: second wind action
-
-10: go prone
-
-11: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.2432413101196289
-response: 1
-response: 1
-selected action: (1, (-1, 0), (0, 0), 0, 0)
-gomerin moved to [4, 0] 1 feet
-____________
-____________
-____________
-____________
-____________
-____________
-__....P..___
-__.......___
-__.......___
-__.~###..___
-__~    ..___
-__     ..___
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 25ft
-Available actions: 1
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-____________
-__....P..___
-__.......___
-__.......___
-__.~***..___
-__~    ..___
-__     ..___
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: move 5ft 
-2: move 5ft down and to the left
-
-3: move 5ft down
-
-4: move 5ft 
-5: move 5ft down and to the right
-
-6: disengage action
-
-7: dodge action
-
-8: dash action
-
-9: second wind action
-
-10: go prone
-
-11: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.17070508003234863
-response: 2
-response: 2
-selected action: (1, (-1, 1), (0, 0), 0, 0)
-gomerin moved to [3, 1] 1 feet
-____________
-____________
-____________
-____________
-____________
-___.......__
-___...P...__
-___.......__
-___.~###..__
-___~     .__
-___E     .__
-____________
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 20ft
-Available actions: 1
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-___.......__
-___...P...__
-___.......__
-___.~***..__
-___~     .__
-___E     .__
-____________
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: attack enemy with ranged weapon longbow
-
-2: move 5ft up and to the left
-
-3: move 5ft 
-4: move 5ft down and to the left
-
-5: move 5ft 
-6: move 5ft down
-
-7: move 5ft up and to the right
-
-8: move 5ft 
-9: move 5ft down and to the right
-
-10: disengage action
-
-11: dodge action
-
-12: dash action
-
-13: second wind action
-
-14: go prone
-
-15: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.2889859676361084
-response: 1
-response: 1
-selected action: (0, (0, 0), (-3, 4), 11, 1)
-gomerin tried to attack rumblebelly with advantage['unseen_attacker'] with Longbow but missed with (8 | 5) + 7= 15.
-____________
-____________
-____________
-____________
-____________
-___.......__
-___...P...__
-___.......__
-___.~###..__
-___~     .__
-___E     .__
-____________
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 20ft
-Available actions: 0
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-___.......__
-___...P...__
-___.......__
-___.~***..__
-___~     .__
-___E     .__
-____________
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: move 5ft up and to the left
-
-2: move 5ft 
-3: move 5ft down and to the left
-
-4: move 5ft 
-5: move 5ft down
-
-6: move 5ft up and to the right
-
-7: move 5ft 
-8: move 5ft down and to the right
-
-9: second wind action
-
-10: go prone
-
-11: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.16775059700012207
-response: 9
-response: 9
-selected action: (8, (-1, -1), (0, 0), 0, 0)
-gomerin uses second wind to recover (9) + 1=10 hit points.
-____________
-____________
-____________
-____________
-____________
-___.......__
-___...P...__
-___.......__
-___.~###..__
-___~     .__
-___E     .__
-____________
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 20ft
-Available actions: 0
-Bonus actions: 0
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-___.......__
-___...P...__
-___.......__
-___.~***..__
-___~     .__
-___E     .__
-____________
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: move 5ft up and to the left
-
-2: move 5ft 
-3: move 5ft down and to the left
-
-4: move 5ft 
-5: move 5ft down
-
-6: move 5ft up and to the right
-
-7: move 5ft 
-8: move 5ft down and to the right
-
-9: go prone
-
-10: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.16920685768127441
-response: 1
-response: 1
-selected action: (1, (-1, -1), (0, 0), 0, 0)
-gomerin moved to [2, 0] 1 feet
-____________
-____________
-____________
-____________
-____________
-____________
-____..P...._
-____......._
-____......._
-____.~###.._
-____~~    ._
-____E~     _
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 15ft
-Available actions: 0
-Bonus actions: 0
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-____________
-____..P...._
-____......._
-____......._
-____.~***.._
-____~~    ._
-____E~     _
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: move 5ft 
-2: move 5ft down and to the left
-
-3: move 5ft down
-
-4: move 5ft 
-5: move 5ft down and to the right
-
-6: go prone
-
-7: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.16257095336914062
-response: 1
-response: 1
-selected action: (1, (-1, 0), (0, 0), 0, 0)
-gomerin moved to [1, 0] 1 feet
-____________
-____________
-____________
-____________
-____________
-____________
-_____.P.....
-_____.......
-_____.......
-_____.~###..
-_____~~    .
-_____E~     
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 10ft
-Available actions: 0
-Bonus actions: 0
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-____________
-_____.P.....
-_____.......
-_____.......
-_____.~***..
-_____~~    .
-_____E~     
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: move 5ft 
-2: move 5ft down and to the left
-
-3: move 5ft down
-
-4: move 5ft 
-5: move 5ft down and to the right
-
-6: go prone
-
-7: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.15996217727661133
-response: 1
-response: 1
-selected action: (1, (-1, 0), (0, 0), 0, 0)
-gomerin moved to [0, 0] 1 feet
-____________
-____________
-____________
-____________
-____________
-____________
-______P.....
-______......
-______......
-______.~###.
-______~~    
-______E~    
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 5ft
-Available actions: 0
-Bonus actions: 0
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-____________
-______P.....
-______......
-______......
-______.~***.
-______~~    
-______E~    
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: go prone
-
-2: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.1441648006439209
-response: 1
-response: 1
-selected action: (10, (-1, -1), (0, 0), 0, 0)
-gomerin goes prone.
+=========================================
+Battle between an RL agent vs a Rules based AI
+=========================================
+0: (0, (0, 0), (3, 0), 11, 1) 8.744536399841309
+1: (4, (-1, -1), (0, 0), 0, 0) 8.779115676879883
+2: (2, (-1, -1), (0, 0), 0, 0) 8.790863990783691
+3: (3, (-1, -1), (0, 0), 0, 0) 8.888697624206543
+4: (1, (-1, -1), (0, 0), 0, 0) 8.995232582092285
+5: (1, (-1, 0), (0, 0), 0, 0) 8.912942886352539
+6: (1, (-1, 1), (0, 0), 0, 0) 8.830655097961426
+7: (1, (0, -1), (0, 0), 0, 0) 8.967888832092285
+8: (1, (0, 1), (0, 0), 0, 0) 8.803311347961426
+9: (1, (1, -1), (0, 0), 0, 0) 8.940545082092285
+10: (1, (1, 0), (0, 0), 0, 0) 8.858256340026855
+11: (1, (1, 1), (0, 0), 0, 0) 8.775968551635742
+12: (10, (-1, -1), (0, 0), 0, 0) 8.871052742004395
+13: (8, (-1, -1), (0, 0), 0, 0) 8.676114082336426
+14: (-1, (0, 0), (0, 0), 0, 0) 9.01231861114502
+selected action: (-1, (0, 0), (0, 0), 0, 0)
 ==== end turn ===
 gomerin 24/24
 rumblebelly 24/24
 rumblebelly starts their turn.
 ==== current turn rumblebelly 24/24===
-rumblebelly tried to attack gomerin with disadvantage['target_is_prone_range'] with Longbow but missed with (2 | 1) + 7= 8.
-rumblebelly moved to [0, 4] 1 feet
-rumblebelly moved to [0, 3] 1 feet
-rumblebelly moved to [0, 2] 1 feet
-rumblebelly moved to [0, 1] 1 feet
+rumblebelly tried to attack gomerin with Longbow but missed with (6) + 7= 13.
+rumblebelly moved to [3, 0] 1 feet
+rumblebelly moved to [2, 0] 1 feet
 rumblebelly moved to [1, 0] 1 feet
-rumblebelly uses second wind to recover (4) + 1=5 hit points.
-rumblebelly goes prone.
-no move for rumblebelly
-==== current turn gomerin 24/24===
-gomerin starts their turn.
-Result: False
-____________
-____________
-____________
-____________
-____________
-____________
-______PE....
-______......
-______......
-______.~###.
-______~~    
-______~~    
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 30ft
-Available actions: 1
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-____________
-______PE....
-______......
-______......
-______.~***.
-______~~    
-______~~    
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: attack enemy with melee weapon rapier
-
-2: attack enemy with ranged weapon longbow
-
-3: attack enemy with melee weapon unarmed_attack
-
-4: move 5ft down
-
-5: move 5ft down and to the right
-
-6: disengage action
-
-7: dodge action
-
-8: dash action
-
-9: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.16515755653381348
-response: 4
-response: 4
-selected action: (1, (0, 1), (0, 0), 0, 0)
-rumblebelly tried to attack gomerin with opportunity with Rapier but missed with (7) + 7= 14.
-gomerin moved to [0, 1] 2 feet
-____________
-____________
-____________
-____________
-____________
-______.E....
-______P.....
-______......
-______.~##  
-______~~#   
-______~~    
-____________
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 20ft
-Available actions: 1
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-______.E....
-______P.....
-______......
-______.~**  
-______~~*   
-______~~    
-____________
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: attack enemy with melee weapon rapier
-
-2: attack enemy with ranged weapon longbow
-
-3: attack enemy with melee weapon unarmed_attack
-
-4: move 5ft 
-5: move 5ft down
-
-6: move 5ft 
-7: move 5ft down and to the right
-
-8: disengage action
-
-9: dodge action
-
-10: dash action
-
-11: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.3361327648162842
-response: 1
-response: 1
-selected action: (0, (0, 0), (1, -1), 13, 0)
-gomerin tried to attack rumblebelly with Rapier but missed with (8) + 7= 15.
-____________
-____________
-____________
-____________
-____________
-______.E....
-______P.....
-______......
-______.~##  
-______~~#   
-______~~    
-____________
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 20ft
-Available actions: 0
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-______.E....
-______P.....
-______......
-______.~**  
-______~~*   
-______~~    
-____________
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: move 5ft 
-2: move 5ft down
-
-3: move 5ft 
-4: move 5ft down and to the right
-
-5: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.16259169578552246
-response: 1
-response: 1
-selected action: (1, (0, -1), (0, 0), 0, 0)
-gomerin moved to [0, 0] 2 feet
-==== end turn ===
-gomerin 24/24
-rumblebelly 24/24
-rumblebelly starts their turn.
-==== current turn rumblebelly 24/24===
-rumblebelly tried to attack gomerin with Rapier but missed with (9) + 7= 16.
-rumblebelly stands up.
-rumblebelly moved to [0, 1] 1 feet
-rumblebelly moved to [1, 0] 1 feet
-rumblebelly goes prone.
-no move for rumblebelly
-==== current turn gomerin 24/24===
-gomerin starts their turn.
-Result: False
-____________
-____________
-____________
-____________
-____________
-____________
-______PE....
-______......
-______......
-______.~###.
-______~~    
-______~~    
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 30ft
-Available actions: 1
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-____________
-______PE....
-______......
-______......
-______.~***.
-______~~    
-______~~    
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: attack enemy with melee weapon rapier
-
-2: attack enemy with ranged weapon longbow
-
-3: attack enemy with melee weapon unarmed_attack
-
-4: move 5ft down
-
-5: move 5ft down and to the right
-
-6: disengage action
-
-7: dodge action
-
-8: dash action
-
-9: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.336071252822876
-response: 1
-response: 1
-selected action: (0, (0, 0), (1, 0), 13, 0)
-gomerin tried to attack rumblebelly with Rapier but missed with (7) + 7= 14.
-____________
-____________
-____________
-____________
-____________
-____________
-______PE....
-______......
-______......
-______.~###.
-______~~    
-______~~    
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 30ft
-Available actions: 0
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-____________
-______PE....
-______......
-______......
-______.~***.
-______~~    
-______~~    
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: move 5ft down
-
-2: move 5ft down and to the right
-
-3: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.1515522003173828
-response: 1
-response: 1
-selected action: (1, (0, 1), (0, 0), 0, 0)
-rumblebelly tried to attack gomerin with opportunity with Rapier but missed with (4) + 7= 11.
-gomerin moved to [0, 1] 2 feet
-____________
-____________
-____________
-____________
-____________
-______.E....
-______P.....
-______......
-______.~##  
-______~~#   
-______~~    
-____________
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 20ft
-Available actions: 0
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-______.E....
-______P.....
-______......
-______.~**  
-______~~*   
-______~~    
-____________
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: move 5ft 
-2: move 5ft down
-
-3: move 5ft 
-4: move 5ft down and to the right
-
-5: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.152618408203125
-response: 3
-response: 3
-selected action: (1, (1, 0), (0, 0), 0, 0)
-gomerin moved to [1, 1] 2 feet
-==== end turn ===
-gomerin 24/24
-rumblebelly 24/24
-rumblebelly starts their turn.
-==== current turn rumblebelly 24/24===
-rumblebelly tried to attack gomerin with Rapier but missed with (3) + 7= 10.
-rumblebelly stands up.
 rumblebelly moved to [0, 0] 1 feet
 rumblebelly moved to [0, 1] 1 feet
 rumblebelly goes prone.
+rumblebelly uses second wind to recover (9) + 1=10 hit points.
 no move for rumblebelly
 ==== current turn gomerin 24/24===
 gomerin starts their turn.
@@ -1190,31 +72,24 @@ _____.~### .
 _____~~     
 _____~~     
 ____________
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 30ft
-Available actions: 1
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
+0: (0, (0, 0), (-1, 0), 13, 0) 8.927748680114746
+1: (0, (0, 0), (-1, 0), 11, 1) 8.985074043273926
+2: (0, (0, 0), (-1, 0), 19, 0) 8.881196022033691
+3: (4, (-1, -1), (0, 0), 0, 0) 8.226515769958496
+4: (2, (-1, -1), (0, 0), 0, 0) 8.445548057556152
+5: (3, (-1, -1), (0, 0), 0, 0) 8.480217933654785
+6: (1, (-1, -1), (0, 0), 0, 0) 8.724101066589355
+7: (1, (-1, 1), (0, 0), 0, 0) 8.620650291442871
+8: (1, (0, -1), (0, 0), 0, 0) 8.70201587677002
+9: (1, (0, 1), (0, 0), 0, 0) 8.584624290466309
+10: (1, (1, -1), (0, 0), 0, 0) 8.679930686950684
+11: (1, (1, 0), (0, 0), 0, 0) 8.616721153259277
+12: (1, (1, 1), (0, 0), 0, 0) 8.548002243041992
+13: (10, (-1, -1), (0, 0), 0, 0) 8.764081001281738
+14: (8, (-1, -1), (0, 0), 0, 0) 8.438267707824707
+15: (-1, (0, 0), (0, 0), 0, 0) 8.742389678955078
+agent selected action: (0, (0, 0), (-1, 0), 11, 1)
+gomerin tried to attack rumblebelly with disadvantage['ranged_with_enemy_in_melee', 'target_is_prone_range'] with Longbow but missed with (14 | 3) + 7= 10.
 ____________
 ____________
 ____________
@@ -1223,224 +98,139 @@ ____________
 _____.......
 _____EP.....
 _____.......
-_____.~*** .
+_____.~### .
 _____~~     
 _____~~     
 ____________
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: attack enemy with melee weapon rapier
-
-2: attack enemy with ranged weapon longbow
-
-3: attack enemy with melee weapon unarmed_attack
-
-4: move 5ft up and to the left
-
-5: move 5ft down and to the left
-
-6: move 5ft 
-7: move 5ft down
-
-8: move 5ft up and to the right
-
-9: move 5ft 
-10: move 5ft down and to the right
-
-11: disengage action
-
-12: dodge action
-
-13: dash action
-
-14: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.16355276107788086
-response: 6
-response: 6
-selected action: (1, (0, -1), (0, 0), 0, 0)
-rumblebelly tried to attack gomerin with opportunity with Rapier but missed with (7) + 7= 14.
-gomerin moved to [1, 0] 2 feet
+0: (1, (-1, -1), (0, 0), 0, 0) 8.401982307434082
+1: (1, (-1, 1), (0, 0), 0, 0) 8.295114517211914
+2: (1, (0, -1), (0, 0), 0, 0) 8.376813888549805
+3: (1, (0, 1), (0, 0), 0, 0) 8.273030281066895
+4: (1, (1, -1), (0, 0), 0, 0) 8.354395866394043
+5: (1, (1, 0), (0, 0), 0, 0) 8.302669525146484
+6: (1, (1, 1), (0, 0), 0, 0) 8.250945091247559
+7: (10, (-1, -1), (0, 0), 0, 0) 8.467283248901367
+8: (8, (-1, -1), (0, 0), 0, 0) 8.11273193359375
+9: (-1, (0, 0), (0, 0), 0, 0) 8.420409202575684
+agent selected action: (10, (-1, -1), (0, 0), 0, 0)
+gomerin goes prone.
 ____________
 ____________
 ____________
 ____________
 ____________
-____________
-_____.P.....
-_____E......
 _____.......
-_____.~###..
-_____~~    .
-_____~~     
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 20ft
-Available actions: 1
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-____________
-_____.P.....
-_____E......
+_____EP.....
 _____.......
-_____.~***..
-_____~~    .
+_____.~### .
 _____~~     
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: attack enemy with melee weapon rapier
-
-2: attack enemy with ranged weapon longbow
-
-3: attack enemy with melee weapon unarmed_attack
-
-4: move 5ft 
-5: move 5ft down
-
-6: move 5ft 
-7: move 5ft down and to the right
-
-8: disengage action
-
-9: dodge action
-
-10: dash action
-
-11: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.15549707412719727
-response: 1
-response: 1
-selected action: (0, (0, 0), (-1, 1), 13, 0)
-gomerin tried to attack rumblebelly with Rapier but missed with (2) + 7= 9.
+_____~~     
+____________
+0: (1, (-1, -1), (0, 0), 0, 0) 8.393442153930664
+1: (1, (-1, 1), (0, 0), 0, 0) 8.286521911621094
+2: (1, (0, -1), (0, 0), 0, 0) 8.36827564239502
+3: (1, (0, 1), (0, 0), 0, 0) 8.264436721801758
+4: (1, (1, -1), (0, 0), 0, 0) 8.34580135345459
+5: (1, (1, 0), (0, 0), 0, 0) 8.29407787322998
+6: (1, (1, 1), (0, 0), 0, 0) 8.242351531982422
+7: (8, (-1, -1), (0, 0), 0, 0) 8.10413932800293
+8: (6, (-1, -1), (0, 0), 0, 0) 8.56246280670166
+9: (-1, (0, 0), (0, 0), 0, 0) 8.411870002746582
+agent selected action: (6, (-1, -1), (0, 0), 0, 0)
+gomerin stands up.
 ____________
 ____________
 ____________
 ____________
 ____________
-____________
-_____.P.....
-_____E......
 _____.......
-_____.~###..
-_____~~    .
-_____~~     
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [100.]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 20ft
-Available actions: 0
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-____________
-_____.P.....
-_____E......
+_____EP.....
 _____.......
-_____.~***..
-_____~~    .
+_____.~### .
 _____~~     
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: move 5ft 
-2: move 5ft down
-
-3: move 5ft 
-4: move 5ft down and to the right
-
-5: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.155364990234375
-response: 1
-response: 1
-selected action: (1, (-1, 0), (0, 0), 0, 0)
-gomerin moved to [0, 0] 2 feet
+_____~~     
+____________
+0: (1, (-1, -1), (0, 0), 0, 0) 8.332438468933105
+1: (1, (-1, 1), (0, 0), 0, 0) 8.224889755249023
+2: (1, (0, -1), (0, 0), 0, 0) 8.307270050048828
+3: (1, (0, 1), (0, 0), 0, 0) 8.202805519104004
+4: (1, (1, -1), (0, 0), 0, 0) 8.284171104431152
+5: (1, (1, 0), (0, 0), 0, 0) 8.232444763183594
+6: (1, (1, 1), (0, 0), 0, 0) 8.180720329284668
+7: (10, (-1, -1), (0, 0), 0, 0) 8.397738456726074
+8: (8, (-1, -1), (0, 0), 0, 0) 8.042508125305176
+9: (-1, (0, 0), (0, 0), 0, 0) 8.35086441040039
+agent selected action: (10, (-1, -1), (0, 0), 0, 0)
+gomerin goes prone.
+____________
+____________
+____________
+____________
+____________
+_____.......
+_____EP.....
+_____.......
+_____.~### .
+_____~~     
+_____~~     
+____________
+0: (1, (-1, -1), (0, 0), 0, 0) 8.323899269104004
+1: (1, (-1, 1), (0, 0), 0, 0) 8.216297149658203
+2: (1, (0, -1), (0, 0), 0, 0) 8.298730850219727
+3: (1, (0, 1), (0, 0), 0, 0) 8.194212913513184
+4: (1, (1, -1), (0, 0), 0, 0) 8.275578498840332
+5: (1, (1, 0), (0, 0), 0, 0) 8.22385311126709
+6: (1, (1, 1), (0, 0), 0, 0) 8.172127723693848
+7: (8, (-1, -1), (0, 0), 0, 0) 8.033914566040039
+8: (6, (-1, -1), (0, 0), 0, 0) 8.492918014526367
+9: (-1, (0, 0), (0, 0), 0, 0) 8.342326164245605
+agent selected action: (6, (-1, -1), (0, 0), 0, 0)
+gomerin stands up.
+____________
+____________
+____________
+____________
+____________
+_____.......
+_____EP.....
+_____.......
+_____.~### .
+_____~~     
+_____~~     
+____________
+0: (10, (-1, -1), (0, 0), 0, 0) 8.264976501464844
+1: (8, (-1, -1), (0, 0), 0, 0) 7.909238338470459
+2: (-1, (0, 0), (0, 0), 0, 0) 8.21810245513916
+agent selected action: (10, (-1, -1), (0, 0), 0, 0)
+gomerin goes prone.
+____________
+____________
+____________
+____________
+____________
+_____.......
+_____EP.....
+_____.......
+_____.~### .
+_____~~     
+_____~~     
+____________
+0: (8, (-1, -1), (0, 0), 0, 0) 7.900645732879639
+1: (-1, (0, 0), (0, 0), 0, 0) 8.209195137023926
+agent selected action: (-1, (0, 0), (0, 0), 0, 0)
 ==== end turn ===
 gomerin 24/24
 rumblebelly 24/24
 rumblebelly starts their turn.
 ==== current turn rumblebelly 24/24===
-rumblebelly attacked gomerin with Rapier and hits with (15) + 7= 22.
-gomerin took 11 damage.
+rumblebelly attacked gomerin with Rapier and hits with (19) + 7= 26.
+gomerin took 9 damage.
 rumblebelly stands up.
-rumblebelly moved to [1, 0] 1 feet
+rumblebelly moved to [0, 0] 1 feet
 rumblebelly moved to [0, 1] 1 feet
 rumblebelly goes prone.
 no move for rumblebelly
-==== current turn gomerin 13/24===
+==== current turn gomerin 15/24===
 gomerin starts their turn.
 Result: False
 ____________
@@ -1448,236 +238,145 @@ ____________
 ____________
 ____________
 ____________
-____________
-______P.....
-______E.....
-______......
-______.~###.
-______~~    
-______~~    
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [54.16666667]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 30ft
-Available actions: 1
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-____________
-______P.....
-______E.....
-______......
-______.~***.
-______~~    
-______~~    
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: attack enemy with melee weapon rapier
-
-2: attack enemy with ranged weapon longbow
-
-3: attack enemy with melee weapon unarmed_attack
-
-4: move 5ft 
-5: move 5ft down and to the right
-
-6: disengage action
-
-7: dodge action
-
-8: dash action
-
-9: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.1639857292175293
-response: 1
-response: 1
-selected action: (0, (0, 0), (0, 1), 13, 0)
-gomerin tried to attack rumblebelly with Rapier but missed with (6) + 7= 13.
-____________
-____________
-____________
-____________
-____________
-____________
-______P.....
-______E.....
-______......
-______.~###.
-______~~    
-______~~    
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [54.16666667]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 30ft
-Available actions: 0
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-____________
-______P.....
-______E.....
-______......
-______.~***.
-______~~    
-______~~    
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: move 5ft 
-2: move 5ft down and to the right
-
-3: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.1556398868560791
-response: 1
-response: 1
-selected action: (1, (1, 0), (0, 0), 0, 0)
-rumblebelly tried to attack gomerin with opportunity with Rapier but missed with (3) + 7= 10.
-gomerin moved to [1, 0] 2 feet
-____________
-____________
-____________
-____________
-____________
-____________
-_____.P.....
-_____E......
 _____.......
-_____.~###..
-_____~~    .
-_____~~     
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [54.16666667]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 20ft
-Available actions: 0
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
-____________
-____________
-____________
-____________
-____________
-____________
-_____.P.....
-_____E......
+_____EP.....
 _____.......
-_____.~***..
-_____~~    .
+_____.~### .
 _____~~     
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: move 5ft 
-2: move 5ft down
-
-3: move 5ft 
-4: move 5ft down and to the right
-
-5: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.15350985527038574
-response: 1
-response: 1
-selected action: (1, (-1, 0), (0, 0), 0, 0)
-gomerin moved to [0, 0] 2 feet
+_____~~     
+____________
+0: (0, (0, 0), (-1, 0), 13, 0) 5.85286283493042
+1: (0, (0, 0), (-1, 0), 11, 1) 7.17874002456665
+2: (0, (0, 0), (-1, 0), 19, 0) 5.26497220993042
+3: (4, (-1, -1), (0, 0), 0, 0) 2.6768293380737305
+4: (2, (-1, -1), (0, 0), 0, 0) 3.489987850189209
+5: (3, (-1, -1), (0, 0), 0, 0) 3.615583896636963
+6: (1, (-1, -1), (0, 0), 0, 0) 4.789761066436768
+7: (1, (-1, 1), (0, 0), 0, 0) 4.657312870025635
+8: (1, (0, -1), (0, 0), 0, 0) 4.780105113983154
+9: (1, (0, 1), (0, 0), 0, 0) 4.6476569175720215
+10: (1, (1, -1), (0, 0), 0, 0) 4.770449161529541
+11: (1, (1, 0), (0, 0), 0, 0) 4.704225540161133
+12: (1, (1, 1), (0, 0), 0, 0) 4.638001918792725
+13: (8, (-1, -1), (0, 0), 0, 0) 4.281506061553955
+14: (6, (-1, -1), (0, 0), 0, 0) 5.001412868499756
+15: (-1, (0, 0), (0, 0), 0, 0) 4.314962863922119
+agent selected action: (0, (0, 0), (-1, 0), 11, 1)
+gomerin attacked rumblebelly with disadvantage['prone', 'ranged_with_enemy_in_melee', 'target_is_prone_range'] with Longbow and hits with (13 | 20) + 7= 20.
+rumblebelly took 9 damage.
+____________
+____________
+____________
+____________
+____________
+_____.......
+_____EP.....
+_____.......
+_____.~### .
+_____~~     
+_____~~     
+____________
+0: (1, (-1, -1), (0, 0), 0, 0) 4.934424877166748
+1: (1, (-1, 1), (0, 0), 0, 0) 4.798458576202393
+2: (1, (0, -1), (0, 0), 0, 0) 4.922719478607178
+3: (1, (0, 1), (0, 0), 0, 0) 4.786753177642822
+4: (1, (1, -1), (0, 0), 0, 0) 4.911013126373291
+5: (1, (1, 0), (0, 0), 0, 0) 4.8430304527282715
+6: (1, (1, 1), (0, 0), 0, 0) 4.775046348571777
+7: (8, (-1, -1), (0, 0), 0, 0) 4.37563419342041
+8: (6, (-1, -1), (0, 0), 0, 0) 5.156222343444824
+9: (-1, (0, 0), (0, 0), 0, 0) 4.459718227386475
+agent selected action: (6, (-1, -1), (0, 0), 0, 0)
+gomerin stands up.
+____________
+____________
+____________
+____________
+____________
+_____.......
+_____EP.....
+_____.......
+_____.~### .
+_____~~     
+_____~~     
+____________
+0: (1, (-1, -1), (0, 0), 0, 0) 4.6353020668029785
+1: (1, (-1, 1), (0, 0), 0, 0) 4.499335765838623
+2: (1, (0, -1), (0, 0), 0, 0) 4.62359619140625
+3: (1, (0, 1), (0, 0), 0, 0) 4.487630367279053
+4: (1, (1, -1), (0, 0), 0, 0) 4.61189079284668
+5: (1, (1, 0), (0, 0), 0, 0) 4.5439066886901855
+6: (1, (1, 1), (0, 0), 0, 0) 4.475924015045166
+7: (10, (-1, -1), (0, 0), 0, 0) 5.239497661590576
+8: (8, (-1, -1), (0, 0), 0, 0) 4.056231498718262
+9: (-1, (0, 0), (0, 0), 0, 0) 4.160595417022705
+agent selected action: (10, (-1, -1), (0, 0), 0, 0)
+gomerin goes prone.
+____________
+____________
+____________
+____________
+____________
+_____.......
+_____EP.....
+_____.......
+_____.~### .
+_____~~     
+_____~~     
+____________
+0: (1, (-1, -1), (0, 0), 0, 0) 4.59093713760376
+1: (1, (-1, 1), (0, 0), 0, 0) 4.454970836639404
+2: (1, (0, -1), (0, 0), 0, 0) 4.5792317390441895
+3: (1, (0, 1), (0, 0), 0, 0) 4.443265438079834
+4: (1, (1, -1), (0, 0), 0, 0) 4.567526340484619
+5: (1, (1, 0), (0, 0), 0, 0) 4.499542236328125
+6: (1, (1, 1), (0, 0), 0, 0) 4.4315595626831055
+7: (8, (-1, -1), (0, 0), 0, 0) 3.978583812713623
+8: (6, (-1, -1), (0, 0), 0, 0) 4.812735080718994
+9: (-1, (0, 0), (0, 0), 0, 0) 4.116230487823486
+agent selected action: (6, (-1, -1), (0, 0), 0, 0)
+gomerin stands up.
+____________
+____________
+____________
+____________
+____________
+_____.......
+_____EP.....
+_____.......
+_____.~### .
+_____~~     
+_____~~     
+____________
+0: (10, (-1, -1), (0, 0), 0, 0) 4.745430946350098
+1: (8, (-1, -1), (0, 0), 0, 0) 3.4407520294189453
+2: (-1, (0, 0), (0, 0), 0, 0) 3.6665287017822266
+agent selected action: (10, (-1, -1), (0, 0), 0, 0)
+gomerin goes prone.
+____________
+____________
+____________
+____________
+____________
+_____.......
+_____EP.....
+_____.......
+_____.~### .
+_____~~     
+_____~~     
+____________
+0: (8, (-1, -1), (0, 0), 0, 0) 3.3631057739257812
+1: (-1, (0, 0), (0, 0), 0, 0) 3.622163772583008
+agent selected action: (-1, (0, 0), (0, 0), 0, 0)
 ==== end turn ===
-gomerin 13/24
-rumblebelly 24/24
+gomerin 15/24
+rumblebelly 15/24
 rumblebelly starts their turn.
-==== current turn rumblebelly 24/24===
-rumblebelly attacked gomerin with Rapier and hits with (18) + 7= 25.
-gomerin took 9 damage.
+==== current turn rumblebelly 15/24===
+rumblebelly attacked gomerin with Rapier and hits with (13) + 7= 20.
+gomerin took 11 damage.
 rumblebelly stands up.
-rumblebelly moved to [1, 0] 1 feet
+rumblebelly moved to [0, 0] 1 feet
 rumblebelly moved to [0, 1] 1 feet
 rumblebelly goes prone.
 no move for rumblebelly
@@ -1689,84 +388,55 @@ ____________
 ____________
 ____________
 ____________
+_____.......
+_____EP.....
+_____.......
+_____.~### .
+_____~~     
+_____~~     
 ____________
-______P.....
-______E.....
-______......
-______.~###.
-______~~    
-______~~    
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [16.66666667]%
-Your Enemies health is at [100.]%
-You have the following available actions and movement available:
-
-Available movement: 30ft
-Available actions: 1
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
+0: (0, (0, 0), (-1, 0), 13, 0) -0.8372485637664795
+1: (0, (0, 0), (-1, 0), 11, 1) 2.321505546569824
+2: (0, (0, 0), (-1, 0), 19, 0) -2.6044418811798096
+3: (4, (-1, -1), (0, 0), 0, 0) -4.9582085609436035
+4: (2, (-1, -1), (0, 0), 0, 0) -4.508449554443359
+5: (3, (-1, -1), (0, 0), 0, 0) -4.449251651763916
+6: (1, (-1, -1), (0, 0), 0, 0) -3.1066362857818604
+7: (1, (-1, 1), (0, 0), 0, 0) -3.245971441268921
+8: (1, (0, -1), (0, 0), 0, 0) -3.119070529937744
+9: (1, (0, 1), (0, 0), 0, 0) -3.2584054470062256
+10: (1, (1, -1), (0, 0), 0, 0) -3.131505250930786
+11: (1, (1, 0), (0, 0), 0, 0) -3.2011728286743164
+12: (1, (1, 1), (0, 0), 0, 0) -3.270840644836426
+13: (8, (-1, -1), (0, 0), 0, 0) -3.824043035507202
+14: (6, (-1, -1), (0, 0), 0, 0) -2.8979201316833496
+15: (-1, (0, 0), (0, 0), 0, 0) -4.027685165405273
+agent selected action: (0, (0, 0), (-1, 0), 11, 1)
+gomerin tried to attack rumblebelly with disadvantage['prone', 'ranged_with_enemy_in_melee', 'target_is_prone_range'] with Longbow but missed with (6 | 14) + 7= 13.
 ____________
 ____________
 ____________
 ____________
 ____________
+_____.......
+_____EP.....
+_____.......
+_____.~### .
+_____~~     
+_____~~     
 ____________
-______P.....
-______E.....
-______......
-______.~***.
-______~~    
-______~~    
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: attack enemy with melee weapon rapier
-
-2: attack enemy with ranged weapon longbow
-
-3: attack enemy with melee weapon unarmed_attack
-
-4: move 5ft 
-5: move 5ft down and to the right
-
-6: disengage action
-
-7: dodge action
-
-8: dash action
-
-9: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.16408872604370117
-response: 1
-response: 1
-selected action: (0, (0, 0), (0, 1), 13, 0)
-gomerin attacked rumblebelly with Rapier and hits with (11) + 7= 18.
-rumblebelly took 6 damage.
+0: (1, (-1, -1), (0, 0), 0, 0) -4.917720794677734
+1: (1, (-1, 1), (0, 0), 0, 0) -4.945309162139893
+2: (1, (0, -1), (0, 0), 0, 0) -4.92122220993042
+3: (1, (0, 1), (0, 0), 0, 0) -4.943269729614258
+4: (1, (1, -1), (0, 0), 0, 0) -4.923032760620117
+5: (1, (1, 0), (0, 0), 0, 0) -4.932131767272949
+6: (1, (1, 1), (0, 0), 0, 0) -4.954875946044922
+7: (8, (-1, -1), (0, 0), 0, 0) -5.194636821746826
+8: (6, (-1, -1), (0, 0), 0, 0) -4.966928958892822
+9: (-1, (0, 0), (0, 0), 0, 0) -5.362083435058594
+agent selected action: (1, (-1, -1), (0, 0), 0, 0)
+gomerin moved to [0, 0] 2 feet
 ____________
 ____________
 ____________
@@ -1779,31 +449,13 @@ ______......
 ______.~###.
 ______~~    
 ______~~    
-prompt: -------------------------------
-We are playing a game of Dungeons and Dragons 5th Edition. It is current your turn and you play 
-as a hero character denoted by P. And you have an enemy donoted by E which you must defeat. 
-Your health is at [16.66666667]%
-Your Enemies health is at [75.]%
-You have the following available actions and movement available:
-
-Available movement: 30ft
-Available actions: 0
-Bonus actions: 1
-Reactions: 1
-
-
-
-Here is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:
-areas with no characters are represented by a dot (.)
-the hero character is represented by a P
-the enemy character is represented by an E
-areas outside of the map are represented by a hash (_), you cannot move to areas with _
-areas with obstacles are represented by an asterisk (*)
-areas with water are represented by a tilde (~) and are difficult terrain
-areas that the player can't see are just blanks/space
-Each tile of the map is 5ft by 5ft.
-
-Here is the map:
+0: (1, (1, 0), (0, 0), 0, 0) -4.7083516120910645
+1: (1, (1, 1), (0, 0), 0, 0) -4.766058921813965
+2: (8, (-1, -1), (0, 0), 0, 0) -4.537997722625732
+3: (6, (-1, -1), (0, 0), 0, 0) -4.2720441818237305
+4: (-1, (0, 0), (0, 0), 0, 0) -4.942749500274658
+agent selected action: (6, (-1, -1), (0, 0), 0, 0)
+gomerin stands up.
 ____________
 ____________
 ____________
@@ -1813,30 +465,265 @@ ____________
 ______P.....
 ______E.....
 ______......
-______.~***.
+______.~###.
 ______~~    
 ______~~    
-
-
-Here are the available actions you can take, please choose the number corresponding to the action:
-0: end my turn
-1: move 5ft 
-2: move 5ft down and to the right
-
-3: help action
-
-
-
-Please choose the number corresponding to the action you would like to take.
-Provide the number as your first answer in the following format, for example:
-1: attack enemy with ranged weapon
-No need to explain just provide the answer.
----------------------------------
-response time: 0.15358924865722656
-response: 1
-response: 1
-selected action: (1, (1, 0), (0, 0), 0, 0)
-rumblebelly attacked gomerin with opportunity with Rapier and hits with (13) + 7= 20.
+0: (10, (-1, -1), (0, 0), 0, 0) -4.56425666809082
+1: (8, (-1, -1), (0, 0), 0, 0) -5.149016857147217
+2: (-1, (0, 0), (0, 0), 0, 0) -5.545307636260986
+agent selected action: (10, (-1, -1), (0, 0), 0, 0)
+gomerin goes prone.
+____________
+____________
+____________
+____________
+____________
+____________
+______P.....
+______E.....
+______......
+______.~###.
+______~~    
+______~~    
+0: (8, (-1, -1), (0, 0), 0, 0) -5.14700174331665
+1: (-1, (0, 0), (0, 0), 0, 0) -5.5432915687561035
+agent selected action: (8, (-1, -1), (0, 0), 0, 0)
+gomerin uses second wind to recover (10) + 1=11 hit points.
+==== end turn ===
+gomerin 15/24
+rumblebelly 15/24
+rumblebelly starts their turn.
+==== current turn rumblebelly 15/24===
+rumblebelly attacked gomerin with Rapier and hits with (16) + 7= 23.
+gomerin took 9 damage.
+rumblebelly stands up.
+rumblebelly moved to [1, 0] 1 feet
+rumblebelly moved to [0, 1] 1 feet
+rumblebelly goes prone.
+no move for rumblebelly
+==== current turn gomerin 6/24===
+gomerin starts their turn.
+Result: False
+____________
+____________
+____________
+____________
+____________
+____________
+______P.....
+______E.....
+______......
+______.~###.
+______~~    
+______~~    
+0: (0, (0, 0), (0, 1), 13, 0) -1.5920711755752563
+1: (0, (0, 0), (0, 1), 11, 1) 1.2638565301895142
+2: (0, (0, 0), (0, 1), 19, 0) -2.8359668254852295
+3: (4, (-1, -1), (0, 0), 0, 0) -4.586792469024658
+4: (2, (-1, -1), (0, 0), 0, 0) -4.229743957519531
+5: (3, (-1, -1), (0, 0), 0, 0) -4.138938903808594
+6: (1, (1, 0), (0, 0), 0, 0) -3.2387232780456543
+7: (1, (1, 1), (0, 0), 0, 0) -3.394001007080078
+8: (6, (-1, -1), (0, 0), 0, 0) -2.3488430976867676
+9: (-1, (0, 0), (0, 0), 0, 0) -3.6663248538970947
+agent selected action: (0, (0, 0), (0, 1), 11, 1)
+gomerin tried to attack rumblebelly with disadvantage['prone', 'ranged_with_enemy_in_melee', 'target_is_prone_range'] with Longbow but missed with (17 | 9) + 7= 16.
+____________
+____________
+____________
+____________
+____________
+____________
+______P.....
+______E.....
+______......
+______.~###.
+______~~    
+______~~    
+0: (1, (1, 0), (0, 0), 0, 0) -4.91681432723999
+1: (1, (1, 1), (0, 0), 0, 0) -4.975832462310791
+2: (6, (-1, -1), (0, 0), 0, 0) -4.534440517425537
+3: (-1, (0, 0), (0, 0), 0, 0) -5.152523040771484
+agent selected action: (6, (-1, -1), (0, 0), 0, 0)
+gomerin stands up.
+____________
+____________
+____________
+____________
+____________
+____________
+______P.....
+______E.....
+______......
+______.~###.
+______~~    
+______~~    
+0: (1, (1, 0), (0, 0), 0, 0) -5.130561351776123
+1: (1, (1, 1), (0, 0), 0, 0) -5.177822589874268
+2: (10, (-1, -1), (0, 0), 0, 0) -4.353714942932129
+3: (-1, (0, 0), (0, 0), 0, 0) -5.356313705444336
+agent selected action: (10, (-1, -1), (0, 0), 0, 0)
+gomerin goes prone.
+____________
+____________
+____________
+____________
+____________
+____________
+______P.....
+______E.....
+______......
+______.~###.
+______~~    
+______~~    
+0: (1, (1, 0), (0, 0), 0, 0) -5.13129186630249
+1: (1, (1, 1), (0, 0), 0, 0) -5.178553104400635
+2: (6, (-1, -1), (0, 0), 0, 0) -4.76084041595459
+3: (-1, (0, 0), (0, 0), 0, 0) -5.357043266296387
+agent selected action: (6, (-1, -1), (0, 0), 0, 0)
+gomerin stands up.
+____________
+____________
+____________
+____________
+____________
+____________
+______P.....
+______E.....
+______......
+______.~###.
+______~~    
+______~~    
+0: (10, (-1, -1), (0, 0), 0, 0) -4.615620136260986
+1: (-1, (0, 0), (0, 0), 0, 0) -5.591716766357422
+agent selected action: (10, (-1, -1), (0, 0), 0, 0)
+gomerin goes prone.
+==== end turn ===
+gomerin 6/24
+rumblebelly 15/24
+rumblebelly starts their turn.
+==== current turn rumblebelly 15/24===
+rumblebelly tried to attack gomerin with Rapier but missed with (3) + 7= 10.
+rumblebelly stands up.
+rumblebelly moved to [1, 0] 1 feet
+rumblebelly moved to [0, 1] 1 feet
+rumblebelly goes prone.
+no move for rumblebelly
+==== current turn gomerin 6/24===
+gomerin starts their turn.
+Result: False
+____________
+____________
+____________
+____________
+____________
+____________
+______P.....
+______E.....
+______......
+______.~###.
+______~~    
+______~~    
+0: (0, (0, 0), (0, 1), 13, 0) -1.5920711755752563
+1: (0, (0, 0), (0, 1), 11, 1) 1.2638565301895142
+2: (0, (0, 0), (0, 1), 19, 0) -2.8359668254852295
+3: (4, (-1, -1), (0, 0), 0, 0) -4.586792469024658
+4: (2, (-1, -1), (0, 0), 0, 0) -4.229743957519531
+5: (3, (-1, -1), (0, 0), 0, 0) -4.138938903808594
+6: (1, (1, 0), (0, 0), 0, 0) -3.2387232780456543
+7: (1, (1, 1), (0, 0), 0, 0) -3.394001007080078
+8: (6, (-1, -1), (0, 0), 0, 0) -2.3488430976867676
+9: (-1, (0, 0), (0, 0), 0, 0) -3.6663248538970947
+agent selected action: (0, (0, 0), (0, 1), 11, 1)
+gomerin tried to attack rumblebelly with disadvantage['prone', 'ranged_with_enemy_in_melee', 'target_is_prone_range'] with Longbow but missed with (10 | 6) + 7= 13.
+____________
+____________
+____________
+____________
+____________
+____________
+______P.....
+______E.....
+______......
+______.~###.
+______~~    
+______~~    
+0: (1, (1, 0), (0, 0), 0, 0) -4.91681432723999
+1: (1, (1, 1), (0, 0), 0, 0) -4.975832462310791
+2: (6, (-1, -1), (0, 0), 0, 0) -4.534440517425537
+3: (-1, (0, 0), (0, 0), 0, 0) -5.152523040771484
+agent selected action: (6, (-1, -1), (0, 0), 0, 0)
+gomerin stands up.
+____________
+____________
+____________
+____________
+____________
+____________
+______P.....
+______E.....
+______......
+______.~###.
+______~~    
+______~~    
+0: (1, (1, 0), (0, 0), 0, 0) -5.130561351776123
+1: (1, (1, 1), (0, 0), 0, 0) -5.177822589874268
+2: (10, (-1, -1), (0, 0), 0, 0) -4.353714942932129
+3: (-1, (0, 0), (0, 0), 0, 0) -5.356313705444336
+agent selected action: (10, (-1, -1), (0, 0), 0, 0)
+gomerin goes prone.
+____________
+____________
+____________
+____________
+____________
+____________
+______P.....
+______E.....
+______......
+______.~###.
+______~~    
+______~~    
+0: (1, (1, 0), (0, 0), 0, 0) -5.13129186630249
+1: (1, (1, 1), (0, 0), 0, 0) -5.178553104400635
+2: (6, (-1, -1), (0, 0), 0, 0) -4.76084041595459
+3: (-1, (0, 0), (0, 0), 0, 0) -5.357043266296387
+agent selected action: (6, (-1, -1), (0, 0), 0, 0)
+gomerin stands up.
+____________
+____________
+____________
+____________
+____________
+____________
+______P.....
+______E.....
+______......
+______.~###.
+______~~    
+______~~    
+0: (10, (-1, -1), (0, 0), 0, 0) -4.615620136260986
+1: (-1, (0, 0), (0, 0), 0, 0) -5.591716766357422
+agent selected action: (10, (-1, -1), (0, 0), 0, 0)
+gomerin goes prone.
+==== end turn ===
+gomerin 6/24
+rumblebelly 15/24
+rumblebelly starts their turn.
+==== current turn rumblebelly 15/24===
+rumblebelly attacked gomerin with Rapier and hits with (11) + 7= 18.
 gomerin took 10 damage.
-gomerin moved to [0, 0] -1 feet
+Result: tpk
+____________
+____________
+____________
+____________
+____________
+______E.....
+______P.....
+______......
+______.~##  
+______~~#   
+______~~    
+____________
 Reward: -10

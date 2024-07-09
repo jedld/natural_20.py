@@ -52,7 +52,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
         self.inventory[inventory_type]['qty'] += inventory_qty
 
     self.class_properties = {}
-    self.current_hit_die = {}
+    self._current_hit_die = {}
     self.max_hit_die = {}
     self.resistances = []
 
@@ -64,7 +64,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
       self.max_hit_die[klass] = level
 
       hit_die_details = DieRoll.parse(character_class_properties['hit_die'])
-      self.current_hit_die[int(hit_die_details.die_type)] = level
+      self._current_hit_die[int(hit_die_details.die_type)] = level
       self.class_properties[klass] = character_class_properties
 
     self.attributes["hp"] = copy.deepcopy(self.max_hp())
@@ -356,6 +356,41 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
       return getattr(self, f"max_slots_for_{character_class}")(level)
 
     return 0
+  
+  def available_spells(self, battle):
+    spell_list = self.spell_list(battle)
+    return [k for k, v in spell_list.items() if not v['disabled']]
+  
+  # Returns the available spells for the current user
+  # @param battle [Natural20::Battle]
+  # @return [Dict]
+  def spell_list(self, battle):
+    prepared_spells = self.prepared_spells()
+    spell_list = {}
+    for spell in prepared_spells:
+      details = self.session.load_spell(spell)
+      if not details:
+        continue
+
+      qty, resource = details['casting_time'].split(':')
+
+      disable_reason = []
+      if resource == 'action' and battle and battle.ongoing() and self.total_actions(battle) == 0:
+        disable_reason.append('no_action')
+      if resource == 'reaction':
+        disable_reason.append('reaction_only')
+
+      if resource == 'bonus_action' and battle.ongoing() and self.total_bonus_actions(battle) == 0:
+        disable_reason.append('no_bonus_action')
+      elif resource == 'hour' and battle.ongoing():
+        disable_reason.append('in_battle')
+      if details['level'] > 0 and self.spell_slots_count(details['level']) == 0:
+        disable_reason.append('no_spell_slot')
+
+      spell_list[spell] = details.copy()
+      spell_list[spell]['disabled'] = disable_reason
+
+    return spell_list
   
   def languages(self):
     class_languages = []

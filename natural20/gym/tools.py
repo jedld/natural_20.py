@@ -31,7 +31,7 @@ def ability_info(entity):
     """
     Returns the ability information for the entity
     """
-    ability_info = np.zeros((8))
+    ability_info = np.zeros((8), dtype=np.int64)
 
     SECOND_WIND = 0
 
@@ -198,6 +198,9 @@ def compute_available_moves(session, map, entity: Entity, battle, weapon_mapping
             valid_actions.append((11, (-1, -1),(0, 0), 0, 0))
 
     valid_actions.append((-1, (0, 0), (0, 0), 0, 0)) # end turn should always be available
+    for action in valid_actions:
+        assert len(action) == 5, f"Invalid action {action}"
+
     return valid_actions
 
 

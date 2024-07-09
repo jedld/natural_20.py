@@ -67,4 +67,5 @@ tests/test_gym.py
 tests/test_map.py
 tests/test_maprenderer.py
 tests/test_npc.py
+tests/test_player_character.py
 tests/test_spell_action.py

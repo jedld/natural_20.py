@@ -177,6 +177,32 @@ print("Contains a roll equal to max die side: ", contains_max)
 # Contains a roll equal to max die side:  False
 ```
 
+Setting Up LLM Agents
+=====================
+
+The following sample scripts illustrates how to setup LLM vs agent, ai fights:
+
+samples/agent_vs_ai.py
+samples/llm_vs_ai.py
+samples/llm_vs_llm.py
+
+There are also training scripts that uses LLMs instead of the built-in AI:
+
+DQN_tests_gpt4o.py
+DQN_tests_llama.py
+DQN_tests_mistral.py
+
+Note that it is recommended to use [VLLM](https://github.com/vllm-project/vllm) to host your local LLMs, OpenAIs gpt4o has better performance but at the cost of being more expensive to run. For OpenAI's gpt4 it goes without saying that you need a subscription to take advantage of API access.
+
+The recommended route to run and setup VLLM is via Docker, below is a sample on how to get started with LLama 3:
+
+```
+docker run --runtime=nvidia --gpus all -p 8000:8000 -v ~/.cache/huggingface:/root/.cache/huggingface \
+       -it vllm --model NousResearch/Meta-Llama-3-8B-Instruct --dtype=auto --api-key token1234
+```
+
+
+
 Running Tests
 =============
 

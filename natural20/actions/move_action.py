@@ -34,13 +34,22 @@ class MoveAction(Action):
         return battle is None or entity.available_movement(battle) > 0
 
     def build_map(self):
-        return SimpleNamespace(
-            action=self,
-            param=[{
-                'type': 'movement'
+        def set_path(path_and_jump_index):
+            path, jump_index = path_and_jump_index
+            self.move_path = path
+            self.jump_index = jump_index
+            return{
+                "param": None,
+                "next": lambda: self
+            }
+
+        return {
+            'action': self,
+            'param': [{
+            'type': 'movement'
             }],
-            next=lambda path_and_jump_index: self.set_move_path(*path_and_jump_index)
-        )
+            'next': set_path
+        }
 
     @staticmethod
     def build(session, source):
