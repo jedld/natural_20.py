@@ -759,7 +759,7 @@ class Entity(EntityStateEvaluator):
         return (prof in self.properties.get('skills', []) or
                 prof in self.properties.get('tools', []) or
                 prof in self.properties.get('weapon_proficiencies', []) or
-                f"{prof}_save" in self.properties.get('saving_throw_proficiencies', []))
+                prof in [f"{p}_save" for p in self.properties.get('saving_throw_proficiencies', [])])
     
     def proficient_with_armor(self, item):
         armor = self.session.load_thing(item)

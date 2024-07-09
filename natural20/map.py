@@ -125,9 +125,9 @@ class Map():
             if not npc_meta['sub_type']:
                 raise Exception('npc type requires sub_type as well')
 
-            entity = self.session.npc(npc_meta['sub_type'], name=npc_meta['name'], overrides=npc_meta['overrides'], rand_life=True)
+            entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta.get('name', None), "overrides" : npc_meta['overrides'], "rand_life" : True})
 
-            self.add(entity, column_index, row_index, group=npc_meta['group'])
+            self.add(entity, column_index, row_index, group=npc_meta.get('group', None))
 
         if self.meta_map:
             for column_index, meta_row in enumerate(self.meta_map):
@@ -472,7 +472,7 @@ class Map():
         if isinstance(thing, Object):
             return self.interactable_objects[thing]
         else:
-            return self.entities[thing]
+            return self.entities.get(thing, None)
         
     def line_of_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, inclusive=False, entity=False, log_path=False):
         squares = self.squares_in_path(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive)

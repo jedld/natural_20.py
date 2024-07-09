@@ -45,12 +45,12 @@ class TestMoveAction(unittest.TestCase):
         self.action.move_path = [[2, 5], [3, 5]]
         self.assertEqual(opportunity_attack_list(self.action.source, self.action.move_path, self.battle, self.map), [{'source': self.npc, 'path': 1}])
 
-    # def test_opportunity_attack_large_creature(self):
-    #     self.map = Natural20.BattleMap(self.session, 'fixtures/battle_sim_2')
-    #     self.ogre = self.session.npc('ogre')
-    #     self.battle.add(self.ogre, 'b', position=[1, 1], token='g')
-    #     self.ogre.reset_turn(self.battle)
-    #     self.assertEqual(len(self.action.opportunity_attack_list(self.action.source, [[1, 0], [2, 0], [3, 0]], self.battle, self.map)), 0)
+    def test_opportunity_attack_large_creature(self):
+        self.map = Map(self.session, 'battle_sim_2')
+        self.ogre = self.session.npc('ogre')
+        self.battle.add(self.ogre, 'b', position=[1, 1], token='g')
+        self.ogre.reset_turn(self.battle)
+        self.assertEqual(len(opportunity_attack_list(self.action.source, [[1, 0], [2, 0], [3, 0]], self.battle, self.map)), 0)
 
     # def opportunity_attack_handler(self, battle, session, entity, map, event):
     #     action = self.npc.available_actions(session, battle).filter(lambda s: s.action_type == 'attack').filter(lambda s: s.npc_action['type'] == 'melee_attack').first()

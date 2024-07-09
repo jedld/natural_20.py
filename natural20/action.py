@@ -20,7 +20,10 @@ class Action:
     def name(self):
         return str(self.action_type)
 
-    def to_str(self):
+    def __repr__(self):
+        return str(self.action_type).capitalize()
+    
+    def __str__(self):
         return str(self.action_type).capitalize()
 
     def to_dict(self):

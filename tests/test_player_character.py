@@ -154,26 +154,29 @@ class TestPlayerCharacter(unittest.TestCase):
     def test_fighter_perception_check(self):
         self.player = self.load_fighter_character()
         self.assertEqual(self.player.perception_check().modifier, 4)
-        self.assertEqual(self.player.perception_check().result(), 24)
+        self.assertEqual(self.player.perception_check().result(), 6)
 
     def test_fighter_dexterity_check(self):
         self.player = self.load_fighter_character()
-        self.assertEqual(str(self.player.dexterity_check()), '(20) + 5')
-        self.assertEqual(self.player.dexterity_check().result(), 13)
+        check_val = self.player.dexterity_check()
+        self.assertEqual(str(check_val), '(11) + 5')
+        self.assertEqual(check_val.result(), 16)
 
     def test_fighter_stealth_check(self):
         self.player = self.load_fighter_character()
-        self.assertEqual(str(self.player.stealth_check()), '(1) + 5')
+        self.assertEqual(str(self.player.stealth_check()), '(11) + 5')
 
     def test_fighter_acrobatics_check(self):
         self.player = self.load_fighter_character()
-        self.assertEqual(str(self.player.acrobatics_check()), '(20) + 8')
-        self.assertEqual(self.player.acrobatics_check().result, 16)
+        check_val = self.player.acrobatics_check()
+        self.assertEqual(str(check_val), '(11) + 8')
+        self.assertEqual(check_val.result(), 19)
 
     def test_fighter_athletics_check(self):
         self.player = self.load_fighter_character()
-        self.assertEqual(str(self.player.athletics_check()), '(20) + 4')
-        self.assertEqual(self.player.athletics_check().result, 12)
+        check_val = self.player.athletics_check()
+        self.assertEqual(str(check_val), '(11) + 4')
+        self.assertEqual(check_val.result(), 15)
 
     def test_fighter_languages(self):
         self.player = self.load_fighter_character()

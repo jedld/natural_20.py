@@ -54,6 +54,10 @@ class DisengageAction(Action):
 
 @dataclass
 class DisengageBonusAction(DisengageAction):
+    def __init__(self, session, source, action_type, opts=None):
+        super().__init__(session, source, action_type, opts)
+        self.as_bonus_action = True
+
     @staticmethod
     def can(entity, battle):
         return battle and battle.combat_ongoing() and entity.any_class_feature(['cunning_action', 'nimble_escape']) and entity.total_bonus_actions(battle) > 0

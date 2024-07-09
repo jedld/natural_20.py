@@ -410,11 +410,17 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   def passive_insight(self):
     return 10 + self.wis_mod() + self.insight_proficiency()
   
+  def passive_perception(self):
+    return 10 + self.wis_mod() + self.perception_proficiency()
+  
   def investigation_proficiency(self):
     return self.proficiency_bonus() if self.investigation_proficient() else 0
   
   def insight_proficiency(self):
     return self.proficiency_bonus() if self.insight_proficient() else 0
+  
+  def perception_proficiency(self):
+    return self.proficiency_bonus() if self.perception_proficient() else 0
   
   def to_dict(self):
     return {

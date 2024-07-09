@@ -8,11 +8,11 @@ from natural20.die_roll import DieRoll
 from natural20.entity import Entity
 from natural20.actions.dodge_action import DodgeAction
 from natural20.actions.move_action import MoveAction
-from natural20.actions.dash import DashAction
-from natural20.actions.disengage_action import DisengageAction
+from natural20.actions.dash import DashAction, DashBonusAction
+from natural20.actions.disengage_action import DisengageAction, DisengageBonusAction
 from natural20.actions.stand_action import StandAction
 from natural20.actions.attack_action import AttackAction
-from natural20.actions.hide_action import HideAction
+from natural20.actions.hide_action import HideAction, HideBonusAction
 from natural20.actions.help_action import HelpAction
 from natural20.actions.grapple_action import GrappleAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
@@ -111,9 +111,12 @@ class Npc(Entity):
                 MoveAction(session, self, "move"),
                 LookAction(session, self, "look"),
                 DisengageAction(session, self, "disengage"),
+                DisengageBonusAction(session, self, "disengage_bonus"),
                 StandAction(session, self, "stand"),
                 HideAction(session, self, "hide"),
+                HideBonusAction(session, self, "hide_bonus"),
                 DashAction(session, self, "dash"),
+                DashBonusAction(session, self, "dash_bonus"),
                 HelpAction(session, self, "help"),
                 GrappleAction(session, self, "grapple"),
                 EscapeGrappleAction(session, self, "escape_grapple"),
