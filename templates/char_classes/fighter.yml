@@ -7,9 +7,9 @@ weapon_proficiencies:
 - shields
 - simple
 - martial
-saving_throw_proficiency:
-- str
-- con
+saving_throw_proficiencies:
+- strength
+- constitution
 available_skills_choices: 2
 available_skills:
 - acrobatics

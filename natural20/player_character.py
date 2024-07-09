@@ -311,6 +311,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   def proficient(self, prof):
     if any(prof in c.get('proficiencies', []) for c in self.class_properties.values()):
       return True
+    if any(prof in [f"{f}_save" for f in c.get('saving_throw_proficiencies', [])] for c in self.class_properties.values()):
+      return True
     if self.race_properties.get('skills') and prof in self.race_properties['skills']:
       return True
     if prof in self.weapon_proficiencies():

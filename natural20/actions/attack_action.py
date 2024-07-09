@@ -6,11 +6,6 @@ from natural20.weapons import damage_modifier, target_advantage_condition
 from natural20.utils.attack_util import cover_calculation, effective_ac, after_attack_roll_hook, damage_event
 
 class AttackAction(Action):
-#   include Natural20::Cover
-#   include Natural20::Weapons
-#   include Natural20::AttackHelper
-#   extend Natural20::ActionDamage
-
     def __init__(self, session, source, action_type, opts={}):
         super().__init__(session, source, action_type, opts)
         self.target = None
