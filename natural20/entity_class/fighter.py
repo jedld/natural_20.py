@@ -4,7 +4,6 @@ from natural20.actions.second_wind_action import SecondWindAction
 class Fighter():
     def __init__(self, name):
         self.name = name
-        self.fighter_level = None
         self.second_wind_count = None
 
     def initialize_fighter(self):

@@ -16,6 +16,7 @@ from natural20.utils.movement import compute_actual_moves
 import yaml
 import os
 import copy
+from collections import OrderedDict
 
 class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   ACTION_LIST = [
@@ -36,6 +37,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
     self.session = session
     self.equipped = self.properties.get('equipped', [])
     self.inventory = {}
+
+    # use ordered dict to maintain order of spell slots
     self.spell_slots = {}
     with open(f"{self.session.root_path}/races/{race_file}.yml") as file:
       self.race_properties = yaml.safe_load(file)
