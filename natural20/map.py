@@ -597,3 +597,17 @@ class Map():
                     return 'battle_end'
                 else:
                     raise ValueError(f"unknown trigger type {trigger['type']}")
+                
+    def items_on_the_ground(self, entity):
+        target_squares = entity.melee_squares(self)
+        target_squares += self.entity_squares(entity)
+
+        available_objects = [obj for square in target_squares for obj in self.objects_at(*square) if obj]
+
+        ground_objects = [obj for obj in available_objects if isinstance(obj, Ground)]
+        result = []
+        for obj in ground_objects:
+            items = [o for o in obj.inventory if o.qty > 0]
+            if items:
+                result.append((obj, items))
+        return result          

@@ -17,6 +17,7 @@ class TestPlayerCharacter(unittest.TestCase):
     def load_mage_character(self):
         player = PlayerCharacter.load(self.session, 'high_elf_mage.yml')
         self.battle.add(player, 'a')
+        player.reset_turn(self.battle)
         return player
     
     def load_fighter_character(self):

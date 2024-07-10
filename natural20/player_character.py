@@ -12,10 +12,17 @@ from natural20.actions.dash import DashAction, DashBonusAction
 from natural20.actions.second_wind_action import SecondWindAction
 from natural20.actions.stand_action import StandAction
 from natural20.actions.prone_action import ProneAction
+from natural20.actions.shove_action import ShoveAction
+from natural20.actions.help_action import HelpAction
+from natural20.actions.use_item_action import UseItemAction
+from natural20.actions.ground_interact_action import GroundInteractAction
+from natural20.actions.spell_action import SpellAction
+
 from natural20.utils.movement import compute_actual_moves
 import yaml
 import os
 import copy
+import pdb
 from collections import OrderedDict
 
 class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
@@ -23,7 +30,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
     AttackAction, DashAction, DashBonusAction, DisengageAction,
     DisengageBonusAction,
     DodgeAction, LookAction, MoveAction, ProneAction, SecondWindAction,
-    StandAction, TwoWeaponAttackAction
+    StandAction, TwoWeaponAttackAction,
+    ShoveAction, HelpAction, UseItemAction, GroundInteractAction,
+    SpellAction
   ]
 
   def __init__(self, session, properties, name=None):
@@ -167,7 +176,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
           action = DashAction(session, self, 'dash')
           action_list.append(action)
         elif action_type == MoveAction:
-          # generate possible moves
+          # no map? we skip, must be a theater of the mind mode
+          if battle.map is None:
+            continue
+
           cur_x, cur_y = battle.map.position_of(self)
           for x_pos in range(-1, 2):
             for y_pos in range(-1, 2):
@@ -198,7 +210,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
     valid_weapon_types = ['melee_attack'] if opportunity_attack else ['ranged_attack', 'melee_attack']
 
     weapon_attacks = []
-    for item in self.properties['equipped']:
+    for item in self.properties.get('equipped', []):
       weapon_detail = session.load_weapon(item)
       if weapon_detail is None:
         continue
@@ -226,7 +238,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
 
       weapon_attacks.extend(attacks)
 
-    unarmed_attack = attack_class(session, self, attack_type)
+    unarmed_attack = AttackAction(session, self, 'attack')
     unarmed_attack.using = 'unarmed_attack'
 
     pre_target_attack_list = weapon_attacks + [unarmed_attack]

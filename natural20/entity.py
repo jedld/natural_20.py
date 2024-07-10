@@ -666,7 +666,7 @@ class Entity(EntityStateEvaluator):
 
                         result.append(position)
         else:
-            step = self.melee_distance / map.feet_per_grid
+            step = self.melee_distance() // map.feet_per_grid
             cur_x, cur_y = target_position or map.entity_or_object_pos(self)
             for x_off in range(-step, step+1):
                 for y_off in range(-step, step+1):
@@ -678,9 +678,9 @@ class Entity(EntityStateEvaluator):
                     adjusted_y_off = y_off
 
                     if x_off < 0:
-                        adjusted_x_off -= self.token_size - 1
+                        adjusted_x_off -= self.token_size() - 1
                     if y_off < 0:
-                        adjusted_y_off -= self.token_size - 1
+                        adjusted_y_off -= self.token_size() - 1
 
                     position = [cur_x + adjusted_x_off, cur_y + adjusted_y_off]
 

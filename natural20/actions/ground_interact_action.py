@@ -24,7 +24,7 @@ class GroundInteractAction(Action):
         if battle.map is None:
             return 0
 
-        return sum(len(items) for items in battle.map.items_on_the_ground(entity).values())
+        return sum(len(items) for items in battle.map.items_on_the_ground(entity))
 
     def build_map(self):
         return {
