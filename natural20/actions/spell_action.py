@@ -7,6 +7,7 @@ from natural20.spell.shocking_grasp_spell import ShockingGraspSpell
 from natural20.spell.firebolt_spell import FireboltSpell
 from natural20.spell.mage_armor_spell import MageArmorSpell
 from natural20.spell.chill_touch_spell import ChillTouchSpell
+from natural20.spell.expeditious_retreat_spell import ExpeditiousRetreatSpell
 from natural20.utils.string_utils import classify
 from natural20.spell.spell import Spell
 from natural20.utils.spell_attack_util import consume_resource
@@ -26,14 +27,16 @@ class SpellAction(Action):
         super().__init__(session, source, spell)
 
     @staticmethod
-    def can_cast(entity, battle, spell):
+    def can(entity, battle, opt = None):
         if not entity.has_spells():
             return False
 
         if battle is None or not battle.ongoing():
             return True
 
-        return SpellAction.can_cast(entity, battle, spell)
+        if opt is None:
+            opt = {}
+        return SpellAction.can_cast(entity, battle, opt.get("spell", None))
 
     @staticmethod
     def can_cast(entity, battle, spell):
@@ -71,6 +74,8 @@ class SpellAction(Action):
                 spell_class = MageArmorSpell
             elif spell_name == 'ChillTouchSpell':
                 spell_class = ChillTouchSpell
+            elif spell_name == 'ExpeditiousRetreatSpell':
+                spell_class = ExpeditiousRetreatSpell
             else:
                 raise Exception(f"spell class not found {spell_name}")
             self.spell_action = spell_class(self.session, self.source, spell, self.spell)

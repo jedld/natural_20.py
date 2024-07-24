@@ -27,6 +27,13 @@ class GroundInteractAction(Action):
         return sum(len(items) for items in battle.map.items_on_the_ground(entity))
 
     def build_map(self):
+        def set_ground_items(obj):
+            self.ground_items = obj
+            return {
+                'param': None,
+                'next': lambda: self
+            }
+
         return {
             'action': self,
             'param': [
@@ -34,14 +41,7 @@ class GroundInteractAction(Action):
                     'type': 'select_ground_items'
                 }
             ],
-            'next': lambda obj: self.set_ground_items(obj)
-        }
-
-    def set_ground_items(self, obj):
-        self.ground_items = obj
-        return {
-            'param': None,
-            'next': lambda: self
+            'next': set_ground_items
         }
 
     def resolve(self, session, map=None, opts=None):

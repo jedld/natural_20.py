@@ -115,7 +115,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
       return self.properties['max_hp']
     
   def melee_distance(self):
-    if not self.properties['equipped']:
+    if not self.properties.get('equipped', None):
       return 5
 
     max_range = 5
@@ -201,6 +201,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
           action_list.append(action)
         elif action_type == DisengageBonusAction:
           action = DisengageBonusAction(session, self, 'disengage_bonus')
+          action_list.append(action)
+        elif action_type == ShoveAction:
+          action = ShoveAction(session, self, 'shove')
           action_list.append(action)
 
     return action_list

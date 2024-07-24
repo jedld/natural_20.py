@@ -1021,7 +1021,7 @@ class Entity(EntityStateEvaluator):
         return usable       
 
     def has_spells(self):
-        if not self.properties['prepared_spells']:
+        if not self.properties.get('prepared_spells', None):
             return False
         return len(self.properties['prepared_spells']) > 0
     
