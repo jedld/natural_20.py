@@ -1,4 +1,3 @@
-from typing import Callable
 from natural20.action import Action
 
 class InteractAction(Action):

@@ -1,4 +1,3 @@
-import dndice
 import random
 from natural20.generic_controller import GenericController
 from natural20.action import Action
@@ -6,8 +5,7 @@ from natural20.weapons import compute_max_weapon_range
 from natural20.map import Map
 from natural20.utils.utils import Session
 from natural20.entity import Entity
-from natural20.event_manager import EventManager
-import pdb
+# import pdb
 class Battle():
     def __init__(self, session: Session, map: Map,):
         self.map = map
@@ -207,9 +205,9 @@ class Battle():
     def opponents_of(self, entity):
         return [k for k in (list(self.entities.keys()) + self.late_comers) if not k.dead() and self.opposing(k, entity)]
     
-    def enemy_in_melee_range(self, source, exclude=[], source_pos=None):
+    def enemy_in_melee_range(self, source, exclude=None, source_pos=None):
         objects_around_me = self.map.look(source)
-
+        exclude = exclude or []
         for object in objects_around_me:
             if object in exclude:
                 continue
@@ -231,7 +229,9 @@ class Battle():
         }
         return action.resolve(self.session, self.map, opts)
     
-    def resolve_action(self, source, action_type, opts={}):
+    def resolve_action(self, source, action_type, opts=None):
+        if opts is None:
+            opts = {}
         action = next((act for act in source.available_actions(self.session, self) if act.action_type == action_type), None)
         opts['battle'] = self
         return action.resolve(self.session, self.map, opts) if action else None
@@ -312,7 +312,9 @@ class Battle():
 
         return source_group1 == source_group2
 
-    def trigger_event(self, event, source, opt={}):
+    def trigger_event(self, event, source, opt=None):
+        if opt is None:
+            opt = {}
         if event in self.battle_field_events:
             for object, handler in self.battle_field_events[event].items():
                 object.__getattribute__(handler)(self, source, {**opt, 'ui_controller': self.controller_for(source)})
@@ -340,7 +342,9 @@ class Battle():
 
         return True
 
-    def valid_targets_for(self, entity, action, target_types=['enemies'], range=None, active_perception=None, include_objects=False, filter=None):
+    def valid_targets_for(self, entity, action, target_types=None, range=None, active_perception=None, include_objects=False, filter=None):
+        if target_types is None:
+            target_types = ['enemies']
         if not isinstance(action, Action):
             raise Exception('not an action')
 
@@ -381,7 +385,7 @@ class Battle():
             for object, _position in self.map.interactable_objects.items():
                 if object.dead():
                     continue
-                if not 'ignore_los' in target_types and not self.can_see(entity, object, active_perception=active_perception):
+                if 'ignore_los' not in target_types and not self.can_see(entity, object, active_perception=active_perception):
                     continue
                 if self.map.distance(object, entity) * self.map.feet_per_grid > attack_range:
                     continue

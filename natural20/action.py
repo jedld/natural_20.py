@@ -1,16 +1,19 @@
 import inflect
 # typed: true
 class Action:
-    def __init__(self, session, source, action_type, opts={}):
+    def __init__(self, session, source, action_type, opts=None):
         self.source = source
         self.session = session
         self.action_type = action_type
         self.errors = []
         self.result = []
+
+        if opts is None:
+            opts = {}
         self.opts = opts
 
     @staticmethod
-    def can(entity, battle, options={}):
+    def can(entity, battle, options=None):
         return False
 
     @staticmethod
@@ -43,8 +46,8 @@ class Action:
     def apply(battle, item):
         pass
 
-    def resolve(self, session, map, opts={}):
+    def resolve(self, session, map, opts=None):
         pass
     
-    def t(self, k, options={}):
+    def t(self, k, options=None):
         return k

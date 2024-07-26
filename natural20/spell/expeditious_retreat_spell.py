@@ -1,8 +1,4 @@
-from dataclasses import dataclass
-from typing import List
 from natural20.spell.spell import Spell
-from natural20.die_roll import DieRoll
-from natural20.utils.spell_attack_util import evaluate_spell_attack
 from natural20.utils.spell_attack_util import consume_resource
 
 class ExpeditiousRetreatSpell(Spell):
@@ -27,7 +23,7 @@ class ExpeditiousRetreatSpell(Spell):
             consume_resource(battle, item)
 
     @staticmethod
-    def dash_override(entity, effect, opts={}):
+    def dash_override(entity, effect, opts=None):
         return True
 
     def resolve(self, entity, battle, spell_action):

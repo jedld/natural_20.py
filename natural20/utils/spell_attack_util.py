@@ -1,7 +1,9 @@
 from natural20.weapons import target_advantage_condition
 from natural20.utils.attack_util import effective_ac, after_attack_roll_hook
 
-def evaluate_spell_attack(battle, entity, target, spell_properties, opts={}):
+def evaluate_spell_attack(battle, entity, target, spell_properties, opts=None):
+    if opts is None:
+        opts = {}
     # DnD 5e advantage/disadvantage checks
     advantage_mod, _adv_info = target_advantage_condition(battle, entity, target, spell_properties, overrides=opts)
 

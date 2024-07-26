@@ -1,7 +1,7 @@
 import numpy as np
 from natural20.entity import Entity
-from natural20.actions.look_action import LookAction
-from natural20.actions.stand_action import StandAction
+# from natural20.actions.look_action import LookAction
+# from natural20.actions.stand_action import StandAction
 
 def enemy_stats(battle, current_player):
     for player in battle.entities.keys():
@@ -110,7 +110,7 @@ def render_terrain(battle, map, view_port_size=(12, 12)):
                 else:
                     terrain = map.base_map[pos_x + x][pos_y + y]
 
-                    if terrain == None:
+                    if terrain is None:
                         terrain_int = 0
                     elif terrain == 'w':
                         terrain_int = 2
@@ -119,7 +119,7 @@ def render_terrain(battle, map, view_port_size=(12, 12)):
 
                     entity = map.entity_at(pos_x + x, pos_y + y)
 
-                    if entity == None:
+                    if entity is None:
                         entity_int = 0
                     elif entity == current_player:
                         entity_int = 1
@@ -212,7 +212,7 @@ def generate_weapon_token_map(session, output_filename):
 
     weapon_map = {}
     weapon_map[0] = "unarmed"
-    for idx, (name, weapon) in enumerate(session.load_weapons().items()):
+    for idx, (name, _) in enumerate(session.load_weapons().items()):
         weapon_map[idx+1] = name
 
     with open(output_filename, "w") as f:

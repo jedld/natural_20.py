@@ -22,8 +22,8 @@ from natural20.utils.movement import compute_actual_moves
 import yaml
 import os
 import copy
-import pdb
-from collections import OrderedDict
+# import pdb
+
 
 class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   ACTION_LIST = [
@@ -82,7 +82,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
     self.attributes["hp"] = copy.deepcopy(self.max_hp())
 
   @staticmethod
-  def load(session, path, override={}):
+  def load(session, path, override=None):
+    if override is None:
+      override = {}
     with open(os.path.join(session.root_path, path), 'r') as file:
       properties = yaml.safe_load(file)
     properties.update(override)
@@ -230,9 +232,6 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
         attack_class = TwoWeaponAttackAction
         attack_type = 'two_weapon_attack'
 
-      action = attack_class(session, self, attack_type)
-      action.using = item
-      attacks.append(action)
       if not opportunity_attack and weapon_detail.get('properties') and 'thrown' in weapon_detail.get('properties', []):
         action = attack_class(session, self, attack_type)
         action.using = item
@@ -337,7 +336,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
 
   def equipped_ac(self):
     with open(os.path.join(self.session.root_path, 'items', 'equipment.yml')) as file:
-      equipments = yaml.load(file, Loader=yaml.FullLoader)
+      equipments = yaml.safe_load(file)
     equipped_meta = [equipments[e] for e in self.equipped if e in equipments]
     armor = next((equipment for equipment in equipped_meta if equipment['type'] == 'armor'), None)
     shield = next((equipment for equipment in equipped_meta if equipment['type'] == 'shield'), None)
@@ -348,10 +347,6 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
 
   def any_class_feature(self, features):
     return any(self.class_feature(f) for f in features)
-  
-  def proficiency_bonus(self):
-    proficiency_bonus_table = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6]
-    return proficiency_bonus_table[self.level() - 1]
   
   def darkvision(self, distance):
     if super():

@@ -1,9 +1,6 @@
 from typing import List, Tuple
-from dataclasses import dataclass
-from types import SimpleNamespace
 from natural20.action import Action
 from natural20.utils.movement import compute_actual_moves, retrieve_opportunity_attacks
-from natural20.event_manager import EventManager
 # typed: true
 class MoveAction(Action):
     """
@@ -14,7 +11,7 @@ class MoveAction(Action):
     as_dash: bool
     as_bonus_action: bool
 
-    def __init__(self, session, source, action_type, opts={}):
+    def __init__(self, session, source, action_type, opts=None):
         super().__init__(session, source, action_type, opts)
         self.move_path = []
         self.jump_index = []
@@ -90,7 +87,7 @@ class MoveAction(Action):
 
         actual_moves = self.check_movement_acrobatics(actual_moves, movement.acrobatics_check_locations, battle)
 
-        cutoff = False
+        # cutoff = False
 
         safe_moves = []
         for move in actual_moves:

@@ -1,7 +1,5 @@
-from typing import Callable
 from dataclasses import dataclass
 from natural20.action import Action
-from natural20.event_manager import EventManager
 
 @dataclass
 class DisengageAction(Action):
@@ -13,9 +11,9 @@ class DisengageAction(Action):
 
     def __repr__(self):
         if self.as_bonus_action:
-            return f"disengage as a bonus action"
+            return "disengage as a bonus action"
         else:
-            return f"disengage"        
+            return "disengage"
 
     @staticmethod
     def can(entity, battle):

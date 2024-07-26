@@ -3,7 +3,9 @@ class EntityStateEvaluator:
     # @param conditions [String]
     # @param context [Dict]
     # @return [bool]
-    def eval_if(self, conditions, context={}):
+    def eval_if(self, conditions, context=None):
+        if context is None:
+            context = {}
         or_groups = conditions.split('|')
         for g in or_groups:
             and_groups = g.split('&')
@@ -40,7 +42,9 @@ class EntityStateEvaluator:
                     return True
         return False
 
-    def apply_effect(self, expression, context={}):
+    def apply_effect(self, expression, context=None):
+        if context is None:
+            context = {}
         action, value = expression.split(':')
         if action == 'status':
             return {

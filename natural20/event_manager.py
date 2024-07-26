@@ -35,7 +35,9 @@ class EventManager:
             for callable in self.event_listeners[event['event']]:
                 callable(event)
 
-    def set_context(self, battle, entities=[]):
+    def set_context(self, battle, entities=None):
+        if entities is None:
+            entities = []
         self.battle = battle
         self.current_entity_context = entities
 

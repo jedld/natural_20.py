@@ -1,11 +1,8 @@
-from dataclasses import dataclass
-from typing import Callable, List, Optional
-from enum import Enum
 from natural20.action import Action
 from collections import namedtuple
 
 class EscapeGrappleAction(Action):
-    def __init__(self, session, source, action_type, opts={}):
+    def __init__(self, session, source, action_type, opts=None):
         super().__init__(session, source, action_type, opts)
         self.ui_callback = None
 

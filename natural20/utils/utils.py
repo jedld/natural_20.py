@@ -1,13 +1,15 @@
 import yaml
 import os
-from collections import defaultdict, deque
+from collections import deque
 from natural20.npc import Npc
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
 
 # typed: true
 class Session:
-    def __init__(self, root_path=None, event_manager=EventManager()):
+    def __init__(self, root_path=None, event_manager=None):
+        if not event_manager:
+            event_manager = EventManager()
         self.root_path = root_path or '.'
         self.session_state = {}
         self.weapons = {}
@@ -82,7 +84,9 @@ class Session:
                     characters.append(PlayerCharacter(self, char_content))
         return characters
 
-    def save_state(self, state_type, value={}):
+    def save_state(self, state_type, value=None):
+        if value is None:
+            value = {}
         self.session_state.setdefault(state_type, {})
         self.session_state[state_type].update(value)
 
@@ -108,7 +112,9 @@ class Session:
                 return yaml.safe_load(f)
         return None
 
-    def npc(self, npc_type, options={}):
+    def npc(self, npc_type, options=None):
+        if options is None:
+            options = {}
         return Npc(self, npc_type, options)
 
     def load_npcs(self):
@@ -191,7 +197,7 @@ class Session:
         return self.objects[object_name]
     
 
-    def t(self, token, options={}):
+    def t(self, token, options=None):
         return token
 
     def load_yaml_file(self, category, resource):

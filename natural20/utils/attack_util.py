@@ -48,7 +48,9 @@ def damage_event(item, battle):
     if battle and total_damage > 0:
         item['target'].on_take_damage(battle, item)
 
-def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, opts={}):
+def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, opts=None):
+    if opts is None:
+        opts = {}
     force_miss = False
 
     # check prepared spells of target for a possible reaction

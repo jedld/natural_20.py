@@ -3,10 +3,10 @@ from natural20.die_roll import DieRoll
 from natural20.entity import Entity
 from natural20.item_library.common import Ground
 from natural20.weapons import damage_modifier, target_advantage_condition
-from natural20.utils.attack_util import cover_calculation, effective_ac, after_attack_roll_hook, damage_event
+from natural20.utils.attack_util import effective_ac, after_attack_roll_hook, damage_event
 
 class AttackAction(Action):
-    def __init__(self, session, source, action_type, opts={}):
+    def __init__(self, session, source, action_type, opts=None):
         super().__init__(session, source, action_type, opts)
         self.target = None
         self.using = None
@@ -17,7 +17,9 @@ class AttackAction(Action):
         self.advantage_mod = None
 
     @staticmethod
-    def can(entity: Entity, battle, options={}):
+    def can(entity: Entity, battle, options=None):
+        if options is None:
+            options = {}
         if battle and options.get('opportunity_attack'):
             return entity.total_reactions(battle) > 0
         return battle is None or entity.total_actions(battle) > 0 or entity.multiattack(battle, options.get('npc_action'))
@@ -144,7 +146,7 @@ class AttackAction(Action):
             battle.entity_state_for(item['source'])['two_weapon'] = None
         
         if battle.entity_state_for(item['source']):
-            for group, attacks in battle.entity_state_for(item['source']).get('multiattack', {}).items():
+            for _, attacks in battle.entity_state_for(item['source']).get('multiattack', {}).items():
                 if item['attack_name'] in attacks:
                     attacks.remove(item['attack_name'])
                     if not attacks:
@@ -158,18 +160,25 @@ class AttackAction(Action):
     def with_disadvantage(self):
         return self.advantage_mod < 0
 
-    def compute_hit_probability(self, battle, opts={}):
+    def compute_hit_probability(self, battle, opts = None):
+        if opts is None:
+            opts = {}
+
         weapon, _, attack_mod, _, _ = self.get_weapon_info(opts)
         advantage_mod, adv_info = target_advantage_condition(battle, self.source, self.target, weapon)
         target_ac, _cover_ac = effective_ac(battle, self.source, self.target)
         return DieRoll.roll(f"1d20+{attack_mod}", advantage=advantage_mod > 0, disadvantage=advantage_mod < 0).prob(target_ac)
 
-    def avg_damage(self, battle, opts={}):
+    def avg_damage(self, battle, opts=None):
+        if opts is None:
+            opts = {}
         _, _, _, damage_roll, _ = self.get_weapon_info(opts)
         return DieRoll.roll(damage_roll).expected()
 
 
-    def resolve(self, session, map, opts={}):
+    def resolve(self, session, map, opts=None):
+        if opts is None:
+            opts = {}
         self.result.clear()
         battle = opts.get('battle')
         target = opts.get('target') or self.target
@@ -261,8 +270,8 @@ class AttackAction(Action):
                         save_type, dc = effect['save_dc'].split(':')
                         if not save_type or not dc:
                             raise Exception('invalid values: save_dc should be of the form <save>:<dc>')
-                        if save_type not in Natural20.Entity.ATTRIBUTE_TYPES:
-                            raise Exception('invalid save type')
+                        # if save_type not in Natural20.Entity.ATTRIBUTE_TYPES:
+                        #     raise Exception('invalid save type')
 
                         save_roll = target.saving_throw(save_type, battle=battle)
                         if save_roll.result() >= int(dc):
@@ -298,7 +307,10 @@ class AttackAction(Action):
 
         return self
 
-    def get_attack_info(self, opts={}):
+    def get_attack_info(self, opts=None):
+        if opts is None:
+            opts = {}
+
         npc_action = opts.get('npc_action') or self.npc_action
 
         using = opts.get('using') or self.using
@@ -378,7 +390,9 @@ class AttackAction(Action):
 
 class TwoWeaponAttackAction(AttackAction):
     @staticmethod
-    def can(entity, battle, options={}):
+    def can(entity, battle, options=None):
+        if options is None:
+            options = {}
         return battle is None or (entity.total_bonus_actions(battle) > 0 and battle.two_weapon_attack(entity) and (options.get('weapon') != battle.first_hand_weapon(entity) or len([a for a in entity.equipped_weapons() if a == battle.first_hand_weapon(entity)]) >= 2))
 
     def second_hand(self):

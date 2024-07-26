@@ -33,7 +33,9 @@ def damage_modifier(entity, weapon, second_hand=False):
     return f"{damage_roll}{f'+{damage_mod}' if damage_mod >= 0 else damage_mod}"
 
 
-def target_advantage_condition(battle, source, target, weapon, source_pos=None, overrides={}):
+def target_advantage_condition(battle, source, target, weapon, source_pos=None, overrides=None):
+    if overrides is None:
+        overrides = {}
     advantages, disadvantages = compute_advantages_and_disadvantages(battle, source, target, weapon,
                                                                      source_pos=source_pos, overrides=overrides)
     advantage_ctr = 0
@@ -41,7 +43,9 @@ def target_advantage_condition(battle, source, target, weapon, source_pos=None, 
     advantage_ctr -= 1 if disadvantages else 0
     return [advantage_ctr, [advantages, disadvantages]]
 
-def compute_advantages_and_disadvantages(battle, source, target, weapon, source_pos=None, overrides={}):
+def compute_advantages_and_disadvantages(battle, source, target, weapon, source_pos=None, overrides=None):
+    if overrides is None:
+        overrides = {}
     weapon = battle.session.load_weapon(weapon) if isinstance(weapon, str) or isinstance(weapon, str) else weapon
     advantage = overrides.get('advantage', [])
     disadvantage = overrides.get('disadvantage', [])

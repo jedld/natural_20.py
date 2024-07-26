@@ -1,19 +1,12 @@
 import gymnasium as gym
 import numpy as np
-from typing import Any, Dict, List, Tuple, Union
-from natural20.map import Map, Terrain
+from typing import Any, Dict
+from natural20.map import Map
 from natural20.battle import Battle
 from natural20.player_character import PlayerCharacter
-from natural20.map_renderer import MapRenderer
-from natural20.die_roll import DieRoll
 from natural20.generic_controller import GenericController
 from natural20.utils.utils import Session
-from natural20.actions.move_action import MoveAction
-from natural20.action import Action
-from natural20.gym.types import EnvObject, Environment
 from natural20.entity import Entity
-from natural20.actions.look_action import LookAction
-from natural20.actions.stand_action import StandAction
 from natural20.gym.dndenv_controller import DndenvController
 from natural20.event_manager import EventManager
 from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, render_terrain
@@ -122,8 +115,8 @@ class dndenv(gym.Env):
                     terrain = self.map.base_map[abs_x][abs_y]
                     entity = self.map.entity_at(abs_x, abs_y)
                     if self.map.can_see_square(current_player, (abs_x, abs_y)):
-                        if entity == None:
-                            if terrain == None:
+                        if entity is None:
+                            if terrain is None:
                                 render_char = "."
                             elif terrain == "w":
                                 render_char = "~"
@@ -240,7 +233,7 @@ class dndenv(gym.Env):
         result = None
         while True:
             player_group = self.battle.entity_group_for(current_player)
-            if not player_group in self.control_groups:
+            if player_group not in self.control_groups:
                 controller = self.battle.controller_for(current_player)
                 while True:
                     action = controller.move_for(current_player, self.battle)
@@ -280,7 +273,7 @@ class dndenv(gym.Env):
             pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', { "name" : name})
             self._describe_hero(pc)
             # set random starting positions, make sure there are no obstacles in the map
-            while player_pos is None or self.map.placeable(pc, player_pos[0], player_pos[1]) == False:
+            while player_pos is None or not self.map.placeable(pc, player_pos[0], player_pos[1]):
                 player_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
             self.players.append(('a', 'H', pc, player_pos))
 
@@ -290,7 +283,7 @@ class dndenv(gym.Env):
 
             pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', {"name":  name})
             self._describe_hero(pc)
-            while enemy_pos is None or enemy_pos==player_pos or self.map.placeable(pc, enemy_pos[0], enemy_pos[1]) == False:
+            while enemy_pos is None or enemy_pos==player_pos or not self.map.placeable(pc, enemy_pos[0], enemy_pos[1]):
                 enemy_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
             self.players.append(('b', 'E', pc , enemy_pos))
 

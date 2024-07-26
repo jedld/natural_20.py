@@ -8,7 +8,7 @@ from natural20.item_library.door_object import DoorObject
 from natural20.player_character import PlayerCharacter
 from natural20.utils.list_utils import remove_duplicates, bresenham_line_of_sight
 import math
-import pdb
+# import pdb
 import os
 
 class Terrain():
@@ -230,7 +230,9 @@ class Map():
                 return obj
         return None
     
-    def place_object(self, object_info, pos_x, pos_y, object_meta={}):
+    def place_object(self, object_info, pos_x, pos_y, object_meta=None):
+        if object_meta is None:
+            object_meta = {}
         if object_info is None:
             return
 
@@ -348,7 +350,7 @@ class Map():
             pos1_x, pos1_y = pos1
             if [pos1_x, pos1_y] == [pos2_x, pos2_y]:
                 return True
-            if self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=False)==None:
+            if self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=False) is None:
                 continue
 
             location_illumination = self.light_at(pos2_x, pos2_y)
@@ -384,7 +386,7 @@ class Map():
                     # print(f"pos2_x {pos2_x} pos2_y {pos2_y} size {self.size}")
                     continue
                 line_of_sight_info = self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, distance=distance)
-                if line_of_sight_info==None:
+                if line_of_sight_info is None:
                     # print(f"no line of sight from {pos1_x},{pos1_y} to {pos2_x},{pos2_y} {distance}")
                     continue
 
@@ -585,7 +587,9 @@ class Map():
         return trigger_results
 
 
-    def activate_map_triggers(self, trigger_type, source, opt={}):
+    def activate_map_triggers(self, trigger_type, source, opt=None):
+        if opt is None:
+            opt = {}
         if trigger_type in self.triggers:
             for trigger in self.triggers[trigger_type]:
                 if trigger.get('if') and not source.eval_if(trigger.get('if'), opt):

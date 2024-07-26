@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-from typing import List
 from natural20.spell.spell import Spell
 from natural20.die_roll import DieRoll
 from natural20.utils.spell_attack_util import evaluate_spell_attack

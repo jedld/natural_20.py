@@ -1,6 +1,6 @@
 from natural20.die_roll import DieRoll
 import math
-import pdb
+# import pdb
 from natural20.event_manager import EventManager
 from natural20.evaluator.entity_state_evaluator import EntityStateEvaluator
 class Entity(EntityStateEvaluator):
@@ -21,7 +21,11 @@ class Entity(EntityStateEvaluator):
         'cha': ['deception', 'intimidation', 'performance', 'persuasion']
     }
 
-    def __init__(self, name, description, attributes = {}, event_manager = EventManager()):
+    def __init__(self, name, description, attributes = None, event_manager = None):
+        if attributes is None:
+            attributes = {}
+        if event_manager is None:
+            event_manager = EventManager()
         self.name = name
         self.description = description
         self.attributes = attributes
@@ -365,9 +369,6 @@ class Entity(EntityStateEvaluator):
     def can_fly(self):
         return self.properties.get('speed_fly')
     
-    def is_flying(self):
-        return self.flying
-    
     def melee_distance(self):
         return 0
     
@@ -522,7 +523,9 @@ class Entity(EntityStateEvaluator):
         self._cleanup_effects()
         return entity_state
     
-    def resolve_trigger(self, event_type, opts={}):
+    def resolve_trigger(self, event_type, opts=None):
+        if opts is None:
+            opts = {}
         if event_type in self.entity_event_hooks:
             active_hook = [effect for effect in self.entity_event_hooks[event_type] if not effect.get('expiration') or effect['expiration'] > self.session.game_time][-1]
             if active_hook:
@@ -530,7 +533,7 @@ class Entity(EntityStateEvaluator):
 
 
     def _cleanup_effects(self):
-        for key, value in self.effects.items():
+        for _, value in self.effects.items():
             delete_effects = [f for f in value if f.get('expiration') and f['expiration'] <= self.session.game_time]
             for effect in delete_effects:
                 self.dismiss_effect(effect)
@@ -835,7 +838,7 @@ class Entity(EntityStateEvaluator):
         if not npc_action.get("multiattack_group", False):
             return False
 
-        for group, attacks in entity_state["multiattack"].items():
+        for _, attacks in entity_state["multiattack"].items():
             if npc_action["name"] in attacks:
                 return True
 
@@ -891,7 +894,10 @@ class Entity(EntityStateEvaluator):
         if controller and hasattr(controller, 'attack_listener'):
             controller.attack_listener(battle, self)
 
-    def eval_effect(self, effect_type, opts={}):
+    def eval_effect(self, effect_type, opts=None):
+        if not opts:
+            opts = {}
+
         if not self.has_effect(effect_type):
             return None
 

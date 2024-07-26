@@ -1,4 +1,3 @@
-from natural20.entity import Entity
 from natural20.actions.second_wind_action import SecondWindAction
 
 class Fighter():

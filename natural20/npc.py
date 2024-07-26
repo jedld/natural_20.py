@@ -1,7 +1,5 @@
 import yaml
 import uuid
-from enum import Enum
-from collections import namedtuple
 import os
 import random
 from natural20.die_roll import DieRoll
@@ -26,8 +24,10 @@ from natural20.actions.look_action import LookAction
 import copy
 
 class Npc(Entity):
-    def __init__(self, session, type, opt={}):
+    def __init__(self, session, type, opt=None):
         super().__init__(type, "npc", {})
+        if opt is None:
+            opt = {}
         if os.path.exists(os.path.join(session.root_path, "npcs", f"{type}.yml")):
             with open(os.path.join(session.root_path, "npcs", f"{type}.yml"), "r") as file:
                 self.properties = copy.deepcopy(yaml.safe_load(file))
@@ -88,7 +88,7 @@ class Npc(Entity):
     def name(self):
         return self._name
     
-    def name(self, value):
+    def set_name(self, value):
         self._name = value
     
     def npc(self):

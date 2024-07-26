@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-from typing import List, Union
 from natural20.spell.spell import Spell
 from natural20.utils.spell_attack_util import consume_resource
 

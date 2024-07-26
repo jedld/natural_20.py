@@ -1,5 +1,3 @@
-from typing import Callable
-from dataclasses import dataclass
 from types import SimpleNamespace
 from natural20.action import Action
 from natural20.entity import Entity

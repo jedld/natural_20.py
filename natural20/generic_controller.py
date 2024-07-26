@@ -1,8 +1,7 @@
-import random
 from natural20.actions.look_action import LookAction
 from natural20.actions.stand_action import StandAction
 from natural20.actions.attack_action import AttackAction
-from natural20.actions.prone_action import ProneAction
+# from natural20.actions.prone_action import ProneAction
 from natural20.actions.move_action import MoveAction
 from natural20.gym.types import EnvObject, Environment
 from natural20.entity import Entity
@@ -42,7 +41,9 @@ class GenericController:
         selected_action = self.select_action(battle, entity, valid_actions )
         return selected_action
 
-    def select_action(self, battle, entity, available_actions = []) -> Action:
+    def select_action(self, battle, entity, available_actions = None) -> Action:
+        if available_actions is None:
+            available_actions = []
         if len(available_actions) > 0:
             action = self._sort_actions(battle, available_actions)[0]
             # print(f"{entity.name}: {action}")
@@ -83,7 +84,10 @@ class GenericController:
     # gain information about enemies in a fair and realistic way (e.g. using line of sight)
     # @param battle [Natural20::Battle]
     # @param entity [Natural20::Entity]
-    def _observe_enemies(self, battle, entity, enemy_positions={}):
+    def _observe_enemies(self, battle, entity, enemy_positions=None):
+        if enemy_positions is None:
+            enemy_positions = {}
+
         objects_around_me = battle.map.look(entity)
 
         my_group = battle.entity_group_for(entity)
@@ -113,8 +117,8 @@ class GenericController:
     def _compute_available_moves(self, entity, battle):
         self._initialize_battle_data(battle, entity)
 
-        known_enemy_positions = self.battle_data[battle][entity]['known_enemy_positions']
-        hiding_spots = self.battle_data[battle][entity]['hiding_spots']
+        # known_enemy_positions = self.battle_data[battle][entity]['known_enemy_positions']
+        # hiding_spots = self.battle_data[battle][entity]['hiding_spots']
         investigate_location = self.battle_data[battle][entity]['investigate_location']
 
         enemy_positions = {}

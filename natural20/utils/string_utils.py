@@ -1,4 +1,3 @@
-import re
 
 def classify(table_name):
     # Split the string into words based on underscores

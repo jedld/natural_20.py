@@ -1,5 +1,3 @@
-from typing import List
-from dataclasses import dataclass
 from natural20.action import Action
 
 class HelpAction(Action):

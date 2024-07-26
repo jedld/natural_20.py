@@ -1,5 +1,5 @@
 from collections import OrderedDict
-import pdb
+# import pdb
 
 WIZARD_SPELL_SLOT_TABLE = [
   # cantrips, 1st, 2nd, 3rd ... etc

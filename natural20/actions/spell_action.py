@@ -1,5 +1,3 @@
-from abc import ABC, abstractmethod
-from typing import Callable
 from dataclasses import dataclass
 from natural20.utils.attack_util import damage_event
 from natural20.action import Action
@@ -13,7 +11,7 @@ from natural20.spell.spell import Spell
 from natural20.utils.spell_attack_util import consume_resource
 from enum import Enum
 
-class SpellAction(Enum):
+class SpellActionConstants(Enum):
     SPELL_DAMAGE = "spell_damage"
     SPELL_MISS = "spell_miss"
 

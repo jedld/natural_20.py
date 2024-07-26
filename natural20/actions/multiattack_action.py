@@ -1,5 +1,4 @@
 from typing import Any
-from dataclasses import dataclass
 from natural20.action import Action
 
 class MultiattackAction(Action):

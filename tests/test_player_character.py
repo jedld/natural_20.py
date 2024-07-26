@@ -23,16 +23,19 @@ class TestPlayerCharacter(unittest.TestCase):
     def load_fighter_character(self):
         player = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
         self.battle.add(player, 'a')
+        player.reset_turn(self.battle)
         return player
     
     def load_rogue_character(self):
         player = PlayerCharacter.load(self.session, 'halfling_rogue.yml')
         self.battle.add(player, 'a')
+        player.reset_turn(self.battle)
         return player
     
     def load_elf_rogue_character(self):
         player = PlayerCharacter.load(self.session, 'elf_rogue.yml')
         self.battle.add(player, 'a')
+        player.reset_turn(self.battle)
         return player    
     
     def setUp(self):
