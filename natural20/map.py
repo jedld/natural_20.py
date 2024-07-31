@@ -103,6 +103,11 @@ class Map():
                         pass
                     elif token == '.':
                         self.place_object(Ground(self, name='ground'), pos_x, pos_y)
+                    elif token == '-' or token == '|':
+                        object_info = self.session.load_object('door')
+                        obj = DoorObject(self, object_info, token)
+                        self.interactable_objects[obj] = [pos_x, pos_y]
+                        self.place_object(obj, pos_x, pos_y)
                     else:
                         object_meta = self.legend[token]
                         if object_meta is None:

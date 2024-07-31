@@ -12,6 +12,9 @@ chill_touch:
   range: 120
   school: necromancy
   type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 expeditious_retreat:
   casting_time: 1:bonus_action
   components:
@@ -23,6 +26,9 @@ expeditious_retreat:
   range: 0
   school: transmutation
   type: movement
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 find_familiar:
   casting_time: 1:hour
   components:
@@ -41,6 +47,9 @@ find_familiar:
   range: 10
   school: conjuration
   type: summoning
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 firebolt:
   base_damage: 1d10
   casting_time: 1:action
@@ -60,6 +69,9 @@ firebolt:
   school: evocation
   spell_class: Natural20::Firebolt
   type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 mage_armor:
   casting_time: 1:action
   components:
@@ -75,6 +87,9 @@ mage_armor:
   school: abjuration
   spell_class: Natural20::MageArmor
   type: buff
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 magic_missile:
   casting_time: 1:action
   damage_type: force
@@ -86,6 +101,9 @@ magic_missile:
   school: evocation
   spell_class: Natural20::MagicMissile
   type: force
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 ray_of_frost:
   base_damage: 1d8
   casting_time: 1:action
@@ -107,6 +125,9 @@ ray_of_frost:
   range: 60
   school: evocation
   type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 shield:
   casting_time: 1:reaction
   components:
@@ -119,6 +140,9 @@ shield:
   school: abjuration
   spell_class: Natural20::Shield
   type: warding
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 shocking_grasp:
   base_damage: 1d8
   casting_time: 1:action
@@ -143,6 +167,9 @@ shocking_grasp:
   range: 5
   school: evocation
   type: melee_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 true_strike:
   casting_time: 1:action
   components:
@@ -156,3 +183,6 @@ true_strike:
   range: 30
   school: divination
   type: foreknowledge
+  spell_list_classes:
+    - Sorcerer
+    - Wizard

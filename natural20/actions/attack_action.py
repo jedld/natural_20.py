@@ -235,7 +235,8 @@ class AttackAction(Action):
             target_ac, cover_ac_adjustments = effective_ac(battle, self.source, target)
             hit = attack_roll.result() >= target_ac
 
-        assert damage is not None, 'damage is required'
+        if damage is None:
+            raise Exception('damage should is required')
         
         if hit:
             self.result.append({

@@ -205,6 +205,9 @@ class Battle():
     def opponents_of(self, entity):
         return [k for k in (list(self.entities.keys()) + self.late_comers) if not k.dead() and self.opposing(k, entity)]
     
+    def allies_of(self, entity):
+        return [k for k in (list(self.entities.keys()) + self.late_comers) if not k.dead() and self.allies(k, entity)]
+
     def enemy_in_melee_range(self, source, exclude=None, source_pos=None):
         objects_around_me = self.map.look(source)
         exclude = exclude or []

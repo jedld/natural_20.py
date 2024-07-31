@@ -201,7 +201,8 @@ class dndenv(gym.Env):
         observation = self.generate_observation(current_player)
         _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle, weapon_mappings=self.weapon_mappings)
         
-        assert len(_available_moves) > 0, "There should be at least one available move for the agent."
+        if not len(_available_moves) > 0:
+            raise Exception("There should be at least one available move for the agent.")
 
         return observation, self._info(_available_moves, current_player)
 

@@ -6,6 +6,7 @@ from natural20.spell.firebolt_spell import FireboltSpell
 from natural20.spell.mage_armor_spell import MageArmorSpell
 from natural20.spell.chill_touch_spell import ChillTouchSpell
 from natural20.spell.expeditious_retreat_spell import ExpeditiousRetreatSpell
+from natural20.spell.magic_missile_spell import MagicMissileSpell
 from natural20.utils.string_utils import classify
 from natural20.spell.spell import Spell
 from natural20.utils.spell_attack_util import consume_resource
@@ -34,20 +35,30 @@ class SpellAction(Action):
 
         if opt is None:
             opt = {}
+
         return SpellAction.can_cast(entity, battle, opt.get("spell", None))
 
     @staticmethod
-    def can_cast(entity, battle, spell):
+    def can_cast(entity, battle, spell, at_level=None):
         if not spell:
             return True
 
         spell_details = battle.session.load_spell(spell)
-        amt, resource = spell_details.casting_time.split(":")
+        amt, resource = spell_details['casting_time'].split(":")
+        if at_level is None:
+            at_level = spell_details['level']
 
-        if resource == "action" and battle.total_actions(entity) > 0:
-            return True
+        # check spell slots
+        if spell_details['level'] > 0 and entity.spell_slots_count(at_level) == 0:
+            return False
 
-        return False
+        if resource == "action" and entity.total_actions(battle) == 0:
+            return False
+
+        if resource == "bonus_action" and entity.total_bonus_actions(battle) == 0:
+            return False
+
+        return True
 
     @staticmethod
     def build(session, source):
@@ -74,6 +85,8 @@ class SpellAction(Action):
                 spell_class = ChillTouchSpell
             elif spell_name == 'ExpeditiousRetreatSpell':
                 spell_class = ExpeditiousRetreatSpell
+            elif spell_name == 'MagicMissileSpell':
+                spell_class = MagicMissileSpell
             else:
                 raise Exception(f"spell class not found {spell_name}")
             self.spell_action = spell_class(self.session, self.source, spell, self.spell)
