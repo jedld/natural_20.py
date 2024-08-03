@@ -196,23 +196,21 @@ Note that it is recommended to use [VLLM](https://github.com/vllm-project/vllm) 
 
 The recommended route to run and setup VLLM is via Docker, below is a sample on how to get started with LLama 3:
 
-```
+```bash
 docker run --runtime=nvidia --gpus all -p 8000:8000 -v ~/.cache/huggingface:/root/.cache/huggingface \
        -it vllm --model NousResearch/Meta-Llama-3-8B-Instruct --dtype=auto --api-key token1234
 ```
 
-
-
 Running Tests
 =============
 
-```python
+```bash
 python -m unittest discover tests
 ```
 
 Run specific tests
 
-```
+```bash
 python -m unittest tests.test_gym.TestGym.test_reset
 python -m unittest tests.test_map.TestMap.test_line_of_sight
 ```

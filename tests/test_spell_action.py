@@ -3,12 +3,14 @@ from natural20.actions.spell_action import SpellAction
 from natural20.utils.utils import Session
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
-from natural20.npc import Npc
+
 from natural20.map import Map
 from natural20.battle import Battle
+from natural20.utils.action_builder import autobuild
 from natural20.map_renderer import MapRenderer
 from natural20.weapons import target_advantage_condition
 import random
+import pdb
 
 class TestSpellAction(unittest.TestCase):
     def make_session(self):
@@ -66,7 +68,7 @@ class TestSpellAction(unittest.TestCase):
         self.assertEqual(self.entity.armor_class(), 12)
     
     def test_equip_armor_cancels_effect(self):
-        action = self.setupMageArmor()
+        self.setupMageArmor()
         self.assertEqual(self.entity.armor_class(), 15)
         self.entity.equip('studded_leather', ignore_inventory=True)
         self.assertEqual(self.entity.armor_class(), 12)
@@ -106,6 +108,12 @@ class TestSpellAction(unittest.TestCase):
         self.assertEqual([s['type'] for s in action.result], ['expeditious_retreat'])
         self.battle.commit(action)
         self.assertIn('dash_bonus', [a.action_type for a in self.entity.available_actions(self.session, self.battle)])
+
+    def autobuild_test(self):
+        auto_build_actions = autobuild(self.session, SpellAction, self.entity, self.battle)
+        pdb.set_trace()
+        self.assertEqual(len(auto_build_actions), 1)
+
 
 if __name__ == '__main__':
     unittest.main()

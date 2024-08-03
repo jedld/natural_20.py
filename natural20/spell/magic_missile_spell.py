@@ -9,14 +9,14 @@ class MagicMissileSpell(Spell):
 
         def next_func(target):
             action.target = target
-
-            def inner_next():
-                return action
-
-            return inner_next
+            return action
 
         return { 'param': [
-            {'type': 'select_target', 'num': darts, 'range': self.properties['range'], 'target_types': ['enemies']}
+            {'type': 'select_target',
+             'num': darts,
+             'range': self.properties['range'],
+             'allow_retarget': True,
+             'target_types': ['enemies']}
         ], 'next': next_func }
 
     def resolve(self, entity, battle, spell_action):

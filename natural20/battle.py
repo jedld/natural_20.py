@@ -302,6 +302,9 @@ class Battle():
         source_group1 = source_state1['group']
         source_group2 = source_state2['group']
 
+        if source_group1 == source_group2:
+            return False
+
         return source_group2 in self.opposing_groups.get(source_group1, [])
     
     def allies(self, entity1, entity2):

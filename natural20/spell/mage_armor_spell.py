@@ -8,10 +8,7 @@ class MageArmorSpell(Spell):
     def build_map(self, action):
         def set_target(target):
             action.target = target
-            return {
-                'param': None,
-                'next': lambda: action
-            }
+            return action
         return {
             'param': [
                 {

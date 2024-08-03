@@ -24,6 +24,10 @@ class SpellAction(Action):
 
     def __init__(self, session, source, spell):
         super().__init__(session, source, spell)
+        self.spell_class = spell
+        self.level = 0  # base spell level
+        self.at_level = 0 # cast at level
+        self.casting_time = "action"
 
     @staticmethod
     def can(entity, battle, opt = None):
@@ -72,6 +76,7 @@ class SpellAction(Action):
             if not spell:
                 raise Exception(f"spell not found {spell_name}")
             self.spell = spell
+            self.level = spell.get("level", 0)
             self.at_level = at_level
             spell_name = spell.get("spell_class", classify(spell_name)) + "Spell"
             spell_name = spell_name.replace("Natural20::", "")
@@ -89,6 +94,7 @@ class SpellAction(Action):
                 spell_class = MagicMissileSpell
             else:
                 raise Exception(f"spell class not found {spell_name}")
+            self.spell_class = spell_class
             self.spell_action = spell_class(self.session, self.source, spell, self.spell)
             self.spell_action.action = self
             return self.spell_action.build_map(self)
