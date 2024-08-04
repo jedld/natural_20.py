@@ -1,10 +1,15 @@
 from natural20.spell.spell import Spell
 from natural20.die_roll import DieRoll
 from natural20.utils.spell_attack_util import evaluate_spell_attack
+import pdb
 
 class ChillTouchSpell(Spell):
-    def build_map(self, action):
+    def build_map(self, orig_action):
         def set_target(target):
+            if not target:
+                raise ValueError("Invalid target")
+
+            action = orig_action.clone()
             action.target = target
             return action
         return {
@@ -74,7 +79,10 @@ class ChillTouchSpell(Spell):
 
     @staticmethod
     def start_of_turn(entity, opt=None):
-        opt['effect'].action.target.dismiss_effect(opt['effect'])
+        if opt['effect'].action.target:
+            opt['effect'].action.target.dismiss_effect(opt['effect'])
+        else:
+            pdb.set_trace()
 
     @staticmethod
     def attack_advantage_modifier(entity, opt=None):

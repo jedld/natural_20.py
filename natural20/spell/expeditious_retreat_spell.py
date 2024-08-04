@@ -3,6 +3,7 @@ from natural20.utils.spell_attack_util import consume_resource
 
 class ExpeditiousRetreatSpell(Spell):
     def build_map(self, action):
+        action = action.clone()
         return action
 
     @staticmethod

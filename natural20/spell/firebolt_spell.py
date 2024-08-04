@@ -8,8 +8,9 @@ class FireboltSpell(Spell):
         self.range = 60
         self.damage_type = "fire"
 
-    def build_map(self, action):
+    def build_map(self, orig_action):
         def set_target(target):
+            action = orig_action.clone()
             action.target = target
             return action
         return {

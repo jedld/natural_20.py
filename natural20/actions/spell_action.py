@@ -28,6 +28,24 @@ class SpellAction(Action):
         self.level = 0  # base spell level
         self.at_level = 0 # cast at level
         self.casting_time = "action"
+        self.spell_action = None
+        self.target = None
+
+    def __str__(self):
+        name = "SpellAction: unknown"
+        if self.spell_action:
+            name = f"SpellAction: {self.spell_action.short_name()}"
+            if self.at_level != self.level:
+                name += f" upcasted at level {self.at_level}"
+        return name
+
+    def __repr__(self):
+        return self.__str__()
+
+    def short_name(self):
+        if self.spell_action:
+            return self.spell_action.short_name()
+        return "spell"
 
     @staticmethod
     def can(entity, battle, opt = None):
@@ -71,13 +89,14 @@ class SpellAction(Action):
 
     def build_map(self):
         def select_spell(spell_choice):
+            action = self.clone()
             spell_name, at_level = spell_choice
             spell = self.session.load_spell(spell_name)
             if not spell:
                 raise Exception(f"spell not found {spell_name}")
-            self.spell = spell
-            self.level = spell.get("level", 0)
-            self.at_level = at_level
+            action.spell = spell
+            action.level = spell.get("level", 0)
+            action.at_level = at_level
             spell_name = spell.get("spell_class", classify(spell_name)) + "Spell"
             spell_name = spell_name.replace("Natural20::", "")
             if spell_name == 'ShockingGraspSpell':
@@ -94,10 +113,10 @@ class SpellAction(Action):
                 spell_class = MagicMissileSpell
             else:
                 raise Exception(f"spell class not found {spell_name}")
-            self.spell_class = spell_class
-            self.spell_action = spell_class(self.session, self.source, spell, self.spell)
-            self.spell_action.action = self
-            return self.spell_action.build_map(self)
+            action.spell_class = spell_class
+            action.spell_action = spell_class(self.session, self.source, spell_name, spell)
+            action.spell_action.action = action
+            return action.spell_action.build_map(action)
 
         return {
                 "action": self,
@@ -108,6 +127,16 @@ class SpellAction(Action):
                 ],
                 "next": select_spell
         }
+    
+    def clone(self):
+        spell_action = SpellAction(self.session, self.source, self.spell_class)
+        spell_action.level = self.level
+        spell_action.at_level = self.at_level
+        spell_action.target = self.target
+        if self.spell_action:
+            spell_action.spell_action = self.spell_action.clone()
+            spell_action.spell_action.action = spell_action
+        return spell_action
 
     def resolve(self, session, map=None, opts=None):
         battle = opts.get("battle")

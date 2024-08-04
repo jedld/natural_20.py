@@ -25,12 +25,12 @@ def damage_event(item, battle):
     
     battle.event_manager.received_event({
         'source': item['source'],
-        'attack_roll': item['attack_roll'],
+        'attack_roll': item.get('attack_roll', None),
         'target': item['target'],
         'event': 'attacked',
         'attack_name': item['attack_name'],
         'damage_type': item['damage_type'],
-        'advantage_mod': item['advantage_mod'],
+        'advantage_mod': item.get('advantage_mod', None),
         'as_reaction': item.get('as_reaction', False),
         'damage_roll': item['damage'],
         'sneak_attack': item.get('sneak_attack',False),
@@ -42,8 +42,8 @@ def damage_event(item, battle):
         'total_damage': total_damage
     })
    
-
-    item['target'].take_damage(total_damage, battle=battle, critical=item['attack_roll'].nat_20())
+    critical = item['attack_roll'].nat_20() if item.get('attack_roll') else False
+    item['target'].take_damage(total_damage, battle=battle, critical=critical)
 
     if battle and total_damage > 0:
         item['target'].on_take_damage(battle, item)

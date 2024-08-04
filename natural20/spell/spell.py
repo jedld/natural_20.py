@@ -1,13 +1,32 @@
+import re
+
+def camel_case_to_human_readable(camel_case_string):
+    # Insert spaces before uppercase letters and capitalize the first letter
+    human_readable = re.sub(r'(?<!^)(?=[A-Z])', '_', camel_case_string).capitalize()
+    return human_readable.lower()
+
 class Spell:
     def __init__(self, session, source, spell_name, details):
         self.session = session
         self.name = spell_name
         self.properties = details
+        self.action = None
         self.source = source
+        self.target = None
         self.errors = []
+
+    def short_name(self):
+        # remove the spell suffix and turn Camelcase to space separated
+        return camel_case_to_human_readable(self.name[:-5])
 
     def label(self):
         return self.t(f"spell.{self.name}")
+
+    def clone(self):
+        spell = self.__class__(self.session, self.source, self.name, self.properties)
+        spell.target = self.target
+        spell.action = self.action
+        return spell
 
     @property
     def id(self):

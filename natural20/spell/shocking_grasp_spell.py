@@ -4,8 +4,9 @@ from natural20.utils.spell_attack_util import evaluate_spell_attack
 
 class ShockingGraspSpell(Spell):
 
-    def build_map(self, action):
+    def build_map(self, orig_action):
         def set_target(target):
+            action = orig_action.clone()
             action.target = target
             return action
         return {

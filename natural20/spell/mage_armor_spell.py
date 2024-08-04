@@ -5,8 +5,9 @@ class MageArmorSpell(Spell):
     def __init__(self, session, source, spell_name, details):
         super().__init__(session, source, spell_name, details)
 
-    def build_map(self, action):
+    def build_map(self, orig_action):
         def set_target(target):
+            action = orig_action.clone()
             action.target = target
             return action
         return {

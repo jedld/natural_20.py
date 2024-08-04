@@ -38,7 +38,7 @@ class TestDieRoll(unittest.TestCase):
   def test_addition_operator(self):
     sum_of_rolls = DieRoll.roll('2d8') + DieRoll.roll('1d6')
     self.assertEqual(sum_of_rolls.result(), 13)
-    self.assertEqual(sum_of_rolls.__str__(), '(7 + 2) + (4)')
+    self.assertEqual(sum_of_rolls.__str__(), 'd8(7 + 2) + d6(4)')
 
   def test_expected_value(self):
     self.assertEqual(DieRoll.roll('1d6+2').expected(), 5.5)
@@ -68,12 +68,12 @@ class TestDieRoll(unittest.TestCase):
 
   def test_roll_with_disadvantage(self):
     roll = DieRoll.roll('1d20', disadvantage=True)
-    self.assertEqual(roll.__str__(), '(14 | 4)')
+    self.assertEqual(roll.__str__(), 'd20(14 | 4*)')
     self.assertEqual(roll.result(), 4)
 
   def test_roll_with_advantage(self):
     roll = DieRoll.roll('1d20', advantage=True)
-    self.assertEqual(roll.__str__(), '(14 | 4)')
+    self.assertEqual(roll.__str__(), 'd20(14* | 4)')
     self.assertEqual(roll.result(), 14)
 
 

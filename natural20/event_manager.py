@@ -48,6 +48,12 @@ class EventManager:
     def standard_cli(self):
         self.clear()
 
+        def attack_roll(event):
+            msg = f"{self.show_name(event)} attacked {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']}{'(thrown)' if event['thrown'] else ''} and hits"
+            if event['attack_roll']:
+                msg += f" with attack roll {event['attack_roll']} = {event['attack_roll'].result()}"
+            print(f"{msg}.")
+
         event_handlers = {
             'second_wind': lambda event: print(f"{self.show_name(event)} uses second wind to recover {event['value']}={event['value'].result()} hit points."),    
             'disengage': lambda event: print(f"{self.show_name(event)} disengages."),
@@ -57,7 +63,7 @@ class EventManager:
             'stand': lambda event: print(f"{self.show_name(event)} stands up."),
             'prone': lambda event: print(f"{self.show_name(event)} goes prone."),
             'unconscious': lambda event: print(f"{self.show_name(event)} unconscious."),
-            'attacked': lambda event: print(f"{self.show_name(event)} attacked {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']}{'(thrown)' if event['thrown'] else ''} and hits with {event['attack_roll']}= {event['attack_roll'].result()}."),
+            'attacked': attack_roll,
             'damage': lambda event: print(f"{self.show_name(event)} took {event['value']} damage."),
             'spell_damage': lambda event: print(f"{self.show_name(event)} cast {event['spell']['name']} on {self.show_target_name(event)} and hit with {event['attack_roll']}= {event['attack_roll'].result()} for {event['damage']} damage."),
             'miss': lambda event: print(f"{self.show_name(event)} tried to attack {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']} but missed with {event['attack_roll']}= {event['attack_roll'].result()}."),

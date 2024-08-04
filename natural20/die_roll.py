@@ -197,16 +197,16 @@ class DieRoll(Rollable):
         rolls = []
         for r in self.rolls:
             if self.advantage:
-                rolls.append(' | '.join(self.color_roll(i) if i == max(r) else str(i) for i in r))
+                rolls.append(' | '.join(f"{self.color_roll(i)}*" if i == max(r) else str(i) for i in r))
             elif self.disadvantage:
-                rolls.append(' | '.join(self.color_roll(i) if i == min(r) else str(i) for i in r))
+                rolls.append(' | '.join(f"{self.color_roll(i)}*" if i == min(r) else str(i) for i in r))
             else:
                 rolls.append(self.color_roll(r))
 
         if self.modifier != 0:
-            return f"({' + '.join(rolls)}) + {self.modifier}"
+            return f"d{self.die_sides}({' + '.join(rolls)}) + {self.modifier}"
         else:
-            return f"({' + '.join(rolls)})"
+            return f"d{self.die_sides}({' + '.join(rolls)})"
 
     @staticmethod
     def numeric(c):

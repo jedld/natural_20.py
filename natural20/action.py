@@ -12,6 +12,9 @@ class Action:
             opts = {}
         self.opts = opts
 
+    def clone(self):
+        return Action(self.session, self.source, self.action_type, self.opts)
+
     @staticmethod
     def can(entity, battle, options=None):
         return False

@@ -29,7 +29,7 @@ def build_params(session, entity, battle, build_info) -> list:
                 targets = battle.opponents_of(entity)
                 if spell_range > 0 and battle.map:
                     for t in targets:
-                        if battle.distance(entity, t) <= spell_range:
+                        if battle.map.distance(entity, t) <= spell_range:
                             possible_targets.add(t)
             elif 'allies' in param["target_types"]:
                     # get all allies
@@ -45,14 +45,13 @@ def build_params(session, entity, battle, build_info) -> list:
                 return None
 
             # get all possible combination of possible 1 to num_targets targets
-            for i in range(1, param.get("num", 1) + 1):
-                if not param.get("allow_retarget", False):
-                    for target_combination in itertools.combinations(possible_targets, i):
-                        selected_target_combinations.append(target_combination)
-                else:
-                    for target_combination in itertools.combinations_with_replacement(possible_targets, i):
-                        selected_target_combinations.append(target_combination)
-
+            total_targets = param.get("num", 1)
+            min_targets = param.get("min", total_targets)
+            max_targets = param.get("max", total_targets)
+            for i in range(min_targets, max_targets + 1):
+                target_combinations = itertools.combinations_with_replacement(possible_targets, i) if param.get("allow_retarget", False) else itertools.combinations(possible_targets, i)
+                for target_combination in target_combinations:
+                    selected_target_combinations.append(target_combination[0] if total_targets == 1 else target_combination)
             params.append(selected_target_combinations)
         else:
             raise ValueError(f"Unknown param type {param['type']}")

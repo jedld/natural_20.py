@@ -31,7 +31,7 @@ class TestSpellAction(unittest.TestCase):
     def test_firebolt(self):
         self.assertEqual(self.npc.hp(), 7)
         print(MapRenderer(self.battle_map).render())
-        action = SpellAction.build(self.session, self.entity)['next'](['firebolt',0])['next'](self.npc)['next']()
+        action = SpellAction.build(self.session, self.entity)['next'](['firebolt',0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
         self.assertEqual([s['type'] for s in action.result], ['spell_damage'])
         self.battle.commit(action)
@@ -44,8 +44,7 @@ class TestSpellAction(unittest.TestCase):
         random.seed(7000)
         print(MapRenderer(self.battle_map).render())
         build = SpellAction.build(self.session, self.entity)['next'](['shocking_grasp', 0])
-        build = build['next'](self.npc)
-        action = build['next']()
+        action = build['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle" : self.battle})
         self.assertEqual([s['type'] for s in action.result], ['spell_damage', 'shocking_grasp'])
         self.assertTrue(self.npc.has_reaction(self.battle))
@@ -55,7 +54,7 @@ class TestSpellAction(unittest.TestCase):
 
     def setupMageArmor(self):
         self.assertEqual(self.entity.armor_class(), 12)
-        action = SpellAction.build(self.session, self.entity)['next'](['mage_armor', 0])['next'](self.entity)['next']()
+        action = SpellAction.build(self.session, self.entity)['next'](['mage_armor', 0])['next'](self.entity)
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
         self.assertEqual([s['type'] for s in action.result], ['mage_armor'])
         self.battle.commit(action)
@@ -76,7 +75,7 @@ class TestSpellAction(unittest.TestCase):
     def test_chill_touch(self):
         self.assertEqual(self.npc.hp(), 7)
         print(MapRenderer(self.battle_map).render())
-        action = SpellAction.build(self.session, self.entity)['next'](['chill_touch', 0])['next'](self.npc)['next']()
+        action = SpellAction.build(self.session, self.entity)['next'](['chill_touch', 0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
         self.assertEqual([s['type'] for s in action.result], ['spell_damage', 'chill_touch'])
         self.battle.commit(action)
@@ -96,24 +95,35 @@ class TestSpellAction(unittest.TestCase):
         self.npc = self.session.npc('skeleton')
         self.battle.add(self.npc, 'b', position=[5, 5])
         print(MapRenderer(self.battle_map).render())
-        action = SpellAction.build(self.session, self.entity)['next'](['chill_touch', 0])['next'](self.npc)['next']()
+        action = SpellAction.build(self.session, self.entity)['next'](['chill_touch', 0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle" : self.battle})
         self.battle.commit(action)
         self.assertEqual(self.npc.hp(), 5)
         self.assertEqual(target_advantage_condition(self.battle, self.npc, self.entity, None), [-1, [[], ['chill_touch_disadvantage']]])
 
     def test_expeditious_retreat(self):
-        action = SpellAction.build(self.session, self.entity)['next'](['expeditious_retreat', 0])['next']()
+        action = SpellAction.build(self.session, self.entity)['next'](['expeditious_retreat', 0])
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
         self.assertEqual([s['type'] for s in action.result], ['expeditious_retreat'])
         self.battle.commit(action)
         self.assertIn('dash_bonus', [a.action_type for a in self.entity.available_actions(self.session, self.battle)])
 
     def autobuild_test(self):
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[0, 6])
         auto_build_actions = autobuild(self.session, SpellAction, self.entity, self.battle)
-        pdb.set_trace()
-        self.assertEqual(len(auto_build_actions), 1)
+        self.assertEqual(len(auto_build_actions), 3)
+        self.assertEqual([str(a) for a in  auto_build_actions], ['SpellAction: firebolt',
+                                              'SpellAction: mage_armor',
+                                              'SpellAction: magic_missile'])
 
+        self.assertEqual(self.entity.armor_class(), 12)
+        # must be a valid action
+        for a in auto_build_actions:
+            a.resolve(self.session, self.battle_map, { "battle": self.battle})
+            self.battle.commit(a)
+        # mage armor should take effect
+        self.assertEqual(self.entity.armor_class(), 15)
 
 if __name__ == '__main__':
     unittest.main()
