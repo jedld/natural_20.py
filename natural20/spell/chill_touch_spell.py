@@ -67,7 +67,6 @@ class ChillTouchSpell(Spell):
                 'attack_name': "spell.chill_touch",
                 'damage_type': self.properties['damage_type'],
                 'attack_roll': attack_roll,
-                'damage_roll': damage_roll,
                 'advantage_mod': advantage_mod,
                 'cover_ac': cover_ac_adjustments,
                 'spell': self.properties,

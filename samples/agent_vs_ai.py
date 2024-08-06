@@ -42,7 +42,7 @@ class ModelPolicy:
 
 env = make("dndenv-v0", root_path="samples/map_with_obstacles", render_mode="ansi",
             show_logs=True,
-            profiles=['high_elf_fighter.yml'], enemies=['high_elf_fighter.yml'])
+            profiles=['high_elf_mage.yml'], enemies=['high_elf_fighter.yml'])
 
 observation, info = env.reset()
 

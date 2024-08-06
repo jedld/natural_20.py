@@ -14,6 +14,7 @@ class LLMInterfacer:
 
     def select_action_for_state(self, state, info):
         # just return a random action for now
+        # trunk-ignore(bandit/B311)
         action = random.choice(info['available_moves']) # assign random action instead
         return action
 
@@ -35,14 +36,14 @@ class LLMInterfacer:
         instruction_prompt += f"Reactions: {reactions}\n\n"
         prompt = instruction_prompt        
         prompt += self.map_to_prompt(map)
-        prompt += self.action_to_prompt(info['available_moves'], info["weapon_mappings"])
+        prompt += self.action_to_prompt(info['available_moves'], info["weapon_mappings"], info["spell_mappings"])
         prompt += "\n\nPlease choose the number corresponding to the action you would like to take.\n"
         prompt += "Provide the number as your first answer in the following format, for example:\n"
         prompt += "1: attack enemy with ranged weapon\n"
         prompt += "No need to explain just provide the answer."
         return prompt
     
-    def action_to_prompt(self, actions, weapon_mappings=None):
+    def action_to_prompt(self, actions, weapon_mappings=None, spell_mappings=None):
         prompt = "\n\nHere are the available actions you can take, please choose the number corresponding to the action:\n"
         prompt += "0: end my turn\n"
         for index, action in enumerate(actions):
@@ -87,6 +88,10 @@ class LLMInterfacer:
                 message = f"two weapon attack bonus action\n"
             elif action_type == action_type_to_int("prone"):
                 message = f"go prone\n"
+            elif action_type == action_type_to_int("spell"):
+                message = f"cast the "
+                attack_name = self._look_up_spell_name(param3, spell_mappings)
+                message += f" {attack_name} spell\n"
             else:
                 message = f"unknown action {action_type}\n"
                 raise ValueError(f"Unknown action type {action_type}")
@@ -147,6 +152,14 @@ class LLMInterfacer:
         weapon_mappings = {v: k for k, v in weapon_mappings.items()}
         if weapon_mappings and weapon_id in weapon_mappings:
             return weapon_mappings.get(weapon_id, "")
+        else:
+            return ""
+        
+    def _lookup_spell_name(self, spell_id, spell_mappings=None):
+        # swap the values and keys
+        spell_mappings = {v: k for k, v in spell_mappings.items()}
+        if spell_mappings and spell_id in spell_mappings:
+            return spell_mappings.get(spell_id, "")
         else:
             return ""
     

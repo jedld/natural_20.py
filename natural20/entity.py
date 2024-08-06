@@ -587,7 +587,7 @@ class Entity(EntityStateEvaluator):
         c_speed = self.properties.get('speed_fly',0) if self.is_flying() else self.properties['speed']
 
         if self.has_effect('speed_override'):
-            c_speed = self.eval_effect('speed_override', stacked=True, value=c_speed)
+            c_speed = self.eval_effect('speed_override', { "stacked": True, "value" : c_speed})
 
         return c_speed
     
@@ -859,7 +859,7 @@ class Entity(EntityStateEvaluator):
     def take_damage(self, dmg: int, battle=None, critical=False):
         self.attributes["hp"] -= dmg
 
-        if self.unconscious:
+        if self.unconscious():
             if 'stable' in self.statuses:
                 self.statuses.remove('stable')
             self.death_fails += 2 if critical else 1
@@ -909,7 +909,8 @@ class Entity(EntityStateEvaluator):
         if active_effects:
             result = opts.get('value')
             for active_effect in active_effects:
-                result = getattr(active_effect['handler'], active_effect['method'])(self, opts.update( { "effect": active_effect['effect'], "value" : result }))
+                opts.update( { "effect": active_effect['effect'], "value" : result })
+                result = getattr(active_effect['handler'], active_effect['method'])(self, opts)
             return result
 
         return None

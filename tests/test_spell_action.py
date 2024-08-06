@@ -9,6 +9,7 @@ from natural20.battle import Battle
 from natural20.utils.action_builder import autobuild
 from natural20.map_renderer import MapRenderer
 from natural20.weapons import target_advantage_condition
+from natural20.utils.spell_attack_util import evaluate_spell_attack
 import random
 import pdb
 
@@ -36,6 +37,15 @@ class TestSpellAction(unittest.TestCase):
         self.assertEqual([s['type'] for s in action.result], ['spell_damage'])
         self.battle.commit(action)
         self.assertEqual(self.npc.hp(), 0)
+
+    def test_ranged_spell_attack_with_disadvantage(self):
+        self.assertEqual(self.npc.hp(), 7)
+        self.npc2 = self.session.npc('skeleton')
+        self.battle.add(self.npc2, 'b', position=[1, 6])
+        print(MapRenderer(self.battle_map).render())
+        firebolt_spell = self.session.load_spell('firebolt')
+        _, _, advantage_mod, _ = evaluate_spell_attack(self.battle, self.entity, self.npc, firebolt_spell)
+        self.assertEqual(advantage_mod, -1)
 
     def test_shocking_grasp(self):
         self.npc = self.session.npc('skeleton')
@@ -107,6 +117,22 @@ class TestSpellAction(unittest.TestCase):
         self.assertEqual([s['type'] for s in action.result], ['expeditious_retreat'])
         self.battle.commit(action)
         self.assertIn('dash_bonus', [a.action_type for a in self.entity.available_actions(self.session, self.battle)])
+
+    def test_ray_of_frost(self):
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[0, 6])
+        self.npc.reset_turn(self.battle)
+        random.seed(1002)
+        print(MapRenderer(self.battle_map).render())
+        action = SpellAction.build(self.session, self.entity)['next'](['ray_of_frost', 0])['next'](self.npc)
+        action.resolve(self.session, self.battle_map, { "battle": self.battle})
+        self.assertEqual([s['type'] for s in action.result], ['spell_damage', 'ray_of_frost'])
+        self.battle.commit(action)
+        self.assertEqual(self.npc.hp(), 9)
+        self.assertEqual(self.npc.speed(), 20)
+        self.entity.reset_turn(self.battle)
+        self.assertEqual(self.npc.speed(), 30)
+
 
     def autobuild_test(self):
         self.npc = self.session.npc('skeleton')

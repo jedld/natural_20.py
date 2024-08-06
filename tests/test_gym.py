@@ -37,6 +37,15 @@ class TestGym(unittest.TestCase):
         observation = env.generate_observation(main_player)
         assert observation['ability_info'][0] == 0
 
+    def test_pc_mage_available_actions(self):
+        env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True, profiles=['high_elf_mage.yml'])
+
+        _, info = env.reset(seed=42)
+        print(info['available_moves'])
+        self.assertIsNotNone(info['available_moves'])
+        self.assertEqual(len(info['available_moves']), 14)
+
+
     def test_render(self):
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True)
         observation, info = env.reset(seed=42)

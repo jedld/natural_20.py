@@ -17,6 +17,7 @@ from natural20.actions.help_action import HelpAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.ground_interact_action import GroundInteractAction
 from natural20.actions.spell_action import SpellAction
+from natural20.utils.action_builder import autobuild
 
 from natural20.utils.movement import compute_actual_moves
 import yaml
@@ -85,6 +86,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   def load(session, path, override=None):
     if override is None:
       override = {}
+
+    if not path.endswith('.yml'):
+      path = f"{path}.yml"
+
     with open(os.path.join(session.root_path, path), 'r') as file:
       properties = yaml.safe_load(file)
     properties.update(override)
@@ -106,7 +111,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
     effective_speed = self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('base_speed') or self.race_properties.get('base_speed')
 
     if self.has_effect('speed_override'):
-      effective_speed = self.eval_effect('speed_override', stacked=True, value=self.properties.get('speed'))
+      effective_speed = self.eval_effect('speed_override', { "stacked": True, "value" : effective_speed})
 
     return effective_speed
   
@@ -208,67 +213,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
           action = ShoveAction(session, self, 'shove')
           action_list.append(action)
         elif action_type == SpellAction:
-          # check PC available spells
-          for spell_name in self.available_spells(battle):
-            # load spell
-            # auto build a spell action
-            build_info = SpellAction.build(session, self)
-            while build_info:
-              params = None
-              if build_info["param"] is not None:
-                params = []
-                for param in build_info["param"]:
-                  if param["type"] == "select_spell":
-                    # get spell available levels
-                    if SpellAction.can_cast(self, battle, spell_name):
-                      spell_info = session.load_spell(spell_name)
-                      params.append((spell_name, spell_info['level']))
-                    else:
-                      build_info = None
-                      break
-                  elif param["type"] == "select_target":
-                    selected_targets = []
-                    spell_range = param.get("range", 0)
-
-                    for _ in range(param["num"]):
-                      # check target type
-                      if 'enemies' in param["target_types"]:
-                        # get all enemies
-                        targets = battle.opponents_of(self)
-                        if spell_range > 0 and battle.map:
-                          targets = [t for t in targets if battle.distance(self, t) <= spell_range]
-                      elif 'allies' in param["target_types"]:
-                        # get all allies
-                        targets = battle.allies_of(self)
-                        if spell_range > 0 and battle.map:
-                          targets = [t for t in targets if battle.map.distance(self, t) <= spell_range]
-                      elif 'self' in param["target_types"]:
-                        targets = [self]
-
-                      # select the first target for now
-                      if len(targets) > 0:
-                        selected_targets.append(targets[0])
-
-                    if len(selected_targets) > 0:
-                      params.append(selected_targets)
-                    else:
-                      # no targets available, skip this action
-                      build_info = None
-                      break
-                  else:
-                    raise ValueError(f"Unknown param type {param['type']}")
-              if build_info:
-                if build_info["param"] is not None:
-                  build_info = build_info["next"](*params)
-                else:
-                  build_info = build_info["next"]()
-
-                if isinstance(build_info, SpellAction):
-                  action_list.append(build_info)
-                  break
-              else:
-                break
-
+          action_list = action_list + autobuild(self.session, SpellAction, self, battle)
     return action_list
 
   def _player_character_attack_actions(self, session, battle, opportunity_attack=False, second_weapon=False):

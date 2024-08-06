@@ -7,6 +7,8 @@ from natural20.spell.mage_armor_spell import MageArmorSpell
 from natural20.spell.chill_touch_spell import ChillTouchSpell
 from natural20.spell.expeditious_retreat_spell import ExpeditiousRetreatSpell
 from natural20.spell.magic_missile_spell import MagicMissileSpell
+from natural20.spell.ray_of_frost_spell import RayOfFrostSpell
+from natural20.spell.shield_spell import ShieldSpell
 from natural20.utils.string_utils import classify
 from natural20.spell.spell import Spell
 from natural20.utils.spell_attack_util import consume_resource
@@ -22,8 +24,8 @@ class SpellAction(Action):
     level: int
     casting_time: str
 
-    def __init__(self, session, source, spell):
-        super().__init__(session, source, spell)
+    def __init__(self, session, source, action_type, spell=None):
+        super().__init__(session, source, action_type)
         self.spell_class = spell
         self.level = 0  # base spell level
         self.at_level = 0 # cast at level
@@ -111,6 +113,10 @@ class SpellAction(Action):
                 spell_class = ExpeditiousRetreatSpell
             elif spell_name == 'MagicMissileSpell':
                 spell_class = MagicMissileSpell
+            elif spell_name == 'RayOfFrostSpell':
+                spell_class = RayOfFrostSpell
+            elif spell_name == 'ShieldSpell':
+                spell_class = ShieldSpell
             else:
                 raise Exception(f"spell class not found {spell_name}")
             action.spell_class = spell_class
@@ -127,9 +133,9 @@ class SpellAction(Action):
                 ],
                 "next": select_spell
         }
-    
+
     def clone(self):
-        spell_action = SpellAction(self.session, self.source, self.spell_class)
+        spell_action = SpellAction(self.session, self.source, self.action_type, self.spell_class)
         spell_action.level = self.level
         spell_action.at_level = self.at_level
         spell_action.target = self.target
@@ -155,8 +161,8 @@ class SpellAction(Action):
                 'attack_roll': item['attack_roll'],
                 'attack_name': item['attack_name'],
                 'advantage_mod': item['advantage_mod'],
-                'as_reaction': bool(item['as_reaction']),
-                'adv_info': item['adv_info'],
+                'as_reaction': bool(item.get('as_reaction', False)),
+                'adv_info': item.get('adv_info', None),
                 'source': item['source'],
                 'target': item['target'],
                 'event': 'miss'

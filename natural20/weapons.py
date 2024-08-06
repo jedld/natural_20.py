@@ -1,3 +1,5 @@
+import pdb
+
 def compute_max_weapon_range(session, action, range=None):
     if action.action_type == 'grapple':
         return 5

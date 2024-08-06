@@ -19,6 +19,7 @@ from natural20.actions.interact_action import InteractAction
 from natural20.actions.ground_interact_action import GroundInteractAction
 from natural20.actions.first_aid_action import FirstAidAction
 from natural20.actions.look_action import LookAction
+from natural20.actions.spell_action import SpellAction
 
 
 import copy
@@ -123,7 +124,8 @@ class Npc(Entity):
                 UseItemAction(session, self, "use_item"),
                 InteractAction(session, self, "interact"),
                 GroundInteractAction(session, self, "ground_interact"),
-                FirstAidAction(session, self, "first_aid")
+                FirstAidAction(session, self, "first_aid"),
+                SpellAction(session, self, "spell")
             ]
         
         return actions

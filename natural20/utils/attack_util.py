@@ -59,12 +59,14 @@ def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, op
         spell_details = battle.session.load_spell(spell)
         qty, resource = spell_details['casting_time'].split(':')
         if target.has_reaction(battle) and resource == 'reaction':
-            spell_class = globals()[spell_details['spell_class']]
-            if hasattr(spell_class, 'after_attack_roll'):
-                result, force_miss_result = spell_class.after_attack_roll(battle, target, source, attack_roll,
-                                                                          effective_ac, opts)
-                force_miss = True if force_miss_result == 'force_miss' else force_miss
-                events.append(result)
+            spell_name = spell_details['spell_class'].replace("Natural20::", "")
+            #TODO: Fix reactions
+            # spell_class = globals()[f"{spell_name}Spell"]
+            # if hasattr(spell_class, 'after_attack_roll'):
+            #     result, force_miss_result = spell_class.after_attack_roll(battle, target, source, attack_roll,
+            #                                                               effective_ac, opts)
+            #     force_miss = True if force_miss_result == 'force_miss' else force_miss
+            #     events.append(result)
 
     events = [item for sublist in events for item in sublist]
 

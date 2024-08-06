@@ -5,7 +5,7 @@ from natural20.weapons import compute_max_weapon_range
 from natural20.map import Map
 from natural20.utils.utils import Session
 from natural20.entity import Entity
-# import pdb
+import pdb
 class Battle():
     def __init__(self, session: Session, map: Map,):
         self.map = map
@@ -74,7 +74,7 @@ class Battle():
         if self.map:
             self.map.remove(entity, battle=self)
 
-    def start(self, combat_order=None):
+    def start(self, combat_order=None, custom_initiative=None):
         if combat_order:
             self.combat_order = combat_order
             return
@@ -82,7 +82,10 @@ class Battle():
         # roll for initiative
         _combat_order = [[entity,v] for entity, v in self.entities.items() if not entity.dead()]
         for entity, v in _combat_order:
-            v['initiative'] = entity.initiative(self)
+            if custom_initiative:
+                v['initiative'] = custom_initiative(self, entity)
+            else:
+                v['initiative'] = entity.initiative(self)
 
         self.combat_order = [entity for entity, _ in _combat_order]
         self.started = True
@@ -128,9 +131,11 @@ class Battle():
     def battle_ends(self):
         # check if the entities that are alive are all in the same group
         groups = set()
+
         for entity in self.combat_order:
             if entity.conscious():
                 groups.add(self.entities[entity]['group'])
+
         return len(groups) == 1                
 
     def next_turn(self, max_rounds=None):
@@ -218,7 +223,7 @@ class Battle():
             state = self.entity_state_for(object)
             if not state:
                 continue
-            if not object.conscious:
+            if not object.conscious():
                 continue
 
             if self.opposing(source, object) and (self.map.distance(source, object, entity_1_pos=source_pos) <= (object.melee_distance() / self.map.feet_per_grid)):

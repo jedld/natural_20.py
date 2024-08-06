@@ -40,7 +40,7 @@ def ability_info(entity):
         
     return ability_info
 
-def dndenv_action_to_nat20action(entity, battle, map, available_actions, gym_action, weapon_mappings=None):
+def dndenv_action_to_nat20action(entity, battle, map, available_actions, gym_action, weapon_mappings=None, spell_mappings=None):
     """
     Converts the simple gym vector action to a Natural20 action. This
     basically finds the closest action in the available actions list
@@ -58,7 +58,8 @@ def dndenv_action_to_nat20action(entity, battle, map, available_actions, gym_act
             target_x = entity_position[0] + param2[0]
             target_y = entity_position[1] + param2[1]
             if weapon_mappings is not None:
-                assert weapon_mappings.get(action.using) is not None, f"Cannot tokenize {action.using}, make sure to generate a new weapon mapping file via "
+                if weapon_mappings.get(action.using) is None:
+                    raise  ValueError(f"Cannot tokenize {action.using}, make sure to generate a new weapon mapping file")
                 if weapon_mappings[action.using] == param3 and (param4 ==0 or (param4 == 1 and action.ranged_attack())):
                     return action
             elif param3==0 or (param4 == 1 and action.ranged_attack()):
@@ -89,6 +90,12 @@ def dndenv_action_to_nat20action(entity, battle, map, available_actions, gym_act
             return action
         elif action.action_type == "disengage_bonus" and action_type == 11:
             return action
+        elif action.action_type == "spell" and action_type == 12:
+            if spell_mappings is not None:
+                if spell_mappings.get(action.spell_action.short_name()) == param3 and action.at_level == param4:
+                    return action
+            else:
+                return action
         elif action_type == -1:
             return -1
     raise ValueError(f"No action match for {gym_action} {action_type}")
@@ -152,7 +159,7 @@ def render_terrain(battle, map, view_port_size=(12, 12)):
         result.append(col_arr)
     return np.array(result)
 
-def compute_available_moves(session, map, entity: Entity, battle, weapon_mappings=None):
+def compute_available_moves(session, map, entity: Entity, battle, weapon_mappings=None, spell_mappings=None):
     available_actions = entity.available_actions(session, battle)
     # generate available targets
     valid_actions = []       
@@ -196,6 +203,10 @@ def compute_available_moves(session, map, entity: Entity, battle, weapon_mapping
             valid_actions.append((10, (-1, -1),(0, 0), 0, 0))
         elif action.action_type == 'disengage_bonus':
             valid_actions.append((11, (-1, -1),(0, 0), 0, 0))
+        elif action.action_type == 'spell':
+            spell_type = spell_mappings[action.spell_action.short_name()]
+            valid_actions.append((12, (-1, -1),(0, 0), spell_type, action.at_level))
+
 
     valid_actions.append((-1, (0, 0), (0, 0), 0, 0)) # end turn should always be available
     for action in valid_actions:
@@ -204,7 +215,7 @@ def compute_available_moves(session, map, entity: Entity, battle, weapon_mapping
     return valid_actions
 
 
-def generate_weapon_token_map(session, output_filename):
+def generate_weapon_token_map(session, output_filename = 'weapon_token_map.yml'):
     """
     Generates an numeric index map for each weapon in the session. This can
     be used for embedding the weapon token in the model.
@@ -218,3 +229,31 @@ def generate_weapon_token_map(session, output_filename):
     with open(output_filename, "w") as f:
         for idx, weapon in weapon_map.items():
             f.write(f"{weapon},{idx}\n")
+
+def generate_spell_token_map(session, output_filename = 'spell_token_map.yml'):
+    """
+    Generates an numeric index map for each spell in the session. This can
+    be used for embedding the spell token in the model.
+    """
+
+    spell_map = {}
+    for idx, spell in enumerate(session.load_all_spells().keys()):
+        spell_map[idx] = spell
+
+    with open(output_filename, "w") as f:
+        for idx, spell in spell_map.items():
+            f.write(f"{spell},{idx}\n")
+
+def generate_npc_token_map(session, output_filename):
+    """
+    Generates an numeric index map for each npc in the session. This can
+    be used for embedding the npc token in the model.
+    """
+
+    npc_map = {}
+    for idx, npc in enumerate(session.load_npcs().keys()):
+        npc_map[idx] = npc
+
+    with open(output_filename, "w") as f:
+        for idx, npc in npc_map.items():
+            f.write(f"{npc},{idx}\n")

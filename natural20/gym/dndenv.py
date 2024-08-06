@@ -12,6 +12,7 @@ from natural20.event_manager import EventManager
 from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, render_terrain
 import random
 import os
+import pdb
 
 """
 This is a custom environment for the game Dungeons and Dragons 5e. It is based on the OpenAI Gym environment.
@@ -86,7 +87,9 @@ class dndenv(gym.Env):
         self.damage_based_reward = kwargs.get('damage_based_reward', False)
         self.custom_session = kwargs.get('custom_session', None)
         self.weapon_embeddings = kwargs.get('weapon_embeddings', 'weapon_token_map.csv')
+        self.spell_embeddings = kwargs.get('spell_embeddings', 'spell_token_map.csv')
         self.weapon_mappings = None
+        self.spell_mappings = None
     
     def seed(self, seed=None):
         self._seed = seed
@@ -178,6 +181,14 @@ class dndenv(gym.Env):
                     parts = line.strip().split(',')
                     self.weapon_mappings[parts[0]] = int(parts[1])
 
+        if self.spell_embeddings and self.spell_mappings is None:
+            self.spell_mappings = {}
+            fname = os.path.join(self.session.root_path, self.spell_embeddings)
+            with open(fname, 'r') as f:
+                for line in f:
+                    parts = line.strip().split(',')
+                    self.spell_mappings[parts[0]] = int(parts[1]) + 100
+
         self.map = Map(self.session, map_location)
         self.battle = Battle(self.session, self.map)
         self.players = []
@@ -199,7 +210,9 @@ class dndenv(gym.Env):
 
         # get the first player which is not the same group as the current one
         observation = self.generate_observation(current_player)
-        _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle, weapon_mappings=self.weapon_mappings)
+        _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle,
+                                                   weapon_mappings=self.weapon_mappings,
+                                                   spell_mappings=self.spell_mappings)
         
         if not len(_available_moves) > 0:
             raise Exception("There should be at least one available move for the agent.")
@@ -213,6 +226,7 @@ class dndenv(gym.Env):
                  "group": self.battle.entity_group_for(current_player),
                  "round" : self.current_round,
                  "weapon_mappings": self.weapon_mappings,
+                 "spell_mappings": self.spell_mappings
                 }
 
 
@@ -341,7 +355,9 @@ class dndenv(gym.Env):
         reward = 0
 
         # convert from Gym action space to Natural20 action space
-        action = dndenv_action_to_nat20action(entity, self.battle, self.map, available_actions, action, weapon_mappings=self.weapon_mappings)
+        action = dndenv_action_to_nat20action(entity, self.battle, self.map, available_actions, action,
+                                              weapon_mappings=self.weapon_mappings,
+                                              spell_mappings=self.spell_mappings)
         if action is None:
             reward = -1
         elif action == -1:
@@ -352,6 +368,7 @@ class dndenv(gym.Env):
 
         # additional check for tpk
         if self.battle.battle_ends():
+
             if entity.conscious() and self.battle.entity_group_for(entity) in self.control_groups:
                 reward = 10
             else:
@@ -414,9 +431,12 @@ class dndenv(gym.Env):
                     done = True
         
         observation = self.generate_observation(entity)
-        _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle, weapon_mappings=self.weapon_mappings)
+        _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle,
+                                                   weapon_mappings=self.weapon_mappings,
+                                                   spell_mappings=self.spell_mappings)
 
-        assert len(_available_moves) > 0, "There should be at least one available move for the agent."
+        if len(_available_moves) == 0:
+            raise ValueError("There should be at least one available move for the agent.")
 
         self.current_round += 1
         
@@ -468,7 +488,11 @@ def action_type_to_int(action_type):
         return 9
     elif action_type == "prone":
         return 10
+    elif action_type == "disengage_bonus":
+        return 11
+    elif action_type == "spell":
+        return 12
     else:
-        return -1    
+        raise ValueError(f"Unknown action type {action_type}")  
 
 gym.register(id='dndenv-v0', entry_point=lambda **kwargs: dndenv(**kwargs))

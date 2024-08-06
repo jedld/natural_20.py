@@ -142,24 +142,7 @@ class DndenvController:
             valid_actions.append(StandAction(None, entity, "stand"))
 
         for action in available_actions:
-            if action.action_type == "attack":
-                valid_targets = battle.valid_targets_for(entity, action)
-                if valid_targets:
-                    action.target = valid_targets[0]
-                    valid_actions.append(action)
-            elif action.action_type == "move":
-                valid_actions.append(action)
-            elif action.action_type == "disengage":
-                valid_actions.append(action)
-            elif action.action_type == 'dodge':
-                valid_actions.append(action)
-            elif action.action_type == 'dash':
-                valid_actions.append(action)
-            elif action.action_type == 'dash_bonus':
-                valid_actions.append(action)
-            elif action.action_type == 'second_wind':
-                valid_actions.append(action)
-            elif action.action_type == 'prone':
+            if action.action_type in ["attack", "move", "disengage", "disengage_bonus", "dodge", "dash", "dash_bonus", "second_wind", "prone", "spell", "shove"]:
                 valid_actions.append(action)
 
         return valid_actions

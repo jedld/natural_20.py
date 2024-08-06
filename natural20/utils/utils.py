@@ -163,6 +163,9 @@ class Session:
             self.spells[spell] = spells.get(spell)
             self.spells[spell]['id'] = spell
         return self.spells[spell]
+    
+    def load_all_spells(self):
+        return self.load_yaml_file('items', 'spells')
 
     def load_class(self, klass):
         if klass not in self.char_classes:

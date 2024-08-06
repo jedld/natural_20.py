@@ -16,10 +16,10 @@ class QNetwork(nn.Module):
         self.fc1 = nn.Linear(64 * width * height + 32, 64)
         
         # Embedding for discrete movement and binary action
-        self.action_type_embedding = nn.Embedding(64, 4)
+        self.action_type_embedding = nn.Embedding(256, 4)
         self.movement_embedding = nn.Embedding(256, 2)
-        self.binary_action_embedding = nn.Embedding(64, 4)  # Embedding for binary action
-        self.binary_action_subtype_embedding = nn.Embedding(64, 4)
+        self.binary_action_embedding = nn.Embedding(256, 4)  # Embedding for binary action
+        self.binary_action_subtype_embedding = nn.Embedding(256, 4)
         # Final layer to output the Q-value for the action
         self.fc2 = nn.Linear(64, 32)
         self.fc3 = nn.Linear(32, 16)

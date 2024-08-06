@@ -100,4 +100,5 @@ def autobuild(session, action_class, entity, battle):
 
     # remove any None values
     next_act = [act for act in next_act if act is not None]
+
     return next_act

@@ -32,6 +32,7 @@ natural20/actions/ground_interact_action.py
 natural20/actions/help_action.py
 natural20/actions/hide_action.py
 natural20/actions/interact_action.py
+natural20/actions/inventory_action.py
 natural20/actions/look_action.py
 natural20/actions/move_action.py
 natural20/actions/multiattack_action.py
@@ -52,6 +53,7 @@ natural20/item_library/common.py
 natural20/item_library/door_object.py
 natural20/item_library/object.py
 natural20/utils/__init__.py
+natural20/utils/action_builder.py
 natural20/utils/attack_util.py
 natural20/utils/list_utils.py
 natural20/utils/movement.py
@@ -66,6 +68,7 @@ tests/test_dieroll.py
 tests/test_gym.py
 tests/test_map.py
 tests/test_maprenderer.py
+tests/test_move_action.py
 tests/test_npc.py
 tests/test_player_character.py
 tests/test_spell_action.py
