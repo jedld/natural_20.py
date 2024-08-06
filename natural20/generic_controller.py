@@ -8,6 +8,7 @@ from natural20.entity import Entity
 from natural20.action import Action
 import math
 import copy
+import pdb
 
 class GenericController:
     def __init__(self, session):
@@ -39,6 +40,7 @@ class GenericController:
 
         _, entity = self._build_environment(battle, entity)
         selected_action = self.select_action(battle, entity, valid_actions )
+
         return selected_action
 
     def select_action(self, battle, entity, available_actions = None) -> Action:
@@ -47,6 +49,7 @@ class GenericController:
         if len(available_actions) > 0:
             action = self._sort_actions(battle, available_actions)[0]
             # print(f"{entity.name}: {action}")
+
             return action
         
         # no action, end turn

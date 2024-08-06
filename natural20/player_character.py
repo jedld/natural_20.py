@@ -221,6 +221,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
     valid_weapon_types = ['melee_attack'] if opportunity_attack else ['ranged_attack', 'melee_attack']
 
     weapon_attacks = []
+
     for item in self.properties.get('equipped', []):
       weapon_detail = session.load_weapon(item)
       if weapon_detail is None:
@@ -230,21 +231,22 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
       if 'ammo' in weapon_detail and not self.item_count(weapon_detail['ammo']) > 0:
         continue
 
-      attacks = []
-
       attack_class = AttackAction
       attack_type = 'attack'
+
       if second_weapon:
         attack_class = TwoWeaponAttackAction
         attack_type = 'two_weapon_attack'
+
+      action = attack_class(session, self, attack_type)
+      action.using = item
+      weapon_attacks.append(action)
 
       if not opportunity_attack and weapon_detail.get('properties') and 'thrown' in weapon_detail.get('properties', []):
         action = attack_class(session, self, attack_type)
         action.using = item
         action.thrown = True
-        attacks.append(action)
-
-      weapon_attacks.extend(attacks)
+        weapon_attacks.append(action)
 
     unarmed_attack = AttackAction(session, self, 'attack')
     unarmed_attack.using = 'unarmed_attack'
