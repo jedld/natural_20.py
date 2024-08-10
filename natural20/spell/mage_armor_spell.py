@@ -1,5 +1,4 @@
-from natural20.spell.spell import Spell
-from natural20.utils.spell_attack_util import consume_resource
+from natural20.spell.spell import Spell, consume_resource
 
 class MageArmorSpell(Spell):
     def __init__(self, session, source, spell_name, details):

@@ -3,7 +3,9 @@ from natural20.die_roll import DieRoll
 from natural20.entity import Entity
 from natural20.item_library.common import Ground
 from natural20.weapons import damage_modifier, target_advantage_condition
-from natural20.utils.attack_util import effective_ac, after_attack_roll_hook, damage_event
+from natural20.utils.attack_util import after_attack_roll_hook, damage_event
+from natural20.utils.ac_utils import effective_ac
+import pdb
 
 class AttackAction(Action):
     def __init__(self, session, source, action_type, opts=None):
@@ -175,7 +177,6 @@ class AttackAction(Action):
         _, _, _, damage_roll, _ = self.get_weapon_info(opts)
         return DieRoll.roll(damage_roll).expected()
 
-
     def resolve(self, session, map, opts=None):
         if opts is None:
             opts = {}
@@ -184,7 +185,7 @@ class AttackAction(Action):
         target = opts.get('target') or self.target
         if target is None:
             raise Exception('target is a required option for :attack')
-        sneak_attack_roll = None
+
 
         weapon, attack_name, attack_mod, damage_roll, ammo_type = self.get_weapon_info(opts)
 
@@ -204,8 +205,13 @@ class AttackAction(Action):
             # print(f"{self.source.name} uses lucky to reroll the attack roll to {attack_roll}")
 
         target_ac, _cover_ac = effective_ac(battle, self.source, target)
+
         after_attack_roll_hook(battle, target, self.source, attack_roll, target_ac)
 
+        return self._resolve_hit(battle, target, weapon, attack_roll, damage_roll, attack_name, ammo_type, adv_info)
+
+    def _resolve_hit(self, battle, target, weapon, attack_roll, damage_roll, attack_name, ammo_type, adv_info):
+        sneak_attack_roll = None
         if self.source.class_feature('sneak_attack') and (weapon.get('properties') and 'finesse' in weapon['properties'] or weapon['type'] == 'ranged_attack') and (self.with_advantage() or (battle and battle.enemy_in_melee_range(target, [self.source]))):
             sneak_attack_roll = DieRoll.roll(self.source.sneak_attack_level(), crit=attack_roll.nat_20(),
                                                 description='dice_roll.sneak_attack', entity=self.source, battle=battle)
@@ -394,6 +400,7 @@ class TwoWeaponAttackAction(AttackAction):
     def can(entity, battle, options=None):
         if options is None:
             options = {}
+        pdb.set_trace()
         return battle is None or (entity.total_bonus_actions(battle) > 0 and battle.two_weapon_attack(entity) and (options.get('weapon') != battle.first_hand_weapon(entity) or len([a for a in entity.equipped_weapons() if a == battle.first_hand_weapon(entity)]) >= 2))
 
     def second_hand(self):

@@ -70,6 +70,7 @@ class EventManager:
             'move': lambda event: print(f"{self.show_name(event)} moved to {event['position']} {event['move_cost']} feet"),
             'initiative': lambda event: print(f"{self.show_name(event)} rolled initiative {event['roll']} value {event['value']}"),
             'start_of_turn': lambda event: print(f"{self.show_name(event)} starts their turn."),
+            'spell_buf': lambda event: print(f"{self.show_name(event)} cast {event['spell'].name()} on {self.show_target_name(event)}"),
         }
         for event, handler in event_handlers.items():
             self.register_event_listener(event, handler)

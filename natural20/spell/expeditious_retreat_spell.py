@@ -1,5 +1,5 @@
-from natural20.spell.spell import Spell
-from natural20.utils.spell_attack_util import consume_resource
+from natural20.spell.spell import Spell, consume_resource
+
 
 class ExpeditiousRetreatSpell(Spell):
     def build_map(self, action):

@@ -53,6 +53,7 @@ natural20/item_library/common.py
 natural20/item_library/door_object.py
 natural20/item_library/object.py
 natural20/utils/__init__.py
+natural20/utils/ac_utils.py
 natural20/utils/action_builder.py
 natural20/utils/attack_util.py
 natural20/utils/list_utils.py

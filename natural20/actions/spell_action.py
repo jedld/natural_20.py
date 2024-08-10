@@ -10,8 +10,7 @@ from natural20.spell.magic_missile_spell import MagicMissileSpell
 from natural20.spell.ray_of_frost_spell import RayOfFrostSpell
 from natural20.spell.shield_spell import ShieldSpell
 from natural20.utils.string_utils import classify
-from natural20.spell.spell import Spell
-from natural20.utils.spell_attack_util import consume_resource
+from natural20.spell.spell import Spell, consume_resource
 from enum import Enum
 
 class SpellActionConstants(Enum):

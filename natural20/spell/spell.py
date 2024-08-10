@@ -5,6 +5,21 @@ def camel_case_to_human_readable(camel_case_string):
     human_readable = re.sub(r'(?<!^)(?=[A-Z])', '_', camel_case_string).capitalize()
     return human_readable.lower()
 
+def consume_resource(battle, item):
+    amt, resource = item["spell"]["casting_time"].split(":")
+    spell_level = item["spell"]["level"]
+
+    if resource == "action":
+        battle.consume(item["source"], "action")
+    elif resource == "reaction":
+        battle.consume(item["source"], "reaction")
+
+    item["source"].consume_spell_slot(spell_level) if spell_level > 0 else None
+
+class AttackHook:
+    def after_attack_roll(battle, entity, attacker, attack_roll, effective_ac, opts=None):
+        pass
+
 class Spell:
     def __init__(self, session, source, spell_name, details):
         self.session = session
@@ -43,3 +58,5 @@ class Spell:
         if options is None:
             options = {}
         return token
+    
+
