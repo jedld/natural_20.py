@@ -400,7 +400,6 @@ class TwoWeaponAttackAction(AttackAction):
     def can(entity, battle, options=None):
         if options is None:
             options = {}
-        pdb.set_trace()
         return battle is None or (entity.total_bonus_actions(battle) > 0 and battle.two_weapon_attack(entity) and (options.get('weapon') != battle.first_hand_weapon(entity) or len([a for a in entity.equipped_weapons() if a == battle.first_hand_weapon(entity)]) >= 2))
 
     def second_hand(self):
@@ -408,3 +407,6 @@ class TwoWeaponAttackAction(AttackAction):
 
     def label(self):
         return f"Bonus Action -> {super().label()}"
+    
+    def __str__(self):
+        return f"TwoWeaponAttack({self.using})"

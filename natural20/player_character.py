@@ -235,8 +235,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
       attack_type = 'attack'
 
       if second_weapon:
-        attack_class = TwoWeaponAttackAction
-        attack_type = 'two_weapon_attack'
+        if 'light' in weapon_detail.get('properties', []) and weapon_detail['type'] == 'melee_attack' and TwoWeaponAttackAction.can(self, battle, { 'weapon': item }):
+          attack_class = TwoWeaponAttackAction
+          attack_type = 'two_weapon_attack'
+        else:
+          continue
 
       action = attack_class(session, self, attack_type)
       action.using = item
@@ -262,6 +265,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
         targeted_action.target = target
         final_attack_list.append(targeted_action)
     return final_attack_list
+
 
 
   def prepared_spells(self):

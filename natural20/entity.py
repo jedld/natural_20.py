@@ -854,7 +854,7 @@ class Entity(EntityStateEvaluator):
                 self.add_item(item_name)
 
     def equipped_weapons(self):
-        return [item.name for item in self.equipped_items if item.subtype == 'weapon']
+        return [item['name'] for item in self.equipped_items() if item["subtype"] == 'weapon']
 
     def take_damage(self, dmg: int, battle=None, critical=False):
         self.attributes["hp"] -= dmg
