@@ -8,7 +8,7 @@ classes:
 description: A high elf mage with a mysterious noble background
 level: 1
 hit_die: inherit
-max_hp: 12
+max_hp: 14
 ability:
   str: 10
   dex: 15

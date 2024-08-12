@@ -1,4 +1,5 @@
 import unittest
+import random
 from natural20.utils.utils import Session
 from natural20.battle import Battle
 from natural20.player_character import PlayerCharacter
@@ -12,6 +13,7 @@ class TestAttackAction(unittest.TestCase):
     def make_session(self):
         event_manager = EventManager()
         event_manager.standard_cli()
+        random.seed(7000)
         return Session(root_path='tests/fixtures', event_manager=event_manager)
 
     def test_attack_action(self):
