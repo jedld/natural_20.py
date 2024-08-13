@@ -16,7 +16,6 @@ class ShieldSpell(Spell):
                 "event": 'spell_buf', "spell": item['effect'],
                 "source": item['source'],
                 "target": item['source']})
-            consume_resource(battle, item)
 
     @staticmethod
     def ac_bonus(entity, effect):

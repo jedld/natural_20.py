@@ -43,7 +43,7 @@ class MageArmorSpell(Spell):
                                                   "spell" : item['effect'],
                                                   "source": item['source'],
                                                   "target" : item['target'] })
-            consume_resource(battle, item)
+
 
     @staticmethod
     def ac_override(entity, effect):

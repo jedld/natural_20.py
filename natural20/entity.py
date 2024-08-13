@@ -933,11 +933,12 @@ class Entity(EntityStateEvaluator):
             amt = self.eval_effect("heal_override", {"heal": amt})
             
         prev_hp = self.hp()
-        self.death_saves = 0
-        self.death_fails = 0
+
         self.attributes["hp"] = min(self.max_hp(), self.hp() + amt)
 
         if self.hp() > 0 and amt > 0:
+            self.death_saves = 0
+            self.death_fails = 0
             if self.unconscious():
                 print(f"{self.name} is now conscious because of healing and has {self.hp()} hp")
                 self.conscious()

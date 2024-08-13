@@ -6,7 +6,7 @@ def evaluate_spell_attack(battle, entity, target, spell_properties, opts=None):
     if opts is None:
         opts = {}
     # DnD 5e advantage/disadvantage checks
-    advantage_mod, _adv_info = target_advantage_condition(battle, entity, target, spell_properties, overrides=opts)
+    advantage_mod, adv_info = target_advantage_condition(battle, entity, target, spell_properties, overrides=opts)
 
     attack_roll = entity.ranged_spell_attack(battle, spell_properties['name'], advantage=advantage_mod > 0,
                                                                                    disadvantage=advantage_mod < 0)
@@ -23,4 +23,4 @@ def evaluate_spell_attack(battle, entity, target, spell_properties, opts=None):
     else:
         hit = False
 
-    return [hit, attack_roll, advantage_mod, cover_ac_adjustments]
+    return [hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info]

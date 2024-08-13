@@ -28,7 +28,7 @@ class FireboltSpell(Spell):
     def resolve(self, entity, battle, spell_action):
         target = spell_action.target
 
-        hit, attack_roll, advantage_mod, cover_ac_adjustments = evaluate_spell_attack(battle, entity, target, self.properties)
+        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties)
 
         if hit:
             level = 1
@@ -48,6 +48,7 @@ class FireboltSpell(Spell):
                 "attack_roll": attack_roll,
                 "damage_roll": damage_roll,
                 "advantage_mod": advantage_mod,
+                "adv_info": adv_info,
                 "damage": damage_roll,
                 "cover_ac": cover_ac_adjustments,
                 "type": "spell_damage",
@@ -63,6 +64,7 @@ class FireboltSpell(Spell):
                 "attack_roll": attack_roll,
                 "damage_roll": None,
                 "advantage_mod": advantage_mod,
+                "adv_info": adv_info,
                 "cover_ac": cover_ac_adjustments,
                 "spell": self.properties
             }]

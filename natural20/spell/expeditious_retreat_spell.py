@@ -18,7 +18,6 @@ class ExpeditiousRetreatSpell(Spell):
                                            duration=10 * 60)
             battle.event_manager.received_event({ "event" : 'spell_buf', "spell": item['effect'], "source" : item['source'],
                                                   "target" : item['target']})
-            consume_resource(battle, item)
 
     @staticmethod
     def dash_override(entity, effect, opts=None):

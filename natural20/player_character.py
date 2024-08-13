@@ -251,14 +251,14 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
         action.thrown = True
         weapon_attacks.append(action)
 
-    unarmed_attack = AttackAction(session, self, 'attack')
-    unarmed_attack.using = 'unarmed_attack'
-
-    pre_target_attack_list = weapon_attacks + [unarmed_attack]
+    if not second_weapon:
+      unarmed_attack = AttackAction(session, self, 'attack')
+      unarmed_attack.using = 'unarmed_attack'
+      weapon_attacks.append(unarmed_attack)
 
     # assign possible attack targets
     final_attack_list = []
-    for action in pre_target_attack_list:
+    for action in weapon_attacks:
       valid_targets = battle.valid_targets_for(self, action)
       for target in valid_targets:
         targeted_action = copy.copy(action)

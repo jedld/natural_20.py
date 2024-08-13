@@ -239,6 +239,7 @@ class dndenv(gym.Env):
         self.log(f"max hp: {pc.max_hp()}")
         self.log(f"ac: {pc.armor_class()}")
         self.log(f"speed: {pc.speed()}")
+        self.show_spells(pc)
         self.log("\n\n")
 
     def _game_loop(self, current_player):
@@ -269,7 +270,8 @@ class dndenv(gym.Env):
 
                 self.battle.start_turn()
                 current_player = self.battle.current_turn()
-                self.log(f"==== current turn {current_player.name} {current_player.hp()}/{current_player.max_hp()}===")
+                self.log(f"==== current turn {current_player.name} {current_player.hp()}/{current_player.max_hp()} AC {current_player.armor_class()}===")
+                self.show_spells(current_player)
             elif player_group in self.control_groups:
                 if current_player.conscious():
                     current_player.reset_turn(self.battle)
@@ -289,6 +291,7 @@ class dndenv(gym.Env):
             self._describe_hero(pc)
             # set random starting positions, make sure there are no obstacles in the map
             while player_pos is None or not self.map.placeable(pc, player_pos[0], player_pos[1]):
+                # trunk-ignore(bandit/B311)
                 player_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
             self.players.append(('a', 'H', pc, player_pos))
 
@@ -391,6 +394,7 @@ class dndenv(gym.Env):
             # show health bar of each entity
             for _, _, player, _ in self.players:
                 self.log(f"{player.name} {player.hp()}/{player.max_hp()}")
+                self.show_spells(player)
             
             result = self.battle.next_turn(max_rounds=self.max_rounds)
             if result == 'tpk' and entity.conscious() and self.battle.entity_group_for(entity) in self.control_groups:
@@ -400,8 +404,8 @@ class dndenv(gym.Env):
                 self.battle.start_turn()
                 current_player = self.battle.current_turn()
                 current_player.reset_turn(self.battle)
-                self.log(f"==== current turn {current_player.name} {current_player.hp()}/{current_player.max_hp()}===")
-
+                self.log(f"==== current turn {current_player.name} {current_player.hp()}/{current_player.max_hp()} AC {current_player.armor_class()}===")
+                self.show_spells(current_player)
                 if current_player.dead():
                     self.log(f"{current_player.name} is dead")
                     if self.battle.entity_group_for(entity) in self.control_groups:
@@ -445,6 +449,14 @@ class dndenv(gym.Env):
             truncated = True
 
         return observation, reward, done, truncated, self._info(_available_moves, entity)
+
+    def show_spells(self, current_player):
+        if current_player.has_spells():
+            for spell_level in range(1, 10):
+                if current_player.max_spell_slots(spell_level) > 0:
+                    self.log(f"spell slots level {spell_level}: {current_player.spell_slots_count(spell_level)}")
+        else:
+            self.log("no spells")
 
     def generate_observation(self, entity):
         return build_observation(self.battle, self.map, entity, self.view_port_size)

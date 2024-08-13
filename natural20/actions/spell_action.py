@@ -10,7 +10,7 @@ from natural20.spell.magic_missile_spell import MagicMissileSpell
 from natural20.spell.ray_of_frost_spell import RayOfFrostSpell
 from natural20.spell.shield_spell import ShieldSpell
 from natural20.utils.string_utils import classify
-from natural20.spell.spell import Spell, consume_resource
+from natural20.spell.spell import Spell
 from enum import Enum
 
 class SpellActionConstants(Enum):
@@ -146,6 +146,7 @@ class SpellAction(Action):
     def resolve(self, session, map=None, opts=None):
         battle = opts.get("battle")
         self.result = self.spell_action.resolve(self.source, battle, self)
+        self.spell_action.consume(battle)
         return self
 
     def apply(battle, item):
@@ -153,9 +154,7 @@ class SpellAction(Action):
             klass.apply(battle, item)
         if item['type'] == 'spell_damage':
             damage_event(item, battle)
-            consume_resource(battle, item)
         elif item['type'] == 'spell_miss':
-            consume_resource(battle, item)
             battle.event_manager.received_event({
                 'attack_roll': item['attack_roll'],
                 'attack_name': item['attack_name'],

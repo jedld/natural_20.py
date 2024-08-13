@@ -23,7 +23,6 @@ class MagicMissileSpell(Spell):
     def resolve(self, entity, battle, spell_action):
         targets = spell_action.target
 
-
         result = []
         for target in targets:
             after_attack_roll_hook(battle, target, entity, None, None)

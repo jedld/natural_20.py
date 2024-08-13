@@ -44,7 +44,7 @@ class TestSpellAction(unittest.TestCase):
         self.battle.add(self.npc2, 'b', position=[1, 6])
         print(MapRenderer(self.battle_map).render())
         firebolt_spell = self.session.load_spell('firebolt')
-        _, _, advantage_mod, _ = evaluate_spell_attack(self.battle, self.entity, self.npc, firebolt_spell)
+        _, _, advantage_mod, _, _ = evaluate_spell_attack(self.battle, self.entity, self.npc, firebolt_spell)
         self.assertEqual(advantage_mod, -1)
 
     def test_shocking_grasp(self):

@@ -10,6 +10,19 @@ import math
 import copy
 
 class DndenvController:
+
+    VALID_ACTIONS = ["attack",
+                     "move",
+                     "disengage",
+                     "disengage_bonus",
+                     "dodge",
+                     "dash",
+                     "dash_bonus",
+                     "second_wind",
+                     "prone",
+                     "spell",
+                     "shove"]
+
     """
     Wrapper for Gym Agents to interact with Natural20
     """
@@ -142,7 +155,7 @@ class DndenvController:
             valid_actions.append(StandAction(None, entity, "stand"))
 
         for action in available_actions:
-            if action.action_type in ["attack", "move", "disengage", "disengage_bonus", "dodge", "dash", "dash_bonus", "second_wind", "prone", "spell", "shove"]:
+            if action.action_type in self.VALID_ACTIONS:
                 valid_actions.append(action)
 
         return valid_actions

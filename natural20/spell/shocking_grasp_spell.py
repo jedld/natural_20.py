@@ -28,7 +28,7 @@ class ShockingGraspSpell(Spell):
         if any(armor["metallic"] for armor in target.equipped_armor()):
             advantage_override['advantage'] = ['shocking_grasp_metallic']
 
-        hit, attack_roll, advantage_mod, cover_ac_adjustments = evaluate_spell_attack(battle, entity, target, self.properties, advantage_override)
+        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties, advantage_override)
 
         if hit:
             level = 1
@@ -49,6 +49,7 @@ class ShockingGraspSpell(Spell):
                     'attack_roll': attack_roll,
                     'damage_roll': damage_roll,
                     'advantage_mod': advantage_mod,
+                    'adv_info': adv_info,
                     'damage': damage_roll,
                     'cover_ac': cover_ac_adjustments,
                     'type': 'spell_damage',
@@ -72,6 +73,7 @@ class ShockingGraspSpell(Spell):
                     'attack_roll': attack_roll,
                     'damage_roll': damage_roll,
                     'advantage_mod': advantage_mod,
+                    'adv_info': adv_info,
                     'cover_ac': cover_ac_adjustments,
                     'spell': self.properties
                 }
