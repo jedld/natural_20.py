@@ -3,7 +3,7 @@ from natural20.generic_controller import GenericController
 from natural20.action import Action
 from natural20.weapons import compute_max_weapon_range
 from natural20.map import Map
-from natural20.utils.utils import Session
+from natural20.session import Session
 from natural20.entity import Entity
 import pdb
 class Battle():

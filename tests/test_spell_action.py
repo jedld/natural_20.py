@@ -1,6 +1,6 @@
 import unittest
 from natural20.actions.spell_action import SpellAction
-from natural20.utils.utils import Session
+from natural20.session import Session
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
 

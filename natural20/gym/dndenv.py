@@ -5,7 +5,7 @@ from natural20.map import Map
 from natural20.battle import Battle
 from natural20.player_character import PlayerCharacter
 from natural20.generic_controller import GenericController
-from natural20.utils.utils import Session
+from natural20.session import Session
 from natural20.entity import Entity
 from natural20.gym.dndenv_controller import DndenvController
 from natural20.event_manager import EventManager
@@ -29,7 +29,7 @@ class dndenv(gym.Env):
         - map_file: the file to load the map from
         - profiles: the profiles to load for the heroes
         - enemies: the profiles to load for the enemies
-        - hero_names: the names of the heroes
+        - hero_names: the names of the heroes, can be a list or a lambda function
         - enemy_names: the names of the enemies
         - show_logs: whether to show logs
         - custom_controller: a custom controller to use
@@ -283,7 +283,15 @@ class dndenv(gym.Env):
         player_pos = None
 
         character_sheet_path = 'characters'
-        for index, p in enumerate(self.heroes):
+        # if a lambda function is passed for heroes or enemies, call it
+        heroes = self.heroes() if callable(self.heroes) else self.heroes
+        enemies = self.enemies() if callable(self.enemies) else self.enemies
+
+        # ensure heroes and enemies are lists
+        heroes = [heroes] if not isinstance(heroes, list) else heroes
+        enemies = [enemies] if not isinstance(enemies, list) else enemies
+
+        for index, p in enumerate(heroes):
             if index < len(self.hero_names):
                 name = self.hero_names[index]
 
@@ -295,7 +303,7 @@ class dndenv(gym.Env):
                 player_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
             self.players.append(('a', 'H', pc, player_pos))
 
-        for index, p in enumerate(self.enemies):
+        for index, p in enumerate(enemies):
             if index < len(self.enemy_names):
                 name = self.enemy_names[index]
 

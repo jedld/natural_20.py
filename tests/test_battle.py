@@ -1,6 +1,6 @@
 from natural20.battle import Battle
 from natural20.map import Map
-from natural20.utils.utils import Session
+from natural20.session import Session
 from natural20.player_character import PlayerCharacter
 from natural20.event_manager import EventManager
 from natural20.die_roll import DieRoll

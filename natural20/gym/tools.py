@@ -214,8 +214,22 @@ def compute_available_moves(session, map, entity: Entity, battle, weapon_mapping
 
     return valid_actions
 
+def generate_entity_token_map(session, output_filename = 'entity_token_map.csv'):
+    """
+    Generates an numeric index map for each entity in the session. This can
+    be used for embedding the entity token in the model.
+    """
 
-def generate_weapon_token_map(session, output_filename = 'weapon_token_map.yml'):
+    entity_map = {}
+    for idx, entity in enumerate(session.load_entities().keys()):
+        entity_map[idx] = entity
+
+    with open(output_filename, "w") as f:
+        for idx, entity in entity_map.items():
+            f.write(f"{entity},{idx}\n")
+
+
+def generate_weapon_token_map(session, output_filename = 'weapon_token_map.csv'):
     """
     Generates an numeric index map for each weapon in the session. This can
     be used for embedding the weapon token in the model.
@@ -230,7 +244,7 @@ def generate_weapon_token_map(session, output_filename = 'weapon_token_map.yml')
         for idx, weapon in weapon_map.items():
             f.write(f"{weapon},{idx}\n")
 
-def generate_spell_token_map(session, output_filename = 'spell_token_map.yml'):
+def generate_spell_token_map(session, output_filename = 'spell_token_map.csv'):
     """
     Generates an numeric index map for each spell in the session. This can
     be used for embedding the spell token in the model.

@@ -49,47 +49,52 @@ class LLMInterfacer:
         for index, action in enumerate(actions):
             action_type, param1, param2, param3, param4 = action
             if action_type == action_type_to_int("move"):
-                message = f"move 5ft "
+                message = "move 5ft "
                 x, y = param1
-                if (x < 0 and y==0):param4
+                if (x < 0 and y==0):
+                    message += "to the left\n"
+                elif (x > 0 and y==0):
+                    message += "to the right\n"
+                elif (x == 0 and y < 0):
+                    message += "up\n"
                 elif (x == 0 and y > 0):
-                    message += f"down\n"
+                    message += "down\n"
                 elif (x < 0 and y < 0):
-                    message += f"up and to the left\n"
+                    message += "up and to the left\n"
                 elif (x < 0 and y > 0):
-                    message += f"down and to the left\n"
+                    message += "down and to the left\n"
                 elif (x > 0 and y < 0):
-                    message += f"up and to the right\n"
+                    message += "up and to the right\n"
                 elif (x > 0 and y > 0):
-                    message += f"down and to the right\n"
+                    message += "down and to the right\n"
                 
             elif action_type == action_type_to_int("attack"):
                 attack_name = self._look_up_attack_name(param3, weapon_mappings)
-                message = f"attack enemy "
+                message = "attack enemy "
                 if param4 == 1:
-                    message += f"with ranged weapon {attack_name}\n"
+                    message += "with ranged weapon {attack_name}\n"
                 else:
-                    message += f"with melee weapon {attack_name}\n"
+                    message += "with melee weapon {attack_name}\n"
             elif action_type == action_type_to_int("dash"):
-                message = f"dash action\n"
+                message = "dash action\n"
             elif action_type == action_type_to_int("disengage"):
-                message = f"disengage action\n"
+                message = "disengage action\n"
             elif action_type == action_type_to_int("dodge"):
-                message = f"dodge action\n"
+                message = "dodge action\n"
             elif action_type == action_type_to_int("help"):
-                message = f"help action\n"
+                message = "help action\n"
             elif action_type == action_type_to_int("hide"):
-                message = f"hide action\n"
+                message = "hide action\n"
             elif action_type == action_type_to_int("stand"):
-                message = f"stand action\n"
+                message = "stand action\n"
             elif action_type == action_type_to_int("second_wind"):
-                message = f"second wind action\n"
+                message = "second wind action\n"
             elif action_type == action_type_to_int("two_weapon_attack"):
-                message = f"two weapon attack bonus action\n"
+                message = "two weapon attack bonus action\n"
             elif action_type == action_type_to_int("prone"):
-                message = f"go prone\n"
+                message = "go prone\n"
             elif action_type == action_type_to_int("spell"):
-                message = f"cast the "
+                message = "cast the "
                 attack_name = self._look_up_spell_name(param3, spell_mappings)
                 message += f" {attack_name} spell\n"
             else:

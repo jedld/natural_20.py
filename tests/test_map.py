@@ -1,7 +1,7 @@
 import unittest
 from natural20.map import Map, Terrain
 from natural20.map_renderer import MapRenderer
-from natural20.utils.utils import Session
+from natural20.session import Session
 from natural20.player_character import PlayerCharacter
 import pdb
 

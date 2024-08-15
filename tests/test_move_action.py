@@ -1,6 +1,6 @@
 import unittest
 from natural20.actions.move_action import MoveAction
-from natural20.utils.utils import Session
+from natural20.session import Session
 from natural20.event_manager import EventManager
 from natural20.map import Map
 from natural20.battle import Battle
