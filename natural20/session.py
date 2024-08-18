@@ -123,7 +123,7 @@ class Session:
         for file in files:
             if file.endswith('.yml'):
                 npc_name = os.path.splitext(file)[0]
-                npcs.append(Npc(self, npc_name, rand_life=True))
+                npcs.append(Npc(self, npc_name, { "rand_life" : True}))
         return npcs
 
     def npc_info(self):

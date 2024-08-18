@@ -53,9 +53,13 @@ class dndenv(gym.Env):
         self.observation_space = gym.spaces.Dict(spaces={
             "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 4), dtype=int),
             "turn_info" : gym.spaces.Box(low=0, high=1, shape=(3,), dtype=int),
+            "conditions": gym.spaces.Box(low=0, high=1, shape=(8,), dtype=int),
             "health_pct": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "health_enemy": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "enemy_reactions": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int),
+            "enemy_conditions": gym.spaces.Box(low=0, high=1, shape=(8,), dtype=int),
+            "player_type": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int),
+            "enemy_type": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int),
             "ability_info": gym.spaces.Box(low=0, high=1, shape=(8,), dtype=int),
             "movement": gym.spaces.Discrete(255)
         })
@@ -88,8 +92,10 @@ class dndenv(gym.Env):
         self.custom_session = kwargs.get('custom_session', None)
         self.weapon_embeddings = kwargs.get('weapon_embeddings', 'weapon_token_map.csv')
         self.spell_embeddings = kwargs.get('spell_embeddings', 'spell_token_map.csv')
+        self.entity_embeddings = kwargs.get('entity_embeddings', 'entity_token_map.csv')
         self.weapon_mappings = None
         self.spell_mappings = None
+        self.entity_mappings = None
     
     def seed(self, seed=None):
         self._seed = seed
@@ -188,6 +194,14 @@ class dndenv(gym.Env):
                 for line in f:
                     parts = line.strip().split(',')
                     self.spell_mappings[parts[0]] = int(parts[1]) + 100
+
+        if self.entity_embeddings and self.entity_mappings is None:
+            self.entity_mappings = {}
+            fname = os.path.join(self.session.root_path, self.entity_embeddings)
+            with open(fname, 'r') as f:
+                for line in f:
+                    parts = line.strip().split(',')
+                    self.entity_mappings[parts[0]] = int(parts[1])
 
         self.map = Map(self.session, map_location)
         self.battle = Battle(self.session, self.map)
@@ -403,7 +417,7 @@ class dndenv(gym.Env):
             for _, _, player, _ in self.players:
                 self.log(f"{player.name} {player.hp()}/{player.max_hp()}")
                 self.show_spells(player)
-            
+
             result = self.battle.next_turn(max_rounds=self.max_rounds)
             if result == 'tpk' and entity.conscious() and self.battle.entity_group_for(entity) in self.control_groups:
                 reward = 10
@@ -426,7 +440,7 @@ class dndenv(gym.Env):
 
                     observation, info = self._terminal_observation()
                     return observation, reward, True, False, info
-                
+
                 _, result = self._game_loop(current_player)
 
                 self.log(f"Result: {result}")
@@ -441,7 +455,6 @@ class dndenv(gym.Env):
                         else:
                             reward = -10
                     done = True
-        
         observation = self.generate_observation(entity)
         _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle,
                                                    weapon_mappings=self.weapon_mappings,
@@ -451,10 +464,15 @@ class dndenv(gym.Env):
             raise ValueError("There should be at least one available move for the agent.")
 
         self.current_round += 1
-        
+
         if self.current_round >= self.max_rounds:
             done = True
             truncated = True
+
+        # punish movement inefficiency a bit
+        if end_turn:
+            if self.battle.compute_movement_inefficiency(entity) == 0:
+                    reward += 0.1
 
         return observation, reward, done, truncated, self._info(_available_moves, entity)
 
@@ -467,15 +485,19 @@ class dndenv(gym.Env):
             self.log("no spells")
 
     def generate_observation(self, entity):
-        return build_observation(self.battle, self.map, entity, self.view_port_size)
+        return build_observation(self.battle, self.map, entity, self.entity_mappings, self.view_port_size)
     
     def _terminal_observation(self):
         observation = {
             "map": render_terrain(self.battle, self.map, self.view_port_size),
+            "conditions": np.array([0, 0, 0, 0, 0, 0, 0, 0]),
+            "enemy_conditions": np.array([0, 0, 0, 0, 0, 0, 0, 0]),
             "turn_info": np.array([0, 0, 0]),
             "health_pct": np.array([0.0]),
             "health_enemy" : np.array([0.0]),
             "enemy_reactions": np.array([0]),
+            "player_type": 0,
+            "enemy_type": 0,
             "ability_info": np.array([0, 0, 0, 0, 0, 0, 0, 0]), # tracks usage of class specific abilities (e.g. second wind, rage, etc.)
             "movement": 0
         }

@@ -47,6 +47,7 @@ class Battle():
             'free_object_interaction': 0,
             'target_effect': {},
             'two_weapon': None,
+            'positions_entered': {},
             'controller': controller,
         }
 
@@ -127,7 +128,7 @@ class Battle():
 
     def end_turn(self):
         self.trigger_event('end_of_round', self,  { "target" : self.current_turn()})
-    
+
     def battle_ends(self):
         # check if the entities that are alive are all in the same group
         groups = set()
@@ -136,7 +137,17 @@ class Battle():
             if entity.conscious():
                 groups.add(self.entities[entity]['group'])
 
-        return len(groups) == 1                
+        return len(groups) == 1
+
+    def compute_movement_inefficiency(self, entity):
+        positions_entered = self.entities[entity]['positions_entered']
+        if not positions_entered:
+            return 0
+        inefficiency = 0
+        for _, count in positions_entered.items():
+            if count > 1:
+                inefficiency += 1
+        return inefficiency
 
     def next_turn(self, max_rounds=None):
         self.trigger_event('end_of_round', self, { "target" : self.current_turn()})

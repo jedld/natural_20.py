@@ -1,31 +1,55 @@
 import numpy as np
 from natural20.entity import Entity
+from natural20.player_character import PlayerCharacter
 # from natural20.actions.look_action import LookAction
 # from natural20.actions.stand_action import StandAction
 
-def enemy_stats(battle, current_player):
+def enemy_stats(battle, current_player, entity_type_mappings):
+    """
+    Returns the enemy stats for the current player
+    """
     for player in battle.entities.keys():
         if battle.entity_group_for(player) != battle.entity_group_for(current_player):
             enemy_hp = player.hp() / player.max_hp()
             enemy_reactions = player.total_reactions(battle)
-            return enemy_hp, enemy_reactions
-    return 0, 0
+            enemy_conditions = condition_stats(player, battle)
+            return enemy_hp, enemy_reactions, enemy_conditions, map_entity_to_index(player, entity_type_mappings)
+    return 0, 0, np.zeros((8), dtype=np.int64)
 
-def build_observation(battle, map, entity, view_port_size=(12, 12)):
+def condition_stats(entity, battle):
+    """
+    Returns the condition stats for the entity
+    """
+    return np.array([int(entity.prone()), int(entity.dodge(battle)), int(entity.grappled()), int(entity.disengage(battle)), 0, 0, 0, 0])
+
+def build_observation(battle, map, entity, entity_type_mappings, view_port_size=(12, 12)):
     """
     Builds the observation for the environment
     """
-    e_health, e_reactions = enemy_stats(battle, entity)
+    e_health, e_reactions, e_conditions, enemy_type = enemy_stats(battle, entity, entity_type_mappings=entity_type_mappings)
+
+    pc_entity_type = map_entity_to_index(entity, entity_type_mappings)
+
     obs = {
         "map": render_terrain(battle, map, view_port_size),
         "turn_info": np.array([entity.total_actions(battle), entity.total_bonus_actions(battle), entity.total_reactions(battle)]),
+        "conditions": condition_stats(entity, battle),
         "health_pct": np.array([entity.hp() / entity.max_hp()]),
         "health_enemy" : np.array([e_health]),
+        "enemy_conditions": e_conditions,
         "enemy_reactions" : np.array([e_reactions]),
         "ability_info": ability_info(entity),
+        "player_type": pc_entity_type,
+        "enemy_type": enemy_type,
         "movement": battle.current_turn().available_movement(battle)
     }
     return obs
+
+def map_entity_to_index(entity, entity_type_mappings):
+    if isinstance(entity, PlayerCharacter):
+        return entity_type_mappings[entity.class_descriptor()]
+    else:
+        return entity_type_mappings[entity.name.lower()]
 
 def ability_info(entity):
     """
@@ -221,8 +245,13 @@ def generate_entity_token_map(session, output_filename = 'entity_token_map.csv')
     """
 
     entity_map = {}
-    for idx, entity in enumerate(session.load_entities().keys()):
-        entity_map[idx] = entity
+    # load characters
+    for idx, pc in enumerate(session.load_characters()):
+        entity_map[idx] = pc.class_descriptor()
+
+    # load npcs
+    for idx, npc in enumerate(session.load_npcs()):
+        entity_map[idx + len(session.load_characters())] = npc.name.lower()
 
     with open(output_filename, "w") as f:
         for idx, entity in entity_map.items():

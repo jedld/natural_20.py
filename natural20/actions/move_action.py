@@ -1,7 +1,7 @@
 from typing import List, Tuple
 from natural20.action import Action
 from natural20.utils.movement import compute_actual_moves, retrieve_opportunity_attacks
-# typed: true
+import pdb
 class MoveAction(Action):
     """
     Move action
@@ -176,6 +176,15 @@ class MoveAction(Action):
                                                   target_roll=item['target_roll'])
         elif item_type == 'move':
             item['map'].move_to(item['source'], *item['position'], battle)
+
+            # mark path
+            if battle:
+                path_taken = item['path']
+                positions_entered = battle.entity_state_for(item['source'])['positions_entered']
+                for p in path_taken:
+                    p_key = tuple(p)
+                    visit_count = positions_entered.get(p_key, 0)
+                    positions_entered[p_key] = visit_count + 1
 
             if item['as_dash'] and item['as_bonus_action']:
                 battle.entity_state_for(item['source'])['bonus_action'] -= 1

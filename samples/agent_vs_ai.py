@@ -16,6 +16,7 @@ from model import QNetwork
 import os
 import time
 import torch
+import random
 
 
 MAX_EPISODES = 500
@@ -42,15 +43,17 @@ class ModelPolicy:
 
 env = make("dndenv-v0", root_path="samples/map_with_obstacles", render_mode="ansi",
             show_logs=True,
-            profiles=['high_elf_mage.yml'], enemies=['high_elf_fighter.yml'])
+            profiles=lambda: random.choice(['high_elf_mage.yml', 'high_elf_fighter.yml', 'halfling_rogue.yml']),
+            enemies=lambda: random.choice(['high_elf_fighter.yml', 'halfling_rogue.yml']))
 
 observation, info = env.reset()
 
 print("=========================================")
 print("Battle between an RL agent vs a Rules based AI")
 print("=========================================")
+print(env.render())
 model = ModelPolicy()
-action = action = model.action(observation, info)
+action = model.action(observation, info)
 
 print(f"selected action: {action}")
 terminal = False

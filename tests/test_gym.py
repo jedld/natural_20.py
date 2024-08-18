@@ -27,6 +27,7 @@ class TestGym(unittest.TestCase):
                 break
         assert env is not None
         assert info is not None
+        self.assertEqual(observation['player_type'], np.array([1]))
 
     def test_character_sampling(self):
         def sample_character():

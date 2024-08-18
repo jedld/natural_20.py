@@ -508,7 +508,8 @@ class Entity(EntityStateEvaluator):
             'free_object_interaction': 1,
             'active_perception': 0,
             'active_perception_disadvantage': 0,
-            'two_weapon': None
+            'two_weapon': None,
+            'positions_entered': {}
         })
 
         if 'dodge' in entity_state['statuses']:

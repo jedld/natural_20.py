@@ -6,11 +6,12 @@ from natural20.actions.move_action import MoveAction
 from natural20.gym.types import EnvObject, Environment
 from natural20.entity import Entity
 from natural20.action import Action
+from natural20.controller import Controller
 import math
 import copy
 import pdb
 
-class GenericController:
+class GenericController(Controller):
     def __init__(self, session):
         self.state = {}
         self.session = session
@@ -49,7 +50,6 @@ class GenericController:
         if len(available_actions) > 0:
             action = self._sort_actions(battle, available_actions)[0]
             # print(f"{entity.name}: {action}")
-
             return action
         
         # no action, end turn
@@ -59,7 +59,13 @@ class GenericController:
         # choose available moves at random and return it
         available_actions = self._compute_available_moves(entity, battle)
         # environment, entity = self._build_environment(battle, entity)
-        return self.select_action(battle, entity, available_actions)
+        selected_action = self.select_action(battle, entity, available_actions)
+        if isinstance(selected_action, MoveAction):
+            battle_data = self._battle_data(battle, entity)
+            for p in selected_action.move_path:
+                battle_data['visited_location'][tuple(p)] = True
+
+        return selected_action
     
     # Build a suitable environment for Reinforcement Learning
     def _build_environment(self, battle, entity):
@@ -114,15 +120,15 @@ class GenericController:
             self.battle_data[battle][entity] = {
                 'known_enemy_positions': {},
                 'hiding_spots': {},
-                'investigate_location': {}
+                'investigate_location': {},
+                'visited_location': {}
             }
 
     def _compute_available_moves(self, entity, battle):
         self._initialize_battle_data(battle, entity)
 
-        # known_enemy_positions = self.battle_data[battle][entity]['known_enemy_positions']
-        # hiding_spots = self.battle_data[battle][entity]['hiding_spots']
-        investigate_location = self.battle_data[battle][entity]['investigate_location']
+        battle_data = self._battle_data(battle, entity)
+        investigate_location = battle_data['investigate_location']
 
         enemy_positions = {}
         self._observe_enemies(battle, entity, enemy_positions)
@@ -131,7 +137,6 @@ class GenericController:
         # generate available targets
         valid_actions = []
         # check if enemy positions is empty
-
         if len(enemy_positions.keys()) == 0 and len(investigate_location) == 0 and LookAction.can(entity, battle):
             action = LookAction(self.session, entity, "look")
             valid_actions.append(action)
@@ -155,6 +160,8 @@ class GenericController:
                 valid_actions.append(action)
             elif action.action_type == 'second_wind':
                 valid_actions.append(action)
+            elif action.action_type == 'spell':
+                valid_actions.append(action)
 
         return valid_actions
 
@@ -162,7 +169,19 @@ class GenericController:
         enemy_positions = {}
         self._observe_enemies(battle, entity, enemy_positions)
         return enemy_positions
-    
+
+    def _battle_data(self, battle, entity):
+        if battle not in self.battle_data:
+            self.battle_data[battle] = {}
+        if entity not in self.battle_data[battle]:
+            self.battle_data[battle][entity] = {
+                'known_enemy_positions': {},
+                'hiding_spots': {},
+                'investigate_location': {},
+                'visited_location': {}
+            }
+        return self.battle_data[battle][entity]
+
     # Sort actions based on success rate and damage
     def _sort_actions(self, battle, available_actions):
         sorted_actions = []

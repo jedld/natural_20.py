@@ -82,6 +82,12 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
 
     self.attributes["hp"] = copy.deepcopy(self.max_hp())
 
+  def class_descriptor(self):
+    class_level = []
+    for klass, level in self.properties.get('classes', {}).items():
+      class_level.append(f"{klass}-{level}")
+    return "_".join(class_level).lower()
+
   @staticmethod
   def load(session, path, override=None):
     if override is None:
@@ -265,8 +271,6 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
         targeted_action.target = target
         final_attack_list.append(targeted_action)
     return final_attack_list
-
-
 
   def prepared_spells(self):
     return self.properties.get('cantrips', []) + self.properties.get('prepared_spells', [])

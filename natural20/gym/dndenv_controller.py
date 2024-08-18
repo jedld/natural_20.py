@@ -5,11 +5,13 @@ from natural20.actions.move_action import MoveAction
 from natural20.gym.types import EnvObject, Environment
 from natural20.entity import Entity
 from natural20.action import Action
+from natural20.controller import Controller
 from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves
 import math
 import copy
+import os
 
-class DndenvController:
+class DndenvController(Controller):
 
     VALID_ACTIONS = ["attack",
                      "move",
@@ -26,11 +28,18 @@ class DndenvController:
     """
     Wrapper for Gym Agents to interact with Natural20
     """
-    def __init__(self, session, agent: object):
+    def __init__(self, session, agent: object, entity_embeddings: str = 'entity_token_mappings.csv'):
         self.state = {}
         self.session = session
         self.battle_data = {}
         self.agent = agent
+        self.entity_mappings = {}
+
+        fname = os.path.join(self.session.root_path, entity_embeddings)
+        with open(fname, 'r') as f:
+            for line in f:
+                parts = line.strip().split(',')
+                self.entity_mappings[parts[0]] = int(parts[1])
 
     # @param entity [Natural20::Entity]
     def register_handlers_on(self, entity):
@@ -60,7 +69,7 @@ class DndenvController:
     def select_action(self, battle, entity, available_actions = None) -> Action:
         if available_actions is None:
             available_actions = []
-        observation = build_observation(battle, battle.map, entity)
+        observation = build_observation(battle, battle.map, entity, self.entity_mappings)
         info = {"available_moves": compute_available_moves(self.session, battle.map, battle.current_turn(), battle), "current_index" : battle.current_turn_index }
         print("Custom Agent ..........")
         gym_action = self.agent.step(observation, info)

@@ -167,7 +167,7 @@ class AttackAction(Action):
             opts = {}
 
         weapon, _, attack_mod, _, _ = self.get_weapon_info(opts)
-        advantage_mod, adv_info = target_advantage_condition(battle, self.source, self.target, weapon)
+        advantage_mod, adv_info = target_advantage_condition(battle, self.source, self.target, weapon, thrown=self.thrown)
         target_ac, _cover_ac = effective_ac(battle, self.source, self.target)
         return DieRoll.roll(f"1d20+{attack_mod}", advantage=advantage_mod > 0, disadvantage=advantage_mod < 0).prob(target_ac)
 
@@ -189,7 +189,7 @@ class AttackAction(Action):
 
         weapon, attack_name, attack_mod, damage_roll, ammo_type = self.get_weapon_info(opts)
 
-        self.advantage_mod, adv_info = target_advantage_condition(battle, self.source, target, weapon)
+        self.advantage_mod, adv_info = target_advantage_condition(battle, self.source, target, weapon, thrown=self.thrown)
 
         if map:
             self.evaluate_feature_protection(battle, map, target, adv_info)

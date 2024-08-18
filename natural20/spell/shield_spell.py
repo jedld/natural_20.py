@@ -32,24 +32,23 @@ class ShieldSpell(Spell):
         if opts is None:
             opts = {}
 
-        spell = battle.session.load_spell('shield')
-        if attack_roll is None or attack_roll.result in range(effective_ac, effective_ac + 5):
-            print("Shield spell avaialble as a reaction")
-            pdb.set_trace()
-            #TODO: Add prompt to use shield spell
-            shield_spell = ShieldSpell(battle.session, entity, 'shield', spell)
-            action = Action(battle.session, entity, 'spell')
-            action.target = entity
-            shield_spell.action = action
-            return [[{
-                'type': 'shield',
-                'target': entity,
-                'source': entity,
-                'effect': shield_spell,
-                'spell': spell
-            }], False]
-        else:
-            return [[], False]
+        # spell = battle.session.load_spell('shield')
+        
+        # if attack_roll is None or attack_roll.result in range(effective_ac, effective_ac + 5):
+        #     #TODO: Add prompt to use shield spell
+        #     shield_spell = ShieldSpell(battle.session, entity, 'shield', spell)
+        #     action = Action(battle.session, entity, 'spell')
+        #     action.target = entity
+        #     shield_spell.action = action
+        #     return [[{
+        #         'type': 'shield',
+        #         'target': entity,
+        #         'source': entity,
+        #         'effect': shield_spell,
+        #         'spell': spell
+        #     }], False]
+        # else:
+        return [[], False]
 
     def resolve(self, entity, battle, spell_action):
         return [{
