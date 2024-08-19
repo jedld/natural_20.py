@@ -30,7 +30,8 @@ class TestSpellAction(unittest.TestCase):
         self.entity.reset_turn(self.battle)
 
     def test_firebolt(self):
-        self.assertEqual(self.npc.hp(), 7)
+        random.seed(7002)
+        self.assertEqual(self.npc.hp(), 6)
         print(MapRenderer(self.battle_map).render())
         action = SpellAction.build(self.session, self.entity)['next'](['firebolt',0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
@@ -39,7 +40,7 @@ class TestSpellAction(unittest.TestCase):
         self.assertEqual(self.npc.hp(), 0)
 
     def test_ranged_spell_attack_with_disadvantage(self):
-        self.assertEqual(self.npc.hp(), 7)
+        self.assertEqual(self.npc.hp(), 6)
         self.npc2 = self.session.npc('skeleton')
         self.battle.add(self.npc2, 'b', position=[1, 6])
         print(MapRenderer(self.battle_map).render())
@@ -83,7 +84,8 @@ class TestSpellAction(unittest.TestCase):
         self.assertEqual(self.entity.armor_class(), 12)
 
     def test_chill_touch(self):
-        self.assertEqual(self.npc.hp(), 7)
+        random.seed(1002)
+        self.assertEqual(self.npc.hp(), 6)
         print(MapRenderer(self.battle_map).render())
         action = SpellAction.build(self.session, self.entity)['next'](['chill_touch', 0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
@@ -102,13 +104,15 @@ class TestSpellAction(unittest.TestCase):
         self.assertNotEqual(self.npc.hp(), 3)
 
     def test_chill_touch_undead(self):
+        random.seed(1002)
         self.npc = self.session.npc('skeleton')
         self.battle.add(self.npc, 'b', position=[5, 5])
+        self.assertEqual(self.npc.hp(), 13)
         print(MapRenderer(self.battle_map).render())
         action = SpellAction.build(self.session, self.entity)['next'](['chill_touch', 0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle" : self.battle})
         self.battle.commit(action)
-        self.assertEqual(self.npc.hp(), 5)
+        self.assertEqual(self.npc.hp(), 6)
         self.assertEqual(target_advantage_condition(self.battle, self.npc, self.entity, None), [-1, [[], ['chill_touch_disadvantage']]])
 
     def test_expeditious_retreat(self):

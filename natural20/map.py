@@ -5,6 +5,7 @@ from natural20.entity import Entity
 from natural20.utils.movement import requires_squeeze
 from natural20.item_library.common import StoneWall, Ground
 from natural20.item_library.door_object import DoorObject
+from natural20.item_library.pit_trap import PitTrap
 from natural20.player_character import PlayerCharacter
 from natural20.utils.list_utils import remove_duplicates, bresenham_line_of_sight
 import math
@@ -39,6 +40,7 @@ class Map():
         # print(f"map size: {self.size}")
         self.feet_per_grid = self.properties.get('grid_size', 5)
         self.base_map = []
+        self.base_map_1 = []
         self.objects = []
         self.tokens = []
         self.unaware_npcs = []
@@ -51,6 +53,12 @@ class Map():
             for _ in range(self.size[1]):
                 row.append(None)
             self.base_map.append(row)
+
+        for _ in range(self.size[0]):
+            row = []
+            for _ in range(self.size[1]):
+                row.append(None)
+            self.base_map_1.append(row)
 
         for _ in range(self.size[0]):
             row = []
@@ -68,6 +76,11 @@ class Map():
             for cur_x, c in enumerate(lines):
                 if not c=='.':
                     self.base_map[cur_x][cur_y] = c
+
+        for cur_y, lines in enumerate(self.properties.get('map', {}).get('base_1', [])):
+            for cur_x, c in enumerate(lines):
+                if not c=='.':
+                    self.base_map_1[cur_x][cur_y] = c
 
         if self.properties.get('map', {}).get('meta'):
             self.meta_map = [[None for _ in range(self.size[1])] for _ in range(self.size[0])]
@@ -88,7 +101,8 @@ class Map():
     def _setup_objects(self):
         for pos_x in range(self.size[0]):
             for pos_y in range(self.size[1]):
-                tokens = self.base_map[pos_x][pos_y]
+                tokens = [self.base_map_1[pos_x][pos_y], self.base_map[pos_x][pos_y]]
+                tokens = [token for token in tokens if token is not None]
 
                 if not tokens:
                     continue
@@ -236,6 +250,7 @@ class Map():
         return None
     
     def place_object(self, object_info, pos_x, pos_y, object_meta=None):
+        print(f"placing object {object_info} at {pos_x}, {pos_y}")
         if object_meta is None:
             object_meta = {}
         if object_info is None:
@@ -244,7 +259,7 @@ class Map():
         if isinstance(object_info, Object):
             obj = object_info
         elif object_info.get('item_class'):
-            item_klass = globals()[object_info['item_class']]            
+            item_klass = globals()[object_info['item_class']]
             object_info = object_info.copy()
             object_info.update(object_meta)
 

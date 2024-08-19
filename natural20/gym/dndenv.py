@@ -361,16 +361,17 @@ class dndenv(gym.Env):
 
         if total_max_hp > 0:
             return (total_hp / total_max_hp)
-        
+
         return 1.0
-    
+
     def step(self, action):
         if self.terminal:
             observation, info = self._terminal_observation()
             return observation, 0, True, False, info
-        
+
         if self.current_round >= self.max_rounds:
             return None, 0, True, True, None
+
         self.time_step += 1
         entity = self.battle.current_turn()
 
@@ -447,7 +448,7 @@ class dndenv(gym.Env):
 
                 if result == 'tpk':
                     # Victory!!!!
-                    if entity.conscious() and self.battle.entity_group_for(entity) in self.control_groups:
+                    if self.battle.entity_group_for(entity) in self.battle.winning_groups():
                         reward = 10
                     else:
                         if self.damage_based_reward:

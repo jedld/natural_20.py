@@ -3,6 +3,7 @@ import math
 # import pdb
 from natural20.event_manager import EventManager
 from natural20.evaluator.entity_state_evaluator import EntityStateEvaluator
+from typing import List, Tuple
 class Entity(EntityStateEvaluator):
 
     ATTRIBUTE_TYPES = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']
@@ -648,7 +649,7 @@ class Entity(EntityStateEvaluator):
     # @param map [Natural20::BattleMap]
     # @param target_position [Array<Integer,Integer>]
     # @param adjacent_only [Boolean] If false uses melee distance otherwise uses fixed 1 square away
-    def melee_squares(self, map, target_position=None, adjacent_only=False, squeeze=False):
+    def melee_squares(self, map, target_position=None, adjacent_only=False, squeeze=False) -> List[Tuple[int, int]]:
         result = []
         if adjacent_only:
             cur_x, cur_y = target_position or map.entity_or_object_pos(self)
@@ -663,7 +664,7 @@ class Entity(EntityStateEvaluator):
                         adjusted_x_off = x_off
                         adjusted_y_off = y_off
 
-                        position = [sq[0] + adjusted_x_off, sq[1] + adjusted_y_off]
+                        position = (sq[0] + adjusted_x_off, sq[1] + adjusted_y_off)
 
                         if (position in entity_squares) or (position in result) or (position[0] < 0) or (position[0] >= map.size[0]) or (position[1] < 0) or (position[1] >= map.size[1]):
                             continue
@@ -686,7 +687,7 @@ class Entity(EntityStateEvaluator):
                     if y_off < 0:
                         adjusted_y_off -= self.token_size() - 1
 
-                    position = [cur_x + adjusted_x_off, cur_y + adjusted_y_off]
+                    position = (cur_x + adjusted_x_off, cur_y + adjusted_y_off)
 
                     if (position[0] < 0) or (position[0] >= map.size[0]) or (position[1] < 0) or (position[1] >= map.size[1]):
                         continue

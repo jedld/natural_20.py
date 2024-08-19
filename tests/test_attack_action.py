@@ -7,6 +7,7 @@ from natural20.event_manager import EventManager
 from natural20.map import Map
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.map_renderer import MapRenderer
+from natural20.utils.ac_utils import calculate_cover_ac
 from pdb import set_trace
 
 class TestAttackAction(unittest.TestCase):
@@ -112,6 +113,21 @@ class TestAttackAction(unittest.TestCase):
         available_act = character.available_actions(session, battle)
         available_act = [act.action_type for act in available_act]
         self.assertFalse('two_weapon_attack' in available_act)
+
+    def test_calculate_cover_ac(self):
+        session = self.make_session()
+        battle_map = Map(session, 'battle_sim_objects')
+        character = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        npc2 = session.npc('goblin')
+
+        battle_map.place((1, 2), character, 'G')
+        battle_map.place((5, 2), npc2, 'g')
+
+        map_renderer = MapRenderer(battle_map)
+        print(map_renderer.render())
+
+        self.assertEqual(calculate_cover_ac(battle_map, character, npc2), 0)
+        self.assertEqual(calculate_cover_ac(battle_map, npc2, character), 2)
 
 if __name__ == '__main__':
     unittest.main()

@@ -39,6 +39,15 @@ class Object(Entity):
             }
 
 
+    def __str__(self) -> str:
+        return self.name
+    
+    def __repr__(self):
+        """
+        Return the string representation of the object
+        """
+        return self.name
+
     def __hash__(self) -> int:
         return id(self)
 

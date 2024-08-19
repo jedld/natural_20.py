@@ -130,14 +130,37 @@ class Battle():
         self.trigger_event('end_of_round', self,  { "target" : self.current_turn()})
 
     def battle_ends(self):
-        # check if the entities that are alive are all in the same group
+        """
+        Returns true if the battle has ended
+        """
         groups = set()
 
         for entity in self.combat_order:
             if entity.conscious():
                 groups.add(self.entities[entity]['group'])
 
-        return len(groups) == 1
+        # get all groups and make sure there are no opposing groups
+        for group in groups:
+            for group2 in groups:
+                if group == group2:
+                    continue
+                if group2 in self.opposing_groups.get(group, []):
+                    return False
+
+        return True
+
+    def winning_groups(self):
+        """
+        Returns the winning groups in the battle. If the battle is not over, returns an empty set.
+        """
+        if not self.battle_ends():
+            return set()
+
+        groups = set()
+        for entity in self.combat_order:
+            if entity.conscious():
+                groups.add(self.entities[entity]['group'])
+        return groups
 
     def compute_movement_inefficiency(self, entity):
         positions_entered = self.entities[entity]['positions_entered']

@@ -1,3 +1,5 @@
+import pdb
+
 def effective_ac(battle, source, target):
     cover_ac_adjustments = 0
     if battle and battle.map:
@@ -25,6 +27,7 @@ def cover_calculation(map, source, target, entity_1_pos=None, entity_2_pos=None,
                 continue
 
             objs = map.objects_at(*target_pos)
+
             for obj in objs:
                 if obj.can_hide():
                     max_ac = max(max_ac, obj.cover_ac())
