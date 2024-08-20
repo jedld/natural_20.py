@@ -39,7 +39,7 @@ def build_observation(battle, map, entity, entity_type_mappings, weapon_type_map
         mapped_equipments += [0] * (5 - len(mapped_equipments))
 
     obs = {
-        "map": render_terrain(battle, map, view_port_size),
+        "map": render_terrain(battle, map, entity_type_mappings, view_port_size),
         "turn_info": np.array([entity.total_actions(battle), entity.total_bonus_actions(battle), entity.total_reactions(battle)]),
         "conditions": condition_stats(entity, battle),
         "health_pct": np.array([entity.hp() / 1000.0]),
@@ -50,8 +50,8 @@ def build_observation(battle, map, entity, entity_type_mappings, weapon_type_map
         "player_ac" : np.array([entity.armor_class() / 30.0]),
         "enemy_ac" : np.array([e_ac / 30.0]),
         "ability_info": ability_info(entity),
-        "player_type": pc_entity_type,
-        "enemy_type": enemy_type,
+        "player_type": np.array([pc_entity_type]),
+        "enemy_type": np.array([enemy_type]),
         "movement": np.array([battle.current_turn().available_movement(battle)])
     }
     return obs
@@ -152,7 +152,7 @@ def render_object_token(map, pos_x, pos_y):
     else:
         return object_meta.token()
 
-def render_terrain(battle, map, view_port_size=(12, 12)):
+def render_terrain(battle, map, entity_type_mappings, view_port_size=(12, 12)):
     result = []
     current_player = battle.current_turn()
     pos_x, pos_y = map.position_of(current_player)
@@ -162,21 +162,21 @@ def render_terrain(battle, map, view_port_size=(12, 12)):
         col_arr = []
         for x in range(-view_h//2, view_h//2):
             if pos_x + x < 0 or pos_x + x >= map_w or pos_y + y < 0 or pos_y + y >= map_h:
-                col_arr.append([-1, -1, 0, 0])
+                col_arr.append([0, 0, 0, 0, 0])
             else:
                 if not map.can_see_square(current_player,(pos_x + x, pos_y + y)):
-                    col_arr.append([255, 255, 255, 255])
+                    col_arr.append([255, 255, 255, 255, 255])
                 else:
                     terrain = render_object_token(map, pos_x + x, pos_y + y)
 
                     if terrain is None:
-                        terrain_int = 0
-                    elif terrain == '~':
-                        terrain_int = 2
-                    elif terrain == 'o':
-                        terrain_int = 3
-                    elif terrain == '#':
                         terrain_int = 1
+                    elif terrain == '~':
+                        terrain_int = 3
+                    elif terrain == 'o':
+                        terrain_int = 4
+                    elif terrain == '#':
+                        terrain_int = 2
                     else:
                         raise ValueError(f"Unknown terrain {terrain}")
 
@@ -209,8 +209,11 @@ def render_terrain(battle, map, view_port_size=(12, 12)):
                             status_int |= 16
                         if entity.dead():
                             status_int |= 32
- 
-                    col_arr.append([entity_int, terrain_int, health_pct, status_int])
+                    if entity is not None:
+                        entity_type = entity_type_mappings.get(entity.class_descriptor(), 0)
+                    else:
+                        entity_type = 0
+                    col_arr.append([entity_type, terrain_int, entity_int, health_pct, status_int])
         
         result.append(col_arr)
     return np.array(result)
@@ -279,11 +282,11 @@ def generate_entity_token_map(session, output_filename = 'entity_token_map.csv')
     entity_map = {}
     # load characters
     for idx, pc in enumerate(session.load_characters()):
-        entity_map[idx] = pc.class_descriptor()
+        entity_map[idx + 1] = pc.class_descriptor()
 
     # load npcs
     for idx, npc in enumerate(session.load_npcs()):
-        entity_map[idx + len(session.load_characters())] = npc.name.lower()
+        entity_map[idx + len(session.load_characters()) + 1] = npc.name.lower()
 
     with open(output_filename, "w") as f:
         for idx, entity in entity_map.items():
@@ -316,7 +319,7 @@ def generate_spell_token_map(session, output_filename = 'spell_token_map.csv'):
 
     spell_map = {}
     for idx, spell in enumerate(session.load_all_spells().keys()):
-        spell_map[idx] = spell
+        spell_map[idx + 1] = spell
 
     with open(output_filename, "w") as f:
         for idx, spell in spell_map.items():
@@ -330,8 +333,8 @@ def generate_npc_token_map(session, output_filename):
 
     npc_map = {}
     for idx, npc in enumerate(session.load_npcs().keys()):
-        npc_map[idx] = npc
+        npc_map[idx+1] = npc
 
     with open(output_filename, "w") as f:
         for idx, npc in npc_map.items():
-            f.write(f"{npc},{idx}\n")
+            f.write(f"{npc},{idx+1}\n")

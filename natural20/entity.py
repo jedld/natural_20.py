@@ -48,12 +48,15 @@ class Entity(EntityStateEvaluator):
                 setattr(self, f"{skill}_mod", self.make_skill_mod_function(skill, ability))
                 setattr(self, f"{skill}_check", self.make_skill_check_function(skill))
 
+    def class_descriptor(self):
+        return self.name().lower()
+
     def is_npc(self):
         return False
-    
+
     def expertise(self, prof):
         return prof in self.properties.get('expertise', [])
-    
+
     # Returns the proficiency bonus of this entity
     # @return [Integer]
     def proficiency_bonus(self):

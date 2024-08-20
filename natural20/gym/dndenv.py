@@ -51,12 +51,12 @@ class dndenv(gym.Env):
         }
 
         self.observation_space = gym.spaces.Dict(spaces={
-            "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 4), dtype=int),
+            "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 5), dtype=int),
             "turn_info" : gym.spaces.Box(low=0, high=1, shape=(3,), dtype=int),
             "conditions": gym.spaces.Box(low=0, high=1, shape=(8,), dtype=int),
-            "player_ac" : gym.spaces.Box(low=0, high=255, shape=(1,), dtype=int),
+            "player_ac" : gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "player_equipped" : gym.spaces.Box(low=0, high=255, shape=(5,), dtype=int),
-            "enemy_ac" : gym.spaces.Box(low=0, high=255, shape=(1,), dtype=float),
+            "enemy_ac" : gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "health_pct": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "health_enemy": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "enemy_reactions": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int),
@@ -64,7 +64,7 @@ class dndenv(gym.Env):
             "player_type": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int),
             "enemy_type": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int),
             "ability_info": gym.spaces.Box(low=0, high=1, shape=(8,), dtype=int),
-            "movement": gym.spaces.Discrete(255)
+            "movement": gym.spaces.Box(low=0, high=255, shape=(1,), dtype=int),
         })
 
         self.action_space = gym.spaces.Tuple([
@@ -499,7 +499,7 @@ class dndenv(gym.Env):
     
     def _terminal_observation(self):
         observation = {
-            "map": render_terrain(self.battle, self.map, self.view_port_size),
+            "map": render_terrain(self.battle, self.map, self.entity_mappings, self.view_port_size),
             "conditions": np.array([0, 0, 0, 0, 0, 0, 0, 0]),
             "enemy_conditions": np.array([0, 0, 0, 0, 0, 0, 0, 0]),
             "player_equipped": np.array([0, 0, 0, 0, 0]),
@@ -509,8 +509,8 @@ class dndenv(gym.Env):
             "health_pct": np.array([0.0]),
             "health_enemy" : np.array([0.0]),
             "enemy_reactions": np.array([0]),
-            "player_type": 0,
-            "enemy_type": 0,
+            "player_type": np.array([0]),
+            "enemy_type": np.array([0]),
             "ability_info": np.array([0, 0, 0, 0, 0, 0, 0, 0]), # tracks usage of class specific abilities (e.g. second wind, rage, etc.)
             "movement": np.array([0])
         }
