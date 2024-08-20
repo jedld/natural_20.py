@@ -65,7 +65,6 @@ class MapRenderer:
             return None
 
         m_x, m_y = self.map.interactable_objects[object_meta]
-        color = object_meta.color or self.DEFAULT_TOKEN_COLOR
 
         if not object_meta.token():
             return None

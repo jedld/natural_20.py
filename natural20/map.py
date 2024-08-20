@@ -250,7 +250,7 @@ class Map():
         return None
     
     def place_object(self, object_info, pos_x, pos_y, object_meta=None):
-        print(f"placing object {object_info} at {pos_x}, {pos_y}")
+        # print(f"placing object {object_info} at {pos_x}, {pos_y}")
         if object_meta is None:
             object_meta = {}
         if object_info is None:

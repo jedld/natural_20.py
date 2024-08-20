@@ -10,11 +10,11 @@ def enemy_stats(battle, current_player, entity_type_mappings):
     """
     for player in battle.entities.keys():
         if battle.entity_group_for(player) != battle.entity_group_for(current_player):
-            enemy_hp = player.hp() / player.max_hp()
+            enemy_hp = player.hp() / 1000.0
             enemy_reactions = player.total_reactions(battle)
             enemy_conditions = condition_stats(player, battle)
-            return enemy_hp, enemy_reactions, enemy_conditions, map_entity_to_index(player, entity_type_mappings)
-    return 0, 0, np.zeros((8), dtype=np.int64)
+            return enemy_hp, enemy_reactions, enemy_conditions, map_entity_to_index(player, entity_type_mappings), player.armor_class()
+    return 0, 0, np.zeros((8), dtype=np.int64), 0
 
 def condition_stats(entity, battle):
     """
@@ -22,26 +22,37 @@ def condition_stats(entity, battle):
     """
     return np.array([int(entity.prone()), int(entity.dodge(battle)), int(entity.grappled()), int(entity.disengage(battle)), 0, 0, 0, 0])
 
-def build_observation(battle, map, entity, entity_type_mappings, view_port_size=(12, 12)):
+def build_observation(battle, map, entity, entity_type_mappings, weapon_type_mappings, view_port_size=(12, 12)):
     """
     Builds the observation for the environment
     """
-    e_health, e_reactions, e_conditions, enemy_type = enemy_stats(battle, entity, entity_type_mappings=entity_type_mappings)
+    e_health, e_reactions, e_conditions, enemy_type, e_ac = enemy_stats(battle, entity, entity_type_mappings=entity_type_mappings)
 
     pc_entity_type = map_entity_to_index(entity, entity_type_mappings)
+
+    mapped_equipments = []
+    for index, equipment in enumerate(entity.equipped_items()):
+        if index < 5:
+            mapped_equipments.append(weapon_type_mappings[equipment['name']])
+
+    if len(mapped_equipments) < 5:
+        mapped_equipments += [0] * (5 - len(mapped_equipments))
 
     obs = {
         "map": render_terrain(battle, map, view_port_size),
         "turn_info": np.array([entity.total_actions(battle), entity.total_bonus_actions(battle), entity.total_reactions(battle)]),
         "conditions": condition_stats(entity, battle),
-        "health_pct": np.array([entity.hp() / entity.max_hp()]),
+        "health_pct": np.array([entity.hp() / 1000.0]),
+        "player_equipped": np.array(mapped_equipments),
         "health_enemy" : np.array([e_health]),
         "enemy_conditions": e_conditions,
         "enemy_reactions" : np.array([e_reactions]),
+        "player_ac" : np.array([entity.armor_class() / 30.0]),
+        "enemy_ac" : np.array([e_ac / 30.0]),
         "ability_info": ability_info(entity),
         "player_type": pc_entity_type,
         "enemy_type": enemy_type,
-        "movement": battle.current_turn().available_movement(battle)
+        "movement": np.array([battle.current_turn().available_movement(battle)])
     }
     return obs
 
@@ -124,6 +135,23 @@ def dndenv_action_to_nat20action(entity, battle, map, available_actions, gym_act
             return -1
     raise ValueError(f"No action match for {gym_action} {action_type}")
 
+def render_object_token(map, pos_x, pos_y):
+    object_meta = map.object_at(pos_x, pos_y)
+    if not object_meta:
+        return None
+
+    m_x, m_y = map.interactable_objects[object_meta]
+
+    if not object_meta.token():
+        return None
+    if object_meta.token() == 'inherit':
+        return 'inherit'
+
+    if isinstance(object_meta.token(), list):
+        return object_meta.token()[pos_y - m_y][pos_x - m_x]
+    else:
+        return object_meta.token()
+
 def render_terrain(battle, map, view_port_size=(12, 12)):
     result = []
     current_player = battle.current_turn()
@@ -139,14 +167,18 @@ def render_terrain(battle, map, view_port_size=(12, 12)):
                 if not map.can_see_square(current_player,(pos_x + x, pos_y + y)):
                     col_arr.append([255, 255, 255, 255])
                 else:
-                    terrain = map.base_map[pos_x + x][pos_y + y]
+                    terrain = render_object_token(map, pos_x + x, pos_y + y)
 
                     if terrain is None:
                         terrain_int = 0
-                    elif terrain == 'w':
+                    elif terrain == '~':
                         terrain_int = 2
-                    else:
+                    elif terrain == 'o':
+                        terrain_int = 3
+                    elif terrain == '#':
                         terrain_int = 1
+                    else:
+                        raise ValueError(f"Unknown terrain {terrain}")
 
                     entity = map.entity_at(pos_x + x, pos_y + y)
 
@@ -268,6 +300,9 @@ def generate_weapon_token_map(session, output_filename = 'weapon_token_map.csv')
     weapon_map[0] = "unarmed"
     for idx, (name, _) in enumerate(session.load_weapons().items()):
         weapon_map[idx+1] = name
+
+    for idx, (name, _) in enumerate(session.load_all_equipments().items()):
+        weapon_map[idx+len(session.load_weapons())+1] = name
 
     with open(output_filename, "w") as f:
         for idx, weapon in weapon_map.items():

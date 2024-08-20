@@ -9,7 +9,7 @@ from natural20.session import Session
 from natural20.entity import Entity
 from natural20.gym.dndenv_controller import DndenvController
 from natural20.event_manager import EventManager
-from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, render_terrain
+from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, render_terrain, render_object_token
 import random
 import os
 import pdb
@@ -54,6 +54,9 @@ class dndenv(gym.Env):
             "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 4), dtype=int),
             "turn_info" : gym.spaces.Box(low=0, high=1, shape=(3,), dtype=int),
             "conditions": gym.spaces.Box(low=0, high=1, shape=(8,), dtype=int),
+            "player_ac" : gym.spaces.Box(low=0, high=255, shape=(1,), dtype=int),
+            "player_equipped" : gym.spaces.Box(low=0, high=255, shape=(5,), dtype=int),
+            "enemy_ac" : gym.spaces.Box(low=0, high=255, shape=(1,), dtype=float),
             "health_pct": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "health_enemy": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "enemy_reactions": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int),
@@ -105,6 +108,8 @@ class dndenv(gym.Env):
         if self.show_logs:
             print(msg)
     
+
+
     def _render_terrain_ansi(self):
         result = []
         current_player = self.battle.current_turn()
@@ -121,16 +126,21 @@ class dndenv(gym.Env):
                     abs_x = pos_x + x
                     abs_y = pos_y + y
 
-                    terrain = self.map.base_map[abs_x][abs_y]
+                    terrain = render_object_token(self.map, abs_x, abs_y)
                     entity = self.map.entity_at(abs_x, abs_y)
                     if self.map.can_see_square(current_player, (abs_x, abs_y)):
                         if entity is None:
                             if terrain is None:
                                 render_char = "."
-                            elif terrain == "w":
+                            elif terrain == "~":
                                 render_char = "~"
-                            else:
+                            elif terrain == "o":
+                                render_char = "o"
+                            elif terrain == "#":
                                 render_char = "#"
+                            else:
+                                raise ValueError(f"Unknown terrain {terrain}")
+
                         elif entity == current_player:
                             render_char = "P"
                         elif self.battle.allies(current_player, entity):
@@ -161,7 +171,13 @@ class dndenv(gym.Env):
 
         self.seed = seed # take note of seed for reproducibility
         random.seed(seed)
-        map_location = kwargs.get('map_location', os.path.join(self.root_path, self.map_file))
+
+        if callable(self.map_file):
+            map_filename = self.map_file()
+        else:
+            map_filename = self.map_file
+
+        map_location = kwargs.get('map_location', os.path.join(self.root_path, map_filename))
         event_manager = self.event_manager
 
         self.log(f"loading map from {map_location}")
@@ -470,11 +486,6 @@ class dndenv(gym.Env):
             done = True
             truncated = True
 
-        # punish movement inefficiency a bit
-        if end_turn:
-            if self.battle.compute_movement_inefficiency(entity) == 0:
-                    reward += 0.1
-
         return observation, reward, done, truncated, self._info(_available_moves, entity)
 
     def show_spells(self, current_player):
@@ -482,17 +493,18 @@ class dndenv(gym.Env):
             for spell_level in range(1, 10):
                 if current_player.max_spell_slots(spell_level) > 0:
                     self.log(f"spell slots level {spell_level}: {current_player.spell_slots_count(spell_level)}")
-        else:
-            self.log("no spells")
 
     def generate_observation(self, entity):
-        return build_observation(self.battle, self.map, entity, self.entity_mappings, self.view_port_size)
+        return build_observation(self.battle, self.map, entity, self.entity_mappings, self.weapon_mappings, self.view_port_size)
     
     def _terminal_observation(self):
         observation = {
             "map": render_terrain(self.battle, self.map, self.view_port_size),
             "conditions": np.array([0, 0, 0, 0, 0, 0, 0, 0]),
             "enemy_conditions": np.array([0, 0, 0, 0, 0, 0, 0, 0]),
+            "player_equipped": np.array([0, 0, 0, 0, 0]),
+            "player_ac": np.array([0.0]),
+            "enemy_ac": np.array([0.0]),
             "turn_info": np.array([0, 0, 0]),
             "health_pct": np.array([0.0]),
             "health_enemy" : np.array([0.0]),
@@ -500,7 +512,7 @@ class dndenv(gym.Env):
             "player_type": 0,
             "enemy_type": 0,
             "ability_info": np.array([0, 0, 0, 0, 0, 0, 0, 0]), # tracks usage of class specific abilities (e.g. second wind, rage, etc.)
-            "movement": 0
+            "movement": np.array([0])
         }
         
         return observation, self._info(end_of_turn_move(), self.battle.current_turn())

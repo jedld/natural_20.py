@@ -44,7 +44,8 @@ class ModelPolicy:
 env = make("dndenv-v0", root_path="samples/map_with_obstacles", render_mode="ansi",
             show_logs=True,
             profiles=lambda: random.choice(['high_elf_mage.yml', 'high_elf_fighter.yml', 'halfling_rogue.yml']),
-            enemies=lambda: random.choice(['high_elf_fighter.yml', 'halfling_rogue.yml']))
+            enemies=lambda: random.choice(['high_elf_fighter.yml', 'halfling_rogue.yml']),
+            map_file=lambda: random.choice(['maps/simple_map', 'maps/complex_map', 'maps/game_map']))
 
 observation, info = env.reset()
 

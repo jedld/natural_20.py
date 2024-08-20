@@ -54,6 +54,7 @@ natural20/item_library/__init__.py
 natural20/item_library/common.py
 natural20/item_library/door_object.py
 natural20/item_library/object.py
+natural20/item_library/pit_trap.py
 natural20/utils/__init__.py
 natural20/utils/ac_utils.py
 natural20/utils/action_builder.py

@@ -163,6 +163,7 @@ class SpellAction(Action):
                 'adv_info': item.get('adv_info', None),
                 'source': item['source'],
                 'target': item['target'],
+                'thrown': item.get('thrown', False),
                 'event': 'miss'
             })
 

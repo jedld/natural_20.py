@@ -191,6 +191,9 @@ class Session:
             equipment = self.load_yaml_file('items', 'equipment')
             self.equipment[item] = equipment.get(item)
         return self.equipment[item]
+    
+    def load_all_equipments(self):
+        return self.load_yaml_file('items', 'equipment')
 
     def load_object(self, object_name):
         if object_name not in self.objects:

@@ -28,18 +28,29 @@ class DndenvController(Controller):
     """
     Wrapper for Gym Agents to interact with Natural20
     """
-    def __init__(self, session, agent: object, entity_embeddings: str = 'entity_token_mappings.csv'):
+    def __init__(self, session, agent: object, entity_embeddings: str = 'entity_token_mappings.csv', weapon_embeddings: str = 'weapon_token_map.csv'):
         self.state = {}
         self.session = session
         self.battle_data = {}
         self.agent = agent
         self.entity_mappings = {}
+        self.weapon_mappings = {}
 
         fname = os.path.join(self.session.root_path, entity_embeddings)
         with open(fname, 'r') as f:
             for line in f:
                 parts = line.strip().split(',')
                 self.entity_mappings[parts[0]] = int(parts[1])
+
+        
+        # read CSV file in the folloing format name,idx
+        self.weapon_mappings = {}
+        fname = os.path.join(self.session.root_path, weapon_embeddings)
+        
+        with open(fname, 'r') as f:
+            for line in f:
+                parts = line.strip().split(',')
+                self.weapon_mappings[parts[0]] = int(parts[1])
 
     # @param entity [Natural20::Entity]
     def register_handlers_on(self, entity):
@@ -69,7 +80,7 @@ class DndenvController(Controller):
     def select_action(self, battle, entity, available_actions = None) -> Action:
         if available_actions is None:
             available_actions = []
-        observation = build_observation(battle, battle.map, entity, self.entity_mappings)
+        observation = build_observation(battle, battle.map, entity, self.entity_mappings, self.weapon_mappings)
         info = {"available_moves": compute_available_moves(self.session, battle.map, battle.current_turn(), battle), "current_index" : battle.current_turn_index }
         print("Custom Agent ..........")
         gym_action = self.agent.step(observation, info)
