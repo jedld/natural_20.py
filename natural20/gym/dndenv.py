@@ -226,11 +226,11 @@ class dndenv(gym.Env):
         self.terminal = False
 
         if self.custom_initializer:
-            self.custom_initializer(self.map, self.battle)
+            initiative_order = self.custom_initializer(self.map, self.battle)
         else:
-            self._setup_up_default_1v1()
+            initiative_order = self._setup_up_default_1v1()
 
-        self.battle.start()
+        self.battle.start(combat_order=initiative_order)
         self.battle.start_turn()
         if self.battle.current_turn().conscious():
                 self.battle.current_turn().reset_turn(self.battle)
@@ -362,6 +362,7 @@ class dndenv(gym.Env):
                 self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
             else:
                 self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
+        return None
 
     def _enemy_hp_pct(self, entity):
         current_group = self.battle.entity_group_for(entity)

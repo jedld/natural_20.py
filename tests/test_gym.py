@@ -1,9 +1,6 @@
 import unittest
-from natural20.map import Map, Terrain
-from natural20.battle import Battle
 from natural20.player_character import PlayerCharacter
 from natural20.map_renderer import MapRenderer
-from natural20.die_roll import DieRoll
 from natural20.generic_controller import GenericController
 from natural20.session import Session
 from gymnasium import make
@@ -71,7 +68,9 @@ class TestGym(unittest.TestCase):
         def custom_dndenv_initializer(map, battle):
             character = PlayerCharacter.load(session, 'elf_rogue.yml', { "equipped" : ['dagger', 'dagger'] })
             npc = session.npc('goblin')
+            # those that are in group a are being controlled by the agent
             battle.add(character, 'a', position='spawn_point_1', token='G', controller=GenericController(session))
+
             battle.add(npc, 'b', position='spawn_point_2', token='g', controller=GenericController(session))
             map.move_to(character, 0, 0, battle)
             map.move_to(npc, 1, 0, battle)
@@ -81,9 +80,11 @@ class TestGym(unittest.TestCase):
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True, map_file='battle_sim',
                    custom_initializer=custom_dndenv_initializer,
                    session=session)
-        observation, info = env.reset(seed=42)
+        observation, info = env.reset(seed=44)
         self.assertIsNotNone(observation)
-        
+        observation, reward, done, truncate, info = env.step((0, (0, 0), (1, 0), 2, 0))
+        self.assertEqual(reward, 10)
+        self.assertEqual(info['available_moves'], [])
 
     def test_render(self):
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True)
