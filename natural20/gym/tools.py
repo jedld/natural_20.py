@@ -60,7 +60,10 @@ def map_entity_to_index(entity, entity_type_mappings):
     if isinstance(entity, PlayerCharacter):
         return entity_type_mappings[entity.class_descriptor()]
     else:
-        return entity_type_mappings[entity.name.lower()]
+        if entity.is_npc():
+            return entity_type_mappings.get(entity.npc_type.lower(), 0)
+
+    return entity_type_mappings.get(entity.name.lower())
 
 def ability_info(entity):
     """

@@ -281,6 +281,8 @@ class dndenv(gym.Env):
             player_group = self.battle.entity_group_for(current_player)
             if player_group not in self.control_groups:
                 controller = self.battle.controller_for(current_player)
+                if controller is None:
+                    raise ValueError(f"Controller for {current_player.name} is None. ")
                 while True:
                     action = controller.move_for(current_player, self.battle)
                     if action is None or action == -1:

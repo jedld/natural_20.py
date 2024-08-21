@@ -82,6 +82,7 @@ class TestAttackAction(unittest.TestCase):
         action = AttackAction.build(session, character)['next'](npc)['next']('dagger')['next']()
         action.resolve(session, battle_map, { "battle": battle})
         battle.commit(action)
+        self.assertTrue(TwoWeaponAttackAction.can(character, battle))
 
         available_act = character.available_actions(session, battle)
         available_act = [act.action_type for act in available_act]

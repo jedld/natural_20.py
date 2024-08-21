@@ -20,11 +20,21 @@ from natural20.actions.ground_interact_action import GroundInteractAction
 from natural20.actions.first_aid_action import FirstAidAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.spell_action import SpellAction
+from natural20.utils.action_builder import autobuild
+from natural20.actions.shove_action import ShoveAction
 
 
 import copy
 
 class Npc(Entity):
+    ACTION_LIST = [
+        AttackAction, DashAction, DashBonusAction, DisengageAction,
+        DisengageBonusAction,
+        DodgeAction, LookAction, MoveAction,
+        StandAction, ShoveAction, HelpAction, UseItemAction, GroundInteractAction,
+        SpellAction
+    ]
+
     def __init__(self, session, type, opt=None):
         super().__init__(type, "npc", {})
         if opt is None:
@@ -107,29 +117,21 @@ class Npc(Entity):
         if opportunity_attack:
             actions = [s for s in self.generate_npc_attack_actions(battle, opportunity_attack=True) if s.action_type == "attack" and s.npc_action["type"] == "melee_attack"]
         else:
-            actions = self.generate_npc_attack_actions(battle) + [
-                DodgeAction(session, self, "dodge"),
-                MoveAction(session, self, "move"),
-                LookAction(session, self, "look"),
-                DisengageAction(session, self, "disengage"),
-                DisengageBonusAction(session, self, "disengage_bonus"),
-                StandAction(session, self, "stand"),
-                HideAction(session, self, "hide"),
-                HideBonusAction(session, self, "hide_bonus"),
-                DashAction(session, self, "dash"),
-                DashBonusAction(session, self, "dash_bonus"),
-                HelpAction(session, self, "help"),
-                GrappleAction(session, self, "grapple"),
-                EscapeGrappleAction(session, self, "escape_grapple"),
-                UseItemAction(session, self, "use_item"),
-                InteractAction(session, self, "interact"),
-                GroundInteractAction(session, self, "ground_interact"),
-                FirstAidAction(session, self, "first_aid"),
-                SpellAction(session, self, "spell")
-            ]
-        
+            for action in self.ACTION_LIST:
+                if action.can(self, battle):
+                    if isinstance(action, AttackAction):
+                        actions = actions + self.generate_npc_attack_actions(battle)
+                    elif isinstance(action, MoveAction):
+                        actions = actions + autobuild(session, MoveAction, self, battle)
+                    elif isinstance(action, DodgeAction):
+                        actions.append(DodgeAction(session, self, "dodge"))
+                    elif isinstance(action, DisengageAction):
+                        actions.append(DisengageAction(session, self, "disengage"))
+                    elif isinstance(action, StandAction):
+                        actions.append(StandAction(session, self, "stand"))
+
         return actions
-    
+
     def melee_distance(self):
         melee_attacks = [a["range"] for a in self.properties["actions"] if a["type"] == "melee_attack"]
         return max(melee_attacks) if melee_attacks else None
@@ -149,9 +151,9 @@ class Npc(Entity):
     def generate_npc_attack_actions(self, battle, opportunity_attack=False):
         if self.familiar():
             return []
-        
+
         actions = []
-        
+
         for npc_action in self.npc_actions:
             if npc_action.get("ammo") and self.item_count(npc_action["ammo"]) <= 0:
                 continue
@@ -159,13 +161,24 @@ class Npc(Entity):
                 continue
             if not AttackAction.can(self, battle, { "npc_action" : npc_action, "opportunity_attack" : opportunity_attack}):
                 continue
-            
             action = AttackAction(self.session, self, "attack")
             action.npc_action = npc_action
             actions.append(action)
-        
-        return actions
-    
+
+        # assign possible attack targets
+        if battle:
+            final_attack_list = []
+            for action in actions:
+                valid_targets = battle.valid_targets_for(self, action)
+                for target in valid_targets:
+                    targeted_action = copy.copy(action)
+                    targeted_action.target = target
+                    final_attack_list.append(targeted_action)
+        else:
+            return actions
+
+        return final_attack_list
+
     def setup_attributes(self):
         self._max_hp = DieRoll.roll(self.properties.get("hp_die", "1d6")).result() if self.opt.get("rand_life") else self.properties.get("max_hp", 0)
         self.attributes["hp"] = copy.deepcopy(min(self.properties.get("override_hp", self._max_hp), self._max_hp))

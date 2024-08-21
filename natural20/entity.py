@@ -49,7 +49,10 @@ class Entity(EntityStateEvaluator):
                 setattr(self, f"{skill}_check", self.make_skill_check_function(skill))
 
     def class_descriptor(self):
-        return self.name().lower()
+        return self.name.lower()
+    
+    def any_class_feature(self, features):
+        return False
 
     def is_npc(self):
         return False

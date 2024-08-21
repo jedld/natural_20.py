@@ -25,6 +25,9 @@ class MoveAction(Action):
         if self.move_path:
             return f"move to {self.move_path[-1]}"
         return "move"
+    
+    def clone(self):
+        return MoveAction(self.session, self.source, self.action_type, self.opts)
 
     @staticmethod
     def can(entity, battle):
@@ -32,13 +35,11 @@ class MoveAction(Action):
 
     def build_map(self):
         def set_path(path_and_jump_index):
+            action = self.clone()
             path, jump_index = path_and_jump_index
-            self.move_path = path
-            self.jump_index = jump_index
-            return{
-                "param": None,
-                "next": lambda: self
-            }
+            action.move_path = path
+            action.jump_index = jump_index
+            return action
 
         return {
             'action': self,

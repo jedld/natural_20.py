@@ -38,6 +38,8 @@ def damage_modifier(entity, weapon, second_hand=False):
 def target_advantage_condition(battle, source, target, weapon, source_pos=None, overrides=None, thrown=False):
     if overrides is None:
         overrides = {}
+    if target is None:
+        raise ValueError("target is mandatory")
     advantages, disadvantages = compute_advantages_and_disadvantages(battle, source, target, weapon,
                                                                      source_pos=source_pos, overrides=overrides, thrown=thrown)
     advantage_ctr = 0
@@ -46,6 +48,8 @@ def target_advantage_condition(battle, source, target, weapon, source_pos=None, 
     return [advantage_ctr, [advantages, disadvantages]]
 
 def compute_advantages_and_disadvantages(battle, source, target, weapon, source_pos=None, overrides=None, thrown=False):
+    if target is None:
+        raise ValueError("target is mandatory")
     if overrides is None:
         overrides = {}
     weapon = battle.session.load_weapon(weapon) if isinstance(weapon, str) or isinstance(weapon, str) else weapon

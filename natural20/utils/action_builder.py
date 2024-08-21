@@ -1,6 +1,7 @@
 from natural20.action import Action
 from natural20.actions.spell_action import SpellAction
 import itertools
+from natural20.utils.movement import compute_actual_moves
 import pdb
 
 # build list of lists of possible parameters
@@ -53,6 +54,20 @@ def build_params(session, entity, battle, build_info) -> list:
                 for target_combination in target_combinations:
                     selected_target_combinations.append(target_combination[0] if total_targets == 1 else target_combination)
             params.append(selected_target_combinations)
+        elif param["type"] == "movement":
+            cur_x, cur_y = battle.map.position_of(entity)
+            selected_movement_combinations = []
+            for x_pos in range(-1, 2):
+                for y_pos in range(-1, 2):
+                    if x_pos == 0 and y_pos == 0:
+                        continue
+                    if battle.map.passable(entity, cur_x + x_pos, cur_y + y_pos, battle, allow_squeeze=False) and \
+                        battle.map.placeable(entity, cur_x + x_pos, cur_y + y_pos, battle, squeeze=False):
+                        chosen_path = [[cur_x, cur_y], [cur_x + x_pos, cur_y + y_pos]]
+                        shortest_path = compute_actual_moves(entity, chosen_path, battle.map, battle, entity.available_movement(battle) // 5).movement
+                        if len(shortest_path) > 1:
+                            selected_movement_combinations.append(shortest_path)
+            params.append(selected_movement_combinations)
         else:
             raise ValueError(f"Unknown param type {param['type']}")
 

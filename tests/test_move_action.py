@@ -6,6 +6,8 @@ from natural20.map import Map
 from natural20.battle import Battle
 from natural20.player_character import PlayerCharacter
 from natural20.utils.movement import opportunity_attack_list
+from natural20.utils.action_builder import autobuild
+import pdb
 
 class TestMoveAction(unittest.TestCase):
     def make_session(self):
@@ -27,14 +29,14 @@ class TestMoveAction(unittest.TestCase):
         self.npc.reset_turn(self.battle)
         cont = MoveAction.build(self.session, self.fighter)
         movement_path = [[[2, 3], [2, 2], [1, 2]], []]
-        while cont['param'] is not None:
+        while isinstance(cont, dict):
             params = []
             for p in cont['param']:
                 if p['type'] == 'movement':
                     params.append(movement_path)
             cont = cont['next'](*params)
-        
-        self.action = cont['next']()
+
+        self.action = cont
 
     def test_auto_build(self):
         self.battle.action(self.action)
@@ -52,6 +54,12 @@ class TestMoveAction(unittest.TestCase):
         self.ogre.reset_turn(self.battle)
         self.assertEqual(len(opportunity_attack_list(self.action.source, [[1, 0], [2, 0], [3, 0]], self.battle, self.map)), 0)
 
+    def test_auto_generate(self):
+        ogre = self.session.npc('ogre')
+        self.battle.add(ogre, 'b', position=[1, 1], token='g')
+        ogre.reset_turn(self.battle)
+        move_actions = autobuild(self.session, MoveAction, ogre, self.battle)
+        self.assertEqual(len(move_actions), 3)
     # def opportunity_attack_handler(self, battle, session, entity, map, event):
     #     action = self.npc.available_actions(session, battle).filter(lambda s: s.action_type == 'attack').filter(lambda s: s.npc_action['type'] == 'melee_attack').first()
     #     action.target = event['target']

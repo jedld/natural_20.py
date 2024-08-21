@@ -6,12 +6,11 @@ from natural20.map_renderer import MapRenderer
 from natural20.die_roll import DieRoll
 from natural20.generic_controller import GenericController
 from natural20.session import Session
-from natural20.actions.move_action import MoveAction
-from natural20.action import Action
-from natural20.gym.dndenv import dndenv
-from gymnasium import register, envs, make
+from gymnasium import make
 import random
-import numpy as np
+from natural20.event_manager import EventManager
+# trunk-ignore(ruff/F401)
+from natural20.gym import dndenv
 
 class TestGym(unittest.TestCase):
     def test_reset(self):
@@ -37,11 +36,11 @@ class TestGym(unittest.TestCase):
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True,
                    profiles=sample_character)
         observation, info = env.reset(seed=42)
-        assert observation is not None
+        self.assertIsNotNone(observation)
         observation, info = env.reset(seed=43)
-        assert observation is not None
+        self.assertIsNotNone(observation)
         observation, info = env.reset(seed=44)
-        assert observation is not None
+        self.assertIsNotNone(observation)
 
     def test_ability_info(self):
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True)
@@ -60,6 +59,31 @@ class TestGym(unittest.TestCase):
         self.assertIsNotNone(info['available_moves'])
         self.assertEqual(len(info['available_moves']), 14)
 
+    def test_custom_setup(self):
+        def make_session():
+            event_manager = EventManager()
+            event_manager.standard_cli()
+            random.seed(7000)
+            return Session(root_path='tests/fixtures', event_manager=event_manager)
+
+        session = make_session()
+
+        def custom_dndenv_initializer(map, battle):
+            character = PlayerCharacter.load(session, 'elf_rogue.yml', { "equipped" : ['dagger', 'dagger'] })
+            npc = session.npc('goblin')
+            battle.add(character, 'a', position='spawn_point_1', token='G', controller=GenericController(session))
+            battle.add(npc, 'b', position='spawn_point_2', token='g', controller=GenericController(session))
+            map.move_to(character, 0, 0, battle)
+            map.move_to(npc, 1, 0, battle)
+            map_renderer = MapRenderer(map, battle=battle)
+            print(map_renderer.render(battle))
+
+        env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True, map_file='battle_sim',
+                   custom_initializer=custom_dndenv_initializer,
+                   session=session)
+        observation, info = env.reset(seed=42)
+        self.assertIsNotNone(observation)
+        
 
     def test_render(self):
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True)
