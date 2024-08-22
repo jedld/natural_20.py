@@ -3,16 +3,41 @@ import numpy as np
 from typing import Any, Dict
 from natural20.map import Map
 from natural20.battle import Battle
+from natural20.actions.reaction import ReactionInterrupt
 from natural20.player_character import PlayerCharacter
 from natural20.generic_controller import GenericController
 from natural20.session import Session
 from natural20.entity import Entity
 from natural20.gym.dndenv_controller import DndenvController
+from natural20.controller import Controller
 from natural20.event_manager import EventManager
 from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, render_terrain, render_object_token
 import random
 import os
 import pdb
+
+class GymInternalController(Controller):
+    def __init__(self, session):
+        self.state = {}
+        self.session = session
+        self.battle_data = {}
+
+    # @param entity [Natural20::Entity]
+    def register_handlers_on(self, entity):
+        entity.attach_handler("opportunity_attack", self.opportunity_attack_listener)
+
+    def opportunity_attack_listener(self, battle, session, entity, map, event):
+        actions = [s for s in entity.available_actions(session, battle, opportunity_attack=True)]
+
+        valid_actions = []
+        for action in actions:
+            valid_targets = battle.valid_targets_for(entity, action)
+            if event['target'] in valid_targets:
+                action.target = event['target']
+                action.as_reaction = True
+                valid_actions.append(action)
+
+        raise ReactionInterrupt(session, entity, valid_actions)
 
 """
 This is a custom environment for the game Dungeons and Dragons 5e. It is based on the OpenAI Gym environment.
@@ -361,7 +386,10 @@ class dndenv(gym.Env):
 
                 self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
             else:
-                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
+                controller = GymInternalController(self.session)
+                controller.register_handlers_on(player)
+                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
+
         return None
 
     def _enemy_hp_pct(self, entity):

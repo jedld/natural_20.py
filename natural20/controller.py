@@ -2,6 +2,7 @@ from natural20.actions.look_action import LookAction
 from natural20.actions.stand_action import StandAction
 from natural20.entity import Entity
 from natural20.action import Action
+import pdb
 
 class Controller:
     def __init__(self, session):
@@ -83,7 +84,21 @@ class Controller:
 
         return valid_actions
 
-
+    def _initialize_battle_data(self, battle, entity):
+        self.battle_data = {
+            battle : {
+                entity : {
+                    'known_enemy_positions': {},
+                    'hiding_spots': {},
+                    'investigate_location': {},
+                    'visited_location': {}
+                }
+            }
+        }
+    
+    def _observe_enemies(self, battle, entity, enemy_positions):
+        return None
+    
     # Sort actions based on success rate and damage
     def _sort_actions(self, battle, available_actions):
         return available_actions

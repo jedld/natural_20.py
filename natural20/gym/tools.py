@@ -230,20 +230,15 @@ def compute_available_moves(session, map, entity: Entity, battle, weapon_mapping
 
     for action in available_actions:
         if action.action_type == "attack" or action.action_type == "two_weapon_attack":
-            valid_targets = battle.valid_targets_for(entity, action)
-            if valid_targets:
-                action.target = valid_targets[0]
-                targets = map.entity_squares(valid_targets[0])
-                
-                for target in targets:
-                    relative_pos = (target[0] - entity_pos[0], target[1] - entity_pos[1])
-                    attack_type = 0
-                    attack_sub_type = 1 if action.ranged_attack() else 0
+            target = map.position_of(action.target)
+            relative_pos = (target[0] - entity_pos[0], target[1] - entity_pos[1])
+            attack_type = 0
+            attack_sub_type = 1 if action.ranged_attack() else 0
 
-                    if weapon_mappings is not None and weapon_mappings.get(action.using) is not None:
-                        attack_type = weapon_mappings[action.using]
-                    action_type = 0 if action.action_type == "attack" else 9
-                    valid_actions.append((action_type, (0 , 0), (relative_pos[0], relative_pos[1]), attack_type, attack_sub_type))
+            if weapon_mappings is not None and weapon_mappings.get(action.using) is not None:
+                attack_type = weapon_mappings[action.using]
+            action_type = 0 if action.action_type == "attack" else 9
+            valid_actions.append((action_type, (0 , 0), (relative_pos[0], relative_pos[1]), attack_type, attack_sub_type))
         elif action.action_type == "move":
             relative_x = action.move_path[-1][0]
             relative_y = action.move_path[-1][1]

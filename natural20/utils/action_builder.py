@@ -66,7 +66,7 @@ def build_params(session, entity, battle, build_info) -> list:
                         chosen_path = [[cur_x, cur_y], [cur_x + x_pos, cur_y + y_pos]]
                         shortest_path = compute_actual_moves(entity, chosen_path, battle.map, battle, entity.available_movement(battle) // 5).movement
                         if len(shortest_path) > 1:
-                            selected_movement_combinations.append(shortest_path)
+                            selected_movement_combinations.append([shortest_path, []])
             params.append(selected_movement_combinations)
         else:
             raise ValueError(f"Unknown param type {param['type']}")

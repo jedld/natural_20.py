@@ -117,17 +117,17 @@ class Npc(Entity):
         if opportunity_attack:
             actions = [s for s in self.generate_npc_attack_actions(battle, opportunity_attack=True) if s.action_type == "attack" and s.npc_action["type"] == "melee_attack"]
         else:
-            for action in self.ACTION_LIST:
-                if action.can(self, battle):
-                    if isinstance(action, AttackAction):
+            for action_class in self.ACTION_LIST:
+                if action_class.can(self, battle):
+                    if action_class == AttackAction:
                         actions = actions + self.generate_npc_attack_actions(battle)
-                    elif isinstance(action, MoveAction):
+                    elif action_class == MoveAction:
                         actions = actions + autobuild(session, MoveAction, self, battle)
-                    elif isinstance(action, DodgeAction):
+                    elif action_class == DodgeAction:
                         actions.append(DodgeAction(session, self, "dodge"))
-                    elif isinstance(action, DisengageAction):
+                    elif action_class == DisengageAction:
                         actions.append(DisengageAction(session, self, "disengage"))
-                    elif isinstance(action, StandAction):
+                    elif action_class == StandAction:
                         actions.append(StandAction(session, self, "stand"))
 
         return actions
