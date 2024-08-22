@@ -69,16 +69,16 @@ class TestGym(unittest.TestCase):
 
         session = make_session()
 
-        def custom_dndenv_initializer(map, battle):
+        def custom_dndenv_initializer(env):
             character = PlayerCharacter.load(session, 'elf_rogue.yml', { "equipped" : ['dagger', 'dagger'] })
             npc = session.npc('ogre')
             # those that are in group a are being controlled by the agent
-            battle.add(character, 'a', position='spawn_point_1', token='G', controller=GenericController(session))
-            battle.add(npc, 'b', position='spawn_point_2', token='g', controller=GenericController(session))
-            map.move_to(character, 0, 0, battle)
-            map.move_to(npc, 1, 0, battle)
-            map_renderer = MapRenderer(map, battle=battle)
-            print(map_renderer.render(battle))
+            env.battle.add(character, 'a', position='spawn_point_1', token='G', controller=GenericController(session))
+            env.battle.add(npc, 'b', position='spawn_point_2', token='g', controller=GenericController(session))
+            env.map.move_to(character, 0, 0, env.battle)
+            env.map.move_to(npc, 1, 0, env.battle)
+            map_renderer = MapRenderer(env.map, battle=env.battle)
+            print(map_renderer.render(env.battle))
 
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True, map_file='battle_sim',
                    custom_initializer=custom_dndenv_initializer,
@@ -116,23 +116,26 @@ class TestGym(unittest.TestCase):
             return Session(root_path='tests/fixtures', event_manager=event_manager)
 
         session = make_session()
+        def reaction_callback(observation, reward, done, truncated, info):
+            return (0, (0, 0), (1, 0), 2, 0)
 
-        def custom_dndenv_initializer(map, battle):
+        def custom_dndenv_initializer(env):
             character = PlayerCharacter.load(session, 'elf_rogue.yml', { "equipped" : ['dagger', 'dagger'] })
             npc = session.npc('goblin')
             # those that are in group a are being controlled by the agent
-            controller = GymInternalController(session)
+            controller = GymInternalController(session, env, reaction_callback=reaction_callback)
             controller.register_handlers_on(character)
 
-            battle.add(character, 'a', position='spawn_point_1', token='G', controller=controller)
-            battle.add(npc, 'b', position='spawn_point_2', token='g', controller=MoveAwayController(session))
-            map.move_to(character, 0, 0, battle)
-            map.move_to(npc, 1, 0, battle)
+            env.battle.add(character, 'a', position='spawn_point_1', token='G', controller=controller)
+            env.battle.add(npc, 'b', position='spawn_point_2', token='g', controller=MoveAwayController(session))
+            env.map.move_to(character, 0, 0, env.battle)
+            env.map.move_to(npc, 1, 0, env.battle)
 
             return [character, npc]
 
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True, map_file='battle_sim',
                    custom_initializer=custom_dndenv_initializer,
+                   reaction_callback=reaction_callback,
                    session=session)
         observation, info = env.reset(seed=44)
         print(env.render())

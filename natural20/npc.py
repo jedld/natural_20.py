@@ -22,6 +22,7 @@ from natural20.actions.look_action import LookAction
 from natural20.actions.spell_action import SpellAction
 from natural20.utils.action_builder import autobuild
 from natural20.actions.shove_action import ShoveAction
+import pdb
 
 
 import copy
@@ -108,7 +109,7 @@ class Npc(Entity):
     def armor_class(self):
         return self.properties["default_ac"]
     
-    def available_actions(self, session, battle, opportunity_attack=False):
+    def available_actions(self, session, battle, opportunity_attack=False, map=None):
         if self.unconscious():
             return ["end"]
         
@@ -122,14 +123,13 @@ class Npc(Entity):
                     if action_class == AttackAction:
                         actions = actions + self.generate_npc_attack_actions(battle)
                     elif action_class == MoveAction:
-                        actions = actions + autobuild(session, MoveAction, self, battle)
+                        actions = actions + autobuild(session, MoveAction, self, battle, map=map)
                     elif action_class == DodgeAction:
                         actions.append(DodgeAction(session, self, "dodge"))
                     elif action_class == DisengageAction:
                         actions.append(DisengageAction(session, self, "disengage"))
                     elif action_class == StandAction:
                         actions.append(StandAction(session, self, "stand"))
-
         return actions
 
     def melee_distance(self):
@@ -174,10 +174,9 @@ class Npc(Entity):
                     targeted_action = copy.copy(action)
                     targeted_action.target = target
                     final_attack_list.append(targeted_action)
+            return final_attack_list
         else:
             return actions
-
-        return final_attack_list
 
     def setup_attributes(self):
         self._max_hp = DieRoll.roll(self.properties.get("hp_die", "1d6")).result() if self.opt.get("rand_life") else self.properties.get("max_hp", 0)

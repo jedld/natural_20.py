@@ -3,7 +3,6 @@ import numpy as np
 from typing import Any, Dict
 from natural20.map import Map
 from natural20.battle import Battle
-from natural20.actions.reaction import ReactionInterrupt
 from natural20.player_character import PlayerCharacter
 from natural20.generic_controller import GenericController
 from natural20.session import Session
@@ -11,16 +10,18 @@ from natural20.entity import Entity
 from natural20.gym.dndenv_controller import DndenvController
 from natural20.controller import Controller
 from natural20.event_manager import EventManager
-from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, render_terrain, render_object_token
+from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, render_terrain, render_object_token, action_to_gym_action
 import random
 import os
 import pdb
 
 class GymInternalController(Controller):
-    def __init__(self, session):
+    def __init__(self, session, dndenv, reaction_callback=None):
         self.state = {}
         self.session = session
+        self.env = dndenv
         self.battle_data = {}
+        self.reaction_callback = reaction_callback
 
     # @param entity [Natural20::Entity]
     def register_handlers_on(self, entity):
@@ -37,7 +38,25 @@ class GymInternalController(Controller):
                 action.as_reaction = True
                 valid_actions.append(action)
 
-        raise ReactionInterrupt(session, entity, valid_actions)
+        return self.select_reaction(entity, battle, map, valid_actions)
+
+    def select_reaction(self, entity, battle, map, valid_actions):
+        if self.reaction_callback:
+            observation = self.env.generate_observation(entity, is_reaction=True)
+            available_moves = action_to_gym_action(entity, map, valid_actions, weapon_mappings=self.env.weapon_mappings, \
+                                                   spell_mappings=self.env.spell_mappings)
+            reward = 0
+            done = False
+            truncated = False
+            info = self.env._info(available_moves, entity)
+            chosen_action = self.reaction_callback(observation, reward, done, truncated, info)
+            if chosen_action[0] == -1:
+                return None
+            else:
+                return dndenv_action_to_nat20action(entity, battle, map, valid_actions, chosen_action, weapon_mappings=self.env.weapon_mappings, \
+                                                    spell_mappings=self.env.spell_mappings)
+        else:
+            return None
 
 """
 This is a custom environment for the game Dungeons and Dragons 5e. It is based on the OpenAI Gym environment.
@@ -90,6 +109,7 @@ class dndenv(gym.Env):
             "enemy_type": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int),
             "ability_info": gym.spaces.Box(low=0, high=1, shape=(8,), dtype=int),
             "movement": gym.spaces.Box(low=0, high=255, shape=(1,), dtype=int),
+            "is_reaction": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int)
         })
 
         self.action_space = gym.spaces.Tuple([
@@ -121,19 +141,18 @@ class dndenv(gym.Env):
         self.weapon_embeddings = kwargs.get('weapon_embeddings', 'weapon_token_map.csv')
         self.spell_embeddings = kwargs.get('spell_embeddings', 'spell_token_map.csv')
         self.entity_embeddings = kwargs.get('entity_embeddings', 'entity_token_map.csv')
+        self.reactions_callback = kwargs.get('reactions_callback', None)
         self.weapon_mappings = None
         self.spell_mappings = None
         self.entity_mappings = None
-    
+
     def seed(self, seed=None):
         self._seed = seed
         return [seed]
-    
+
     def log(self, msg):
         if self.show_logs:
             print(msg)
-    
-
 
     def _render_terrain_ansi(self):
         result = []
@@ -251,7 +270,7 @@ class dndenv(gym.Env):
         self.terminal = False
 
         if self.custom_initializer:
-            initiative_order = self.custom_initializer(self.map, self.battle)
+            initiative_order = self.custom_initializer(self)
         else:
             initiative_order = self._setup_up_default_1v1()
 
@@ -386,7 +405,7 @@ class dndenv(gym.Env):
 
                 self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
             else:
-                controller = GymInternalController(self.session)
+                controller = GymInternalController(self.session, self)
                 controller.register_handlers_on(player)
                 self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
 
@@ -525,8 +544,8 @@ class dndenv(gym.Env):
                 if current_player.max_spell_slots(spell_level) > 0:
                     self.log(f"spell slots level {spell_level}: {current_player.spell_slots_count(spell_level)}")
 
-    def generate_observation(self, entity):
-        return build_observation(self.battle, self.map, entity, self.entity_mappings, self.weapon_mappings, self.view_port_size)
+    def generate_observation(self, entity, is_reaction=False):
+        return build_observation(self.battle, self.map, entity, self.entity_mappings, self.weapon_mappings, self.view_port_size, is_reaction=is_reaction)
     
     def _terminal_observation(self):
         observation = {
@@ -543,7 +562,8 @@ class dndenv(gym.Env):
             "player_type": np.array([0]),
             "enemy_type": np.array([0]),
             "ability_info": np.array([0, 0, 0, 0, 0, 0, 0, 0]), # tracks usage of class specific abilities (e.g. second wind, rage, etc.)
-            "movement": np.array([0])
+            "movement": np.array([0]),
+            "is_reaction": np.array([0])
         }
         
         return observation, self._info(end_of_turn_move(), self.battle.current_turn())

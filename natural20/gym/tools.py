@@ -22,7 +22,7 @@ def condition_stats(entity, battle):
     """
     return np.array([int(entity.prone()), int(entity.dodge(battle)), int(entity.grappled()), int(entity.disengage(battle)), 0, 0, 0, 0])
 
-def build_observation(battle, map, entity, entity_type_mappings, weapon_type_mappings, view_port_size=(12, 12)):
+def build_observation(battle, map, entity, entity_type_mappings, weapon_type_mappings, view_port_size=(12, 12), is_reaction=False):
     """
     Builds the observation for the environment
     """
@@ -52,7 +52,8 @@ def build_observation(battle, map, entity, entity_type_mappings, weapon_type_map
         "ability_info": ability_info(entity),
         "player_type": np.array([pc_entity_type]),
         "enemy_type": np.array([enemy_type]),
-        "movement": np.array([battle.current_turn().available_movement(battle)])
+        "movement": np.array([battle.current_turn().available_movement(battle)]),
+        "is_reaction" : np.array([1 if is_reaction else 0])
     }
     return obs
 
@@ -221,13 +222,9 @@ def render_terrain(battle, map, entity_type_mappings, view_port_size=(12, 12)):
         result.append(col_arr)
     return np.array(result)
 
-def compute_available_moves(session, map, entity: Entity, battle, weapon_mappings=None, spell_mappings=None):
-    available_actions = entity.available_actions(session, battle)
-    # generate available targets
-    valid_actions = []       
-
+def action_to_gym_action(entity, map, available_actions, weapon_mappings=None, spell_mappings=None):
     entity_pos = map.position_of(entity)
-
+    valid_actions = []
     for action in available_actions:
         if action.action_type == "attack" or action.action_type == "two_weapon_attack":
             target = map.position_of(action.target)
@@ -271,6 +268,12 @@ def compute_available_moves(session, map, entity: Entity, battle, weapon_mapping
 
     return valid_actions
 
+
+def compute_available_moves(session, map, entity: Entity, battle, weapon_mappings=None, spell_mappings=None):
+    available_actions = entity.available_actions(session, battle)
+    return action_to_gym_action(entity, map, available_actions, weapon_mappings=weapon_mappings, spell_mappings=spell_mappings)
+
+    
 def generate_entity_token_map(session, output_filename = 'entity_token_map.csv'):
     """
     Generates an numeric index map for each entity in the session. This can

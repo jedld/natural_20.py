@@ -5,7 +5,7 @@ from natural20.utils.movement import compute_actual_moves
 import pdb
 
 # build list of lists of possible parameters
-def build_params(session, entity, battle, build_info) -> list:
+def build_params(session, entity, battle, build_info, map=None) -> list:
     params = []
     for param in build_info["param"]:
         if param["type"] == "select_spell":
@@ -55,16 +55,18 @@ def build_params(session, entity, battle, build_info) -> list:
                     selected_target_combinations.append(target_combination[0] if total_targets == 1 else target_combination)
             params.append(selected_target_combinations)
         elif param["type"] == "movement":
-            cur_x, cur_y = battle.map.position_of(entity)
+            if map is None:
+                map = battle.map
+            cur_x, cur_y = map.position_of(entity)
             selected_movement_combinations = []
             for x_pos in range(-1, 2):
                 for y_pos in range(-1, 2):
                     if x_pos == 0 and y_pos == 0:
                         continue
-                    if battle.map.passable(entity, cur_x + x_pos, cur_y + y_pos, battle, allow_squeeze=False) and \
-                        battle.map.placeable(entity, cur_x + x_pos, cur_y + y_pos, battle, squeeze=False):
+                    if map.passable(entity, cur_x + x_pos, cur_y + y_pos, battle, allow_squeeze=False) and \
+                        map.placeable(entity, cur_x + x_pos, cur_y + y_pos, battle, squeeze=False):
                         chosen_path = [[cur_x, cur_y], [cur_x + x_pos, cur_y + y_pos]]
-                        shortest_path = compute_actual_moves(entity, chosen_path, battle.map, battle, entity.available_movement(battle) // 5).movement
+                        shortest_path = compute_actual_moves(entity, chosen_path, map, battle, entity.available_movement(battle) // 5).movement
                         if len(shortest_path) > 1:
                             selected_movement_combinations.append([shortest_path, []])
             params.append(selected_movement_combinations)
@@ -74,7 +76,7 @@ def build_params(session, entity, battle, build_info) -> list:
     return params
 
 
-def autobuild(session, action_class, entity, battle):
+def autobuild(session, action_class, entity, battle, map=None):
     def param_permutator(num_choices_per_param, param_index, current_params):
         if param_index == len(num_choices_per_param):
             return [current_params]
@@ -97,7 +99,7 @@ def autobuild(session, action_class, entity, battle):
                 next_act.append(current_build_info)
                 continue
 
-            possible_params = build_params(session, entity, battle, current_build_info)
+            possible_params = build_params(session, entity, battle, current_build_info, map=map)
 
             if possible_params is None:
                 next_act.append(None)

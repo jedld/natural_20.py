@@ -63,7 +63,8 @@ class TestNpc(unittest.TestCase):
 
         # goblin npc
         npc = session.npc('goblin', { "name" : 'Spark'})
-
+        battle = Battle(session, battle_map)
+        battle.add(npc, 'a', position=[2, 2])
         assert npc.darkvision(60)
         assert 2 <= npc.hp() <= 12
         assert npc.name == 'Spark'
@@ -79,13 +80,11 @@ class TestNpc(unittest.TestCase):
         assert not npc.equipped('scimitar')
         npc.equip('scimitar')
         assert npc.equipped('scimitar')
-        available_actions = [action.name() for action in npc.available_actions(session, None)]
-        assert len(available_actions) == 20, len(available_actions)
+        npc.reset_turn(battle)
+        available_actions = [action.name() for action in npc.available_actions(session, battle, map=battle_map)]
+        assert len(available_actions) == 9, len(available_actions)
         
-        self.assertListEqual(available_actions, ['attack', 'attack', 'dodge', 'move', 'look', 'disengage', 'disengage_bonus',
-                                     'stand', 'hide', 'hide_bonus',
-                                     'dash', 'dash_bonus',
-                                     'help', 'grapple', 'escape_grapple', 'use_item', 'interact', 'ground_interact', 'first_aid', 'spell'])
+        self.assertListEqual(available_actions, ['disengage', 'dodge', 'move', 'move', 'move', 'move', 'move', 'move', 'move'])
 
         assert npc.hit_die() == {6: 2}, npc.hit_die()
 
@@ -116,10 +115,10 @@ class TestNpc(unittest.TestCase):
 
         assert npc.darkvision(60)
 
-        assert len(npc.available_actions(session, None)) == 20, len(npc.available_actions(session, None))
-        available_actions = [action.name() for action in npc.available_actions(session, None)]
+        self.assertEqual(len(npc.available_actions(session, None, map=battle_map)), 4)
+        available_actions = [action.name() for action in npc.available_actions(session, None, map=battle_map)]
         print(available_actions)
-        assert available_actions == ['attack', 'attack', 'dodge', 'move', 'look', 'disengage', 'disengage_bonus', 'stand', 'hide', 'hide_bonus', 'dash', 'dash_bonus', 'help', 'grapple', 'escape_grapple', 'use_item', 'interact', 'ground_interact', 'first_aid', 'spell_action'], available_actions
+        self.assertEqual(available_actions, ['attack', 'attack', 'dodge', 'move', 'look', 'disengage', 'disengage_bonus', 'stand', 'hide', 'hide_bonus', 'dash', 'dash_bonus', 'help', 'grapple', 'escape_grapple', 'use_item', 'interact', 'ground_interact', 'first_aid', 'spell_action'])
 
         first_attack = [a for a in npc.available_actions(session, battle) if a.name() == 'attack'][0]
         first_attack.target = fighter
