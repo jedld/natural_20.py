@@ -283,7 +283,24 @@ class Map():
             self.objects[pos_x][pos_y].append(obj)
 
         return obj
-    
+
+    def difficult_terrain(self, entity, pos_x, pos_y, _battle=None):
+        """
+        Check if the terrain at the given position is difficult terrain for the entity
+        """
+        if entity is None:
+            return False
+
+        for pos in self.entity_squares_at_pos(entity, pos_x, pos_y):
+            r_x, r_y = pos
+            if self.tokens[r_x][r_y] and self.tokens[r_x][r_y]['entity'] == entity:
+                continue
+            if self.tokens[r_x][r_y] and not self.tokens[r_x][r_y]['entity'].dead():
+                return True
+            if self.object_at(r_x, r_y) and self.object_at(r_x, r_y).movement_cost() > 1:
+                return True
+
+        return False
 
     def wall(self, pos_x, pos_y):
         if pos_x < 0 or pos_y < 0:
@@ -347,6 +364,10 @@ class Map():
         if isinstance(entity, Object):
             return self.interactable_objects[entity]
         else:
+            if not entity:
+                raise ValueError('invalid entity')
+            if not self.entities.get(entity):
+                raise ValueError(f'entity {entity} not found')
             return self.entities[entity]
 
     def entity_squares_at_pos(self, entity, pos1_x, pos1_y, squeeze=False):

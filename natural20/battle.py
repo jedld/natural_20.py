@@ -125,6 +125,7 @@ class Battle():
     def start_turn(self):
         if self.current_turn().unconscious() and not self.current_turn().stable():
             self.current_turn().death_saving_throw(self)
+        self.trigger_event('start_of_turn', self, { "target" : self.current_turn()})
 
     def end_turn(self):
         self.trigger_event('end_of_round', self,  { "target" : self.current_turn()})

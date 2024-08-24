@@ -1,12 +1,10 @@
 
 import random
 from openai import OpenAI
-from natural20.gym.dndenv import dndenv, action_type_to_int
 import time
-import json
 import os
-import re
 import requests
+from natural20.gym.llm_helpers.prompting_utils import action_to_prompt
 
 class LLMInterfacer:
     def __init__(self, debug=False):
@@ -36,74 +34,14 @@ class LLMInterfacer:
         instruction_prompt += f"Reactions: {reactions}\n\n"
         prompt = instruction_prompt        
         prompt += self.map_to_prompt(map)
-        prompt += self.action_to_prompt(info['available_moves'], info["weapon_mappings"], info["spell_mappings"])
+        prompt += action_to_prompt(info['available_moves'], info["weapon_mappings"], info["spell_mappings"])
         prompt += "\n\nPlease choose the number corresponding to the action you would like to take.\n"
         prompt += "Provide the number as your first answer in the following format, for example:\n"
         prompt += "1: attack enemy with ranged weapon\n"
         prompt += "No need to explain just provide the answer."
         return prompt
     
-    def action_to_prompt(self, actions, weapon_mappings=None, spell_mappings=None):
-        prompt = "\n\nHere are the available actions you can take, please choose the number corresponding to the action:\n"
-        prompt += "0: end my turn\n"
-        for index, action in enumerate(actions):
-            action_type, param1, param2, param3, param4 = action
-            if action_type == action_type_to_int("move"):
-                message = "move 5ft "
-                x, y = param1
-                if (x < 0 and y==0):
-                    message += "to the left\n"
-                elif (x > 0 and y==0):
-                    message += "to the right\n"
-                elif (x == 0 and y < 0):
-                    message += "up\n"
-                elif (x == 0 and y > 0):
-                    message += "down\n"
-                elif (x < 0 and y < 0):
-                    message += "up and to the left\n"
-                elif (x < 0 and y > 0):
-                    message += "down and to the left\n"
-                elif (x > 0 and y < 0):
-                    message += "up and to the right\n"
-                elif (x > 0 and y > 0):
-                    message += "down and to the right\n"
-                
-            elif action_type == action_type_to_int("attack"):
-                attack_name = self._look_up_attack_name(param3, weapon_mappings)
-                message = "attack enemy "
-                if param4 == 1:
-                    message += "with ranged weapon {attack_name}\n"
-                else:
-                    message += "with melee weapon {attack_name}\n"
-            elif action_type == action_type_to_int("dash"):
-                message = "dash action\n"
-            elif action_type == action_type_to_int("disengage"):
-                message = "disengage action\n"
-            elif action_type == action_type_to_int("dodge"):
-                message = "dodge action\n"
-            elif action_type == action_type_to_int("help"):
-                message = "help action\n"
-            elif action_type == action_type_to_int("hide"):
-                message = "hide action\n"
-            elif action_type == action_type_to_int("stand"):
-                message = "stand action\n"
-            elif action_type == action_type_to_int("second_wind"):
-                message = "second wind action\n"
-            elif action_type == action_type_to_int("two_weapon_attack"):
-                message = "two weapon attack bonus action\n"
-            elif action_type == action_type_to_int("prone"):
-                message = "go prone\n"
-            elif action_type == action_type_to_int("spell"):
-                message = "cast the "
-                attack_name = self._look_up_spell_name(param3, spell_mappings)
-                message += f" {attack_name} spell\n"
-            else:
-                message = f"unknown action {action_type}\n"
-                raise ValueError(f"Unknown action type {action_type}")
 
-            prompt += f"{index + 1}: {message}\n"
-        
-        return prompt
 
     def map_to_prompt(self, map):
         prompt =  "\n\nHere is a rough sketch of the map that considers line of sight to the enemy. The legend is followed by a sketch of a map tile in each line:\n"
@@ -152,21 +90,7 @@ class LLMInterfacer:
 
         return prompt
     
-    def _look_up_attack_name(self, weapon_id, weapon_mappings=None):
-        # swap the values and keys
-        weapon_mappings = {v: k for k, v in weapon_mappings.items()}
-        if weapon_mappings and weapon_id in weapon_mappings:
-            return weapon_mappings.get(weapon_id, "")
-        else:
-            return ""
-        
-    def _lookup_spell_name(self, spell_id, spell_mappings=None):
-        # swap the values and keys
-        spell_mappings = {v: k for k, v in spell_mappings.items()}
-        if spell_mappings and spell_id in spell_mappings:
-            return spell_mappings.get(spell_id, "")
-        else:
-            return ""
+
     
 class GPT4Interfacer(LLMInterfacer):
     def __init__(self, variant="NousResearch/Meta-Llama-3-8B-Instruct", debug=False, api_key=None, base_url=None, tools=True, weapon_mappings=None):
@@ -294,7 +218,7 @@ class LLama3Interface(LLMInterfacer):
         #)
         
         #response = chat_completion.choices[0].message.content
-        import json
+        # import json
         # Example usage
         regex = "\d"
 

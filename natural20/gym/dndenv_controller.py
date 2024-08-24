@@ -21,6 +21,7 @@ class DndenvController(Controller):
                      "dash",
                      "dash_bonus",
                      "second_wind",
+                     "action_surge",
                      "prone",
                      "spell",
                      "shove"]

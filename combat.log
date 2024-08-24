@@ -1,118 +1,156 @@
-loading map from samples/map_with_obstacles/maps/simple_map
+loading map from samples/map_with_obstacles/maps/complex_map
 Creating new event manager
 ==== Player Character ====
-name: gomerin
-level: 1
-character class: {'wizard': 1}
-hp: 14
-max hp: 14
-ac: 12
-speed: 30
-spell slots level 1: 2
+str: 11 dex: 20 con: 16 int: 11 wis: 12 cha: 17 
+name: Joe
+level: 2
+character class: {'rogue': 2}
+hp: 18
+max hp: 18
+ac: 16
+speed: 25
 
 
 
 ==== Player Character ====
-name: rumblebelly
-level: 1
-character class: {'fighter': 1}
-hp: 24
-max hp: 24
-ac: 18
-speed: 30
+str: 11 dex: 20 con: 16 int: 11 wis: 12 cha: 17 
+name: Mike
+level: 2
+character class: {'rogue': 2}
+hp: 18
+max hp: 18
+ac: 16
+speed: 25
 
 
 
-rumblebelly starts their turn.
-rumblebelly attacked gomerin with Longbow and hits with attack roll d20(10) + 7 = 17.
-gomerin took 6 damage.
-rumblebelly moved to [2, 1] 1 feet
-rumblebelly moved to [3, 0] 1 feet
-rumblebelly moved to [4, 0] 1 feet
-rumblebelly moved to [5, 0] 1 feet
-rumblebelly moved to [5, 1] 1 feet
-rumblebelly uses second wind to recover d10(10) + 1=11 hit points.
-no move for rumblebelly
-==== current turn gomerin 8/14 AC 12===
-spell slots level 1: 2
-gomerin starts their turn.
+Joe rolled initiative d20(1) + 5 value 6.2
+Mike rolled initiative d20(9) + 5 value 14.2
+Mike starts their turn.
+Mike attacked Joe with Dagger(thrown) and hits with attack roll d20(9) + 7 = 16.
+Joe took 8 damage.
+Mike moved to [4, 2] 5 feet
+Mike moved to [4, 3] 10 feet
+Mike moved to [4, 2] 5 feet
+Mike moved to [5, 2] 5 feet
+no move for Mike
+==== current turn Joe 10/18 AC 16===
+Joe starts their turn.
 =========================================
 Battle between an RL agent vs a Rules based AI
 =========================================
 ____________
 ____________
 ____________
+_.......____
+_..ooo..____
+_.....E.____
+_~~~~~P~____
+_~~~~~~~____
+_.......____
+_..ooo..____
+_.......____
 ____________
-____________
-......._____
-.....EP_____
-......._____
-......._____
-......._____
-......._____
-____________
-0: (0, (0, 0), (-1, 0), 2, 0) -5.429854393005371
-1: (0, (0, 0), (-1, 0), 2, 1) -5.785002708435059
-2: (0, (0, 0), (-1, 0), 20, 0) -5.949703693389893
-3: (4, (-1, -1), (0, 0), 0, 0) -6.400514602661133
-4: (2, (-1, -1), (0, 0), 0, 0) -6.369300365447998
-5: (3, (-1, -1), (0, 0), 0, 0) -6.170262336730957
-6: (1, (-1, -1), (0, 0), 0, 0) -6.2786641120910645
-7: (1, (-1, 1), (0, 0), 0, 0) -6.175772190093994
-8: (1, (0, -1), (0, 0), 0, 0) -6.5003132820129395
-9: (1, (0, 1), (0, 0), 0, 0) -6.353076457977295
-10: (10, (-1, -1), (0, 0), 0, 0) -6.19394063949585
-11: (12, (-1, -1), (0, 0), 101, 0) -5.985900402069092
-12: (12, (-1, -1), (0, 0), 104, 0) -5.526762008666992
-13: (12, (-1, -1), (0, 0), 107, 0) -5.619820594787598
-14: (12, (-1, -1), (0, 0), 105, 1) -5.139400005340576
-15: (12, (-1, -1), (0, 0), 106, 1) -2.8397581577301025
-16: (-1, (0, 0), (0, 0), 0, 0) -6.505535125732422
-selected action: (12, (-1, -1), (0, 0), 106, 1)
-gomerin attacked rumblebelly with spell.magic_missile and hits.
-rumblebelly took 3 damage.
-gomerin attacked rumblebelly with spell.magic_missile and hits.
-rumblebelly took 3 damage.
-gomerin attacked rumblebelly with spell.magic_missile and hits.
-rumblebelly took 5 damage.
-____________
+0: attack enemy with melee weapon: dagger 1.1099865436553955
+1: attack enemy with ranged weapon: dagger -0.34763652086257935
+2: attack enemy with melee weapon: dagger 1.1099865436553955
+3: attack enemy with ranged weapon: dagger -0.34763652086257935
+4: attack enemy with melee weapon: torch -0.33580315113067627
+5: attack enemy with melee weapon: unarmed_attack -0.36386334896087646
+6: dash action -3.1035590171813965
+7: disengage action -3.345123529434204
+8: dodge action -1.806675910949707
+9: move 5ft up and to the left -1.6982784271240234
+10: move 5ft to the left -1.875766634941101
+11: move 5ft down and to the left -2.086669683456421
+12: move 5ft down -2.6756324768066406
+13: move 5ft up and to the right -2.1794514656066895
+14: move 5ft to the right -2.462873697280884
+15: move 5ft down and to the right -2.906744956970215
+16: go prone -3.049610137939453
+17: end my turn -4.212737083435059
+Chosen index: 0
+selected action: (0, (0, 0), (0, -1), 2, 0)
+Joe attacked Mike with Dagger and hits with attack roll d20(19) + 7 = 26.
+Mike took 9 damage.
 ____________
 ____________
 ____________
+_.......____
+_..ooo..____
+_.....E.____
+_~~~~~P~____
+_~~~~~~~____
+_.......____
+_..ooo..____
+_.......____
 ____________
-......._____
-.....EP_____
-......._____
-......._____
-......._____
-......._____
+0: move 5ft up and to the left 1.9293017387390137
+1: move 5ft to the left 1.9914445877075195
+2: move 5ft down and to the left 2.0023741722106934
+3: move 5ft down 1.7896642684936523
+4: move 5ft up and to the right 1.8107106685638428
+5: move 5ft to the right 1.948930025100708
+6: move 5ft down and to the right 1.8086590766906738
+7: go prone 0.6953504681587219
+8: two weapon attack bonus action 5.004925727844238
+9: two weapon attack bonus action 3.2976717948913574
+10: two weapon attack bonus action 5.004925727844238
+11: two weapon attack bonus action 3.2976717948913574
+12: end my turn 1.8536522388458252
+Chosen index: 8
+Joe attacked Mike with Dagger and hits with attack roll d20(17) + 7 = 24.
+Mike took 7 damage.
 ____________
-0: (1, (-1, -1), (0, 0), 0, 0) -3.859980583190918
-1: (1, (-1, 1), (0, 0), 0, 0) -3.9760634899139404
-2: (1, (0, -1), (0, 0), 0, 0) -4.0698652267456055
-3: (1, (0, 1), (0, 0), 0, 0) -4.165462970733643
-4: (10, (-1, -1), (0, 0), 0, 0) -3.5176033973693848
-5: (-1, (0, 0), (0, 0), 0, 0) -3.011544704437256
-agent selected action: (-1, (0, 0), (0, 0), 0, 0)
+____________
+____________
+_.......____
+_..ooo..____
+_.....E.____
+_~~~~~P~____
+_~~~~~~~____
+_.......____
+_..ooo..____
+_.......____
+____________
+0: move 5ft up and to the left 5.005557060241699
+1: move 5ft to the left 5.081394195556641
+2: move 5ft down and to the left 5.115074157714844
+3: move 5ft down 4.994861602783203
+4: move 5ft up and to the right 5.100536346435547
+5: move 5ft to the right 5.235372066497803
+6: move 5ft down and to the right 5.16467809677124
+7: go prone 4.451518535614014
+8: end my turn 5.432441234588623
+Chosen index: 8
 ==== end turn ===
-gomerin 8/14
-spell slots level 1: 1
-rumblebelly 13/24
-rumblebelly starts their turn.
-==== current turn rumblebelly 13/24 AC 18===
-rumblebelly attacked gomerin with Rapier and hits with attack roll d20(14) + 7 = 21.
-gomerin took 8 damage.
+Joe 10/18
+Mike 2/18
+Mike starts their turn.
+==== current turn Mike 2/18 AC 16===
+Mike attacked Joe with Dagger and hits with attack roll d20(18) + 7 = 25.
+Joe took 6 damage.
+Joe: Reaction for opportunity_attack:
+0: attack enemy with melee weapon: dagger 6.125183582305908
+1: attack enemy with melee weapon: dagger 6.125183582305908
+2: attack enemy with melee weapon: torch 5.292173862457275
+3: attack enemy with melee weapon: unarmed_attack 5.260998725891113
+4: end my turn 2.089176654815674
+Chosen index: 0
+Joe attacked Mike with opportunity with Dagger and hits with attack roll d20(10) + 7 = 17.
+Mike unconscious.
+Mike took 9 damage.
 Result: tpk
 ____________
 ____________
 ____________
 ____________
-____________
 _.......____
-_.....PE____
+_..ooo..____
+_.....P.____
+_~~~~~E~____
+_~~~~~~~____
 _.......____
+_..ooo..____
 _.......____
-_.......____
-_.......____
-____________
-Reward: -10
+Reward: 10

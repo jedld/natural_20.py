@@ -10,7 +10,7 @@ def enemy_stats(battle, current_player, entity_type_mappings):
     """
     for player in battle.entities.keys():
         if battle.entity_group_for(player) != battle.entity_group_for(current_player):
-            enemy_hp = player.hp() / 1000.0
+            enemy_hp = player.hp() / player.max_hp()
             enemy_reactions = player.total_reactions(battle)
             enemy_conditions = condition_stats(player, battle)
             return enemy_hp, enemy_reactions, enemy_conditions, map_entity_to_index(player, entity_type_mappings), player.armor_class()
@@ -42,7 +42,7 @@ def build_observation(battle, map, entity, entity_type_mappings, weapon_type_map
         "map": render_terrain(battle, map, entity_type_mappings, view_port_size),
         "turn_info": np.array([entity.total_actions(battle), entity.total_bonus_actions(battle), entity.total_reactions(battle)]),
         "conditions": condition_stats(entity, battle),
-        "health_pct": np.array([entity.hp() / 1000.0]),
+        "health_pct": np.array([entity.hp() / entity.max_hp()]),
         "player_equipped": np.array(mapped_equipments),
         "health_enemy" : np.array([e_health]),
         "enemy_conditions": e_conditions,
@@ -73,10 +73,13 @@ def ability_info(entity):
     ability_info = np.zeros((8), dtype=np.int64)
 
     SECOND_WIND = 0
+    ACTION_SURGE = 1
 
     if hasattr(entity, 'second_wind_count'):
         ability_info[SECOND_WIND] = entity.second_wind_count
-        
+    if hasattr(entity, 'action_surge_count'):
+        ability_info[ACTION_SURGE] = entity.action_surge_count
+
     return ability_info
 
 def dndenv_action_to_nat20action(entity, battle, map, available_actions, gym_action, weapon_mappings=None, spell_mappings=None):
@@ -135,6 +138,16 @@ def dndenv_action_to_nat20action(entity, battle, map, available_actions, gym_act
                     return action
             else:
                 return action
+        elif action.action_type == "shove" and action_type == 13:
+            return action
+        elif action.action_type == "help" and action_type == 14:
+            return action
+        elif action.action_type == "hide" and action_type == 15:
+            return action
+        elif action.action_type == "use_item" and action_type == 16:
+            return action
+        elif action.action_type == "action_surge" and action_type == 17:
+            return action
         elif action_type == -1:
             return -1
     raise ValueError(f"No action match for {gym_action} {action_type}")
@@ -260,6 +273,18 @@ def action_to_gym_action(entity, map, available_actions, weapon_mappings=None, s
         elif action.action_type == 'spell':
             spell_type = spell_mappings[action.spell_action.short_name()]
             valid_actions.append((12, (-1, -1),(0, 0), spell_type, action.at_level))
+        # elif action.action_type == 'shove':
+        #     target = map.position_of(action.target)
+        #     relative_pos = (target[0] - entity_pos[0], target[1] - entity_pos[1])
+        #     valid_actions.append((13, (0, 0), (relative_pos[0], relative_pos[1]), 0, 0))
+        elif action.action_type == 'help':
+            valid_actions.append((14, (-1, -1),(0, 0), 0, 0))
+        elif action.action_type == 'hide':
+            valid_actions.append((15, (-1, -1),(0, 0), 0, 0))
+        elif action.action_type == 'use_item':
+            valid_actions.append((16, (-1, -1),(0, 0), 0, 0))
+        elif action.action_type == 'action_surge':
+            valid_actions.append((17, (-1, -1),(0, 0), 0, 0))
 
 
     valid_actions.append((-1, (0, 0), (0, 0), 0, 0)) # end turn should always be available

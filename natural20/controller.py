@@ -21,6 +21,9 @@ class Controller:
     def roll_for(self, entity, stat, advantage=False, disadvantage=False):
         return None
     
+    def spell_reaction(self, entity, battle, action):
+        return False
+    
     def opportunity_attack_listener(self, battle, session, entity, map, event):
         actions = [s for s in entity.available_actions(session, battle, opportunity_attack=True)]
 

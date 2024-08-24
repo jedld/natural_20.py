@@ -516,6 +516,7 @@ class Entity(EntityStateEvaluator):
             'active_perception': 0,
             'active_perception_disadvantage': 0,
             'two_weapon': None,
+            'action_surge': None,
             'positions_entered': {}
         })
 
@@ -637,6 +638,7 @@ class Entity(EntityStateEvaluator):
     def trigger_event(self, event_name, battle, session, map, event):
         if event_name in self.event_handlers:
             callback = self.event_handlers[event_name]
+            event['trigger'] = event_name
             return callback(battle, session, self, map, event)
 
     def npc(self):

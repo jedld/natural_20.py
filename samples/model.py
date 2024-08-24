@@ -14,7 +14,7 @@ class QNetwork(nn.Module):
 
         self.width, self.height = viewport_size
         # Fully connected layers for scalar inputs, flattened map, and action components
-        self.fc1 = nn.Linear(268, 64)
+        self.fc1 = nn.Linear(269, 64)
 
         # Embedding for discrete movement and binary action
         self.action_type_embedding = nn.Embedding(256, 4)
@@ -44,14 +44,16 @@ class QNetwork(nn.Module):
         player_acs = []
         enemy_acs = []
         player_equipeds = []
+        is_reactions = []
 
         for x in batch_x:
             health_enemy, health_pct, condition, enemy_condition, enemy_reaction, map_input, movement, \
-                turn_info, ability_info, player_type, enemy_type, player_ac, enemy_ac, player_equiped = \
+                turn_info, ability_info, player_type, enemy_type, player_ac, enemy_ac, player_equiped, \
+                is_reaction = \
                 x['health_enemy'], x['health_pct'], x['conditions'], x['enemy_conditions'], \
                 x['enemy_reactions'], x['map'], x['movement'], \
                 x['turn_info'], x['ability_info'], x['player_type'], x['enemy_type'], \
-                x['player_ac'], x['enemy_ac'], x['player_equipped']
+                x['player_ac'], x['enemy_ac'], x['player_equipped'], x['is_reaction']
 
             if not pre_converted:
                 map_input = torch.tensor(map_input, dtype=torch.int).to(device)
@@ -86,6 +88,7 @@ class QNetwork(nn.Module):
                 player_ac = torch.tensor(player_ac, dtype=torch.float32).to(device)
                 enemy_ac = torch.tensor(enemy_ac, dtype=torch.float32).to(device)
                 player_equiped = torch.tensor(player_equiped, dtype=torch.long).to(device).unsqueeze(1)
+                is_reaction = torch.tensor(is_reaction, dtype=torch.float32).to(device)
 
             conditions.append(condition)
             enemy_conditions.append(enemy_condition)
@@ -99,6 +102,7 @@ class QNetwork(nn.Module):
             enemy_types.append(enemy_type)
             player_acs.append(player_ac)
             enemy_acs.append(enemy_ac)
+            is_reactions.append(is_reaction)
 
             equiped_flattened = self.weapon_type_embedding(player_equiped).view(-1)
             player_equipeds.append(equiped_flattened)
@@ -132,6 +136,7 @@ class QNetwork(nn.Module):
                torch.stack(conditions).to(device), torch.stack(enemy_conditions).to(device), \
                torch.stack(health_enemys).to(device), torch.stack(health_pcts).to(device), \
                torch.stack(enemy_reactions).to(device), torch.stack(ability_infos).to(device),\
+               torch.stack(is_reactions).to(device), \
                torch.stack(movements).to(device), \
                torch.stack(turn_infos).to(device), \
                torch.stack(action1s).to(device), \
@@ -141,11 +146,11 @@ class QNetwork(nn.Module):
     def forward(self, x, action, pre_converted=False, pre_converted_action=False):
         if isinstance(x, dict):
             map_input, player_type, enemy_type, player_ac, equiped, condition, condition_enemy, \
-                health_enemy, health_pct, enemy_reaction, ability_info, movement, turn_info, \
+                health_enemy, health_pct, enemy_reaction, is_reaction, ability_info, movement, turn_info, \
                 action1, action2, action3, action4, action5 = self.convert_batch([x], [action], self.device, pre_converted=pre_converted, pre_converted_action=pre_converted_action)
         else:
             map_input, player_type, enemy_type, player_ac, equiped, condition, condition_enemy, \
-                health_enemy, health_pct, enemy_reaction, ability_info, movement, turn_info, \
+                health_enemy, health_pct, enemy_reaction, is_reaction, ability_info, movement, turn_info, \
                 action1, action2, action3, action4, action5 = self.convert_batch(x, action, self.device, pre_converted=pre_converted, pre_converted_action=pre_converted_action)
 
         # Pass map through CNN
@@ -165,7 +170,7 @@ class QNetwork(nn.Module):
 
         # normalize ability info
         ability_info = ability_info / 256.0
-        x = torch.cat((x, equiped, condition, condition_enemy, health_info, enemy_reaction, action_embed, action_features, action4_embed, action5_embed, player_type_embeds, enemy_type_embeds, ability_info), dim=1)
+        x = torch.cat((x, equiped, is_reaction, condition, condition_enemy, health_info, enemy_reaction, action_embed, action_features, action4_embed, action5_embed, player_type_embeds, enemy_type_embeds, ability_info), dim=1)
 
         # Fully connected layer
         x = F.relu(self.fc1(x))

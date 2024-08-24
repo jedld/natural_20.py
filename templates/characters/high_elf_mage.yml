@@ -4,9 +4,9 @@ race: elf
 subrace: high_elf
 pronoun: she/her/hers
 classes:
-  wizard: 1
+  wizard: 2
 description: A high elf mage with a mysterious noble background
-level: 1
+level: 2
 hit_die: inherit
 max_hp: 6
 ability:

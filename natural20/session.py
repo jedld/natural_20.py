@@ -37,6 +37,7 @@ class Session:
         
     def reset(self):
         self.game_time = 0
+        self.session_state = {}
         self.event_log = deque(maxlen=100)
 
     @staticmethod

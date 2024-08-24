@@ -23,6 +23,7 @@ natural20.py.egg-info/dependency_links.txt
 natural20.py.egg-info/requires.txt
 natural20.py.egg-info/top_level.txt
 natural20/actions/__init__.py
+natural20/actions/action_surge_action.py
 natural20/actions/attack_action.py
 natural20/actions/dash.py
 natural20/actions/disengage_action.py
@@ -67,6 +68,7 @@ natural20/utils/string_utils.py
 natural20/utils/utils.py
 tests/__init__.py
 tests/test_attack_action.py
+tests/test_autobuild.py
 tests/test_battle.py
 tests/test_dieroll.py
 tests/test_gym.py

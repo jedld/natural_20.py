@@ -4,9 +4,9 @@ race: halfling
 subrace: lightfoot
 pronoun: he/him/his
 classes:
-  rogue: 1
+  rogue: 2
 description: A halfling rogue with a dark past
-level: 1
+level: 2
 hit_die: inherit
 max_hp: 8
 ability:
@@ -31,6 +31,7 @@ weapon_proficiencies:
 - martial
 - simple
 equipped:
+- dagger
 - dagger
 - torch
 - leather_armor

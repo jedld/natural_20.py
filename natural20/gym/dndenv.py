@@ -23,6 +23,9 @@ class GymInternalController(Controller):
         self.battle_data = {}
         self.reaction_callback = reaction_callback
 
+    def update_reaction_callback(self, callback):
+        self.reaction_callback = callback
+
     # @param entity [Natural20::Entity]
     def register_handlers_on(self, entity):
         entity.attach_handler("opportunity_attack", self.opportunity_attack_listener)
@@ -38,9 +41,9 @@ class GymInternalController(Controller):
                 action.as_reaction = True
                 valid_actions.append(action)
 
-        return self.select_reaction(entity, battle, map, valid_actions)
+        return self.select_reaction(entity, battle, map, valid_actions, event)
 
-    def select_reaction(self, entity, battle, map, valid_actions):
+    def select_reaction(self, entity, battle, map, valid_actions, event):
         if self.reaction_callback:
             observation = self.env.generate_observation(entity, is_reaction=True)
             available_moves = action_to_gym_action(entity, map, valid_actions, weapon_mappings=self.env.weapon_mappings, \
@@ -49,6 +52,9 @@ class GymInternalController(Controller):
             done = False
             truncated = False
             info = self.env._info(available_moves, entity)
+            info['trigger'] = event['trigger']
+            info['entity'] = self.env.entity_mappings[entity.class_descriptor()]
+            info['reactor'] = entity.name
             chosen_action = self.reaction_callback(observation, reward, done, truncated, info)
             if chosen_action[0] == -1:
                 return None
@@ -57,6 +63,40 @@ class GymInternalController(Controller):
                                                     spell_mappings=self.env.spell_mappings)
         else:
             return None
+        
+def embedding_loader(session, weapon_mappings=None, spell_mappings=None, entity_mappings=None, **kwargs):
+    weapon_embeddings_file = kwargs.get('weapon_embeddings', 'weapon_token_map.csv')
+    spell_embeddings_file = kwargs.get('spell_embeddings', 'spell_token_map.csv')
+    entity_embeddings_file = kwargs.get('entity_embeddings', 'entity_token_map.csv')
+
+    if weapon_mappings is None:
+        # read CSV file in the folloing format name,idx
+        weapon_mappings = {}
+        fname = os.path.join(session.root_path, weapon_embeddings_file)
+
+        with open(fname, 'r') as f:
+            for line in f:
+                parts = line.strip().split(',')
+                weapon_mappings[parts[0]] = int(parts[1])
+
+    if spell_mappings is None:
+        spell_mappings = {}
+        fname = os.path.join(session.root_path, spell_embeddings_file)
+        with open(fname, 'r') as f:
+            for line in f:
+                parts = line.strip().split(',')
+                spell_mappings[parts[0]] = int(parts[1]) + 100
+
+    if entity_mappings is None:
+        entity_mappings = {}
+        fname = os.path.join(session.root_path, entity_embeddings_file)
+        with open(fname, 'r') as f:
+            for line in f:
+                parts = line.strip().split(',')
+                entity_mappings[parts[0]] = int(parts[1])
+
+    return weapon_mappings, spell_mappings, entity_mappings
+
 
 """
 This is a custom environment for the game Dungeons and Dragons 5e. It is based on the OpenAI Gym environment.
@@ -138,13 +178,11 @@ class dndenv(gym.Env):
         self.control_groups = kwargs.get('control_groups', ['a'])
         self.damage_based_reward = kwargs.get('damage_based_reward', False)
         self.custom_session = kwargs.get('custom_session', None)
-        self.weapon_embeddings = kwargs.get('weapon_embeddings', 'weapon_token_map.csv')
-        self.spell_embeddings = kwargs.get('spell_embeddings', 'spell_token_map.csv')
-        self.entity_embeddings = kwargs.get('entity_embeddings', 'entity_token_map.csv')
         self.reactions_callback = kwargs.get('reactions_callback', None)
         self.weapon_mappings = None
         self.spell_mappings = None
         self.entity_mappings = None
+        self.kwargs = kwargs
 
     def seed(self, seed=None):
         self._seed = seed
@@ -209,6 +247,7 @@ class dndenv(gym.Env):
     def reset(self, **kwargs) -> Dict[str, Any]:
         # set seed, use random seed if not provided
         seed = kwargs.get('seed', None)
+        reactions_callback = kwargs.get('reaction_callback', self.reactions_callback)
 
         if seed is None:
             seed = random.randint(0, 1000000)
@@ -233,35 +272,15 @@ class dndenv(gym.Env):
                 event_manager.standard_cli()
 
         if self.custom_session:
-            self.session = self.custom_session
+            if callable(self.custom_session):
+                self.session = self.custom_session(self)
+            else:
+                self.session = self.custom_session
         else:
             self.session = Session(self.root_path, event_manager=event_manager)
 
-        if self.weapon_embeddings and self.weapon_mappings is None:
-            # read CSV file in the folloing format name,idx
-            self.weapon_mappings = {}
-            fname = os.path.join(self.session.root_path, self.weapon_embeddings)
-            
-            with open(fname, 'r') as f:
-                for line in f:
-                    parts = line.strip().split(',')
-                    self.weapon_mappings[parts[0]] = int(parts[1])
-
-        if self.spell_embeddings and self.spell_mappings is None:
-            self.spell_mappings = {}
-            fname = os.path.join(self.session.root_path, self.spell_embeddings)
-            with open(fname, 'r') as f:
-                for line in f:
-                    parts = line.strip().split(',')
-                    self.spell_mappings[parts[0]] = int(parts[1]) + 100
-
-        if self.entity_embeddings and self.entity_mappings is None:
-            self.entity_mappings = {}
-            fname = os.path.join(self.session.root_path, self.entity_embeddings)
-            with open(fname, 'r') as f:
-                for line in f:
-                    parts = line.strip().split(',')
-                    self.entity_mappings[parts[0]] = int(parts[1])
+        self.session.reset()
+        self.weapon_mappings, self.spell_mappings, self.entity_mappings = embedding_loader(self.session, weapon_mappings=self.weapon_mappings, spell_mappings=self.spell_mappings, entity_mappings=self.entity_mappings, **kwargs)
 
         self.map = Map(self.session, map_location)
         self.battle = Battle(self.session, self.map)
@@ -272,7 +291,7 @@ class dndenv(gym.Env):
         if self.custom_initializer:
             initiative_order = self.custom_initializer(self)
         else:
-            initiative_order = self._setup_up_default_1v1()
+            initiative_order = self._setup_up_default_1v1(reaction_callback=reactions_callback)
 
         self.battle.start(combat_order=initiative_order)
         self.battle.start_turn()
@@ -306,6 +325,10 @@ class dndenv(gym.Env):
 
     def _describe_hero(self, pc: Entity):
         self.log("==== Player Character ====")
+        ability_score_str = ""
+        for attr in pc.ability_scores.items():
+            ability_score_str += f"{attr[0]}: {attr[1]} "
+        self.log(ability_score_str)
         self.log(f"name: {pc.name}")
         self.log(f"level: {pc.level()}")
         self.log(f"character class: {pc.c_class()}")
@@ -354,7 +377,7 @@ class dndenv(gym.Env):
                 break
         return current_player, result
     
-    def _setup_up_default_1v1(self):
+    def _setup_up_default_1v1(self, reaction_callback=None):
         enemy_pos = None
         player_pos = None
 
@@ -371,6 +394,9 @@ class dndenv(gym.Env):
             if index < len(self.hero_names):
                 name = self.hero_names[index]
 
+            if isinstance(p, tuple):
+                p, name = p
+
             pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', { "name" : name})
             self._describe_hero(pc)
             # set random starting positions, make sure there are no obstacles in the map
@@ -382,6 +408,9 @@ class dndenv(gym.Env):
         for index, p in enumerate(enemies):
             if index < len(self.enemy_names):
                 name = self.enemy_names[index]
+
+            if isinstance(p, tuple):
+                p, name = p
 
             pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', {"name":  name})
             self._describe_hero(pc)
@@ -405,7 +434,7 @@ class dndenv(gym.Env):
 
                 self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
             else:
-                controller = GymInternalController(self.session, self)
+                controller = GymInternalController(self.session, self, reaction_callback=reaction_callback)
                 controller.register_handlers_on(player)
                 self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
 
@@ -598,6 +627,18 @@ def action_type_to_int(action_type):
         return 11
     elif action_type == "spell":
         return 12
+    elif action_type == "shove":
+        return 13
+    elif action_type == "help":
+        return 14
+    elif action_type == "hide":
+        return 15
+    elif action_type == "use_item":
+        return 16
+    elif action_type == "action_surge":
+        return 17
+    elif action_type == -1:
+        return -1
     else:
         raise ValueError(f"Unknown action type {action_type}")  
 

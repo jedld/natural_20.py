@@ -1,6 +1,7 @@
 from typing import List, Tuple
 from natural20.action import Action
 from natural20.utils.movement import compute_actual_moves, retrieve_opportunity_attacks
+from natural20.map_renderer import MapRenderer
 import pdb
 class MoveAction(Action):
     """
@@ -61,7 +62,9 @@ class MoveAction(Action):
         if self.move_path is None or len(self.move_path) == 0:
             if opts.get('move_path') is None:
                 raise ValueError('no path specified')
-
+        # print("move path", self.move_path)
+        # renderer = MapRenderer(map)
+        # print(renderer.render())
         self.result = []
         battle = opts.get('battle')
 
@@ -84,9 +87,14 @@ class MoveAction(Action):
 
         actual_moves = self.check_opportunity_attacks(self.source, actual_moves, battle)
 
+
         actual_moves = self.check_movement_athletics(actual_moves, movement.athletics_check_locations, battle, map)
 
         actual_moves = self.check_movement_acrobatics(actual_moves, movement.acrobatics_check_locations, battle)
+
+        if self.source.unconscious():
+            battle.entity_state_for(self.source)['movement'] = 0
+            return self
 
         # cutoff = False
 
@@ -125,6 +133,8 @@ class MoveAction(Action):
 
                 grappled_movement.pop()
         # print(f"budget: {movement_budget}  {movement.budget}")
+        movement_cost = movement_budget - movement.budget
+
         self.result.append({
             'source': self.source,
             'map': map,
@@ -133,7 +143,7 @@ class MoveAction(Action):
             'as_bonus_action': self.as_bonus_action,
             'type': 'move',
             'path': movement.movement,
-            'move_cost': movement_budget - movement.budget -1,
+            'move_cost': movement_cost,
             'position': movement.movement[-1]
         })
         self.result += additional_effects
@@ -192,7 +202,6 @@ class MoveAction(Action):
             elif item['as_dash']:
                 battle.entity_state_for(item['source'])['action'] -= 1
             elif battle:
-                # print(f"available movement {battle.entity_state_for(item['source'])['movement']} {item['move_cost']}")
                 battle.entity_state_for(item['source'])['movement'] -= item['move_cost'] * battle.map.feet_per_grid
 
             battle.session.event_manager.received_event({

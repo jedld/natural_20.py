@@ -3,6 +3,7 @@ from natural20.die_roll import DieRoll
 from natural20.entity_class.fighter import Fighter
 from natural20.entity_class.rogue import Rogue
 from natural20.entity_class.wizard import Wizard
+from natural20.actions.action_surge_action import ActionSurgeAction
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.move_action import MoveAction
@@ -33,11 +34,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
     DodgeAction, LookAction, MoveAction, ProneAction, SecondWindAction,
     StandAction, TwoWeaponAttackAction,
     ShoveAction, HelpAction, UseItemAction, GroundInteractAction,
-    SpellAction
+    SpellAction, ActionSurgeAction
   ]
 
   def __init__(self, session, properties, name=None):
-    super(PlayerCharacter, self).__init__(name, f"PC {name}", {})
+    super(PlayerCharacter, self).__init__(name, f"PC {name}", attributes={}, event_manager=session.event_manager)
     self.properties = properties
     
     if name is None:
@@ -181,6 +182,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
           action_list.append(DisengageAction(session, self, 'disengage'))
         elif action_type == SecondWindAction:
           action_list.append(SecondWindAction(session, self, 'second_wind'))
+        elif action_type == ActionSurgeAction:
+          action_list.append(ActionSurgeAction(session, self, 'action_surge'))
         elif action_type == DashBonusAction:
           action = DashBonusAction(session, self, 'dash_bonus')
           action.as_bonus_action = True
@@ -200,11 +203,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
                 continue
               if battle.map.passable(self, cur_x + x_pos, cur_y + y_pos, battle, allow_squeeze=False) and battle.map.placeable(self, cur_x + x_pos, cur_y + y_pos, battle, squeeze=False):
                 chosen_path = [[cur_x, cur_y], [cur_x + x_pos, cur_y + y_pos]]
-                shortest_path = compute_actual_moves(self, chosen_path, battle.map, battle, self.available_movement(battle) // 5).movement
-                if len(shortest_path) > 1:
-                  # print(f"shortest_path: {shortest_path}")
+                actual_movement = compute_actual_moves(self, chosen_path, battle.map, battle, self.available_movement(battle) // 5)
+                if len(actual_movement.movement) > 1 and actual_movement.impediment is None:
+                  # print(f"Adding move action {actual_movement.movement}")
                   move_action = MoveAction(session, self, 'move')
-                  move_action.move_path = shortest_path
+                  move_action.move_path = actual_movement.movement
                   action_list.append(move_action)
         elif action_type == ProneAction:
           action = ProneAction(session, self, 'prone')

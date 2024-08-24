@@ -32,23 +32,34 @@ class ShieldSpell(Spell):
         if opts is None:
             opts = {}
 
-        # spell = battle.session.load_spell('shield')
-        
-        # if attack_roll is None or attack_roll.result in range(effective_ac, effective_ac + 5):
-        #     #TODO: Add prompt to use shield spell
-        #     shield_spell = ShieldSpell(battle.session, entity, 'shield', spell)
-        #     action = Action(battle.session, entity, 'spell')
-        #     action.target = entity
-        #     shield_spell.action = action
-        #     return [[{
-        #         'type': 'shield',
-        #         'target': entity,
-        #         'source': entity,
-        #         'effect': shield_spell,
-        #         'spell': spell
-        #     }], False]
-        # else:
-        return [[], False]
+        spell = battle.session.load_spell('shield')
+
+        if attack_roll is None or attack_roll.result in range(effective_ac, effective_ac + 5):
+            entity_controller = battle.controller_for(entity)
+            if entity_controller is None:
+                return [[], False]
+
+            shield_spell = ShieldSpell(battle.session, entity, 'shield', spell)
+            action = Action(battle.session, entity, 'spell')
+            action.target = entity
+            shield_spell.action = action
+            valid_actions = [action]
+            event = {
+                'type': 'shield',
+                'target': entity,
+                'source': entity,
+                'effect': shield_spell,
+                'spell': spell,
+                'trigger': 'shield'
+            }
+            result = entity_controller.select_reaction(entity, battle, battle.map, valid_actions, event)
+
+            if result:
+                return [[event], False]
+            else:
+                return [[], False]
+        else:
+           return [[], False]
 
     def resolve(self, entity, battle, spell_action):
         return [{
