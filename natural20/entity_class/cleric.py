@@ -39,7 +39,7 @@ class Cleric:
     def channel_divinity(self):
         self.channel_divinity_count -= 1
 
-    def spell_attack_modifier(self):
+    def cleric_spell_attack_modifier(self):
         return self.proficiency_bonus() + self.wis_mod()
 
     def special_actions_for_cleric(self, session, battle):

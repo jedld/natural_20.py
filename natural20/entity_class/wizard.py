@@ -32,7 +32,7 @@ class Wizard:
     self.spell_slots['wizard'] = self.reset_spell_slots()
     self.arcane_recovery = 1
 
-  def spell_attack_modifier(self):
+  def wizard_spell_attack_modifier(self):
     return self.proficiency_bonus() + self.int_mod()
 
   def special_actions_for_wizard(self, session, battle):

@@ -84,7 +84,7 @@ class ShockingGraspSpell(AttackSpell):
                     'attack_name': self.t('spell.shocking_grasp'),
                     'damage_type': self.properties['damage_type'],
                     'attack_roll': attack_roll,
-                    'damage_roll': damage_roll,
+                    'damage_roll': None,
                     'advantage_mod': advantage_mod,
                     'adv_info': adv_info,
                     'cover_ac': cover_ac_adjustments,

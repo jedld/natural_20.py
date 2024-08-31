@@ -52,7 +52,7 @@ class TestSpellAction(unittest.TestCase):
         self.npc = self.session.npc('skeleton')
         self.battle.add(self.npc, 'b', position=[0, 6])
         self.npc.reset_turn(self.battle)
-        random.seed(7000)
+        random.seed(7002)
         print(MapRenderer(self.battle_map).render())
         build = SpellAction.build(self.session, self.entity)['next'](['shocking_grasp', 0])
         action = build['next'](self.npc)

@@ -164,7 +164,7 @@ class Session:
             spell_details = spells.get(spell)
 
             if not spell_details:
-                return None
+                raise Exception(f'Spell {spell} not found')
 
             self.spells[spell] = spell_details
             self.spells[spell]['id'] = spell

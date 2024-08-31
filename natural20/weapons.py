@@ -61,6 +61,11 @@ def compute_advantages_and_disadvantages(battle, source, target, weapon, source_
         advantage += advantage_mod
         disadvantage += disadvantage_mod
 
+    if target.has_effect('targeted_advantage_override'):
+        advantage_mod, disadvantage_mod = target.eval_effect('targeted_advantage_override', { "source" : source })
+        advantage += advantage_mod
+        disadvantage += disadvantage_mod
+
     if source.prone():
         disadvantage.append('prone')
     if source.squeezed():

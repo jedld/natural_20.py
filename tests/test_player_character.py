@@ -65,7 +65,8 @@ class TestPlayerCharacter(unittest.TestCase):
 
     def test_wizard_ranged_spell_attack(self):
         self.player = self.load_mage_character()
-        attack = self.player.ranged_spell_attack(self.battle, 'firebolt')
+        firebolt = self.session.load_spell('firebolt')
+        attack = self.player.ranged_spell_attack(self.battle, firebolt)
         self.assertEqual(attack.roller.roll_str, '1d20+6')
 
     def test_wizard_spell_slots(self):

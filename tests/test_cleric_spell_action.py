@@ -39,6 +39,30 @@ class TestClericSpellAction(unittest.TestCase):
         self.battle.commit(action)
         self.assertEqual(self.npc.hp(), 0)
 
+    def test_guiding_bolt(self):
+        random.seed(7005)
+        self.assertEqual(self.npc.hp(), 6)
+        print(MapRenderer(self.battle_map).render())
+        action = SpellAction.build(self.session, self.entity)['next'](['guiding_bolt',0])['next'](self.npc)
+        action.resolve(self.session, self.battle_map, { "battle": self.battle})
+        self.assertEqual([s['type'] for s in action.result], ['spell_damage', 'guiding_bolt'])
+        self.battle.commit(action)
+
+        adv_mod, adv_info = target_advantage_condition(self.battle, self.entity, self.npc, action.spell_action.properties)
+        self.assertEqual(adv_mod, 1)
+        self.assertEqual(adv_info, [['guiding_bolt_advantage'], []])
+        self.assertEqual(self.npc.hp(), 0)
+        self.entity.resolve_trigger('end_of_turn')
+        adv_mod, adv_info = target_advantage_condition(self.battle, self.entity, self.npc, action.spell_action.properties)
+        self.assertEqual(adv_mod, 1)
+        self.assertEqual(adv_info, [['guiding_bolt_advantage'], []])
+        self.entity.resolve_trigger('start_of_turn')
+        self.entity.resolve_trigger('end_of_turn')
+        adv_mod, adv_info = target_advantage_condition(self.battle, self.entity, self.npc, action.spell_action.properties)
+        self.assertEqual(adv_mod, 0)
+        self.assertEqual(adv_info, [[], []])
+
+
     def test_cure_wounds(self):
         random.seed(7003)
         self.entity.take_damage(4)
@@ -67,8 +91,8 @@ class TestClericSpellAction(unittest.TestCase):
         self.npc = self.session.npc('skeleton')
         self.battle.add(self.npc, 'b', position=[0, 6])
         auto_build_actions = autobuild(self.session, SpellAction, self.entity, self.battle)
-        self.assertEqual(len(auto_build_actions), 2)
-        self.assertEqual([str(a) for a in  auto_build_actions], ['SpellAction: sacred_flame', 'SpellAction: cure_wounds'])
+        self.assertEqual(len(auto_build_actions), 3)
+        self.assertEqual([str(a) for a in  auto_build_actions], ['SpellAction: sacred_flame', 'SpellAction: cure_wounds', 'SpellAction: guiding_bolt'])
 
 if __name__ == '__main__':
     unittest.main()

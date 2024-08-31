@@ -19,6 +19,7 @@ ability:
 prepared_spells:
 - sacred_flame
 - cure_wounds
+- guiding_bolt
 equipped:
 - dagger
 - scale_mail

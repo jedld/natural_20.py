@@ -855,10 +855,17 @@ class Entity(EntityStateEvaluator):
         self.inventory[ammo_type]['qty'] = qty + amount
 
     def ranged_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
-        return DieRoll.roll(f"1d20+{self.spell_attack_modifier()}", description=f"Ranged Spell Attack: {spell}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
+        spell_classes = spell.get('spell_list_classes', [])
+        class_types = spell_classes if spell_classes else 'wizard'
+        attack_modifers = [self.spell_attack_modifier(class_type=class_type) for class_type in class_types]
+        return DieRoll.roll(f"1d20+{max(attack_modifers)}", description=f"Ranged Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
+        
 
     def melee_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
-        return DieRoll.roll(f"1d20+{self.spell_attack_modifier()}", description=f"Melee Spell Attack: {spell}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
+        spell_classes = spell.get('spell_list_classes', [])
+        class_types = spell_classes[0] if spell_classes else 'wizard'
+        attack_modifers = [self.spell_attack_modifier(class_type=class_type) for class_type in class_types]
+        return DieRoll.roll(f"1d20+{max(attack_modifers)}", description=f"Ranged Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
 
     def multiattack(self, battle, npc_action):
         if not npc_action:
@@ -890,6 +897,13 @@ class Entity(EntityStateEvaluator):
 
     def spell_save_dc(self, ability_type='intelligence'):
         return 8 + self.proficiency_bonus() + self.ability_mod(ability_type)
+
+    def spell_attack_modifier(self, class_type='wizard'):
+        method_name = f"{class_type.lower()}_spell_attack_modifier"
+        if hasattr(self, method_name):
+            return getattr(self, method_name)()
+
+        return 0
 
     def equipped_weapons(self):
         return [item['name'] for item in self.equipped_items() if item["subtype"] == 'weapon']

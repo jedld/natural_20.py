@@ -131,7 +131,8 @@ class Battle():
         self.trigger_event('start_of_turn', self, { "target" : self.current_turn()})
 
     def end_turn(self):
-        self.trigger_event('end_of_round', self,  { "target" : self.current_turn()})
+        self.current_turn().resolve_trigger('end_of_turn')
+        self.trigger_event('end_of_turn', self,  { "target" : self.current_turn()})
 
     def battle_ends(self):
         """
@@ -177,7 +178,7 @@ class Battle():
         return inefficiency
 
     def next_turn(self, max_rounds=None):
-        self.trigger_event('end_of_round', self, { "target" : self.current_turn()})
+        self.trigger_event('end_of_turn', self, { "target" : self.current_turn()})
         if self.started and self.battle_ends():
             self.session.event_manager.received_event({"source" : self, "event" : 'end_of_combat'})
             self.started = False
