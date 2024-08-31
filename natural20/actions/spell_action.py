@@ -9,6 +9,7 @@ from natural20.spell.expeditious_retreat_spell import ExpeditiousRetreatSpell
 from natural20.spell.magic_missile_spell import MagicMissileSpell
 from natural20.spell.ray_of_frost_spell import RayOfFrostSpell
 from natural20.spell.sacred_flame_spell import SacredFlameSpell
+from natural20.spell.cure_wounds_spell import CureWoundsSpell
 from natural20.spell.shield_spell import ShieldSpell
 from natural20.utils.string_utils import classify
 from natural20.spell.spell import Spell
@@ -125,6 +126,8 @@ class SpellAction(Action):
                 spell_class = ShieldSpell
             elif spell_name == 'SacredFlameSpell':
                 spell_class = SacredFlameSpell
+            elif spell_name == 'CureWoundsSpell':
+                spell_class = CureWoundsSpell
             else:
                 raise Exception(f"spell class not found {spell_name}")
             action.spell_class = spell_class

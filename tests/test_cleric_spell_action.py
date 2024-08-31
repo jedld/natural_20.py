@@ -39,6 +39,17 @@ class TestClericSpellAction(unittest.TestCase):
         self.battle.commit(action)
         self.assertEqual(self.npc.hp(), 0)
 
+    def test_cure_wounds(self):
+        random.seed(7003)
+        self.entity.take_damage(4)
+        self.assertEqual(self.entity.hp(), 4)
+        print(MapRenderer(self.battle_map).render())
+        action = SpellAction.build(self.session, self.entity)['next'](['cure_wounds',0])['next'](self.entity)
+        action.resolve(self.session, self.battle_map, { "battle": self.battle})
+        self.assertEqual([s['type'] for s in action.result], ['spell_heal'])
+        self.battle.commit(action)
+        self.assertEqual(self.entity.hp(), 6)
+
 
     def test_compute_hit_probability(self):
         self.entity.ability_scores['wis'] = 20
@@ -56,8 +67,8 @@ class TestClericSpellAction(unittest.TestCase):
         self.npc = self.session.npc('skeleton')
         self.battle.add(self.npc, 'b', position=[0, 6])
         auto_build_actions = autobuild(self.session, SpellAction, self.entity, self.battle)
-        self.assertEqual(len(auto_build_actions), 1)
-        self.assertEqual([str(a) for a in  auto_build_actions], ['SpellAction: sacred_flame'])
+        self.assertEqual(len(auto_build_actions), 2)
+        self.assertEqual([str(a) for a in  auto_build_actions], ['SpellAction: sacred_flame', 'SpellAction: cure_wounds'])
 
 if __name__ == '__main__':
     unittest.main()

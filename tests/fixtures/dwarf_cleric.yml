@@ -18,6 +18,7 @@ ability:
   cha: 12
 prepared_spells:
 - sacred_flame
+- cure_wounds
 equipped:
 - dagger
 - scale_mail

@@ -427,8 +427,13 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
         disable_reason.append('no_bonus_action')
       elif resource == 'hour' and battle.ongoing():
         disable_reason.append('in_battle')
-      if details['level'] > 0 and self.spell_slots_count(details['level']) == 0:
-        disable_reason.append('no_spell_slot')
+      if details['level'] > 0:
+        slot_count = 0
+
+        for spell_class_type in details.get('spell_list_classes', []):
+           slot_count += self.spell_slots_count(details['level'], spell_class_type.lower())
+        if slot_count == 0:
+            disable_reason.append('no_spell_slot')
 
       spell_list[spell] = details.copy()
       spell_list[spell]['disabled'] = disable_reason

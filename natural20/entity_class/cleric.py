@@ -27,14 +27,8 @@ CLERIC_SPELL_SLOT_TABLE = [
 
 
 class Cleric:
-    def __init__(self, name):
-        self.name = name
-        self.channel_divinity_count = None
-        self.channel_divinity_max = None
-        self.spell_slots['cleric'] = self.reset_spell_slots()
-        self.level = 1
-
     def initialize_cleric(self):
+        self.spell_slots['cleric'] = self.reset_cleric_spell_slots()
         self.channel_divinity_count = 1
         self.channel_divinity_max = 1
         if self.level() >= 6:
@@ -64,7 +58,7 @@ class Cleric:
     def max_slots_for_cleric(self, level):
         return CLERIC_SPELL_SLOT_TABLE[self.cleric_level - 1][level - 1] if level < len(CLERIC_SPELL_SLOT_TABLE[self.cleric_level - 1]) else 0
 
-    def reset_spell_slots(self):
+    def reset_cleric_spell_slots(self):
         return OrderedDict((index, slots) for index, slots in enumerate(CLERIC_SPELL_SLOT_TABLE[self.cleric_level - 1]))
 
     def proficiency_bonus(self):

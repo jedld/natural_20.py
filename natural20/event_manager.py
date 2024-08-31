@@ -72,14 +72,18 @@ class EventManager:
             'initiative': lambda event: print(f"{self.show_name(event)} rolled initiative {event['roll']} value {event['value']}"),
             'start_of_turn': lambda event: print(f"{self.show_name(event)} starts their turn."),
             'spell_buf': lambda event: print(f"{self.show_name(event)} cast {event['spell'].name} on {self.show_target_name(event)}"),
+            'spell_heal': lambda event: print(f"{self.show_name(event)} cast {event['spell']['name']} on {self.show_target_name(event)} and healed for {event['heal_roll']}={event['heal_roll'].result()} hit points."),
         }
         for event, handler in event_handlers.items():
             self.register_event_listener(event, handler)
 
     def show_name(self, event):
         return self.decorate_name(event['source'])
-    
+
     def show_target_name(self, event):
+        if 'source' in event:
+            if event['source'] == event['target']:
+                return "themselves"
         return self.decorate_name(event['target'])
 
     def output(self, string):
