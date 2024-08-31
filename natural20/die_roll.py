@@ -180,7 +180,7 @@ class DieRoll(Rollable):
                 prob3 = (self.die_sides - i) * (1.0 / self.die_sides)
                 sum_prob += prob * prob2 + prob3 * prob
         else:
-            for i in range(x, self.die_sides + 1):
+            for _ in range(x, self.die_sides + 1):
                 sum_prob += 1.0 / self.die_sides
 
         return sum_prob
@@ -220,7 +220,10 @@ class DieRoll(Rollable):
         return other.rolls == self.rolls and other.modifier == self.modifier and other.die_sides == self.die_sides
 
     def __lt__(self, other):
-        return self.result() < other.result()
+        if isinstance(other, DieRoll):
+            return self.result() < other.result()
+        else:
+            return self.result() < other
 
     def __add__(self, other):
         if isinstance(other, DieRolls):

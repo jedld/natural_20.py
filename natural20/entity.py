@@ -781,13 +781,21 @@ class Entity(EntityStateEvaluator):
                 return False
 
         return True
-    
+
+    def save_throw(self, save_type, battle):
+        modifier = self.ability_mod(save_type)
+        modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
+        op = '+' if modifier >= 0 else ''
+        disadvantage = True if save_type in ['dex', 'str'] and not self.proficient_with_equipped_armor() else False
+        return DieRoll.roll(f"d20{op}{modifier}", disadvantage=disadvantage, battle=battle, entity=self,
+                            description=f"dice_roll.{save_type}_saving_throw")
+
     def proficient(self, prof):
         return (prof in self.properties.get('skills', []) or
                 prof in self.properties.get('tools', []) or
                 prof in self.properties.get('weapon_proficiencies', []) or
                 prof in [f"{p}_save" for p in self.properties.get('saving_throw_proficiencies', [])])
-    
+
     def proficient_with_armor(self, item):
         armor = self.session.load_thing(item)
         if not armor:
@@ -879,6 +887,9 @@ class Entity(EntityStateEvaluator):
             self.properties['equipped'].remove(item_name)
             if transfer_inventory:
                 self.add_item(item_name)
+
+    def spell_save_dc(self, ability_type='intelligence'):
+        return 8 + self.proficiency_bonus() + self.ability_mod(ability_type)
 
     def equipped_weapons(self):
         return [item['name'] for item in self.equipped_items() if item["subtype"] == 'weapon']

@@ -17,15 +17,57 @@ chain_mail:
   type: armor
   metallic: true
   weight: 55
+ring_mail:
+  ac: 14
+  cost: 30
+  name: Ring Mail
+  subtype: heavy
+  type: armor
+  weight: 40
+splint:
+  ac: 17
+  cost: 200
+  name: Splint Armor
+  subtype: heavy
+  type: armor
+  weight: 60
+plate:
+  ac: 18
+  cost: 1500
+  name: Plate Armor
+  subtype: heavy
+  type: armor
+  weight: 65
 chain_shirt:
   ac: 13
   cost: 50
   mod_cap: 2
   name: Chain Shirt
   metallic: true
-  subtype: light
+  subtype: medium
   type: armor
   weight: 13
+scale_mail:
+  ac: 14
+  cost: 50
+  name: Scale Mail
+  subtype: medium
+  type: armor
+  weight: 45
+breastplate:
+  ac: 14
+  cost: 400
+  name: Breastplate
+  subtype: medium
+  type: armor
+  weight: 20
+half_plate:
+  ac: 15
+  cost: 750
+  name: Half Plate
+  subtype: medium
+  type: armor
+  weight: 40
 component_pouch:
   cost: 25
   name: Component Pouch

@@ -161,7 +161,12 @@ class Session:
     def load_spell(self, spell):
         if spell not in self.spells:
             spells = self.load_yaml_file('items', 'spells')
-            self.spells[spell] = spells.get(spell)
+            spell_details = spells.get(spell)
+
+            if not spell_details:
+                return None
+
+            self.spells[spell] = spell_details
             self.spells[spell]['id'] = spell
         return self.spells[spell]
     

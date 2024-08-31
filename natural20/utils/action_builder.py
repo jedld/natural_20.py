@@ -10,6 +10,7 @@ def build_params(session, entity, battle, build_info, map=None) -> list:
     for param in build_info["param"]:
         if param["type"] == "select_spell":
             possible_spells = []
+
             for spell_name in entity.available_spells(battle):
                     # get spell available levels
                 if SpellAction.can_cast(entity, battle, spell_name):

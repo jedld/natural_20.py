@@ -8,10 +8,12 @@ from natural20.spell.chill_touch_spell import ChillTouchSpell
 from natural20.spell.expeditious_retreat_spell import ExpeditiousRetreatSpell
 from natural20.spell.magic_missile_spell import MagicMissileSpell
 from natural20.spell.ray_of_frost_spell import RayOfFrostSpell
+from natural20.spell.sacred_flame_spell import SacredFlameSpell
 from natural20.spell.shield_spell import ShieldSpell
 from natural20.utils.string_utils import classify
 from natural20.spell.spell import Spell
 from enum import Enum
+import pdb
 
 class SpellActionConstants(Enum):
     SPELL_DAMAGE = "spell_damage"
@@ -71,9 +73,14 @@ class SpellAction(Action):
         if at_level is None:
             at_level = spell_details['level']
 
-        # check spell slots
-        if spell_details['level'] > 0 and entity.spell_slots_count(at_level) == 0:
-            return False
+        if spell_details['level'] > 0:
+            total_slots_count = 0
+            for spell_class in spell_details.get("spell_list_classes", []):
+                # check spell slots
+                total_slots_count += entity.spell_slots_count(at_level, spell_class.lower())
+
+            if total_slots_count == 0:
+                return False
 
         if resource == "action" and entity.total_actions(battle) == 0:
             return False
@@ -116,6 +123,8 @@ class SpellAction(Action):
                 spell_class = RayOfFrostSpell
             elif spell_name == 'ShieldSpell':
                 spell_class = ShieldSpell
+            elif spell_name == 'SacredFlameSpell':
+                spell_class = SacredFlameSpell
             else:
                 raise Exception(f"spell class not found {spell_name}")
             action.spell_class = spell_class
@@ -161,9 +170,17 @@ class SpellAction(Action):
 
         return self.spell_action.avg_damage(battle, opts)
 
-    def apply(battle, item):
+    def _all_spell_descendants():
         for klass in Spell.__subclasses__():
+            if klass.__subclasses__():
+                yield from klass.__subclasses__()
+            else:
+                yield klass
+
+    def apply(battle, item):
+        for klass in SpellAction._all_spell_descendants():
             klass.apply(battle, item)
+
         if item['type'] == 'spell_damage':
             damage_event(item, battle)
         elif item['type'] == 'spell_miss':

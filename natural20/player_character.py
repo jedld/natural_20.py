@@ -3,6 +3,7 @@ from natural20.die_roll import DieRoll
 from natural20.entity_class.fighter import Fighter
 from natural20.entity_class.rogue import Rogue
 from natural20.entity_class.wizard import Wizard
+from natural20.entity_class.cleric import Cleric
 from natural20.actions.action_surge_action import ActionSurgeAction
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.look_action import LookAction
@@ -27,7 +28,7 @@ import copy
 import pdb
 
 
-class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
+class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
   ACTION_LIST = [
     AttackAction, DashAction, DashBonusAction, DisengageAction,
     DisengageBonusAction,
@@ -382,6 +383,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   def spell_slots_count(self, level, character_class=None):
     if character_class is None:
       character_class = list(self.spell_slots.keys())[0]
+    if character_class not in self.spell_slots:
+      return 0
     return self.spell_slots[character_class].get(level, 0)
 
 

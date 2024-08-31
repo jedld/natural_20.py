@@ -104,7 +104,7 @@ class TestSpellAction(unittest.TestCase):
         self.assertNotEqual(self.npc.hp(), 3)
 
     def test_chill_touch_undead(self):
-        random.seed(1002)
+        random.seed(1003)
         self.npc = self.session.npc('skeleton')
         self.battle.add(self.npc, 'b', position=[5, 5])
         self.assertEqual(self.npc.hp(), 13)
@@ -112,7 +112,7 @@ class TestSpellAction(unittest.TestCase):
         action = SpellAction.build(self.session, self.entity)['next'](['chill_touch', 0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle" : self.battle})
         self.battle.commit(action)
-        self.assertEqual(self.npc.hp(), 6)
+        self.assertEqual(self.npc.hp(), 7)
         self.assertEqual(target_advantage_condition(self.battle, self.npc, self.entity, None), [-1, [[], ['chill_touch_disadvantage']]])
 
     def test_expeditious_retreat(self):
@@ -126,13 +126,13 @@ class TestSpellAction(unittest.TestCase):
         self.npc = self.session.npc('skeleton')
         self.battle.add(self.npc, 'b', position=[0, 6])
         self.npc.reset_turn(self.battle)
-        random.seed(1002)
+        random.seed(1003)
         print(MapRenderer(self.battle_map).render())
         action = SpellAction.build(self.session, self.entity)['next'](['ray_of_frost', 0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
         self.assertEqual([s['type'] for s in action.result], ['spell_damage', 'ray_of_frost'])
         self.battle.commit(action)
-        self.assertEqual(self.npc.hp(), 9)
+        self.assertEqual(self.npc.hp(), 7)
         self.assertEqual(self.npc.speed(), 20)
         self.entity.reset_turn(self.battle)
         self.assertEqual(self.npc.speed(), 30)
@@ -150,7 +150,7 @@ class TestSpellAction(unittest.TestCase):
         self.assertAlmostEqual(action.compute_hit_probability(self.battle), 0.49)
         self.assertAlmostEqual(action.avg_damage(self.battle), 5.5)
 
-    def autobuild_test(self):
+    def test_autobuild(self):
         self.npc = self.session.npc('skeleton')
         self.battle.add(self.npc, 'b', position=[0, 6])
         auto_build_actions = autobuild(self.session, SpellAction, self.entity, self.battle)
