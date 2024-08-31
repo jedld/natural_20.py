@@ -149,6 +149,18 @@ class SpellAction(Action):
         self.spell_action.consume(battle)
         return self
 
+    def compute_hit_probability(self, battle, opts = None):
+        if self.spell_action is None:
+            return 0
+
+        return self.spell_action.compute_hit_probability(battle, opts)
+
+    def avg_damage(self, battle, opts=None):
+        if self.spell_action is None:
+            return 0
+
+        return self.spell_action.avg_damage(battle, opts)
+
     def apply(battle, item):
         for klass in Spell.__subclasses__():
             klass.apply(battle, item)

@@ -130,5 +130,24 @@ class TestAttackAction(unittest.TestCase):
         self.assertEqual(calculate_cover_ac(battle_map, character, npc2), 0)
         self.assertEqual(calculate_cover_ac(battle_map, npc2, character), 2)
 
+    def test_compute_hit_probability(self):
+        session = self.make_session()
+        battle_map = Map(session, 'battle_sim')
+        battle = Battle(session, battle_map)
+        character = PlayerCharacter.load(session, 'high_elf_fighter')
+        npc = session.npc('ogre')
+
+        battle.add(character, 'a', position="spawn_point_1", token='G')
+        battle.add(npc, 'b', position="spawn_point_2", token='g')
+
+        battle_map.move_to(character, 0, 5, battle)
+
+        map_renderer = MapRenderer(battle_map)
+        print(map_renderer.render())
+
+        action = AttackAction.build(session, character)['next'](npc)['next']('unarmed_attack')['next']()
+        hit_probability = action.compute_hit_probability(battle)
+        self.assertAlmostEqual(hit_probability, 0.70, places=2)
+
 if __name__ == '__main__':
     unittest.main()

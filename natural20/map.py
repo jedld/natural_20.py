@@ -439,7 +439,7 @@ class Map():
 
         if has_line_of_sight and max_illumination < 0.5:
             has_line_of_sight =  allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid)
-        
+
 
         return has_line_of_sight
 

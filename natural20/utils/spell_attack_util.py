@@ -8,7 +8,11 @@ def evaluate_spell_attack(battle, entity, target, spell_properties, opts=None):
     # DnD 5e advantage/disadvantage checks
     advantage_mod, adv_info = target_advantage_condition(battle, entity, target, spell_properties, overrides=opts)
 
-    attack_roll = entity.ranged_spell_attack(battle, spell_properties['name'], advantage=advantage_mod > 0,
+    if spell_properties.get('type') == 'melee_attack':
+        attack_roll = entity.melee_spell_attack(battle, spell_properties['name'], advantage=advantage_mod > 0,
+                                               disadvantage=advantage_mod < 0)
+    else:
+        attack_roll = entity.ranged_spell_attack(battle, spell_properties['name'], advantage=advantage_mod > 0,
                                                                                    disadvantage=advantage_mod < 0)
 
     target_ac, _cover_ac = effective_ac(battle, entity, target)

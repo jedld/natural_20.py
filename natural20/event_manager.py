@@ -60,7 +60,7 @@ class EventManager:
             'disengage': lambda event: print(f"{self.show_name(event)} disengages."),
             'dodge': lambda event: print(f"{self.show_name(event)} dodges."),
             'died': lambda event: print(f"{self.show_name(event)} died."),
-            'dash': lambda event: print(f"{self.show_name(event)} dashes."),
+            'dash': lambda event: print(f"{self.show_name(event)} {'bonus action' if event['as_bonus_action'] else ''} dashes."),
             'stand': lambda event: print(f"{self.show_name(event)} stands up."),
             'prone': lambda event: print(f"{self.show_name(event)} goes prone."),
             'unconscious': lambda event: print(f"{self.show_name(event)} unconscious."),

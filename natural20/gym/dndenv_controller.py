@@ -6,7 +6,8 @@ from natural20.gym.types import EnvObject, Environment
 from natural20.entity import Entity
 from natural20.action import Action
 from natural20.controller import Controller
-from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves
+from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, \
+    build_info, action_to_gym_action
 import math
 import copy
 import os
@@ -14,6 +15,7 @@ import os
 class DndenvController(Controller):
 
     VALID_ACTIONS = ["attack",
+                     "two_weapon_attack",
                      "move",
                      "disengage",
                      "disengage_bonus",
@@ -29,29 +31,30 @@ class DndenvController(Controller):
     """
     Wrapper for Gym Agents to interact with Natural20
     """
-    def __init__(self, session, agent: object, entity_embeddings: str = 'entity_token_mappings.csv', weapon_embeddings: str = 'weapon_token_map.csv'):
+    def __init__(self, session, agent: object, entity_embeddings: str = 'entity_token_map.csv', weapon_embeddings: str = 'weapon_token_map.csv',
+                 spell_embeddings: str = 'spell_token_map.csv'):
         self.state = {}
         self.session = session
         self.battle_data = {}
         self.agent = agent
-        self.entity_mappings = {}
-        self.weapon_mappings = {}
+
+        def read_mappings(file_path, mappings):
+            with open(file_path, 'r') as f:
+                for line in f:
+                    parts = line.strip().split(',')
+                    mappings[parts[0]] = int(parts[1])
 
         fname = os.path.join(self.session.root_path, entity_embeddings)
-        with open(fname, 'r') as f:
-            for line in f:
-                parts = line.strip().split(',')
-                self.entity_mappings[parts[0]] = int(parts[1])
+        self.entity_mappings = {}
+        read_mappings(fname, self.entity_mappings)
 
-        
-        # read CSV file in the folloing format name,idx
-        self.weapon_mappings = {}
         fname = os.path.join(self.session.root_path, weapon_embeddings)
-        
-        with open(fname, 'r') as f:
-            for line in f:
-                parts = line.strip().split(',')
-                self.weapon_mappings[parts[0]] = int(parts[1])
+        self.weapon_mappings = {}
+        read_mappings(fname, self.weapon_mappings)
+
+        fname = os.path.join(self.session.root_path, spell_embeddings)
+        self.spell_mappings = {}
+        read_mappings(fname, self.spell_mappings)
 
     # @param entity [Natural20::Entity]
     def register_handlers_on(self, entity):
@@ -74,33 +77,47 @@ class DndenvController(Controller):
                 action.as_reaction = True
                 valid_actions.append(action)
 
-        _, entity = self._build_environment(battle, entity)
-        selected_action = self.select_action(battle, entity, valid_actions )
+        selected_action = self.select_action(battle, entity, valid_actions, reaction=event)
         return selected_action
 
-    def select_action(self, battle, entity, available_actions = None) -> Action:
+    def select_action(self, battle, entity, available_actions = None, reaction=None) -> Action:
         if available_actions is None:
             available_actions = []
         observation = build_observation(battle, battle.map, entity, self.entity_mappings, self.weapon_mappings)
-        info = {"available_moves": compute_available_moves(self.session, battle.map, battle.current_turn(), battle), "current_index" : battle.current_turn_index }
-        print("Custom Agent ..........")
-        gym_action = self.agent.step(observation, info)
-        action = dndenv_action_to_nat20action(entity, battle, battle.map, available_actions=available_actions, action=gym_action)
-        print(f"{entity.name}: {action}")
+        available_moves = action_to_gym_action(entity, battle.map, available_actions, weapon_mappings=self.weapon_mappings, \
+                                                   spell_mappings=self.spell_mappings)
+        info = build_info(battle, available_moves, entity, self.weapon_mappings, self.spell_mappings, self.entity_mappings)
+  
+        if reaction:
+            info['trigger'] = reaction['trigger']
+            info['entity'] = self.entity_mappings[entity.class_descriptor()]
+            info['reactor'] = entity.name
+
+        gym_action = self.agent.action(observation, info)
+
+        if gym_action[0] == -1:
+            return None
+
+        action = dndenv_action_to_nat20action(entity, battle, battle.map, \
+                                             available_actions, \
+                                             gym_action, \
+                                             weapon_mappings=self.weapon_mappings, \
+                                             spell_mappings=self.spell_mappings)
+
         return action
-    
+
     def move_for(self, entity: Entity, battle):
         # choose available moves at random and return it
         available_actions = self._compute_available_moves(entity, battle)
         # environment, entity = self._build_environment(battle, entity)
         return self.select_action(battle, entity, available_actions)
-    
+
     # Build a suitable environment for Reinforcement Learning
     def _build_environment(self, battle, entity):
         enemy_positions = {}
         self._observe_enemies(battle, entity, enemy_positions)
         objects = []
-        
+
         for enemy, location in enemy_positions.items():
             equipped_items = []
             for item in enemy.equipped_items():
@@ -114,8 +131,6 @@ class DndenvController(Controller):
             "available_reactions" : entity.total_reactions(battle),
             "available_bonus_actions" : entity.total_bonus_actions(battle)
         })
-        # clone a copy of entity
-        entity = copy.deepcopy(entity)
         return environment, entity
 
     # gain information about enemies in a fair and realistic way (e.g. using line of sight)
@@ -165,7 +180,6 @@ class DndenvController(Controller):
         # generate available targets
         valid_actions = []
         # check if enemy positions is empty
-        
 
         if len(enemy_positions.keys()) == 0 and len(investigate_location) == 0 and LookAction.can(entity, battle):
             action = LookAction(self.session, entity, "look")

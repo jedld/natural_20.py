@@ -27,6 +27,9 @@ class Battle():
         'c': ['c']
       }
 
+    def current_round(self):
+        return self.round
+
     def add(self, entity, group, controller=None, position=None, token=None, add_to_initiative=False):
         if entity in self.entities:
             return

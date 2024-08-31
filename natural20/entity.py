@@ -1,6 +1,6 @@
 from natural20.die_roll import DieRoll
 import math
-# import pdb
+import pdb
 from natural20.event_manager import EventManager
 from natural20.evaluator.entity_state_evaluator import EntityStateEvaluator
 from typing import List, Tuple
@@ -531,7 +531,7 @@ class Entity(EntityStateEvaluator):
         self.resolve_trigger('start_of_turn')
         self._cleanup_effects()
         return entity_state
-    
+
     def resolve_trigger(self, event_type, opts=None):
         if opts is None:
             opts = {}
@@ -739,6 +739,20 @@ class Entity(EntityStateEvaluator):
 
         return modifier
 
+    def proficient_with_weapon(self, weapon):
+        if isinstance(weapon, str):
+            weapon = self.session.load_thing(weapon)
+
+        if weapon['name'] == 'Unarmed Attack':
+            return True
+
+        proficiency_types = self.properties.get('weapon_proficiencies', [])
+        for prof in proficiency_types:
+            if weapon['proficiency_type'] and (prof in weapon['proficiency_type'] or prof == weapon['name'].replace(" ", "_")):
+                return True
+
+        return False
+
     def equipped_items(self):
         equipped_arr = self.properties.get('equipped', [])
         equipped_list = []
@@ -834,6 +848,9 @@ class Entity(EntityStateEvaluator):
 
     def ranged_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
         return DieRoll.roll(f"1d20+{self.spell_attack_modifier()}", description=f"Ranged Spell Attack: {spell}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
+
+    def melee_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
+        return DieRoll.roll(f"1d20+{self.spell_attack_modifier()}", description=f"Melee Spell Attack: {spell}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
 
     def multiattack(self, battle, npc_action):
         if not npc_action:

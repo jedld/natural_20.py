@@ -19,6 +19,9 @@ class MagicMissileSpell(Spell):
              'allow_retarget': True,
              'target_types': ['enemies']}
         ], 'next': next_func }
+    
+    def compute_hit_probability(self, battle, opts = None):
+        return 1.0
 
     def resolve(self, entity, battle, spell_action):
         targets = spell_action.target

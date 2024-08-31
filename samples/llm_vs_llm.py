@@ -63,7 +63,7 @@ while not terminal and episode < MAX_EPISODES:
             f.write(f"health hero: {observation['health_pct']}\n")
             f.write(f"health enemy: {observation['health_enemy']}\n")
             f.write(env.render())
-        
+
         # action = random.choice(info['available_moves'])
         action = prompt.select_action_for_state(observation, info)
         print(f"selected action: {action}")

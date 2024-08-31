@@ -25,19 +25,25 @@ class TestPlayerCharacter(unittest.TestCase):
         self.battle.add(player, 'a')
         player.reset_turn(self.battle)
         return player
-    
+
     def load_rogue_character(self):
         player = PlayerCharacter.load(self.session, 'halfling_rogue.yml')
         self.battle.add(player, 'a')
         player.reset_turn(self.battle)
         return player
-    
+
     def load_elf_rogue_character(self):
         player = PlayerCharacter.load(self.session, 'elf_rogue.yml')
         self.battle.add(player, 'a')
         player.reset_turn(self.battle)
-        return player    
-    
+        return player
+
+    def load_elf_rogue_lvl2_character(self):
+        player = PlayerCharacter.load(self.session, 'elf_rogue_2.yml')
+        self.battle.add(player, 'a')
+        player.reset_turn(self.battle)
+        return player
+
     def setUp(self):
         self.session = self.make_session()
         self.battle = Battle(self.session, None)
@@ -270,6 +276,10 @@ class TestPlayerCharacter(unittest.TestCase):
     def test_rogue_elf_proficient(self):
         self.player = self.load_elf_rogue_character()
         self.assertTrue(self.player.proficient('longsword'))
+
+    def test_rogue_class_features(self):
+        self.player = self.load_elf_rogue_lvl2_character()
+        self.assertTrue(self.player.class_feature('cunning_action'))
 
 if __name__ == '__main__':
     unittest.main()

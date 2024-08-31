@@ -1,6 +1,7 @@
 from natural20.actions.look_action import LookAction
 from natural20.actions.stand_action import StandAction
 from natural20.actions.attack_action import AttackAction
+from natural20.actions.spell_action import SpellAction
 # from natural20.actions.prone_action import ProneAction
 from natural20.actions.move_action import MoveAction
 from natural20.gym.types import EnvObject, Environment
@@ -186,7 +187,7 @@ class GenericController(Controller):
     def _sort_actions(self, battle, available_actions):
         sorted_actions = []
         for action in available_actions:
-            if isinstance(action, AttackAction):
+            if isinstance(action, AttackAction) or isinstance(action, SpellAction):
                 base_score = action.compute_hit_probability(battle) * action.avg_damage(battle)
                 sorted_actions.append((action, base_score))
             elif isinstance(action, MoveAction):

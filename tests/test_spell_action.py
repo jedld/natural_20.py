@@ -137,6 +137,18 @@ class TestSpellAction(unittest.TestCase):
         self.entity.reset_turn(self.battle)
         self.assertEqual(self.npc.speed(), 30)
 
+    def test_compute_hit_probability(self):
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[0, 6])
+        self.npc.reset_turn(self.battle)
+
+        action = SpellAction.build(self.session, self.entity)['next'](['ray_of_frost', 0])['next'](self.npc)
+        self.assertAlmostEqual(action.compute_hit_probability(self.battle), 0.49)
+        self.assertAlmostEqual(action.avg_damage(self.battle), 4.5)
+
+        action = SpellAction.build(self.session, self.entity)['next'](['firebolt', 0])['next'](self.npc)
+        self.assertAlmostEqual(action.compute_hit_probability(self.battle), 0.49)
+        self.assertAlmostEqual(action.avg_damage(self.battle), 5.5)
 
     def autobuild_test(self):
         self.npc = self.session.npc('skeleton')

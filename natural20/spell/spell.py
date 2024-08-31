@@ -57,9 +57,13 @@ class Spell:
     def validate(self, action):
         self.errors.clear()
 
+    def load_spell_info(self):
+        return self.session.load_spell(self.name)
+
     def t(self, token, spell=None, options=None):
         if options is None:
             options = {}
         return token
     
-
+    def compute_hit_probability(self, battle, opts = None):
+        return 1.0

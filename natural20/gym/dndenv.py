@@ -10,7 +10,8 @@ from natural20.entity import Entity
 from natural20.gym.dndenv_controller import DndenvController
 from natural20.controller import Controller
 from natural20.event_manager import EventManager
-from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, render_terrain, render_object_token, action_to_gym_action
+from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, \
+    render_terrain, render_object_token, action_to_gym_action, build_info
 import random
 import os
 import pdb
@@ -63,7 +64,7 @@ class GymInternalController(Controller):
                                                     spell_mappings=self.env.spell_mappings)
         else:
             return None
-        
+
 def embedding_loader(session, weapon_mappings=None, spell_mappings=None, entity_mappings=None, **kwargs):
     weapon_embeddings_file = kwargs.get('weapon_embeddings', 'weapon_token_map.csv')
     spell_embeddings_file = kwargs.get('spell_embeddings', 'spell_token_map.csv')
@@ -102,7 +103,6 @@ def embedding_loader(session, weapon_mappings=None, spell_mappings=None, entity_
 This is a custom environment for the game Dungeons and Dragons 5e. It is based on the OpenAI Gym environment.
 """
 class dndenv(gym.Env):
-    TOTAL_ACTIONS = 8
     def __init__(self, view_port_size=(12, 12), max_rounds=200, render_mode = None, **kwargs):
         """
         Initializes the environment with the following parameters:
@@ -117,7 +117,7 @@ class dndenv(gym.Env):
         - enemy_names: the names of the enemies
         - show_logs: whether to show logs
         - custom_controller: a custom controller to use
-        - custom_agent: a custom agent to use
+        - custom_agent: a custom agent to use, can be a lambda function
         - custom_initializer: a custom initializer to use
         - control_groups: the control groups that the agent controls
         - damage_based_reward: whether to use damage based rewards, -10 * (enemy final hp / enemy initial hp)
@@ -306,22 +306,16 @@ class dndenv(gym.Env):
         _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle,
                                                    weapon_mappings=self.weapon_mappings,
                                                    spell_mappings=self.spell_mappings)
-        
+
         if not len(_available_moves) > 0:
             raise Exception("There should be at least one available move for the agent.")
 
         return observation, self._info(_available_moves, current_player)
 
     def _info(self, available_moves, current_player):
-        return  {
-                 "available_moves": available_moves,
-                 "current_index" : self.battle.current_turn_index,
-                 "group": self.battle.entity_group_for(current_player),
-                 "round" : self.current_round,
-                 "weapon_mappings": self.weapon_mappings,
-                 "spell_mappings": self.spell_mappings
-                }
-
+        info_r = build_info(self.battle, available_moves, current_player, self.weapon_mappings, self.spell_mappings, self.entity_mappings)
+        info_r['damage_dealth'] = self._total_damage_dealt(current_player)
+        return info_r
 
     def _describe_hero(self, pc: Entity):
         self.log("==== Player Character ====")
@@ -422,8 +416,11 @@ class dndenv(gym.Env):
         for group, token, player, position in self.players:
             if group not in self.control_groups:
                 if self.custom_agent:
-                    self.log(f"Setting up custom agent for enemy player {self.custom_agent}")
-                    controller = DndenvController(self.session, self.custom_agent)
+                    if callable(self.custom_agent):
+                        controller = self.custom_agent(self.session, **self.kwargs)
+                    else:
+                        self.log(f"Setting up custom agent for enemy player {self.custom_agent}")
+                        controller = DndenvController(self.session, self.custom_agent)
                     controller.register_handlers_on(player)
                 elif self.custom_controller:
                     controller = self.custom_controller
@@ -458,6 +455,22 @@ class dndenv(gym.Env):
             return (total_hp / total_max_hp)
 
         return 1.0
+
+    def _total_damage_dealt(self, entity):
+        current_group = self.battle.entity_group_for(entity)
+        enemy_players = []
+        for _, _, player, _ in self.players:
+            if self.battle.entity_group_for(player) != current_group:
+                enemy_players.append(player)
+
+        total_hp = 0
+        total_max_hp = 0
+
+        for player in enemy_players:
+            total_hp += player.hp()
+            total_max_hp += player.max_hp()
+
+        return total_max_hp - total_hp
 
     def step(self, action):
         if self.terminal:
@@ -575,7 +588,7 @@ class dndenv(gym.Env):
 
     def generate_observation(self, entity, is_reaction=False):
         return build_observation(self.battle, self.map, entity, self.entity_mappings, self.weapon_mappings, self.view_port_size, is_reaction=is_reaction)
-    
+
     def _terminal_observation(self):
         observation = {
             "map": render_terrain(self.battle, self.map, self.entity_mappings, self.view_port_size),
@@ -594,9 +607,9 @@ class dndenv(gym.Env):
             "movement": np.array([0]),
             "is_reaction": np.array([0])
         }
-        
+
         return observation, self._info(end_of_turn_move(), self.battle.current_turn())
-    
+
 def end_of_turn_move():
     return [(-1, (0,0), (0,0), 0, 0)]
 

@@ -1,9 +1,11 @@
 from natural20.spell.spell import Spell
 from natural20.die_roll import DieRoll
 from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.utils.ac_utils import effective_ac
+from natural20.spell.extensions.hit_computations import AttackSpell
 import pdb
 
-class RayOfFrostSpell(Spell):
+class RayOfFrostSpell(AttackSpell):
     def build_map(self, orig_action):
         def set_target(target):
             action = orig_action.clone()
@@ -22,22 +24,27 @@ class RayOfFrostSpell(Spell):
             'next': set_target
         }
 
+    def _damage(self, battle, opts=None):
+        entity = self.source
+        level = 1
+        if entity.level() >= 5:
+            level += 1
+        if entity.level() >= 11:
+            level += 1
+        if entity.level() >= 17:
+            level += 1
+        return DieRoll.roll(f"{level}d8", battle=battle, entity=entity, description=self.t('dice_roll.spells.ray_of_frost'))
+
+    def avg_damage(self, battle, opts=None):
+        return self._damage(battle, opts).expected()
+
     def resolve(self, entity, battle, spell_action):
         target = spell_action.target
 
         hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties)
 
         if hit:
-            level = 1
-            if entity.level() >= 5:
-                level += 1
-            if entity.level() >= 11:
-                level += 1
-            if entity.level() >= 17:
-                level += 1
-
-            damage_roll = DieRoll.roll(f"{level}d8", crit=attack_roll.nat_20(), battle=battle, entity=entity,
-                                       description=self.t('dice_roll.spells.ray_of_frost'))
+            damage_roll = self._damage(battle)
             return [
                 {
                     'source': entity,
@@ -75,6 +82,8 @@ class RayOfFrostSpell(Spell):
                     'spell': self.properties
                 }
             ]
+
+
 
     @staticmethod
     def start_of_turn(entity, opt=None):

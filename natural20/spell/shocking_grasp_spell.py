@@ -1,8 +1,9 @@
-from natural20.spell.spell import Spell
 from natural20.die_roll import DieRoll
 from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.spell.extensions.hit_computations import AttackSpell
+from natural20.utils.ac_utils import effective_ac
 
-class ShockingGraspSpell(Spell):
+class ShockingGraspSpell(AttackSpell):
 
     def build_map(self, orig_action):
         def set_target(target):
@@ -20,6 +21,18 @@ class ShockingGraspSpell(Spell):
             ],
             'next': set_target
         }
+    
+    def compute_hit_probability(self, battle, opts = None):
+        if opts is None:
+            opts = {}
+        advantage_override = {}
+
+        if any(armor["metallic"] for armor in self.action.target.equipped_armor()):
+            advantage_override['advantage'] = ['shocking_grasp_metallic']
+
+        _, attack_roll, _, _, _ = evaluate_spell_attack(battle, self.source, self.action.target, self.properties, advantage_override)
+        target_ac, _cover_ac = effective_ac(battle, self.source, self.action.target)
+        return attack_roll.prob(target_ac)
 
     def resolve(self, entity, battle, spell_action):
         target = spell_action.target

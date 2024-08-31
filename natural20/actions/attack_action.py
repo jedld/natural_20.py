@@ -173,6 +173,7 @@ class AttackAction(Action):
         weapon, _, attack_mod, _, _ = self.get_weapon_info(opts)
         advantage_mod, adv_info = target_advantage_condition(battle, self.source, self.target, weapon, thrown=self.thrown)
         target_ac, _cover_ac = effective_ac(battle, self.source, self.target)
+
         return DieRoll.roll(f"1d20+{attack_mod}", advantage=advantage_mod > 0, disadvantage=advantage_mod < 0).prob(target_ac)
 
     def avg_damage(self, battle, opts=None):

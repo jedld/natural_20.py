@@ -301,6 +301,12 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
       if feature in properties.get('class_features', []):
         return True
 
+      progression = properties.get('progression', {})
+      for level in range(1, self.level() + 1):
+        h_features = progression.get(f"level_{level}", { "class_features": [] }).get('class_features', [])
+        if feature in  h_features:
+          return True
+
     return False
 
   def proficient_with_weapon(self, weapon):
@@ -311,13 +317,13 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
 
     if weapon['name'].lower() in all_weapon_proficiencies:
       return True
-    
+
     proficiency_type = weapon.get('proficiency_type', [])
-    
+
     # if weapon in DnD 5e does not list any required proficiency, then it is considered a simple weapon
     if len(proficiency_type) == 0:
       return True
-    
+
     return any(prof in proficiency_type for prof in all_weapon_proficiencies)
 
   def weapon_proficiencies(self):

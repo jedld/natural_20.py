@@ -1,4 +1,5 @@
 from natural20.gym.dndenv import action_type_to_int
+import pdb
 
 def _look_up_attack_name(weapon_id, weapon_mappings=None):
     # swap the values and keys
@@ -21,6 +22,7 @@ def action_to_prompt(action, weapon_mappings=None, spell_mappings=None):
         raise ValueError("weapon_mappings is None")
     if spell_mappings is None:
         raise ValueError("spell_mappings is None")
+
     action_type, param1, param2, param3, param4 = action
     if action_type == action_type_to_int("move"):
         message = "move 5ft "
@@ -77,6 +79,8 @@ def action_to_prompt(action, weapon_mappings=None, spell_mappings=None):
         message = "shove action"
     elif action_type == action_type_to_int("action_surge"):
         message = "action surge"
+    elif action_type == action_type_to_int("dash_bonus"):
+        message = "dash as bonus action"
     elif action_type == -1:
         message = "end my turn"
     else:

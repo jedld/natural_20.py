@@ -22,6 +22,19 @@ def condition_stats(entity, battle):
     """
     return np.array([int(entity.prone()), int(entity.dodge(battle)), int(entity.grappled()), int(entity.disengage(battle)), 0, 0, 0, 0])
 
+def build_info(battle, available_moves, current_player, weapon_mappings, spell_mappings, entity_mappings):
+    return  {
+                "available_moves": available_moves,
+                "current_index" : battle.current_turn_index,
+                "group": battle.entity_group_for(current_player),
+                "round" : battle.current_round(),
+                "health" : current_player.hp(),
+                "max_health" : current_player.max_hp(),
+                "weapon_mappings": weapon_mappings,
+                "spell_mappings": spell_mappings,
+                "entity_mappings": entity_mappings
+            }
+
 def build_observation(battle, map, entity, entity_type_mappings, weapon_type_mappings, view_port_size=(12, 12), is_reaction=False):
     """
     Builds the observation for the environment
