@@ -82,6 +82,12 @@ class DieRolls(Rollable):
     def expected(self):
         return sum(roll.expected() for roll in self.rolls)
 
+    def nat_20(self):
+        return any(roll.nat_20() for roll in self.rolls)
+
+    def nat_1(self):
+        return any(roll.nat_1() for roll in self.rolls)
+
     def __eq__(self, other):
         if len(other.rolls) != len(self.rolls):
             return False

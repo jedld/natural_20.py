@@ -1,6 +1,7 @@
 from natural20.weapons import target_advantage_condition
 from natural20.utils.attack_util import after_attack_roll_hook
 from natural20.utils.ac_utils import effective_ac
+from natural20.die_roll import DieRoll
 
 def evaluate_spell_attack(battle, entity, target, spell_properties, opts=None):
     if opts is None:
@@ -14,6 +15,10 @@ def evaluate_spell_attack(battle, entity, target, spell_properties, opts=None):
     else:
         attack_roll = entity.ranged_spell_attack(battle, spell_properties, advantage=advantage_mod > 0,
                                                                                    disadvantage=advantage_mod < 0)
+
+    if entity.has_effect('bless'):
+        bless_roll = DieRoll.roll("1d4", description='dice_roll.bless', entity=entity, battle=battle)
+        attack_roll += bless_roll
 
     target_ac, _cover_ac = effective_ac(battle, entity, target)
 

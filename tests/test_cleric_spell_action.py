@@ -1,5 +1,6 @@
 import unittest
 from natural20.actions.spell_action import SpellAction
+from natural20.actions.attack_action import AttackAction
 from natural20.session import Session
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
@@ -74,6 +75,27 @@ class TestClericSpellAction(unittest.TestCase):
         self.battle.commit(action)
         self.assertEqual(self.entity.hp(), 6)
 
+    def test_bless(self):
+        random.seed(7003)
+        self.entity2 = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        self.battle.add(self.entity2, 'a', position=[0, 6], token='E')
+        self.entity2.reset_turn(self.battle)
+        bless_action = SpellAction.build(self.session, self.entity)['next'](['bless', 0])['next']([self.entity2])
+        bless_action.resolve(self.session, self.battle_map, { "battle": self.battle})
+        self.assertEqual([s['type'] for s in bless_action.result], ['bless'])
+        self.battle.commit(bless_action)
+        self.assertTrue(self.entity2.has_effect('bless'))
+        print(MapRenderer(self.battle_map).render())
+
+        action = AttackAction.build(self.session,  self.entity2)['next'](self.npc)['next']('dagger')['next']()
+        action = action.resolve(self.session, self.battle_map, { "battle": self.battle})
+        result = action.result[0]
+        self.assertEqual(str(result['attack_roll']), "d20(4) + 8 + d4(4)")
+        result = self.entity2.save_throw('wisdom', self.battle)
+        self.assertEqual(str(result),"d20(9) + 1 + d4(4)")
+        self.entity2.dismiss_effect(bless_action.spell_action)
+        result = self.entity2.save_throw('wisdom', self.battle)
+        self.assertEqual(str(result),"d20(10) + 1")
 
     def test_compute_hit_probability(self):
         self.entity.ability_scores['wis'] = 20

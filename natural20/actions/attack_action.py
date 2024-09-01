@@ -202,6 +202,11 @@ class AttackAction(Action):
         attack_roll = DieRoll.roll(f"1d20+{attack_mod}", disadvantage=self.with_disadvantage(),
                                     advantage=self.with_advantage(), description='dice_roll.attack',
                                     entity=self.source, battle=battle)
+
+        if self.source.has_effect('bless'):
+            bless_roll = DieRoll.roll("1d4", description='dice_roll.bless', entity=self.source, battle=battle)
+            attack_roll += bless_roll
+
         # print(f"{self.source.name} rolls a {attack_roll} to attack {target.name}")
         self.source.resolve_trigger('attack_resolved', {'target': target})
 

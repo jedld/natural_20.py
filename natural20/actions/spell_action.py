@@ -12,6 +12,7 @@ from natural20.spell.sacred_flame_spell import SacredFlameSpell
 from natural20.spell.cure_wounds_spell import CureWoundsSpell
 from natural20.spell.guiding_bolt_spell import GuidingBoltSpell
 from natural20.spell.shield_spell import ShieldSpell
+from natural20.spell.bless_spell import BlessSpell
 from natural20.utils.string_utils import classify
 from natural20.spell.spell import Spell
 from enum import Enum
@@ -131,6 +132,8 @@ class SpellAction(Action):
                 spell_class = CureWoundsSpell
             elif spell_name == 'GuidingBoltSpell':
                 spell_class = GuidingBoltSpell
+            elif spell_name == 'BlessSpell':
+                spell_class = BlessSpell
             else:
                 raise Exception(f"spell class not found {spell_name}")
             action.spell_class = spell_class

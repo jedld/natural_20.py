@@ -32,7 +32,7 @@ class AttackSpell(Spell):
         _, attack_roll, _, _, _ = evaluate_spell_attack(battle, self.source, self.action.target, self.properties)
         target_ac, _cover_ac = effective_ac(battle, self.source, self.action.target)
         return attack_roll.prob(target_ac)
-    
+
 
     def avg_damage(self, battle, opts=None):
         """
@@ -44,3 +44,4 @@ class AttackSpell(Spell):
 
         return 0
         """
+        return 0

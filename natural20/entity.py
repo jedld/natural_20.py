@@ -48,6 +48,11 @@ class Entity(EntityStateEvaluator):
                 setattr(self, f"{skill}_mod", self.make_skill_mod_function(skill, ability))
                 setattr(self, f"{skill}_check", self.make_skill_check_function(skill))
 
+    def concentration_on(self, effect):
+        if self.concentration:
+            self.dismiss_effect(self.concentration)
+        self.concentration = effect
+
     def class_descriptor(self):
         return self.name.lower()
     
@@ -470,23 +475,27 @@ class Entity(EntityStateEvaluator):
             if low <= value <= high:
                 return mod
         return None
-    
+
     def dismiss_effect(self, effect):
         if self.concentration == effect:
             self.concentration = None
 
         dismiss_count = 0
         if effect.action.target:
-            dismiss_count = effect.action.target.remove_effect(effect)
+            if isinstance(effect.action.target,list):
+                for target in effect.action.target:
+                    dismiss_count += target.remove_effect(effect)
+            else:
+                dismiss_count = effect.action.target.remove_effect(effect)
 
         dismiss_count += self.remove_effect(effect)
         return dismiss_count
-    
+
     def remove_effect(self, effect):
         effect.source.casted_effects = [f for f in effect.source.casted_effects if f['effect'] != effect]
-        
+
         dismiss_count = 0
-        
+
         new_effects = {}
         for key, value in self.effects.items():
             delete_effects = [f for f in value if f['effect'] == effect]
@@ -784,11 +793,17 @@ class Entity(EntityStateEvaluator):
 
     def save_throw(self, save_type, battle):
         modifier = self.ability_mod(save_type)
+        if modifier is None:
+            raise ValueError(f"invalid ability {save_type}")
+        
         modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
         op = '+' if modifier >= 0 else ''
         disadvantage = True if save_type in ['dex', 'str'] and not self.proficient_with_equipped_armor() else False
-        return DieRoll.roll(f"d20{op}{modifier}", disadvantage=disadvantage, battle=battle, entity=self,
+        save_roll = DieRoll.roll(f"d20{op}{modifier}", disadvantage=disadvantage, battle=battle, entity=self,
                             description=f"dice_roll.{save_type}_saving_throw")
+        if self.has_effect('bless'):
+            save_roll += DieRoll.roll("1d4", description="bless", entity=self, battle=battle)
+        return save_roll
 
     def proficient(self, prof):
         return (prof in self.properties.get('skills', []) or
