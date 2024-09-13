@@ -14,25 +14,54 @@ from llm_interface import GPT4Interfacer, LLama3Interface
 from natural20.gym.dndenv_controller import DndenvController
 import os
 import time
+import random
+from natural20.event_manager import EventManager
 
 MAX_EPISODES = 20
 
+LLAMA3_URL = "http://localhost:8001/v1"
+VARIANT = 'gpt-4o'
+BACKUP_VARIANT = 'NousResearch/Meta-Llama-3.1-8B-Instruct'
 
-prompt = GPT4Interfacer()
-prompt2 = LLama3Interface("your endpoint here")
+prompt = GPT4Interfacer(debug=True, tools=True, api_key="OPENAI_TOKEN", variant=VARIANT, explain=False)
+
+prompt2 = GPT4Interfacer(debug=True, tools=False, base_url=LLAMA3_URL, api_key="token1234", variant=BACKUP_VARIANT)
+
 
 class CustomAgent:
     def __init__(self, llm_interface):
         self.llm_interface = llm_interface
 
-    def step(self, observation, info):
+    def action(self, observation, info):
         return self.llm_interface.select_action_for_state(observation, info)
     
     def __str__(self) -> str:
         return "Custom LLM Agent"
 
 agent = CustomAgent(prompt2)
-env = make("dndenv-v0", root_path="templates", render_mode="ansi", custom_agent=agent)
+
+# setup event manager so that we can see combat logs shown in the console
+event_manager = EventManager()
+event_manager.standard_cli()
+session = Session(root_path="samples/map_with_obstacles", event_manager=event_manager)
+
+
+env = make("dndenv-v0", root_path="samples/map_with_obstacles", render_mode="ansi",
+            show_logs=True,
+            custom_session=session,
+            custom_agent=agent,
+            profiles=lambda: random.choice([('high_elf_mage.yml','Joe'), \
+                                            ('high_elf_fighter.yml','Joe'), \
+                                            ('halfling_rogue.yml', 'Joe'),
+                                            ('dwarf_cleric.yml', 'Joe')]),
+            enemies=lambda: random.choice([('high_elf_fighter.yml', 'Mike'),\
+                                           ('halfling_rogue.yml','Mike'),\
+                                           ('dwarf_cleric.yml', 'Mike'),\
+                                           ('high_elf_mage.yml', 'Mike')]),
+            map_file=lambda: random.choice(['maps/simple_map',\
+                                            'maps/complex_map',\
+                                                'maps/game_map',\
+                                                'maps/walled_map']))
 
 observation, info = env.reset(seed=42)
 

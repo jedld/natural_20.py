@@ -4,6 +4,8 @@ from collections import deque
 from natural20.npc import Npc
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
+import i18n
+
 
 # typed: true
 class Session:
@@ -23,18 +25,17 @@ class Session:
         }
         self.game_time = 0
         self.event_log = deque(maxlen=100)
-        self.load_path = []
-        self.load_path.append(os.path.join(self.root_path, 'locales'))
         self.default_locale = 'en'
         self.event_manager = event_manager
-
+        i18n.load_path.append(os.path.join(self.root_path, 'locales'))
+        i18n.set('filename_format', '{locale}.{format}')
         game_file = os.path.join(self.root_path, 'game.yml')
         if os.path.exists(game_file):
             with open(game_file, 'r') as f:
                 self.game_properties = yaml.safe_load(f)
         else:
             raise Exception(f'Missing game {game_file} file')
-        
+
     def reset(self):
         self.game_time = 0
         self.session_state = {}

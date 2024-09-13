@@ -98,7 +98,7 @@ class RayOfFrostSpell(AttackSpell):
         return max(opt['value'] - 10, 0)
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'ray_of_frost':
             item['source'].add_casted_effect({ "target" : item['target'], "effect" : item['effect']})
             item['target'].register_effect('speed_override', RayOfFrostSpell, effect=item['effect'], source=item['source'])

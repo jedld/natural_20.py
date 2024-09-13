@@ -21,8 +21,7 @@ class ActionSurgeAction(Action):
         return "uses Action Surge"
 
     def build_map(self):
-        ActionMap = namedtuple('ActionMap', ['action', 'param', 'next'])
-        return ActionMap(action=self, param=None, next=types.MethodType(lambda self: self, self))
+        return self
 
     @staticmethod
     def build(session, source):
@@ -38,7 +37,7 @@ class ActionSurgeAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'action_surge':
             battle.event_manager.received_event({'source': item['source'], 'event': 'action_surge'})
             item['source'].action_surge()

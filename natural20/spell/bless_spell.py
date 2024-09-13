@@ -19,6 +19,7 @@ class BlessSpell(Spell):
                     'type': 'select_target',
                     'num': 3 + additional_targets,
                     'range': 30,
+                    'unique_targets': True,
                     'target_types': ['allies']
                 }
             ],
@@ -28,7 +29,8 @@ class BlessSpell(Spell):
     def resolve(self, entity, battle, spell_action):
         targets = spell_action.target
         results = []
-
+        if not isinstance(targets, list):
+            targets = [targets]
         for target in targets:
             results.append({
                 'source': entity,
@@ -40,16 +42,21 @@ class BlessSpell(Spell):
         return results
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
+        if battle and session is None:
+            session = battle.session
         if item['type'] == 'bless':
             item['source'].add_casted_effect({
                 'target': item['target'],
                 'effect': item['effect'],
-                'expiration': battle.session.game_time + 10
+                'expiration': session.game_time + 10
             })
-            item['source'].concentration_on(item['effect'])
+
+            if not item['source'].current_concentration()==item['effect']:
+                item['source'].concentration_on(item['effect'])
+
             item['target'].register_effect('bless', BlessSpell, effect=item['effect'], source=item['source'], duration=10)
-            battle.event_manager.received_event({ "event" : 'spell_buf',
+            session.event_manager.received_event({ "event" : 'spell_buf',
                                                   "spell" : item['effect'],
                                                   "source": item['source'],
                                                   "target" : item['target'] })

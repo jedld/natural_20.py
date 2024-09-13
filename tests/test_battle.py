@@ -15,6 +15,7 @@ class TestBattle(unittest.TestCase):
 
     def make_session(self):
         event_manager = EventManager()
+        event_manager.standard_cli()
         event_manager.register_event_listener(['died'], lambda event: print(f"{event['source'].name} died."))
         event_manager.register_event_listener(['unconscious'], lambda event: print(f"{event['source'].name} unconscious."))
         event_manager.register_event_listener(['initiative'], lambda event: print(f"{event['source'].name} rolled a {event['roll']} = ({event['value']}) with dex tie break for initiative."))
@@ -60,35 +61,42 @@ class TestBattle(unittest.TestCase):
         battle = Battle(session, battle_map)
         map_renderer = MapRenderer(battle_map)
         fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        mage = PlayerCharacter.load(session, 'high_elf_mage.yml')
         npc2 = session.npc('goblin', { "name":'b'})
         battle.add(fighter, 'a')
         battle.add(npc2, 'b')
+        battle.add(mage, 'a')
 
         random.seed(3001)
         battle.start()
         fighter.take_damage(DieRoll([20], 80).result())
-        assert fighter.unconscious()
-        assert battle.ongoing()
-        battle.while_active(3, lambda entity: False)
-        assert not battle.ongoing()
-        assert fighter.dead()
+        self.assertTrue(fighter.unconscious())
+        self.assertTrue(battle.ongoing())
+        random.seed(3004)
+        battle.while_active(8, lambda entity: False)
+        self.assertTrue(fighter.dead())
 
     def test_death_saving_throws_success(self):
         session = self.make_session()
         battle_map = Map(session, 'tests/fixtures/battle_sim_objects')
         battle = Battle(session, battle_map)
-        map_renderer = MapRenderer(battle_map)
         fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+
+        # need an ally so that it won't trigger a game over
+        mage = PlayerCharacter.load(session, 'high_elf_mage.yml')
         npc2 = session.npc('goblin', { "name":'b'})
         battle.add(fighter, 'a')
         battle.add(npc2, 'b')
+        battle.add(mage, 'a')
 
         random.seed(2010)
-        battle.start()
+        battle.start(combat_order=[fighter, npc2, mage])
         fighter.take_damage(DieRoll([40], 80).result())
-        assert fighter.unconscious()
-        battle.while_active(3, lambda entity: False)
-        assert fighter.stable()
+        self.assertTrue(fighter.unconscious())
+        self.assertFalse(fighter.stable())
+        random.seed(1333)
+        battle.while_active(5, lambda entity: False)
+        self.assertTrue(fighter.stable())
 
     def test_death_saving_throws_critical_success(self):
         session = self.make_session()

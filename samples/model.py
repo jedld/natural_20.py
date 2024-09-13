@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from natural20.gym.llm_helpers.prompting_utils import action_to_prompt
+from natural20.gym.dndenv import embedding_loader
 import pdb
 import os
 

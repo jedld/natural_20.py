@@ -6,6 +6,7 @@ from natural20.map_renderer import MapRenderer
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
 from natural20.entity import Entity
+import pdb
 
 
 import random
@@ -107,24 +108,22 @@ class TestNpc(unittest.TestCase):
         npc = session.npc('owlbear', { "name" : 'Grunt'})
         battle = Battle(session, battle_map)
         fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
-        battle.add(fighter, 'a', position='spawn_point_1', token='G')
-        battle.add(npc, 'a', position='spawn_point_2', token='G')
+        battle.add(fighter, 'a', position=[0,5], token='G')
+        battle.add(npc, 'b', position='spawn_point_2', token='G')
         npc.reset_turn(battle)
         fighter.reset_turn(battle)
         battle.start()
+        self.assertTrue(npc.darkvision(60))
 
-        assert npc.darkvision(60)
-
-        self.assertEqual(len(npc.available_actions(session, None, map=battle_map)), 4)
+        self.assertEqual(len(npc.available_actions(session, None, map=battle_map)), 3)
         available_actions = [action.name() for action in npc.available_actions(session, None, map=battle_map)]
-        print(available_actions)
-        self.assertEqual(available_actions, ['attack', 'attack', 'dodge', 'move', 'look', 'disengage', 'disengage_bonus', 'stand', 'hide', 'hide_bonus', 'dash', 'dash_bonus', 'help', 'grapple', 'escape_grapple', 'use_item', 'interact', 'ground_interact', 'first_aid', 'spell_action'])
+        self.assertEqual(available_actions, ['attack', 'attack', 'move'])
 
-        first_attack = [a for a in npc.available_actions(session, battle) if a.name() == 'attack'][0]
+        first_attack = [a for a in npc.available_actions(session, battle, map=battle_map) if a.name() == 'attack'][0]
         first_attack.target = fighter
         battle.action(first_attack)
         battle.commit(first_attack)
 
         available_actions = [action.name() for action in npc.available_actions(session, battle)]
 
-        assert available_actions == ['dodge', 'move', 'look', 'disengage', 'disengage_bonus', 'stand', 'hide', 'hide_bonus', 'dash', 'dash_bonus', 'help', 'grapple', 'escape_grapple', 'use_item', 'interact', 'ground_interact', 'first_aid', 'spell_action'], available_actions
+        assert available_actions == ['attack', 'move'], available_actions

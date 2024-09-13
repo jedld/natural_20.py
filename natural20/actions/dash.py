@@ -10,17 +10,14 @@ class DashAction(Action):
         self.as_bonus_action = False
 
     def build_map(self):
-        return SimpleNamespace(
-            param=None,
-            next=lambda: self
-        )
-    
+        return self
+
     def __repr__(self) -> str:
         if self.as_bonus_action:
             return f"dash as a bonus action"
         else:
             return f"dash"
-        
+
 
     @staticmethod
     def can(entity, battle, _options=None):
@@ -36,7 +33,7 @@ class DashAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'dash':
             battle.session.event_manager.received_event({'source': item['source'], 'event': 'dash', 'as_bonus_action': item['as_bonus_action']})
             battle.entity_state_for(item['source'])['movement'] += item['source'].speed()

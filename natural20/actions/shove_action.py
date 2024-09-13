@@ -1,5 +1,5 @@
 from natural20.action import Action
-
+import pdb
 class ShoveAction(Action):
     def __init__(self, session, source, action_type):
         super().__init__(session, source, action_type, {})
@@ -21,7 +21,15 @@ class ShoveAction(Action):
     def __str__(self):
         return str(self.action_type).capitalize()
 
+    def clone(self):
+        return ShoveAction(self.session, self.source, self.action_type)
+
     def build_map(self):
+        def set_target(target):
+            action = self.clone()
+            action.target = target
+            return action
+
         return {
             "action": self,
             "param": [
@@ -32,16 +40,12 @@ class ShoveAction(Action):
                     "num": 1
                 }
             ],
-            "next": lambda target: {
-                "param": None,
-                "next": lambda: self
-            }
+            "next": set_target
         }
 
     @staticmethod
     def build(session, source):
-        action = ShoveAction()
-        action.source = source
+        action = ShoveAction(session, source, 'shove')
         return action.build_map()
 
     def resolve(self, session, map, opts=None):
@@ -53,8 +57,8 @@ class ShoveAction(Action):
             return
 
         strength_roll = self.source.athletics_check(battle)
-        athletics_stats = (self.target.athletics_proficient() * self.target.proficiency_bonus) + self.target.str_mod
-        acrobatics_stats = (self.target.acrobatics_proficient() * self.target.proficiency_bonus) + self.target.dex_mod
+        athletics_stats = (self.target.athletics_proficient() * self.target.proficiency_bonus()) + self.target.str_mod()
+        acrobatics_stats = (self.target.acrobatics_proficient() * self.target.proficiency_bonus()) + self.target.dex_mod()
 
         shove_success = False
         if self.target.incapacitated():
@@ -97,26 +101,32 @@ class ShoveAction(Action):
                 "source_roll": strength_roll,
                 "target_roll": contested_roll
             }]
+        return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item["type"] == "shove":
             if item["success"]:
                 if item["knock_prone"]:
                     item["target"].prone()
                 elif item["shove_loc"]:
-                    item["battle"].map.move_to(item["target"], *item["shove_loc"], battle)
-
+                    if battle.map.entity_at(*item["shove_loc"]):
+                        item["target"].prone()
+                    else:
+                        item["battle"].map.move_to(item["target"], *item["shove_loc"], battle)
+                else:
+                    raise Exception(f"Invalid shove action {item}")
                 battle.event_manager.received_event(
                     {
-                        "event": "shove_success", "target": item["target"], "source": item["source"],
+                        "event": "shove", "success": True, "target": item["target"], "source": item["source"],
                         "source_roll": item["source_roll"], "target_roll": item["target_roll"]
                     }
                 )
             else:
                 battle.event_manager.received_event(
                     {
-                        "event": "shove_failure", "target": item["target"], "source": item["source"],
+                        "event": "shove", "success": True,
+                        "target": item["target"], "source": item["source"],
                         "source_roll": item["source_roll"], "target_roll": item["target_roll"]
                     }
                 )

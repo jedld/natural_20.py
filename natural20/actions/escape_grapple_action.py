@@ -63,7 +63,7 @@ class EscapeGrappleAction(Action):
         self.result = result
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item["type"] == "grapple_escape":
             if item["success"]:
                 item["source"].escape_grapple_from(item["target"])

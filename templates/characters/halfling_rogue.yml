@@ -8,7 +8,7 @@ classes:
 description: A halfling rogue with a dark past
 level: 2
 hit_die: inherit
-max_hp: 8
+max_hp: 16
 ability:
   str: 11
   dex: 20
@@ -34,10 +34,9 @@ equipped:
 - dagger
 - dagger
 - torch
+- shortbow
 - leather_armor
 inventory:
-- type: shortbow
-  qty: 1
 - type: dagger
   qty: 1
 - type: arrows

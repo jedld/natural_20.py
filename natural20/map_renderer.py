@@ -81,9 +81,21 @@ class MapRenderer:
         # color = entity['entity'].color or self.DEFAULT_TOKEN_COLOR
         return self.token(entity, pos_x, pos_y)
 
-    def render_position(self, c, col_index, row_index, path=[], override_path_char=None, entity=None, line_of_sight=None, update_on_drop=True, acrobatics_checks=[],
-                        athletics_checks=[]):
-        background_color = self.render_light(col_index, row_index)
+    def render_position(self, c, col_index, row_index, path=None, override_path_char=None, entity=None, line_of_sight=None, update_on_drop=True, acrobatics_checks=None,
+                        athletics_checks=None):
+        if path is None:
+            path = []
+
+        if acrobatics_checks is None:
+            acrobatics_checks = []
+
+        if athletics_checks is None:
+            athletics_checks = []
+
+        for p in path:
+            if not isinstance(p, tuple):
+                raise ValueError(f"Invalid path datatype: {path} should be a tuple")
+
         default_ground = '·'
 
         token = self.object_token(col_index, row_index)
@@ -100,16 +112,14 @@ class MapRenderer:
             if line_of_sight is None or self.any_line_of_sight(line_of_sight, self.tokens[col_index][row_index]['entity']):
                 token = self.npc_token(col_index, row_index)
 
-        if path and (override_path_char is None or path[0] != [col_index, row_index]):
-            if [col_index, row_index] in path:
+        if path and (override_path_char is None or path[0] != (col_index, row_index)):
+            if (col_index, row_index) in path:
                 path_char = override_path_char or token
-                path_color = 'red' if entity and self.map.jump_required(entity, col_index, row_index) else 'blue'
-                if [col_index, row_index] in athletics_checks or [col_index, row_index] in acrobatics_checks:
+
+                if (col_index, row_index) in athletics_checks or (col_index, row_index) in acrobatics_checks:
                     path_char = '✓'
 
                 colored_path = path_char
-                if path[0] == [col_index, row_index]:
-                    colored_path = colored_path.blink()
                 return colored_path
 
             if line_of_sight and not self.location_is_visible(update_on_drop, col_index, row_index, path):

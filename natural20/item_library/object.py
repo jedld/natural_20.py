@@ -23,6 +23,7 @@ class Object(Entity):
     def __init__(self, map: Any, properties: Dict[str, Any]) -> None:
         self.name = properties.get('name')
         self.map = map
+        self.effects = {}
         self.session = map.session
         self.statuses = set()
         self.properties = properties

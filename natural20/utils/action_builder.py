@@ -4,6 +4,35 @@ import itertools
 from natural20.utils.movement import compute_actual_moves
 import pdb
 
+def acquire_targets(param, entity, battle, map=None):
+    spell_range = param.get("range", 0)
+    possible_targets = set()
+
+        # check target type
+    if 'enemies' in param["target_types"]:
+            # get all enemies
+        targets = battle.opponents_of(entity)
+        if spell_range > 0 and battle.map:
+            for t in targets:
+                if battle.map.distance(entity, t) <= spell_range:
+                    possible_targets.add(t)
+    elif 'allies' in param["target_types"]:
+            # get all allies
+        if battle:
+            targets = battle.allies_of(entity)
+            if map is None:
+                map = battle.map
+        else:
+            targets = map.entities.keys()
+        if spell_range > 0 and map:
+            for t in targets:
+                if map.distance(entity, t) <= spell_range:
+                    possible_targets.add(t)
+    elif 'self' in param["target_types"]:
+        possible_targets.add(entity)
+
+    return possible_targets
+
 # build list of lists of possible parameters
 def build_params(session, entity, battle, build_info, map=None) -> list:
     params = []
@@ -22,26 +51,8 @@ def build_params(session, entity, battle, build_info, map=None) -> list:
             params.append(possible_spells)
         elif param["type"] == "select_target":
             selected_target_combinations = []
-            spell_range = param.get("range", 0)
-            possible_targets = set()
 
-                # check target type
-            if 'enemies' in param["target_types"]:
-                    # get all enemies
-                targets = battle.opponents_of(entity)
-                if spell_range > 0 and battle.map:
-                    for t in targets:
-                        if battle.map.distance(entity, t) <= spell_range:
-                            possible_targets.add(t)
-            elif 'allies' in param["target_types"]:
-                    # get all allies
-                targets = battle.allies_of(entity)
-                if spell_range > 0 and battle.map:
-                    for t in targets:
-                        if battle.map.distance(entity, t) <= spell_range:
-                            possible_targets.add(t)
-            elif 'self' in param["target_types"]:
-                possible_targets.add(entity)
+            possible_targets = acquire_targets(param, entity, battle, map)
 
             if len(possible_targets) == 0:
                 return None
@@ -56,8 +67,10 @@ def build_params(session, entity, battle, build_info, map=None) -> list:
                     selected_target_combinations.append(target_combination[0] if total_targets == 1 else target_combination)
             params.append(selected_target_combinations)
         elif param["type"] == "movement":
-            if map is None:
+            if map is None and battle:
                 map = battle.map
+            if map is None:
+                return None
             cur_x, cur_y = map.position_of(entity)
             selected_movement_combinations = []
             for x_pos in range(-1, 2):
@@ -77,7 +90,7 @@ def build_params(session, entity, battle, build_info, map=None) -> list:
     return params
 
 
-def autobuild(session, action_class, entity, battle, map=None):
+def autobuild(session, action_class, entity, battle, map=None, auto_target=True):
     def param_permutator(num_choices_per_param, param_index, current_params):
         if param_index == len(num_choices_per_param):
             return [current_params]

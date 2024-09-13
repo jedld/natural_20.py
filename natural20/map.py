@@ -7,9 +7,11 @@ from natural20.item_library.common import StoneWall, Ground
 from natural20.item_library.door_object import DoorObject
 from natural20.item_library.pit_trap import PitTrap
 from natural20.player_character import PlayerCharacter
+from natural20.weapons import compute_max_weapon_range
 from natural20.utils.list_utils import remove_duplicates, bresenham_line_of_sight
+from natural20.utils.movement import Movement, compute_actual_moves
 import math
-# import pdb
+import pdb
 import os
 
 class Terrain():
@@ -27,7 +29,8 @@ def dirt():
     return Terrain("dirt", True, 1.0)
 
 class Map():
-    def __init__(self, session, map_file_path):
+    def __init__(self, session, map_file_path, name=None):
+        self.name = name
         self.session = session
         self.terrain = {}
         self.spawn_points = {}
@@ -88,6 +91,8 @@ class Map():
             for cur_y, lines in enumerate(self.properties.get('map', {}).get('meta')):
                 for cur_x, c in enumerate(lines):
                     self.meta_map[cur_x][cur_y] = c
+        else:
+            self.meta_map = None
 
         self.light_builder = StaticLightBuilder(self)
         self.triggers = self.properties.get('triggers', {})
@@ -135,7 +140,8 @@ class Map():
     def _setup_npcs(self):
         for player in self.properties.get('player', []):
             column_index, row_index = player['position']
-            player = PlayerCharacter.load(self.session, player['sheet'])
+            overrides = player.get('overrides', {})
+            player = PlayerCharacter.load(self.session, player['sheet'], override=overrides)
             self.add(player, column_index, row_index, group='a')
 
         for npc in self.properties.get('npc', []):
@@ -166,6 +172,18 @@ class Map():
                             'location': [column_index, row_index]
                         }
 
+    def entity_by_uid(self, uid):
+        for entity in self.entities.keys():
+            if entity.entity_uid == uid:
+                return entity
+        return None
+    
+    def thing_at(self, pos_x, pos_y, reveal_concealed=False):
+        things = []
+        things.append(self.entity_at(pos_x, pos_y))
+        things.append(self.object_at(pos_x, pos_y, reveal_concealed=reveal_concealed))
+        return [thing for thing in things if thing is not None]
+
     def add(self, entity, pos_x, pos_y, group='b'):
         self.unaware_npcs.append({'group': group if group else 'b', 'entity': entity})
         self.entities[entity] = [pos_x, pos_y]
@@ -190,7 +208,14 @@ class Map():
         with open(map_file_path, 'r') as file:
             data = yaml.safe_load(file)
             return data
-        
+
+    def movement_cost(self, entity, path, battle=None, manual_jump=None):
+        if not path:
+            return Movement.empty()
+
+        budget = entity.available_movement(battle) / self.feet_per_grid
+        return compute_actual_moves(entity, path, self, battle, budget, test_placement=False, manual_jump=manual_jump)
+
     def move_to(self, entity: Entity, pos_x, pos_y, battle):
         cur_x, cur_y = self.entities[entity]
 
@@ -283,11 +308,25 @@ class Map():
             self.objects[pos_x][pos_y].append(obj)
 
         return obj
+    
+    def valid_targets_for(self, entity, action, target_types=None, range=None, active_perception=None, include_objects=False, filter=None):
+        if target_types is None:
+            target_types = ['enemies']
 
-    def difficult_terrain(self, entity, pos_x, pos_y, _battle=None):
-        """
-        Check if the terrain at the given position is difficult terrain for the entity
-        """
+        attack_range = compute_max_weapon_range(self.session, action, range)
+
+        if attack_range is None:
+            pdb.set_trace()
+            raise ValueError('attack range cannot be None')
+
+        targets = [k for k, pos in self.entities.items() if not k.dead() and k.hp() is not None and self.distance(k, entity) * self.feet_per_grid <= attack_range and (filter is None or k.eval_if(filter))]
+
+        if include_objects:
+            targets += [obj for obj, _position in self.interactable_objects.items() if not obj.dead() and ('ignore_los' in target_types or self.can_see(entity, obj, active_perception=active_perception)) and self.distance(obj, entity) * self.feet_per_grid <= attack_range and (filter is None or obj.eval_if(filter))]
+
+        return targets
+
+    def difficult_terrain(self, entity, pos_x, pos_y, battle=None):
         if entity is None:
             return False
 

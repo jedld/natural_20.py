@@ -36,7 +36,7 @@ class HideAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'hide':
             battle.event_manager.received_event({
                 'source': item['source'],
@@ -55,5 +55,5 @@ class HideBonusAction(HideAction):
         return battle and entity.any_class_feature(['cunning_action', 'nimble_escape']) and entity.total_bonus_actions(battle) > 0
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         pass

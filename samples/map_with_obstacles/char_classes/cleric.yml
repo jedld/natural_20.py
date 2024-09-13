@@ -1,0 +1,94 @@
+---
+hit_die: 1d8
+weapon_proficiencies:
+- light_armor
+- medium_armor
+- shields
+- simple
+saving_throw_proficiencies:
+- wisdom
+- charisma
+available_skills_choices: 2
+available_skills:
+- history
+- insight
+- medicine
+- persuasion
+- religion
+- survival
+class_features:
+- divine_domain
+- channel_divinity
+- destroy_undead
+- divine_intervention
+spellcasting_ability: wisdom
+divine_domain_spell_list:
+  life:
+    level_1:
+      - bless
+      - cure_wounds
+    level_3:
+      - lesser_restoration
+      - spiritual_weapon
+    level_5:
+      - beacon_of_hope
+      - revivify
+    level_7:
+      - death_ward
+      - guardian_of_faith
+    level_9:
+      - mass_cure_wounds
+      - raise_dead
+spell_list:
+  cantrip:
+    - guidance
+    - light
+    - mending
+    - resistance
+    - sacred_flame
+    - thaumaturgy
+  level_1:
+    - bless
+    - command
+    - cure_wounds
+    - detect_evil_and_good
+    - detect_magic
+    - guiding_bolt
+    - healing_word
+    - inflict_wounds
+    - protection_from_evil_and_good
+    - purify_food_and_drink
+    - sanctuary
+    - shield_of_faith
+  level_2:
+    - aid
+    - augury
+    - blindness/deafness
+    - calm_emotions
+    - hold_person
+    - lesser_restoration
+    - prayer_of_healing
+    - silence
+    - spiritual_weapon
+    - warding_bond
+proficiency_bonuses:
+- 2
+- 2
+- 2
+- 2
+- 3
+- 3
+- 3
+- 3
+- 4
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 5
+- 6
+- 6
+- 6
+- 6

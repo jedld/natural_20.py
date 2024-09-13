@@ -25,6 +25,8 @@ class GuidingBoltSpell(AttackSpell):
         }
 
     def _damage(self, battle, opts=None):
+        if opts is None:
+            opts = {}
         entity = self.source
         dmg_level = 4
         at_level = opts.get("at_level", 1)
@@ -88,8 +90,13 @@ class GuidingBoltSpell(AttackSpell):
         return [['guiding_bolt_advantage'], []]
 
     @staticmethod
-    def apply(battle, item):
+    def after_attack_roll_target(entity, opt=None):
+        entity.dismiss_effect(opt['effect'])
+
+    @staticmethod
+    def apply(battle, item, session=None):
         if item['type'] == 'guiding_bolt':
             item['source'].add_casted_effect({ "target": item['target'], "effect" : item['effect'] })
+            item['target'].register_event_hook('after_attack_roll', GuidingBoltSpell, effect=item['effect'])
             item['source'].register_event_hook('start_of_turn', GuidingBoltSpell, effect=item['effect'])
             item['target'].register_effect('targeted_advantage_override', GuidingBoltSpell, effect=item['effect'], source=item['source'])

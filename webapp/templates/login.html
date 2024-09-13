@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ title }}</title>
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <!-- Bootstrap JS -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <!-- Custom CSS -->
+    <style>
+        /* Full page background image */
+        body {
+            background-image: url("{{ url_for('static', filename='assets/' ~ background) }}");
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-position: center center;
+        }
+        /* Centered title */
+        .title {
+            text-align: center;
+            margin-top: 100px;
+            color: white;
+            font-size: 48px;
+            text-shadow: 2px 2px #000000;
+        }
+        /* Login form */
+        .login-form {
+            margin-top: 50px;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-control {
+            border-radius: 5px;
+        }
+        .btn {
+            border-radius: 5px;
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+    $(document).ready(function() {
+      $('#loginForm').on('submit', function(e) {
+        e.preventDefault();
+
+        $.ajax({
+          type: 'POST',
+          url: '/login',
+          data: $(this).serialize(),
+          dataType: 'json',
+          success: function(data) {
+            if (data.error) {
+              $('#errorMessage').text(data.error).show();
+            } else {
+              window.location.href = '/';
+            }
+          },
+          error: function() {
+            $('#errorMessage').text("An unexpected error occurred. Please try again.").show();
+          }
+        });
+      });
+    });
+    </script>
+</head>
+<body>
+    <div class="container">
+      <div class="row">
+        <div class="col-md-12">
+          <h1 class="title">{{ title }}</h1>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-12">
+          <form class="login-form" action="/login" method="post" id="loginForm">
+            <div class="form-group">
+              <label for="username">Username</label>
+              <input type="text" class="form-control" name="username" id="username" placeholder="Enter username">
+            </div>
+            <div class="form-group">
+              <label for="password">Password</label>
+              <input type="password" class="form-control" name="password" id="password" placeholder="Password">
+            </div>
+            <button type="submit" class="btn btn-primary">Login</button>
+            <div id="errorMessage" class="alert alert-danger" role="alert" style="display: none;"></div>
+          </form>
+        </div>
+      </div>
+    </div>
+</body>
+</html>

@@ -20,10 +20,7 @@ class DisengageAction(Action):
         return battle and battle.combat_ongoing() and entity.total_actions(battle) > 0
 
     def build_map(self):
-        return {
-            'param': None,
-            'next': lambda: self
-        }
+        return self
 
     @staticmethod
     def build(session, source):
@@ -40,7 +37,7 @@ class DisengageAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'disengage':
             # print(f"{item['source'].name} disengages")
             battle.session.event_manager.received_event({'source': item['source'], 'event': 'disengage'})

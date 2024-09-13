@@ -8,6 +8,7 @@ from natural20.map import Map
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.map_renderer import MapRenderer
 from natural20.utils.ac_utils import calculate_cover_ac
+from natural20.weapons import compute_advantages_and_disadvantages
 from pdb import set_trace
 
 class TestAttackAction(unittest.TestCase):
@@ -148,6 +149,46 @@ class TestAttackAction(unittest.TestCase):
         action = AttackAction.build(session, character)['next'](npc)['next']('unarmed_attack')['next']()
         hit_probability = action.compute_hit_probability(battle)
         self.assertAlmostEqual(hit_probability, 0.70, places=2)
+
+    def test_pack_tactics(self):
+        session = self.make_session()
+        battle_map = Map(session, 'battle_sim')
+        battle = Battle(session, battle_map)
+        character = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        battle.add(character, 'a', position='spawn_point_1', token='G')
+        npc = session.npc('wolf')
+        npc2 = session.npc('wolf')
+
+        battle_map.move_to(character, 0, 5, battle)
+        battle.add(npc, 'b', position=[1, 5])
+        battle.add(npc2, 'b', position=[0, 6])
+
+        map_renderer = MapRenderer(battle_map)
+        print(map_renderer.render())
+
+        advantages, disadvantages = compute_advantages_and_disadvantages(battle, npc, character, npc.npc_actions[0])
+        self.assertEqual(advantages, ['pack_tactics'])
+        self.assertEqual(disadvantages, [])
+
+    def test_no_pack_tactics_if_no_ally(self):
+        session = self.make_session()
+        battle_map = Map(session, 'battle_sim')
+        battle = Battle(session, battle_map)
+        character = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        battle.add(character, 'a', position='spawn_point_1', token='G')
+        npc = session.npc('wolf')
+        npc2 = session.npc('wolf')
+        battle.add(npc, 'b', position=[1, 5])
+        battle.add(npc2, 'b', position=[0, 6])
+        battle_map.move_to(character, 0, 5, battle)
+        battle_map.move_to(npc2, 2, 5, battle)
+
+        map_renderer = MapRenderer(battle_map)
+        print(map_renderer.render())
+
+        advantages, disadvantages = compute_advantages_and_disadvantages(battle, npc, character, npc.npc_actions[0])
+        self.assertEqual(advantages, [])
+        self.assertEqual(disadvantages, [])
 
 if __name__ == '__main__':
     unittest.main()

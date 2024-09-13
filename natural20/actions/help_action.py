@@ -43,7 +43,7 @@ class HelpAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'help':
             battle.event_manager.received_event({
                 'source': item['source'],

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <title>{{ title }}</title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/styles.css?salt={{ salt }}" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="/effects.js?salt={{ salt }}"></script>
+    <script src="/utils.js?salt={{ salt }}"></script>
+    <script src="/engine.js?salt={{ salt }}"></script>
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+</head>
+<body data-soundtrack="{{ soundtrack }}" data-battle_in_progress="{{ 'true' if battle else 'false' }}" data-username="{{ username }}" data-role="{{ role }}" data-controls="{{ entity_ids }}">
+
+    <div id="floating-menu">
+        <button id="expand-menu" class="menu-button">
+            <span class="glyphicon glyphicon-menu-hamburger"></span>
+        </button>
+        <button id="collapse-menu" class="menu-button" style="display: none;">
+            <span class="glyphicon glyphicon-menu-left"></span>
+        </button>
+        <div id="menu" style="display: none;">
+            <ul>
+                {% if 'dm' in role %}
+                    <li id="select-soundtrack">Sound Manager</li>
+                    <li id="start-battle" style="{{ 'display: none;' if battle}}">Start Battle</li>
+                    <li id="end-battle" style="{{ 'display: none;' if not battle}}">End Battle</li>
+                {% endif %}
+                <li id="open-console">Open Console</li>
+                <li>
+                    <form action="/logout" method="post">
+                        <input type="submit" value="Logout">
+                    </form>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <div id="coords-box" style="position: fixed; top: 0; right: 0; background-color: white; padding: 10px; border: 1px solid black;"></div>
+    <div id="main-map-area" style="width: 100%; height: 100%;">
+        <div class="image-container" style="position: absolute; top: {{tile_size_px}}px; left: {{tile_size_px}}px; height: {{ background_height }}px; ">
+            <img src="{{ background_path }}" style="overflow: scroll;  width: {{ background_width }}px; object-fit: cover; object-position: top;">
+        </div>
+        <div class="tiles-container actions-container" data-width="{{ background_width }}" data-height="{{ background_height }}" data-tile-size="{{tile_size_px}}" ></div>
+    </div>
+    <div class="modal fade" id="modal-1" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content actions-container">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    <h4 class="modal-title" id="myModalLabel">Modal title</h4>
+                </div>
+                <div class="modal-body">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="battle-turn-order" class="floating-window" style="{{ 'display: none;' if battle is none }}">
+        <div class="header" style="cursor: move;">Battle Turn Order</div>
+        {% if not battle %}
+        <button id="start-initiative" class="btn btn-primary" style="margin-top: 20px;">Roll Initiative!</button>
+        {% endif %}
+        <div id="turn-order">
+            {% if battle%}
+                {% include 'battle.html' %}
+            {% endif %}
+        </div>
+    </div>
+    <div id="console-container" class="floating-window" style="display: none;">
+        <div class="header" style="cursor: move;">Combat Log</div>
+        {% for message in messages %}
+            <p>{{ message }}</p>
+        {% endfor %}
+    </div>
+
+    {% if battle and controller_of(battle.current_turn.entity_uid, username) %}
+        <div class="game-turn-container" style="pointer-events: none;">
+        {% include 'turn.jinja' %}
+        </div>
+    {% else %}
+        <div class="game-turn-container"></div>
+    {% endif %}
+    <span id="zoom-controls" class="btn-group">
+        <button class="btn btn-default zoom-in">
+            <span class="glyphicon glyphicon-zoom-in"></span>
+        </button>
+        <button class="btn btn-default zoom-out">
+            <span class="glyphicon glyphicon-zoom-out"></span>
+        </button>
+    </span>
+</body>
+</html>

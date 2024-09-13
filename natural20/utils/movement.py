@@ -1,4 +1,5 @@
 from natural20.entity import Entity
+import json
 
 class Movement:
     def __init__(self, movement, original_budget, acrobatics_check_locations, athletics_check_locations, jump_locations, jump_start_locations, land_locations, jump_budget, budget, impediment):
@@ -23,6 +24,29 @@ class Movement:
     @property
     def cost(self):
         return self.original_budget - self.budget
+
+    def to_json(self):
+        return json.dumps(self.__dict__)
+
+    def to_dict(self):
+        # Convert the object to a dictionary
+        return {
+            "jump_start_locations": self.jump_start_locations,
+            "athletics_check_locations": self.athletics_check_locations,
+            "jump_locations": self.jump_locations,
+            "land_locations": self.land_locations,
+            "jump_budget": self.jump_budget,
+            "movement": self.movement,
+            "original_budget": self.original_budget,
+            "acrobatics_check_locations": self.acrobatics_check_locations,
+            "impediment": self.impediment,
+            "budget": self.budget
+        }    
+
+    @staticmethod
+    def from_json(json_str):
+        data = json.loads(json_str)
+        return Movement(**data)
 
 def valid_move_path(entity: Entity, path: list, battle, map, test_placement=True, manual_jump=None):
     return path == compute_actual_moves(entity, path, map, battle, entity.available_movement(battle) / map.feet_per_grid,

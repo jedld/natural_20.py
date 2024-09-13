@@ -47,6 +47,9 @@ class Cleric:
         # if ChannelDivinityAction.can(self, battle):
         #     actions.append(ChannelDivinityAction(session, self, 'channel_divinity'))
         return actions
+    
+    def cleric_spell_casting_modifier(self):
+        return self.wis_mod()
 
     def wis_mod(self):
         raise NotImplementedError

@@ -1,18 +1,7 @@
 from dataclasses import dataclass
 from natural20.utils.attack_util import damage_event
 from natural20.action import Action
-from natural20.spell.shocking_grasp_spell import ShockingGraspSpell
-from natural20.spell.firebolt_spell import FireboltSpell
-from natural20.spell.mage_armor_spell import MageArmorSpell
-from natural20.spell.chill_touch_spell import ChillTouchSpell
-from natural20.spell.expeditious_retreat_spell import ExpeditiousRetreatSpell
-from natural20.spell.magic_missile_spell import MagicMissileSpell
-from natural20.spell.ray_of_frost_spell import RayOfFrostSpell
-from natural20.spell.sacred_flame_spell import SacredFlameSpell
-from natural20.spell.cure_wounds_spell import CureWoundsSpell
-from natural20.spell.guiding_bolt_spell import GuidingBoltSpell
-from natural20.spell.shield_spell import ShieldSpell
-from natural20.spell.bless_spell import BlessSpell
+
 from natural20.utils.string_utils import classify
 from natural20.spell.spell import Spell
 from enum import Enum
@@ -71,7 +60,7 @@ class SpellAction(Action):
         if not spell:
             return True
 
-        spell_details = battle.session.load_spell(spell)
+        spell_details = entity.session.load_spell(spell)
         amt, resource = spell_details['casting_time'].split(":")
         if at_level is None:
             at_level = spell_details['level']
@@ -84,6 +73,9 @@ class SpellAction(Action):
 
             if total_slots_count == 0:
                 return False
+
+        if not battle:
+            return True
 
         if resource == "action" and entity.total_actions(battle) == 0:
             return False
@@ -99,6 +91,22 @@ class SpellAction(Action):
         return action.build_map()
 
     def build_map(self):
+        from natural20.spell.shocking_grasp_spell import ShockingGraspSpell
+        from natural20.spell.firebolt_spell import FireboltSpell
+        from natural20.spell.mage_armor_spell import MageArmorSpell
+        from natural20.spell.chill_touch_spell import ChillTouchSpell
+        from natural20.spell.expeditious_retreat_spell import ExpeditiousRetreatSpell
+        from natural20.spell.magic_missile_spell import MagicMissileSpell
+        from natural20.spell.ray_of_frost_spell import RayOfFrostSpell
+        from natural20.spell.sacred_flame_spell import SacredFlameSpell
+        from natural20.spell.cure_wounds_spell import CureWoundsSpell
+        from natural20.spell.guiding_bolt_spell import GuidingBoltSpell
+        from natural20.spell.shield_spell import ShieldSpell
+        from natural20.spell.bless_spell import BlessSpell
+        from natural20.spell.toll_the_dead_spell import TollTheDeadSpell
+        from natural20.spell.inflict_wounds_spell import InflictWoundsSpell
+        from natural20.spell.healing_word_spell import HealingWordSpell
+
         def select_spell(spell_choice):
             action = self.clone()
             spell_name, at_level = spell_choice
@@ -134,6 +142,12 @@ class SpellAction(Action):
                 spell_class = GuidingBoltSpell
             elif spell_name == 'BlessSpell':
                 spell_class = BlessSpell
+            elif spell_name == 'TollTheDeadSpell':
+                spell_class = TollTheDeadSpell
+            elif spell_name == 'InflictWoundsSpell':
+                spell_class = InflictWoundsSpell
+            elif spell_name == 'HealingWordSpell':
+                spell_class = HealingWordSpell
             else:
                 raise Exception(f"spell class not found {spell_name}")
             action.spell_class = spell_class
@@ -162,7 +176,9 @@ class SpellAction(Action):
         return spell_action
 
     def resolve(self, session, map=None, opts=None):
-        battle = opts.get("battle")
+        if opts is None:
+            opts = {}
+        battle = opts.get("battle", None)
         self.result = self.spell_action.resolve(self.source, battle, self)
         self.spell_action.consume(battle)
         return self
@@ -186,22 +202,27 @@ class SpellAction(Action):
             else:
                 yield klass
 
-    def apply(battle, item):
+    @staticmethod
+    def apply(battle, item, session=None):
+        if battle and session is None:
+            session = battle.session
+
         for klass in SpellAction._all_spell_descendants():
-            klass.apply(battle, item)
+            klass.apply(battle, item, session)
 
         if item['type'] == 'spell_damage':
             damage_event(item, battle)
         elif item['type'] == 'spell_miss':
-            battle.event_manager.received_event({
-                'attack_roll': item['attack_roll'],
+            session.event_manager.received_event({
+                'attack_roll': item.get('attack_roll', None),
                 'attack_name': item['attack_name'],
-                'advantage_mod': item['advantage_mod'],
+                'advantage_mod': item.get('advantage_mod', None),
                 'as_reaction': bool(item.get('as_reaction', False)),
                 'adv_info': item.get('adv_info', None),
                 'source': item['source'],
                 'target': item['target'],
                 'thrown': item.get('thrown', False),
+                'spell_save': item.get('spell_save', None),
                 'event': 'miss'
             })
 

@@ -88,6 +88,16 @@ class DieRolls(Rollable):
     def nat_1(self):
         return any(roll.nat_1() for roll in self.rolls)
 
+    def reroll(self, lucky=False):
+        if lucky:
+            for roll in self.rolls:
+                if roll.nat_1():
+                    roll.reroll(lucky=True)
+        else:
+            for roll in self.rolls:
+                roll.reroll()
+
+
     def __eq__(self, other):
         if len(other.rolls) != len(self.rolls):
             return False

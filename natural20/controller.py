@@ -9,6 +9,7 @@ class Controller:
         self.state = {}
         self.session = session
         self.battle_data = {}
+        self.user = None
 
     # @param entity [Natural20::Entity]
     def register_handlers_on(self, entity):

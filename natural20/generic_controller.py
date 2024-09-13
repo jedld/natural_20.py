@@ -2,6 +2,7 @@ from natural20.actions.look_action import LookAction
 from natural20.actions.stand_action import StandAction
 from natural20.actions.attack_action import AttackAction
 from natural20.actions.spell_action import SpellAction
+from natural20.actions.multiattack_action import MultiattackAction
 # from natural20.actions.prone_action import ProneAction
 from natural20.actions.move_action import MoveAction
 from natural20.gym.types import EnvObject, Environment
@@ -28,7 +29,7 @@ class GenericController(Controller):
 
     def roll_for(self, entity, stat, advantage=False, disadvantage=False):
         return None
-    
+
     def opportunity_attack_listener(self, battle, session, entity, map, event):
         actions = [s for s in entity.available_actions(session, battle, opportunity_attack=True)]
 
@@ -52,10 +53,16 @@ class GenericController(Controller):
             action = self._sort_actions(battle, available_actions)[0]
             # print(f"{entity.name}: {action}")
             return action
-        
+
         # no action, end turn
         return None
-    
+
+    def select_reaction(self, entity, battle, map, valid_actions, event):
+        if len(valid_actions) == 0:
+            return None
+        action = self._sort_actions(battle, valid_actions)[0]
+        return action
+
     def move_for(self, entity: Entity, battle):
         # choose available moves at random and return it
         available_actions = self._compute_available_moves(entity, battle)
@@ -185,9 +192,16 @@ class GenericController(Controller):
 
     # Sort actions based on success rate and damage
     def _sort_actions(self, battle, available_actions):
+        """
+        Simple rules for performing combat actions:
+        - Attack if available
+        - Move towards the closest enemy
+        """
         sorted_actions = []
         for action in available_actions:
             if isinstance(action, AttackAction) or isinstance(action, SpellAction):
+                if isinstance(action, AttackAction):
+                    attack_available = True
                 base_score = action.compute_hit_probability(battle) * action.avg_damage(battle)
                 sorted_actions.append((action, base_score))
             elif isinstance(action, MoveAction):

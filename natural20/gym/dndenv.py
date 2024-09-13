@@ -106,7 +106,7 @@ class dndenv(gym.Env):
     def __init__(self, view_port_size=(12, 12), max_rounds=200, render_mode = None, **kwargs):
         """
         Initializes the environment with the following parameters:
-        - view_port_size: the size of the view port for the agent
+        - view_port_size: the size of the view port for the agent (default is 12x12)
         - max_rounds: the maximum number of rounds before the game ends
         - render_mode: the mode to render the game in
         - root_path: the root path for the game
@@ -149,6 +149,7 @@ class dndenv(gym.Env):
             "enemy_type": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int),
             "ability_info": gym.spaces.Box(low=0, high=1, shape=(8,), dtype=int),
             "movement": gym.spaces.Box(low=0, high=255, shape=(1,), dtype=int),
+            "spell_slots": gym.spaces.Box(low=0, high=255, shape=(9,), dtype=int),
             "is_reaction": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int)
         })
 
@@ -171,6 +172,7 @@ class dndenv(gym.Env):
         self.hero_names = kwargs.get('hero_names', ['gomerin'])
         self.enemy_names = kwargs.get('enemy_names', ['rumblebelly'])
         self.show_logs = kwargs.get('show_logs', False)
+        self.output_file = kwargs.get('output_file', None)
         self.custom_controller = kwargs.get('custom_controller', None)
         self.custom_agent = kwargs.get('custom_agent', None)
         self.custom_initializer = kwargs.get('custom_initializer', None)
@@ -189,7 +191,10 @@ class dndenv(gym.Env):
         return [seed]
 
     def log(self, msg):
-        if self.show_logs:
+        if self.output_file:
+            with open(self.output_file, 'a') as f:
+                f.write(msg + "\n")
+        elif self.show_logs:
             print(msg)
 
     def _render_terrain_ansi(self):
@@ -267,7 +272,7 @@ class dndenv(gym.Env):
 
         if event_manager is None:
             self.log("Creating new event manager")
-            event_manager = EventManager()
+            event_manager = EventManager(output_file=self.output_file)
             if self.show_logs:
                 event_manager.standard_cli()
 
@@ -604,6 +609,7 @@ class dndenv(gym.Env):
             "player_type": np.array([0]),
             "enemy_type": np.array([0]),
             "ability_info": np.array([0, 0, 0, 0, 0, 0, 0, 0]), # tracks usage of class specific abilities (e.g. second wind, rage, etc.)
+            "spell_slots": np.array([0, 0, 0, 0, 0, 0, 0, 0, 0]),
             "movement": np.array([0]),
             "is_reaction": np.array([0])
         }

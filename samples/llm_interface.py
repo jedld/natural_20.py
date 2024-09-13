@@ -74,7 +74,10 @@ class LLMInterfacer:
         instruction_prompt += f"Available actions: {actions}\n"
         instruction_prompt += f"Bonus actions: {bonus_actions}\n"
         instruction_prompt += f"Reactions: {reactions}\n\n"
-
+        spell_slots = state["spell_slots"]
+        for level, slots in enumerate(spell_slots):
+            if slots > 0:
+                instruction_prompt += f"Spell Slot Level {level + 1}: {slots} slots\n"
         prompt = instruction_prompt
         prompt += self.map_to_prompt(map)
         if info.get('trigger', False):
@@ -148,7 +151,7 @@ class LLMInterfacer:
         return prompt
 
 class GPT4Interfacer(LLMInterfacer):
-    def __init__(self, variant="NousResearch/Meta-Llama-3-8B-Instruct", debug=False, api_key=None, base_url=None, tools=False, explain=False, weapon_mappings=None):
+    def __init__(self, variant="NousResearch/Meta-Llama-3-8B-Instruct", debug=False, api_key=None, base_url=None, tools=False, explain=False, weapon_mappings=None, max_retries=4):
         """
         Args:
             api_key: the openai api key to use
@@ -166,7 +169,8 @@ class GPT4Interfacer(LLMInterfacer):
         self.debug = debug
         self.client = OpenAI(
             api_key=api_key,
-            base_url=base_url
+            base_url=base_url,
+            max_retries=max_retries
         )
         if tools:
             self.tools = [

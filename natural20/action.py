@@ -1,4 +1,5 @@
 import inflect
+import i18n
 # typed: true
 class Action:
     def __init__(self, session, source, action_type, opts=None):
@@ -46,11 +47,17 @@ class Action:
         pass
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         pass
 
     def resolve(self, session, map, opts=None):
         pass
     
-    def t(self, k, options=None):
-        return k
+    def t(self, k, **kwargs):
+        return i18n.t(k, **kwargs)
+
+    def to_h(self):
+        return {
+            "action_type": self.action_type,
+            "source": self.source.entity_uid
+        }

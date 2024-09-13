@@ -4,6 +4,7 @@ import pdb
 from natural20.event_manager import EventManager
 from natural20.evaluator.entity_state_evaluator import EntityStateEvaluator
 from typing import List, Tuple
+from natural20.i18n import I18n
 class Entity(EntityStateEvaluator):
 
     ATTRIBUTE_TYPES = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']
@@ -38,6 +39,7 @@ class Entity(EntityStateEvaluator):
         self.casted_effects = []
         self.death_fails = 0
         self.death_saves = 0
+        self._temp_hp = 0
         self.event_handlers = {}
         self.event_manager = event_manager
         self.concentration = None
@@ -49,12 +51,27 @@ class Entity(EntityStateEvaluator):
                 setattr(self, f"{skill}_check", self.make_skill_check_function(skill))
 
     def concentration_on(self, effect):
+        if effect is None:
+            raise ValueError("effect cannot be None")
+
         if self.concentration:
             self.dismiss_effect(self.concentration)
         self.concentration = effect
 
+    def current_concentration(self):
+        return self.concentration
+
     def class_descriptor(self):
         return self.name.lower()
+
+    def class_and_level(self):
+        return []
+
+    def armor_class(self):
+        return 0
+    
+    def equipped_ac(self):
+        return self.armor_class()
     
     def any_class_feature(self, features):
         return False
@@ -102,6 +119,9 @@ class Entity(EntityStateEvaluator):
     def hp(self):
         return self.attributes["hp"]
     
+    def temp_hp(self):
+        return self._temp_hp
+
     # Returns the character hit die
     # @return [dict]
     def hit_die(self):
@@ -114,7 +134,14 @@ class Entity(EntityStateEvaluator):
             return False
         return True
     
-   
+
+    def label(self):
+        return I18n.t(self.name)
+
+    def token_image(self):
+        return self.properties.get('token_image') or f"token_{(self.properties.get('kind') or self.properties.get('sub_type') or self.properties.get('name')).lower()}.png"
+
+
     def token_size(self):
         square_size = self.size()
 
@@ -157,6 +184,12 @@ class Entity(EntityStateEvaluator):
     def passive_perception(self):
         return self.properties.get('passive_perception', 10 + self.wis_mod())
 
+    def passive_insight(self):
+        return self.properties.get('passive_insight', 10 + self.wis_mod())
+    
+    def passive_investigation(self):
+        return self.properties.get('passive_investigation', 10 + self.int_mod())
+
     def perception_check(self, battle):
         entity_state = battle.entity_state_for(self)
         if not entity_state:
@@ -171,10 +204,14 @@ class Entity(EntityStateEvaluator):
 
     def dead(self):
         return 'dead' in self.statuses
-    
+
     def undead(self):
         return 'undead' in self.properties.get('race', [])
-    
+
+    def race(self):
+        race = self.properties.get('race', [])
+        return " ".join(race)
+
     def add_casted_effect(self, effect):
         if effect not in self.casted_effects:
             self.casted_effects.append(effect)
@@ -182,6 +219,7 @@ class Entity(EntityStateEvaluator):
     def has_spell_effect(self, spell):
         active_effects = [effect for effects in self.effects.values() for effect in effects if not effect.get('expiration') or effect.get('expiration') > self.session.game_time]
         return any(effect['effect'].id == spell for effect in active_effects)
+
 
     def register_effect(self, effect_type, handler, method_name=None, effect=None, source=None, duration=None):
         if effect_type not in self.effects:
@@ -262,9 +300,13 @@ class Entity(EntityStateEvaluator):
             self.statuses.append('prone')
             self.statuses.append('unconscious')
 
-    def saving_throw(self, save_type, battle=None):
+    def saving_throw_mod(self, save_type):
         modifier = self.ability_mod(save_type)
         modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
+        return modifier
+    
+    def saving_throw(self, save_type, battle=None):
+        modifier = self.saving_throw_mod(save_type)
         op = '+' if modifier >= 0 else ''
         disadvantage = True if save_type in ['dex', 'str'] and not self.proficient_with_equipped_armor() else False
         return DieRoll.roll(f"d20{op}{modifier}", disadvantage=disadvantage, battle=battle, entity=self,
@@ -424,8 +466,12 @@ class Entity(EntityStateEvaluator):
     def vulnerable_to(self, damage_type):
         return damage_type in self.damage_vulnerabilities
 
+    
+    def initiative_bonus(self):
+        return self.dex_mod()
+
     def initiative(self, battle=None):
-        roll = DieRoll.roll(f"1d20+{self.dex_mod()}", description="initiative", entity=self, battle=battle)
+        roll = DieRoll.roll(f"1d20+{self.initiative_bonus()}", description="initiative", entity=self, battle=battle)
         value = float(roll.result()) + self.ability_scores.get('dex') / 100.0
         self.event_manager.received_event({ "source": self,
                                      "event": "initiative",
@@ -450,6 +496,24 @@ class Entity(EntityStateEvaluator):
 
     def dex_mod(self):
         return self.modifier_table(self.ability_scores.get('dex'))
+    
+    def ability_score_dex(self):
+        return self.ability_scores.get('dex')
+    
+    def ability_score_str(self):
+        return self.ability_scores.get('str')
+
+    def ability_score_con(self):
+        return self.ability_scores.get('con')
+
+    def ability_score_int(self):
+        return self.ability_scores.get('int')
+
+    def ability_score_wis(self):
+        return self.ability_scores.get('wis')
+
+    def ability_score_cha(self):
+        return self.ability_scores.get('cha')
 
     def modifier_table(self, value):
         mod_table = [[1, 1, -5],
@@ -539,13 +603,29 @@ class Entity(EntityStateEvaluator):
         battle.event_manager.received_event({'source': self, 'event': 'start_of_turn'})
         self.resolve_trigger('start_of_turn')
         self._cleanup_effects()
+
+        if not self.class_feature("multiattack"):
+            return entity_state
+
+        multiattack_groups = {}
+        for a in self.properties["actions"]:
+            if a.get("multiattack_group"):
+                group = a["multiattack_group"]
+                multiattack_groups.setdefault(group, []).append(a["name"])
+
+        entity_state["multiattack"] = multiattack_groups
+
         return entity_state
 
     def resolve_trigger(self, event_type, opts=None):
         if opts is None:
             opts = {}
         if event_type in self.entity_event_hooks:
-            active_hook = [effect for effect in self.entity_event_hooks[event_type] if not effect.get('expiration') or effect['expiration'] > self.session.game_time][-1]
+            available_hooks = [effect for effect in self.entity_event_hooks[event_type] if not effect.get('expiration') or effect['expiration'] > self.session.game_time]
+            if len(available_hooks) == 0:
+                return
+
+            active_hook = available_hooks[-1]
             if active_hook:
                 getattr(active_hook['handler'], active_hook['method'])(self, {**opts, 'effect': active_hook['effect']})
 
@@ -626,6 +706,10 @@ class Entity(EntityStateEvaluator):
         entity_state = battle.entity_state_for(self)
         entity_state['statuses'].add('dodge')
 
+    def incapacitated(self):
+        return 'incapacitated' in self.statuses or 'unconscious' in self.statuses or \
+            'sleep' in self.statuses or 'dead' in self.statuses
+
     def dodge(self, battle):
         if not battle:
             return False
@@ -644,6 +728,43 @@ class Entity(EntityStateEvaluator):
             entity_state['statuses'].remove('hiding')
         entity_state['stealth'] = 0
 
+    # @param map [Natural20::BattleMap]
+    def push_from(self, map, pos_x, pos_y, distance=5):
+        x, y = map.entity_or_object_pos(self)
+        effective_token_size = self.token_size() - 1
+        ofs_x, ofs_y = 0, 0
+
+        if pos_x in range(x, x + effective_token_size + 1) and pos_y not in range(y, y + effective_token_size + 1):
+            ofs_y = distance if pos_y < y else -distance
+        elif pos_y in range(y, y + effective_token_size + 1) and pos_x not in range(x, x + effective_token_size + 1):
+            ofs_x = distance if pos_x < x else -distance
+        elif [pos_x, pos_y] == [x - 1, y - 1]:
+            ofs_x = distance
+            ofs_y = distance
+        elif [pos_x, pos_y] == [x + effective_token_size + 1, y - 1]:
+            ofs_x = -distance
+            ofs_y = distance
+        elif [pos_x, pos_y] == [x - 1, y + effective_token_size + 1]:
+            ofs_x = distance
+            ofs_y = -distance
+        elif [pos_x, pos_y] == [x + effective_token_size + 1, y + effective_token_size + 1]:
+            ofs_x = -distance
+            ofs_y = -distance
+        else:
+            raise ValueError(f"Invalid source position {pos_x}, {pos_y}")
+
+        # convert to squares
+        ofs_x //= map.feet_per_grid
+        ofs_y //= map.feet_per_grid
+
+        new_x = x + ofs_x
+        new_y = y + ofs_y
+
+        if map.placeable(self, new_x, new_y):
+            return new_x, new_y
+        else:
+            return None
+
     def trigger_event(self, event_name, battle, session, map, event):
         if event_name in self.event_handlers:
             callback = self.event_handlers[event_name]
@@ -652,7 +773,7 @@ class Entity(EntityStateEvaluator):
 
     def npc(self):
         return False
-    
+
     def has_effect(self, effect_type):
         if effect_type not in self.effects:
             return False
@@ -791,20 +912,30 @@ class Entity(EntityStateEvaluator):
 
         return True
 
-    def save_throw(self, save_type, battle):
+    def save_throw(self, save_type, battle, opts=None):
+        """
+        Perform a saving throw for the entity
+        """
+        if opts is None:
+            opts = {}
+
         modifier = self.ability_mod(save_type)
         if modifier is None:
             raise ValueError(f"invalid ability {save_type}")
-        
+
         modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
         op = '+' if modifier >= 0 else ''
         disadvantage = True if save_type in ['dex', 'str'] and not self.proficient_with_equipped_armor() else False
         save_roll = DieRoll.roll(f"d20{op}{modifier}", disadvantage=disadvantage, battle=battle, entity=self,
                             description=f"dice_roll.{save_type}_saving_throw")
+
         if self.has_effect('bless'):
             save_roll += DieRoll.roll("1d4", description="bless", entity=self, battle=battle)
         return save_roll
 
+    def skills(self):
+        return self.properties.get('skills', [])
+    
     def proficient(self, prof):
         return (prof in self.properties.get('skills', []) or
                 prof in self.properties.get('tools', []) or
@@ -871,16 +1002,16 @@ class Entity(EntityStateEvaluator):
 
     def ranged_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
         spell_classes = spell.get('spell_list_classes', [])
-        class_types = spell_classes if spell_classes else 'wizard'
-        attack_modifers = [self.spell_attack_modifier(class_type=class_type) for class_type in class_types]
+        class_types = spell_classes if spell_classes else ['wizard']
+        attack_modifers = [self.spell_attack_modifier(class_type=class_type.lower()) for class_type in class_types]
         return DieRoll.roll(f"1d20+{max(attack_modifers)}", description=f"Ranged Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
-        
+
 
     def melee_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
         spell_classes = spell.get('spell_list_classes', [])
-        class_types = spell_classes[0] if spell_classes else 'wizard'
-        attack_modifers = [self.spell_attack_modifier(class_type=class_type) for class_type in class_types]
-        return DieRoll.roll(f"1d20+{max(attack_modifers)}", description=f"Ranged Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
+        class_types = spell_classes if spell_classes else ['wizard']
+        attack_modifers = [self.spell_attack_modifier(class_type=class_type.lower()) for class_type in class_types]
+        return DieRoll.roll(f"1d20+{max(attack_modifers)}", description=f"Melee Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
 
     def multiattack(self, battle, npc_action):
         if not npc_action:
@@ -920,10 +1051,46 @@ class Entity(EntityStateEvaluator):
 
         return 0
 
+    # Returns the available spells for the current user
+    # @param battle [Natural20::Battle]
+    # @return [Dict]
+    def spell_list(self, battle):
+        prepared_spells = self.prepared_spells()
+        spell_list = {}
+        for spell in prepared_spells:
+            details = self.session.load_spell(spell)
+            if not details:
+                continue
+
+            qty, resource = details['casting_time'].split(':')
+
+            disable_reason = []
+            if resource == 'action' and battle and battle.ongoing() and self.total_actions(battle) == 0:
+                disable_reason.append('no_action')
+            if resource == 'reaction':
+                disable_reason.append('reaction_only')
+
+            if resource == 'bonus_action' and battle and battle.ongoing() and self.total_bonus_actions(battle) == 0:
+                disable_reason.append('no_bonus_action')
+            elif resource == 'hour' and battle.ongoing():
+                disable_reason.append('in_battle')
+            if details['level'] > 0:
+                slot_count = 0
+                for spell_class_type in details.get('spell_list_classes', []):
+                    slot_count += self.spell_slots_count(details['level'], spell_class_type.lower())
+
+                if slot_count == 0:
+                    disable_reason.append('no_spell_slot')
+
+            spell_list[spell] = details.copy()
+            spell_list[spell]['disabled'] = disable_reason
+
+        return spell_list
+
     def equipped_weapons(self):
         return [item['name'] for item in self.equipped_items() if item["subtype"] == 'weapon']
 
-    def take_damage(self, dmg: int, battle=None, critical=False):
+    def take_damage(self, dmg: int, battle=None, critical=False, roll_info=None):
         self.attributes["hp"] -= dmg
 
         if self.unconscious():
@@ -947,19 +1114,53 @@ class Entity(EntityStateEvaluator):
                 battle.remove(self)
         elif self.hp() <= 0:
             self.make_dead() if self.npc() else self.make_unconscious()
+            # drop concentration spells
+            if self.concentration:
+                self.dismiss_effect(self.concentration)
+
             if battle and self.familiar():
                 battle.remove(self)
+        elif self.hp() > 0:
+            if self.concentration:
+                # make a concentration check
+                concentration_check = self.save_throw('con', battle)
+                diffculty_class = max([10, dmg // 2])
+                if concentration_check.result() < diffculty_class:
+                    self.event_manager.received_event({'source': self,
+                                                       'event': 'concentration_check',
+                                                       'result': 'failure',
+                                                       'effect' : self.concentration,
+                                                       'roll': concentration_check,
+                                                       'dc': diffculty_class
+                                        })
+                    self.dismiss_effect(self.concentration)
+                else:
+                    self.event_manager.received_event({'source': self,
+                                                       'event': 'concentration_check',
+                                                       'result': 'success',
+                                                       'effect' : self.concentration,
+                                                       'roll': concentration_check,
+                                                       'dc': diffculty_class
+                                        })
 
         if self.hp() <= 0:
             self.attributes["hp"] = 0
 
         if battle:
-            battle.event_manager.received_event({'source': self, 'event': 'damage', 'value': dmg})
-            
+            battle.event_manager.received_event({'source': self, 'event': 'damage', 'value': dmg, 'roll_info': roll_info})
+
     def on_take_damage(self, battle, _damage_params):
         controller = battle.controller_for(self)
         if controller and hasattr(controller, 'attack_listener'):
             controller.attack_listener(battle, self)
+
+    def current_effects(self):
+        active_effects = []
+        for _, value in self.effects.items():
+            for effect in value:
+                if not effect.get('expiration') or effect['expiration'] > self.session.game_time:
+                    active_effects.append(effect)
+        return active_effects
 
     def eval_effect(self, effect_type, opts=None):
         if not opts:
@@ -1008,7 +1209,7 @@ class Entity(EntityStateEvaluator):
             self.death_fails = 0
             if self.unconscious():
                 print(f"{self.name} is now conscious because of healing and has {self.hp()} hp")
-                self.conscious()
+                self.make_conscious()
             self.event_manager.received_event({'source': self, 'event': 'heal', 'previous': prev_hp, 'new': self.hp, 'value': amt})
 
 

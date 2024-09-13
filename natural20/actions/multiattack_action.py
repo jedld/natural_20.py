@@ -6,13 +6,10 @@ class MultiattackAction(Action):
 
     @staticmethod
     def can(entity, battle):
-        return battle and entity.total_actions(battle) > 0
+        return battle is None or (entity.class_feature('multiattack') and entity.total_actions(battle) > 0)
 
     def build_map(self):
-        return {
-            'param': None,
-            'next': lambda: self
-        }
+        return self
 
     @staticmethod
     def build(session, source):
@@ -28,6 +25,6 @@ class MultiattackAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'multiattack':
             battle.consume('action', 1)

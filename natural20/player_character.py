@@ -25,6 +25,7 @@ from natural20.utils.movement import compute_actual_moves
 import yaml
 import os
 import copy
+import uuid
 import pdb
 
 
@@ -32,19 +33,20 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
   ACTION_LIST = [
     AttackAction, DashAction, DashBonusAction, DisengageAction,
     DisengageBonusAction,
-    DodgeAction, LookAction, MoveAction, ProneAction, SecondWindAction,
-    StandAction, TwoWeaponAttackAction,
-    ShoveAction, HelpAction, UseItemAction, GroundInteractAction,
-    SpellAction, ActionSurgeAction
+    DodgeAction, MoveAction, ProneAction, SecondWindAction,
+    StandAction, TwoWeaponAttackAction, HelpAction, UseItemAction, GroundInteractAction,
+    SpellAction, ActionSurgeAction, ShoveAction
   ]
 
   def __init__(self, session, properties, name=None):
     super(PlayerCharacter, self).__init__(name, f"PC {name}", attributes={}, event_manager=session.event_manager)
     self.properties = properties
-    
+
     if name is None:
       self.name = self.properties['name']
-      
+
+    self.display_name = self.properties.get('display_name', self.name)
+
     race_file = self.properties['race']
     self.session = session
     self.equipped = self.properties.get('equipped', [])
@@ -70,7 +72,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
     self._current_hit_die = {}
     self.max_hit_die = {}
     self.resistances = []
-
+    self.entity_uid =  self.properties.get('entity_uid', str(uuid.uuid4()))
+  
     for klass, level in self.properties.get('classes', {}).items():
       setattr(self, f"{klass}_level", level)
       getattr(self, f"initialize_{klass}")()
@@ -89,6 +92,12 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
     for klass, level in self.properties.get('classes', {}).items():
       class_level.append(f"{klass}-{level}")
     return "_".join(class_level).lower()
+  
+  def class_and_level(self):
+    class_level = []
+    for klass, level in self.properties.get('classes', {}).items():
+      class_level.append((klass, level))
+    return class_level
 
   @staticmethod
   def load(session, path, override=None):
@@ -102,6 +111,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
       properties = yaml.safe_load(file)
     properties.update(override)
     return PlayerCharacter(session, properties)
+  
+  def label(self):
+    return self.display_name
 
   def level(self):
       return self.properties['level']
@@ -157,7 +169,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
   def c_class(self):
     return self.properties['classes']
 
-  def available_actions(self, session, battle, opportunity_attack=False):
+  def available_actions(self, session, battle, opportunity_attack=False, auto_target=True):
     if self.unconscious():
       return []
 
@@ -174,9 +186,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
         if action_type == LookAction:
           action_list.append(LookAction(session, self, 'look'))
         elif action_type == AttackAction:
-          action_list = action_list + self._player_character_attack_actions(session, battle)
+          action_list = action_list + self._player_character_attack_actions(session, battle, auto_target=auto_target)
         elif action_type == TwoWeaponAttackAction:
-          action_list = action_list + self._player_character_attack_actions(session, battle, second_weapon=True)
+          action_list = action_list + self._player_character_attack_actions(session, battle, second_weapon=True, auto_target=auto_target)
         elif action_type == DodgeAction:
           action_list.append(DodgeAction(session, self, 'dodge'))
         elif action_type == DisengageAction:
@@ -193,6 +205,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
           action = DashAction(session, self, 'dash')
           action_list.append(action)
         elif action_type == MoveAction:
+          if not battle or not auto_target:
+            action_list.append(MoveAction(session, self, 'move'))
+            continue
+
           # no map? we skip, must be a theater of the mind mode
           if battle.map is None:
             continue
@@ -223,10 +239,13 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
           action = ShoveAction(session, self, 'shove')
           action_list.append(action)
         elif action_type == SpellAction:
-          action_list = action_list + autobuild(self.session, SpellAction, self, battle)
+          if auto_target:
+            action_list = action_list + autobuild(self.session, SpellAction, self, battle)
+          else:
+            action_list.append(SpellAction(session, self, 'spell'))
     return action_list
 
-  def _player_character_attack_actions(self, session, battle, opportunity_attack=False, second_weapon=False):
+  def _player_character_attack_actions(self, session, battle, opportunity_attack=False, second_weapon=False, auto_target=True):
     # check all equipped and create attack for each
     valid_weapon_types = ['melee_attack'] if opportunity_attack else ['ranged_attack', 'melee_attack']
 
@@ -267,13 +286,17 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
       weapon_attacks.append(unarmed_attack)
 
     # assign possible attack targets
-    final_attack_list = []
-    for action in weapon_attacks:
-      valid_targets = battle.valid_targets_for(self, action)
-      for target in valid_targets:
-        targeted_action = copy.copy(action)
-        targeted_action.target = target
-        final_attack_list.append(targeted_action)
+    
+    if battle and auto_target:
+      final_attack_list = []
+      for action in weapon_attacks:
+        valid_targets = battle.valid_targets_for(self, action)
+        for target in valid_targets:
+          targeted_action = copy.copy(action)
+          targeted_action.target = target
+          final_attack_list.append(targeted_action)
+    else:
+      final_attack_list = weapon_attacks
     return final_attack_list
 
   def prepared_spells(self):
@@ -379,12 +402,18 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
       return True
 
     return bool(self.race_properties.get('darkvision') and self.race_properties['darkvision'] >= distance)
-  
+
   def spell_slots_count(self, level, character_class=None):
     if character_class is None:
-      character_class = list(self.spell_slots.keys())[0]
-    if character_class not in self.spell_slots:
+      character_class = list(self.spell_slots.keys())
+      total_slots = 0
+      for klass in character_class:
+        if self.spell_slots[klass].get(level, 0) > 0:
+          total_slots += self.spell_slots[klass][level]
+      return total_slots
+    elif character_class not in self.spell_slots:
       return 0
+
     return self.spell_slots[character_class].get(level, 0)
 
 
@@ -404,42 +433,14 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
     spell_list = self.spell_list(battle)
     return [k for k, v in spell_list.items() if not v['disabled']]
   
-  # Returns the available spells for the current user
-  # @param battle [Natural20::Battle]
-  # @return [Dict]
-  def spell_list(self, battle):
-    prepared_spells = self.prepared_spells()
-    spell_list = {}
-    for spell in prepared_spells:
-      details = self.session.load_spell(spell)
-      if not details:
-        continue
+  def available_spells_per_level(self, battle):
+    spell_list = self.spell_list(battle)
+    spell_per_level = [[],[],[],[],[],[],[],[],[]]
+    for spell, details in spell_list.items():
+      spell_per_level[details['level']].append((spell, details))
 
-      qty, resource = details['casting_time'].split(':')
+    return enumerate(spell_per_level)
 
-      disable_reason = []
-      if resource == 'action' and battle and battle.ongoing() and self.total_actions(battle) == 0:
-        disable_reason.append('no_action')
-      if resource == 'reaction':
-        disable_reason.append('reaction_only')
-
-      if resource == 'bonus_action' and battle.ongoing() and self.total_bonus_actions(battle) == 0:
-        disable_reason.append('no_bonus_action')
-      elif resource == 'hour' and battle.ongoing():
-        disable_reason.append('in_battle')
-      if details['level'] > 0:
-        slot_count = 0
-
-        for spell_class_type in details.get('spell_list_classes', []):
-           slot_count += self.spell_slots_count(details['level'], spell_class_type.lower())
-        if slot_count == 0:
-            disable_reason.append('no_spell_slot')
-
-      spell_list[spell] = details.copy()
-      spell_list[spell]['disabled'] = disable_reason
-
-    return spell_list
-  
   def languages(self):
     class_languages = []
     for prop in self.class_properties.values():

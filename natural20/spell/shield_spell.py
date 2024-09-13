@@ -1,14 +1,15 @@
 from natural20.spell.spell import Spell, consume_resource
 from natural20.action import Action
+from natural20.actions.spell_action import SpellAction
 import pdb
 class ShieldSpell(Spell):
     def build_map(self, action):
         return action
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'shield':
-            item['source'].add_casted_effect(effect=item['effect'])
+            item['source'].add_casted_effect({ "target" : item['source'], "effect" : item['effect']})
             item['target'].register_effect('ac_bonus', ShieldSpell, effect=item['effect'], source=item['source'], duration=8 * 60 * 60)
 
             item['target'].register_event_hook('start_of_turn', ShieldSpell, effect=item['effect'], source=item['source'])
@@ -39,10 +40,11 @@ class ShieldSpell(Spell):
             if entity_controller is None:
                 return [[], False]
 
-            shield_spell = ShieldSpell(battle.session, entity, 'shield', spell)
-            action = Action(battle.session, entity, 'spell')
+            shield_spell = ShieldSpell(battle.session, entity, 'ShieldSpell', spell)
+            action = SpellAction(battle.session, entity, 'spell')
             action.target = entity
             shield_spell.action = action
+            action.spell_action = shield_spell
             valid_actions = [action]
             event = {
                 'type': 'shield',

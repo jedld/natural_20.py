@@ -1,6 +1,9 @@
 import pdb
 
 def compute_max_weapon_range(session, action, range=None):
+    if isinstance(action, dict):
+        return action.get('max_range', action.get('range'))
+
     if action.action_type == 'grapple':
         return 5
     elif action.action_type == 'help':
@@ -14,6 +17,7 @@ def compute_max_weapon_range(session, action, range=None):
                 return weapon.get('thrown', {}).get('range_max') or weapon.get('thrown', {}).get('range') or weapon.get('range')
             else:
                 return weapon.get('range_max') or weapon.get('range')
+
     return range
 
 def damage_modifier(entity, weapon, second_hand=False):
@@ -23,7 +27,7 @@ def damage_modifier(entity, weapon, second_hand=False):
         damage_mod = min(damage_mod, 0)
 
     # compute damage roll using versatile weapon property
-    if 'versatile' in weapon.get('properties', []) and entity.used_hand_slots <= 1.0:
+    if 'versatile' in weapon.get('properties', []) and entity.used_hand_slots() <= 1.0:
         damage_roll = weapon.get('damage_2')
     else:
         damage_roll = weapon.get('damage')
@@ -40,6 +44,8 @@ def target_advantage_condition(battle, source, target, weapon, source_pos=None, 
         overrides = {}
     if target is None:
         raise ValueError("target is mandatory")
+    if battle is None:
+        return [0, [[],[]]]
     advantages, disadvantages = compute_advantages_and_disadvantages(battle, source, target, weapon,
                                                                      source_pos=source_pos, overrides=overrides, thrown=thrown)
     advantage_ctr = 0

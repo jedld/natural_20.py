@@ -15,8 +15,10 @@ class AttackAction(Action):
         self.npc_action = None
         self.as_reaction = None
         self.thrown = None
-        self.second_hand = None
         self.advantage_mod = None
+
+    def second_hand(self):
+        return False
 
     @staticmethod
     def can(entity: Entity, battle, options=None):
@@ -24,6 +26,7 @@ class AttackAction(Action):
             options = {}
         if battle and options.get('opportunity_attack'):
             return entity.total_reactions(battle) > 0
+
         return battle is None or entity.total_actions(battle) > 0 or entity.multiattack(battle, options.get('npc_action'))
 
     def __str__(self):
@@ -43,7 +46,7 @@ class AttackAction(Action):
             'npc_action': self.npc_action,
             'as_reaction': self.as_reaction,
             'thrown': self.thrown,
-            'second_hand': self.second_hand
+            'second_hand': self.second_hand()
         }
 
     def label(self):
@@ -55,7 +58,7 @@ class AttackAction(Action):
             i18n_token = 'action.attack_action_throw' if self.thrown else 'action.attack_action'
             return self.t(i18n_token, name=str(self.action_type), weapon_name=weapon['name'],
                      mod=f"+{attack_mod}" if attack_mod >= 0 else attack_mod,
-                     dmg=damage_modifier(self.source, weapon, second_hand=self.second_hand))
+                     dmg=damage_modifier(self.source, weapon, second_hand=self.second_hand()))
 
     def ranged_attack(self):
         weapon = self.get_attack_info(self.opts)
@@ -69,7 +72,7 @@ class AttackAction(Action):
         def set_target(target):
             def set_weapon(weapon):
                 self.using = weapon
-                return {               
+                return {
                     'param': None,
                     'next': lambda: self
                 }
@@ -98,7 +101,7 @@ class AttackAction(Action):
         action = AttackAction(session, source, 'attack')
         return action.build_map()
     
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if 'flavor' in item and item['flavor']:
             flavor = item['flavor']
             if battle:
@@ -275,7 +278,7 @@ class AttackAction(Action):
                 'damage': damage,
                 'ammo': ammo_type,
                 'as_reaction': bool(self.as_reaction),
-                'second_hand': self.second_hand,
+                'second_hand': self.second_hand(),
                 'npc_action': self.npc_action
             })
             if weapon.get('on_hit'):
@@ -312,7 +315,7 @@ class AttackAction(Action):
                 'type': 'miss',
                 'advantage_mod': self.advantage_mod,
                 'adv_info': adv_info,
-                'second_hand': self.second_hand,
+                'second_hand': self.second_hand(),
                 'damage_roll': damage_roll,
                 'attack_roll': attack_roll,
                 'as_reaction': bool(self.as_reaction),
@@ -333,13 +336,14 @@ class AttackAction(Action):
         using = opts.get('using') or self.using
         if using is None and npc_action is None:
             raise Exception('using or npc_action is a required option for :attack')
-        
+
         if self.source.npc() and using:
             npc_action = next((a for a in self.source.npc_actions if a['name'].lower() == using.lower()), None)
 
         if self.source.npc():
             if npc_action is None:
                 npc_action = next((action for action in self.source.properties['actions'] if action['name'].lower() == using.lower()), None)
+            weapon = npc_action
         else:
             weapon = self.session.load_weapon(using)
         return weapon
@@ -371,7 +375,7 @@ class AttackAction(Action):
             attack_name = weapon['name']
             ammo_type = weapon.get('ammo', None)
             attack_mod = self.source.attack_roll_mod(weapon)
-            damage_roll = damage_modifier(self.source, weapon, second_hand=self.second_hand)
+            damage_roll = damage_modifier(self.source, weapon, second_hand=self.second_hand())
 
         return weapon, attack_name, attack_mod, damage_roll, ammo_type
 
@@ -403,6 +407,17 @@ class AttackAction(Action):
             damage_roll += additional_damage
 
         return damage_roll
+    
+    def to_h(self):
+        return {
+            "action_type": self.action_type,
+            "target": self.target.entity_uid if self.target else None,
+            "using": self.using,
+            "npc_action": self.npc_action,
+            "as_reaction": self.as_reaction,
+            "thrown": self.thrown,
+            "second_hand": self.second_hand()
+        }
 
 
 class TwoWeaponAttackAction(AttackAction):

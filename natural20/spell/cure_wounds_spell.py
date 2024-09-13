@@ -29,7 +29,7 @@ class CureWoundsSpell(Spell):
             level += 1
         if entity.level() >= 17:
             level += 1
-        return DieRoll.roll(f"{level}d8", battle=battle, entity=entity, description=self.t('dice_roll.spells.cure_wounds'))
+        return DieRoll.roll(f"{level}d8+{entity.cleric_spell_casting_modifier()}", battle=battle, entity=entity, description=self.t('dice_roll.spells.cure_wounds'))
 
     def compute_hit_probability(self, battle, opts=None):
         return 1.0
@@ -50,9 +50,12 @@ class CureWoundsSpell(Spell):
             "spell": self.properties
         }]
     
-    def apply(battle, item):
+    def apply(battle, item, session=None):
+        if session is None:
+            session = battle.session
+
         if item['type'] == 'spell_heal':
-            battle.event_manager.received_event({'source': item['source'],  \
+            session.event_manager.received_event({'source': item['source'],  \
                 'heal_roll': item['heal_roll'], \
                 'target': item['target'], 'value': item['heal_roll'], 'event': 'spell_heal', 'spell': item['spell']})
                                                   

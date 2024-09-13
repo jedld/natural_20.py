@@ -1,0 +1,37 @@
+<div class="container">
+  <span class="col-1 text-leftcenter dm-span" style="margin: 5px;">
+    {% if 'dm' in role %}
+      <button id="next-turn" style="width: 220px;">
+        <span>Next Turn</span>
+      </button>
+      <button id="add-more" style="width: 75px; background: none; border: none;">
+        <span class="glyphicon glyphicon-plus" style="margin-right: 5px;"></span>
+      </button>
+    {% endif %}
+  </span>
+  {% for entity in battle.combat_order %}
+    <div class="turn-order-item row border-bottom {{ 'bg-primary text-white' if entity == battle.current_turn() }} {{ 'turn-order-dead' if entity.dead }}">
+      <form class="form-inline">
+        <img src="{{ url_for('static', filename='assets/' ~ entity.token_image()) }}" style="max-width: 75px;">
+        {% if 'dm' in role %}
+          {% set entity_group = battle.entities[entity].group %}
+          <select class="group-select form-control" style="width: 100px;">
+            {% for group in ['a', 'b', 'c'] %}
+              <option value="{{ group }}" {% if entity_group == group %}selected{% endif %}>Group {{ group.upper() }}</option>
+            {% endfor %}
+          </select>
+        {% endif %}
+        <span class="col-3 text-right">
+          {% if 'dm' in role %}
+            <button class="remove-turn-order-item btn btn-danger" style="width: 100px; margin-left: 10px;">Remove</button>
+            <input class="initiative-text" type="text" value="{{ battle.entities[entity].initiative }}" name="initiative[{{ index }}]" style="max-width: 50px;">
+          {% else %}
+            <span class="initiative-text">{{ battle.entities[entity].initiative }}</span>
+          {% endif %}
+          
+        </span>
+        <span style="width: 100px">{{ entity.label() }}</span>
+      </form>
+    </div>
+  {% endfor %}
+</div>

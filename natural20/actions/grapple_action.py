@@ -70,7 +70,7 @@ class GrappleAction(Action):
         }]
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'grapple':
             if item['success']:
                 item['target'].grappled_by(item['source'])
@@ -133,7 +133,7 @@ class DropGrappleAction(Action):
         }]
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'drop_grapple':
             item['target'].escape_grapple_from(item['source'])
             battle.event_manager.received_event({ "event" : 'drop_grapple',

@@ -9,10 +9,11 @@ def consume_resource(battle, source, item):
     amt, resource = item["casting_time"].split(":")
     spell_level = item["level"]
 
-    if resource == "action":
-        battle.consume(source, "action")
-    elif resource == "reaction":
-        battle.consume(source, "reaction")
+    if battle:
+        if resource == "action":
+            battle.consume(source, "action")
+        elif resource == "reaction":
+            battle.consume(source, "reaction")
 
     source.consume_spell_slot(spell_level) if spell_level > 0 else None
 
@@ -33,9 +34,12 @@ class Spell:
     def short_name(self):
         # remove the spell suffix and turn Camelcase to space separated
         return camel_case_to_human_readable(self.name[:-5])
+    
+    def __str__(self):
+        return camel_case_to_human_readable(self.name[:-5]).replace(" ", "_")
 
     def label(self):
-        return self.t(f"spell.{self.name}")
+        return self.properties.get('label', self.short_name())
 
     def clone(self):
         spell = self.__class__(self.session, self.source, self.name, self.properties)
@@ -51,7 +55,7 @@ class Spell:
         consume_resource(battle, self.source, self.properties)
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         pass
 
     def validate(self, action):
@@ -64,6 +68,9 @@ class Spell:
         if options is None:
             options = {}
         return token
-    
+
     def compute_hit_probability(self, battle, opts = None):
         return 1.0
+
+    def avg_damage(self, battle, opts=None):
+        return 0

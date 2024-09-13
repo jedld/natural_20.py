@@ -73,7 +73,7 @@ class InteractAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         entity = item['source']
         item_type = item['type']
 

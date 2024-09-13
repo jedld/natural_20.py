@@ -55,7 +55,7 @@ class UseItemAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item["type"] == "use_item":
             battle.event_manager.received_event({"event": "use_item", "source": item["source"], "item": item["item"]})
             item["item"].use(item["target"], item)

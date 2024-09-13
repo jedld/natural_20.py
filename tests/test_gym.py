@@ -141,7 +141,7 @@ class TestGym(unittest.TestCase):
         print(env.render())
         self.assertIsNotNone(observation)
         observation, reward, done, truncate, info = env.step((-1, (0, 0), (0, 0), 0, 0))
-        self.assertEqual(reward, 0)
+        self.assertEqual(reward, 10)
 
 
     def test_render(self):

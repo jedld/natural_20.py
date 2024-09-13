@@ -48,7 +48,7 @@ class CustomAgent:
     def __init__(self, llm_interface):
         self.llm_interface = llm_interface
 
-    def step(self, observation, info):
+    def action(self, observation, info):
         return self.llm_interface.select_action_for_state(observation, info)
 
     def __str__(self) -> str:

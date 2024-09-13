@@ -10,7 +10,7 @@ class ProneAction(Action):
         return battle and not entity.prone()
 
     def build_map(self):
-        return NamedTuple(param=None, next=lambda: self)
+        return self
 
     @staticmethod
     def build(session, source):
@@ -27,7 +27,7 @@ class ProneAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item["type"] == "prone":
             battle.event_manager.received_event({'event': 'prone', 'source': item['source']})
             item["source"].do_prone()

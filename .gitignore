@@ -4,3 +4,7 @@ samples/*.pt
 output_*/
 samples/.ipynb_checkpoints
 *.log
+flask_session
+.DS_Store
+static/.DS_Store
+webapp/flask_session/

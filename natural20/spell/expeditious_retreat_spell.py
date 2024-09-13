@@ -7,16 +7,20 @@ class ExpeditiousRetreatSpell(Spell):
         return action
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
+        if session is None:
+            session = battle.session
         if item['type'] == 'expeditious_retreat':
             item['source'].add_casted_effect({
                 'target': item['target'],
                 'effect': item['effect'],
-                'expiration': battle.session.game_time + 10 * 60
+                'expiration': session.game_time + 10 * 60
             })
+            if not item['source'].current_concentration()==item['effect']:
+                item['source'].concentration_on(item['effect'])
             item['target'].register_effect('dash_override', ExpeditiousRetreatSpell, effect=item['effect'], source=item['source'],
                                            duration=10 * 60)
-            battle.event_manager.received_event({ "event" : 'spell_buf', "spell": item['effect'], "source" : item['source'],
+            session.event_manager.received_event({ "event" : 'spell_buf', "spell": item['effect'], "source" : item['source'],
                                                   "target" : item['target']})
 
     @staticmethod

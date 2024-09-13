@@ -87,7 +87,7 @@ class DndenvController(Controller):
         available_moves = action_to_gym_action(entity, battle.map, available_actions, weapon_mappings=self.weapon_mappings, \
                                                    spell_mappings=self.spell_mappings)
         info = build_info(battle, available_moves, entity, self.weapon_mappings, self.spell_mappings, self.entity_mappings)
-  
+
         if reaction:
             info['trigger'] = reaction['trigger']
             info['entity'] = self.entity_mappings[entity.class_descriptor()]
@@ -111,6 +111,13 @@ class DndenvController(Controller):
         available_actions = self._compute_available_moves(entity, battle)
         # environment, entity = self._build_environment(battle, entity)
         return self.select_action(battle, entity, available_actions)
+
+    def select_reaction(self, entity, battle, map, valid_actions, event):
+        if len(valid_actions) == 0:
+            return None
+
+        action = self.select_action(battle, entity, valid_actions, reaction=event)
+        return action
 
     # Build a suitable environment for Reinforcement Learning
     def _build_environment(self, battle, entity):

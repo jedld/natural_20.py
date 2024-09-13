@@ -1,7 +1,7 @@
 from natural20.spell.spell import Spell
 from natural20.die_roll import DieRoll
 from natural20.utils.spell_attack_util import after_attack_roll_hook
-
+import pdb
 class MagicMissileSpell(Spell):
     def build_map(self, orig_action):
         action = orig_action.clone()
@@ -27,9 +27,15 @@ class MagicMissileSpell(Spell):
         targets = spell_action.target
 
         result = []
-        for target in targets:
-            after_attack_roll_hook(battle, target, entity, None, None)
+        if not isinstance(targets, list):
+            cast_level = self.action.at_level or 1
+            recast_list = []
+            for _ in range(3 + (cast_level - 1)):
+                recast_list.append(targets)
+            targets = recast_list
 
+        for target in targets:
+            after_attack_roll_hook(battle, target, entity, None, None, opts={'magic_missile': True})
             if target.has_spell_effect('shield'):
                 result.append({
                     'source': entity,

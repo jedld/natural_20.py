@@ -109,7 +109,7 @@ class ChillTouchSpell(AttackSpell):
             pdb.set_trace()
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'chill_touch':
             item['source'].add_casted_effect({ "target": item['target'], "effect" : item['effect'] })
             item['target'].register_effect('heal_override', ChillTouchSpell, effect=item['effect'], source=item['source'])

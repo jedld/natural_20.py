@@ -17,17 +17,19 @@ from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.interact_action import InteractAction
 from natural20.actions.ground_interact_action import GroundInteractAction
+from natural20.actions.multiattack_action import MultiattackAction
 from natural20.actions.first_aid_action import FirstAidAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.spell_action import SpellAction
 from natural20.utils.action_builder import autobuild
 from natural20.actions.shove_action import ShoveAction
+from natural20.utils.multiattack import Multiattack
 import pdb
 
 
 import copy
 
-class Npc(Entity):
+class Npc(Entity, Multiattack):
     ACTION_LIST = [
         AttackAction, DashAction, DashBonusAction, DisengageAction,
         DisengageBonusAction,
@@ -46,32 +48,32 @@ class Npc(Entity):
         else:
             with open(os.path.join("npcs", f"{type}.yml"), "r") as file:
                 self.properties = copy.deepcopy(yaml.safe_load(file))
-        
+
         self.properties.update(opt.get("overrides", {}))
-        
+
         self.ability_scores = self.properties["ability"]
         self.color = self.properties["color"]
         self.session = session
         self.npc_type = type
         self.properties["familiar"] = opt.get("familiar", False)
         self.inventory = {}
-        
+
         default_inventory = self.properties.get("default_inventory", [])
         for inventory in default_inventory:
             self.inventory[inventory["type"]] =  { "qty": inventory["qty"] }
-        
+
         for inventory in self.properties.get("inventory", []):
             self.inventory[inventory["type"]] = { "qty": inventory["qty"]}
-        
+
         self.npc_actions = self.properties["actions"]
         self.battle_defaults = self.properties.get("battle_defaults", None)
         self.opt = opt
         self.resistances = []
         self.statuses = []
-        
+
         for stat in self.properties.get("statuses", []):
             self.statuses.append(stat)
-        
+
         auto_name = ""
         if type == "goblin":
             auto_name = random.choice(["Skritz", "Grib", "Nackle", "Wrick", "Lurtz", "Snub", "Vex", "Jinx", "Znag", "Flix"])
@@ -85,6 +87,9 @@ class Npc(Entity):
         self.entity_uid = str(uuid.uuid4())
         self.setup_attributes()
     
+    def class_and_level(self):
+        return [(self.npc_type, None)]
+
     def kind(self):
         return self.properties["kind"]
     
@@ -109,21 +114,23 @@ class Npc(Entity):
     def armor_class(self):
         return self.properties["default_ac"]
     
-    def available_actions(self, session, battle, opportunity_attack=False, map=None):
+    def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True):
         if self.unconscious():
             return ["end"]
         
         actions = []
         
         if opportunity_attack:
-            actions = [s for s in self.generate_npc_attack_actions(battle, opportunity_attack=True) if s.action_type == "attack" and s.npc_action["type"] == "melee_attack"]
+            actions = [s for s in self.generate_npc_attack_actions(battle, opportunity_attack=True, auto_target=auto_target) if s.action_type == "attack" and s.npc_action["type"] == "melee_attack"]
         else:
+            actions.extend(self.generate_npc_attack_actions(battle, auto_target=auto_target))
             for action_class in self.ACTION_LIST:
                 if action_class.can(self, battle):
-                    if action_class == AttackAction:
-                        actions = actions + self.generate_npc_attack_actions(battle)
-                    elif action_class == MoveAction:
-                        actions = actions + autobuild(session, MoveAction, self, battle, map=map)
+                    if action_class == MoveAction:
+                        if auto_target:
+                            actions = actions + autobuild(session, MoveAction, self, battle, map=map)
+                        else:
+                            actions.append(MoveAction(session, self, "move"))
                     elif action_class == DodgeAction:
                         actions.append(DodgeAction(session, self, "dodge"))
                     elif action_class == DisengageAction:
@@ -148,7 +155,15 @@ class Npc(Entity):
     def prepared_spells(self):
         return self.properties.get("prepared_spells", [])
     
-    def generate_npc_attack_actions(self, battle, opportunity_attack=False):
+    def available_spells_per_level(self, battle):
+        spell_list = self.spell_list(battle)
+        spell_per_level = [[],[],[],[],[],[],[],[],[]]
+        for spell, details in spell_list.items():
+            spell_per_level[details['level']].append((spell, details))
+
+        return enumerate(spell_per_level)
+
+    def generate_npc_attack_actions(self, battle, opportunity_attack=False, auto_target=True):
         if self.familiar():
             return []
 
@@ -166,7 +181,7 @@ class Npc(Entity):
             actions.append(action)
 
         # assign possible attack targets
-        if battle:
+        if battle and auto_target:
             final_attack_list = []
             for action in actions:
                 valid_targets = battle.valid_targets_for(self, action)

@@ -163,7 +163,7 @@ class MoveAction(Action):
         return move_list
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         item_type = item['type']
         if item_type == 'state':
             for k, v in item['params'].items():

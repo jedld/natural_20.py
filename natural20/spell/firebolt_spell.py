@@ -21,7 +21,7 @@ class FireboltSpell(AttackSpell):
                 {
                     'type': 'select_target',
                     'num': 1,
-                    'range': 5,
+                    'range': self.properties['range'],
                     'target_types': ['enemies']
                 }
             ],

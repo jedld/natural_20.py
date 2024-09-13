@@ -13,7 +13,7 @@ class StandAction(Action):
         return battle and entity.prone() and entity.speed() > 0 and entity.available_movement(battle) >= StandAction.required_movement(entity)
 
     def build_map(self):
-        return SimpleNamespace(param=None, next=lambda: self)
+        return self
 
     @staticmethod
     def build(session, source):
@@ -29,7 +29,7 @@ class StandAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item["type"] == "stand":
             battle.event_manager.received_event({'event': 'stand', 'source': item['source']})
             item["source"].stand()

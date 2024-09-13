@@ -1,0 +1,60 @@
+{
+  "tile_size" : 75,
+  "height" : 17,
+  "width" : 22,
+  "title" : "The Goblin Ambush",
+  "login_background" : "goblin_ambush_login.png",
+  "background" : "goblin_ambush.png",
+  "map" : "maps/game_map",
+  "soundtracks" : [
+    {
+      "name" : "Goblin Ambush",
+      "file" : "goblin_ambush.mp3"
+    }
+  ],
+  "logins" : [
+    {
+      "name" : "gomerin",
+      "password" : "gomerin",
+      "role" : ["player"]
+    },
+    {
+      "name" : "crysania",
+      "password" : "crysania",
+      "role" : ["player"]
+    },
+    {
+      "name" : "rumblebelly",
+      "password" : "rumblebelly",
+      "role" : ["player"]
+    },
+    {
+      "name" : "shorvalu",
+      "password" : "shorvalu",
+      "role" : ["player"]
+    },
+    {
+      "name" : "dm",
+      "password" : "admin",
+      "role" : ["dm"]
+    }
+  ],
+  "default_controllers": [
+    {
+      "entity_uid" : "gomerin",
+      "controllers" : ["gomerin"]
+    },
+    {
+      "entity_uid": "crysania",
+      "controllers": ["crysania"]
+    },
+    {
+      "entity_uid": "shorvalu",
+      "controllers": ["shorvalu"]
+    },
+    {
+      "entity_uid": "rumblebelly",
+      "controllers": ["rumblebelly"]
+    }
+  ]
+}

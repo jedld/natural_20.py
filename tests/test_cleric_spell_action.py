@@ -73,7 +73,7 @@ class TestClericSpellAction(unittest.TestCase):
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
         self.assertEqual([s['type'] for s in action.result], ['spell_heal'])
         self.battle.commit(action)
-        self.assertEqual(self.entity.hp(), 6)
+        self.assertEqual(self.entity.hp(), 8)
 
     def test_bless(self):
         random.seed(7003)
@@ -84,6 +84,8 @@ class TestClericSpellAction(unittest.TestCase):
         bless_action.resolve(self.session, self.battle_map, { "battle": self.battle})
         self.assertEqual([s['type'] for s in bless_action.result], ['bless'])
         self.battle.commit(bless_action)
+
+        self.assertEqual(str(self.entity.current_concentration()), "bless")
         self.assertTrue(self.entity2.has_effect('bless'))
         print(MapRenderer(self.battle_map).render())
 

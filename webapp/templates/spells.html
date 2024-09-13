@@ -1,0 +1,19 @@
+<table class="spells-container" data-coords-id="{{ entity.entity_uid }}" >
+{% for level, spells in spells_by_level.items() %}
+    <tr>
+        {% if level==0 %}
+            <td>Cantrips</td>
+        {% else %}
+            <td>Level {{level}}</td>
+        {% endif %}
+        {% for spell in spells %}
+            {% set spell_opts = { "spell" : spell, "at_level" : level } %}
+            <td data-spell-name="{{ spell }}">
+                <button class="action-button" data-action-type="SpellAction" data-id="{{ entity.entity_uid }}" data-coords-x="{{ entity_x }}" data-coords-y="{{ entity_y }}" data-action-opts='{{ spell_opts | tojson}}' title="{{ spell }}">
+                    <img src="{{ url_for('static', filename='spells/spell_' + spell + '.png') }}" alt="{{ spell }}" class="spell-icon">
+                </button>
+            </td>
+        {% endfor %}
+    </tr>
+{% endfor %}
+</table>

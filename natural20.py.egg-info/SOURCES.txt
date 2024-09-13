@@ -11,6 +11,7 @@ natural20/die_roll.py
 natural20/entity.py
 natural20/event_manager.py
 natural20/generic_controller.py
+natural20/i18n.py
 natural20/map.py
 natural20/map_renderer.py
 natural20/npc.py
@@ -46,6 +47,7 @@ natural20/actions/spell_action.py
 natural20/actions/stand_action.py
 natural20/actions/use_item_action.py
 natural20/entity_class/__init__.py
+natural20/entity_class/cleric.py
 natural20/entity_class/fighter.py
 natural20/entity_class/rogue.py
 natural20/entity_class/wizard.py
@@ -70,11 +72,14 @@ tests/__init__.py
 tests/test_attack_action.py
 tests/test_autobuild.py
 tests/test_battle.py
+tests/test_cleric_spell_action.py
 tests/test_dieroll.py
 tests/test_gym.py
+tests/test_json_renderer.py
 tests/test_map.py
 tests/test_maprenderer.py
 tests/test_move_action.py
 tests/test_npc.py
+tests/test_path_compute.py
 tests/test_player_character.py
 tests/test_spell_action.py

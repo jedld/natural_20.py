@@ -27,19 +27,21 @@ class MageArmorSpell(Spell):
             action.errors.append('wearing_armor')
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
+        if battle and session is None:
+            session = battle.session
         if item['type'] == 'mage_armor':
             item['source'].add_casted_effect({
                 'target': item['target'],
                 'effect': item['effect'],
-                'expiration': battle.session.game_time + 8 * 60 * 60
+                'expiration': session.game_time + 8 * 60 * 60
             })
             item['target'].register_effect('ac_override', MageArmorSpell, effect=item['effect'], source=item['source'],
                                            duration=8 * 60 * 60)
             item['target'].register_event_hook('equip', MageArmorSpell, effect=item['effect'],
                                                source=item['source'],
                                                duration=8 * 60 * 60)
-            battle.event_manager.received_event({ "event" : 'spell_buf',
+            session.event_manager.received_event({ "event" : 'spell_buf',
                                                   "spell" : item['effect'],
                                                   "source": item['source'],
                                                   "target" : item['target'] })

@@ -93,7 +93,7 @@ class ShockingGraspSpell(AttackSpell):
             ]
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'shocking_grasp':
             battle.entity_state_for(item['target']).update(reaction=0)
 

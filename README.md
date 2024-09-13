@@ -14,10 +14,9 @@ Features
 ========
 
 - Simulation of DnD Maps, Line of Sight Computations, Cover
-- Character classes (Fighter, Rogue & Mage)
+- Character classes (Fighter, Rogue, Cleric & Mage)
 - Weapons and Spells systems
 - Text-based interface with ability to be used as a backend for web based interfaces.
-
 
 
 Installation

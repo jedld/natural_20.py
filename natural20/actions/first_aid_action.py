@@ -85,7 +85,7 @@ class FirstAidAction(Action):
             }]
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'first_aid':
             if item['success']:
                 item['target'].stable()

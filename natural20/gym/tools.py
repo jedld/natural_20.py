@@ -32,7 +32,9 @@ def build_info(battle, available_moves, current_player, weapon_mappings, spell_m
                 "max_health" : current_player.max_hp(),
                 "weapon_mappings": weapon_mappings,
                 "spell_mappings": spell_mappings,
-                "entity_mappings": entity_mappings
+                "entity_mappings": entity_mappings,
+                "players" : battle.allies_of(current_player) + [current_player],
+                "enemies" : battle.opponents_of(current_player)
             }
 
 def build_observation(battle, map, entity, entity_type_mappings, weapon_type_mappings, view_port_size=(12, 12), is_reaction=False):
@@ -51,6 +53,11 @@ def build_observation(battle, map, entity, entity_type_mappings, weapon_type_map
     if len(mapped_equipments) < 5:
         mapped_equipments += [0] * (5 - len(mapped_equipments))
 
+    # compute current available spell slots
+    spell_slots = np.zeros((9), dtype=np.int64)
+    for spell_level in range(1, 10):
+        spell_slots[spell_level - 1] = entity.spell_slots_count(spell_level)
+
     obs = {
         "map": render_terrain(battle, map, entity_type_mappings, view_port_size),
         "turn_info": np.array([entity.total_actions(battle), entity.total_bonus_actions(battle), entity.total_reactions(battle)]),
@@ -65,6 +72,7 @@ def build_observation(battle, map, entity, entity_type_mappings, weapon_type_map
         "ability_info": ability_info(entity),
         "player_type": np.array([pc_entity_type]),
         "enemy_type": np.array([enemy_type]),
+        "spell_slots" : spell_slots,
         "movement": np.array([battle.current_turn().available_movement(battle)]),
         "is_reaction" : np.array([1 if is_reaction else 0])
     }

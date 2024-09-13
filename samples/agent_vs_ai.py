@@ -37,9 +37,12 @@ env = make("dndenv-v0", root_path="samples/map_with_obstacles", render_mode="ans
             custom_session=session,
             profiles=lambda: random.choice([('high_elf_mage.yml','Joe'), \
                                             ('high_elf_fighter.yml','Joe'), \
-                                            ('halfling_rogue.yml', 'Joe')]),
+                                            ('halfling_rogue.yml', 'Joe'),
+                                            ('dwarf_cleric.yml', 'Joe')]),
             enemies=lambda: random.choice([('high_elf_fighter.yml', 'Mike'),\
-                                           ('halfling_rogue.yml','Mike')]),
+                                           ('halfling_rogue.yml','Mike'),\
+                                           ('dwarf_cleric.yml', 'Mike'),\
+                                           ('high_elf_mage.yml', 'Mike')]),
             map_file=lambda: random.choice(['maps/simple_map',\
                                             'maps/complex_map',\
                                                 'maps/game_map',\
