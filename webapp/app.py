@@ -586,6 +586,7 @@ def next_turn():
         socketio.emit('message', { 'type': 'initiative','message': {'index': battle.current_turn_index}})
         socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 
                                                                'animation_log' : battle.get_animation_logs() }})
+        socketio.emit('message', { 'type': 'turn', 'message': {}})
         battle.clear_animation_logs()
         # game_session.save_game(battle, map)
         # battle.clear_animation_logs()
@@ -646,6 +647,44 @@ def action_type_to_class(action_type):
         return ShoveAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
+
+@app.route('/target', methods=['GET'])
+def get_target():
+    global current_game
+    battle_map = current_game.get_current_battle_map()
+    battle = current_game.get_current_battle()
+
+    entity_id = request.args.get('id')
+    x = int(request.args.get('x'))
+    y = int(request.args.get('y'))
+    action_info = request.args.get('action_info')
+# Extract 'opts' parameters, which are nested in the query string
+    opts = {
+        'action_type': request.args.get('opts[action_type]'),
+        'as_reaction': request.args.get('opts[as_reaction]'),
+        'npc_action': request.args.get('opts[npc_action]'),
+        'second_hand': request.args.get('opts[second_hand]'),
+        'target': request.args.get('opts[target]'),
+        'thrown': request.args.get('opts[thrown]'),
+        'using': request.args.get('opts[using]')
+    }
+
+    entity = battle_map.entity_by_uid(entity_id)
+    target = battle_map.entity_at(x, y)
+
+    if entity and target and action_info == 'AttackAction':
+        action = AttackAction(game_session, entity, 'attack')
+        action.using = opts.get('using')
+        action.npc_action = opts.get('npc_action', None)
+        action.thrown = opts.get('thrown', False)
+        action.target = target
+
+        adv_mod, adv_info, attack_mod = action.compute_advantage_info(battle)
+        return jsonify(adv_mod=adv_mod, adv_info=adv_info, attack_mod=attack_mod)
+    else:
+        success_rate = None
+
+    return jsonify(success_rate=success_rate)
 
 @app.route('/spells', methods=['GET'])
 def get_spell():

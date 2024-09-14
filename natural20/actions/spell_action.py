@@ -223,6 +223,7 @@ class SpellAction(Action):
                 'target': item['target'],
                 'thrown': item.get('thrown', False),
                 'spell_save': item.get('spell_save', None),
+                'dc': item.get('dc', None),
                 'event': 'miss'
             })
 

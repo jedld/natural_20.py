@@ -170,14 +170,19 @@ class AttackAction(Action):
         return self.advantage_mod < 0
 
     def compute_hit_probability(self, battle, opts = None):
+        advantage_mod, adv_info, attack_mod = self.compute_advantage_info(battle, opts)
+        target_ac, _cover_ac = effective_ac(battle, self.source, self.target)
+
+        return DieRoll.roll(f"1d20+{attack_mod}", advantage=advantage_mod > 0, disadvantage=advantage_mod < 0).prob(target_ac)
+
+    def compute_advantage_info(self, battle, opts=None):
         if opts is None:
             opts = {}
 
         weapon, _, attack_mod, _, _ = self.get_weapon_info(opts)
         advantage_mod, adv_info = target_advantage_condition(battle, self.source, self.target, weapon, thrown=self.thrown)
-        target_ac, _cover_ac = effective_ac(battle, self.source, self.target)
+        return advantage_mod, adv_info, attack_mod
 
-        return DieRoll.roll(f"1d20+{attack_mod}", advantage=advantage_mod > 0, disadvantage=advantage_mod < 0).prob(target_ac)
 
     def avg_damage(self, battle, opts=None):
         if opts is None:

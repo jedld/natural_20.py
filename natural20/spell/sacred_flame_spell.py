@@ -50,8 +50,8 @@ class SacredFlameSpell(Spell):
         target = spell_action.target
 
         result = target.save_throw('dexterity', battle)
-
-        if result < entity.spell_save_dc("wisdom"):
+        spell_dc = entity.spell_save_dc("wisdom")
+        if result < spell_dc:
             save_failed = True
         else:
             save_failed = False
@@ -70,6 +70,7 @@ class SacredFlameSpell(Spell):
                     'adv_info': None,
                     'damage': damage_roll,
                     'spell_save': result,
+                    'dc': spell_dc,
                     'cover_ac': None,
                     'type': 'spell_damage',
                     'spell': self.properties
@@ -86,6 +87,7 @@ class SacredFlameSpell(Spell):
                     'advantage_mod': None,
                     'adv_info': None,
                     'spell_save': result,
+                    'dc': spell_dc,
                     'cover_ac': None
                 }
             ]

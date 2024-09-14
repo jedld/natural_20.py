@@ -456,6 +456,9 @@ $(document).ready(function () {
   var source = null;
   var battle_setup = false;
   var battle_entity_list = [];
+  var globalActionInfo = null;
+  var globalOpts = null;
+  var globalSourceEntity = null;
 
   var canvas = document.createElement('canvas');
   var tile_size = $('.tiles-container').data('tile-size');
@@ -488,7 +491,8 @@ $(document).ready(function () {
     var coordsx = $(this).data('coords-x');
     var coordsy = $(this).data('coords-y');
     var tooltip = $(this).data('tooltip');
-    $('#coords-box').html('<p>X: ' + coordsx + '</p><p>Y: ' + coordsy + '</p>' + tooltip);
+
+
     if (targetMode) {
       $('.highlighted').removeClass('highlighted');
       var currentDistance = Math.floor(Utils.euclideanDistance(source.x, source.y, coordsx, coordsy)) * 5;
@@ -536,7 +540,52 @@ $(document).ready(function () {
       ctx.fillText(currentDistance + "ft", centerX, centerY + tileRect.height / 2);
 
       ctx.stroke();
-    } else
+
+      // If entity is present in target tile, query backend for additional
+      // information about the entity and attack success rate if applicable
+      var entity_uid = tile.data('coords-id');
+      if (entity_uid) {
+        $('.tile').css('z-index', 0);
+        $(this).css('z-index', 999);
+        // use x, y coords instead of entity_uid
+        var x = tile.data('coords-x');
+        var y = tile.data('coords-y');
+
+        var data_payload = {
+          "id": globalSourceEntity,
+          "x" : x,
+          "y" : y,
+          "action_info" : globalActionInfo,
+          "opts" : globalOpts
+        }
+
+        $.ajax({
+          url: '/target',
+          type: 'GET',
+          data: data_payload,
+          success: function (data) {
+            console.log('Target request successful:', data);
+            var adv_info = data.adv_info;
+            var adv_mod = data.adv_mod;
+            var attack_mod = data.attack_mod;
+            $.each(adv_info[0], function(index, value) {
+              tooltip += '<p><span style="color: green;">+' + value + '</span></p>';
+            })
+            $.each(adv_info[1], function(index, value) {
+              tooltip += '<p><span style="color: red;">-' + value + '</span></p>';
+            })
+            $('#coords-box').html('<p>X: ' + coordsx + '</p><p>Y: ' + coordsy + '</p>' + tooltip);
+          },
+          error: function (jqXHR, textStatus, errorThrown) {
+            console.error('Error requesting target:', textStatus, errorThrown);
+          }
+        });
+      } else {
+        $('#coords-box').html('<p>X: ' + coordsx + '</p><p>Y: ' + coordsy + '</p>' + tooltip);
+      }
+
+    } else {
+      $('#coords-box').html('<p>X: ' + coordsx + '</p><p>Y: ' + coordsy + '</p>' + tooltip);
       if (moveMode &&
         (source.coordsx != coordsx || source.coordsy != coordsy)) {
         $.ajax({
@@ -607,6 +656,9 @@ $(document).ready(function () {
           }
         });
       }
+    }
+
+    
   });
 
 
@@ -618,6 +670,8 @@ $(document).ready(function () {
       }
       if (targetMode) {
         targetMode = false;
+        globalActionInfo = null;
+        globalOpts = null;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
       if (multiTargetMode) {
@@ -627,6 +681,19 @@ $(document).ready(function () {
         $('.popover-menu-2').hide();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
+    }
+  });
+
+  $('#main-map-area').on('contextmenu', function (e) {
+    if (targetMode || multiTargetMode || moveMode) {
+      e.preventDefault();
+      // Add your code here to handle right-click event
+      targetMode = false;
+      multiTargetMode = false;
+      moveMode = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      $('.add-to-target').hide();
+      $('.popover-menu-2').hide();
     }
   });
 
@@ -907,7 +974,10 @@ $(document).ready(function () {
               img.attr('src', '/spells/spell_' + data.spell + '.png')
               targetMode = false
             } else {
-              targetMode = true
+              targetMode = true;
+              globalActionInfo = action;
+              globalOpts = opts;
+              globalSourceEntity = entity_uid;
             }
 
             targetModeCallback = function (target) {

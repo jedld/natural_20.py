@@ -109,7 +109,19 @@ class DieRolls(Rollable):
         return True
 
     def __str__(self):
-        return ' + '.join(str(roll) for roll in self.rolls)
+        output_string = []
+        for roll in self.rolls:
+            if len(output_string) > 0:
+                if roll.result() >= 0:
+                    output_string.append(' + ')
+                    output_string.append(str(roll))
+                else:
+                    output_string.append(' - ')
+                    output_string.append(str(roll).replace('-', ''))
+            else:
+                output_string.append(str(roll))
+            
+        return ''.join(output_string)
 
 class DieRoll(Rollable):
     def __init__(self, rolls, modifier, die_sides=20, advantage=False, disadvantage=False, description=None, roller=None):
@@ -220,6 +232,9 @@ class DieRoll(Rollable):
                 rolls.append(self.color_roll(r))
 
         if self.modifier != 0:
+            if self.modifier < 0:
+                return f"d{self.die_sides}({' + '.join(rolls)}) - {abs(self.modifier)}"
+
             return f"d{self.die_sides}({' + '.join(rolls)}) + {self.modifier}"
         else:
             return f"d{self.die_sides}({' + '.join(rolls)})"

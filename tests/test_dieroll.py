@@ -66,6 +66,11 @@ class TestDieRoll(unittest.TestCase):
     self.assertEqual(roll.__str__(), 'd20(14* | 4)')
     self.assertEqual(roll.result(), 14)
 
+  def test_roll_with_negative_modifier(self):
+    roll = DieRoll.roll('1d20-5')
+    self.assertEqual(roll.__str__(), 'd20(14) - 5')
+    self.assertEqual(roll.result(), 9)
+
 
 if __name__ == '__main__':
   unittest.main()

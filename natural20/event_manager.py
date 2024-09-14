@@ -87,7 +87,7 @@ class EventManager:
 
         def miss(event):
             if event.get('spell_save'):
-                self.output_logger.log(f"{self.show_name(event)} tried to attack {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']}{'(thrown)' if event['thrown'] else ''} but succeeded on save with {event['spell_save']}")
+                self.output_logger.log(f"{self.show_name(event)} tried to attack {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']}{'(thrown)' if event['thrown'] else ''} but succeeded on save with {event['spell_save']} > DC: {event['dc']}.")
             else:
                 self.output_logger.log(f"{self.show_name(event)} tried to attack {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']}{'(thrown)' if event['thrown'] else ''} but missed with {event['attack_roll']}= {event['attack_roll'].result()}.")
 
@@ -110,6 +110,12 @@ class EventManager:
             else:
                 self.output_logger.log(f"{self.show_name(event)} shoves {self.show_target_name(event)} and fails. {rolls_description}")
 
+        def spell_damage(event):
+            if event.get('spell_save', None):
+                self.output_logger.log(f"{self.show_name(event)} cast {event['spell']['name']} on {self.show_target_name(event)} and hits with {event['spell_save']}={event['spell_save'].result()} < DC: {event['dc']} for {event['damage']} damage.")
+            else:
+                self.output_logger.log(f"{self.show_name(event)} cast {event['spell']['name']} on {self.show_target_name(event)} and hit with {event['attack_roll']}{to_advantage_str(event)}= {event['attack_roll'].result()} for {event['damage']} damage.")
+
         event_handlers = {
             'multiattack' : lambda event: self.output_logger.log(f"{self.show_name(event)} uses multiattack."),
             'action_surge': lambda event: self.output_logger.log(f"{self.show_name(event)} uses action surge."),
@@ -128,7 +134,8 @@ class EventManager:
             'shove': shove,
             'attacked': attack_roll,
             'damage': lambda event: self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} = {event['value']} damage."),
-            'spell_damage': lambda event: self.output_logger.log(f"{self.show_name(event)} cast {event['spell']['name']} on {self.show_target_name(event)} and hit with {event['attack_roll']}{to_advantage_str(event)}= {event['attack_roll'].result()} for {event['damage']} damage."),
+            'spell_damage': spell_damage,
+            'spell_miss': miss,
             'miss': miss,
             'move': lambda event: self.output_logger.log(f"{self.show_name(event)} moved to {event['position']} {event['move_cost'] * 5} feet"),
             'initiative': lambda event: self.output_logger.log(f"{self.show_name(event)} rolled initiative {event['roll']} value {event['value']}"),

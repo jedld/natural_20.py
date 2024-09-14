@@ -10,6 +10,11 @@ def to_advantage_str(item):
     return advantage_str
 
 def damage_event(item, battle):
+    if battle:
+        session = battle.session
+    else:
+        session = item['source'].session
+
     target = item['target']
     dmg = item['damage'].result() if isinstance(item['damage'], Rollable) else item['damage']
     dmg += item['sneak_attack'].result() if item.get('sneak_attack') is not None else 0
@@ -22,8 +27,8 @@ def damage_event(item, battle):
         total_damage = dmg * 2
     else:
         total_damage = dmg
-    
-    target.session.event_manager.received_event({
+
+    session.event_manager.received_event({
         'source': item['source'],
         'attack_roll': item.get('attack_roll', None),
         'target': item['target'],
@@ -36,6 +41,8 @@ def damage_event(item, battle):
         'sneak_attack': item.get('sneak_attack',False),
         'adv_info': item.get('adv_info', None),
         'thrown': item.get('thrown', False),
+        'spell_save': item.get('spell_save', None),
+        'dc': item.get('dc', None),
         'resistant': target.resistant_to(item['damage_type']),
         'vulnerable': target.vulnerable_to(item['damage_type']),
         'value': dmg,
