@@ -17,6 +17,9 @@ def compute_max_weapon_range(session, action, range=None):
                 return weapon.get('thrown', {}).get('range_max') or weapon.get('thrown', {}).get('range') or weapon.get('range')
             else:
                 return weapon.get('range_max') or weapon.get('range')
+    elif action.action_type == 'spell':
+        spell = action.spell_action.properties
+        return spell.get('range')
 
     return range
 

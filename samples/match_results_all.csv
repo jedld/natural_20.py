@@ -1,4 +1,4 @@
-,,Wins,Losses,Ties,AVG Rounds
+player,adversary,Wins,Losses,Ties,AVG Rounds
 rl_gpt4_trained,llm_mistral,24.0,5.0,1.0,2.966666666666667
 rl_mistral_trained,ai,24.0,6.0,0.0,1.2
 rl_llama3_trained,random,23.0,5.0,2.0,6.533333333333333

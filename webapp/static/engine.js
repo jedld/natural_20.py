@@ -288,6 +288,27 @@ $(document).ready(function () {
         track_id = data.message.track_id;
         playSound(url, track_id);
         break;
+      case 'prompt':
+        var prompt_message = data.message;
+        alert(prompt_message);
+        var data_json = {
+          response: "",
+          callback: data.callback
+        };
+
+        $.ajax({
+          url: '/response',
+          type: 'POST',
+          contentType: 'application/json',
+          data: JSON.stringify(data_json),
+          success: function (data) {
+            console.log('Response sent successfully:', data);
+          },
+          error: function (jqXHR, textStatus, errorThrown) {
+            console.error('Error sending response:', textStatus, errorThrown);
+          }
+        });
+        break;
       case 'turn':
         refreshTurn();
         break;
@@ -486,70 +507,67 @@ $(document).ready(function () {
       ctx.setTransform(newScale, 0, 0, newScale, 0, 0);
   });
 
+  function drawTargetLine(ctx, source, coordsx, coordsy, valid_target=true) {
+    var currentDistance = Math.floor(Utils.euclideanDistance(source.x, source.y, coordsx, coordsy)) * 5;
+    var scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    var scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath();
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 5;
+
+    var x = coordsx;
+    var y = coordsy;
+    var sourceTile = $('.tile[data-coords-x="' + source.x + '"][data-coords-y="' + source.y + '"]');
+    var tile = $('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]');
+    var sourceTileRect = sourceTile[0].getBoundingClientRect();
+    var tileRect = tile[0].getBoundingClientRect();
+
+    var srcCenterX = sourceTileRect.left + sourceTileRect.width / 2 + scrollLeft;
+    var srcCenterY = sourceTileRect.top + sourceTileRect.height / 2 + scrollTop;
+
+    var centerX = tileRect.left + tileRect.width / 2 + scrollLeft;
+    var centerY = tileRect.top + tileRect.height / 2 + scrollTop;
+    ctx.moveTo(srcCenterX, srcCenterY);
+    ctx.lineTo(centerX, centerY);
+
+    var arrowSize = 10;
+    var angle = Math.atan2(centerY - srcCenterY, centerX - srcCenterX);
+    var within_range = Math.floor(currentDistance) <= targetModeMaxRange;
+
+    if (within_range && valid_target) {
+      ctx.moveTo(centerX - arrowSize * Math.cos(angle - Math.PI / 6), centerY - arrowSize * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(centerX, centerY);
+      ctx.lineTo(centerX - arrowSize * Math.cos(angle + Math.PI / 6), centerY - arrowSize * Math.sin(angle + Math.PI / 6));
+    } else {
+      ctx.moveTo(centerX - arrowSize, centerY - arrowSize);
+      ctx.lineTo(centerX + arrowSize, centerY + arrowSize);
+      ctx.moveTo(centerX + arrowSize, centerY - arrowSize);
+      ctx.lineTo(centerX - arrowSize, centerY + arrowSize);
+    }
+
+    ctx.font = "20px Arial";
+    ctx.fillStyle = "red";
+
+    ctx.fillText(currentDistance + "ft", centerX, centerY + tileRect.height / 2);
+
+    ctx.stroke();
+
+  }
 
   $('.tiles-container').on('mouseover', '.tile', function () {
     var coordsx = $(this).data('coords-x');
     var coordsy = $(this).data('coords-y');
     var tooltip = $(this).data('tooltip');
-
+    var x = coordsx;
+    var y = coordsy;
+    var tile = $('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]');
 
     if (targetMode) {
       $('.highlighted').removeClass('highlighted');
-      var currentDistance = Math.floor(Utils.euclideanDistance(source.x, source.y, coordsx, coordsy)) * 5;
-      var scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-      var scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.beginPath();
-      ctx.strokeStyle = 'red';
-      ctx.lineWidth = 5;
-
-      var x = coordsx;
-      var y = coordsy;
-      var sourceTile = $('.tile[data-coords-x="' + source.x + '"][data-coords-y="' + source.y + '"]');
-      var tile = $('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]');
-      var sourceTileRect = sourceTile[0].getBoundingClientRect();
-      var tileRect = tile[0].getBoundingClientRect();
-
-      var srcCenterX = sourceTileRect.left + sourceTileRect.width / 2 + scrollLeft;
-      var srcCenterY = sourceTileRect.top + sourceTileRect.height / 2 + scrollTop;
-
-      var centerX = tileRect.left + tileRect.width / 2 + scrollLeft;
-      var centerY = tileRect.top + tileRect.height / 2 + scrollTop;
-      ctx.moveTo(srcCenterX, srcCenterY);
-      ctx.lineTo(centerX, centerY);
-
-      var arrowSize = 10;
-      var angle = Math.atan2(centerY - srcCenterY, centerX - srcCenterX);
-      var within_range = Math.floor(currentDistance) <= targetModeMaxRange;
-
-      if (within_range) {
-        ctx.moveTo(centerX - arrowSize * Math.cos(angle - Math.PI / 6), centerY - arrowSize * Math.sin(angle - Math.PI / 6));
-        ctx.lineTo(centerX, centerY);
-        ctx.lineTo(centerX - arrowSize * Math.cos(angle + Math.PI / 6), centerY - arrowSize * Math.sin(angle + Math.PI / 6));
-      } else {
-        ctx.moveTo(centerX - arrowSize, centerY - arrowSize);
-        ctx.lineTo(centerX + arrowSize, centerY + arrowSize);
-        ctx.moveTo(centerX + arrowSize, centerY - arrowSize);
-        ctx.lineTo(centerX - arrowSize, centerY + arrowSize);
-      }
-
-      ctx.font = "20px Arial";
-      ctx.fillStyle = "red";
-
-      ctx.fillText(currentDistance + "ft", centerX, centerY + tileRect.height / 2);
-
-      ctx.stroke();
-
-      // If entity is present in target tile, query backend for additional
-      // information about the entity and attack success rate if applicable
-      var entity_uid = tile.data('coords-id');
-      if (entity_uid) {
         $('.tile').css('z-index', 0);
         $(this).css('z-index', 999);
-        // use x, y coords instead of entity_uid
-        var x = tile.data('coords-x');
-        var y = tile.data('coords-y');
 
         var data_payload = {
           "id": globalSourceEntity,
@@ -568,6 +586,10 @@ $(document).ready(function () {
             var adv_info = data.adv_info;
             var adv_mod = data.adv_mod;
             var attack_mod = data.attack_mod;
+            var valid_target = data.valid_target;
+
+            drawTargetLine(ctx, source, coordsx, coordsy, valid_target=valid_target);
+
             $.each(adv_info[0], function(index, value) {
               tooltip += '<p><span style="color: green;">+' + value + '</span></p>';
             })
@@ -579,10 +601,8 @@ $(document).ready(function () {
           error: function (jqXHR, textStatus, errorThrown) {
             console.error('Error requesting target:', textStatus, errorThrown);
           }
-        });
-      } else {
-        $('#coords-box').html('<p>X: ' + coordsx + '</p><p>Y: ' + coordsy + '</p>' + tooltip);
-      }
+       });
+
 
     } else {
       $('#coords-box').html('<p>X: ' + coordsx + '</p><p>Y: ' + coordsy + '</p>' + tooltip);

@@ -77,6 +77,12 @@ class SpellAction(Action):
         if not battle:
             return True
 
+        # check if the entity has the required resources to cast the spell
+        if entity.casted_leveled_spells(battle) > 0 \
+            and resource in ["action", "bonus_action"] \
+            and at_level > 0:
+            return False
+
         if resource == "action" and entity.total_actions(battle) == 0:
             return False
 
@@ -181,7 +187,14 @@ class SpellAction(Action):
         battle = opts.get("battle", None)
         self.result = self.spell_action.resolve(self.source, battle, self)
         self.spell_action.consume(battle)
+
         return self
+
+    def compute_advantage_info(self, battle, opts=None):
+        if self.spell_action is None:
+            return None
+
+        return self.spell_action.compute_advantage_info(battle, opts)
 
     def compute_hit_probability(self, battle, opts = None):
         if self.spell_action is None:

@@ -39,6 +39,7 @@ import pdb
 import i18n
 import yaml
 import time
+import uuid
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 app.config['SECRET_KEY'] = 'fe9707b4704da2a96d0fd3cbbb465756e124b8c391c72a27ff32a062110de589'
@@ -68,6 +69,7 @@ SOUNDTRACKS = index_data["soundtracks"]
 LOGINS = index_data["logins"]
 CONTROLLERS = index_data["default_controllers"]
 EXTENSIONS = []
+first_connect = False
 
 if 'extensions' in index_data:
     for extension in index_data['extensions']:
@@ -120,6 +122,7 @@ class GameManagement:
         self.battle_map = Map(game_session, BATTLEMAP)
         self.battle = None
         self.trigger_handlers = {}
+        self.callbacks = {}
 
     def reset(self):
         self.battle_map = Map(self.game_session, self.map_location)
@@ -132,10 +135,10 @@ class GameManagement:
     def set_current_battle(self, battle):
         self.battle = battle
 
-    def get_current_battle(self):
+    def get_current_battle(self) -> Battle:
         return self.battle
 
-    def get_current_battle_map(self):
+    def get_current_battle_map(self) -> Map:
         return self.battle_map
 
     def register_event_handler(self, event, handler):
@@ -157,6 +160,25 @@ class GameManagement:
 
         return any(results)
 
+    def prompt(self, message, callback=None):
+        callback_id = uuid.uuid4().hex
+        self.callbacks[callback_id] = callback
+        socketio.emit('message', {'type': 'prompt', 'message': message, 'callback': callback_id})
+
+    def push_animation(self):
+        socketio.emit('message', {'type': 'move', 'message': {'animation_log': self.battle.get_animation_logs()}})
+        self.battle.clear_animation_logs()
+
+    def execute_game_loop(self):
+        output_logger.clear_logs()
+        output_logger.log("Battle started.")
+        game_loop()
+        socketio.emit('message',{'type': 'initiative', 'message': {}})
+        socketio.emit('message', { 'type': 'move', 'message': {'animation_log' : self.battle.get_animation_logs() }
+        })
+        self.get_current_battle().clear_animation_logs()
+        socketio.emit('message',{ 'type': 'turn', 'message': {}})
+
     def refresh_client_map(self):
         width, height = self.battle_map.size
         tiles_dimension_width = width * TILE_PX
@@ -167,6 +189,8 @@ class GameManagement:
                                   'width': tiles_dimension_width,
                                   'height': tiles_dimension_height,
                                   'message': map_image_url})
+        socketio.emit('message', {'type': 'initiative', 'message': {}})
+        socketio.emit('message', {'type': 'turn', 'message': {}})
 
 
 current_game = GameManagement(game_session=game_session, map_location=BATTLEMAP)
@@ -220,15 +244,9 @@ def controller_of(entity_uid, username):
     if username == 'dm':
         return True
 
-    battle = current_game.get_current_battle()
-    battle_map = current_game.get_current_battle_map()
-    entity = battle_map.entity_by_uid(entity_uid)
-
-    controller = battle.controller_for(entity)
-    if controller:
-        return controller.user == username
-    else:
-        return False
+    for info in CONTROLLERS:
+        if info['entity_uid'] == entity_uid and username in info['controllers']:
+            return True
 
 app.add_template_global(controller_of, name='controller_of')
 
@@ -289,6 +307,18 @@ def describe_terrain(tile):
     return "".join(f"<p>{d}</p>" for d in description)
 
 app.add_template_global(describe_terrain, name='describe_terrain')
+
+def validate_targets(action, entity, target, current_map, battle=None):
+    if battle:
+        valid_targets = battle.valid_targets_for(entity, action)
+        if isinstance(target, list):
+            for t in target:
+                if t not in valid_targets:
+                    raise ValueError(f"Invalid target {target}")
+        else:
+            if target not in valid_targets:
+                raise ValueError(f"Invalid target {target}")
+
 
 def process_action_hash(action):
     return action.to_h()
@@ -404,6 +434,15 @@ def index():
                            soundtrack=current_soundtrack, title=TITLE, username=session['username'], role=user_role())
 
 
+@app.route('/response', methods=['POST'])
+def response():
+    global current_game
+    callback_id = request.json['callback']
+    callback = current_game.callbacks.pop(callback_id, None)
+    if callback:
+        callback(request.json)
+    return jsonify(status='ok')
+
 @app.route('/path', methods=['GET'])
 def compute_path():
     global current_game
@@ -446,7 +485,7 @@ def require_login():
 
 @socketio.on('register')
 def handle_connect(data):
-    global current_game
+    global current_game, first_connect
     username = data.get('username')
     ws = request.sid
     web_controller_for_user = controllers.get(username, WebController(game_session, username))
@@ -461,7 +500,13 @@ def handle_connect(data):
             if username in users:
                 entity = battle.map.entity_by_uid(entity_uid)
                 if entity:
-                    battle.update_controllers(entity, web_controller_for_user)
+                    web_controller_for_user.add_user(username)
+                    battle.set_controller_for(entity, web_controller_for_user)
+
+    if not first_connect:
+        first_connect = True
+        current_game.trigger_event('on_session_ready')
+
     logger.info(f"open connection {ws} for {username}")
     emit('info', {'type': 'info', 'message': ''})
 
@@ -479,12 +524,12 @@ def handle_message(data):
                 emit('move', {'type': 'move', 'message': {'from': data['message']['from'], 'to': data['message']['to']}})
         else:
             emit('error', {'type': 'error', 'message': 'Unknown command!'})
+    else:
+        emit('error', {'type': 'error', 'message': 'Unknown command!'})
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    ws = request.sid
-    logger.info(f"close connection {ws}")
-    sockets.remove(ws)
+    pass
 
 @app.route('/start', methods=['POST'])
 def start_battle():
@@ -535,14 +580,7 @@ def start_battle_with_initiative():
         battle.start()
     else:
         print("skipping default battle start")
-    output_logger.clear_logs()
-    output_logger.log("Battle started.")
-    game_loop()
-    socketio.emit('message',{'type': 'initiative', 'message': {}})
-    socketio.emit('message', { 'type': 'move', 'message': {'animation_log' : battle.get_animation_logs() }
-    })
-    battle.clear_animation_logs()
-    socketio.emit('message',{ 'type': 'turn', 'message': {}})
+    current_game.execute_game_loop()
     return jsonify(status='ok')
 
 
@@ -666,7 +704,9 @@ def get_target():
         'second_hand': request.args.get('opts[second_hand]'),
         'target': request.args.get('opts[target]'),
         'thrown': request.args.get('opts[thrown]'),
-        'using': request.args.get('opts[using]')
+        'using': request.args.get('opts[using]'),
+        'spell': request.args.get('opts[spell]'),
+        'at_level': request.args.get('opts[at_level]')
     }
 
     entity = battle_map.entity_by_uid(entity_id)
@@ -680,7 +720,25 @@ def get_target():
         action.target = target
 
         adv_mod, adv_info, attack_mod = action.compute_advantage_info(battle)
-        return jsonify(adv_mod=adv_mod, adv_info=adv_info, attack_mod=attack_mod)
+        valid_target = True
+        if battle:
+            valid_targets = battle.valid_targets_for(entity, action)
+            valid_target = target in valid_targets
+        return jsonify(valid_target=valid_target, adv_mod=adv_mod, adv_info=adv_info, attack_mod=attack_mod)
+
+    elif entity and target and action_info =='SpellAction':
+        build_map = SpellAction.build(game_session, entity)
+        spell_choice = (opts['spell'], opts['at_level'])
+        build_map = build_map['next'](spell_choice)
+        action = build_map['next'](target)
+
+        adv_mod, adv_info, attack_mod = action.compute_advantage_info(battle)
+        valid_target = True
+
+        if battle:
+            valid_targets = battle.valid_targets_for(entity, action)
+            valid_target = target in valid_targets
+        return jsonify(valid_target=valid_target, adv_mod=adv_mod, adv_info=adv_info, attack_mod=attack_mod)
     else:
         success_rate = None
 
@@ -765,9 +823,11 @@ def action():
                         target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
                         if target is None:
                             raise ValueError(f"Invalid target {target_coords}")
+
                     current_map = current_map['next'](target)
 
                     if isinstance(current_map, Action):
+                        validate_targets(current_map, entity, target, current_map, battle)
                         return jsonify(commit_and_update(current_map))
                     else:
                         raise ValueError(f"Invalid action map {current_map}")
@@ -809,7 +869,7 @@ def action():
             weapon_details = action.npc_action
         else:
             weapon_details = game_session.load_weapon(action.using)
-        
+
         if target_coords:
             target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
             if valid_targets.get(target.entity_uid):
@@ -889,8 +949,11 @@ def logout():
 def get_turn():
     battle = current_game.get_current_battle()
     if battle:
+        print(f"current turn: {battle.current_turn().entity_uid} {session['username']}")
         if session['username']=='dm' or controller_of(session['username'], battle.current_turn().entity_uid):
             return render_template('turn.jinja', battle=battle)
+        else:
+            return jsonify(error="Forbidden"), 403
     else:
         return jsonify(error="No battle in progress"), 400
 
@@ -960,6 +1023,7 @@ def ai_loop():
 
 def end_current_battle():
     global current_game
+    current_game.trigger_event('on_battle_end')
     current_game.set_current_battle(None)
     socketio.emit('message', {'type': 'console', 'message': 'TPK. Battle has ended.'})
     socketio.emit('message', {'type': 'stop', 'message': {}})

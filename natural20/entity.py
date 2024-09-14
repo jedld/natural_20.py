@@ -514,6 +514,11 @@ class Entity(EntityStateEvaluator):
 
     def ability_score_cha(self):
         return self.ability_scores.get('cha')
+    
+    def casted_leveled_spells(self, battle=None):
+        if battle:
+            return len(battle.entity_state_for(self).get('casted_level_spells', [])) > 0
+        return False
 
     def modifier_table(self, value):
         mod_table = [[1, 1, -5],
@@ -590,6 +595,7 @@ class Entity(EntityStateEvaluator):
             'active_perception_disadvantage': 0,
             'two_weapon': None,
             'action_surge': None,
+            'casted_level_spells': [],
             'positions_entered': {}
         })
 

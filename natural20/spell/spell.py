@@ -14,6 +14,12 @@ def consume_resource(battle, source, item):
             battle.consume(source, "action")
         elif resource == "reaction":
             battle.consume(source, "reaction")
+        elif resource == "bonus_action":
+            battle.consume(source, "bonus_action")
+
+        # track spell casted
+        if spell_level > 0 and resource in ["action", "bonus_action"]:
+            battle.entity_state_for(source)['casted_level_spells'].append(item)
 
     source.consume_spell_slot(spell_level) if spell_level > 0 else None
 
@@ -68,6 +74,9 @@ class Spell:
         if options is None:
             options = {}
         return token
+
+    def compute_advantage_info(self, battle, opts=None):
+        return 0, [[],[]], 0
 
     def compute_hit_probability(self, battle, opts = None):
         return 1.0

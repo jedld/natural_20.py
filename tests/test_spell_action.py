@@ -120,7 +120,15 @@ class TestSpellAction(unittest.TestCase):
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
         self.assertEqual([s['type'] for s in action.result], ['expeditious_retreat'])
         self.battle.commit(action)
-        self.assertIn('dash_bonus', [a.action_type for a in self.entity.available_actions(self.session, self.battle)])
+        available_actions = [a.action_type for a in self.entity.available_actions(self.session, self.battle)]
+
+
+        # can't cast another spell this turn
+        self.assertNotIn('spell', available_actions)
+        self.entity.reset_turn(self.battle)
+        available_actions = [a.action_type for a in self.entity.available_actions(self.session, self.battle)]
+        self.assertIn('spell', available_actions)
+        self.assertIn('dash_bonus', available_actions)
 
     def test_ray_of_frost(self):
         self.npc = self.session.npc('skeleton')

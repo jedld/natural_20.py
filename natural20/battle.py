@@ -314,12 +314,16 @@ class Battle():
         if action.action_type == 'move':
             self.trigger_event('movement', action.source, { 'move_path': action.move_path})
             if self.animation_log_enabled:
+                if len(self.animation_log) == 0:
+                    self.animation_log.append([action.source.entity_uid, [self.map.entity_or_object_pos(action.source)], None])
                 self.animation_log.append([action.source.entity_uid, action.move_path, None])
         elif action.action_type == 'attack':
-            if self.animation_log_enabled:
+            if self.animation_log_enabled and len(self.animation_log) > 0:
                 self.animation_log[-1][2] = { "target" : action.target.entity_uid, "type": "attack", "ranged" : action.ranged_attack(), "label": action.label() }
         elif action.action_type == 'spell':
             if self.animation_log_enabled and action.target and action.avg_damage(self) > 0:
+                if len(self.animation_log) == 0:
+                    self.animation_log.append([action.source.entity_uid, [self.map.entity_or_object_pos(action.source)], None])
                 self.animation_log[-1][2] = { "target" : action.target.entity_uid, "type" : "spell", "label" : action.label() }
         elif action.action_type == 'interact':
             self.trigger_event('interact', action)

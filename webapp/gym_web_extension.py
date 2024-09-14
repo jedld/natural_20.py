@@ -121,6 +121,31 @@ def start_battle(game_manager, session):
     game_manager.refresh_client_map()
     return True
 
+def _on_session_ready(game_manager, session):
+    start_battle(game_manager, session)
+    game_manager.execute_game_loop()
+
+def _on_battle_end(game_manager, session):
+    print("battle ended")
+    battle = game_manager.get_current_battle()
+    if 'a' in battle.winning_groups():
+        winner_msg = "Player won!"
+    else:
+        winner_msg = "Adversary won!"
+
+    game_manager.push_animation()
+
+    def restart_callback(x):
+        start_battle(game_manager, session)
+        game_manager.execute_game_loop()
+
+    game_manager.prompt(f"Battle ended {winner_msg}. Starting new battle...",
+                        callback=restart_callback)
+
+    return True
+
 def init(app: Flask, game_manager, session):
     print("extension started")
     game_manager.register_event_handler('start_battle', start_battle)
+    game_manager.register_event_handler('on_session_ready', _on_session_ready)
+    game_manager.register_event_handler('on_battle_end', _on_battle_end)

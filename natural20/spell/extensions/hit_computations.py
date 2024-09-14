@@ -1,5 +1,6 @@
 
 from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.weapons import damage_modifier, target_advantage_condition
 from natural20.utils.ac_utils import effective_ac
 from natural20.spell.spell import Spell
 
@@ -33,6 +34,9 @@ class AttackSpell(Spell):
         target_ac, _cover_ac = effective_ac(battle, self.source, self.action.target)
         return attack_roll.prob(target_ac)
 
+    def compute_advantage_info(self, battle, opts=None):
+        advantage_mod, adv_info = target_advantage_condition(battle, self.source, self.action.target, self.properties, overrides=opts)
+        return advantage_mod, adv_info, 0
 
     def avg_damage(self, battle, opts=None):
         """
