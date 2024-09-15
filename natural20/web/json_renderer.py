@@ -24,7 +24,7 @@ class JsonRenderer:
 
                 entity = self.map.entity_at(x, y)
                 light = self.map.light_at(x, y)
-                opacity = 1.0 - max(min(1.0, light),0.2)
+                opacity = 1.0 - max(min(1.0, light), 0.3)
 
                 shared_attributes = {
                     'x': x,

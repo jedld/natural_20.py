@@ -33,7 +33,6 @@ weapon_proficiencies:
 equipped:
 - dagger
 - dagger
-- torch
 - shortbow
 - leather_armor
 inventory:

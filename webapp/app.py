@@ -316,7 +316,7 @@ def describe_terrain(tile):
                 # obtain buffs and status effects on entity
                 if thing.prone():
                     description.append("Prone")
-                if thing.hiding(battle):
+                if thing.hidden(battle):
                     description.append("Hiding")
                 if thing.unconscious():
                     description.append("Unconscious")

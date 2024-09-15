@@ -103,8 +103,6 @@ class Map():
     def _compute_lights(self):
         self.light_map = self.light_builder.build_map()
 
-        print(f"{self.light_map}")
-
 
     def _setup_objects(self):
         for pos_x in range(self.size[0]):
@@ -314,6 +312,9 @@ class Map():
 
         return obj
 
+    def is_heavily_obscured(self, entity):
+        return self.light_at_entity(entity) < 0.5
+
     def can_hide(self, entity, pos_override=None, battle=None):
         if entity.class_feature('hide_in_plain_sight') or entity.class_feature('hide_in_shadows'):
             return True
@@ -323,11 +324,7 @@ class Map():
             entity_squares = self.entity_squares(entity)
 
         behind_cover = False
-
-        if battle:
-            opponents = [opp for opp in battle.opponents_of(entity) if opp.conscious()]
-        else:
-            opponents = []
+        heavily_obscured = False
 
         # check if behind cover
         for pos in entity_squares:
@@ -352,12 +349,12 @@ class Map():
                                 break
 
         hide_failed_reasons = []
-        for opp in opponents:
-            if self.can_see(opp, entity, entity_2_pos=pos_override, heavy_cover=True):
-                hide_failed_reasons.append(f"{opp.name} can see {entity.name}")
 
-        if not behind_cover:
-            hide_failed_reasons.append("not behind cover")
+        if self.is_heavily_obscured(entity):
+            heavily_obscured = True
+
+        if not behind_cover and not heavily_obscured:
+            hide_failed_reasons.append("not behind cover or heavily obscured")
 
         return len(hide_failed_reasons) == 0, hide_failed_reasons
 
@@ -501,6 +498,9 @@ class Map():
                 creature_size_min=None, heavy_cover=False):
         if entity not in self.entities and entity not in self.interactable_objects:
             raise ValueError('Invalid entity passed')
+
+        if entity2.hidden():
+            return False
 
         entity_1_squares = self.entity_squares_at_pos(entity, *entity_1_pos) if entity_1_pos else self.entity_squares(entity)
         entity_2_squares = self.entity_squares_at_pos(entity2, *entity_2_pos) if entity_2_pos else self.entity_squares(entity2)
@@ -697,6 +697,13 @@ class Map():
             return self.light_map[pos_x][pos_y] + self.light_builder.light_at(pos_x, pos_y)
         else:
             return self.light_builder.light_at(pos_x, pos_y)
+
+    def light_at_entity(self, entity):
+        intensities = []
+        for entity_squares in self.entity_squares(entity):
+            pos_x, pos_y = entity_squares
+            intensities.append(self.light_at(pos_x, pos_y))
+        return max(intensities)
 
 
     def distance(self, entity1, entity2, entity_1_pos=None, entity_2_pos=None):

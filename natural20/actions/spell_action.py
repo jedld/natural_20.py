@@ -186,6 +186,14 @@ class SpellAction(Action):
             opts = {}
         battle = opts.get("battle", None)
         self.result = self.spell_action.resolve(self.source, battle, self)
+
+        for r in self.result:
+            if r.get('attack_roll',None) is not None:
+                self.source.break_stealth()
+
+        if 'verbal' in self.spell_action.properties.get('components', []):
+            self.source.break_stealth()
+
         self.spell_action.consume(battle)
 
         return self

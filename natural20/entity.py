@@ -39,6 +39,7 @@ class Entity(EntityStateEvaluator):
         self.casted_effects = []
         self.death_fails = 0
         self.death_saves = 0
+        self.hidden_stealth = None
         self._temp_hp = 0
         self.event_handlers = {}
         self.event_manager = event_manager
@@ -380,14 +381,8 @@ class Entity(EntityStateEvaluator):
     def has_reaction(self, battle):
         return battle.entity_state_for(self).get('reaction', 0) > 0
 
-    def hiding(self, battle):
-        if battle:
-            entity_state = battle.entity_state_for(self)
-            if not entity_state:
-                return False
-
-            return 'hiding' in entity_state.get('statuses', [])
-        return False
+    def hidden(self):
+        return 'hidden' in self.statuses
     
     def unsqueeze(self):
         if 'squeezed' in self.statuses:
@@ -710,11 +705,10 @@ class Entity(EntityStateEvaluator):
     # Hides the entity in battle with a specified stealth value
     # @param battle [Natural20::Battle]
     # @param stealth [Integer]
-    def do_hide(self, battle, stealth):
-        entity_state = battle.entity_state_for(self)
-        entity_state['statuses'].add('hiding')
-        entity_state['stealth'] = stealth
-    
+    def do_hide(self, stealth):
+        self.statuses.append('hidden')
+        self.hidden_stealth = stealth
+
     def squeezed(self):
         return 'squeezed' in self.statuses
     
@@ -736,13 +730,10 @@ class Entity(EntityStateEvaluator):
 
         return 'dodge' in entity_state.get('statuses', [])
     
-    def break_stealth(self, battle):
-        entity_state = battle.entity_state_for(self)
-        if not entity_state:
-            return
-        if 'hiding' in entity_state['statuses']:
-            entity_state['statuses'].remove('hiding')
-        entity_state['stealth'] = 0
+    def break_stealth(self):
+        if 'hidden' in self.statuses:
+            self.statuses.remove('hidden')
+        self.hidden_stealth = None
 
     # @param map [Natural20::BattleMap]
     def push_from(self, map, pos_x, pos_y, distance=5):

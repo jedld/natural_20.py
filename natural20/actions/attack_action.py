@@ -145,7 +145,7 @@ class AttackAction(Action):
         else:
             battle.consume(item['source'], 'action')
         
-        item['source'].break_stealth(battle)
+        item['source'].break_stealth()
         
         weapon = battle.session.load_weapon(item['weapon']) if item['weapon'] else None
         

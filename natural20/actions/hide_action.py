@@ -28,13 +28,47 @@ class HideAction(Action):
         if opts is None:
             opts = {}
         stealth_roll = self.source.stealth_check(opts.get('battle', None))
-        self.result = [{
-            'source': self.source,
-            'bonus_action': self.as_bonus_action,
-            'type': 'hide',
-            'roll': stealth_roll,
-            'battle': opts['battle']
-        }]
+
+        if map is None:
+            map = opts.get('battle').map
+
+        if opts['battle']:
+            opponents = [opp for opp in opts['battle'].opponents_of(self.source) if opp.conscious()]
+        else:
+            opponents = []
+
+        hide_failed_reasons = []
+        if map:
+            heavily_obscured = map.is_heavily_obscured(self.source)
+        else:
+            heavily_obscured = False
+
+        for opp in opponents:
+            if map.can_see(opp, self.source):
+                opponent_passive_perception = opp.passive_perception()
+                if heavily_obscured:
+                    opponent_passive_perception -= 5
+                if stealth_roll < opponent_passive_perception:
+                    hide_failed_reasons.append(f"{opp.name} can see {self.source.name}")
+
+        if hide_failed_reasons:
+            self.result = [{
+                'source': self.source,
+                'type': 'hide',
+                'result': 'failed',
+                'roll': stealth_roll,
+                'battle': opts['battle'],
+                'reason': hide_failed_reasons
+            }]
+        else:
+            self.result = [{
+                'source': self.source,
+                'bonus_action': self.as_bonus_action,
+                'type': 'hide',
+                'result': 'success',
+                'roll': stealth_roll,
+                'battle': opts['battle']
+            }]
         return self
 
     @staticmethod
@@ -45,7 +79,7 @@ class HideAction(Action):
                 'roll': item['roll'],
                 'event': 'hide'
             })
-            item['source'].do_hide(battle, item['roll'].result())
+            item['source'].do_hide(item['roll'].result())
             if item['bonus_action']:
                 battle.consume(item['source'], 'bonus_action')
             else:

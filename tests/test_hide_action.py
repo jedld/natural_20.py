@@ -29,11 +29,11 @@ class TestHideAction(unittest.TestCase):
 
 
     def test_auto_build(self):
-        self.assertTrue(not self.npc.hiding(self.battle))
+        self.assertTrue(not self.npc.hidden())
         hide_action = HideAction.build(self.session, self.npc)
         hide_action.resolve(self.session, None, { "battle" :self.battle})
         self.battle.commit(hide_action)
-        self.assertTrue(self.npc.hiding(self.battle))
+        self.assertTrue(self.npc.hidden(self.battle))
 
     def test_hiding_in_terrain(self):
         battle_map = Map(self.session, 'hide_test')
@@ -43,6 +43,6 @@ class TestHideAction(unittest.TestCase):
         battle.add(character, 'a', position='spawn_point_2')
         battle.add(npc, 'b', position='spawn_point_1')
         print(MapRenderer(battle_map).render(line_of_sight=character))
-        npc.do_hide(battle, 20)
-        self.assertTrue(npc.hiding(battle))
+        npc.do_hide(20)
+        self.assertTrue(npc.hidden())
         print(MapRenderer(battle_map, battle).render(line_of_sight=character))
