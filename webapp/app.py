@@ -316,7 +316,7 @@ def describe_terrain(tile):
                 # obtain buffs and status effects on entity
                 if thing.prone():
                     description.append("Prone")
-                if thing.hidden(battle):
+                if thing.hidden():
                     description.append("Hiding")
                 if thing.unconscious():
                     description.append("Unconscious")
@@ -325,8 +325,12 @@ def describe_terrain(tile):
                 for effect in thing.current_effects():
                     effect_class = effect['effect']
                     description.append(str(effect_class))
-
-    description.append("Light: " + str(lights))
+    if (lights == 0.0):
+        description.append("Darkness (heavily obscured)")
+    elif (lights == 0.5):
+        description.append("Dim Light")
+    else:
+        description.append("Bright Light")
 
     return "".join(f"<p>{d}</p>" for d in description)
 

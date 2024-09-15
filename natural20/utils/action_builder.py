@@ -14,7 +14,7 @@ def acquire_targets(param, entity, battle, map=None):
         targets = battle.opponents_of(entity)
         if spell_range > 0 and battle.map:
             for t in targets:
-                if battle.map.distance(entity, t) <= spell_range:
+                if entity.can_see(t) and battle.map.distance(entity, t) <= spell_range:
                     possible_targets.add(t)
     elif 'allies' in param["target_types"]:
             # get all allies
@@ -26,7 +26,7 @@ def acquire_targets(param, entity, battle, map=None):
             targets = map.entities.keys()
         if spell_range > 0 and map:
             for t in targets:
-                if map.distance(entity, t) <= spell_range:
+                if entity.can_see(t) and map.distance(entity, t) <= spell_range:
                     possible_targets.add(t)
     elif 'self' in param["target_types"]:
         possible_targets.add(entity)

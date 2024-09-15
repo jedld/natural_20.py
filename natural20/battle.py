@@ -419,16 +419,6 @@ class Battle():
             return True
         if not self.map.can_see(entity1, entity2, entity_1_pos=entity_1_pos, entity_2_pos=entity_2_pos):
             return False
-        if not entity2.hidden():
-            return True
-
-        cover_value = cover_calculation(self.map, entity1, entity2, entity_1_pos=entity_1_pos,
-                                                 naturally_stealthy=entity2.class_feature('naturally_stealthy'))
-
-        if cover_value > 0:
-            entity_2_state = self.entity_state_for(entity2)
-            if entity_2_state['stealth'] > max(active_perception, entity1.passive_perception()):
-                return False
 
         return True
 

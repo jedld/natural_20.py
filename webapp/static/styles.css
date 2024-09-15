@@ -134,7 +134,7 @@
   position: absolute;
   width: 40px;
   height: 40px;
-  z-index: 4;
+  z-index: 1000;
 }
 
 input.initiative-text {
@@ -245,3 +245,5 @@ input.initiative-text {
   height: 100%;
   background-color: black;
 }
+
+

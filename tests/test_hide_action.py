@@ -33,7 +33,7 @@ class TestHideAction(unittest.TestCase):
         hide_action = HideAction.build(self.session, self.npc)
         hide_action.resolve(self.session, None, { "battle" :self.battle})
         self.battle.commit(hide_action)
-        self.assertTrue(self.npc.hidden(self.battle))
+        self.assertTrue(self.npc.hidden())
 
     def test_hiding_in_terrain(self):
         battle_map = Map(self.session, 'hide_test')

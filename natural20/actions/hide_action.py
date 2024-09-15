@@ -1,6 +1,5 @@
 from natural20.action import Action
 
-
 class HideAction(Action):
     as_bonus_action: bool
 
@@ -43,8 +42,11 @@ class HideAction(Action):
         else:
             heavily_obscured = False
 
+
+        opponent_passive_perception = 0
+
         for opp in opponents:
-            if map.can_see(opp, self.source):
+            if map and map.can_see(opp, self.source):
                 opponent_passive_perception = opp.passive_perception()
                 if heavily_obscured:
                     opponent_passive_perception -= 5
@@ -74,22 +76,35 @@ class HideAction(Action):
     @staticmethod
     def apply(battle, item, session=None):
         if item['type'] == 'hide':
-            battle.event_manager.received_event({
-                'source': item['source'],
-                'roll': item['roll'],
-                'event': 'hide'
-            })
-            item['source'].do_hide(item['roll'].result())
+            if item['result'] == 'success':
+                battle.event_manager.received_event({
+                    'source': item['source'],
+                    'roll': item['roll'],
+                    'result' : 'success',
+                    'event': 'hide'
+                })
+                item['source'].do_hide(item['roll'].result())
+            else:
+                battle.event_manager.received_event({
+                    'source': item['source'],
+                    'roll': item['roll'],
+                    'result' : 'failed',
+                    'event': 'hide',
+                    'reason': item['reason']
+                })
+
             if item['bonus_action']:
                 battle.consume(item['source'], 'bonus_action')
             else:
                 battle.consume(item['source'], 'action')
 
 class HideBonusAction(HideAction):
-    @staticmethod
-    def can(entity, battle):
-        return battle and entity.any_class_feature(['cunning_action', 'nimble_escape']) and entity.total_bonus_actions(battle) > 0
+    def __init__(self, session, source, action_type, opts=None):
+        super().__init__(session, source, action_type, opts)
+        self.as_bonus_action = True
 
     @staticmethod
-    def apply(battle, item, session=None):
-        pass
+    def can(entity, battle):
+        return battle and entity.any_class_feature(['cunning_action', 'nimble_escape']) \
+            and battle.map and battle.map.can_hide(entity) \
+            and entity.total_bonus_actions(battle) > 0

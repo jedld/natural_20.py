@@ -496,11 +496,18 @@ class Map():
     def can_see(self, entity, entity2, distance=None, entity_1_pos=None, entity_2_pos=None, \
                 allow_dark_vision=True, active_perception=0, active_perception_disadvantage=0,\
                 creature_size_min=None, heavy_cover=False):
+        """
+        Check if entity can see entity2
+        """
+        if entity == entity2:
+            return True
+
         if entity not in self.entities and entity not in self.interactable_objects:
             raise ValueError('Invalid entity passed')
 
         if entity2.hidden():
-            return False
+            if active_perception < entity2.hidden_stealth:
+                return False
 
         entity_1_squares = self.entity_squares_at_pos(entity, *entity_1_pos) if entity_1_pos else self.entity_squares(entity)
         entity_2_squares = self.entity_squares_at_pos(entity2, *entity_2_pos) if entity_2_pos else self.entity_squares(entity2)
@@ -532,9 +539,14 @@ class Map():
                 sighting_distance = math.floor(math.sqrt((pos1_x - pos2_x)**2 + (pos1_y - pos2_y)**2))
                 has_line_of_sight = True
 
-        if has_line_of_sight and max_illumination < 0.5:
-            has_line_of_sight =  allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid)
+        if not has_line_of_sight:
+            return False
 
+        if allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid):
+            max_illumination += 0.5
+
+        if max_illumination == 0.0:
+            has_line_of_sight = False
 
         return has_line_of_sight
 

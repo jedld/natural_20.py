@@ -116,6 +116,18 @@ class EventManager:
             else:
                 self.output_logger.log(f"{self.show_name(event)} cast {event['spell']['name']} on {self.show_target_name(event)} and hit with {event['attack_roll']}{to_advantage_str(event)}= {event['attack_roll'].result()} for {event['damage']} damage.")
 
+        def hide(event):
+            if event['result'] == 'success':
+                self.output_logger.log(f"{self.show_name(event)} successfully hides with a {event['roll']}={event['roll'].result()} stealth.")
+            else:
+                self.output_logger.log(f"{self.show_name(event)} tries to hide but fails. {','.join(event['reason'])}")
+
+        def damage(event):
+            if event.get('sneak_attack'):
+                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} = {event['value']} damage and {event['sneak_attack']}={event['sneak_attack'].result()} sneak attack damage.")
+            else:
+                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} = {event['value']} damage."),
+
         event_handlers = {
             'multiattack' : lambda event: self.output_logger.log(f"{self.show_name(event)} uses multiattack."),
             'action_surge': lambda event: self.output_logger.log(f"{self.show_name(event)} uses action surge."),
@@ -133,11 +145,11 @@ class EventManager:
             'unconscious': lambda event: self.output_logger.log(f"{self.show_name(event)} unconscious."),
             'shove': shove,
             'attacked': attack_roll,
-            'damage': lambda event: self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} = {event['value']} damage."),
+            'damage': damage,
             'spell_damage': spell_damage,
             'spell_miss': miss,
             'miss': miss,
-            'hide': lambda event: self.output_logger.log(f"{self.show_name(event)} hides."),
+            'hide': hide,
             'move': lambda event: self.output_logger.log(f"{self.show_name(event)} moved to {event['position']} {event['move_cost'] * 5} feet"),
             'initiative': lambda event: self.output_logger.log(f"{self.show_name(event)} rolled initiative {event['roll']} value {event['value']}"),
             'start_of_turn': lambda event: self.output_logger.log(f"{self.show_name(event)} starts their turn."),

@@ -402,10 +402,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
     return any(self.class_feature(f) for f in features)
   
   def darkvision(self, distance):
-    if super():
+    if super().darkvision(distance):
       return True
 
-    return bool(self.race_properties.get('darkvision') and self.race_properties['darkvision'] >= distance)
+    return bool(self.race_properties.get('darkvision', None) and (self.race_properties['darkvision'] / 5 >= distance))
 
   def spell_slots_count(self, level, character_class=None):
     if character_class is None:

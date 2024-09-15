@@ -107,6 +107,7 @@ def compute_advantages_and_disadvantages(battle, source, target, weapon, source_
 
     if battle and battle.map and not battle.can_see(target, source, entity_2_pos=source_pos):
         advantage.append('unseen_attacker')
+
     if battle and battle.map and not battle.can_see(source, target, entity_1_pos=source_pos):
         disadvantage.append('invisible_attacker')
 

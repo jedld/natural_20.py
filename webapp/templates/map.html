@@ -3,7 +3,7 @@
     <div style="display: flex;">
       {% for tile in row %}
         {% set tooltips = describe_terrain(tile) %}
-        <div class="tile" data-light="{{tile['light']}}" data-tooltip="{{ tooltips }}" data-coords-x="{{ tile['x'] }}" data-coords-y="{{ tile['y'] }}" data-coords-id="{{tile['id']}}" style="top: {{ tile['y'] * tile_size_px + tile_size_px }}px; left: {{ tile['x'] * tile_size_px + tile_size_px}}px;">
+        <div class="tile" data-light="{{tile['light']}}" data-tooltip="{{ tooltips }}" data-coords-x="{{ tile['x'] }}" data-coords-y="{{ tile['y'] }}" data-coords-id="{{tile['id']}}" data-darkvision="{{tile['has_darkvision']}}" style="top: {{ tile['y'] * tile_size_px + tile_size_px }}px; left: {{ tile['x'] * tile_size_px + tile_size_px}}px;">
           {% if not tile['line_of_sight'] %}
             <div class="fog-of-war" style="width: {{ tile_size_px }}px; height: {{ tile_size_px }}px;"></div>
           {% endif %}

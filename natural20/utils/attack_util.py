@@ -20,7 +20,7 @@ def damage_event(item, battle):
     dmg += item['sneak_attack'].result() if item.get('sneak_attack') is not None else 0
 
     if dmg is None:
-        pdb.set_trace()    
+        pdb.set_trace()
     if target.resistant_to(item['damage_type']):
         total_damage = int(dmg / 2)
     elif target.vulnerable_to(item['damage_type']):
@@ -50,7 +50,7 @@ def damage_event(item, battle):
     })
    
     critical = item['attack_roll'].nat_20() if item.get('attack_roll') else False
-    item['target'].take_damage(total_damage, battle=battle, critical=critical, roll_info=item['damage'])
+    item['target'].take_damage(total_damage, battle=battle, critical=critical, roll_info=item['damage'], sneak_attack=item.get('sneak_attack', False))
 
     if battle and total_damage > 0:
         item['target'].on_take_damage(battle, item)

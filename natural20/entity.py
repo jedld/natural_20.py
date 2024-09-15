@@ -131,7 +131,8 @@ class Entity(EntityStateEvaluator):
     def darkvision(self, distance):
         if not self.properties.get('darkvision'):
             return False
-        if self.properties.get('darkvision', 0) < distance:
+        adjusted_darkvision_distance = self.properties.get('darkvision') / 5
+        if adjusted_darkvision_distance < distance:
             return False
         return True
     
@@ -1097,7 +1098,7 @@ class Entity(EntityStateEvaluator):
     def equipped_weapons(self):
         return [item['name'] for item in self.equipped_items() if item["subtype"] == 'weapon']
 
-    def take_damage(self, dmg: int, battle=None, critical=False, roll_info=None):
+    def take_damage(self, dmg: int, battle=None, critical=False, roll_info=None, sneak_attack=None):
         self.attributes["hp"] -= dmg
 
         if self.unconscious():
@@ -1154,7 +1155,7 @@ class Entity(EntityStateEvaluator):
             self.attributes["hp"] = 0
 
         if battle:
-            battle.event_manager.received_event({'source': self, 'event': 'damage', 'value': dmg, 'roll_info': roll_info})
+            battle.event_manager.received_event({'source': self, 'event': 'damage', 'value': dmg, 'roll_info': roll_info, 'sneak_attack': sneak_attack})
 
     def on_take_damage(self, battle, _damage_params):
         controller = battle.controller_for(self)

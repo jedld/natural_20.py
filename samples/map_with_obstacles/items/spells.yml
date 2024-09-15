@@ -1,6 +1,7 @@
 ---
 bless:
   casting_time: 1:action
+  label: Bless
   components:
     - verbal
     - somatic
@@ -16,6 +17,7 @@ bless:
   spell_list_classes:
     - Cleric
 guiding_bolt:
+  label: Guiding Bolt
   casting_time: 1:action
   components:
     - verbal
@@ -33,6 +35,7 @@ guiding_bolt:
   spell_list_classes:
     - Cleric
 cure_wounds:
+  label: Cure Wounds
   casting_time: 1:action
   components:
     - verbal
@@ -49,6 +52,7 @@ cure_wounds:
   spell_list_classes:
     - Cleric
 chill_touch:
+  label: Chill Touch
   casting_time: 1:action
   damage_type: necrotic
   description: |
@@ -65,6 +69,7 @@ chill_touch:
     - Sorcerer
     - Wizard
 sacred_flame:
+  label: Sacred Flame
   casting_time: 1:action
   damage_type: radiant
   description: |
@@ -78,7 +83,41 @@ sacred_flame:
   type: ranged_attack
   spell_list_classes:
     - Cleric
+toll_the_dead:
+  label: Toll the Dead
+  casting_time: 1:action
+  damage_type: necrotic
+  description: |
+    You point at one creature you can see within range, and the single chime of a dolorous bell is audible within 10 feet of the target. The target must succeed on a Wisdom saving throw or take 1d8 Necrotic damage. If the target is missing any of its Hit Points, it instead takes 1d12 Necrotic damage.
+  duration: instant
+  level: 0
+  name: Toll the Dead
+  range: 60
+  school: necromancy
+  type: ranged_attack
+  spell_list_classes:
+    - Cleric
+inflict_wounds:
+  label: Inflict Wounds
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  damage_type: necrotic
+  description: |
+    Make a melee spell attack against a creature you can reach. On a hit, the target takes 3d10 necrotic damage.
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d10 for each slot level above 1st.
+  duration: instant
+  level: 1
+  name: Inflict Wounds
+  range: 5
+  school: necromancy
+  type: melee_attack
+  spell_list_classes:
+    - Cleric
+  spell_class: Natural20::InflictWounds
 expeditious_retreat:
+  label: Expeditious Retreat
   casting_time: 1:bonus_action
   components:
     - verbal
@@ -93,6 +132,7 @@ expeditious_retreat:
     - Sorcerer
     - Wizard
 find_familiar:
+  label: Find Familiar
   casting_time: 1:hour
   components:
     - verbal
@@ -114,6 +154,7 @@ find_familiar:
     - Sorcerer
     - Wizard
 firebolt:
+  label: Firebolt
   base_damage: 1d10
   casting_time: 1:action
   components:
@@ -135,7 +176,25 @@ firebolt:
   spell_list_classes:
     - Sorcerer
     - Wizard
+healing_word:
+  label: Healing Word
+  casting_time: 1:bonus_action
+  components:
+    - verbal
+  description: |
+    A creature of your choice that you can see within range regains hit points equal to 1d4 + your spellcasting ability modifier. This spell has no effect on undead or constructs.
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the healing increases by 1d4 for each slot level above 1st.
+  duration: instant
+  level: 1
+  name: Healing Word
+  range: 60
+  school: evocation
+  type: healing
+  spell_list_classes:
+    - Cleric
+  spell_class: Natural20::HealingWord
 mage_armor:
+  label: Mage Armor
   casting_time: 1:action
   components:
     - verbal
@@ -144,6 +203,7 @@ mage_armor:
   description: You touch a willing creature who isn't wearing armor, and a protective magical force surrounds it until the spell ends. The target's base AC becomes 13 + its Dexterity modifier. The spell ends if the target dons armor or if you dismiss the spell as an action.
   duration: 8h
   level: 1
+  range: 5
   materials:
     - cured_leather
   name: Mage Armor
@@ -154,6 +214,7 @@ mage_armor:
     - Sorcerer
     - Wizard
 magic_missile:
+  label: Magic Missile
   casting_time: 1:action
   damage_type: force
   description: You create three glowing darts of magical force. Each dart hits a creature of your choice that you can see within range.
@@ -168,6 +229,7 @@ magic_missile:
     - Sorcerer
     - Wizard
 ray_of_frost:
+  label: Ray of Frost
   base_damage: 1d8
   casting_time: 1:action
   components:
@@ -192,6 +254,7 @@ ray_of_frost:
     - Sorcerer
     - Wizard
 shield:
+  label: Shield
   casting_time: 1:reaction
   components:
     - verbal
@@ -207,6 +270,7 @@ shield:
     - Sorcerer
     - Wizard
 shocking_grasp:
+  label: Shocking Grasp
   base_damage: 1d8
   casting_time: 1:action
   components:
@@ -234,6 +298,7 @@ shocking_grasp:
     - Sorcerer
     - Wizard
 true_strike:
+  label: True Strike
   casting_time: 1:action
   components:
     - somatic
