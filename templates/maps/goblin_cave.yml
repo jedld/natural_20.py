@@ -1,0 +1,74 @@
+name: Goblin Cave
+description: A cave inhabited by goblins
+map:
+  illumination: 0.0
+  base:
+    - .......###
+    - .........#
+    - ......##.#
+    - ......##..
+    - ......##..
+    - ...##.##.#
+    - '#####....#'
+    - '###......#'
+    - '#........#'
+    - '#.........'
+  light:
+    - ..........
+    - .....A....
+    - ..........
+    - ..........
+    - ...A......
+    - ..........
+    - ..........
+    - ..........
+    - .....B....
+    - ..........
+  meta:
+    - ..........
+    - ..........
+    - ..........
+    - .........g
+    - .........w
+    - ..........
+    - ..........
+    - ...g......
+    - .A....w.g.
+    - .g....h..g
+lights:
+  A:
+    bright: 5
+    dim: 5
+  B:
+    bright: 10
+    dim: 10
+legend:
+  h:
+    name: _auto_
+    type: npc
+    sub_type: hobgoblin
+  g:
+    name: _auto_
+    type: npc
+    sub_type: goblin
+  w:
+    name: _auto_
+    type: npc
+    sub_type: wolf
+player:
+  - position: [1, 1]
+    sheet: characters/halfling_rogue.yml
+    overrides:
+      entity_uid: rumblebelly
+  - position: [0, 0]
+    sheet: characters/high_elf_fighter.yml
+    overrides:
+      entity_uid: gomerin
+  - position: [0, 1]
+    sheet: characters/dwarf_cleric.yml
+    overrides:
+      entity_uid: shorvalu
+  - position: [1, 0]
+    sheet: characters/high_elf_mage.yml
+    overrides:
+      entity_uid: crysania

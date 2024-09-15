@@ -129,11 +129,11 @@ $(document).ready(function () {
     });
   });
 
-  function refreshTileSet(is_setup) {
+  function refreshTileSet(is_setup, pov=false, x=0, y=0) {
     $.ajax({
       url: '/update',
       type: 'GET',
-      data: { is_setup: is_setup },
+      data: { is_setup: is_setup, pov: pov, x: x, y: y },
       success: function (data) {
         lastMovedEntityBeforeRefresh = null;
         $('.tiles-container').html(data);
@@ -424,7 +424,11 @@ $(document).ready(function () {
           //  ws.send(JSON.stringify({type: 'message', user: 'username', message: {action: "move", from: source, to: {x: coordsx, y: coordsy} }}));
         }
       } else {
-
+          if (e.metaKey || e.ctrlKey) {
+            var coordsx = $(this).data('coords-x');
+            var coordsy = $(this).data('coords-y');
+            refreshTileSet(false, true, coordsx, coordsy);
+          } else
           if (e.metaKey || e.shiftKey) {
               var coordsx = $(this).data('coords-x');
               var coordsy = $(this).data('coords-y');
@@ -683,6 +687,7 @@ $(document).ready(function () {
 
 
   $(document).on('keydown', function (event) {
+
     if (event.keyCode === 27) { // ESC key
       if (moveMode) {
         moveMode = false;

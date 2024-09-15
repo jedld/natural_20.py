@@ -9,6 +9,7 @@ from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.dodge_action import DodgeAction
+from natural20.actions.hide_action import HideAction, HideBonusAction
 from natural20.actions.disengage_action import DisengageAction, DisengageBonusAction
 from natural20.actions.dash import DashAction, DashBonusAction
 from natural20.actions.second_wind_action import SecondWindAction
@@ -31,11 +32,11 @@ import pdb
 
 class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
   ACTION_LIST = [
-    AttackAction, DashAction, DashBonusAction, DisengageAction,
+    SpellAction, AttackAction, HideAction, HideBonusAction,DashAction, DashBonusAction, DisengageAction,
     DisengageBonusAction,
     DodgeAction, MoveAction, ProneAction, SecondWindAction,
     StandAction, TwoWeaponAttackAction, HelpAction, UseItemAction, GroundInteractAction,
-    SpellAction, ActionSurgeAction, ShoveAction
+    ActionSurgeAction, ShoveAction
   ]
 
   def __init__(self, session, properties, name=None):
@@ -197,6 +198,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
           action_list.append(SecondWindAction(session, self, 'second_wind'))
         elif action_type == ActionSurgeAction:
           action_list.append(ActionSurgeAction(session, self, 'action_surge'))
+        elif action_type == HideAction:
+          action_list.append(HideAction(session, self, 'hide'))
+        elif action_type == HideBonusAction:
+          action_list.append(HideBonusAction(session, self, 'hide_bonus'))
         elif action_type == DashBonusAction:
           action = DashBonusAction(session, self, 'dash_bonus')
           action.as_bonus_action = True
@@ -286,7 +291,6 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
       weapon_attacks.append(unarmed_attack)
 
     # assign possible attack targets
-    
     if battle and auto_target:
       final_attack_list = []
       for action in weapon_attacks:

@@ -4,8 +4,7 @@
   "width" : 22,
   "title" : "The Goblin Ambush",
   "login_background" : "goblin_ambush_login.png",
-  "background" : "goblin_ambush.png",
-  "map" : "maps/game_map",
+    "map" : "maps/goblin_cave",
   "soundtracks" : [
     {
       "name" : "Goblin Ambush",

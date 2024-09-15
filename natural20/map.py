@@ -103,6 +103,9 @@ class Map():
     def _compute_lights(self):
         self.light_map = self.light_builder.build_map()
 
+        print(f"{self.light_map}")
+
+
     def _setup_objects(self):
         for pos_x in range(self.size[0]):
             for pos_y in range(self.size[1]):
@@ -177,8 +180,10 @@ class Map():
             if entity.entity_uid == uid:
                 return entity
         return None
-    
+
     def thing_at(self, pos_x, pos_y, reveal_concealed=False):
+        if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
+            return []
         things = []
         things.append(self.entity_at(pos_x, pos_y))
         things.append(self.object_at(pos_x, pos_y, reveal_concealed=reveal_concealed))
@@ -308,7 +313,55 @@ class Map():
             self.objects[pos_x][pos_y].append(obj)
 
         return obj
-    
+
+    def can_hide(self, entity, pos_override=None, battle=None):
+        if entity.class_feature('hide_in_plain_sight') or entity.class_feature('hide_in_shadows'):
+            return True
+        if pos_override is not None:
+            entity_squares = self.entity_squares_at_pos(entity, pos_override[0], pos_override[1])
+        else:
+            entity_squares = self.entity_squares(entity)
+
+        behind_cover = False
+
+        if battle:
+            opponents = [opp for opp in battle.opponents_of(entity) if opp.conscious()]
+        else:
+            opponents = []
+
+        # check if behind cover
+        for pos in entity_squares:
+            pos_x, pos_y = pos
+            for i in range(-1, 2):
+                for j in range(-1, 2):
+                    if i == 0 and j == 0:
+                        continue
+
+                    things = self.thing_at(pos_x + i, pos_y + j)
+                    for thing in things:
+                        if thing == entity:
+                            continue
+
+                        if isinstance(thing, Object):
+                            if thing.three_quarter_cover() or thing.total_cover():
+                                behind_cover = True
+                                break
+                        if isinstance(thing, Entity) and entity.class_feature('naturally_stealthy'):
+                            if entity.size_identifier() < thing.size_identifier():
+                                behind_cover = True
+                                break
+
+        hide_failed_reasons = []
+        for opp in opponents:
+            if self.can_see(opp, entity, entity_2_pos=pos_override, heavy_cover=True):
+                hide_failed_reasons.append(f"{opp.name} can see {entity.name}")
+
+        if not behind_cover:
+            hide_failed_reasons.append("not behind cover")
+
+        return len(hide_failed_reasons) == 0, hide_failed_reasons
+
+
     def valid_targets_for(self, entity, action, target_types=None, range=None, active_perception=None, include_objects=False, filter=None):
         if target_types is None:
             target_types = ['enemies']
@@ -443,7 +496,9 @@ class Map():
 
         return has_line_of_sight
 
-    def can_see(self, entity, entity2, distance=None, entity_1_pos=None, entity_2_pos=None, allow_dark_vision=True, active_perception=0, active_perception_disadvantage=0):
+    def can_see(self, entity, entity2, distance=None, entity_1_pos=None, entity_2_pos=None, \
+                allow_dark_vision=True, active_perception=0, active_perception_disadvantage=0,\
+                creature_size_min=None, heavy_cover=False):
         if entity not in self.entities and entity not in self.interactable_objects:
             raise ValueError('Invalid entity passed')
 
@@ -465,7 +520,8 @@ class Map():
                 if pos2_x >= self.size[0] or pos2_x < 0 or pos2_y >= self.size[1] or pos2_y < 0:
                     # print(f"pos2_x {pos2_x} pos2_y {pos2_y} size {self.size}")
                     continue
-                line_of_sight_info = self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, distance=distance)
+                line_of_sight_info = self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, distance=distance, \
+                                                        heavy_cover=heavy_cover, creature_size_min=creature_size_min)
                 if line_of_sight_info is None:
                     # print(f"no line of sight from {pos1_x},{pos1_y} to {pos2_x},{pos2_y} {distance}")
                     continue
@@ -556,7 +612,9 @@ class Map():
         else:
             return self.entities.get(thing, None)
         
-    def line_of_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, inclusive=False, entity=False, log_path=False):
+    def line_of_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, \
+                      inclusive=False, heavy_cover=False, entity=False, log_path=False,\
+                        creature_size_min=None):
         squares = self.squares_in_path(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive)
         squares_results = []
         for index, s in enumerate(squares):
@@ -569,19 +627,23 @@ class Map():
                 return None
             if self.cover_at(*s) == 'total':
                 return None
+            if heavy_cover and self.cover_at(*s) == 'three_quarter':
+                return None
+            if creature_size_min and self.entity_at(*s) and self.entity_at(*s).size_identifier() >= creature_size_min:
+                return None
 
             squares_results.append([self.cover_at(*s, entity), s])
         return squares_results
-    
 
-    def light_in_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, min_distance=None, distance=None, inclusive=False, entity=False):
-        squares = self.squares_in_path(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive)
+
+    def light_in_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, min_distance=None, distance=None, inclusive=True, entity=False):
+        squares = self.squares_in_path(pos2_x, pos2_y, pos1_x, pos1_y, inclusive=inclusive)
         min_distance_reached = True
 
         for index, s in enumerate(squares):
-            if min_distance and index >= (min_distance - 1):
+            if min_distance and index > min_distance:
                 min_distance_reached = False
-            if distance and index >= (distance - 1):
+            if distance and index > distance:
                 return [False, False]
             if self.opaque(*s):
                 return [False, False]
@@ -632,9 +694,6 @@ class Map():
 
     def light_at(self, pos_x, pos_y):
         if self.light_map is not None:
-            if self.light_map[pos_x][pos_y] >= 1.0:
-                return self.light_map[pos_x][pos_y]
-
             return self.light_map[pos_x][pos_y] + self.light_builder.light_at(pos_x, pos_y)
         else:
             return self.light_builder.light_at(pos_x, pos_y)

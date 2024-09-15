@@ -2,6 +2,7 @@ import random
 from natural20.generic_controller import GenericController
 from natural20.action import Action
 from natural20.weapons import compute_max_weapon_range
+from natural20.utils.ac_utils import cover_calculation
 from natural20.map import Map
 from natural20.session import Session
 from natural20.entity import Entity
@@ -421,12 +422,12 @@ class Battle():
         if not entity2.hiding(self):
             return True
 
-        cover_value = self.map.cover_calculation(self.map, entity1, entity2, entity_1_pos=entity_1_pos,
+        cover_value = cover_calculation(self.map, entity1, entity2, entity_1_pos=entity_1_pos,
                                                  naturally_stealthy=entity2.class_feature('naturally_stealthy'))
 
         if cover_value > 0:
             entity_2_state = self.entity_state_for(entity2)
-            if entity_2_state['stealth'] > max(active_perception, entity1.passive_perception):
+            if entity_2_state['stealth'] > max(active_perception, entity1.passive_perception()):
                 return False
 
         return True

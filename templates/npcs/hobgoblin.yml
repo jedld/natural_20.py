@@ -1,0 +1,45 @@
+---
+kind: Hobgoblin
+description: Hobgoblins are larger, stronger, and smarter than their goblin cousins
+size: medium
+race:
+- humanoid
+- goblinoid
+alignment: lawful_evil
+default_ac: 18
+max_hp: 11
+hp_die: 2d8
+speed: 30
+passive_perception: 19
+darkvision: 60
+token:
+ - h
+color: green
+ability:
+  str: 13
+  dex: 12
+  con: 12
+  int: 10
+  wis: 10
+  cha: 9
+languages:
+- common
+- goblin
+cr: 0.50
+xp: 100
+proficiency_bonus: 2
+attributes:
+- martial_advantage
+actions:
+- name: Longsword
+  type: melee_attack
+  range: 5
+  targets: 1
+  attack: 4
+  damage: 8
+  damage_die: 1d10+1
+  damage_type: slashing
+equipped:
+  - longsword
+  - chain_mail
+  - shield

@@ -381,11 +381,13 @@ class Entity(EntityStateEvaluator):
         return battle.entity_state_for(self).get('reaction', 0) > 0
 
     def hiding(self, battle):
-        entity_state = battle.entity_state_for(self)
-        if not entity_state:
-            return False
+        if battle:
+            entity_state = battle.entity_state_for(self)
+            if not entity_state:
+                return False
 
-        return ':hiding' in entity_state.get('statuses', [])
+            return 'hiding' in entity_state.get('statuses', [])
+        return False
     
     def unsqueeze(self):
         if 'squeezed' in self.statuses:
@@ -704,7 +706,15 @@ class Entity(EntityStateEvaluator):
     
     def do_prone(self):
         self.statuses.append('prone')
-   
+
+    # Hides the entity in battle with a specified stealth value
+    # @param battle [Natural20::Battle]
+    # @param stealth [Integer]
+    def do_hide(self, battle, stealth):
+        entity_state = battle.entity_state_for(self)
+        entity_state['statuses'].add('hiding')
+        entity_state['stealth'] = stealth
+    
     def squeezed(self):
         return 'squeezed' in self.statuses
     

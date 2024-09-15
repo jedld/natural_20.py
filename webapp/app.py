@@ -23,6 +23,7 @@ from natural20.actions.stand_action import StandAction
 from natural20.actions.drop_concentration_action import DropConcentrationAction
 from natural20.actions.action_surge_action import ActionSurgeAction
 from natural20.actions.shove_action import ShoveAction
+from natural20.actions.hide_action import HideAction, HideBonusAction
 from natural20.entity import Entity
 from natural20.action import Action
 from natural20.battle import Battle
@@ -133,6 +134,10 @@ class GameManagement:
         self.battle_map = battle_map
 
     def set_current_battle(self, battle):
+        if not battle:
+            print("setting battle to None")
+        else:
+            print("setting battle to ", battle)
         self.battle = battle
 
     def get_current_battle(self) -> Battle:
@@ -157,7 +162,8 @@ class GameManagement:
         if event in self.trigger_handlers:
             for handlers in self.trigger_handlers[event]:
                 results.append(handlers(self, self.game_session))
-
+        if len(results) == 0:
+            return False
         return any(results)
 
     def prompt(self, message, callback=None):
@@ -174,9 +180,14 @@ class GameManagement:
         output_logger.log("Battle started.")
         game_loop()
         socketio.emit('message',{'type': 'initiative', 'message': {}})
-        socketio.emit('message', { 'type': 'move', 'message': {'animation_log' : self.battle.get_animation_logs() }
-        })
-        self.get_current_battle().clear_animation_logs()
+
+        if self.battle:
+            socketio.emit('message', {
+                'type': 'move',
+                'message': { 'animation_log' : self.battle.get_animation_logs() }
+                })
+            self.battle.clear_animation_logs()
+
         socketio.emit('message',{ 'type': 'turn', 'message': {}})
 
     def refresh_client_map(self):
@@ -215,7 +226,7 @@ def logged_in():
 
 def user_role():
     login_info = next((login for login in LOGINS if login["name"].lower() == session['username']), None)
-    return login_info["role"] if login_info else None
+    return login_info["role"] if login_info else []
 
 def commit_and_update(action):
     global current_game
@@ -250,6 +261,16 @@ def controller_of(entity_uid, username):
 
 app.add_template_global(controller_of, name='controller_of')
 
+def entities_controlled_by(username, map):
+    entities = set()
+    for info in CONTROLLERS:
+        if username in info['controllers']:
+            entity_uid = info['entity_uid']
+            entity = map.entity_by_uid(entity_uid)
+            if entity:
+                entities.add(entity)
+    return list(entities)
+
 def action_flavors(action):
     if isinstance(action, AttackAction):
         if action.second_hand():
@@ -280,11 +301,12 @@ app.add_template_global(entity_owners, name='entity_owners')
 
 def describe_terrain(tile):
     battle_map = current_game.get_current_battle_map()
-
+    battle = current_game.get_current_battle()
     description = []
     if tile.get('difficult'):
         description.append("Difficult Terrain")
 
+    lights = battle_map.light_at(tile['x'], tile['y'])
     # Assuming `map` is accessible and has a method `thing_at(x, y)` returning an object with a `label` attribute
     things = battle_map.thing_at(tile['x'], tile['y'])
     if things:
@@ -294,6 +316,8 @@ def describe_terrain(tile):
                 # obtain buffs and status effects on entity
                 if thing.prone():
                     description.append("Prone")
+                if thing.hiding(battle):
+                    description.append("Hiding")
                 if thing.unconscious():
                     description.append("Unconscious")
                 if thing.dead():
@@ -302,7 +326,7 @@ def describe_terrain(tile):
                     effect_class = effect['effect']
                     description.append(str(effect_class))
 
-
+    description.append("Light: " + str(lights))
 
     return "".join(f"<p>{d}</p>" for d in description)
 
@@ -326,7 +350,7 @@ def process_action_hash(action):
 app.add_template_global(process_action_hash, name='process_action_hash')
 
 def game_loop():
-    global waiting_for_user
+    global waiting_for_user, current_game
 
     battle = current_game.get_current_battle()
     try:
@@ -402,6 +426,7 @@ def index():
     battle = current_game.get_current_battle()
 
     if not logged_in():
+        print("not logged in")
         return redirect(url_for('login'))
     if battle_map and battle_map.name:
         background = battle_map.name + ".png"
@@ -413,7 +438,16 @@ def index():
     width, height = image.size
 
     renderer = JsonRenderer(battle_map, battle)
-    my_2d_array = [renderer.render()]
+
+    if 'dm' in user_role():
+        pov_entities = None
+    else:
+        pov_entities = entities_controlled_by(session['username'], battle_map)
+    print(f"{session['username']} {pov_entities} {user_role()}")
+    if pov_entities:
+        raise Exception("pov_entities not implemented")
+
+    my_2d_array = [renderer.render(entity_pov=pov_entities)]
     map_width, map_height = battle_map.size
     tiles_dimension_height = map_height * TILE_PX
     tiles_dimension_width = map_width * TILE_PX
@@ -424,7 +458,7 @@ def index():
     for info in CONTROLLERS:
         if session['username'] in info['controllers']:
             entity_ids.append(info['entity_uid'])
-    
+
     return render_template('index.html', tiles=my_2d_array, tile_size_px=TILE_PX,
                            background_path=f"assets/{background}", background_width=tiles_dimension_width,
                            messages=messages,
@@ -441,6 +475,14 @@ def response():
     callback = current_game.callbacks.pop(callback_id, None)
     if callback:
         callback(request.json)
+    return jsonify(status='ok')
+
+@app.route('/focus', methods=['POST'])
+def focus():
+    x = request.form['x']
+    y = request.form['y']
+
+    socketio.emit('message', {'type': 'focus', 'message': {'x': x, 'y': y}})
     return jsonify(status='ok')
 
 @app.route('/path', methods=['GET'])
@@ -558,7 +600,6 @@ def start_battle_with_initiative():
         if not request.json or 'battle_turn_order' not in request.json:
             return jsonify(error='No entities in turn order'), 400
 
-
         battle = Battle(game_session, battle_map, animation_log_enabled=True)
         current_game.set_current_battle(battle)
 
@@ -633,10 +674,24 @@ def next_turn():
 @app.route('/update')
 def update():
     global current_game
+    enable_pov = request.args.get('pov', 'false') == 'true'
+    x = int(request.args.get('x'))
+    y = int(request.args.get('y'))
     battle_map = current_game.get_current_battle_map()
     battle = current_game.get_current_battle()
     renderer = JsonRenderer(battle_map, battle)
-    my_2d_array = [renderer.render()]
+
+    pov_entities = None
+
+    if enable_pov and 'dm' in user_role():
+        pov_entities = [battle_map.entity_at(x, y)]
+    else:
+        if 'dm' not in user_role():
+            pov_entities = None
+        else:
+            pov_entities = entities_controlled_by(session['username'], battle_map)
+
+    my_2d_array = [renderer.render(entity_pov=pov_entities)]
     return render_template('map.html', tiles=my_2d_array, tile_size_px=TILE_PX, is_setup=(request.args.get('is_setup') == 'true'))
 
 @app.route('/actions', methods=['GET'])
@@ -683,6 +738,10 @@ def action_type_to_class(action_type):
         return DropConcentrationAction
     elif action_type == 'ShoveAction':
         return ShoveAction
+    elif action_type == 'HideAction':
+        return HideAction
+    elif action_type == 'HideBonusAction':
+        return HideBonusAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
 
@@ -791,9 +850,10 @@ def action():
                 last_coords = move_path[-1]
                 if battle_map.placeable(entity, last_coords[0], last_coords[1]):
                     battle_map.move_to(entity, *last_coords, battle)
-                    socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1], 
-                                                                          'animation_log': battle.get_animation_logs()}}) 
-                    battle.clear_animation_logs()
+                    if battle:
+                        socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1],
+                                                                            'animation_log': battle.get_animation_logs()}})
+                        battle.clear_animation_logs()
                     return jsonify({'status': 'ok'})
         else:
             action_info['action'] = 'movement'
@@ -947,10 +1007,11 @@ def logout():
 
 @app.route('/turn')
 def get_turn():
+    global current_game
     battle = current_game.get_current_battle()
     if battle:
         print(f"current turn: {battle.current_turn().entity_uid} {session['username']}")
-        if session['username']=='dm' or controller_of(session['username'], battle.current_turn().entity_uid):
+        if 'dm' in user_role() or controller_of(session['username'], battle.current_turn().entity_uid):
             return render_template('turn.jinja', battle=battle)
         else:
             return jsonify(error="Forbidden"), 403

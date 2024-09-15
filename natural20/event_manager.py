@@ -137,6 +137,7 @@ class EventManager:
             'spell_damage': spell_damage,
             'spell_miss': miss,
             'miss': miss,
+            'hide': lambda event: self.output_logger.log(f"{self.show_name(event)} hides."),
             'move': lambda event: self.output_logger.log(f"{self.show_name(event)} moved to {event['position']} {event['move_cost'] * 5} feet"),
             'initiative': lambda event: self.output_logger.log(f"{self.show_name(event)} rolled initiative {event['roll']} value {event['value']}"),
             'start_of_turn': lambda event: self.output_logger.log(f"{self.show_name(event)} starts their turn."),

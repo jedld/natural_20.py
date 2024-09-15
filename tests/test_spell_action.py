@@ -122,7 +122,6 @@ class TestSpellAction(unittest.TestCase):
         self.battle.commit(action)
         available_actions = [a.action_type for a in self.entity.available_actions(self.session, self.battle)]
 
-
         # can't cast another spell this turn
         self.assertNotIn('spell', available_actions)
         self.entity.reset_turn(self.battle)

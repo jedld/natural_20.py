@@ -10,14 +10,14 @@ class HideAction(Action):
         self.as_bonus_action = False
 
     @staticmethod
-    def can(entity, battle):
-        return battle and entity.total_actions(battle) > 0
+    def can(entity, battle, options=None):
+        if options is None:
+            options = {}
+
+        return battle and battle.map and battle.map.can_hide(entity) and entity.total_actions(battle) > 0
 
     def build_map(self):
-        return {
-            'param': None,
-            'next': lambda: self
-        }
+        return self
 
     @staticmethod
     def build(session, source):
@@ -25,7 +25,9 @@ class HideAction(Action):
         return action.build_map()
 
     def resolve(self, session, map, opts=None):
-        stealth_roll = self.source.stealth_check(opts['battle'])
+        if opts is None:
+            opts = {}
+        stealth_roll = self.source.stealth_check(opts.get('battle', None))
         self.result = [{
             'source': self.source,
             'bonus_action': self.as_bonus_action,
@@ -43,7 +45,7 @@ class HideAction(Action):
                 'roll': item['roll'],
                 'event': 'hide'
             })
-            item['source'].hiding(battle, item['roll'].result)
+            item['source'].do_hide(battle, item['roll'].result())
             if item['bonus_action']:
                 battle.consume(item['source'], 'bonus_action')
             else:

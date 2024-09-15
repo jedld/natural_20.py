@@ -225,3 +225,22 @@ input.initiative-text {
   width: 60px;
   height: 60px;
 }
+
+.tile .fog-of-war {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: black;
+  opacity: 0.9;
+}
+
+.brightness-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: black;
+}
