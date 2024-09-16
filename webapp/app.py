@@ -342,7 +342,7 @@ def validate_targets(action, entity, target, current_map, battle=None):
         if isinstance(target, list):
             for t in target:
                 if t not in valid_targets:
-                    raise ValueError(f"Invalid target {target}")
+                    raise ValueError(f"Invalid target {t}")
         else:
             if target not in valid_targets:
                 raise ValueError(f"Invalid target {target}")
