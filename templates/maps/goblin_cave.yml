@@ -11,7 +11,7 @@ map:
     - ...##.##.#
     - '#####....#'
     - '###......#'
-    - '#........#'
+    - '##.......#'
     - '#.........'
   light:
     - ..........
@@ -56,19 +56,19 @@ legend:
     type: npc
     sub_type: wolf
 player:
-  - position: [1, 1]
+  - position: [1, 4]
     sheet: characters/halfling_rogue.yml
     overrides:
       entity_uid: rumblebelly
-  - position: [0, 0]
+  - position: [0, 4]
     sheet: characters/high_elf_fighter.yml
     overrides:
       entity_uid: gomerin
-  - position: [0, 1]
+  - position: [1, 5]
     sheet: characters/dwarf_cleric.yml
     overrides:
       entity_uid: shorvalu
-  - position: [1, 0]
+  - position: [0, 5]
     sheet: characters/high_elf_mage.yml
     overrides:
       entity_uid: crysania

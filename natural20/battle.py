@@ -1,6 +1,7 @@
 import random
 from natural20.generic_controller import GenericController
 from natural20.action import Action
+from natural20.actions.attack_action import AttackAction
 from natural20.weapons import compute_max_weapon_range
 from natural20.utils.ac_utils import cover_calculation
 from natural20.map import Map
@@ -424,7 +425,10 @@ class Battle():
 
     def valid_targets_for(self, entity, action, target_types=None, range=None, active_perception=None, include_objects=False, filter=None):
         if target_types is None:
-            target_types = ['enemies']
+            if isinstance(action, AttackAction):
+                target_types = ['enemies']
+            else:
+                target_types = ['enemies', 'self', 'allies']
         if not isinstance(action, Action):
             raise Exception('not an action')
 
@@ -449,17 +453,20 @@ class Battle():
                 continue
             if k.hp() is None:
                 continue
-            if 'ignore_los' not in target_types and not self.can_see(entity, k, active_perception=active_perception):
+            if 'ignore_los' not in target_types and not entity==k and not self.can_see(entity, k, active_perception=active_perception):
                 continue
-            if self.map.distance(k, entity) * self.map.feet_per_grid > attack_range:
+            if self.map and self.map.distance(k, entity) * self.map.feet_per_grid > attack_range:
                 continue
             if filter and not k.eval_if(filter):
                 continue
 
-            action.target = k
-            action.validate()
+            action.validate(target=k)
+
             if not action.errors:
                 targets.append(k)
+            else:
+                print(f'{k}: action.errors')
+                print(action.errors)
 
         if include_objects:
             for object, _position in self.map.interactable_objects.items():

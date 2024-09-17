@@ -9,6 +9,7 @@ from natural20.gym.types import EnvObject, Environment
 from natural20.entity import Entity
 from natural20.action import Action
 from natural20.controller import Controller
+from natural20.ai.path_compute import PathCompute
 import math
 import copy
 import pdb
@@ -50,7 +51,7 @@ class GenericController(Controller):
         if available_actions is None:
             available_actions = []
         if len(available_actions) > 0:
-            action = self._sort_actions(battle, available_actions)[0]
+            action = self._sort_actions(entity, battle, available_actions)[0]
             # print(f"{entity.name}: {action}")
             return action
 
@@ -60,7 +61,7 @@ class GenericController(Controller):
     def select_reaction(self, entity, battle, map, valid_actions, event):
         if len(valid_actions) == 0:
             return None
-        action = self._sort_actions(battle, valid_actions)[0]
+        action = self._sort_actions(entity, battle, valid_actions)[0]
         return action
 
     def move_for(self, entity: Entity, battle):
@@ -108,6 +109,9 @@ class GenericController(Controller):
         objects_around_me = battle.map.look(entity)
 
         my_group = battle.entity_group_for(entity)
+        width, height = battle.map.size
+        path_compute = PathCompute(battle, battle.map, entity)
+        entity_x, entity_y = battle.map.position_of(entity)
 
         for object, location in objects_around_me.items():
             group = battle.entity_group_for(object)
@@ -119,7 +123,10 @@ class GenericController(Controller):
                 continue
 
             if group != my_group:
-                enemy_positions[object] = location 
+                path_compute.build_structures(entity_x, entity_y)
+                path_compute.path((location[0], location[1]))
+                path = path_compute.backtrace(entity_x, entity_y, location[0], location[1])
+                enemy_positions[object] = (location, path)
 
     def _initialize_battle_data(self, battle, entity):
         if battle not in self.battle_data:
@@ -191,12 +198,30 @@ class GenericController(Controller):
         return self.battle_data[battle][entity]
 
     # Sort actions based on success rate and damage
-    def _sort_actions(self, battle, available_actions):
+    def _sort_actions(self, entity, battle, available_actions):
         """
         Simple rules for performing combat actions:
         - Attack if available
         - Move towards the closest enemy
         """
+        enemy_distance_pair = []
+
+        enemy_positions = self._get_enemy_positions(battle, entity)
+
+        move_square_score = {}
+        for enemy, location_pair in enemy_positions.items():
+            _, path = location_pair
+
+            if path is None:
+                continue
+
+            distance = len(path)
+            square_key = (path[1][0], path[1][1])
+            move_square_score[square_key] = 1.0 / distance
+            enemy_distance_pair.append((enemy, distance))
+
+        enemy_distance_pair.sort(key=lambda a: a[1])
+
         sorted_actions = []
         for action in available_actions:
             if isinstance(action, AttackAction) or isinstance(action, SpellAction):
@@ -205,29 +230,12 @@ class GenericController(Controller):
                 base_score = action.compute_hit_probability(battle) * action.avg_damage(battle)
                 sorted_actions.append((action, base_score))
             elif isinstance(action, MoveAction):
-                # get known enemy position
-                enemy_positions = self._get_enemy_positions(battle, action.source)
-                # get the closest enemy
-                closest_enemy = None
-                min_distance = math.inf
-                for enemy, location in enemy_positions.items():
-                    distance = battle.map.distance(action.source, enemy, location)
-                    if distance < min_distance:
-                        min_distance = distance
-                        closest_enemy = enemy
-                if closest_enemy:
-                    # get the distance to the closest enemy
-                    new_position = action.move_path[-1]
-                    # print(f"closest_enemy {closest_enemy.name} {enemy_positions[closest_enemy]}")
-                    distance = battle.map.distance(action.source, closest_enemy)
-                    new_distance = battle.map.distance(action.source, closest_enemy, entity_1_pos=new_position)
-
-                    # select movement which brings closer to the enemy
-                    score = distance - new_distance
-                    # print(f"scores {distance} {new_distance} {score}")
-                    sorted_actions.append((action, score))
-                else:
-                    sorted_actions.append((action, 0))
+                new_position = action.move_path[-1]
+                print(f"move_square_score: {move_square_score}")
+                print(f"New position: {new_position}")
+                position_key = (new_position[0], new_position[1])
+                score = move_square_score.get(position_key, 0)
+                sorted_actions.append((action, score))
             else:
                 sorted_actions.append((action, 0))
         sorted_actions.sort(key=lambda a: a[1], reverse=True)

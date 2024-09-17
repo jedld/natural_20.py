@@ -316,8 +316,6 @@ class Map():
         return self.light_at_entity(entity) < 0.5
 
     def can_hide(self, entity, pos_override=None, battle=None):
-        if entity.class_feature('hide_in_plain_sight') or entity.class_feature('hide_in_shadows'):
-            return True
         if pos_override is not None:
             entity_squares = self.entity_squares_at_pos(entity, pos_override[0], pos_override[1])
         else:
@@ -503,7 +501,7 @@ class Map():
             return True
 
         if entity not in self.entities and entity not in self.interactable_objects:
-            raise ValueError('Invalid entity passed')
+            return False
 
         if entity2.hidden():
             if active_perception < entity2.hidden_stealth:

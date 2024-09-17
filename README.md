@@ -213,3 +213,4 @@ Run specific tests
 python -m unittest tests.test_gym.TestGym.test_reset
 python -m unittest tests.test_map.TestMap.test_line_of_sight
 ```
+python -m unittest discover tests

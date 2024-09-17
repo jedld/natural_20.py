@@ -35,7 +35,7 @@ class JsonRenderer:
 
                     distance_to_square = min([np.linalg.norm(np.array((x, y)) - np.array((pos[0], pos[1]))) for pos in entity_pov_locations]) if entity_pov_locations else None
 
-                    if any([e.darkvision(distance_to_square) for e in entity_pov]):
+                    if any([e.darkvision(distance_to_square * self.map.feet_per_grid) for e in entity_pov]):
                         has_darkvision = True
                     else:
                         has_darkvision = False
@@ -48,11 +48,13 @@ class JsonRenderer:
                 entity = self.map.entity_at(x, y)
                 light = self.map.light_at(x, y)
 
-
+                darkvision_color = False
                 if has_darkvision:
+                    if light == 0.0:
+                        darkvision_color = True
                     light += 0.5
 
-                opacity = 1.0 - max(min(1.0, light), 0.3)
+                opacity = 1.0 - max(min(1.0, light), 0.2)
 
                 shared_attributes = {
                     'x': x,
@@ -61,7 +63,8 @@ class JsonRenderer:
                     'line_of_sight': True,
                     'light': light,
                     'opacity': opacity,
-                    'has_darkvision': has_darkvision
+                    'has_darkvision': has_darkvision,
+                    'darkvision_color': darkvision_color
                 }
 
                 if entity:
@@ -79,7 +82,9 @@ class JsonRenderer:
                     })
                     if m_x == x and m_y == y:
                         attributes.update({
-                            'entity': entity.token_image(), 'name': entity.label(), 'dead': entity.dead(), 'unconscious': entity.unconscious()
+                            'entity': entity.token_image(), 'name': entity.label(),
+                            'hiding' : entity.hidden(),
+                            'dead': entity.dead(), 'unconscious': entity.unconscious()
                         })
                     result_row.append(attributes)
                 else:

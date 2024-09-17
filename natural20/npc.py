@@ -24,6 +24,7 @@ from natural20.actions.spell_action import SpellAction
 from natural20.utils.action_builder import autobuild
 from natural20.actions.shove_action import ShoveAction
 from natural20.utils.multiattack import Multiattack
+from natural20.utils.npc_random_name_generator import generate_goblinoid_name, generate_ogre_name
 import pdb
 
 
@@ -75,10 +76,10 @@ class Npc(Entity, Multiattack):
             self.statuses.append(stat)
 
         auto_name = ""
-        if type == "goblin":
-            auto_name = random.choice(["Skritz", "Grib", "Nackle", "Wrick", "Lurtz", "Snub", "Vex", "Jinx", "Znag", "Flix"])
+        if 'goblinoid' in self.properties.get('race',[]):
+            auto_name = generate_goblinoid_name()
         elif type == "ogre":
-            auto_name = random.choice(["Guzar", "Irth", "Grukurg", "Zoduk"])
+            auto_name = generate_ogre_name()
         else:
             auto_name = type.replace("_", " ").title()
         
@@ -184,7 +185,7 @@ class Npc(Entity, Multiattack):
         if battle and auto_target:
             final_attack_list = []
             for action in actions:
-                valid_targets = battle.valid_targets_for(self, action)
+                valid_targets = battle.valid_targets_for(self, action, target_types=["enemies"])
                 for target in valid_targets:
                     targeted_action = copy.copy(action)
                     targeted_action.target = target

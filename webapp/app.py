@@ -15,7 +15,7 @@ from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.second_wind_action import SecondWindAction
 from natural20.actions.disengage_action import DisengageAction, DisengageBonusAction
-from natural20.actions.dash import DashBonusAction
+from natural20.actions.dash import DashAction, DashBonusAction
 from natural20.actions.dodge_action import DodgeAction
 from natural20.actions.prone_action import ProneAction
 from natural20.actions.spell_action import SpellAction
@@ -246,10 +246,11 @@ def commit_and_update(action):
         action.apply(None, event, session=game_session)
     if battle:
         socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
+        battle.clear_animation_logs()
     else:
         socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
     socketio.emit('message', {'type': 'turn', 'message': {}})
-    battle.clear_animation_logs()
+
 
 def controller_of(entity_uid, username):
     if username == 'dm':
@@ -260,6 +261,27 @@ def controller_of(entity_uid, username):
             return True
 
 app.add_template_global(controller_of, name='controller_of')
+
+def opacity_for(tile):
+    if tile['hiding']:
+        return 0.7
+    elif tile['dead']:
+        return 0.4
+    else:
+        return 1.0
+app.add_template_global(opacity_for, name='opacity_for')
+
+def filter_for(tile):
+    if tile['dead']:
+        return 'brightness(50%) sepia(100%) hue-rotate(180deg)'
+    elif tile['unconscious']:
+        return 'brightness(50%)'
+    elif tile['darkvision_color']:
+        return 'grayscale(100%)'
+    else:
+        return 'none'
+app.add_template_global(filter_for, name='filter_for')
+
 
 def entities_controlled_by(username, map):
     entities = set()
@@ -580,7 +602,6 @@ def handle_disconnect():
 @app.route('/start', methods=['POST'])
 def start_battle():
     if current_game.trigger_event('start_battle'):
-        pdb.set_trace()
         battle_map = current_game.get_current_battle_map()
         current_game.set_current_battle(Battle(game_session, battle_map, animation_log_enabled=True))
     return jsonify(status='ok')
@@ -726,6 +747,8 @@ def action_type_to_class(action_type):
         return DisengageAction
     elif action_type == 'DisengageBonusAction':
         return DisengageBonusAction
+    elif action_type == 'DashAction':
+        return DashAction
     elif action_type == 'DashBonusAction':
         return DashBonusAction
     elif action_type == 'ProneAction':

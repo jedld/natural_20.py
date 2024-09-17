@@ -3,14 +3,14 @@ kind: Hobgoblin
 description: Hobgoblins are larger, stronger, and smarter than their goblin cousins
 size: medium
 race:
-- humanoid
-- goblinoid
+  - humanoid
+  - goblinoid
 alignment: lawful_evil
 default_ac: 18
 max_hp: 11
-hp_die: 2d8
+hp_die: 2d8+2
 speed: 30
-passive_perception: 19
+passive_perception: 10
 darkvision: 60
 token:
  - h
@@ -39,7 +39,18 @@ actions:
   damage: 8
   damage_die: 1d10+1
   damage_type: slashing
+- name: Longbow
+  type: ranged_attack
+  if: equipped:longbow
+  range: 150
+  max_range: 600
+  targets: 1
+  attack: 3
+  damage: 5
+  damage_die: 1d8+1
+  damage_type: piercing
 equipped:
   - longsword
+  - longbow
   - chain_mail
   - shield

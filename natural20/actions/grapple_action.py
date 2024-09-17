@@ -12,10 +12,12 @@ class GrappleAction(Action):
     def __str__(self):
         return str(self.action_type).capitalize()
 
-    def validate(self):
-        if self.target is None:
+    def validate(self, target=None):
+        if target is None:
+            target = self.target
+        if target is None:
             self.errors.append('target is a required option for :attack')
-        if (self.target.size_identifier - self.source.size_identifier) > 1:
+        if (target.size_identifier - self.source.size_identifier) > 1:
             self.errors.append('validation.shove.invalid_target_size')
 
     def build_map(self):

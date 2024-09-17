@@ -10,11 +10,14 @@ class ShoveAction(Action):
     def can(entity, battle, options=None):
         return battle is None or entity.total_actions(battle) > 0
 
-    def validate(self):
+    def validate(self, target=None):
+        if target is None:
+            target = self.target
+
         errors = []
-        if self.target is None:
+        if target is None:
             errors.append("target is a required option for :attack")
-        if (self.target.size_identifier() - self.source.size_identifier()) > 1:
+        if (target.size_identifier() - self.source.size_identifier()) > 1:
             errors.append("validation.shove.invalid_target_size")
         return errors
 

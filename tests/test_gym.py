@@ -27,7 +27,7 @@ class TestGym(unittest.TestCase):
                 break
         assert env is not None
         assert info is not None
-        self.assertEqual(observation['player_type'], [0])
+        self.assertEqual(observation['player_type'], [3])
 
     def test_character_sampling(self):
         def sample_character():
@@ -58,7 +58,7 @@ class TestGym(unittest.TestCase):
         _, info = env.reset(seed=42)
         print(info['available_moves'])
         self.assertIsNotNone(info['available_moves'])
-        self.assertEqual(len(info['available_moves']), 15)
+        self.assertEqual(len(info['available_moves']), 16)
 
     def test_custom_setup(self):
         def make_session():
@@ -141,7 +141,7 @@ class TestGym(unittest.TestCase):
         print(env.render())
         self.assertIsNotNone(observation)
         observation, reward, done, truncate, info = env.step((-1, (0, 0), (0, 0), 0, 0))
-        self.assertEqual(reward, 10)
+        self.assertEqual(reward, 0)
 
 
     def test_render(self):

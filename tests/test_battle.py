@@ -130,7 +130,7 @@ class TestBattle(unittest.TestCase):
         action = AttackAction(session, fighter, 'attack')
         action.using = 'vicious_rapier'
         print(map_renderer.render())
-        assert battle.valid_targets_for(fighter, action) == []
+        self.assertEqual(battle.valid_targets_for(fighter, action), [])
         battle.add(npc, 'b', position=(1, 5))
         print(map_renderer.render())
         assert battle.valid_targets_for(fighter, action) == [npc]

@@ -80,6 +80,9 @@ class Entity(EntityStateEvaluator):
     def is_npc(self):
         return False
 
+    def object(self):
+        return False
+
     def expertise(self, prof):
         return prof in self.properties.get('expertise', [])
 
@@ -131,7 +134,7 @@ class Entity(EntityStateEvaluator):
     def darkvision(self, distance):
         if not self.properties.get('darkvision'):
             return False
-        adjusted_darkvision_distance = self.properties.get('darkvision') / 5
+        adjusted_darkvision_distance = self.properties.get('darkvision')
         if adjusted_darkvision_distance < distance:
             return False
         return True

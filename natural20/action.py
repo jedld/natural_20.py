@@ -43,7 +43,7 @@ class Action:
         p = inflect.engine()
         return p.plural(self.action_type)
 
-    def validate(self):
+    def validate(self, target=None):
         pass
 
     @staticmethod

@@ -32,17 +32,17 @@ class TestClericSpellAction(unittest.TestCase):
 
     def test_sacred_flame(self):
         random.seed(7003)
-        self.assertEqual(self.npc.hp(), 6)
+        self.assertEqual(self.npc.hp(), 9)
         print(MapRenderer(self.battle_map).render())
         action = SpellAction.build(self.session, self.entity)['next'](['sacred_flame',0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
         self.assertEqual([s['type'] for s in action.result], ['spell_damage'])
         self.battle.commit(action)
-        self.assertEqual(self.npc.hp(), 0)
+        self.assertEqual(self.npc.hp(), 1)
 
     def test_guiding_bolt(self):
         random.seed(7005)
-        self.assertEqual(self.npc.hp(), 6)
+        self.assertEqual(self.npc.hp(), 9)
         print(MapRenderer(self.battle_map).render())
         action = SpellAction.build(self.session, self.entity)['next'](['guiding_bolt',0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle": self.battle})

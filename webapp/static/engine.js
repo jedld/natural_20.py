@@ -1,6 +1,37 @@
 let scale = 1;
 
 
+function addToInitiative(btn, id, battle_entity_list) {
+  const index = battle_entity_list.findIndex(entity => entity.id === id);
+  var $this = $(btn);
+    if (index === -1) {
+      battle_entity_list.push({ id, group: 'a', name });
+      $.ajax({
+        url: '/add',
+        type: 'GET',
+        data: { id: id },
+        success: function (data) {
+          $('#turn-order').append(data);
+          $this.find('i.glyphicon').removeClass('glyphicon-plus').addClass('glyphicon-minus');
+          $this.css('background-color', 'red');
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+          console.error('Error requesting turn order:', textStatus, errorThrown);
+        }
+      });
+    } else {
+      battle_entity_list.splice(index, 1);
+      $this.find('i.glyphicon').removeClass('glyphicon-minus').addClass('glyphicon-plus');
+      $this.css('background-color', 'green');
+
+      // Remove name from turn order list
+      const $turnOrderItem = $('.turn-order-item').filter(function () {
+        return $(this).text() === name;
+      });
+      $turnOrderItem.remove();
+    }
+}
+
 function drawLine(ctx, source, entity_uid, line_width=5, with_arrow=false, random_curve=false, strokeStyle='green', text=null) {
     // draw a green line from the source to the target
     var sourceTile = $('.tile[data-coords-x="' + source.x + '"][data-coords-y="' + source.y + '"]');
@@ -685,6 +716,15 @@ $(document).ready(function () {
     
   });
 
+  $("#add-all-entities", 'click', function(event) {
+    debugger;
+    $('.tile').each(function(elem) {
+      var entity_uid = $(elem).data('coords-id');
+      var btn = $('.tile btn.add-to-turn-order');
+
+      addToInitiative(btn, entity_uid, battle_entity_list)
+    })
+  });
 
   $(document).on('keydown', function (event) {
 

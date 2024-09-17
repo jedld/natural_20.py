@@ -263,6 +263,12 @@ class AttackAction(Action):
             raise Exception('damage should is required')
         
         if hit:
+            if self.source.class_feature('martial_advantage') and battle:
+                for entity in battle.allies_of(self.source):
+                    if entity != target and battle.map.distance(entity, target) <= 5:
+                        damage += DieRoll.roll("2d6", description='dice_roll.martial_advantage', entity=self.source, battle=battle)
+                        break
+
             self.result.append({
                 'source': self.source,
                 'target': target,
@@ -288,7 +294,9 @@ class AttackAction(Action):
             })
             if weapon.get('on_hit'):
                 for effect in weapon['on_hit']:
-                    if effect.get('if') and not self.source.eval_if(effect['if'], weapon=weapon, target=target):
+                    if effect.get('if') and not self.source.eval_if(effect['if'], {
+                         "weapon": weapon, "target":target
+                    }):
                         continue
 
                     if effect.get('save_dc'):
@@ -370,6 +378,7 @@ class AttackAction(Action):
         if self.source.npc():
             if npc_action is None:
                 npc_action = next((action for action in self.source.properties['actions'] if action['name'].lower() == using.lower()), None)
+
             weapon = npc_action
             attack_name = npc_action["name"]
             attack_mod = npc_action["attack"]

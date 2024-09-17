@@ -294,7 +294,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
     if battle and auto_target:
       final_attack_list = []
       for action in weapon_attacks:
-        valid_targets = battle.valid_targets_for(self, action)
+        valid_targets = battle.valid_targets_for(self, action, target_types=["enemies"])
         for target in valid_targets:
           targeted_action = copy.copy(action)
           targeted_action.target = target
@@ -405,7 +405,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
     if super().darkvision(distance):
       return True
 
-    return bool(self.race_properties.get('darkvision', None) and (self.race_properties['darkvision'] / 5 >= distance))
+    return bool(self.race_properties.get('darkvision', None) and (self.race_properties['darkvision'] >= distance))
 
   def spell_slots_count(self, level, character_class=None):
     if character_class is None:

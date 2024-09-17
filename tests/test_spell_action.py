@@ -31,7 +31,7 @@ class TestSpellAction(unittest.TestCase):
 
     def test_firebolt(self):
         random.seed(7002)
-        self.assertEqual(self.npc.hp(), 6)
+        self.assertEqual(self.npc.hp(), 9)
         print(MapRenderer(self.battle_map).render())
         action = SpellAction.build(self.session, self.entity)['next'](['firebolt',0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
@@ -40,7 +40,7 @@ class TestSpellAction(unittest.TestCase):
         self.assertEqual(self.npc.hp(), 0)
 
     def test_ranged_spell_attack_with_disadvantage(self):
-        self.assertEqual(self.npc.hp(), 6)
+        self.assertEqual(self.npc.hp(), 9)
         self.npc2 = self.session.npc('skeleton')
         self.battle.add(self.npc2, 'b', position=[1, 6])
         print(MapRenderer(self.battle_map).render())
@@ -85,18 +85,18 @@ class TestSpellAction(unittest.TestCase):
 
     def test_chill_touch(self):
         random.seed(1002)
-        self.assertEqual(self.npc.hp(), 6)
+        self.assertEqual(self.npc.hp(), 9)
         print(MapRenderer(self.battle_map).render())
         action = SpellAction.build(self.session, self.entity)['next'](['chill_touch', 0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
         self.assertEqual([s['type'] for s in action.result], ['spell_damage', 'chill_touch'])
         self.battle.commit(action)
-        self.assertEqual(self.npc.hp(), 0)
+        self.assertEqual(self.npc.hp(), 2)
         self.assertTrue(self.npc.has_spell_effect('chill_touch'))
 
         # target cannot heal until effect ends
         self.npc.heal(100)
-        self.assertEqual(self.npc.hp(), 0)
+        self.assertEqual(self.npc.hp(), 2)
 
         # drop effect until next turn
         self.entity.reset_turn(self.battle)
