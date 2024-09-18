@@ -235,7 +235,6 @@ $(document).ready(function () {
 
         var animatefunction = function(animation_log, animation_log_index) {
           if (animation_log_index >= animation_log.length) {
-            console.log('refreshing tileset');
             refreshTileSet();
             return
           }
@@ -289,7 +288,7 @@ $(document).ready(function () {
                 tile.css('top', newY);
                 tile.css('left', newX);
                 moveFunc(path, index + 1);
-              }, 200);
+              }, 300);
             }
           }
           moveFunc(path, 1)
@@ -311,8 +310,8 @@ $(document).ready(function () {
         break;
       case 'console':
         var console_message = data.message;
-        $('#console-container').append('<p>' + console_message + '</p>');
-        $('#console-container').scrollTop($('#console-container')[0].scrollHeight);
+        $('#console-container #console').append('<p>' + console_message + '</p>');
+        $('#console-container #console').scrollTop($('#console-container')[0].scrollHeight);
         break;
       case 'track':
         url = data.message.url;
@@ -604,18 +603,18 @@ $(document).ready(function () {
         $('.tile').css('z-index', 0);
         $(this).css('z-index', 999);
 
-        var data_payload = {
+        var data_payload = JSON.stringify({
           "id": globalSourceEntity,
           "x" : x,
           "y" : y,
           "action_info" : globalActionInfo,
           "opts" : globalOpts
-        }
+        });
 
         $.ajax({
           url: '/target',
           type: 'GET',
-          data: data_payload,
+          data: { payload: data_payload },
           success: function (data) {
             console.log('Target request successful:', data);
             var adv_info = data.adv_info;
@@ -728,7 +727,7 @@ $(document).ready(function () {
 
   $(document).on('keydown', function (event) {
 
-    if (event.keyCode === 27) { // ESC key
+    if (event.keyCode === 27) { // Escape or ESC key is pressed, cancel all ongoing UI interactions
       if (moveMode) {
         moveMode = false;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -746,6 +745,8 @@ $(document).ready(function () {
         $('.popover-menu-2').hide();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
+
+      $('.tiles-container .popover-menu').hide();
     }
   });
 

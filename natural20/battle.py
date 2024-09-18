@@ -1,7 +1,7 @@
 import random
 from natural20.generic_controller import GenericController
 from natural20.action import Action
-from natural20.actions.attack_action import AttackAction
+from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.weapons import compute_max_weapon_range
 from natural20.utils.ac_utils import cover_calculation
 from natural20.map import Map
@@ -242,7 +242,11 @@ class Battle():
                 return result
 
     def entity_state_for(self, entity):
-      return self.entities.get(entity, None)
+        entity_state = self.entities.get(entity, None)
+        if entity_state is None:
+            _entity = self.map.entity_by_uid(entity.entity_uid)
+            return self.entities.get(_entity, None)
+        return entity_state
 
     def dismiss_help_actions_for(self, source):
         for entity in self.entities.values():
@@ -307,6 +311,7 @@ class Battle():
     
     def commit(self, action):
         if action is None:
+            print('action is None')
             return
 
         # check_action_serialization(action)
@@ -343,6 +348,11 @@ class Battle():
 
     def entity_group_for(self, entity):
         if entity not in self.entities:
+            _entity = self.map.entity_by_uid(entity.entity_uid)
+            if _entity:
+                if _entity not in self.entities:
+                    return 'none'
+                return self.entities[_entity]['group']
             return 'none'
 
         return self.entities[entity]['group']
@@ -425,7 +435,7 @@ class Battle():
 
     def valid_targets_for(self, entity, action, target_types=None, range=None, active_perception=None, include_objects=False, filter=None):
         if target_types is None:
-            if isinstance(action, AttackAction):
+            if isinstance(action, AttackAction) or isinstance(action, TwoWeaponAttackAction):
                 target_types = ['enemies']
             else:
                 target_types = ['enemies', 'self', 'allies']
@@ -434,6 +444,10 @@ class Battle():
 
         active_perception = active_perception if active_perception is not None else self.active_perception_for(entity)
         target_types = [target_type.lower() for target_type in target_types] if target_types else ['enemies']
+
+        if entity not in self.entities:
+            entity = self.map.entity_by_uid(entity.entity_uid)
+
         entity_group = self.entities[entity]['group']
  
         attack_range = compute_max_weapon_range(self.session, action, range)

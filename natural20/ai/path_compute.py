@@ -4,10 +4,11 @@ import math
 MAX_DISTANCE = 4_000_000
 
 class PathCompute:
-    def __init__(self, battle, map, entity):
+    def __init__(self, battle, map, entity, ignore_opposing=False):
         self.entity = entity
         self.map = map
         self.battle = battle
+        self.ignore_opposing = ignore_opposing
         self.max_x, self.max_y = self.map.size
 
     def build_structures(self, source_x, source_y):
@@ -121,7 +122,7 @@ class PathCompute:
                     continue
                 if x_op == 0 and y_op == 0:
                     continue
-                if self.map.passable(self.entity, cur_x, cur_y, self.battle, squeeze):
+                if self.map.passable(self.entity, cur_x, cur_y, self.battle, squeeze, ignore_opposing=self.ignore_opposing):
                     valid_paths.add((cur_x, cur_y))
 
         return valid_paths

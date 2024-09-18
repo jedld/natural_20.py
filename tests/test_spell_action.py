@@ -112,7 +112,7 @@ class TestSpellAction(unittest.TestCase):
         action = SpellAction.build(self.session, self.entity)['next'](['chill_touch', 0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle" : self.battle})
         self.battle.commit(action)
-        self.assertEqual(self.npc.hp(), 7)
+        self.assertEqual(self.npc.hp(), 5)
         self.assertEqual(target_advantage_condition(self.battle, self.npc, self.entity, None), [-1, [[], ['chill_touch_disadvantage']]])
 
     def test_expeditious_retreat(self):

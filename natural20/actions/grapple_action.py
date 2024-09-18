@@ -7,7 +7,7 @@ class GrappleAction(Action):
 
     @classmethod
     def can(cls, entity, battle, options=None):
-        return (battle is None or entity.total_actions(battle) > 0) and not entity.grappling()
+        return (battle is None or entity.total_actions(battle) > 0) and not entity.is_grappling()
 
     def __str__(self):
         return str(self.action_type).capitalize()
@@ -21,6 +21,9 @@ class GrappleAction(Action):
             self.errors.append('validation.shove.invalid_target_size')
 
     def build_map(self):
+        def set_target(target):
+            self.target = target
+            return self
         return {
             'action': self,
             'param': [
@@ -31,10 +34,7 @@ class GrappleAction(Action):
                     'num': 1
                 }
             ],
-            'next': lambda target: {
-                'param': None,
-                'next': lambda: self
-            }
+            'next': set_target
         }
 
     @classmethod
@@ -51,8 +51,8 @@ class GrappleAction(Action):
             return
 
         strength_roll = self.source.athletics_check(battle)
-        athletics_stats = (self.target.athletics_proficient() * self.target.proficiency_bonus) + self.target.str_mod
-        acrobatics_stats = (self.target.acrobatics_proficient() * self.target.proficiency_bonus) + self.target.dex_mod
+        athletics_stats = (self.target.athletics_proficient() * self.target.proficiency_bonus()) + self.target.str_mod()
+        acrobatics_stats = (self.target.acrobatics_proficient() * self.target.proficiency_bonus()) + self.target.dex_mod()
 
         grapple_success = False
         if self.target.incapacitated() or not battle.opposing(self.source, target):
@@ -75,7 +75,7 @@ class GrappleAction(Action):
     def apply(battle, item, session=None):
         if item['type'] == 'grapple':
             if item['success']:
-                item['target'].grappled_by(item['source'])
+                item['target'].do_grappled_by(item['source'])
                 battle.event_manager.received_event(  { "event" : 'grapple_success',
                                                       "target" : item['target'],
                                                       "source" : item['source'],
@@ -94,30 +94,13 @@ class GrappleAction(Action):
 class DropGrappleAction(Action):
     def __init__(self, session, source, action_type, opts=None):
         super().__init__(session, source, action_type, opts)
-        self.target = None
 
     @classmethod
     def can(cls, entity, battle, options=None):
-        return battle is None or entity.grappling()
-
-    def __str__(self):
-        return str(self.action_type).capitalize()
+        return entity.is_grappling()
 
     def build_map(self):
-        return {
-            'action': self,
-            'param': [
-                {
-                    'type': 'select_target',
-                    'targets': self.source.grappling_targets,
-                    'num': 1
-                }
-            ],
-            'next': lambda target: {
-                'param': None,
-                'next': lambda: self
-            }
-        }
+        return self
 
     @classmethod
     def build(cls, session, source):
@@ -125,21 +108,15 @@ class DropGrappleAction(Action):
         return action.build_map()
 
     def resolve(self, session, map, opts=None):
-        target = opts.get('target') or self.target
-        battle = opts.get('battle')
         self.result = [{
             'source': self.source,
-            'target': target,
-            'type': 'drop_grapple',
-            'battle': battle
+            'type': 'drop_grapple'
         }]
 
     @staticmethod
     def apply(battle, item, session=None):
         if item['type'] == 'drop_grapple':
-            item['target'].escape_grapple_from(item['source'])
-            battle.event_manager.received_event({ "event" : 'drop_grapple',
-                                                  "target" : item['target'],
-                                                  "source" : item['source'],
-                                                  "source_roll" : item['source_roll'],
-                                                  "target_roll" : item['target_roll'] })
+            item['source'].drop_grapple(item['source'])
+            battle.event_manager.received_event({
+                "event" : 'drop_grapple',
+                "source" : item['source']})

@@ -6,6 +6,7 @@ class Action:
         self.source = source
         self.session = session
         self.action_type = action_type
+        self.as_bonus_action = False
         self.errors = []
         self.result = []
 

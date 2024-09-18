@@ -35,6 +35,8 @@ class Entity(EntityStateEvaluator):
         self.ability_scores = {}
         self.entity_event_hooks = {}
         self.effects = {}
+        self.grapples = []
+        self.grappling = []
         self.flying = False
         self.casted_effects = []
         self.death_fails = 0
@@ -50,6 +52,9 @@ class Entity(EntityStateEvaluator):
             for skill in skills:
                 setattr(self, f"{skill}_mod", self.make_skill_mod_function(skill, ability))
                 setattr(self, f"{skill}_check", self.make_skill_check_function(skill))
+
+    def profile_image(self):
+        return self.token_image()
 
     def concentration_on(self, effect):
         if effect is None:
@@ -146,7 +151,6 @@ class Entity(EntityStateEvaluator):
     def token_image(self):
         return self.properties.get('token_image') or f"token_{(self.properties.get('kind') or self.properties.get('sub_type') or self.properties.get('name')).lower()}.png"
 
-
     def token_size(self):
         square_size = self.size()
 
@@ -203,9 +207,8 @@ class Entity(EntityStateEvaluator):
         return DieRoll.roll(f"1d20+{self.wis_mod()}", description="perception check", entity=self, battle=battle)
 
     def drop_grapple(self):
-        if hasattr(self, 'grappling'):
-            for target in self.grappling:
-                self.ungrapple(target)
+        for target in self.grappling:
+            self.ungrapple(target)
 
     def dead(self):
         return 'dead' in self.statuses
@@ -357,6 +360,24 @@ class Entity(EntityStateEvaluator):
     def grappled(self):
         return 'grappled' in self.statuses
     
+    def do_grapple(self, target):
+        self.grappling.append(target)
+
+    def is_grappling(self):
+        return len(self.grappling) > 0
+
+    def grappling_targets(self):
+        return self.grappling
+
+    # @param target [Natural20::Entity]
+    def ungrapple(self, target):
+        self.grappling.remove(target)
+        if  self in target.grapples:
+            target.grapples.remove(self)
+        if len(target.grapples)==0 and 'grappled' in target.statuses:
+            target.statuses.remove('grappled')
+
+
     def unconscious(self):
         return not self.dead() and 'unconscious' in self.statuses
     
@@ -403,16 +424,6 @@ class Entity(EntityStateEvaluator):
         if not hasattr(self, 'grappling'):
             self.grappling = []
         self.grappling.append(target)
-
-    def is_grappling(self):
-        if not hasattr(self, 'grappling'):
-            self.grappling = []
-        return len(self.grappling) > 0
-    
-    def grappling_targets(self):
-        if not hasattr(self, 'grappling'):
-            self.grappling = []
-        return self.grappling
 
     def is_flying(self):
         return bool(self.flying)
@@ -636,6 +647,22 @@ class Entity(EntityStateEvaluator):
             if active_hook:
                 getattr(active_hook['handler'], active_hook['method'])(self, {**opts, 'effect': active_hook['effect']})
 
+    def do_grappled_by(self, grappler):
+        self.statuses.append('grappled')
+        self.grapples.append(grappler)
+        return grappler.do_grapple(self)
+
+    def grappled_by(self, grappler) -> bool:
+        if self.grappled():
+            return False
+        return grappler in self.grapples
+
+    def escape_grapple_from(self, grappler):
+        if grappler in self.grapples:
+            self.grapples.remove(grappler)
+        if len(self.grapples) == 0:
+            self.statuses.remove('grappled')
+        grappler.ungrapple(self)
 
     def _cleanup_effects(self):
         for _, value in self.effects.items():
@@ -659,10 +686,16 @@ class Entity(EntityStateEvaluator):
         return (battle.entity_state_for(self).get('action', 0) > 0)
 
     def total_actions(self, battle):
-        return battle.entity_state_for(self).get('action')
+        if battle:
+            return battle.entity_state_for(self).get('action')
+        else:
+            return 1
 
     def total_reactions(self, battle):
-        return battle.entity_state_for(self).get('reaction')
+        if battle:
+            return battle.entity_state_for(self).get('reaction')
+        else:
+            return 1
 
     def free_object_interaction(self, battle):
         if battle is None:
@@ -1103,7 +1136,7 @@ class Entity(EntityStateEvaluator):
 
     def take_damage(self, dmg: int, battle=None, critical=False, roll_info=None, sneak_attack=None):
         self.attributes["hp"] -= dmg
-
+        instant_death = False
         if self.unconscious():
             if 'stable' in self.statuses:
                 self.statuses.remove('stable')
@@ -1120,6 +1153,7 @@ class Entity(EntityStateEvaluator):
                                                     'fails': self.death_fails, 'complete': complete})
 
         if self.hp() < 0 and abs(self.hp()) >= self.properties['max_hp']:
+            instant_death = True
             self.make_dead()
             if battle and self.familiar():
                 battle.remove(self)
@@ -1134,7 +1168,7 @@ class Entity(EntityStateEvaluator):
         elif self.hp() > 0:
             if self.concentration:
                 # make a concentration check
-                concentration_check = self.save_throw('con', battle)
+                concentration_check = self.save_throw('constitution', battle)
                 diffculty_class = max([10, dmg // 2])
                 if concentration_check.result() < diffculty_class:
                     self.event_manager.received_event({'source': self,
@@ -1158,7 +1192,7 @@ class Entity(EntityStateEvaluator):
             self.attributes["hp"] = 0
 
         if battle:
-            battle.event_manager.received_event({'source': self, 'event': 'damage', 'value': dmg, 'roll_info': roll_info, 'sneak_attack': sneak_attack})
+            battle.event_manager.received_event({'source': self, 'event': 'damage', 'value': dmg, 'roll_info': roll_info, 'instant_death': instant_death, 'sneak_attack': sneak_attack})
 
     def on_take_damage(self, battle, _damage_params):
         controller = battle.controller_for(self)
@@ -1200,7 +1234,8 @@ class Entity(EntityStateEvaluator):
         self.death_saves = 0
     
     def make_conscious(self):
-        self.statuses.remove("unconscious")
+        if 'unconscious' in self.statuses:
+            self.statuses.remove("unconscious")
         if 'stable' in self.statuses:
             self.statuses.remove("stable")
     

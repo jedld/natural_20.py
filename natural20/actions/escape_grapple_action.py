@@ -10,17 +10,22 @@ class EscapeGrappleAction(Action):
     def can(entity, battle, options=None):
         return entity.grappled() and (battle is None or entity.total_actions(battle) > 0)
 
-    def __str__(self):
-        return self.action_type.value.replace("_", " ").capitalize()
-
     def build_map(self):
-        ActionParam = namedtuple("ActionParam", ["type", "targets", "num"])
-        action_param = ActionParam(type="select_target", targets=self.source.grapples, num=1)
+        def set_target(target):
+            self.target = target
+            return self
 
         return {
             "action": self,
-            "param": [action_param],
-            "next": lambda target: self.set_target(target)
+            "param": [
+                {
+                    'type': 'select_target',
+                    'range': 5,
+                    'target_types': ['custom'],
+                    'num': None
+                }
+            ],
+            "next": set_target
         }
 
     @classmethod
@@ -30,14 +35,14 @@ class EscapeGrappleAction(Action):
 
     def resolve(self, session, map, opts=None):
         battle = opts.get("battle")
-        target = self.source.grapples[0]
+        target = self.target
 
         strength_roll = target.athletics_check(battle)
-        athletics_stats = (self.source.proficiency_bonus if self.source.athletics_proficient else 0) + self.source.str_mod
-        acrobatics_stats = (self.source.proficiency_bonus if self.source.acrobatics_proficient else 0) + self.source.dex_mod
+        athletics_stats = (self.source.proficiency_bonus() if self.source.athletics_proficient() else 0) + self.source.str_mod()
+        acrobatics_stats = (self.source.proficiency_bonus() if self.source.acrobatics_proficient() else 0) + self.source.dex_mod()
 
         contested_roll = self.source.athletics_check(battle) if athletics_stats > acrobatics_stats else self.source.acrobatics_check(battle)
-        grapple_success = strength_roll.result >= contested_roll.result
+        grapple_success = strength_roll.result() >= contested_roll.result()
 
         if grapple_success:
             result = [{

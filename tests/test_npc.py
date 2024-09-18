@@ -66,6 +66,7 @@ class TestNpc(unittest.TestCase):
         npc = session.npc('goblin', { "name" : 'Spark'})
         battle = Battle(session, battle_map)
         battle.add(npc, 'a', position=[2, 2])
+        self.assertTrue(npc.any_class_feature(['nimble_escape', 'cunning_action']))
         assert npc.darkvision(60)
         assert 2 <= npc.hp() <= 12
         assert npc.name == 'Spark'
@@ -83,9 +84,9 @@ class TestNpc(unittest.TestCase):
         assert npc.equipped('scimitar')
         npc.reset_turn(battle)
         available_actions = [action.name() for action in npc.available_actions(session, battle, map=battle_map)]
-        assert len(available_actions) == 9, len(available_actions)
+        assert len(available_actions) == 14, len(available_actions)
         
-        self.assertListEqual(available_actions, ['disengage', 'dodge', 'move', 'move', 'move', 'move', 'move', 'move', 'move'])
+        self.assertListEqual(available_actions, ['dash','disengage','disengage_bonus','hide','hide_bonus','dodge','move','move','move','move','move','move','move','shove'])
 
         assert npc.hit_die() == {6: 2}, npc.hit_die()
 
@@ -115,9 +116,9 @@ class TestNpc(unittest.TestCase):
         battle.start()
         self.assertTrue(npc.darkvision(60))
 
-        self.assertEqual(len(npc.available_actions(session, None, map=battle_map)), 3)
+        self.assertEqual(len(npc.available_actions(session, None, map=battle_map)), 4)
         available_actions = [action.name() for action in npc.available_actions(session, None, map=battle_map)]
-        self.assertEqual(available_actions, ['attack', 'attack', 'move'])
+        self.assertEqual(available_actions, ['attack', 'attack', 'move', 'shove'])
 
         first_attack = [a for a in npc.available_actions(session, battle, map=battle_map) if a.name() == 'attack'][0]
         first_attack.target = fighter

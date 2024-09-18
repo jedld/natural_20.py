@@ -7,8 +7,9 @@ class FirstAidAction(Action):
 
     @staticmethod
     def can(entity, battle, options=None):
-        if battle is None or entity.total_actions(battle) > 0:
+        if battle is None or entity.total_actions(battle) == 0:
             return False
+
         unconscious_targets = FirstAidAction.unconscious_targets(entity, battle)
         return len(unconscious_targets) > 0
 
@@ -31,30 +32,26 @@ class FirstAidAction(Action):
                 entities.append(entity_pos)
         return entities
 
-    def __str__(self):
-        return str(self.action_type).humanize()
-
     def build_map(self):
+        def set_target(target):
+            self.target = target
+            return self
+
         return {
-            'action': self,
             'param': [
                 {
                     'type': 'select_target',
+                    'num': 1,
                     'range': 5,
-                    'target_types': ['enemies', 'allies'],
-                    'filter': 'state:unconscious & state:!stable & state:!dead',
-                    'num': 1
+                    'target_types': ['allies']
                 }
             ],
-            'next': lambda target: {
-                'param': None,
-                'next': lambda: self
-            }
+            'next': set_target
         }
 
     @staticmethod
     def build(session, source):
-        action = FirstAidAction(session, source, 'grapple')
+        action = FirstAidAction(session, source, 'first_aid')
         return action.build_map()
 
     def resolve(self, session, map, opts=None):
@@ -65,7 +62,7 @@ class FirstAidAction(Action):
 
         medicine_check = self.source.medicine_check(battle)
 
-        if medicine_check.result >= 10:
+        if medicine_check.result() >= 10:
             self.result = [{
                 'source': self.source,
                 'target': target,
@@ -88,15 +85,17 @@ class FirstAidAction(Action):
     def apply(battle, item, session=None):
         if item['type'] == 'first_aid':
             if item['success']:
-                item['target'].stable()
+                item['target'].make_stable()
                 battle.event_manager.received_event({ "event" : 'first_aid',
                                                       "target": item['target'],
                                                       "source": item['source'],
+                                                      "success": True,
                                                       "roll" : item['roll'] })
             else:
-                battle.event_manager.received_event({ "event" : 'first_aid_failure',
+                battle.event_manager.received_event({ "event" : 'first_aid',
                                                       "target" : item['target'],
                                                       "source" : item['source'],
+                                                      "success" : False,
                                                       "roll" : item['roll'] })
 
             battle.consume(item['source'], 'action')

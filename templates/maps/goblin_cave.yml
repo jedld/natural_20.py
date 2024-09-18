@@ -34,7 +34,7 @@ map:
     - ..........
     - ...g......
     - .A....w.g.
-    - .g....h..g
+    - .g...Bh..g
 lights:
   A:
     bright: 5
@@ -55,6 +55,10 @@ legend:
     name: _auto_
     type: npc
     sub_type: wolf
+  B:
+    name: _auto_
+    type: npc
+    sub_type: bugbear
 player:
   - position: [1, 4]
     sheet: characters/halfling_rogue.yml
@@ -72,3 +76,6 @@ player:
     sheet: characters/high_elf_mage.yml
     overrides:
       entity_uid: crysania
+extensions:
+  web:
+    background_color: '#000000'

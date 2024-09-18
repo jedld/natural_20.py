@@ -123,10 +123,23 @@ class EventManager:
                 self.output_logger.log(f"{self.show_name(event)} tries to hide but fails. {','.join(event['reason'])}")
 
         def damage(event):
-            if event.get('sneak_attack'):
-                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} = {event['value']} damage and {event['sneak_attack']}={event['sneak_attack'].result()} sneak attack damage.")
+            if event.get('roll_info'):
+                damage = event.get('roll_info').result()
             else:
-                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} = {event['value']} damage."),
+                damage = event['value']
+            if event.get('sneak_attack'):
+                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} = {damage} damage and {event['sneak_attack']}={event['sneak_attack'].result()} sneak attack damage.")
+            else:
+                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} = {damage} damage."),
+
+            if event.get('instant_death'):
+                self.output_logger.log(f"{self.show_name(event)} died instantly.")
+
+        def first_aid(event):
+            if event['success']:
+                self.output_logger.log(f"{self.show_name(event)} performs first aid on {self.show_target_name(event)} and stabilizes them with a {event['roll']}={event['roll'].result()} medicine check.")
+            else:
+                self.output_logger.log(f"{self.show_name(event)} performs first aid on {self.show_target_name(event)} and fails to stabilize them with a {event['roll']}={event['roll'].result()} medicine check.")
 
         event_handlers = {
             'multiattack' : lambda event: self.output_logger.log(f"{self.show_name(event)} uses multiattack."),
@@ -143,6 +156,7 @@ class EventManager:
             'stand': lambda event: self.output_logger.log(f"{self.show_name(event)} stands up."),
             'prone': lambda event: self.output_logger.log(f"{self.show_name(event)} goes prone."),
             'unconscious': lambda event: self.output_logger.log(f"{self.show_name(event)} unconscious."),
+            'first_aid': first_aid,
             'shove': shove,
             'attacked': attack_roll,
             'damage': damage,
@@ -150,7 +164,10 @@ class EventManager:
             'spell_miss': miss,
             'miss': miss,
             'hide': hide,
-            'move': lambda event: self.output_logger.log(f"{self.show_name(event)} moved to {event['position']} {event['move_cost'] * 5} feet"),
+            'lucky_reroll': lambda event: self.output_logger.log(f"{self.show_name(event)} uses luck to reroll from {event['old_roll']} to {event['roll']}"),
+            'grapple_success': lambda event: self.output_logger.log(f"{self.show_name(event)} grapples {self.show_target_name(event)}"),            'move': lambda event: self.output_logger.log(f"{self.show_name(event)} moved to {event['position']} {event['move_cost'] * 5} feet"),
+            'grapple_failed': lambda event: self.output_logger.log(f"{self.show_name(event)} failed to grapple {self.show_target_name(event)}"),
+            'drop_grapple': lambda event: self.output_logger.log(f"{self.show_name(event)} drops grapple on {self.show_target_name(event)}"),
             'initiative': lambda event: self.output_logger.log(f"{self.show_name(event)} rolled initiative {event['roll']} value {event['value']}"),
             'start_of_turn': lambda event: self.output_logger.log(f"{self.show_name(event)} starts their turn."),
             'spell_buf': lambda event: self.output_logger.log(f"{self.show_name(event)} cast {event['spell'].name} on {self.show_target_name(event)}"),

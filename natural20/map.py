@@ -50,7 +50,7 @@ class Map():
         self.entities = {}  # Assuming entities is a dictionary
         self.interactable_objects = {}
         self.legend = self.properties.get('legend', {})
-        
+
         for _ in range(self.size[0]):
             row = []
             for _ in range(self.size[1]):
@@ -446,7 +446,7 @@ class Map():
             return None
 
         return entity_data['entity']
-    
+
     def position_of(self, entity):
         if isinstance(entity, Object):
             return self.interactable_objects[entity]
@@ -454,7 +454,11 @@ class Map():
             if not entity:
                 raise ValueError('invalid entity')
             if not self.entities.get(entity):
-                raise ValueError(f'entity {entity} not found')
+                # might be a deepcopied object so we try with the uid
+                _entity = self.entity_by_uid(entity.entity_uid)
+                if not _entity:
+                    raise ValueError(f'entity {entity} not found')
+                return self.entities[_entity]
             return self.entities[entity]
 
     def entity_squares_at_pos(self, entity, pos1_x, pos1_y, squeeze=False):
@@ -563,7 +567,7 @@ class Map():
                 entity_1_squares.append([pos1_x + ofs_x, pos1_y + ofs_y])
         return entity_1_squares
     
-    def passable(self, entity, pos_x, pos_y, battle=None, allow_squeeze=True):
+    def passable(self, entity, pos_x, pos_y, battle=None, allow_squeeze=True, ignore_opposing=False):
         effective_token_size = entity.token_size() - 1 if allow_squeeze and entity.token_size() > 1 else entity.token_size()
         for ofs_x in range(effective_token_size):
             for ofs_y in range(effective_token_size):
@@ -594,7 +598,7 @@ class Map():
                         continue
                     if entity.class_feature('halfling_nimbleness') and (location_entity.size_identifier() - entity.size_identifier()) >= 1:
                         continue
-                    if battle.opposing(location_entity, entity) and abs(location_entity.size_identifier() - entity.size_identifier()) < 2:
+                    if not ignore_opposing and battle.opposing(location_entity, entity) and abs(location_entity.size_identifier() - entity.size_identifier()) < 2:
                         return False
 
         return True

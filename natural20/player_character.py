@@ -9,10 +9,13 @@ from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.dodge_action import DodgeAction
+from natural20.actions.first_aid_action import FirstAidAction
 from natural20.actions.hide_action import HideAction, HideBonusAction
 from natural20.actions.disengage_action import DisengageAction, DisengageBonusAction
 from natural20.actions.dash import DashAction, DashBonusAction
 from natural20.actions.second_wind_action import SecondWindAction
+from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
+from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.stand_action import StandAction
 from natural20.actions.prone_action import ProneAction
 from natural20.actions.shove_action import ShoveAction
@@ -35,8 +38,13 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
     SpellAction, AttackAction, HideAction, HideBonusAction,DashAction, DashBonusAction, DisengageAction,
     DisengageBonusAction,
     DodgeAction, MoveAction, ProneAction, SecondWindAction,
-    StandAction, TwoWeaponAttackAction, HelpAction, UseItemAction, GroundInteractAction,
-    ActionSurgeAction, ShoveAction
+    StandAction, TwoWeaponAttackAction, HelpAction, UseItemAction,
+    GroundInteractAction,
+    GrappleAction,
+    DropGrappleAction,
+    EscapeGrappleAction,
+    ActionSurgeAction, ShoveAction,
+    FirstAidAction
   ]
 
   def __init__(self, session, properties, name=None):
@@ -196,6 +204,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
           action_list.append(DisengageAction(session, self, 'disengage'))
         elif action_type == SecondWindAction:
           action_list.append(SecondWindAction(session, self, 'second_wind'))
+        elif action_type == FirstAidAction:
+          action_list.append(FirstAidAction(session, self, 'first_aid'))
         elif action_type == ActionSurgeAction:
           action_list.append(ActionSurgeAction(session, self, 'action_surge'))
         elif action_type == HideAction:
@@ -242,6 +252,12 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
           action_list.append(action)
         elif action_type == ShoveAction:
           action = ShoveAction(session, self, 'shove')
+          action_list.append(action)
+        elif action_type == GrappleAction:
+          action = GrappleAction(session, self, 'grapple')
+          action_list.append(action)
+        elif action_type == EscapeGrappleAction:
+          action = EscapeGrappleAction(session, self, 'escape_grapple')
           action_list.append(action)
         elif action_type == SpellAction:
           if auto_target:

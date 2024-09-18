@@ -33,7 +33,7 @@ import copy
 class Npc(Entity, Multiattack):
     ACTION_LIST = [
         AttackAction, DashAction, DashBonusAction, DisengageAction,
-        DisengageBonusAction,
+        DisengageBonusAction, HideAction, HideBonusAction,
         DodgeAction, LookAction, MoveAction,
         StandAction, ShoveAction, HelpAction, UseItemAction, GroundInteractAction,
         SpellAction
@@ -138,6 +138,19 @@ class Npc(Entity, Multiattack):
                         actions.append(DisengageAction(session, self, "disengage"))
                     elif action_class == StandAction:
                         actions.append(StandAction(session, self, "stand"))
+                    elif action_class == HideAction:
+                        actions.append(HideAction(session, self, "hide"))
+                    elif action_class == DisengageBonusAction:
+                        actions.append(DisengageBonusAction(session, self, "disengage_bonus"))
+                    elif action_class == DashAction:
+                        actions.append(DashAction(session, self, "dash"))
+                    elif action_class == DashBonusAction:
+                        actions.append(DashBonusAction(session, self, "dash_bonus"))
+                    elif action_class == HideBonusAction:
+                        actions.append(HideBonusAction(session, self, "hide_bonus"))
+                    elif action_class == ShoveAction:
+                        actions.append(ShoveAction(session, self, "shove"))
+
         return actions
 
     def melee_distance(self):
@@ -146,6 +159,9 @@ class Npc(Entity, Multiattack):
     
     def class_feature(self, feature):
         return feature in self.properties.get("attributes", [])
+    
+    def any_class_feature(self, features):
+        return any(self.class_feature(f) for f in features)
     
     def available_interactions(self, entity, battle):
         return []
@@ -195,7 +211,13 @@ class Npc(Entity, Multiattack):
             return actions
 
     def setup_attributes(self):
-        self._max_hp = DieRoll.roll(self.properties.get("hp_die", "1d6")).result() if self.opt.get("rand_life") else self.properties.get("max_hp", 0)
+        hp_die_roll = DieRoll.roll(self.properties.get("hp_die", "1d6"))
+        if self.opt.get("rand_life"):
+            self._max_hp = hp_die_roll.result()
+            print(f"Setting up attributes for {self.name} with max hp: {hp_die_roll}={self._max_hp}")
+        else:
+            self._max_hp = self.properties.get("max_hp", 0)
+
         self.attributes["hp"] = copy.deepcopy(min(self.properties.get("override_hp", self._max_hp), self._max_hp))
         hp_details = DieRoll.parse(self.properties.get("hp_die", "1d6"))
         self._max_hit_die = {self.npc_type: hp_details.die_count}

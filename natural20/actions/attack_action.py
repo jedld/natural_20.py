@@ -219,7 +219,10 @@ class AttackAction(Action):
         self.source.resolve_trigger('attack_resolved', {'target': target})
 
         if self.source.class_feature('lucky') and attack_roll.nat_1():
+            self.session.log_event({'event': 'lucky_reroll', 'source': self.source, 'roll': attack_roll})
+            prev_roll = attack_roll
             attack_roll = attack_roll.reroll(lucky=True)
+            self.session.event_manager.received_event({'event': 'lucky_reroll', 'source': self.source, 'old_roll': prev_roll, 'roll': attack_roll})
             # print(f"{self.source.name} uses lucky to reroll the attack roll to {attack_roll}")
 
         target_ac, _cover_ac = effective_ac(battle, self.source, target)
@@ -380,6 +383,8 @@ class AttackAction(Action):
                 npc_action = next((action for action in self.source.properties['actions'] if action['name'].lower() == using.lower()), None)
 
             weapon = npc_action
+            if npc_action is None:
+                pdb.set_trace()
             attack_name = npc_action["name"]
             attack_mod = npc_action["attack"]
             damage_roll = npc_action["damage_die"]
@@ -435,11 +440,15 @@ class AttackAction(Action):
 
 
 class TwoWeaponAttackAction(AttackAction):
+    def __init__(self, session, source, action_type, opts=None):
+        super().__init__(session, source, action_type, opts)
+
     @staticmethod
     def can(entity, battle, options=None):
         if options is None:
             options = {}
-        return battle is None or (entity.total_bonus_actions(battle) > 0 and battle.two_weapon_attack(entity) and (options.get('weapon') != battle.first_hand_weapon(entity) or len([a for a in entity.equipped_weapons() if a == battle.first_hand_weapon(entity)]) >= 2))
+
+        return battle and (entity.total_bonus_actions(battle) > 0 and battle.two_weapon_attack(entity) and (options.get('weapon') != battle.first_hand_weapon(entity) or len([a for a in entity.equipped_weapons() if a == battle.first_hand_weapon(entity)]) >= 2))
 
     def second_hand(self):
         return True

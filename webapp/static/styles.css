@@ -100,7 +100,14 @@
   margin: 5px;
 }
 
+#battle-turn-order #turn-order {
+  padding-top: 30px;
+}
+
 #battle-turn-order .header {
+  position: fixed;
+  width: inherit;
+  z-index: 5;
   text-align: center;
   color: white;
   background-color: blue;
@@ -124,10 +131,14 @@
 
 #console-container .header {
   position: fixed;
-  width: 400px;
+  width: inherit;
   z-index: 5;
   color: black;
   background-color: white;
+}
+
+#console-container #console {
+  padding-top: 30px;
 }
 
 .add-to-turn-order, .add-to-target {
@@ -246,4 +257,30 @@ input.initiative-text {
   background-color: black;
 }
 
+/* Special Styles for bonus action equivalents */
 
+.action-image.bonus-action {
+  position: relative;
+  display: inline-block;
+}
+
+.action-image.bonus-action::before,
+.action-image.bonus-action::after {
+  content: '';
+  position: absolute;
+  background-color: green;
+  /* Move to the lower bottom right quarter */
+  top: 75%; /* Adjust as needed */
+  left: 75%; /* Adjust as needed */
+  transform: translate(-50%, -50%);
+}
+
+.action-image.bonus-action::before {
+  width: 8px;  /* Thicker vertical line */
+  height: 20px; /* Adjust the size as needed */
+}
+
+.action-image.bonus-action::after {
+  width: 20px; /* Adjust the size as needed */
+  height: 8px; /* Thicker horizontal line */
+}

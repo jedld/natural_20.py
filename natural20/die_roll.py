@@ -1,5 +1,6 @@
 import random
 import i18n
+import copy
 class DieRollDetail:
     def __init__(self):
         self.die_count = None  # Integer
@@ -89,14 +90,16 @@ class DieRolls(Rollable):
         return any(roll.nat_1() for roll in self.rolls)
 
     def reroll(self, lucky=False):
+        new_rolls = copy.deepcopy(self.rolls)
+        die_rolls = DieRolls(rolls=new_rolls)
         if lucky:
-            for roll in self.rolls:
+            for index, roll in enumerate(self.rolls):
                 if roll.nat_1():
-                    roll.reroll(lucky=True)
+                   new_rolls[index] = roll.reroll(lucky=True)
         else:
-            for roll in self.rolls:
-                roll.reroll()
-
+            for index, roll in self.rolls:
+                new_rolls[index] = roll.reroll()
+        return die_rolls
 
     def __eq__(self, other):
         if len(other.rolls) != len(self.rolls):

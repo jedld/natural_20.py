@@ -31,15 +31,3 @@ def generate_goblinoid_names(count=10):
 # Generate multiple ogre names
 def generate_ogre_names(count=10):
     return [generate_ogre_name() for _ in range(count)]
-
-# Example usage
-goblin_names = generate_goblinoid_names(10)
-ogre_names = generate_ogre_names(10)
-
-print("Goblinoid Names:")
-for name in goblin_names:
-    print(name)
-
-print("\nOgre Names:")
-for name in ogre_names:
-    print(name)

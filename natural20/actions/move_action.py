@@ -14,7 +14,9 @@ class MoveAction(Action):
 
     def __init__(self, session, source, action_type, opts=None):
         super().__init__(session, source, action_type, opts)
-        self.move_path = []
+        if opts is None:
+            opts = {}
+        self.move_path = opts.get('move_path', [])
         self.jump_index = []
         self.as_dash = False
         self.as_bonus_action = False

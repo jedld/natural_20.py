@@ -140,22 +140,23 @@ class TestPathCompute(unittest.TestCase):
     #     path_back = [(0, 4), (1, 4), (2, 4), (3, 5), (4, 5), (5, 4), (5, 3), (5, 2), (4, 1), (3, 1), (2, 1), (1, 1), (0, 1)]
     #     self.assertEqual(self.path_compute.compute_path(0, 4, 0, 1), path_back)
 
-    # def test_no_path(self):
-    #     self.map.size = (8, 7)  # Update size if necessary
-    #     self.npc = Mock()  # Assuming npc is mocked or created
-    #     self.map.place = Mock()
-    #     self.path_compute = PathCompute(self.session, self.map, self.npc)
-    #     self.assertEqual(
-    #         self.map_renderer.render(),
-    #         "#######\n" +
-    #         "O┐····#\n" +
-    #         "└┘····#\n" +
-    #         "#######\n" +
-    #         "······#\n" +
-    #         "······#\n" +
-    #         "#######\n"
-    #     )
-    #     self.assertIsNone(self.path_compute.compute_path(0, 1, 0, 4))
+    def test_no_path(self):
+        self.map = Map(self.session, 'battle_sim_4')
+        self.npc = self.session.npc('ogre')
+        self.map.add(self.npc, 0, 1)
+        self.map_renderer = MapRenderer(self.map)
+        self.path_compute = PathCompute(self.session, self.map, self.npc)
+        self.assertEqual(
+            self.map_renderer.render(),
+            "#######\n" +
+            "O┐····#\n" +
+            "└┘····#\n" +
+            "#######\n" +
+            "······#\n" +
+            "······#\n" +
+            "#######\n"
+        )
+        self.assertIsNone(self.path_compute.compute_path(0, 1, 0, 4))
 
 
 if __name__ == '__main__':

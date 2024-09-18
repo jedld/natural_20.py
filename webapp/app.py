@@ -24,6 +24,9 @@ from natural20.actions.drop_concentration_action import DropConcentrationAction
 from natural20.actions.action_surge_action import ActionSurgeAction
 from natural20.actions.shove_action import ShoveAction
 from natural20.actions.hide_action import HideAction, HideBonusAction
+from natural20.actions.first_aid_action import FirstAidAction
+from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
+from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.entity import Entity
 from natural20.action import Action
 from natural20.battle import Battle
@@ -89,7 +92,7 @@ class SocketIOOutputLogger:
     A simple logger that logs to stdout
     """
     def __init__(self):
-        self.logging_queue = deque(maxlen=100)
+        self.logging_queue = deque(maxlen=1000)
 
     def get_all_logs(self):
         return self.logging_queue
@@ -134,10 +137,6 @@ class GameManagement:
         self.battle_map = battle_map
 
     def set_current_battle(self, battle):
-        if not battle:
-            print("setting battle to None")
-        else:
-            print("setting battle to ", battle)
         self.battle = battle
 
     def get_current_battle(self) -> Battle:
@@ -340,10 +339,14 @@ def describe_terrain(tile):
                     description.append("Prone")
                 if thing.hidden():
                     description.append("Hiding")
-                if thing.unconscious():
+                if thing.unconscious() and not thing.stable():
                     description.append("Unconscious")
                 if thing.dead():
                     description.append("Dead")
+                if thing.grappled():
+                    description.append("Grappled")
+                if thing.stable():
+                    description.append("Unconscious (but Stable)")
                 for effect in thing.current_effects():
                     effect_class = effect['effect']
                     description.append(str(effect_class))
@@ -484,13 +487,20 @@ def index():
     for info in CONTROLLERS:
         if session['username'] in info['controllers']:
             entity_ids.append(info['entity_uid'])
-
+    web_extensions = battle_map.properties.get('extensions', { "web": {} })
+    web_extensions = web_extensions.get('web', {})
+    background_color = web_extensions.get('background_color', '#FFFFFF')
+    width_px = (map_width + 2) * TILE_PX
+    height_px = (map_height + 2) * TILE_PX
     return render_template('index.html', tiles=my_2d_array, tile_size_px=TILE_PX,
                            background_path=f"assets/{background}", background_width=tiles_dimension_width,
                            messages=messages,
                            background_height=tiles_dimension_height,
                            battle=battle,
                            entity_ids=entity_ids,
+                           background_color=background_color,
+                           width_px=width_px,
+                           height_px=height_px,
                            soundtrack=current_soundtrack, title=TITLE, username=session['username'], role=user_role())
 
 
@@ -642,7 +652,7 @@ def start_battle_with_initiative():
                     controller = controllers.get(usernames[0], None) or controllers["dm"]
             controller.register_handlers_on(entity)
             battle.add(entity, param_item['group'], controller=controller)
-            entity.reset_turn(battle)
+        output_logger.log("Battle started.")
         battle.start()
     else:
         print("skipping default battle start")
@@ -715,7 +725,6 @@ def update():
             pov_entities = None
         else:
             pov_entities = entities_controlled_by(session['username'], battle_map)
-
     my_2d_array = [renderer.render(entity_pov=pov_entities)]
     return render_template('map.html', tiles=my_2d_array, tile_size_px=TILE_PX, is_setup=(request.args.get('is_setup') == 'true'))
 
@@ -769,6 +778,14 @@ def action_type_to_class(action_type):
         return HideAction
     elif action_type == 'HideBonusAction':
         return HideBonusAction
+    elif action_type == 'FirstAidAction':
+        return FirstAidAction
+    elif action_type == 'GrappleAction':
+        return GrappleAction
+    elif action_type == 'DropGrappleAction':
+        return DropGrappleAction
+    elif action_type == 'EscapeGrappleAction':
+        return EscapeGrappleAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
 
@@ -777,24 +794,13 @@ def get_target():
     global current_game
     battle_map = current_game.get_current_battle_map()
     battle = current_game.get_current_battle()
-
-    entity_id = request.args.get('id')
-    x = int(request.args.get('x'))
-    y = int(request.args.get('y'))
-    action_info = request.args.get('action_info')
-# Extract 'opts' parameters, which are nested in the query string
-    opts = {
-        'action_type': request.args.get('opts[action_type]'),
-        'as_reaction': request.args.get('opts[as_reaction]'),
-        'npc_action': request.args.get('opts[npc_action]'),
-        'second_hand': request.args.get('opts[second_hand]'),
-        'target': request.args.get('opts[target]'),
-        'thrown': request.args.get('opts[thrown]'),
-        'using': request.args.get('opts[using]'),
-        'spell': request.args.get('opts[spell]'),
-        'at_level': request.args.get('opts[at_level]')
-    }
-
+    payload = json.loads(request.args.get('payload'))
+    
+    entity_id = payload.get('id')
+    x = int(payload.get('x'))
+    y = int(payload.get('y'))
+    action_info = payload.get('action_info')
+    opts = payload.get('opts', {})
     entity = battle_map.entity_by_uid(entity_id)
     target = battle_map.entity_at(x, y)
 
@@ -950,7 +956,7 @@ def action():
         action.thrown = opts.get('thrown', False)
 
         valid_targets = battle_map.valid_targets_for(entity, action)
-        valid_targets = {target.entity_uid: battle_map.entity_or_object_pos(target) for target in valid_targets}
+        valid_targets = { target.entity_uid: battle_map.entity_or_object_pos(target) for target in valid_targets}
 
         if action.npc_action:
             weapon_details = action.npc_action
@@ -983,7 +989,6 @@ def action():
         action = action_class(game_session, entity, opts.get('action_type'))
         action = action.build_map()
         if isinstance(action, Action):
-            print(f"committing action {action}")
             return jsonify(commit_and_update(action))
         else:
             if len(action['param'])==1:

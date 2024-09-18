@@ -2,7 +2,6 @@ from natural20.actions.look_action import LookAction
 from natural20.actions.stand_action import StandAction
 from natural20.actions.attack_action import AttackAction
 from natural20.actions.spell_action import SpellAction
-from natural20.actions.multiattack_action import MultiattackAction
 # from natural20.actions.prone_action import ProneAction
 from natural20.actions.move_action import MoveAction
 from natural20.gym.types import EnvObject, Environment
@@ -15,10 +14,13 @@ import copy
 import pdb
 
 class GenericController(Controller):
-    def __init__(self, session):
+    VALID_AI_MOVE_TYPES = ["attack", "move", "disengage", "dodge", "dash", "dash_bonus", "second_wind", "spell"]
+
+    def __init__(self, session, valid_move_types=None):
         self.state = {}
         self.session = session
         self.battle_data = {}
+        self.valid_moves_types = valid_move_types or self.VALID_AI_MOVE_TYPES
 
     # @param entity [Natural20::Entity]
     def register_handlers_on(self, entity):
@@ -41,8 +43,6 @@ class GenericController(Controller):
                 action.target = event['target']
                 action.as_reaction = True
                 valid_actions.append(action)
-
-        _, entity = self._build_environment(battle, entity)
         selected_action = self.select_action(battle, entity, valid_actions )
 
         return selected_action
@@ -52,7 +52,6 @@ class GenericController(Controller):
             available_actions = []
         if len(available_actions) > 0:
             action = self._sort_actions(entity, battle, available_actions)[0]
-            # print(f"{entity.name}: {action}")
             return action
 
         # no action, end turn
@@ -75,13 +74,13 @@ class GenericController(Controller):
                 battle_data['visited_location'][tuple(p)] = True
 
         return selected_action
-    
+
     # Build a suitable environment for Reinforcement Learning
     def _build_environment(self, battle, entity):
         enemy_positions = {}
         self._observe_enemies(battle, entity, enemy_positions)
         objects = []
-        
+
         for enemy, location in enemy_positions.items():
             equipped_items = []
             for item in enemy.equipped_items():
@@ -108,9 +107,6 @@ class GenericController(Controller):
 
         objects_around_me = battle.map.look(entity)
 
-        my_group = battle.entity_group_for(entity)
-        width, height = battle.map.size
-        path_compute = PathCompute(battle, battle.map, entity)
         entity_x, entity_y = battle.map.position_of(entity)
 
         for object, location in objects_around_me.items():
@@ -121,11 +117,9 @@ class GenericController(Controller):
                 continue
             if not object.conscious():
                 continue
-
-            if group != my_group:
-                path_compute.build_structures(entity_x, entity_y)
-                path_compute.path((location[0], location[1]))
-                path = path_compute.backtrace(entity_x, entity_y, location[0], location[1])
+            if battle.opposing(entity, object):
+                path = PathCompute(battle, battle.map, entity, ignore_opposing=True).compute_path(entity_x, entity_y,
+                location[0], location[1])
                 enemy_positions[object] = (location, path)
 
     def _initialize_battle_data(self, battle, entity):
@@ -161,21 +155,7 @@ class GenericController(Controller):
             valid_actions.append(StandAction(None, entity, "stand"))
 
         for action in available_actions:
-            if action.action_type == "attack":
-                valid_actions.append(action)
-            elif action.action_type == "move":
-                valid_actions.append(action)
-            elif action.action_type == "disengage":
-                valid_actions.append(action)
-            elif action.action_type == 'dodge':
-                valid_actions.append(action)
-            elif action.action_type == 'dash':
-                valid_actions.append(action)
-            elif action.action_type == 'dash_bonus':
-                valid_actions.append(action)
-            elif action.action_type == 'second_wind':
-                valid_actions.append(action)
-            elif action.action_type == 'spell':
+            if action.action_type in self.valid_moves_types:
                 valid_actions.append(action)
 
         return valid_actions
@@ -204,12 +184,11 @@ class GenericController(Controller):
         - Attack if available
         - Move towards the closest enemy
         """
-        enemy_distance_pair = []
 
         enemy_positions = self._get_enemy_positions(battle, entity)
 
         move_square_score = {}
-        for enemy, location_pair in enemy_positions.items():
+        for _, location_pair in enemy_positions.items():
             _, path = location_pair
 
             if path is None:
@@ -218,9 +197,7 @@ class GenericController(Controller):
             distance = len(path)
             square_key = (path[1][0], path[1][1])
             move_square_score[square_key] = 1.0 / distance
-            enemy_distance_pair.append((enemy, distance))
 
-        enemy_distance_pair.sort(key=lambda a: a[1])
 
         sorted_actions = []
         for action in available_actions:
@@ -231,8 +208,6 @@ class GenericController(Controller):
                 sorted_actions.append((action, base_score))
             elif isinstance(action, MoveAction):
                 new_position = action.move_path[-1]
-                print(f"move_square_score: {move_square_score}")
-                print(f"New position: {new_position}")
                 position_key = (new_position[0], new_position[1])
                 score = move_square_score.get(position_key, 0)
                 sorted_actions.append((action, score))

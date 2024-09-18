@@ -64,7 +64,7 @@ class TestGym(unittest.TestCase):
         def make_session():
             event_manager = EventManager()
             event_manager.standard_cli()
-            random.seed(7000)
+            random.seed(7001)
             return Session(root_path='tests/fixtures', event_manager=event_manager)
 
         session = make_session()
@@ -85,10 +85,13 @@ class TestGym(unittest.TestCase):
                    session=session)
         observation, info = env.reset(seed=44)
         self.assertIsNotNone(observation)
-        observation, reward, done, truncate, info = env.step((0, (0, 0), (1, 0), 2, 0))
+        self.assertIn((0, (0, 0), (0, 2), 2, 1), info['available_moves'])
+        observation, reward, done, truncate, info = env.step((0, (0, 0), (0, 2), 2, 1))
         self.assertEqual(reward, 0)
+        self.assertEqual(info['available_moves'], [])
         # check for presence of 2 weapon attack
         actions = [action for action in info['available_moves'] if action[0] == 9]
+
         self.assertEqual(len(actions), 4)
 
 
@@ -141,7 +144,7 @@ class TestGym(unittest.TestCase):
         print(env.render())
         self.assertIsNotNone(observation)
         observation, reward, done, truncate, info = env.step((-1, (0, 0), (0, 0), 0, 0))
-        self.assertEqual(reward, 0)
+        self.assertEqual(reward, 10)
 
 
     def test_render(self):

@@ -76,6 +76,10 @@
         <!-- Tab content -->
         <div id="BasicInfo" class="tabcontent">
             <h2>Basic Information</h2>
+
+        <div class="profile-image"></div>
+            <img src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}"  alt="Profile Image" class="profile-image">
+        </div>
         <table>
             <tr>
                 <th>Class & Level</th>
