@@ -61,6 +61,7 @@ class HideAction(Action):
             self.result = [{
                 'source': self.source,
                 'type': 'hide',
+                'bonus_action': self.as_bonus_action,
                 'result': 'failed',
                 'roll': stealth_roll,
                 'battle': opts['battle'],

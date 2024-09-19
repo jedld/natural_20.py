@@ -160,6 +160,9 @@ class Npc(Entity, Multiattack):
     def class_feature(self, feature):
         return feature in self.properties.get("attributes", [])
     
+    def class_descriptor(self):
+        return self.properties.get("kind")
+    
     def any_class_feature(self, features):
         return any(self.class_feature(f) for f in features)
     

@@ -1,6 +1,7 @@
 import os
 from typing import List, Union
 import i18n
+from collections import deque
 from natural20.utils.attack_util import to_advantage_str
 
 class EventLogger:
@@ -39,6 +40,7 @@ class EventManager:
     def __init__(self, output_logger=None, output_file=None):
         self.event_listeners = {}
         self.battle = None
+        self.event_buffer = deque(maxlen=1000)
         if output_file:
             self.output_logger = FileOutputLogger(output_file)
         else:
@@ -62,6 +64,7 @@ class EventManager:
     def received_event(self, event):
         if self.event_listeners is None:
             return
+        self.event_buffer.append(event)
         if event['event'] in self.event_listeners:
             for callable in self.event_listeners[event['event']]:
                 callable(event)
@@ -141,6 +144,15 @@ class EventManager:
             else:
                 self.output_logger.log(f"{self.show_name(event)} performs first aid on {self.show_target_name(event)} and fails to stabilize them with a {event['roll']}={event['roll'].result()} medicine check.")
 
+        def start_of_combat(event):
+            players = []
+            for p in event['players'].keys():
+                p_str = f"<p>{self.decorate_name(p)} ({p.class_descriptor()}) Team {event['players'][p]['group']}</p>"
+                players.append(p_str)
+
+            self.output_logger.log(f"Combat begins with {len(players)} players.")
+            self.output_logger.log("Players: " + '\n'.join(players))
+
         event_handlers = {
             'multiattack' : lambda event: self.output_logger.log(f"{self.show_name(event)} uses multiattack."),
             'action_surge': lambda event: self.output_logger.log(f"{self.show_name(event)} uses action surge."),
@@ -169,10 +181,12 @@ class EventManager:
             'grapple_failed': lambda event: self.output_logger.log(f"{self.show_name(event)} failed to grapple {self.show_target_name(event)}"),
             'drop_grapple': lambda event: self.output_logger.log(f"{self.show_name(event)} drops grapple on {self.show_target_name(event)}"),
             'initiative': lambda event: self.output_logger.log(f"{self.show_name(event)} rolled initiative {event['roll']} value {event['value']}"),
-            'start_of_turn': lambda event: self.output_logger.log(f"{self.show_name(event)} starts their turn."),
+            'start_of_turn': lambda event: self.output_logger.log(f"======== {self.show_name(event)} starts their turn. ========"),
             'spell_buf': lambda event: self.output_logger.log(f"{self.show_name(event)} cast {event['spell'].name} on {self.show_target_name(event)}"),
             'spell_heal': lambda event: self.output_logger.log(f"{self.show_name(event)} cast {event['spell']['name']} on {self.show_target_name(event)} and healed for {event['heal_roll']}={event['heal_roll'].result()} hit points."),
+            'start_of_combat': start_of_combat,
         }
+
         for event, handler in event_handlers.items():
             self.register_event_listener(event, handler)
 

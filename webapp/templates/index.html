@@ -16,6 +16,18 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="manifest" href="/site.webmanifest">
+    <style>
+        .image-container {
+          position: absolute;
+          top: {{ tile_size_px }}px;
+          left: {{ tile_size_px }}px;
+          height: {{ background_height }}px;
+        }
+      
+        .image-container img {
+          width: {{ background_width }}px;
+        }
+    </style>
 </head>
 <body data-soundtrack="{{ soundtrack }}" data-battle_in_progress="{{ 'true' if battle else 'false' }}" data-username="{{ username }}" data-role="{{ role }}" data-controls="{{ entity_ids }}">
 
@@ -47,7 +59,7 @@
         <div class="image-container" style="position: absolute; top: {{tile_size_px}}px; left: {{tile_size_px}}px; height: {{ background_height }}px; ">
             <img src="{{ background_path }}" style="overflow: scroll;  width: {{ background_width }}px; object-fit: cover; object-position: top;">
         </div>
-        <div class="tiles-container actions-container" data-width="{{ background_width }}" data-height="{{ background_height }}" data-tile-size="{{tile_size_px}}" ></div>
+        <div id="tiles-area" class="tiles-container actions-container" data-width="{{ background_width }}" data-height="{{ background_height }}" data-tile-size="{{tile_size_px}}" ></div>
     </div>
     <div class="modal fade" id="modal-1" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
         <div class="modal-dialog">
@@ -69,11 +81,12 @@
     </div>
     <div id="battle-turn-order" class="floating-window" style="{{ 'display: none;' if battle is none }}">
         <div class="header" style="cursor: move;">Battle Turn Order</div>
-        {% if not battle %}
-        <button id="start-initiative" class="btn btn-primary" style="margin-top: 20px;">Roll Initiative!</button>
-        <!-- <button id="add-all-entities" class="btn btn-primary" style="margin-top: 20px;">Add Everyone in Map</button> -->
-        {% endif %}
+
         <div id="turn-order">
+            {% if not battle %}
+                <button id="start-initiative" class="btn btn-primary" style="margin-top: 20px;">Roll Initiative!</button>
+                <!-- <button id="add-all-entities" class="btn btn-primary" style="margin-top: 20px;">Add Everyone in Map</button> -->
+            {% endif %}
             {% if battle%}
                 {% include 'battle.html' %}
             {% endif %}

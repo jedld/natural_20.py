@@ -104,6 +104,10 @@ class Battle():
 
         self.combat_order = [entity for entity, _ in _combat_order]
         self.combat_order = sorted(self.combat_order, key=lambda a: self.entities[a]['initiative'], reverse=True)
+        self.event_manager.received_event({"event": 'start_of_combat',
+                                           "target" : self.current_turn,
+                                           "combat_order" : [[e, self.entities[e]['initiative']] for e in self.combat_order],
+                                           "players" : self.entities })
 
     def roll_for(self, entity, die_type, number_of_times, description, advantage=False, disadvantage=False, controller=None):
         if advantage or disadvantage:
@@ -136,8 +140,7 @@ class Battle():
     def check_combat(self):
         if not self.started and not self.battle_ends():
             self.start()
-            self.event_manager.received_event(source=self, event='start_of_combat', target=self.current_turn,
-                                                  combat_order=[[e, self.entities[e]['initiative']] for e in self.combat_order])
+
             # print(f"Combat starts with {self.combat_order[0].name}.")
             return True
         return False

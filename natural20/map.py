@@ -594,7 +594,7 @@ class Map():
                         continue
                     if not battle.opposing(location_entity, entity):
                         continue
-                    if location_entity.dead() or location_entity.unconscious():
+                    if location_entity.incapacitated():
                         continue
                     if entity.class_feature('halfling_nimbleness') and (location_entity.size_identifier() - entity.size_identifier()) >= 1:
                         continue
@@ -611,7 +611,7 @@ class Map():
             p_x, p_y = pos
             if self.tokens[p_x][p_y] and self.tokens[p_x][p_y]['entity'] == entity:
                 continue
-            if self.tokens[p_x][p_y] and not self.tokens[p_x][p_y]['entity'].dead():
+            if self.tokens[p_x][p_y]:
                 return False
             if self.object_at(p_x, p_y) and not self.object_at(p_x, p_y).passable():
                 return False

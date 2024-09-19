@@ -7,7 +7,7 @@ class FirstAidAction(Action):
 
     @staticmethod
     def can(entity, battle, options=None):
-        if battle is None or entity.total_actions(battle) == 0:
+        if battle and entity.total_actions(battle) == 0:
             return False
 
         unconscious_targets = FirstAidAction.unconscious_targets(entity, battle)
@@ -17,7 +17,7 @@ class FirstAidAction(Action):
     def unconscious_targets(entity, battle):
         if battle is None or battle.map is None:
             return []
-        
+
         adjacent_squares = entity.melee_squares(battle.map, adjacent_only=True)
         entities = []
         for pos in adjacent_squares:

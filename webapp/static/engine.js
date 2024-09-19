@@ -311,7 +311,8 @@ $(document).ready(function () {
       case 'console':
         var console_message = data.message;
         $('#console-container #console').append('<p>' + console_message + '</p>');
-        $('#console-container #console').scrollTop($('#console-container')[0].scrollHeight);
+        // scroll to the bottom of the console
+        $('#console-container').scrollTop($('#console-container')[0].scrollHeight);
         break;
       case 'track':
         url = data.message.url;
@@ -514,7 +515,7 @@ $(document).ready(function () {
   var globalActionInfo = null;
   var globalOpts = null;
   var globalSourceEntity = null;
-
+  
   var canvas = document.createElement('canvas');
   var tile_size = $('.tiles-container').data('tile-size');
   canvas.width = $('.tiles-container').data('width') + tile_size;
@@ -884,8 +885,15 @@ $(document).ready(function () {
 
   // Remove turn order item on button click
   $('#turn-order').on('click', '.remove-turn-order-item', function () {
-    $(this).parent().remove();
+    $(this).nearest('#turn-order-item').remove();
   });
+
+  $('#turn-order').on('click', '.token-image', function() {
+    //highlight/focus on the entity
+    var entity_uid = $(this).data('id');
+    centerOnEntityId(entity_uid);
+
+  })
 
   $('#turn-order').on('click', '#next-turn', function () {
     $.ajax({

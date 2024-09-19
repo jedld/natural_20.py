@@ -101,7 +101,7 @@
 }
 
 #battle-turn-order #turn-order {
-  padding-top: 30px;
+  padding-top: 55px;
 }
 
 #battle-turn-order .header {
@@ -283,4 +283,109 @@ input.initiative-text {
 .action-image.bonus-action::after {
   width: 20px; /* Adjust the size as needed */
   height: 8px; /* Thicker horizontal line */
+}
+
+
+
+/* Floating Window Styles */
+.floating-window {
+  position: fixed;
+  background-color: white;
+  border: 1px solid black;
+  resize: both;
+  overflow: auto;
+  z-index: 3;
+  margin: 5px;
+}
+
+.floating-window .header {
+  cursor: move;
+  background-color: blue;
+  color: white;
+  padding: 10px;
+  text-align: center;
+  position: relative;
+}
+
+.floating-window .btn-group {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+}
+
+/* Battle Turn Order Styles */
+#battle-turn-order {
+  top: 10px;
+  left: 150px;
+  width: 450px;
+  height: auto;
+  max-height: 80vh;
+}
+
+#battle-turn-order .turn-order-item {
+  padding: 5px;
+  border-bottom: 1px solid #ddd;
+}
+
+#battle-turn-order .active {
+  background-color: #337ab7;
+  color: white;
+}
+
+.turn-order-dead {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+.token-image {
+  max-width: 100%;
+  height: auto;
+}
+
+.entity-label {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.initiative-input,
+.group-select {
+  width: 100%;
+}
+
+
+input.initiative-input.form-control {
+  width: 60px;
+}
+
+
+.remove-turn-order-item {
+  width: 100%;
+}
+
+/* Coords Box Styles */
+#coords-box {
+  position: fixed;
+  top: 0;
+  right: 0;
+  background-color: white;
+  padding: 10px;
+  border: 1px solid black;
+  z-index: 99;
+}
+
+
+
+/* Adjustments for Smaller Screens */
+@media (max-width: 767px) {
+  .floating-window {
+    width: 90%;
+    left: 5%;
+  }
+
+  .floating-window .header .btn-group {
+    float: none;
+    text-align: center;
+    margin-top: 10px;
+    position: static;
+  }
 }
