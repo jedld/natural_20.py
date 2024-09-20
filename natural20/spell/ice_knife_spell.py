@@ -66,7 +66,7 @@ class IceKnifeSpell(AttackSpell):
                 'type': 'spell_miss',
                 'source': entity,
                 'target': target,
-                'attack_name': "spell.chill_touch",
+                'attack_name': "spell.ice_knife",
                 'damage_type': self.properties['damage_type'],
                 'attack_roll': attack_roll,
                 'advantage_mod': advantage_mod,

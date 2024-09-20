@@ -160,7 +160,7 @@ $(document).ready(function () {
     });
   });
 
-  function refreshTileSet(is_setup, pov=false, x=0, y=0) {
+  function refreshTileSet(is_setup, pov=false, x=0, y=0, callback=null) {
     $.ajax({
       url: '/update',
       type: 'GET',
@@ -168,6 +168,9 @@ $(document).ready(function () {
       success: function (data) {
         lastMovedEntityBeforeRefresh = null;
         $('.tiles-container').html(data);
+        if (callback!==null) {
+          callback();
+        }
       },
       error: function (jqXHR, textStatus, errorThrown) {
         console.error('Error refreshing tiles container:', textStatus, errorThrown);
@@ -267,7 +270,7 @@ $(document).ready(function () {
 
           var moveFunc = function(path, index) {
             if (index >= path.length) {
-              animatefunction(animation_log, animation_log_index + 1);
+                animatefunction(animation_log, animation_log_index + 1);
               return;
             }
             console.log('Moving to:', path[index]);
@@ -291,6 +294,7 @@ $(document).ready(function () {
               }, 300);
             }
           }
+
           moveFunc(path, 1)
         }
 

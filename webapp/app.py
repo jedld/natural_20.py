@@ -180,7 +180,6 @@ class GameManagement:
         self.battle.clear_animation_logs()
 
     def execute_game_loop(self):
-        output_logger.clear_logs()
         output_logger.log("Battle started.")
         game_loop()
         socketio.emit('message',{'type': 'initiative', 'message': {}})
@@ -867,6 +866,7 @@ def get_spell():
 
     entity_id = request.args.get('id')
     entity = battle_map.entity_by_uid(entity_id)
+    entity_class_level = entity.class_and_level()
     spells_by_level = {}
     for spell_name in entity.available_spells(battle):
         # get spell available levels
@@ -876,7 +876,7 @@ def get_spell():
 
     entity_x, entity_y = battle_map.entity_or_object_pos(entity)
     return render_template('spells.html', entity=entity, spells_by_level=spells_by_level,
-                           entity_x=entity_x, entity_y=entity_y)
+                           entity_x=entity_x, entity_y=entity_y, entity_class_level=entity_class_level)
 
 
 @app.route('/action', methods=['POST'])

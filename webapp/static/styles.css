@@ -404,3 +404,15 @@ input.initiative-input.form-control {
   z-index: 1000;
   opacity: 0.8;
 }
+
+.level-slot-container {
+  padding: 5px;
+}
+
+.spells-container {
+  padding: 5px;
+}
+
+.spell-action-button {
+  padding: 5px;
+}
