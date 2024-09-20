@@ -4,7 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>D&D Character Sheet</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="/styles.css?salt={{ salt }}" rel="stylesheet">
+    <link href="/sheet.css?salt={{ salt }}" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Cinzel|Uncial+Antiqua|IM+Fell+English" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
     <style>
         body {
             font-family: 'Times New Roman', serif;
@@ -63,6 +68,7 @@
             border-top: none;
         }
     </style>
+
 </head>
 <body>
     <div class="sheet">
@@ -76,10 +82,14 @@
         <!-- Tab content -->
         <div id="BasicInfo" class="tabcontent">
             <h2>Basic Information</h2>
-
-        <div class="profile-image"></div>
-            <img src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}"  alt="Profile Image" class="profile-image">
-        </div>
+            <div class="basic-info-container">
+                <div class="profile-image">
+                    <img src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}" alt="Profile Image">
+                </div>
+                <div class="description">
+                    <p>{{ entity.description() }}</p>
+                </div>
+            </div>
         <table>
             <tr>
                 <th>Class & Level</th>
@@ -200,67 +210,90 @@
             {% endfor %}
         </table>
     </div>
-
-
-        <div id="Spells" class="tabcontent">
-            <h2>Spells</h2>
-            <!-- Spells section -->
-            {% for klass, level in entity.class_and_level()  %}
-            <h3>{{ klass }} Spells</h3>
-            <table>
-                {% set spells_per_level = entity.available_spells_per_level(battle) %}
-                
-                {% for level, level_spells in spells_per_level %}
-                {% if level_spells %}
-                {% if level == 0 %}
-                <tr>
-                    <td>Cantrips</td>
-                <tr>
-                {% else %}
-                <tr>
-                    <td>Level {{ level }}</td>
-                    <td colspan="4">{{ entity.spell_slots_count(level, klass) }}/{{ entity.max_spell_slots(level, klass)}} Slots</td>
-                </tr>
-                {% endif %}
-                {% for name, details in level_spells %}
-                    <td>
-                        <img src="{{ url_for('static', filename='spells/spell_' + name + '.png') }}" alt="{{ name }}" class="spell-icon-sheet" style="float: left; width: 60px; height: 60px;">
-                        <div style="margin-left: 70px;">
-                            {{ details['label'] }}
-                        </div>
-                    </td>
-                {% endfor %}
-                </tr>
-                {% endif %}
-                {% endfor %}
-            {% endfor %}
-            </table>
-
+ <div id="Spells" class="tabcontent">
+    <h2>Spells</h2>
+    <!-- Spells section -->
+    {% for klass, level in entity.class_and_level() %}
+    <h3>{{ klass }} Spells</h3>
+    {% set spells_per_level = entity.available_spells_per_level(battle) %}
+    
+    {% for level, level_spells in spells_per_level %}
+    {% if level_spells %}
+    <div class="spell-level">
+        {% if level == 0 %}
+        <div class="spell-level-header">Cantrips</div>
+        {% else %}
+        <div class="spell-level-header">
+            Level {{ level }} - {{ entity.spell_slots_count(level, klass) }}/{{ entity.max_spell_slots(level, klass)}} Slots
         </div>
+        {% endif %}
+        <div class="spells-container-sheet">
+            {% for name, details in level_spells %}
+             <div class="spell" role="button" aria-pressed="false">
+                <div class="spell-inner">
+                    <div class="spell-front">
+                        <img src="{{ url_for('static', filename='spells/spell_' + name + '.png') }}" alt="{{ name }}" class="spell-icon-sheet">
+                        <div class="spell-label">{{ details['label'] }}</div>
+                        <!-- add details like action, casting time, range, components, duration, and concentration -->
+                        <table class="spell-details-table">
+                            <tr>
+                                <td class="spell-details-name"><i class="fas fa-hourglass-start"></i> <strong>Casting Time</strong></td>
+                                <td>{{ details['casting_time'] | casting_time }}</td>
+                            </tr>
+                            <tr>
+                                <td class="spell-details-name"><i class="fas fa-bullseye"></i> <strong>Range</strong></td>
+                                <td>{{ details['range'] }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="spell-back">
+                        <div class="spell-description">
+                            {{ details['description'] }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% endfor %}
+</div>
 
         <div id="Equipment" class="tabcontent">
             <h2>Equipment/Inventory</h2>
-            <!-- Equipment section -->
-            <p>Equipment and inventory details here...</p>
+            {% for item in entity.equipped_items() %}
+            <h3>{{ item['label'] }}</h3>
+            {% if item['damage'] and not item['ac'] %}
+            <table>
+                <tr>
+                    <th>Damage</th>
+                    <th>Damage Type</th>
+                    <th>Range</th>
+                </tr>
+                <tr>
+                    <td>{{ item['damage'] }}</td>
+                    <td>{{ item['damage_type'] }}</td>
+                    <td>{{ item['range'] }}</td>
+                </tr>
+            </table>
+            {% endif %}
+            {% if item['ac'] %}
+            <table>
+                <tr>
+                    <th>AC</th>
+                    <th>Stealth Disadvantage</th>
+                </tr>
+                <tr>
+                    <td>{{ item['ac'] }}</td>
+                    <td>{{ "Yes" if item['stealth_disadvantage'] else "" }}</td>
+                </tr>
+            </table>
+            {% endif %}
+            {% endfor %}
         </div>
     </div>
-
-    <script>
-        function openTab(evt, tabName) {
-            var i, tabcontent, tablinks;
-            tabcontent = document.getElementsByClassName("tabcontent");
-            for (i = 0; i < tabcontent.length; i++) {
-                tabcontent[i].style.display = "none";
-            }
-            tablinks = document.getElementsByClassName("tablinks");
-            for (i = 0; i < tablinks.length; i++) {
-                tablinks[i].className = tablinks[i].className.replace(" active", "");
-            }
-            document.getElementById(tabName).style.display = "block";
-            evt.currentTarget.className += " active";
-        }
-
-        openTab(event, 'BasicInfo')
-    </script>
+    <script src="/sheet.js?salt={{ salt }}"></script>
 </body>
 </html>

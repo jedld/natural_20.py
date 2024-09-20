@@ -8,3 +8,4 @@ flask_session
 .DS_Store
 static/.DS_Store
 webapp/flask_session/
+webapp/save.yml

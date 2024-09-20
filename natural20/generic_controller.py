@@ -2,6 +2,7 @@ from natural20.actions.look_action import LookAction
 from natural20.actions.stand_action import StandAction
 from natural20.actions.attack_action import AttackAction
 from natural20.actions.spell_action import SpellAction
+from natural20.actions.dodge_action import DodgeAction
 # from natural20.actions.prone_action import ProneAction
 from natural20.actions.move_action import MoveAction
 from natural20.gym.types import EnvObject, Environment
@@ -9,12 +10,13 @@ from natural20.entity import Entity
 from natural20.action import Action
 from natural20.controller import Controller
 from natural20.ai.path_compute import PathCompute
+from natural20.utils.movement import retrieve_opportunity_attacks
 import math
 import copy
 import pdb
 
 class GenericController(Controller):
-    VALID_AI_MOVE_TYPES = ["attack", "move", "disengage", "dodge", "dash", "dash_bonus", "second_wind", "spell"]
+    VALID_AI_MOVE_TYPES = ["attack", "move"]
 
     def __init__(self, session, valid_move_types=None):
         self.state = {}
@@ -51,9 +53,9 @@ class GenericController(Controller):
         if available_actions is None:
             available_actions = []
         if len(available_actions) > 0:
-            action = self._sort_actions(entity, battle, available_actions)[0]
-            return action
-
+            action = self._sort_actions(entity, battle, available_actions)
+            if len(action) > 0:
+                return action[0]
         # no action, end turn
         return None
 
@@ -72,7 +74,6 @@ class GenericController(Controller):
             battle_data = self._battle_data(battle, entity)
             for p in selected_action.move_path:
                 battle_data['visited_location'][tuple(p)] = True
-
         return selected_action
 
     # Build a suitable environment for Reinforcement Learning
@@ -142,13 +143,18 @@ class GenericController(Controller):
         enemy_positions = {}
         self._observe_enemies(battle, entity, enemy_positions)
         available_actions = entity.available_actions(self.session, battle)
-
+        available_movement = entity.available_movement(battle)
         # generate available targets
         valid_actions = []
+
         # check if enemy positions is empty
-        if len(enemy_positions.keys()) == 0 and len(investigate_location) == 0 and LookAction.can(entity, battle):
+        if len(enemy_positions.keys()) == 0 and len(investigate_location) == 0 and \
+            available_movement == 0 and LookAction.can(entity, battle):
             action = LookAction(self.session, entity, "look")
             valid_actions.append(action)
+
+        if len(enemy_positions.keys()) == 0 and entity.available_movement(battle) == 0 and DodgeAction.can(entity, battle):
+            valid_actions.append(DodgeAction(None, entity, "dodge"))
 
         # try to stand if prone
         if entity.prone() and StandAction.can(entity, battle):
@@ -210,6 +216,13 @@ class GenericController(Controller):
                 new_position = action.move_path[-1]
                 position_key = (new_position[0], new_position[1])
                 score = move_square_score.get(position_key, 0)
+
+                # avoid opportunity attacks
+                opportunity_list = retrieve_opportunity_attacks(entity, action.move_path, battle)
+
+                if len(opportunity_list) > 0:
+                    continue
+
                 sorted_actions.append((action, score))
             else:
                 sorted_actions.append((action, 0))

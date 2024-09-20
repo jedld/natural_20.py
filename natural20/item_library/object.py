@@ -7,6 +7,7 @@ from typing import Tuple
 from typing import Any
 from natural20.entity import Entity
 from natural20.die_roll import DieRoll
+import uuid
 
 
 class InvalidInteractionAction(Exception):
@@ -21,6 +22,7 @@ class InvalidInteractionAction(Exception):
 @dataclass
 class Object(Entity):
     def __init__(self, map: Any, properties: Dict[str, Any]) -> None:
+        self.entity_uid = uuid.uuid4()
         self.name = properties.get('name')
         self.map = map
         self.effects = {}

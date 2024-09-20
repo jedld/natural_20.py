@@ -101,7 +101,7 @@
         </div>
     </div>
 
-    {% if battle and controller_of(battle.current_turn.entity_uid, username) %}
+    {% if battle and controller_of(battle.current_turn().entity_uid, username) %}
         <div class="game-turn-container" style="pointer-events: none;">
         {% include 'turn.jinja' %}
         </div>

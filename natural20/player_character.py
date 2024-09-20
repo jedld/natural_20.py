@@ -35,15 +35,28 @@ import pdb
 
 class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
   ACTION_LIST = [
-    SpellAction, AttackAction, HideAction, HideBonusAction,DashAction, DashBonusAction, DisengageAction,
+    SpellAction,
+    AttackAction,
+    HideAction,
+    HideBonusAction,
+    DashAction,
+    DashBonusAction,
+    DisengageAction,
     DisengageBonusAction,
-    DodgeAction, MoveAction, ProneAction, SecondWindAction,
-    StandAction, TwoWeaponAttackAction, HelpAction, UseItemAction,
+    DodgeAction,
+    MoveAction,
+    ProneAction,
+    SecondWindAction,
+    StandAction,
+    TwoWeaponAttackAction,
+    HelpAction,
+    UseItemAction,
     GroundInteractAction,
     GrappleAction,
     DropGrappleAction,
     EscapeGrappleAction,
-    ActionSurgeAction, ShoveAction,
+    ActionSurgeAction,
+    ShoveAction,
     FirstAidAction
   ]
 
@@ -82,7 +95,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
     self.max_hit_die = {}
     self.resistances = []
     self.entity_uid =  self.properties.get('entity_uid', str(uuid.uuid4()))
-  
+
     for klass, level in self.properties.get('classes', {}).items():
       setattr(self, f"{klass}_level", level)
       getattr(self, f"initialize_{klass}")()
@@ -95,6 +108,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
       self.class_properties[klass] = character_class_properties
 
     self.attributes["hp"] = copy.deepcopy(self.max_hp())
+
+  def description(self):
+    return super().description()
 
   def class_descriptor(self):
     class_level = []
@@ -489,21 +505,13 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
     return self.proficiency_bonus() if self.perception_proficient() else 0
   
   def to_dict(self):
-    return {
+    base_dict = super().to_dict()
+
+    pc_dict = {
       'name': self.name,
       'classes': self.c_class(),
       'hp': self.attributes['hp'],
-      'ability': {
-        'str': self.ability_scores.get('str'),
-        'dex': self.ability_scores.get('dex'),
-        'con': self.ability_scores.get('con'),
-        'int': self.ability_scores.get('int'),
-        'wis': self.ability_scores.get('wis'),
-        'cha': self.ability_scores.get('cha')
-      },
-      'passive': {
-        'perception': self.passive_perception(),
-        'investigation': self.passive_investigation(),
-        'insight': self.passive_insight()
-      }
+      'type': 'pc'
     }
+    base_dict.update(pc_dict)
+    return base_dict

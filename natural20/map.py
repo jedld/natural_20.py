@@ -7,6 +7,7 @@ from natural20.item_library.common import StoneWall, Ground
 from natural20.item_library.door_object import DoorObject
 from natural20.item_library.pit_trap import PitTrap
 from natural20.player_character import PlayerCharacter
+from natural20.npc import Npc
 from natural20.weapons import compute_max_weapon_range
 from natural20.utils.list_utils import remove_duplicates, bresenham_line_of_sight
 from natural20.utils.movement import Movement, compute_actual_moves
@@ -29,14 +30,17 @@ def dirt():
     return Terrain("dirt", True, 1.0)
 
 class Map():
-    def __init__(self, session, map_file_path, name=None):
+    def __init__(self, session, map_file_path, name=None, properties=None):
         self.name = name
         self.session = session
         self.terrain = {}
         self.spawn_points = {}
         self.area_triggers = {}
         self.map = []
-        self.properties = self.load(map_file_path)
+        if properties:
+            self.properties = properties
+        else:
+            self.properties = self.load(map_file_path)
         base = self.properties.get('map', {}).get('base', [])
 
         self.size = [len(base[0]), len(base)]
@@ -246,7 +250,7 @@ class Map():
     def place_at_spawn_point(self, position, entity, token=None, battle=None):
         if str(position) not in self.spawn_points:
             raise Exception(f"unknown spawn position {position}. should be any of {','.join(self.spawn_points.keys())}")
-        
+
         pos_x, pos_y = self.spawn_points[str(position)]['location']
         self.place((pos_x, pos_y), entity, token, battle)
         print(f"place {entity.name} at {pos_x}, {pos_y}")
@@ -256,7 +260,7 @@ class Map():
 
         if entity is None:
             raise ValueError('entity param is required')
-        
+
         if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
             raise ValueError(f"Invalid position: {pos_x},{pos_y} should not exceed (0 - {self.size[0]- 1 }),(0 - {self.size[1] - 1})")
 
@@ -508,6 +512,8 @@ class Map():
             return False
 
         if entity2.hidden():
+            if entity.passive_perception() < entity2.hidden_stealth:
+                return False
             if active_perception < entity2.hidden_stealth:
                 return False
 
@@ -720,6 +726,17 @@ class Map():
         return max(intensities)
 
 
+    def entities_in_range(self, entity, range):
+        entities = []
+        for entity2, _position in self.entities.items():
+            if entity == entity2:
+                continue
+            if entity.dead():
+                continue
+            if self.distance(entity, entity2) * self.feet_per_grid <= range:
+                entities.append(entity2)
+        return entities
+
     def distance(self, entity1, entity2, entity_1_pos=None, entity_2_pos=None):
         if entity1 is None:
             raise ValueError('entity 1 param cannot be None')
@@ -761,7 +778,7 @@ class Map():
                     return 'battle_end'
                 else:
                     raise ValueError(f"unknown trigger type {trigger['type']}")
-                
+
     def items_on_the_ground(self, entity):
         target_squares = entity.melee_squares(self)
         target_squares += self.entity_squares(entity)
@@ -774,4 +791,74 @@ class Map():
             items = [o for o in obj.inventory if o.qty > 0]
             if items:
                 result.append((obj, items))
-        return result          
+        return result
+
+    @staticmethod
+    def from_dict(session, data):
+        entity_hash = {}
+
+        battle_map = Map(session, None, properties=data['map']['properties'])
+        battle_map.entities = {}
+        for uid, entity_and_pos in data['entities'].items():
+            entity, pos = entity_and_pos
+            if entity['type']=='pc':
+                entity['entity_uid'] = uid
+                player_character = PlayerCharacter(session, entity['properties'], name=entity['name'])
+                player_character.attributes = entity['attributes']
+                battle_map.entities[player_character] = pos
+                entity_hash[uid] = player_character
+            elif entity['type']=='npc':
+                entity['entity_uid'] = uid
+                npc = Npc(session, entity['npc_type'], { "name" : entity['name']})
+                npc.properties = entity['properties']
+                npc.attributes = entity['attributes']
+                npc.inventory = entity['inventory']
+                battle_map.entities[npc] = pos
+                entity_hash[uid] = npc
+
+        map_data = data['map']
+
+        # reset tokens
+        for x in range(battle_map.size[0]):
+            for y in range(battle_map.size[1]):
+                battle_map.tokens[x][y] = None
+
+        for token in map_data['tokens']:
+            entity = entity_hash[token['entity']]
+            battle_map.place((token['x'], token['y']), entity)
+
+        return battle_map
+
+
+    def to_dict(self)->dict:
+        entity_hash = {}
+        for entity, pos in self.entities.items():
+            entity_hash[entity.entity_uid] = [
+                entity.to_dict(),
+                pos
+            ]
+        map_hash = {
+                'name': self.name,
+                'size': self.size,
+                'feet_per_grid': self.feet_per_grid,
+                'legend': self.legend,
+                'properties': self.properties
+        }
+
+        tokens = []
+        for x in range(self.size[0]):
+            for y in range(self.size[1]):
+                if self.tokens[x][y]:
+                    token = {
+                        'x': x,
+                        'y': y,
+                        'entity': self.tokens[x][y]['entity'].entity_uid,
+                        'token': self.tokens[x][y]['token']
+                    }
+                    tokens.append(token)
+        map_hash['tokens'] = tokens
+
+        return {
+            'entities' : entity_hash,
+            'map': map_hash
+        }

@@ -82,12 +82,12 @@ class Npc(Entity, Multiattack):
             auto_name = generate_ogre_name()
         else:
             auto_name = type.replace("_", " ").title()
-        
+
         self.name = auto_name if opt.get("name") == "_auto_" else opt.get("name", auto_name)
 
-        self.entity_uid = str(uuid.uuid4())
+        self.entity_uid = opt.get('entity_uid', str(uuid.uuid4()))
         self.setup_attributes()
-    
+
     def class_and_level(self):
         return [(self.npc_type, None)]
 
@@ -114,13 +114,13 @@ class Npc(Entity, Multiattack):
     
     def armor_class(self):
         return self.properties["default_ac"]
-    
+
     def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True):
         if self.unconscious():
             return ["end"]
-        
+
         actions = []
-        
+
         if opportunity_attack:
             actions = [s for s in self.generate_npc_attack_actions(battle, opportunity_attack=True, auto_target=auto_target) if s.action_type == "attack" and s.npc_action["type"] == "melee_attack"]
         else:
@@ -228,3 +228,9 @@ class Npc(Entity, Multiattack):
 
     def is_npc(self):
         return True
+
+    def to_dict(self):
+        base_dict = super().to_dict()
+        base_dict['type'] = 'npc'
+        base_dict["npc_type"] = self.npc_type
+        return base_dict

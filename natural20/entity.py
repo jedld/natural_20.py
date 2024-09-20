@@ -5,6 +5,7 @@ from natural20.event_manager import EventManager
 from natural20.evaluator.entity_state_evaluator import EntityStateEvaluator
 from typing import List, Tuple
 from natural20.i18n import I18n
+import uuid
 class Entity(EntityStateEvaluator):
 
     ATTRIBUTE_TYPES = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']
@@ -29,7 +30,7 @@ class Entity(EntityStateEvaluator):
         if event_manager is None:
             event_manager = EventManager()
         self.name = name
-        self.description = description
+        self._description = description
         self.attributes = attributes
         self.statuses = []
         self.ability_scores = {}
@@ -46,6 +47,7 @@ class Entity(EntityStateEvaluator):
         self.event_handlers = {}
         self.event_manager = event_manager
         self.concentration = None
+        self.entity_uid = uuid.uuid4()
 
         # Attach methods dynamically
         for ability, skills in self.SKILL_AND_ABILITY_MAP.items():
@@ -55,6 +57,9 @@ class Entity(EntityStateEvaluator):
 
     def profile_image(self):
         return self.token_image()
+    
+    def description(self):
+        return self.properties.get('description', self._description)
 
     def concentration_on(self, effect):
         if effect is None:
@@ -294,10 +299,15 @@ class Entity(EntityStateEvaluator):
             # print(f"{self.name} died. :(")
             self.drop_grapple()
             self.statuses.append('dead')
+
             if 'stable' in self.statuses:
                 self.statuses.remove('stable')
             if 'unconscious' in self.statuses:
                 self.statuses.remove('unconscious')
+
+            # dismiss all effects
+            for effect in self.casted_effects:
+                self.dismiss_effect(effect['effect'])
 
     def make_unconscious(self):
         if not self.unconscious() and not self.dead():
@@ -312,11 +322,15 @@ class Entity(EntityStateEvaluator):
         modifier = self.ability_mod(save_type)
         modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
         return modifier
-    
+
     def saving_throw(self, save_type, battle=None):
         modifier = self.saving_throw_mod(save_type)
         op = '+' if modifier >= 0 else ''
         disadvantage = True if save_type in ['dex', 'str'] and not self.proficient_with_equipped_armor() else False
+
+        if self.unconscious():
+            return DieRoll.roll("1", description=f"dice_roll.{save_type}_saving_throw")
+
         return DieRoll.roll(f"d20{op}{modifier}", disadvantage=disadvantage, battle=battle, entity=self,
                             description=f"dice_roll.{save_type}_saving_throw")
 
@@ -1004,7 +1018,11 @@ class Entity(EntityStateEvaluator):
     def _to_item(self, k, item):
         return {
             'name': k,
-            'label': item.get('label', str(k).capitalize()),
+            'ac' : item.get('ac', None),
+            'damage' : item.get('damage', None),
+            'damage_type' : item.get('damage_type', None),
+            'range' : item.get('range', None),
+            'label': item.get('label', str(item.get('name')).capitalize()),
             'type': item.get('type'),
             'subtype': item.get('subtype'),
             'light': item.get('properties') and 'light' in item.get('properties', []),
@@ -1134,7 +1152,8 @@ class Entity(EntityStateEvaluator):
     def equipped_weapons(self):
         return [item['name'] for item in self.equipped_items() if item["subtype"] == 'weapon']
 
-    def take_damage(self, dmg: int, battle=None, critical=False, roll_info=None, sneak_attack=None):
+    def take_damage(self, dmg: int, battle=None, damage_type='piercing', \
+                    critical=False, roll_info=None, sneak_attack=None):
         self.attributes["hp"] -= dmg
         instant_death = False
         if self.unconscious():
@@ -1425,3 +1444,19 @@ class Entity(EntityStateEvaluator):
     # @return [float] carrying capacity in lbs
     def carry_capacity(self):
         return self.ability_scores.get('str', 1) * 15.0
+
+    def to_dict(self):
+        return {
+            'name': self.name,
+            'properties': self.properties,
+            'attributes': self.attributes,
+            'inventory': self.inventory,
+            'effects': self.effects,
+            'status': self.statuses,
+            'death_saves': self.death_saves,
+            'death_fails': self.death_fails,
+            'concentration': self.concentration,
+            'casted_effects': self.casted_effects,
+            'grapples': self.grapples,
+            'temp_hp' : self._temp_hp
+        }

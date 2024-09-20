@@ -25,6 +25,8 @@ prepared_spells:
 - bless
 - toll_the_dead
 - inflict_wounds
+- spare_the_dying
+- shield_of_faith
 equipped:
 - dagger
 - scale_mail

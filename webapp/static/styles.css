@@ -36,6 +36,7 @@
   position: absolute;
   padding: 2px;
   left: 0;
+  opacity: 0.6;
   background-color: white; color: black;
 }
 
@@ -55,7 +56,7 @@
   background-color: blue;
   color: white;
   position: absolute;
-  z-index: 1000;
+  z-index: 1001;
   padding: 2px;
 }
 
@@ -101,7 +102,7 @@
 }
 
 #battle-turn-order #turn-order {
-  padding-top: 55px;
+  padding-top: 30px;
 }
 
 #battle-turn-order .header {
@@ -388,4 +389,18 @@ input.initiative-input.form-control {
     margin-top: 10px;
     position: static;
   }
+}
+
+
+.tile .effect {
+  position: absolute;
+  top: 5px;
+  left: 0;
+}
+
+.tile .effect-img {
+  width: 20px;
+  height: 20px;
+  z-index: 1000;
+  opacity: 0.8;
 }

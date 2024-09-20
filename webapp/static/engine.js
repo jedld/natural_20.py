@@ -531,7 +531,7 @@ $(document).ready(function () {
       scale += 0.1;
       document.getElementById('main-map-area').style.transform = `scale(${scale})`;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.setTransform(newScale, 0, 0, newScale, 0, 0);
+      // ctx.setTransform(scale, 0, 0, scale, 0, 0);
   });
 
   $('.zoom-out').on('click', function() {
@@ -539,7 +539,7 @@ $(document).ready(function () {
       document.getElementById('main-map-area').style.transform = `scale(${scale})`;
       // scale the canvas context
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.setTransform(newScale, 0, 0, newScale, 0, 0);
+      // ctx.setTransform(scale, 0, 0, scale, 0, 0);
   });
 
   function drawTargetLine(ctx, source, coordsx, coordsy, valid_target=true) {

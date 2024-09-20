@@ -3,8 +3,8 @@ description: A cave inhabited by goblins
 map:
   illumination: 0.0
   base:
-    - .......###
-    - .........#
+    - wwwwwww###
+    - ..wwwww..#
     - ......##.#
     - ......##..
     - ......##..
@@ -13,6 +13,17 @@ map:
     - '###......#'
     - '##.......#'
     - '#.........'
+  base_1:
+    - ..........
+    - ..........
+    - ..........
+    - ..........
+    - ..........
+    - ..........
+    - ..........
+    - ..........
+    - ........o.
+    - ..........
   light:
     - ..........
     - .....A....
@@ -29,12 +40,12 @@ map:
     - ..........
     - ..........
     - .........g
-    - .........w
+    - .........x
     - ..........
     - ..........
-    - ...g......
-    - .A....w.g.
-    - .g...Bh..g
+    - ...g..g...
+    - .A....x...
+    - .g..hBh..g
 lights:
   A:
     bright: 5
@@ -51,7 +62,7 @@ legend:
     name: _auto_
     type: npc
     sub_type: goblin
-  w:
+  x:
     name: _auto_
     type: npc
     sub_type: wolf
@@ -59,6 +70,12 @@ legend:
     name: _auto_
     type: npc
     sub_type: bugbear
+  w:
+    name: Pool of water
+    type: water
+  o:
+    name: barrel
+    type: barrel
 player:
   - position: [1, 4]
     sheet: characters/halfling_rogue.yml

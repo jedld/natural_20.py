@@ -91,6 +91,13 @@ class SpellAction(Action):
 
         return True
 
+    def validate(self, target=None):
+        if target is None:
+            target = self.target
+
+        self.spell_action.validate(target)
+        self.errors = self.spell_action.errors
+
     @staticmethod
     def build(session, source):
         action = SpellAction(session, source, "spell")
@@ -112,6 +119,9 @@ class SpellAction(Action):
         from natural20.spell.toll_the_dead_spell import TollTheDeadSpell
         from natural20.spell.inflict_wounds_spell import InflictWoundsSpell
         from natural20.spell.healing_word_spell import HealingWordSpell
+        from natural20.spell.spare_the_dying_spell import SpareTheDyingSpell
+        from natural20.spell.ice_knife_spell import IceKnifeSpell
+        from natural20.spell.shield_of_faith_spell import ShieldOfFaithSpell
 
         def select_spell(spell_choice):
             action = self.clone()
@@ -154,6 +164,12 @@ class SpellAction(Action):
                 spell_class = InflictWoundsSpell
             elif spell_name == 'HealingWordSpell':
                 spell_class = HealingWordSpell
+            elif spell_name == 'SpareTheDyingSpell':
+                spell_class = SpareTheDyingSpell
+            elif spell_name == 'IceKnifeSpell':
+                spell_class = IceKnifeSpell
+            elif spell_name == 'ShieldOfFaithSpell':
+                spell_class = ShieldOfFaithSpell
             else:
                 raise Exception(f"spell class not found {spell_name}")
             action.spell_class = spell_class

@@ -153,6 +153,12 @@ class EventManager:
             self.output_logger.log(f"Combat begins with {len(players)} players.")
             self.output_logger.log("Players: " + '\n'.join(players))
 
+        def ice_knife(event):
+            if event['success']:
+                self.output_logger.log(f"{self.show_target_name(event)} failed the dexterity saving throw for ice knife. {event['roll']} < {event['source'].spell_save_dc()}")
+            else:
+                self.output_logger.log(f"{self.show_target_name(event)} succeeded the dexterity saving throw for ice knife. {event['roll']} >= {event['source'].spell_save_dc()}")
+
         event_handlers = {
             'multiattack' : lambda event: self.output_logger.log(f"{self.show_name(event)} uses multiattack."),
             'action_surge': lambda event: self.output_logger.log(f"{self.show_name(event)} uses action surge."),
@@ -176,6 +182,7 @@ class EventManager:
             'spell_miss': miss,
             'miss': miss,
             'hide': hide,
+            'ice_knife': ice_knife,
             'lucky_reroll': lambda event: self.output_logger.log(f"{self.show_name(event)} uses luck to reroll from {event['old_roll']} to {event['roll']}"),
             'grapple_success': lambda event: self.output_logger.log(f"{self.show_name(event)} grapples {self.show_target_name(event)}"),            'move': lambda event: self.output_logger.log(f"{self.show_name(event)} moved to {event['position']} {event['move_cost'] * 5} feet"),
             'grapple_failed': lambda event: self.output_logger.log(f"{self.show_name(event)} failed to grapple {self.show_target_name(event)}"),

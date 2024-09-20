@@ -177,6 +177,9 @@ def opportunity_attack_list(entity, current_moves, battle, map):
     left_melee_range = []
     for index, path in enumerate(current_moves):
         for enemy in opponents:
+            if battle:
+                if not enemy.has_reaction(battle):
+                    continue
             if enemy.entered_melee(map, entity, *path):
                 entered_melee_range.add(enemy)
             elif enemy in entered_melee_range and not enemy.entered_melee(map, entity, *path) and not (entity.class_feature('flyby') and entity.flying):

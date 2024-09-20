@@ -33,6 +33,13 @@
                   <i class="glyphicon glyphicon-plus"></i>
                 </button>
               {% endif %}
+              <div class="effect">
+              {% for effect in tile['effects'] %}
+
+                  <img src="{{ url_for('static', filename='assets/effect/' ~ effect ~ '.png') }}" class="effect-img" alt="{{effect}}" data-tooltip="{{effect}}">
+              
+              {% endfor %}
+              </div>
               <button class="btn add-to-target button text-center" style="top: 7px; right: 0; display: none" data-id="{{ tile.id }}" data-name="{{ tile.name }}">
                 <i class="glyphicon glyphicon-plus"></i>
               </button>

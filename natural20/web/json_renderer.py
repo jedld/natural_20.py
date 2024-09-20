@@ -17,10 +17,9 @@ class JsonRenderer:
             if not isinstance(entity_pov, list):
                 entity_pov = [entity_pov]
             for entity in entity_pov:
-                for pos in self.map.entity_squares(entity):
-                    entity_pov_locations.append(pos)
-
-            
+                if entity:
+                    for pos in self.map.entity_squares(entity):
+                        entity_pov_locations.append(pos)
 
         for index_1 in range(width):
             x = index_1
@@ -84,7 +83,8 @@ class JsonRenderer:
                         attributes.update({
                             'entity': entity.token_image(), 'name': entity.label(),
                             'hiding' : entity.hidden(),
-                            'dead': entity.dead(), 'unconscious': entity.unconscious()
+                            'dead': entity.dead(), 'unconscious': entity.unconscious(),
+                            'effects' : [str(effect['effect']) for effect in entity.current_effects()]
                         })
                     result_row.append(attributes)
                 else:

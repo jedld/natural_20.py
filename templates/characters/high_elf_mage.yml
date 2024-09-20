@@ -25,6 +25,7 @@ prepared_spells:
 - expeditious_retreat
 - shocking_grasp
 - shield
+- ice_knife
 spellbook:
 - mage_armor
 - magic_missile

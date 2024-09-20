@@ -123,7 +123,12 @@ class GameManagement:
     def __init__(self, game_session, map_location):
         self.map_location = map_location
         self.game_session = game_session
-        self.battle_map = Map(game_session, BATTLEMAP)
+        if os.path.exists('save.yml'):
+            with open('save.yml','r') as f:
+                map_dict = yaml.safe_load(f)
+                self.battle_map = Map.from_dict(game_session, map_dict)
+        else:
+            self.battle_map = Map(game_session, BATTLEMAP)
         self.battle = None
         self.trigger_handlers = {}
         self.callbacks = {}
@@ -290,6 +295,8 @@ def entities_controlled_by(username, map):
             entity = map.entity_by_uid(entity_uid)
             if entity:
                 entities.add(entity)
+
+
     return list(entities)
 
 def action_flavors(action):
@@ -314,6 +321,17 @@ def ability_mod_str(ability_mod):
     else:
         return str(ability_mod)
 app.add_template_filter(ability_mod_str, name='mod_str')
+
+def casting_time(casting_time):
+    qty, resource = casting_time.split(":")
+    if resource=="action":
+        r_str = "A"
+    elif resource=="reaction":
+        r_str = "R"
+    elif resource=="bonus_action":
+        r_str = "B"
+    return f"{qty}{r_str}"
+app.add_template_filter(casting_time, name='casting_time')
 
 def entity_owners(entity_uid):
     ctrl_info = next((controller for controller in CONTROLLERS if controller['entity_uid'] == entity_uid), None)
@@ -345,6 +363,8 @@ def describe_terrain(tile):
                     description.append("Dead")
                 if thing.grappled():
                     description.append("Grappled")
+                if thing.dodge(battle):
+                    description.append("Dodge")
                 if thing.stable():
                     description.append("Unconscious (but Stable)")
                 for effect in thing.current_effects():
@@ -472,9 +492,6 @@ def index():
         pov_entities = None
     else:
         pov_entities = entities_controlled_by(session['username'], battle_map)
-    print(f"{session['username']} {pov_entities} {user_role()}")
-    if pov_entities:
-        raise Exception("pov_entities not implemented")
 
     my_2d_array = [renderer.render(entity_pov=pov_entities)]
     map_width, map_height = battle_map.size
@@ -657,12 +674,15 @@ def start_battle_with_initiative():
     else:
         print("skipping default battle start")
     current_game.execute_game_loop()
+    with open('save.yml','w+') as f:
+        f.write(yaml.dump(battle_map.to_dict()))
     return jsonify(status='ok')
 
 
 @app.route('/end_turn', methods=['POST'])
 def end_turn():
     battle = current_game.get_current_battle()
+    battle_map = current_game.get_current_battle_map()
     battle.end_turn()
     battle.next_turn()
     game_loop()
@@ -672,6 +692,8 @@ def end_turn():
     battle.clear_animation_logs()
     socketio.emit('message', { 'type': 'turn', 'message': {}})
     # battle.clear_animation_logs()
+    with open('save.yml','w+') as f:
+        f.write(yaml.dump(battle_map.to_dict()))
     return jsonify(status='ok')
 
 @app.route('/turn_order', methods=['GET'])
@@ -684,7 +706,7 @@ def get_turn_order():
 def next_turn():
     global current_game
     battle = current_game.get_current_battle()
-
+    battle_map = current_game.get_current_battle_map()
     global waiting_for_user
     if battle:
         current_turn = battle.current_turn()
@@ -702,8 +724,9 @@ def next_turn():
                                                                'animation_log' : battle.get_animation_logs() }})
         socketio.emit('message', { 'type': 'turn', 'message': {}})
         battle.clear_animation_logs()
-        # game_session.save_game(battle, map)
-        # battle.clear_animation_logs()
+
+    with open('save.yml','w+') as f:
+        f.write(yaml.dump(battle_map.to_dict()))
     return jsonify(status='ok')
 
 @app.route('/update')
@@ -721,7 +744,7 @@ def update():
     if enable_pov and 'dm' in user_role():
         pov_entities = [battle_map.entity_at(x, y)]
     else:
-        if 'dm' not in user_role():
+        if 'dm' in user_role():
             pov_entities = None
         else:
             pov_entities = entities_controlled_by(session['username'], battle_map)
@@ -1027,10 +1050,11 @@ def action():
 @app.route('/info', methods=['GET'])
 def get_info():
     battle_map = current_game.get_current_battle_map()
+    battle = current_game.get_current_battle
     info_id = request.args.get('id')
     # Fetch the necessary information based on the info_id
     entity = battle_map.entity_by_uid(info_id)
-    return render_template('info.html.jinja', entity=entity, restricted=False)
+    return render_template('info.html.jinja', entity=entity, session=game_session, restricted=False)
 
 @app.route('/logout', methods=['POST'])
 def logout():

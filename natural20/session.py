@@ -98,18 +98,23 @@ class Session:
     def has_save_game(self):
         return os.path.exists(os.path.join(self.root_path, 'savegame.yml'))
 
-    def save_game(self, battle, map):
+    def save_game(self, battle, map, filename=None):
         state = {'session': self, 'map': battle.map if battle else map, 'battle': battle}
-        with open(os.path.join(self.root_path, 'savegame.yml'), 'w') as f:
-            yaml.safe_dump(state, f)
+        yaml_str = yaml.safe_dump(state)
+        if filename:
+            with open(os.path.join(self.root_path, filename), 'w') as f:
+                f.write(yaml_str)
+        return yaml_str
 
     def save_character(self, name, data):
         with open(os.path.join(self.root_path, 'characters', f'{name}.yml'), 'w') as f:
             yaml.safe_dump(data, f)
 
-    def load_save(self):
-        save_file = os.path.join(self.root_path, 'savegame.yml')
-        if os.path.exists(save_file):
+    def load_save(self, yaml=None, filename=None):
+        save_file = os.path.join(self.root_path, filename)
+        if yaml:
+            return yaml.safe_load(yaml)
+        elif os.path.exists(save_file):
             with open(save_file, 'r') as f:
                 return yaml.safe_load(f)
         return None

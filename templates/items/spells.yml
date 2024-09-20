@@ -1,4 +1,38 @@
 ---
+shield_of_faith:
+  label: Shield of Faith
+  casting_time: 1:bonus_action
+  components:
+    - verbal
+    - somatic
+  description: |
+    A shimmering field appears and surrounds a creature of your choice within range, granting it a +2 bonus to AC for the duration.
+  duration: 10m
+  level: 1
+  name: Shield of Faith
+  range: 60
+  school: abjuration
+  concentration: true
+  type: warding
+  spell_list_classes:
+    - Cleric
+  spell_class: Natural20::ShieldOfFaith
+spare_the_dying:
+  label: Spare the Dying
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  description: |
+    You touch a living creature that has 0 hit points. The creature becomes stable. This spell has no effect on undead or constructs.
+  duration: instant
+  level: 0
+  name: Spare the Dying
+  range: 15
+  school: necromancy
+  type: healing
+  spell_list_classes:
+    - Cleric
 bless:
   casting_time: 1:action
   label: Bless
@@ -16,6 +50,25 @@ bless:
   concentration: true
   spell_list_classes:
     - Cleric
+ice_knife:
+  label: Ice Knife
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  damage_type: piercing
+  description: |
+    You create a shard of ice and fling it at one creature within range. Make a ranged spell attack against the target. On a hit, the target takes 1d10 piercing damage. Hit or miss, the shard then explodes. The target and each creature within 5 feet of it must succeed on a Dexterity saving throw or take 2d6 cold damage.
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the cold damage increases by 1d6 for each slot level above 1st.
+  duration: instant
+  level: 1
+  name: Ice Knife
+  range: 60
+  school: conjuration
+  type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 guiding_bolt:
   label: Guiding Bolt
   casting_time: 1:action
@@ -119,6 +172,8 @@ inflict_wounds:
 expeditious_retreat:
   label: Expeditious Retreat
   casting_time: 1:bonus_action
+  description: |
+    This spell allows you to move at an incredible pace. When you cast this spell, and then as a bonus action on each of your turns until the spell ends, you can take the Dash action.
   components:
     - verbal
     - somatic
@@ -256,6 +311,8 @@ ray_of_frost:
 shield:
   label: Shield
   casting_time: 1:reaction
+  description: |
+    An invisible barrier of magical force appears and protects you. Until the start of your next turn, you have a +5 bonus to AC, including against the triggering attack, and you take no damage from magic missile.
   components:
     - verbal
     - somatic
