@@ -12,7 +12,7 @@ class JsonRenderer:
         entity_pov_locations = None
         width, height = self.map.size
 
-        if entity_pov is not None:
+        if entity_pov is not None and len(entity_pov) > 0:
             entity_pov_locations = []
             if not isinstance(entity_pov, list):
                 entity_pov = [entity_pov]
@@ -83,6 +83,7 @@ class JsonRenderer:
                         attributes.update({
                             'entity': entity.token_image(), 'name': entity.label(),
                             'hiding' : entity.hidden(),
+                            'prone': entity.prone(),
                             'dead': entity.dead(), 'unconscious': entity.unconscious(),
                             'effects' : [str(effect['effect']) for effect in entity.current_effects()]
                         })

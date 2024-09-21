@@ -1135,6 +1135,31 @@ $(document).ready(function () {
     fwindow.css('z-index', maxZIndex + 1);
   });
 
+  $(document).on('mouseenter', '.hide-action', function() {
+    var entity_uid = $(this).closest('.tile').data('coords-id');
+    $.ajax({
+      url: '/hide',
+      type: 'GET',
+      data: { id: entity_uid },
+      success: function (data) {
+        var hiding_spots = data.hiding_spots;
+        // highlight all tiles that are hiding spots, this is a
+        // json array of x y coords
+        $.each(hiding_spots, function (index, value) {
+          var tile = $('.tile[data-coords-x="' + value[0] + '"][data-coords-y="' + value[1] + '"]');
+          tile.css('background-color', 'rgba(0, 255, 0, 0.5)');
+         });
+      },
+      error: function (jqXHR, textStatus, errorThrown) {
+        console.error('Error requesting hide:', textStatus, errorThrown);
+      }
+    });
+  })
+
+  $(document).on('mouseleave', '.hide-action', function() {
+    $('.tile').css('background-color', '');
+  })
+
   Utils.draggable('#battle-turn-order');
   Utils.draggable('#console-container');
 

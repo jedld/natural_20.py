@@ -299,6 +299,7 @@ class Entity(EntityStateEvaluator):
             # print(f"{self.name} died. :(")
             self.drop_grapple()
             self.statuses.append('dead')
+            self.statuses.append('prone')
 
             if 'stable' in self.statuses:
                 self.statuses.remove('stable')

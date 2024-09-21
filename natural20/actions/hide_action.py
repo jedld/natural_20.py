@@ -13,7 +13,7 @@ class HideAction(Action):
         if options is None:
             options = {}
 
-        return battle and battle.map and battle.map.can_hide(entity) and entity.total_actions(battle) > 0
+        return battle and battle.map and entity.total_actions(battle) > 0
 
     def build_map(self):
         return self
@@ -111,5 +111,5 @@ class HideBonusAction(HideAction):
     @staticmethod
     def can(entity, battle):
         return battle and entity.any_class_feature(['cunning_action', 'nimble_escape']) \
-            and battle.map and battle.map.can_hide(entity) \
+            and battle.map \
             and entity.total_bonus_actions(battle) > 0

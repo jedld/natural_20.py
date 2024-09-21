@@ -316,8 +316,21 @@ class Map():
 
         return obj
 
-    def is_heavily_obscured(self, entity):
-        return self.light_at_entity(entity) < 0.5
+    def is_heavily_obscured(self, entity, pos_override=None):
+        return self.light_at_entity(entity, pos_override) < 0.5
+
+
+    def hiding_spots_for(self, entity, battle=None):
+        hiding_spots = []
+        for pos_x in range(self.size[0]):
+            for pos_y in range(self.size[1]):
+                if self.line_of_sight(pos_x, pos_y, *self.entities[entity]) is None:
+                    continue
+                if not self.placeable(entity, pos_x, pos_y):
+                    continue
+                if self.can_hide(entity, [pos_x, pos_y], battle)[0]:
+                    hiding_spots.append([pos_x, pos_y])
+        return hiding_spots
 
     def can_hide(self, entity, pos_override=None, battle=None):
         if pos_override is not None:
@@ -327,6 +340,17 @@ class Map():
 
         behind_cover = False
         heavily_obscured = False
+
+        opponents = []
+        if battle:
+            opponents = [opp for opp in battle.opponents_of(entity) if opp.conscious()]
+
+        opponent_line_of_sight = False
+
+        for opp in opponents:
+            if self.can_see(opp, entity, distance=None, entity_1_pos=None, entity_2_pos=pos_override, heavy_cover=True):
+                opponent_line_of_sight = True
+                break
 
         # check if behind cover
         for pos in entity_squares:
@@ -352,11 +376,14 @@ class Map():
 
         hide_failed_reasons = []
 
-        if self.is_heavily_obscured(entity):
+        if self.is_heavily_obscured(entity, pos_override=pos_override):
             heavily_obscured = True
 
         if not behind_cover and not heavily_obscured:
             hide_failed_reasons.append("not behind cover or heavily obscured")
+
+        if opponent_line_of_sight:
+            hide_failed_reasons.append("opponent can see entity")
 
         return len(hide_failed_reasons) == 0, hide_failed_reasons
 
@@ -718,10 +745,15 @@ class Map():
         else:
             return self.light_builder.light_at(pos_x, pos_y)
 
-    def light_at_entity(self, entity):
+    def light_at_entity(self, entity, pos_override=None):
         intensities = []
-        for entity_squares in self.entity_squares(entity):
-            pos_x, pos_y = entity_squares
+        if pos_override:
+            entity_squares = self.entity_squares_at_pos(entity, *pos_override)
+        else:
+            entity_squares = self.entity_squares(entity)
+
+        for entity_square in entity_squares:
+            pos_x, pos_y = entity_square
             intensities.append(self.light_at(pos_x, pos_y))
         return max(intensities)
 

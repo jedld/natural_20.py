@@ -27,7 +27,7 @@
               {% endif %}
               {% set image_size_px = tile_size_px * multiplier %}
               <img class="npc" src="{{ url_for('static', filename='assets/' ~ tile['entity']) }}" style="width: {{ image_size_px }}px; height: {{ image_size_px }}px; opacity: {{ opacity_for(tile) }};
-                    filter: {{ filter_for(tile) }};"/>
+                    filter: {{ filter_for(tile) }}; transform: {{ transform_for(tile)}};"/>
               {% if is_setup and not tile.in_battle %}
                 <button class="btn add-to-turn-order button text-center" style="top: 7px; right: 0;" data-id="{{ tile.id }}" data-name="{{ tile.name }}">
                   <i class="glyphicon glyphicon-plus"></i>
@@ -37,7 +37,7 @@
               {% for effect in tile['effects'] %}
 
                   <img src="{{ url_for('static', filename='assets/effect/' ~ effect ~ '.png') }}" class="effect-img" alt="{{effect}}" data-tooltip="{{effect}}">
-              
+
               {% endfor %}
               </div>
               <button class="btn add-to-target button text-center" style="top: 7px; right: 0; display: none" data-id="{{ tile.id }}" data-name="{{ tile.name }}">

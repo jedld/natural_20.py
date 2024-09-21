@@ -93,7 +93,7 @@ class Npc(Entity, Multiattack):
 
     def kind(self):
         return self.properties["kind"]
-    
+
     def size(self):
         return self.properties["size"]
     

@@ -1,5 +1,9 @@
 <table class="spells-container" data-coords-id="{{ entity.entity_uid }}" >
 {% for klass, _ in entity_class_level %}
+    <tr>
+    {% if  not spells_by_level %}
+        <td class="level-slot-container">No Spells Available to Cast</td>
+    {% else %}
     {% for level, spells in spells_by_level.items() %}
         <tr>
             {% if level==0 %}
@@ -25,5 +29,6 @@
             {% endfor %}
         </tr>
     {% endfor %}
+    {% endif %}
 {% endfor %}
 </table>

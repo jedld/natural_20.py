@@ -274,15 +274,37 @@ def opacity_for(tile):
         return 1.0
 app.add_template_global(opacity_for, name='opacity_for')
 
-def filter_for(tile):
-    if tile['dead']:
-        return 'brightness(50%) sepia(100%) hue-rotate(180deg)'
-    elif tile['unconscious']:
-        return 'brightness(50%)'
-    elif tile['darkvision_color']:
-        return 'grayscale(100%)'
+def transform_for(tile):
+    transforms = []
+    entity_size = tile.get('entity_size', None)
+    
+    if entity_size =='small':
+        transforms.append('scale(0.8)')
+    elif entity_size == 'tiny':
+        transforms.append('scale(0.5)')
+
+    if tile.get('prone', False):
+        transforms.append('rotate(90deg)')
+    if len(transforms) > 0:
+        return ' '.join(transforms)
     else:
         return 'none'
+app.add_template_global(transform_for, name='transform_for')
+
+def filter_for(tile):
+    filters = []
+    if tile['dead']:
+        filters.append('brightness(50%) sepia(100%) hue-rotate(180deg)')
+    elif tile['unconscious']:
+        filters.append('brightness(50%)')
+    elif tile['darkvision_color']:
+        filters.append('grayscale(100%)')
+
+    if len(filters) > 0:
+        return ' '.join(filters)
+    else:
+        return 'none'
+
 app.add_template_global(filter_for, name='filter_for')
 
 
@@ -741,7 +763,9 @@ def update():
     pov_entities = None
 
     if enable_pov and 'dm' in user_role():
-        pov_entities = [battle_map.entity_at(x, y)]
+        entity = battle_map.entity_at(x, y)
+        if entity:
+            pov_entities = [entity]
     else:
         if 'dm' in user_role():
             pov_entities = None
@@ -768,6 +792,18 @@ def get_actions():
         else:
             return jsonify(error="Forbidden"), 403
     return jsonify(error="Entity not found"), 404
+
+@app.route("/hide", methods=['GET'])
+def get_hiding_spots():
+    global current_game
+    battle_map = current_game.get_current_battle_map()
+    battle = current_game.get_current_battle()
+    entity_id = request.args.get('id')
+    entity = battle_map.entity_by_uid(entity_id)
+    if entity is None:
+        return jsonify(error="Entity not found"), 404
+    hiding_spots = battle_map.hiding_spots_for(entity, battle)
+    return jsonify(hiding_spots=hiding_spots)
 
 def action_type_to_class(action_type):
     if action_type == 'SecondWindAction':
