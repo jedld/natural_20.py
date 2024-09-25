@@ -277,7 +277,7 @@ app.add_template_global(opacity_for, name='opacity_for')
 def transform_for(tile):
     transforms = []
     entity_size = tile.get('entity_size', None)
-    
+
     if entity_size =='small':
         transforms.append('scale(0.8)')
     elif entity_size == 'tiny':

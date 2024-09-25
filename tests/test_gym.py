@@ -88,7 +88,14 @@ class TestGym(unittest.TestCase):
         self.assertIn((0, (0, 0), (0, 2), 2, 1), info['available_moves'])
         observation, reward, done, truncate, info = env.step((0, (0, 0), (0, 2), 2, 1))
         self.assertEqual(reward, 0)
-        self.assertEqual(info['available_moves'], [])
+        self.assertEqual(info['available_moves'], [
+            (5, (-1, -1), (0, 0), 0, 0),
+            (11, (-1, -1), (0, 0), 0, 0),
+            (1, (0, 1), (0, 0), 0, 0),
+            (1, (1, 0), (0, 0), 0, 0),
+            (1, (1, 1), (0, 0), 0, 0),
+            (10, (-1, -1), (0, 0), 0, 0),
+            (-1, (0, 0), (0, 0), 0, 0)])
         # check for presence of 2 weapon attack
         actions = [action for action in info['available_moves'] if action[0] == 9]
 

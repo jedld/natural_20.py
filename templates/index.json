@@ -28,6 +28,21 @@
       "role" : ["player"]
     },
     {
+      "name" : "keo",
+      "password" : "keo",
+      "role" : ["player"]
+    },
+    {
+      "name" : "jm",
+      "password" : "jm",
+      "role" : ["player"]
+    },
+    {
+      "name" : "leandro",
+      "password" : "leandro",
+      "role" : ["player"]
+    },
+    {
       "name" : "shorvalu",
       "password" : "shorvalu",
       "role" : ["player"]
@@ -41,7 +56,7 @@
   "default_controllers": [
     {
       "entity_uid" : "gomerin",
-      "controllers" : ["gomerin", "shorvalu"]
+      "controllers" : ["gomerin", "shorvalu","leandro"]
     },
     {
       "entity_uid": "crysania",
@@ -49,11 +64,11 @@
     },
     {
       "entity_uid": "shorvalu",
-      "controllers": ["shorvalu"]
+      "controllers": ["shorvalu", "keo"]
     },
     {
       "entity_uid": "rumblebelly",
-      "controllers": ["rumblebelly","gomerin","shorvalu"]
+      "controllers": ["rumblebelly","gomerin","shorvalu", "jm"]
     }
   ]
 }

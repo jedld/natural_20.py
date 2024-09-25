@@ -1,0 +1,41 @@
+---
+hit_die: 1d8
+weapon_proficiencies:
+- light_armor
+- hand_crossbow
+- longsword
+- rapier
+- shortsword
+saving_throw_proficiencies:
+- dexterity
+- charisma
+available_skills_choices: 2
+available_skills:
+- history
+- insight
+- medicine
+- persuasion
+- religion
+- survival
+spellcasting_ability: charisma
+proficiency_bonuses:
+- 2
+- 2
+- 2
+- 2
+- 3
+- 3
+- 3
+- 3
+- 4
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 5
+- 6
+- 6
+- 6
+- 6

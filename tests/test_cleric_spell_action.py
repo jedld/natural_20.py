@@ -41,8 +41,9 @@ class TestClericSpellAction(unittest.TestCase):
         self.assertEqual(self.npc.hp(), 1)
 
     def test_guiding_bolt(self):
-        random.seed(7005)
-        self.assertEqual(self.npc.hp(), 9)
+        random.seed(7009)
+        self.npc.attributes['hp'] = 21
+        self.assertEqual(self.npc.hp(), 21)
         print(MapRenderer(self.battle_map).render())
         action = SpellAction.build(self.session, self.entity)['next'](['guiding_bolt',0])['next'](self.npc)
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
@@ -50,9 +51,9 @@ class TestClericSpellAction(unittest.TestCase):
         self.battle.commit(action)
 
         adv_mod, adv_info = target_advantage_condition(self.battle, self.entity, self.npc, action.spell_action.properties)
-        self.assertEqual(adv_mod, 1)
         self.assertEqual(adv_info, [['guiding_bolt_advantage'], []])
-        self.assertEqual(self.npc.hp(), 0)
+        self.assertEqual(adv_mod, 1)
+        self.assertEqual(self.npc.hp(), 1)
         self.entity.resolve_trigger('end_of_turn')
         adv_mod, adv_info = target_advantage_condition(self.battle, self.entity, self.npc, action.spell_action.properties)
         self.assertEqual(adv_mod, 1)
