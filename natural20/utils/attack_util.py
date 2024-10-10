@@ -19,8 +19,6 @@ def damage_event(item, battle):
     dmg = item['damage'].result() if isinstance(item['damage'], Rollable) else item['damage']
     dmg += item['sneak_attack'].result() if item.get('sneak_attack') is not None else 0
 
-    if dmg is None:
-        pdb.set_trace()
     if target.resistant_to(item['damage_type']):
         total_damage = int(dmg / 2)
     elif target.vulnerable_to(item['damage_type']):
@@ -93,6 +91,8 @@ def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, op
 
         for item in events:
             for klass in Action.__subclasses__():
+                if not isinstance(item, dict):
+                    raise Exception(f"item is not a dict: {item}")
                 klass.apply(battle, item, session=None)
 
     return force_miss

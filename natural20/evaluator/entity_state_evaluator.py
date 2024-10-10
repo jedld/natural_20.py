@@ -36,7 +36,6 @@ class EntityStateEvaluator:
                     elif test_expression == 'conscious':
                         result = self.conscious()
                 else:
-                    pdb.set_trace()
                     raise ValueError(f"Invalid expression {cmd} {test_expression}")
 
                 result = not result if invert else result

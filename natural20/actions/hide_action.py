@@ -54,8 +54,6 @@ class HideAction(Action):
                     opponent_passive_perception += 5
                 if stealth_roll < opponent_passive_perception:
                     hide_failed_reasons.append(f"{opp.name} can see {self.source.name}")
-                else:
-                    print(f"{self.source.name} hides from {opp.name}")
 
         if hide_failed_reasons:
             self.result = [{

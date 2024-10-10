@@ -298,8 +298,9 @@ class Entity(EntityStateEvaluator):
             self.event_manager.received_event({ 'source': self, 'event': 'died' })
             # print(f"{self.name} died. :(")
             self.drop_grapple()
-            self.statuses.append('dead')
-            self.statuses.append('prone')
+            if 'dead' not in self.statuses:
+                self.statuses.append('dead')
+            self.do_prone()
 
             if 'stable' in self.statuses:
                 self.statuses.remove('stable')
@@ -316,7 +317,7 @@ class Entity(EntityStateEvaluator):
             self.event_manager.received_event({ 'source': self, 'event': 'unconscious' })
             # print(f"{self.name} is unconscious.")
 
-            self.statuses.append('prone')
+            self.do_prone()
             self.statuses.append('unconscious')
 
     def saving_throw_mod(self, save_type):
@@ -663,8 +664,10 @@ class Entity(EntityStateEvaluator):
                 getattr(active_hook['handler'], active_hook['method'])(self, {**opts, 'effect': active_hook['effect']})
 
     def do_grappled_by(self, grappler):
-        self.statuses.append('grappled')
-        self.grapples.append(grappler)
+        if 'grappled' not in self.statuses:
+            self.statuses.append('grappled')
+        if grappler not in self.grapples:
+            self.grapples.append(grappler)
         return grappler.do_grapple(self)
 
     def grappled_by(self, grappler) -> bool:
@@ -752,13 +755,17 @@ class Entity(EntityStateEvaluator):
         return 'prone' in self.statuses
     
     def do_prone(self):
-        self.statuses.append('prone')
+        if 'prone' not in self.statuses:
+            self.statuses.append('prone')
 
     # Hides the entity in battle with a specified stealth value
     # @param battle [Natural20::Battle]
     # @param stealth [Integer]
     def do_hide(self, stealth):
-        self.statuses.append('hidden')
+        if stealth is None:
+            raise ValueError("stealth cannot be None")
+        if 'hidden' not in self.statuses:
+            self.statuses.append('hidden')
         self.hidden_stealth = stealth
 
     def squeezed(self):
@@ -1249,10 +1256,12 @@ class Entity(EntityStateEvaluator):
         return None
     
     def make_stable(self):
-        self.statuses.append("stable")
+        if 'stable' not in self.statuses:
+            self.statuses.append("stable")
         self.death_fails = 0
         self.death_saves = 0
-    
+
+
     def make_conscious(self):
         if 'unconscious' in self.statuses:
             self.statuses.remove("unconscious")

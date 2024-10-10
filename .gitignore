@@ -9,3 +9,5 @@ flask_session
 static/.DS_Store
 webapp/flask_session/
 webapp/save.yml
+samples/training_output_all/
+*.yml

@@ -383,8 +383,6 @@ class AttackAction(Action):
                 npc_action = next((action for action in self.source.properties['actions'] if action['name'].lower() == using.lower()), None)
 
             weapon = npc_action
-            if npc_action is None:
-                pdb.set_trace()
             attack_name = npc_action["name"]
             attack_mod = npc_action["attack"]
             damage_roll = npc_action["damage_die"]

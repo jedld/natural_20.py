@@ -19,7 +19,7 @@ class MagicMissileSpell(Spell):
              'allow_retarget': True,
              'target_types': ['enemies']}
         ], 'next': next_func }
-    
+
     def compute_hit_probability(self, battle, opts = None):
         return 1.0
 
@@ -27,12 +27,13 @@ class MagicMissileSpell(Spell):
         targets = spell_action.target
 
         result = []
-        if not isinstance(targets, list):
+        if not isinstance(targets, list) and not isinstance(targets, tuple):
             cast_level = self.action.at_level or 1
             recast_list = []
             for _ in range(3 + (cast_level - 1)):
                 recast_list.append(targets)
             targets = recast_list
+        # if there are tuples in targets, flatten them
 
         for target in targets:
             after_attack_roll_hook(battle, target, entity, None, None, opts={'magic_missile': True})

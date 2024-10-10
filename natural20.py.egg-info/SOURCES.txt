@@ -29,6 +29,7 @@ natural20/actions/attack_action.py
 natural20/actions/dash.py
 natural20/actions/disengage_action.py
 natural20/actions/dodge_action.py
+natural20/actions/drop_concentration_action.py
 natural20/actions/escape_grapple_action.py
 natural20/actions/first_aid_action.py
 natural20/actions/grapple_action.py
@@ -47,6 +48,7 @@ natural20/actions/spell_action.py
 natural20/actions/stand_action.py
 natural20/actions/use_item_action.py
 natural20/entity_class/__init__.py
+natural20/entity_class/bard.py
 natural20/entity_class/cleric.py
 natural20/entity_class/fighter.py
 natural20/entity_class/rogue.py
@@ -64,6 +66,8 @@ natural20/utils/action_builder.py
 natural20/utils/attack_util.py
 natural20/utils/list_utils.py
 natural20/utils/movement.py
+natural20/utils/multiattack.py
+natural20/utils/npc_random_name_generator.py
 natural20/utils/spell_attack_util.py
 natural20/utils/static_light_builder.py
 natural20/utils/string_utils.py
@@ -74,7 +78,10 @@ tests/test_autobuild.py
 tests/test_battle.py
 tests/test_cleric_spell_action.py
 tests/test_dieroll.py
+tests/test_first_aid_action.py
+tests/test_grapple_action.py
 tests/test_gym.py
+tests/test_hide_action.py
 tests/test_json_renderer.py
 tests/test_map.py
 tests/test_maprenderer.py
@@ -82,4 +89,5 @@ tests/test_move_action.py
 tests/test_npc.py
 tests/test_path_compute.py
 tests/test_player_character.py
+tests/test_session.py
 tests/test_spell_action.py

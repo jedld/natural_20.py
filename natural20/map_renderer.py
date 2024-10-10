@@ -42,10 +42,6 @@ class MapRenderer:
                     else:
                         display = display.replace('\033[0m', '\033[48;5;9m')
 
-                if display is None:
-                    pdb.set_trace()
-                if not isinstance(display, str):
-                    pdb.set_trace()
                 row.append(display)
             rendered_map.append(''.join(row))
         return '\n'.join(rendered_map) + '\n'
@@ -155,10 +151,7 @@ class MapRenderer:
     def token(self, entity, pos_x, pos_y):
         if entity['entity'].token():
             m_x, m_y = self.map.entities[entity['entity']]
-            try:
-                return entity['entity'].token()[pos_y - m_y][pos_x - m_x]
-            except IndexError:
-                pdb.set_trace()
+            return entity['entity'].token()[pos_y - m_y][pos_x - m_x]
         else:
             return self.map.tokens[pos_x][pos_y]['token']
 

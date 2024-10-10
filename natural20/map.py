@@ -395,7 +395,6 @@ class Map():
         attack_range = compute_max_weapon_range(self.session, action, range)
 
         if attack_range is None:
-            pdb.set_trace()
             raise ValueError('attack range cannot be None')
 
         targets = [k for k, pos in self.entities.items() if not k.dead() and k.hp() is not None and self.distance(k, entity) * self.feet_per_grid <= attack_range and (filter is None or k.eval_if(filter))]

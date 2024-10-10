@@ -105,8 +105,6 @@ class ChillTouchSpell(AttackSpell):
     def start_of_turn(entity, opt=None):
         if opt['effect'].action.target:
             opt['effect'].action.target.dismiss_effect(opt['effect'])
-        else:
-            pdb.set_trace()
 
     @staticmethod
     def apply(battle, item, session=None):
