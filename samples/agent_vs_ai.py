@@ -49,7 +49,7 @@ env = make("dndenv-v0", root_path="samples/map_with_obstacles", render_mode="ans
                                                 'maps/walled_map']))
 
 # setup the model and policy wrapper
-model = ModelPolicy(session, weights_file="samples/model_best_dnd_egreedy.pt", device=device, debug=True)
+model = ModelPolicy(session, weights_file="samples/training_output_all/model_best_dnd_egreedy.pt", device=device, debug=True)
 
 def reaction_callback(state, reward, done, truncated, info):
     """

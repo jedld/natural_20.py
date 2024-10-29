@@ -1,5 +1,5 @@
 from natural20.spell.spell import Spell, consume_resource
-
+import pdb
 class MageArmorSpell(Spell):
     def __init__(self, session, source, spell_name, details):
         super().__init__(session, source, spell_name, details)
@@ -31,6 +31,10 @@ class MageArmorSpell(Spell):
         if battle and session is None:
             session = battle.session
         if item['type'] == 'mage_armor':
+
+            if item['target'].has_spell_effect('mage_armor'):
+                item['target'].remove_effect(item['effect'])
+
             item['source'].add_casted_effect({
                 'target': item['target'],
                 'effect': item['effect'],

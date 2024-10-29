@@ -64,7 +64,6 @@ class TestSpellAction(unittest.TestCase):
         self.assertEqual(self.npc.hp(), 12)
 
     def setupMageArmor(self):
-        self.assertEqual(self.entity.armor_class(), 12)
         action = SpellAction.build(self.session, self.entity)['next'](['mage_armor', 0])['next'](self.entity)
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
         self.assertEqual([s['type'] for s in action.result], ['mage_armor'])
@@ -76,6 +75,14 @@ class TestSpellAction(unittest.TestCase):
         action = self.setupMageArmor()
         self.assertTrue(self.entity.dismiss_effect(action.spell_action))
         self.assertEqual(self.entity.armor_class(), 12)
+
+    def test_mage_armor_cast_again(self):
+        action = self.setupMageArmor()
+        self.entity.reset_turn(self.battle)
+        self.setupMageArmor()
+        self.assertEqual(self.entity.armor_class(), 15)
+        current_effects = [str(e['effect']) for e in self.entity.current_effects()]
+        self.assertEqual(current_effects, ['mage_armor'])
     
     def test_equip_armor_cancels_effect(self):
         self.setupMageArmor()

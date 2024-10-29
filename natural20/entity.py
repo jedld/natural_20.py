@@ -589,13 +589,13 @@ class Entity(EntityStateEvaluator):
         return dismiss_count
 
     def remove_effect(self, effect):
-        effect.source.casted_effects = [f for f in effect.source.casted_effects if f['effect'] != effect]
+        effect.source.casted_effects = [f for f in effect.source.casted_effects if f['effect'].id != effect.id]
 
         dismiss_count = 0
 
         new_effects = {}
         for key, value in self.effects.items():
-            delete_effects = [f for f in value if f['effect'] == effect]
+            delete_effects = [f for f in value if f['effect'].id == effect.id]
             dismiss_count += len(delete_effects)
             new_effects[key] = [f for f in value if f not in delete_effects]
         self.effects = new_effects
