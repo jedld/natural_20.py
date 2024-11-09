@@ -103,6 +103,11 @@ def embedding_loader(session, weapon_mappings=None, spell_mappings=None, entity_
 This is a custom environment for the game Dungeons and Dragons 5e. It is based on the OpenAI Gym environment.
 """
 class dndenv(gym.Env):
+    LOG_LEVEL_DEBUG = 0
+    LOG_LEVEL_INFO = 1
+    LOG_LEVEL_WARNING = 2
+    LOG_LEVEL_ERROR = 3
+
     def __init__(self, view_port_size=(12, 12), max_rounds=200, render_mode = None, **kwargs):
         """
         Initializes the environment with the following parameters:
@@ -160,7 +165,7 @@ class dndenv(gym.Env):
             gym.spaces.Discrete(255),
             gym.spaces.Discrete(255)
         ])
-        
+
         self.reward_range = (-1, 1)
         self.metadata = {}
         self.spec = None
@@ -172,6 +177,7 @@ class dndenv(gym.Env):
         self.hero_names = kwargs.get('hero_names', ['gomerin'])
         self.enemy_names = kwargs.get('enemy_names', ['rumblebelly'])
         self.show_logs = kwargs.get('show_logs', False)
+        self.log_level = kwargs.get('log_level', 2)
         self.output_file = kwargs.get('output_file', None)
         self.custom_controller = kwargs.get('custom_controller', None)
         self.custom_agent = kwargs.get('custom_agent', None)
@@ -190,11 +196,11 @@ class dndenv(gym.Env):
         self._seed = seed
         return [seed]
 
-    def log(self, msg):
-        if self.output_file:
-            with open(self.output_file, 'a') as f:
-                f.write(msg + "\n")
-        elif self.show_logs:
+    def log(self, msg, level = 0):
+        if level >= self.log_level:
+            if self.output_file:
+                with open(self.output_file, 'a') as f:
+                    f.write(msg + "\n")
             print(msg)
 
     def _render_terrain_ansi(self):
@@ -424,7 +430,7 @@ class dndenv(gym.Env):
                     if callable(self.custom_agent):
                         controller = self.custom_agent(self.session, **self.kwargs)
                     else:
-                        self.log(f"Setting up custom agent for enemy player {self.custom_agent}")
+                        self.log(f"Setting up custom agent for enemy player {self.custom_agent}", level=self.LOG_LEVEL_INFO)
                         controller = DndenvController(self.session, self.custom_agent)
                     controller.register_handlers_on(player)
                 elif self.custom_controller:

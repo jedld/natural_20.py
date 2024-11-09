@@ -83,7 +83,7 @@ def create_agent(session, adversary):
 
 def start_battle(game_manager, session):
     map_locations = random.choice(['maps/complex_map','maps/simple_map', 'maps/walled_map', 'maps/game_map'])
-    available_agents = ["rl_gpt4_trained"]
+    available_agents = ["rl_rules_trained"]
     player_agent = create_agent(session, np.random.choice(available_agents))
 
     player_profile = random.choice(['high_elf_fighter','halfling_rogue','high_elf_mage','dwarf_cleric'])

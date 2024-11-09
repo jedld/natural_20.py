@@ -14,9 +14,11 @@ class ModelPolicy:
         self.model = QNetwork(device=device)
         self.model.to(device)
         fname = weights_file
-        if not os.path.exists(fname):
-            raise FileNotFoundError(f"Model file {fname} not found. Please run dnd_dqn.ipynb notebook to train an agent.")
-        self.model.load_state_dict(torch.load(fname))
+        if not weights_file is None:
+            if not os.path.exists(fname):
+                raise FileNotFoundError(f"Model file {fname} not found. Please run dnd_dqn.ipynb notebook to train an agent.")
+            print("Loading weights from", fname)
+            self.model.load_state_dict(torch.load(fname))
 
     def action(self, state, info):
         available_moves = info["available_moves"]
@@ -30,3 +32,7 @@ class ModelPolicy:
         if self.debug:
             print(f"Chosen index: {chosen_index}")
         return available_moves[chosen_index]
+    
+    def update_weights(self, new_weights):
+        print("Updating adversary weights")
+        self.model.load_state_dict(new_weights)
