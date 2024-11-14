@@ -3,6 +3,24 @@ A Dungeons and Dragons game engine that can be used for AI related research
 This project provides a complete Gymnasium compatible environment for performing
 AI related research on the Dungeons and Dragons 5th edition RPGs. 
 
+# Table of Contents
+
+- [Project Title](#project-title)
+- [Disclaimer](#disclaimer)
+- [Features](#features)
+- [Installation](#installation)
+  - [Installing Gym](#installing-gym)
+- [Quickstart](#quickstart)
+- [Samples](#samples)
+- [Environment and Setup](#environment-and-setup)
+- [Dice Rolls](#dice-rolls)
+  - [DieRoll Class Usage](#dieroll-class-usage)
+    - [Basic Usage](#basic-usage)
+    - [Extracting Individual Die Roll Details](#extracting-individual-die-roll-details)
+- [Setting Up LLM Agents](#setting-up-llm-agents)
+- [Running the interactive Webapp](#running-the-interactive-webapp)
+- [Running Tests](#running-tests)
+
 Disclaimer
 ==========
 
