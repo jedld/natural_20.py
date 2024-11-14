@@ -218,6 +218,8 @@ By default this will open a port 5000 where you can view using the web browser a
 
 For the list of usernames/passwords you may checkout the natural_20.py/samples/map_with_obstacles/index.json file
 
+![Web Screenshot](./web_screenshot.png)
+
 Running Tests
 =============
 
