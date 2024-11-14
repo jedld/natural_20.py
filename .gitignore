@@ -4,3 +4,12 @@ samples/*.pt
 output_*/
 samples/.ipynb_checkpoints
 *.log
+flask_session
+.DS_Store
+static/.DS_Store
+webapp/flask_session/
+webapp/save.yml
+samples/training_output_all/
+samples/training_output_figher_only/
+samples/model_weights_all/
+*.yml

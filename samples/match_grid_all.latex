@@ -1,0 +1,24 @@
+
+\begin{table}[h]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|c|c|c|c|c|c|c|}
+\hline
+\textbf{Agent} & \textbf{ai} & \textbf{llm\_gpt4} & \textbf{llm\_llama3} & \textbf{llm\_mistral} & \textbf{random} & \textbf{rl\_gpt4\_trained} & \textbf{rl\_llama3\_trained} & \textbf{rl\_mistral\_trained} & \textbf{rl\_rules\_trained} \\
+\hline
+ai & -  & 16/14/0  & 19/11/0  & 17/13/0  & 23/7/0  & 17/12/1  & 13/17/0  & 6/24/0  & 12/17/1  \\
+llm\_gpt4 & 14/16/0  & -  & 20/10/0  & 18/12/0  & 19/11/0  & 13/17/0  & 9/20/1  & 15/14/1  & 8/21/1  \\
+llm\_llama3 & 11/19/0  & 10/20/0  & -  & 11/19/0  & 14/12/4  & 8/21/1  & 9/19/2  & 7/18/5  & 9/21/0  \\
+llm\_mistral & 13/17/0  & 12/18/0  & 19/11/0  & -  & 23/7/0  & 5/24/1  & 8/21/1  & 14/13/3  & 13/17/0  \\
+random & 7/23/0  & 11/19/0  & 12/14/4  & 7/23/0  & -  & 6/22/2  & 5/23/2  & 7/23/0  & 6/22/2  \\
+rl\_gpt4\_trained & 12/17/1  & 17/13/0  & 21/8/1  & 24/5/1  & 22/6/2  & -  & 21/7/2  & 17/13/0  & 12/17/1  \\
+rl\_llama3\_trained & 17/13/0  & 20/9/1  & 19/9/2  & 21/8/1  & 23/5/2  & 7/21/2  & -  & 9/19/2  & 15/10/5  \\
+rl\_mistral\_trained & 24/6/0  & 14/15/1  & 18/7/5  & 13/14/3  & 23/7/0  & 13/17/0  & 19/9/2  & -  & 18/10/2  \\
+rl\_rules\_trained & 17/12/1  & 21/8/1  & 21/9/0  & 17/13/0  & 22/6/2  & 17/12/1  & 10/15/5  & 10/18/2  & -  \\
+
+\hline
+\end{tabular}%
+}
+\caption{D\&D Four Classes Tournament: Win/Loss/Tie Matrix}
+\label{tab:dnd-four-classes-matrix}
+\end{table}

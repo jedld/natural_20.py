@@ -1,5 +1,3 @@
-from typing import Callable
-from dataclasses import dataclass
 from types import SimpleNamespace
 from natural20.action import Action
 from natural20.entity import Entity
@@ -15,11 +13,11 @@ class StandAction(Action):
         return battle and entity.prone() and entity.speed() > 0 and entity.available_movement(battle) >= StandAction.required_movement(entity)
 
     def build_map(self):
-        return SimpleNamespace(param=None, next=lambda: self)
+        return self
 
     @staticmethod
     def build(session, source):
-        action = StandAction(session, source, "attack")
+        action = StandAction(session, source, "stand")
         return action.build_map()
 
     def resolve(self, session, map_, opts=None):
@@ -31,9 +29,9 @@ class StandAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item["type"] == "stand":
-            print(f"{item['source'].name} stands up.")
+            battle.event_manager.received_event({'event': 'stand', 'source': item['source']})
             item["source"].stand()
             battle.consume(item["source"], "movement", (item["source"].speed() // 2))
 

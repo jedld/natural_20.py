@@ -3,28 +3,30 @@ from natural20.die_roll import DieRoll
 from natural20.entity import Entity
 from natural20.item_library.common import Ground
 from natural20.weapons import damage_modifier, target_advantage_condition
-from natural20.utils.attack_util import cover_calculation, effective_ac, after_attack_roll_hook, damage_event
+from natural20.utils.attack_util import after_attack_roll_hook, damage_event
+from natural20.utils.ac_utils import effective_ac
+import pdb
 
 class AttackAction(Action):
-#   include Natural20::Cover
-#   include Natural20::Weapons
-#   include Natural20::AttackHelper
-#   extend Natural20::ActionDamage
-
-    def __init__(self, session, source, action_type, opts={}):
+    def __init__(self, session, source, action_type, opts=None):
         super().__init__(session, source, action_type, opts)
         self.target = None
         self.using = None
         self.npc_action = None
         self.as_reaction = None
         self.thrown = None
-        self.second_hand = None
         self.advantage_mod = None
 
+    def second_hand(self):
+        return False
+
     @staticmethod
-    def can(entity: Entity, battle, options={}):
+    def can(entity: Entity, battle, options=None):
+        if options is None:
+            options = {}
         if battle and options.get('opportunity_attack'):
             return entity.total_reactions(battle) > 0
+
         return battle is None or entity.total_actions(battle) > 0 or entity.multiattack(battle, options.get('npc_action'))
 
     def __str__(self):
@@ -44,7 +46,7 @@ class AttackAction(Action):
             'npc_action': self.npc_action,
             'as_reaction': self.as_reaction,
             'thrown': self.thrown,
-            'second_hand': self.second_hand
+            'second_hand': self.second_hand()
         }
 
     def label(self):
@@ -56,17 +58,32 @@ class AttackAction(Action):
             i18n_token = 'action.attack_action_throw' if self.thrown else 'action.attack_action'
             return self.t(i18n_token, name=str(self.action_type), weapon_name=weapon['name'],
                      mod=f"+{attack_mod}" if attack_mod >= 0 else attack_mod,
-                     dmg=damage_modifier(self.source, weapon, second_hand=self.second_hand))
+                     dmg=damage_modifier(self.source, weapon, second_hand=self.second_hand()))
 
     def ranged_attack(self):
         weapon = self.get_attack_info(self.opts)
-        return weapon['type'] == 'ranged_attack'
+        return weapon['type'] == 'ranged_attack' or self.thrown
 
     def unarmed(self):
         weapon = self.get_attack_info(self.opts)
         return 'unarmed' in weapon.get('properties', [])
 
     def build_map(self):
+        def set_target(target):
+            def set_weapon(weapon):
+                self.using = weapon
+                return {
+                    'param': None,
+                    'next': lambda: self
+                }
+            self.target = target
+            return {
+                'param': [
+                    {'type': 'select_weapon'}
+                ],
+                'next': set_weapon
+            }
+            
         return {
             'action': self,
             'param': [
@@ -76,22 +93,15 @@ class AttackAction(Action):
                     'weapon': self.using
                 }
             ],
-            'next': lambda target: {
-                'param': [
-                    {'type': 'select_weapon'}
-                ],
-                'next': lambda weapon: {
-                    'param': None,
-                    'next': lambda: self
-                }
-            }
+            'next': set_target
+            
         }
 
     def build(session, source):
         action = AttackAction(session, source, 'attack')
         return action.build_map()
     
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if 'flavor' in item and item['flavor']:
             flavor = item['flavor']
             if battle:
@@ -104,7 +114,11 @@ class AttackAction(Action):
             AttackAction.consume_resource(battle, item)
         elif item['type'] == 'miss':
             AttackAction.consume_resource(battle, item)
-            battle.event_manager.received_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], 'attack_thrown': item['thrown'], 'advantage_mod': item['advantage_mod'], 'as_reaction': bool(item['as_reaction']), 'adv_info': item['adv_info'], 'source': item['source'], 'target': item['target'], 'event': 'miss'})
+            battle.event_manager.received_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], \
+                                                 'attack_thrown': item['thrown'], 'advantage_mod': item['advantage_mod'], \
+                                                 'as_reaction': bool(item['as_reaction']), 'adv_info': item['adv_info'], \
+                                                 'thrown': item['thrown'], \
+                                                 'source': item['source'], 'target': item['target'], 'event': 'miss'})
     
     def consume_resource(battle, item):
         if item['ammo']:
@@ -131,7 +145,7 @@ class AttackAction(Action):
         else:
             battle.consume(item['source'], 'action')
         
-        item['source'].break_stealth(battle)
+        item['source'].break_stealth()
         
         weapon = battle.session.load_weapon(item['weapon']) if item['weapon'] else None
         
@@ -141,7 +155,7 @@ class AttackAction(Action):
             battle.entity_state_for(item['source'])['two_weapon'] = None
         
         if battle.entity_state_for(item['source']):
-            for group, attacks in battle.entity_state_for(item['source']).get('multiattack', {}).items():
+            for _, attacks in battle.entity_state_for(item['source']).get('multiattack', {}).items():
                 if item['attack_name'] in attacks:
                     attacks.remove(item['attack_name'])
                     if not attacks:
@@ -155,28 +169,40 @@ class AttackAction(Action):
     def with_disadvantage(self):
         return self.advantage_mod < 0
 
-    def compute_hit_probability(self, battle, opts={}):
-        weapon, _, attack_mod, _, _ = self.get_weapon_info(opts)
-        advantage_mod, adv_info = target_advantage_condition(battle, self.source, self.target, weapon)
+    def compute_hit_probability(self, battle, opts = None):
+        advantage_mod, adv_info, attack_mod = self.compute_advantage_info(battle, opts)
         target_ac, _cover_ac = effective_ac(battle, self.source, self.target)
+
         return DieRoll.roll(f"1d20+{attack_mod}", advantage=advantage_mod > 0, disadvantage=advantage_mod < 0).prob(target_ac)
 
-    def avg_damage(self, battle, opts={}):
+    def compute_advantage_info(self, battle, opts=None):
+        if opts is None:
+            opts = {}
+
+        weapon, _, attack_mod, _, _ = self.get_weapon_info(opts)
+        advantage_mod, adv_info = target_advantage_condition(battle, self.source, self.target, weapon, thrown=self.thrown)
+        return advantage_mod, adv_info, attack_mod
+
+
+    def avg_damage(self, battle, opts=None):
+        if opts is None:
+            opts = {}
         _, _, _, damage_roll, _ = self.get_weapon_info(opts)
         return DieRoll.roll(damage_roll).expected()
 
-
-    def resolve(self, session, map, opts={}):
+    def resolve(self, session, map, opts=None):
+        if opts is None:
+            opts = {}
         self.result.clear()
         battle = opts.get('battle')
         target = opts.get('target') or self.target
         if target is None:
             raise Exception('target is a required option for :attack')
-        sneak_attack_roll = None
+
 
         weapon, attack_name, attack_mod, damage_roll, ammo_type = self.get_weapon_info(opts)
 
-        self.advantage_mod, adv_info = target_advantage_condition(battle, self.source, target, weapon)
+        self.advantage_mod, adv_info = target_advantage_condition(battle, self.source, target, weapon, thrown=self.thrown)
 
         if map:
             self.evaluate_feature_protection(battle, map, target, adv_info)
@@ -184,16 +210,29 @@ class AttackAction(Action):
         attack_roll = DieRoll.roll(f"1d20+{attack_mod}", disadvantage=self.with_disadvantage(),
                                     advantage=self.with_advantage(), description='dice_roll.attack',
                                     entity=self.source, battle=battle)
+
+        if self.source.has_effect('bless'):
+            bless_roll = DieRoll.roll("1d4", description='dice_roll.bless', entity=self.source, battle=battle)
+            attack_roll += bless_roll
+
         # print(f"{self.source.name} rolls a {attack_roll} to attack {target.name}")
         self.source.resolve_trigger('attack_resolved', {'target': target})
 
         if self.source.class_feature('lucky') and attack_roll.nat_1():
+            self.session.log_event({'event': 'lucky_reroll', 'source': self.source, 'roll': attack_roll})
+            prev_roll = attack_roll
             attack_roll = attack_roll.reroll(lucky=True)
+            self.session.event_manager.received_event({'event': 'lucky_reroll', 'source': self.source, 'old_roll': prev_roll, 'roll': attack_roll})
             # print(f"{self.source.name} uses lucky to reroll the attack roll to {attack_roll}")
 
         target_ac, _cover_ac = effective_ac(battle, self.source, target)
+
         after_attack_roll_hook(battle, target, self.source, attack_roll, target_ac)
 
+        return self._resolve_hit(battle, target, weapon, attack_roll, damage_roll, attack_name, ammo_type, adv_info)
+
+    def _resolve_hit(self, battle, target, weapon, attack_roll, damage_roll, attack_name, ammo_type, adv_info):
+        sneak_attack_roll = None
         if self.source.class_feature('sneak_attack') and (weapon.get('properties') and 'finesse' in weapon['properties'] or weapon['type'] == 'ranged_attack') and (self.with_advantage() or (battle and battle.enemy_in_melee_range(target, [self.source]))):
             sneak_attack_roll = DieRoll.roll(self.source.sneak_attack_level(), crit=attack_roll.nat_20(),
                                                 description='dice_roll.sneak_attack', entity=self.source, battle=battle)
@@ -223,9 +262,16 @@ class AttackAction(Action):
             target_ac, cover_ac_adjustments = effective_ac(battle, self.source, target)
             hit = attack_roll.result() >= target_ac
 
-        assert damage is not None, 'damage is required'
+        if damage is None:
+            raise Exception('damage should is required')
         
         if hit:
+            if self.source.class_feature('martial_advantage') and battle:
+                for entity in battle.allies_of(self.source):
+                    if entity != target and battle.map.distance(entity, target) <= 5:
+                        damage += DieRoll.roll("2d6", description='dice_roll.martial_advantage', entity=self.source, battle=battle)
+                        break
+
             self.result.append({
                 'source': self.source,
                 'target': target,
@@ -246,20 +292,22 @@ class AttackAction(Action):
                 'damage': damage,
                 'ammo': ammo_type,
                 'as_reaction': bool(self.as_reaction),
-                'second_hand': self.second_hand,
+                'second_hand': self.second_hand(),
                 'npc_action': self.npc_action
             })
             if weapon.get('on_hit'):
                 for effect in weapon['on_hit']:
-                    if effect.get('if') and not self.source.eval_if(effect['if'], weapon=weapon, target=target):
+                    if effect.get('if') and not self.source.eval_if(effect['if'], {
+                         "weapon": weapon, "target":target
+                    }):
                         continue
 
                     if effect.get('save_dc'):
                         save_type, dc = effect['save_dc'].split(':')
                         if not save_type or not dc:
                             raise Exception('invalid values: save_dc should be of the form <save>:<dc>')
-                        if save_type not in Natural20.Entity.ATTRIBUTE_TYPES:
-                            raise Exception('invalid save type')
+                        # if save_type not in Natural20.Entity.ATTRIBUTE_TYPES:
+                        #     raise Exception('invalid save type')
 
                         save_roll = target.saving_throw(save_type, battle=battle)
                         if save_roll.result() >= int(dc):
@@ -283,7 +331,7 @@ class AttackAction(Action):
                 'type': 'miss',
                 'advantage_mod': self.advantage_mod,
                 'adv_info': adv_info,
-                'second_hand': self.second_hand,
+                'second_hand': self.second_hand(),
                 'damage_roll': damage_roll,
                 'attack_roll': attack_roll,
                 'as_reaction': bool(self.as_reaction),
@@ -295,19 +343,23 @@ class AttackAction(Action):
 
         return self
 
-    def get_attack_info(self, opts={}):
+    def get_attack_info(self, opts=None):
+        if opts is None:
+            opts = {}
+
         npc_action = opts.get('npc_action') or self.npc_action
 
         using = opts.get('using') or self.using
         if using is None and npc_action is None:
             raise Exception('using or npc_action is a required option for :attack')
-        
+
         if self.source.npc() and using:
             npc_action = next((a for a in self.source.npc_actions if a['name'].lower() == using.lower()), None)
 
         if self.source.npc():
             if npc_action is None:
                 npc_action = next((action for action in self.source.properties['actions'] if action['name'].lower() == using.lower()), None)
+            weapon = npc_action
         else:
             weapon = self.session.load_weapon(using)
         return weapon
@@ -329,12 +381,18 @@ class AttackAction(Action):
         if self.source.npc():
             if npc_action is None:
                 npc_action = next((action for action in self.source.properties['actions'] if action['name'].lower() == using.lower()), None)
+
+            weapon = npc_action
+            attack_name = npc_action["name"]
+            attack_mod = npc_action["attack"]
+            damage_roll = npc_action["damage_die"]
+            ammo_type = npc_action.get("ammo", None)
         else:
             weapon = self.session.load_weapon(using)
             attack_name = weapon['name']
             ammo_type = weapon.get('ammo', None)
             attack_mod = self.source.attack_roll_mod(weapon)
-            damage_roll = damage_modifier(self.source, weapon, second_hand=self.second_hand)
+            damage_roll = damage_modifier(self.source, weapon, second_hand=self.second_hand())
 
         return weapon, attack_name, attack_mod, damage_roll, ammo_type
 
@@ -366,15 +424,35 @@ class AttackAction(Action):
             damage_roll += additional_damage
 
         return damage_roll
+    
+    def to_h(self):
+        return {
+            "action_type": self.action_type,
+            "target": self.target.entity_uid if self.target else None,
+            "using": self.using,
+            "npc_action": self.npc_action,
+            "as_reaction": self.as_reaction,
+            "thrown": self.thrown,
+            "second_hand": self.second_hand()
+        }
 
 
 class TwoWeaponAttackAction(AttackAction):
+    def __init__(self, session, source, action_type, opts=None):
+        super().__init__(session, source, action_type, opts)
+
     @staticmethod
-    def can(entity, battle, options={}):
-        return battle is None or (entity.total_bonus_actions(battle) > 0 and battle.two_weapon_attack(entity) and (options.get('weapon') != battle.first_hand_weapon(entity) or len([a for a in entity.equipped_weapons if a == battle.first_hand_weapon(entity)]) >= 2))
+    def can(entity, battle, options=None):
+        if options is None:
+            options = {}
+
+        return battle and (entity.total_bonus_actions(battle) > 0 and battle.two_weapon_attack(entity) and (options.get('weapon') != battle.first_hand_weapon(entity) or len([a for a in entity.equipped_weapons() if a == battle.first_hand_weapon(entity)]) >= 2))
 
     def second_hand(self):
         return True
 
     def label(self):
         return f"Bonus Action -> {super().label()}"
+
+    def __str__(self):
+        return f"TwoWeaponAttack({self.using})"

@@ -39,7 +39,7 @@ class LookAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item["type"] == "look":
             battle.entity_state_for(item["source"])["active_perception"] = item["die_roll"].result()
             battle.entity_state_for(item["source"])["active_perception_disadvantage"] = item["die_roll_disadvantage"].result

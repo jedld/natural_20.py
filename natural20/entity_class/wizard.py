@@ -1,3 +1,6 @@
+from collections import OrderedDict
+# import pdb
+
 WIZARD_SPELL_SLOT_TABLE = [
   # cantrips, 1st, 2nd, 3rd ... etc
   [3, 2],  # 1
@@ -24,13 +27,12 @@ WIZARD_SPELL_SLOT_TABLE = [
 
 class Wizard:
   def initialize_wizard(self):
-    self.wizard_level = 0
     self.wizard_spell_slots = {}
     self.arcane_recovery = 1
-    self.wizard_spell_slots['wizard'] = self.reset_spell_slots()
+    self.spell_slots['wizard'] = self.reset_spell_slots()
     self.arcane_recovery = 1
 
-  def spell_attack_modifier(self):
+  def wizard_spell_attack_modifier(self):
     return self.proficiency_bonus() + self.int_mod()
 
   def special_actions_for_wizard(self, session, battle):
@@ -63,12 +65,4 @@ class Wizard:
     return WIZARD_SPELL_SLOT_TABLE[self.wizard_level - 1][level] if level < len(WIZARD_SPELL_SLOT_TABLE[self.wizard_level - 1]) else 0
 
   def reset_spell_slots(self):
-    return {index: slots for index, slots in enumerate(WIZARD_SPELL_SLOT_TABLE[self.wizard_level - 1])}
-
-  def proficiency_bonus(self):
-    # Implement your own logic for calculating proficiency bonus
-    pass
-
-  def int_mod(self):
-    # Implement your own logic for calculating intelligence modifier
-    pass
+    return OrderedDict((index, slots) for index, slots in enumerate(WIZARD_SPELL_SLOT_TABLE[self.wizard_level - 1]))

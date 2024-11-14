@@ -1,0 +1,313 @@
+body {
+    font-family: 'IM Fell English', 'Uncial Antiqua', 'Cinzel', serif;
+    line-height: 1.6;
+}
+
+.sheet {
+    border: 10px solid transparent;
+    border-image: url('/path-to-your-border-image.png') 30 stretch;
+    padding: 20px;
+}
+
+h1, h2, h3 {
+    font-family: 'Cinzel', serif;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #4a2f19; /* Dark brown color */
+    border-bottom: 2px solid #4a2f19;
+}
+
+h1 {
+    font-size: 36px;
+}
+
+h2 {
+    font-size: 28px;
+}
+
+h3 {
+    font-size: 22px;
+}
+
+th, td {
+    font-size: 16px;
+}
+
+.tab button {
+    background-color: transparent;
+    border: none;
+    position: relative;
+    padding: 14px 16px;
+    font-family: 'Cinzel', serif;
+    color: #4a2f19;
+}
+
+.tab button::before {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-top: 10px solid #a67c52;
+    transform: translateX(-50%);
+}
+
+.tab button.active::before {
+    border-top-color: #855e42;
+}
+
+.basic-info-container {
+    display: flex;
+    align-items: flex-start; /* Align items at the top */
+    margin-bottom: 20px; /* Space below the container */
+}
+
+.profile-image {
+    flex: 0 0 auto; /* Prevents the image from stretching */
+    margin-right: 20px; /* Space between image and description */
+}
+
+.profile-image img {
+    max-width: 200px; /* Adjust the size as needed */
+    height: auto;
+    border: 2px solid #4a2f19; /* D&D style border */
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* D&D style shadow */
+}
+
+.description {
+    flex: 1; /* Allows description to take the remaining space */
+    font-family: 'IM Fell English', serif; /* D&D style font */
+    color: #2e2e2e; /* D&D style text color */
+}
+
+.description {
+    background-color: rgba(255, 248, 220, 0.8); /* Light parchment background */
+    padding: 15px;
+    border: 1px solid #4a2f19; /* Dark brown border */
+    border-radius: 5px;
+}
+
+.description p {
+    font-size: 16px;
+    line-height: 1.6;
+    text-align: justify; /* Optional: Justify text for a classic look */
+}
+
+.description::before, .description::after {
+    content: '';
+    display: block;
+    height: 2px;
+    background-color: #4a2f19;
+    margin: 10px 0;
+}
+
+/* Spells Section Styles */
+.spell-level {
+    margin-bottom: 30px;
+}
+
+.spell-level-header {
+    font-size: 20px;
+    font-family: 'Cinzel', serif;
+    color: #4a2f19;
+    margin-bottom: 10px;
+    border-bottom: 2px solid #4a2f19;
+    padding-bottom: 5px;
+}
+
+.spells-container-sheet {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+
+.spell {
+    width: 24%; /* Adjusted to fit 5 spells per row */
+    margin-bottom: 10px;
+    box-sizing: border-box;
+    text-align: center;
+    background-color: rgba(255, 248, 220, 0.8);
+    padding: 10px;
+    border: 1px solid #4a2f19;
+    border-radius: 5px;
+    position: relative;
+    perspective: 1000px;
+}
+
+.spell-icon-sheet {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 5px;
+    border: 1px solid #4a2f19;
+}
+
+.spell-label {
+    font-size: 14px;
+    color: #2e2e2e;
+}
+
+/* Other effects */
+.spell:hover {
+    background-color: #f9f1e7;
+    border-color: darkred;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+}
+
+.spell-icon-sheet {
+    border-radius: 5px;
+}
+
+/* flipping styles */
+
+.spell-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.8s;
+}
+
+.spell.flipped .spell-inner {
+    transform: rotateY(180deg);
+}
+
+.spell-front, .spell-back {
+    position: absolute;
+    width: 100%;
+    backface-visibility: hidden;
+    border: 1px solid #4a2f19;
+    border-radius: 5px;
+    background-color: rgba(255, 248, 220, 0.8);
+    padding: 10px;
+    box-sizing: border-box;
+    height: 100%;
+}
+
+.spell-front {
+    z-index: 2;
+}
+
+.spell-back {
+    transform: rotateY(180deg);
+    overflow-y: auto; /* Allow scrolling if content overflows */
+}
+
+.spell-front, .spell-back {
+    height: 100%;
+}
+
+.spell-description {
+    font-size: 14px;
+    color: #2e2e2e;
+    text-align: left;
+}
+
+.spell-icon-sheet {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 5px;
+    border: 1px solid #4a2f19;
+    border-radius: 5px;
+}
+
+.spell-label {
+    font-size: 14px;
+    color: #2e2e2e;
+}
+
+.spell {
+    height: 220px; /* Adjust as needed for your content */
+}
+
+/* Spell Details Styling */
+.spell-details {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #2e2e2e;
+    text-align: left;
+}
+
+.spell-detail {
+    display: flex;
+    justify-content: space-between;
+}
+
+.detail-label {
+    font-weight: bold;
+    margin-right: 5px;
+}
+
+.detail-value {
+    flex-grow: 1;
+    text-align: right;
+}
+
+/* Adjust spell-front to accommodate new content */
+.spell-front {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.spell-label {
+    margin-top: 5px;
+    font-size: 14px;
+    color: #2e2e2e;
+}
+
+.spell-icon-sheet {
+    width: 60px;
+    height: 60px;
+    border: 1px solid #4a2f19;
+    border-radius: 5px;
+}
+
+.spell-details-table {
+    width: 100%;
+    font-size: 12px;
+    color: #2e2e2e;
+}
+
+.spell-details-table td {
+    padding: 2px 5px;
+    vertical-align: top;
+}
+
+.spell-details-table i {
+    color: #4a2f19;
+    margin-right: 5px;
+}
+
+.spell-details-name {
+    font-weight: bold;
+    font-size: 14px;
+    color: #4a2f19;
+}
+
+/* Responsive Design */
+@media(max-width: 1000px) {
+    .spell {
+        width: 23%; /* 4 spells per row */
+}
+
+@media(max-width: 800px) {
+    .spell {
+        width: 31%; /* 3 spells per row */
+    }
+}
+
+@media(max-width: 600px) {
+    .spell {
+        width: 48%; /* 2 spells per row */
+    }
+}
+
+@media(max-width: 400px) {
+    .spell {
+        width: 98%; /* 1 spell per row */
+    }
+}

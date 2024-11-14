@@ -1,0 +1,32 @@
+<div class="modal-header">
+  <button class="close" aria-label="Close" type="button" data-dismiss="modal">
+    <span aria-hidden="true">&times;</span>
+  </button>
+  <h4 class="modal-title" id="myModalLabel">Select Soundtrack</h4>
+</div>
+<div class="modal-body">
+  <div class="radio">
+    <label>
+      <input type="radio" name="track_id" value="-1" {% if track_id < 0 %}checked{% endif %}>
+      None
+    </label>
+  </div>
+  {% for track in tracks %}
+  <div class="radio">
+    <label>
+      <input type="radio" name="track_id" value="{{ track.id }}" {% if track_id == track.id %}checked{% endif %}>
+      {{ track.name }}
+    </label>
+  </div>
+  {% endfor %}
+  {% if track_id >= 0 %}
+  <div class="volume-controls">
+    <label>Volume:</label>
+    <input type="range" min="0" max="100" value="50" class="volume-slider">
+  </div>
+  {% endif %}
+</div>
+<div class="modal-footer">
+  <button class="btn btn-default" data-dismiss="modal" type="button">Close</button>
+  <button class="btn btn-primary play" type="button">Play</button>
+</div>

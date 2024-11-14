@@ -1,45 +1,128 @@
 import gymnasium as gym
 import numpy as np
-from typing import Any, Dict, List, Tuple, Union
-from natural20.map import Map, Terrain
+from typing import Any, Dict
+from natural20.map import Map
 from natural20.battle import Battle
 from natural20.player_character import PlayerCharacter
-from natural20.map_renderer import MapRenderer
-from natural20.die_roll import DieRoll
 from natural20.generic_controller import GenericController
-from natural20.utils.utils import Session
-from natural20.actions.move_action import MoveAction
-from natural20.action import Action
-from natural20.gym.types import EnvObject, Environment
+from natural20.session import Session
 from natural20.entity import Entity
-from natural20.actions.look_action import LookAction
-from natural20.actions.stand_action import StandAction
 from natural20.gym.dndenv_controller import DndenvController
+from natural20.controller import Controller
 from natural20.event_manager import EventManager
-from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, render_terrain
+from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, \
+    render_terrain, render_object_token, action_to_gym_action, build_info
 import random
 import os
+import pdb
+
+class GymInternalController(Controller):
+    def __init__(self, session, dndenv, reaction_callback=None):
+        self.state = {}
+        self.session = session
+        self.env = dndenv
+        self.battle_data = {}
+        self.reaction_callback = reaction_callback
+
+    def update_reaction_callback(self, callback):
+        self.reaction_callback = callback
+
+    # @param entity [Natural20::Entity]
+    def register_handlers_on(self, entity):
+        entity.attach_handler("opportunity_attack", self.opportunity_attack_listener)
+
+    def opportunity_attack_listener(self, battle, session, entity, map, event):
+        actions = [s for s in entity.available_actions(session, battle, opportunity_attack=True)]
+
+        valid_actions = []
+        for action in actions:
+            valid_targets = battle.valid_targets_for(entity, action)
+            if event['target'] in valid_targets:
+                action.target = event['target']
+                action.as_reaction = True
+                valid_actions.append(action)
+
+        return self.select_reaction(entity, battle, map, valid_actions, event)
+
+    def select_reaction(self, entity, battle, map, valid_actions, event):
+        if self.reaction_callback:
+            observation = self.env.generate_observation(entity, is_reaction=True)
+            available_moves = action_to_gym_action(entity, map, valid_actions, weapon_mappings=self.env.weapon_mappings, \
+                                                   spell_mappings=self.env.spell_mappings)
+            reward = 0
+            done = False
+            truncated = False
+            info = self.env._info(available_moves, entity)
+            info['trigger'] = event['trigger']
+            info['entity'] = self.env.entity_mappings[entity.class_descriptor()]
+            info['reactor'] = entity.name
+            chosen_action = self.reaction_callback(observation, reward, done, truncated, info)
+            if chosen_action[0] == -1:
+                return None
+            else:
+                return dndenv_action_to_nat20action(entity, battle, map, valid_actions, chosen_action, weapon_mappings=self.env.weapon_mappings, \
+                                                    spell_mappings=self.env.spell_mappings)
+        else:
+            return None
+
+def embedding_loader(session, weapon_mappings=None, spell_mappings=None, entity_mappings=None, **kwargs):
+    weapon_embeddings_file = kwargs.get('weapon_embeddings', 'weapon_token_map.csv')
+    spell_embeddings_file = kwargs.get('spell_embeddings', 'spell_token_map.csv')
+    entity_embeddings_file = kwargs.get('entity_embeddings', 'entity_token_map.csv')
+
+    if weapon_mappings is None:
+        # read CSV file in the folloing format name,idx
+        weapon_mappings = {}
+        fname = os.path.join(session.root_path, weapon_embeddings_file)
+
+        with open(fname, 'r') as f:
+            for line in f:
+                parts = line.strip().split(',')
+                weapon_mappings[parts[0]] = int(parts[1])
+
+    if spell_mappings is None:
+        spell_mappings = {}
+        fname = os.path.join(session.root_path, spell_embeddings_file)
+        with open(fname, 'r') as f:
+            for line in f:
+                parts = line.strip().split(',')
+                spell_mappings[parts[0]] = int(parts[1]) + 100
+
+    if entity_mappings is None:
+        entity_mappings = {}
+        fname = os.path.join(session.root_path, entity_embeddings_file)
+        with open(fname, 'r') as f:
+            for line in f:
+                parts = line.strip().split(',')
+                entity_mappings[parts[0]] = int(parts[1])
+
+    return weapon_mappings, spell_mappings, entity_mappings
+
 
 """
 This is a custom environment for the game Dungeons and Dragons 5e. It is based on the OpenAI Gym environment.
 """
 class dndenv(gym.Env):
-    TOTAL_ACTIONS = 8
+    LOG_LEVEL_DEBUG = 0
+    LOG_LEVEL_INFO = 1
+    LOG_LEVEL_WARNING = 2
+    LOG_LEVEL_ERROR = 3
+
     def __init__(self, view_port_size=(12, 12), max_rounds=200, render_mode = None, **kwargs):
         """
         Initializes the environment with the following parameters:
-        - view_port_size: the size of the view port for the agent
+        - view_port_size: the size of the view port for the agent (default is 12x12)
         - max_rounds: the maximum number of rounds before the game ends
         - render_mode: the mode to render the game in
         - root_path: the root path for the game
         - map_file: the file to load the map from
         - profiles: the profiles to load for the heroes
         - enemies: the profiles to load for the enemies
-        - hero_names: the names of the heroes
+        - hero_names: the names of the heroes, can be a list or a lambda function
         - enemy_names: the names of the enemies
         - show_logs: whether to show logs
         - custom_controller: a custom controller to use
-        - custom_agent: a custom agent to use
+        - custom_agent: a custom agent to use, can be a lambda function
         - custom_initializer: a custom initializer to use
         - control_groups: the control groups that the agent controls
         - damage_based_reward: whether to use damage based rewards, -10 * (enemy final hp / enemy initial hp)
@@ -57,49 +140,69 @@ class dndenv(gym.Env):
         }
 
         self.observation_space = gym.spaces.Dict(spaces={
-            "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 3), dtype=int),
+            "map": gym.spaces.Box(low=-1, high=255, shape=(view_port_size[0], view_port_size[0], 5), dtype=int),
             "turn_info" : gym.spaces.Box(low=0, high=1, shape=(3,), dtype=int),
+            "conditions": gym.spaces.Box(low=0, high=1, shape=(8,), dtype=int),
+            "player_ac" : gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
+            "player_equipped" : gym.spaces.Box(low=0, high=255, shape=(5,), dtype=int),
+            "enemy_ac" : gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "health_pct": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "health_enemy": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=float),
             "enemy_reactions": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int),
+            "enemy_conditions": gym.spaces.Box(low=0, high=1, shape=(8,), dtype=int),
+            "player_type": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int),
+            "enemy_type": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int),
             "ability_info": gym.spaces.Box(low=0, high=1, shape=(8,), dtype=int),
-            "movement": gym.spaces.Discrete(255)
+            "movement": gym.spaces.Box(low=0, high=255, shape=(1,), dtype=int),
+            "spell_slots": gym.spaces.Box(low=0, high=255, shape=(9,), dtype=int),
+            "is_reaction": gym.spaces.Box(low=0, high=1, shape=(1,), dtype=int)
         })
 
         self.action_space = gym.spaces.Tuple([
-            gym.spaces.Box(low=-1, high=8, shape=(1,), dtype=int),
-            gym.spaces.Box(low=-1, high=1, shape=(2,), dtype=int),
+            gym.spaces.Box(low=-1, high=255, shape=(1,), dtype=int),
+            gym.spaces.Box(low=-1, high=255, shape=(2,), dtype=int),
             gym.spaces.Box(low=-view_port_size[0]//2, high=view_port_size[0]//2, shape=(2,), dtype=int),
-            gym.spaces.Discrete(2)
+            gym.spaces.Discrete(255),
+            gym.spaces.Discrete(255)
         ])
-        
+
         self.reward_range = (-1, 1)
         self.metadata = {}
         self.spec = None
         self._seed = None
         self.root_path = kwargs.get('root_path', 'templates')
         self.map_file = kwargs.get('map_file', 'maps/game_map.yml')
-        self.heroes = kwargs.get('profiles', ['high_elf_fighter.yml'])
-        self.enemies = kwargs.get('enemies', ['high_elf_fighter.yml'])
+        self.heroes = kwargs.get('profiles', ['halfling_rogue.yml'])
+        self.enemies = kwargs.get('enemies', ['halfling_rogue.yml'])
         self.hero_names = kwargs.get('hero_names', ['gomerin'])
         self.enemy_names = kwargs.get('enemy_names', ['rumblebelly'])
         self.show_logs = kwargs.get('show_logs', False)
+        self.log_level = kwargs.get('log_level', 2)
+        self.output_file = kwargs.get('output_file', None)
         self.custom_controller = kwargs.get('custom_controller', None)
         self.custom_agent = kwargs.get('custom_agent', None)
         self.custom_initializer = kwargs.get('custom_initializer', None)
         self.event_manager = kwargs.get('event_manager', None)
         self.control_groups = kwargs.get('control_groups', ['a'])
         self.damage_based_reward = kwargs.get('damage_based_reward', False)
+        self.custom_session = kwargs.get('custom_session', None)
+        self.reactions_callback = kwargs.get('reactions_callback', None)
+        self.weapon_mappings = None
+        self.spell_mappings = None
+        self.entity_mappings = None
+        self.kwargs = kwargs
 
-    
     def seed(self, seed=None):
         self._seed = seed
         return [seed]
-    
-    def log(self, msg):
-        if self.show_logs:
+
+    def log(self, msg, level = 0):
+        if level >= self.log_level:
+            if self.output_file:
+                with open(self.output_file, 'a') as f:
+                    f.write(msg + "\n")
             print(msg)
-    
+
     def _render_terrain_ansi(self):
         result = []
         current_player = self.battle.current_turn()
@@ -116,16 +219,25 @@ class dndenv(gym.Env):
                     abs_x = pos_x + x
                     abs_y = pos_y + y
 
-                    terrain = self.map.base_map[abs_x][abs_y]
+                    terrain = render_object_token(self.map, abs_x, abs_y)
                     entity = self.map.entity_at(abs_x, abs_y)
                     if self.map.can_see_square(current_player, (abs_x, abs_y)):
-                        if entity == None:
-                            if terrain == None:
+                        if entity is None:
+                            if terrain is None:
                                 render_char = "."
-                            else:
+                            elif terrain == "~":
+                                render_char = "~"
+                            elif terrain == "o":
+                                render_char = "o"
+                            elif terrain == "#":
                                 render_char = "#"
+                            else:
+                                raise ValueError(f"Unknown terrain {terrain}")
+
                         elif entity == current_player:
                             render_char = "P"
+                        elif self.battle.allies(current_player, entity):
+                            render_char = "A"
                         elif self.battle.opposing(current_player, entity):
                             render_char = "E"
                         else:
@@ -146,24 +258,41 @@ class dndenv(gym.Env):
     def reset(self, **kwargs) -> Dict[str, Any]:
         # set seed, use random seed if not provided
         seed = kwargs.get('seed', None)
+        reactions_callback = kwargs.get('reaction_callback', self.reactions_callback)
 
         if seed is None:
             seed = random.randint(0, 1000000)
 
         self.seed = seed # take note of seed for reproducibility
         random.seed(seed)
-        map_location = kwargs.get('map_location', os.path.join(self.root_path, self.map_file))
+
+        if callable(self.map_file):
+            map_filename = self.map_file()
+        else:
+            map_filename = self.map_file
+
+        map_location = kwargs.get('map_location', os.path.join(self.root_path, map_filename))
         event_manager = self.event_manager
 
         self.log(f"loading map from {map_location}")
 
         if event_manager is None:
             self.log("Creating new event manager")
-            event_manager = EventManager()
+            event_manager = EventManager(output_file=self.output_file)
             if self.show_logs:
                 event_manager.standard_cli()
 
-        self.session = Session(self.root_path, event_manager=event_manager)
+        if self.custom_session:
+            if callable(self.custom_session):
+                self.session = self.custom_session(self)
+            else:
+                self.session = self.custom_session
+        else:
+            self.session = Session(self.root_path, event_manager=event_manager)
+
+        self.session.reset()
+        self.weapon_mappings, self.spell_mappings, self.entity_mappings = embedding_loader(self.session, weapon_mappings=self.weapon_mappings, spell_mappings=self.spell_mappings, entity_mappings=self.entity_mappings, **kwargs)
+
         self.map = Map(self.session, map_location)
         self.battle = Battle(self.session, self.map)
         self.players = []
@@ -171,11 +300,11 @@ class dndenv(gym.Env):
         self.terminal = False
 
         if self.custom_initializer:
-            self.custom_initializer(self.map, self.battle)
+            initiative_order = self.custom_initializer(self)
         else:
-            self._setup_up_default_1v1()
+            initiative_order = self._setup_up_default_1v1(reaction_callback=reactions_callback)
 
-        self.battle.start()
+        self.battle.start(combat_order=initiative_order)
         self.battle.start_turn()
         if self.battle.current_turn().conscious():
                 self.battle.current_turn().reset_turn(self.battle)
@@ -185,12 +314,26 @@ class dndenv(gym.Env):
 
         # get the first player which is not the same group as the current one
         observation = self.generate_observation(current_player)
-        
-        return observation, { "available_moves": compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle), "current_index" : self.battle.current_turn_index, "group": self.battle.entity_group_for(current_player) }
+        _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle,
+                                                   weapon_mappings=self.weapon_mappings,
+                                                   spell_mappings=self.spell_mappings)
 
+        if not len(_available_moves) > 0:
+            raise Exception("There should be at least one available move for the agent.")
+
+        return observation, self._info(_available_moves, current_player)
+
+    def _info(self, available_moves, current_player):
+        info_r = build_info(self.battle, available_moves, current_player, self.weapon_mappings, self.spell_mappings, self.entity_mappings)
+        info_r['damage_dealth'] = self._total_damage_dealt(current_player)
+        return info_r
 
     def _describe_hero(self, pc: Entity):
         self.log("==== Player Character ====")
+        ability_score_str = ""
+        for attr in pc.ability_scores.items():
+            ability_score_str += f"{attr[0]}: {attr[1]} "
+        self.log(ability_score_str)
         self.log(f"name: {pc.name}")
         self.log(f"level: {pc.level()}")
         self.log(f"character class: {pc.c_class()}")
@@ -198,6 +341,7 @@ class dndenv(gym.Env):
         self.log(f"max hp: {pc.max_hp()}")
         self.log(f"ac: {pc.armor_class()}")
         self.log(f"speed: {pc.speed()}")
+        self.show_spells(pc)
         self.log("\n\n")
 
     def _game_loop(self, current_player):
@@ -207,8 +351,10 @@ class dndenv(gym.Env):
         result = None
         while True:
             player_group = self.battle.entity_group_for(current_player)
-            if not player_group in self.control_groups:
+            if player_group not in self.control_groups:
                 controller = self.battle.controller_for(current_player)
+                if controller is None:
+                    raise ValueError(f"Controller for {current_player.name} is None. ")
                 while True:
                     action = controller.move_for(current_player, self.battle)
                     if action is None or action == -1:
@@ -228,36 +374,52 @@ class dndenv(gym.Env):
 
                 self.battle.start_turn()
                 current_player = self.battle.current_turn()
-                self.log(f"==== current turn {current_player.name} {current_player.hp()}/{current_player.max_hp()}===")
+                self.log(f"==== current turn {current_player.name} {current_player.hp()}/{current_player.max_hp()} AC {current_player.armor_class()}===")
+                self.show_spells(current_player)
             elif player_group in self.control_groups:
                 if current_player.conscious():
                     current_player.reset_turn(self.battle)
                 break
         return current_player, result
     
-    def _setup_up_default_1v1(self):
+    def _setup_up_default_1v1(self, reaction_callback=None):
         enemy_pos = None
         player_pos = None
 
         character_sheet_path = 'characters'
-        for index, p in enumerate(self.heroes):
+        # if a lambda function is passed for heroes or enemies, call it
+        heroes = self.heroes() if callable(self.heroes) else self.heroes
+        enemies = self.enemies() if callable(self.enemies) else self.enemies
+
+        # ensure heroes and enemies are lists
+        heroes = [heroes] if not isinstance(heroes, list) else heroes
+        enemies = [enemies] if not isinstance(enemies, list) else enemies
+
+        for index, p in enumerate(heroes):
             if index < len(self.hero_names):
                 name = self.hero_names[index]
+
+            if isinstance(p, tuple):
+                p, name = p
 
             pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', { "name" : name})
             self._describe_hero(pc)
             # set random starting positions, make sure there are no obstacles in the map
-            while player_pos is None or self.map.placeable(pc, player_pos[0], player_pos[1]) == False:
+            while player_pos is None or not self.map.placeable(pc, player_pos[0], player_pos[1]):
+                # trunk-ignore(bandit/B311)
                 player_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
             self.players.append(('a', 'H', pc, player_pos))
 
-        for index, p in enumerate(self.enemies):
+        for index, p in enumerate(enemies):
             if index < len(self.enemy_names):
                 name = self.enemy_names[index]
 
+            if isinstance(p, tuple):
+                p, name = p
+
             pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', {"name":  name})
             self._describe_hero(pc)
-            while enemy_pos is None or enemy_pos==player_pos or self.map.placeable(pc, enemy_pos[0], enemy_pos[1]) == False:
+            while enemy_pos is None or enemy_pos==player_pos or not self.map.placeable(pc, enemy_pos[0], enemy_pos[1]):
                 enemy_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
             self.players.append(('b', 'E', pc , enemy_pos))
 
@@ -265,8 +427,11 @@ class dndenv(gym.Env):
         for group, token, player, position in self.players:
             if group not in self.control_groups:
                 if self.custom_agent:
-                    self.log(f"Setting up custom agent for enemy player {self.custom_agent}")
-                    controller = DndenvController(self.session, self.custom_agent)
+                    if callable(self.custom_agent):
+                        controller = self.custom_agent(self.session, **self.kwargs)
+                    else:
+                        self.log(f"Setting up custom agent for enemy player {self.custom_agent}", level=self.LOG_LEVEL_INFO)
+                        controller = DndenvController(self.session, self.custom_agent)
                     controller.register_handlers_on(player)
                 elif self.custom_controller:
                     controller = self.custom_controller
@@ -277,7 +442,11 @@ class dndenv(gym.Env):
 
                 self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
             else:
-                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=None)
+                controller = GymInternalController(self.session, self, reaction_callback=reaction_callback)
+                controller.register_handlers_on(player)
+                self.battle.add(player, group, position=position, token=token, add_to_initiative=True, controller=controller)
+
+        return None
 
     def _enemy_hp_pct(self, entity):
         current_group = self.battle.entity_group_for(entity)
@@ -295,16 +464,33 @@ class dndenv(gym.Env):
 
         if total_max_hp > 0:
             return (total_hp / total_max_hp)
-        
+
         return 1.0
-    
+
+    def _total_damage_dealt(self, entity):
+        current_group = self.battle.entity_group_for(entity)
+        enemy_players = []
+        for _, _, player, _ in self.players:
+            if self.battle.entity_group_for(player) != current_group:
+                enemy_players.append(player)
+
+        total_hp = 0
+        total_max_hp = 0
+
+        for player in enemy_players:
+            total_hp += player.hp()
+            total_max_hp += player.max_hp()
+
+        return total_max_hp - total_hp
+
     def step(self, action):
         if self.terminal:
             observation, info = self._terminal_observation()
             return observation, 0, True, False, info
-        
+
         if self.current_round >= self.max_rounds:
             return None, 0, True, True, None
+
         self.time_step += 1
         entity = self.battle.current_turn()
 
@@ -314,7 +500,9 @@ class dndenv(gym.Env):
         reward = 0
 
         # convert from Gym action space to Natural20 action space
-        action = dndenv_action_to_nat20action(entity, self.battle, self.map, available_actions, action)
+        action = dndenv_action_to_nat20action(entity, self.battle, self.map, available_actions, action,
+                                              weapon_mappings=self.weapon_mappings,
+                                              spell_mappings=self.spell_mappings)
         if action is None:
             reward = -1
         elif action == -1:
@@ -325,6 +513,7 @@ class dndenv(gym.Env):
 
         # additional check for tpk
         if self.battle.battle_ends():
+
             if entity.conscious() and self.battle.entity_group_for(entity) in self.control_groups:
                 reward = 10
             else:
@@ -347,7 +536,8 @@ class dndenv(gym.Env):
             # show health bar of each entity
             for _, _, player, _ in self.players:
                 self.log(f"{player.name} {player.hp()}/{player.max_hp()}")
-            
+                self.show_spells(player)
+
             result = self.battle.next_turn(max_rounds=self.max_rounds)
             if result == 'tpk' and entity.conscious() and self.battle.entity_group_for(entity) in self.control_groups:
                 reward = 10
@@ -356,8 +546,8 @@ class dndenv(gym.Env):
                 self.battle.start_turn()
                 current_player = self.battle.current_turn()
                 current_player.reset_turn(self.battle)
-                self.log(f"==== current turn {current_player.name} {current_player.hp()}/{current_player.max_hp()}===")
-
+                self.log(f"==== current turn {current_player.name} {current_player.hp()}/{current_player.max_hp()} AC {current_player.armor_class()}===")
+                self.show_spells(current_player)
                 if current_player.dead():
                     self.log(f"{current_player.name} is dead")
                     if self.battle.entity_group_for(entity) in self.control_groups:
@@ -370,14 +560,14 @@ class dndenv(gym.Env):
 
                     observation, info = self._terminal_observation()
                     return observation, reward, True, False, info
-                
+
                 _, result = self._game_loop(current_player)
 
                 self.log(f"Result: {result}")
 
                 if result == 'tpk':
                     # Victory!!!!
-                    if entity.conscious() and self.battle.entity_group_for(entity) in self.control_groups:
+                    if self.battle.entity_group_for(entity) in self.battle.winning_groups():
                         reward = 10
                     else:
                         if self.damage_based_reward:
@@ -385,44 +575,55 @@ class dndenv(gym.Env):
                         else:
                             reward = -10
                     done = True
-        
         observation = self.generate_observation(entity)
-        _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle)
-        if not done:
-            # print(f"Available moves: {available_actions}")
-            assert len(_available_moves) > 0
+        _available_moves = compute_available_moves(self.session, self.map, self.battle.current_turn(), self.battle,
+                                                   weapon_mappings=self.weapon_mappings,
+                                                   spell_mappings=self.spell_mappings)
+
+        if len(_available_moves) == 0:
+            raise ValueError("There should be at least one available move for the agent.")
 
         self.current_round += 1
-        
+
         if self.current_round >= self.max_rounds:
             done = True
             truncated = True
 
-        return observation, reward, done, truncated, { "available_moves": _available_moves,
-                                                       "current_index" : self.battle.current_turn_index,
-                                                       "time_step": self.time_step,
-                                                       "round" : self.current_round }      
+        return observation, reward, done, truncated, self._info(_available_moves, entity)
 
-    def generate_observation(self, entity):
-        return build_observation(self.battle, self.map, entity, self.view_port_size)
-    
+    def show_spells(self, current_player):
+        if current_player.has_spells():
+            for spell_level in range(1, 10):
+                if current_player.max_spell_slots(spell_level) > 0:
+                    self.log(f"spell slots level {spell_level}: {current_player.spell_slots_count(spell_level)}")
+
+    def generate_observation(self, entity, is_reaction=False):
+        return build_observation(self.battle, self.map, entity, self.entity_mappings, self.weapon_mappings, self.view_port_size, is_reaction=is_reaction)
+
     def _terminal_observation(self):
         observation = {
-            "map": render_terrain(self.battle, self.map, self.view_port_size),
+            "map": render_terrain(self.battle, self.map, self.entity_mappings, self.view_port_size),
+            "conditions": np.array([0, 0, 0, 0, 0, 0, 0, 0]),
+            "enemy_conditions": np.array([0, 0, 0, 0, 0, 0, 0, 0]),
+            "player_equipped": np.array([0, 0, 0, 0, 0]),
+            "player_ac": np.array([0.0]),
+            "enemy_ac": np.array([0.0]),
             "turn_info": np.array([0, 0, 0]),
-            "health_pct": np.array([0]),
-            "health_enemy" : np.array([0]),
+            "health_pct": np.array([0.0]),
+            "health_enemy" : np.array([0.0]),
             "enemy_reactions": np.array([0]),
+            "player_type": np.array([0]),
+            "enemy_type": np.array([0]),
             "ability_info": np.array([0, 0, 0, 0, 0, 0, 0, 0]), # tracks usage of class specific abilities (e.g. second wind, rage, etc.)
-            "movement": 0
+            "spell_slots": np.array([0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            "movement": np.array([0]),
+            "is_reaction": np.array([0])
         }
-        info = {
-            "available_moves": [],
-            "current_index" : self.battle.current_turn_index,
-            "time_step": self.time_step,
-            "round" : self.current_round
-        }
-        return observation, info
+
+        return observation, self._info(end_of_turn_move(), self.battle.current_turn())
+
+def end_of_turn_move():
+    return [(-1, (0,0), (0,0), 0, 0)]
 
 def action_type_to_int(action_type):
     if action_type == "attack":
@@ -443,7 +644,27 @@ def action_type_to_int(action_type):
         return 7
     elif action_type == "second_wind":
         return 8
+    elif action_type == "two_weapon_attack":
+        return 9
+    elif action_type == "prone":
+        return 10
+    elif action_type == "disengage_bonus":
+        return 11
+    elif action_type == "spell":
+        return 12
+    elif action_type == "shove":
+        return 13
+    elif action_type == "help":
+        return 14
+    elif action_type == "hide":
+        return 15
+    elif action_type == "use_item":
+        return 16
+    elif action_type == "action_surge":
+        return 17
+    elif action_type == -1:
+        return -1
     else:
-        return -1    
+        raise ValueError(f"Unknown action type {action_type}")  
 
 gym.register(id='dndenv-v0', entry_point=lambda **kwargs: dndenv(**kwargs))

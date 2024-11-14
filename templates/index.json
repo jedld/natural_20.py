@@ -1,0 +1,74 @@
+{
+  "tile_size" : 75,
+  "height" : 17,
+  "width" : 22,
+  "title" : "The Goblin Ambush",
+  "login_background" : "goblin_ambush_login.png",
+  "map" : "maps/goblin_cave",
+  "soundtracks" : [
+    {
+      "name" : "Goblin Ambush",
+      "file" : "goblin_ambush.mp3"
+    }
+  ],
+  "logins" : [
+    {
+      "name" : "gomerin",
+      "password" : "gomerin",
+      "role" : ["player"]
+    },
+    {
+      "name" : "crysania",
+      "password" : "crysania",
+      "role" : ["player"]
+    },
+    {
+      "name" : "rumblebelly",
+      "password" : "rumblebelly",
+      "role" : ["player"]
+    },
+    {
+      "name" : "keo",
+      "password" : "keo",
+      "role" : ["player"]
+    },
+    {
+      "name" : "jm",
+      "password" : "jm",
+      "role" : ["player"]
+    },
+    {
+      "name" : "leandro",
+      "password" : "leandro",
+      "role" : ["player"]
+    },
+    {
+      "name" : "shorvalu",
+      "password" : "shorvalu",
+      "role" : ["player"]
+    },
+    {
+      "name" : "dm",
+      "password" : "admin",
+      "role" : ["dm"]
+    }
+  ],
+  "default_controllers": [
+    {
+      "entity_uid" : "gomerin",
+      "controllers" : ["gomerin", "shorvalu","leandro"]
+    },
+    {
+      "entity_uid": "crysania",
+      "controllers": ["crysania", "shorvalu"]
+    },
+    {
+      "entity_uid": "shorvalu",
+      "controllers": ["shorvalu", "keo"]
+    },
+    {
+      "entity_uid": "rumblebelly",
+      "controllers": ["rumblebelly","gomerin","shorvalu", "jm"]
+    }
+  ]
+}

@@ -1,17 +1,7 @@
-from natural20.battle import Battle
-from natural20.map import Map
-from natural20.utils.utils import Session
-from natural20.player_character import PlayerCharacter
-from natural20.event_manager import EventManager
 from natural20.die_roll import DieRoll
-from natural20.map_renderer import MapRenderer
 import unittest
 import random
 import pdb
-import unittest
-import random
-import pdb
-from natural20.die_roll import DieRoll
 
 
 class TestDieRoll(unittest.TestCase):
@@ -38,7 +28,7 @@ class TestDieRoll(unittest.TestCase):
   def test_addition_operator(self):
     sum_of_rolls = DieRoll.roll('2d8') + DieRoll.roll('1d6')
     self.assertEqual(sum_of_rolls.result(), 13)
-    self.assertEqual(sum_of_rolls.__str__(), '(7 + 2) + (4)')
+    self.assertEqual(sum_of_rolls.__str__(), 'd8(7 + 2) + d6(4)')
 
   def test_expected_value(self):
     self.assertEqual(DieRoll.roll('1d6+2').expected(), 5.5)
@@ -68,13 +58,18 @@ class TestDieRoll(unittest.TestCase):
 
   def test_roll_with_disadvantage(self):
     roll = DieRoll.roll('1d20', disadvantage=True)
-    self.assertEqual(roll.__str__(), '(14 | 4)')
+    self.assertEqual(roll.__str__(), 'd20(14 | 4*)')
     self.assertEqual(roll.result(), 4)
 
   def test_roll_with_advantage(self):
     roll = DieRoll.roll('1d20', advantage=True)
-    self.assertEqual(roll.__str__(), '(14 | 4)')
+    self.assertEqual(roll.__str__(), 'd20(14* | 4)')
     self.assertEqual(roll.result(), 14)
+
+  def test_roll_with_negative_modifier(self):
+    roll = DieRoll.roll('1d20-5')
+    self.assertEqual(roll.__str__(), 'd20(14) - 5')
+    self.assertEqual(roll.result(), 9)
 
 
 if __name__ == '__main__':

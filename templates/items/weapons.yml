@@ -387,6 +387,8 @@ unarmed_attack:
   subtype: weapon
   type: melee_attack
   weight: 0
+  properties:
+    - unarmed
 vicious_rapier:
   bonus:
     additional:

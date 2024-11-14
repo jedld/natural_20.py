@@ -1,0 +1,418 @@
+#floating-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  background-color: white;
+  padding: 10px;
+  border: 1px solid black;
+  z-index: 3;
+}
+
+#coords-box {
+  z-index: 99;
+}
+
+#floating-menu ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.tiles-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1
+}
+
+.health-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 6px;
+  border: white 1px solid;
+}
+
+.nameplate {
+  position: absolute;
+  padding: 2px;
+  left: 0;
+  opacity: 0.6;
+  background-color: white; color: black;
+}
+
+.tile {
+  position: absolute
+}
+
+.image-container {
+  z-index: 0;
+}
+
+.tile:hover {
+  border: 1px solid red;
+}
+
+.popover-menu,.popover-menu-2 {
+  background-color: blue;
+  color: white;
+  position: absolute;
+  z-index: 1001;
+  padding: 2px;
+}
+
+.popover-menu-2 ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.popover-menu ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.highlight {
+  color: white;
+  background-color: black;
+}
+
+.highlighted {
+  border: 2px solid rgba(144, 238, 144);
+}
+
+.focus-highlight {
+  border: 2px solid rgba(144, 238, 144);
+}
+
+.focus-highlight-red {
+  border: 4px solid rgb(111, 25, 3);
+}
+
+#battle-turn-order {
+  position: fixed;
+  top: 0px;
+  left: 150px;
+  width: 450px;
+  height: 300px;
+  background-color: white;
+  border: 1px solid black;
+  resize: both;
+  overflow: auto;
+  z-index: 3;
+  margin: 5px;
+}
+
+#battle-turn-order #turn-order {
+  padding-top: 30px;
+}
+
+#battle-turn-order .header {
+  position: fixed;
+  width: inherit;
+  z-index: 5;
+  text-align: center;
+  color: white;
+  background-color: blue;
+}
+
+
+#console-container {
+  position: fixed;
+  top: 100px;
+  left: 0px;
+  width: 400px;
+  height: 200px;
+  background-color: black;
+  color: white  ;
+  border: 2px solid white;
+  resize: both;
+  overflow: auto;
+  z-index: 4;
+  margin: 5px;
+}
+
+#console-container .header {
+  position: fixed;
+  width: inherit;
+  z-index: 5;
+  color: black;
+  background-color: white;
+}
+
+#console-container #console {
+  padding-top: 30px;
+}
+
+.add-to-turn-order, .add-to-target {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  z-index: 1000;
+}
+
+input.initiative-text {
+  color: black;
+}
+
+#battle-turn-order div.turn-order-item {
+  padding: 5px;
+}
+
+.turn-order-dead {
+  color: red;
+}
+
+.menu-button{
+  float: right;
+  width: 100%;
+  background-color: transparent;
+  border: none;
+}
+
+.game-turn-container {
+  position: fixed;
+  width: 300px;
+  top: 0;
+  left: 50%;
+  z-index: 5;
+  transform: translate(-50%, 0);
+}
+
+.game-turn-container button {
+  width: 200px
+}
+
+.game-turn-container .indicator-container {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.game-turn-container .indicator-container .indicator {
+  height: 50px;
+  width: 50px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.game-turn-container .indicator span {
+  font-size: 30px;
+  color: white;
+
+}
+
+.spell-icon {
+  width: 50px;
+  height: 50px;
+}
+
+#zoom-controls {
+  position: fixed;
+  bottom: 10px;
+  left: 10px;
+  z-index: 1000;
+  background-color: white;
+  padding: 10px;
+  border-radius: 5px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+#zoom-controls button {
+  padding: 5px 10px;
+  font-size: 16px;
+  margin-right: 5px; /* Adds spacing between buttons */
+}
+
+.spells-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  background-color: white;
+  padding: 10px;
+  border: 1px solid black;
+}
+
+.spell-icon-sheet {
+  width: 60px;
+  height: 60px;
+}
+
+.tile .fog-of-war {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: black;
+  opacity: 0.9;
+}
+
+.brightness-overlay {
+  position: absolute;
+  z-index: 999;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: black;
+}
+
+/* Special Styles for bonus action equivalents */
+
+.action-image.bonus-action {
+  position: relative;
+  display: inline-block;
+}
+
+.action-image.bonus-action::before,
+.action-image.bonus-action::after {
+  content: '';
+  position: absolute;
+  background-color: green;
+  /* Move to the lower bottom right quarter */
+  top: 75%; /* Adjust as needed */
+  left: 75%; /* Adjust as needed */
+  transform: translate(-50%, -50%);
+}
+
+.action-image.bonus-action::before {
+  width: 8px;  /* Thicker vertical line */
+  height: 20px; /* Adjust the size as needed */
+}
+
+.action-image.bonus-action::after {
+  width: 20px; /* Adjust the size as needed */
+  height: 8px; /* Thicker horizontal line */
+}
+
+
+
+/* Floating Window Styles */
+.floating-window {
+  position: fixed;
+  background-color: white;
+  border: 1px solid black;
+  resize: both;
+  overflow: auto;
+  z-index: 3;
+  margin: 5px;
+}
+
+.floating-window .header {
+  cursor: move;
+  background-color: blue;
+  color: white;
+  padding: 10px;
+  text-align: center;
+  position: relative;
+}
+
+.floating-window .btn-group {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+}
+
+/* Battle Turn Order Styles */
+#battle-turn-order {
+  top: 10px;
+  left: 150px;
+  width: 450px;
+  height: auto;
+  max-height: 80vh;
+}
+
+#battle-turn-order .turn-order-item {
+  padding: 5px;
+  border-bottom: 1px solid #ddd;
+}
+
+#battle-turn-order .active {
+  background-color: #337ab7;
+  color: white;
+}
+
+.turn-order-dead {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+.token-image {
+  max-width: 100%;
+  height: auto;
+}
+
+.entity-label {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.initiative-input,
+.group-select {
+  width: 100%;
+}
+
+
+input.initiative-input.form-control {
+  width: 60px;
+}
+
+
+.remove-turn-order-item {
+  width: 100%;
+}
+
+/* Coords Box Styles */
+#coords-box {
+  position: fixed;
+  top: 0;
+  right: 0;
+  background-color: white;
+  padding: 10px;
+  border: 1px solid black;
+  z-index: 99;
+}
+
+
+
+/* Adjustments for Smaller Screens */
+@media (max-width: 767px) {
+  .floating-window {
+    width: 90%;
+    left: 5%;
+  }
+
+  .floating-window .header .btn-group {
+    float: none;
+    text-align: center;
+    margin-top: 10px;
+    position: static;
+  }
+}
+
+
+.tile .effect {
+  position: absolute;
+  top: 5px;
+  left: 0;
+}
+
+.tile .effect-img {
+  width: 20px;
+  height: 20px;
+  z-index: 1000;
+  opacity: 0.8;
+}
+
+.level-slot-container {
+  padding: 5px;
+}
+
+.spells-container {
+  padding: 5px;
+}
+
+.spell-action-button {
+  padding: 5px;
+}

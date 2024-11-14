@@ -6,7 +6,7 @@ description: |
   necromantic energy or the presence of corrupting evil.
 size: medium
 race:
-- undead
+  - undead
 alignment: lawful_evil
 default_ac: 13
 max_hp: 13
@@ -37,30 +37,30 @@ condition_immunities:
   - exhaustion
   - poisoned
 actions:
-- name: Short Sword
-  type: melee_attack
-  if: equipped:shortsword
-  range: 5
-  targets: 1
-  attack: 4
-  damage: 5
-  damage_die: 1d6+2
-  damage_type: piercing
-- name: Shortbow
-  type: ranged_attack
-  if: equipped:shortbow
-  range: 80
-  range_max: 320
-  targets: 1
-  attack: 4
-  damage: 5
-  damage_die: 1d6
-  damage_mod: 2
-  damage_type: piercing
-  ammo: arrows
-equipped:
-  - shortsword
-  - shortbow
-default_inventory:
-- type: arrows
-  qty: 20
+  - name: Short Sword
+    type: melee_attack
+    if: equipped:shortsword
+    range: 5
+    targets: 1
+    attack: 4
+    damage: 5
+    damage_die: 1d6+2
+    damage_type: piercing
+  - name: Shortbow
+    type: ranged_attack
+    if: equipped:shortbow
+    range: 80
+    range_max: 320
+    targets: 1
+    attack: 4
+    damage: 5
+    damage_die: 1d6
+    damage_mod: 2
+    damage_type: piercing
+    ammo: arrows
+  equipped:
+    - shortsword
+    - shortbow
+  default_inventory:
+  - type: arrows
+    qty: 20

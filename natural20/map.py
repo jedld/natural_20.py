@@ -5,8 +5,12 @@ from natural20.entity import Entity
 from natural20.utils.movement import requires_squeeze
 from natural20.item_library.common import StoneWall, Ground
 from natural20.item_library.door_object import DoorObject
+from natural20.item_library.pit_trap import PitTrap
 from natural20.player_character import PlayerCharacter
+from natural20.npc import Npc
+from natural20.weapons import compute_max_weapon_range
 from natural20.utils.list_utils import remove_duplicates, bresenham_line_of_sight
+from natural20.utils.movement import Movement, compute_actual_moves
 import math
 import pdb
 import os
@@ -26,29 +30,42 @@ def dirt():
     return Terrain("dirt", True, 1.0)
 
 class Map():
-    def __init__(self, session, map_file_path):
+    def __init__(self, session, map_file_path, name=None, properties=None):
+        self.name = name
         self.session = session
         self.terrain = {}
+        self.spawn_points = {}
         self.area_triggers = {}
         self.map = []
-        self.properties = self.load(map_file_path)
+        if properties:
+            self.properties = properties
+        else:
+            self.properties = self.load(map_file_path)
         base = self.properties.get('map', {}).get('base', [])
 
         self.size = [len(base[0]), len(base)]
         # print(f"map size: {self.size}")
         self.feet_per_grid = self.properties.get('grid_size', 5)
         self.base_map = []
+        self.base_map_1 = []
         self.objects = []
         self.tokens = []
+        self.unaware_npcs = []
         self.entities = {}  # Assuming entities is a dictionary
         self.interactable_objects = {}
         self.legend = self.properties.get('legend', {})
-        
+
         for _ in range(self.size[0]):
             row = []
             for _ in range(self.size[1]):
                 row.append(None)
             self.base_map.append(row)
+
+        for _ in range(self.size[0]):
+            row = []
+            for _ in range(self.size[1]):
+                row.append(None)
+            self.base_map_1.append(row)
 
         for _ in range(self.size[0]):
             row = []
@@ -67,18 +84,35 @@ class Map():
                 if not c=='.':
                     self.base_map[cur_x][cur_y] = c
 
+        for cur_y, lines in enumerate(self.properties.get('map', {}).get('base_1', [])):
+            for cur_x, c in enumerate(lines):
+                if not c=='.':
+                    self.base_map_1[cur_x][cur_y] = c
+
+        if self.properties.get('map', {}).get('meta'):
+            self.meta_map = [[None for _ in range(self.size[1])] for _ in range(self.size[0])]
+
+            for cur_y, lines in enumerate(self.properties.get('map', {}).get('meta')):
+                for cur_x, c in enumerate(lines):
+                    self.meta_map[cur_x][cur_y] = c
+        else:
+            self.meta_map = None
+
         self.light_builder = StaticLightBuilder(self)
         self.triggers = self.properties.get('triggers', {})
         self._compute_lights()
         self._setup_objects()
+        self._setup_npcs()
 
     def _compute_lights(self):
         self.light_map = self.light_builder.build_map()
 
+
     def _setup_objects(self):
         for pos_x in range(self.size[0]):
             for pos_y in range(self.size[1]):
-                tokens = self.base_map[pos_x][pos_y]
+                tokens = [self.base_map_1[pos_x][pos_y], self.base_map[pos_x][pos_y]]
+                tokens = [token for token in tokens if token is not None]
 
                 if not tokens:
                     continue
@@ -93,6 +127,11 @@ class Map():
                         pass
                     elif token == '.':
                         self.place_object(Ground(self, name='ground'), pos_x, pos_y)
+                    elif token == '-' or token == '|':
+                        object_info = self.session.load_object('door')
+                        obj = DoorObject(self, object_info, token)
+                        self.interactable_objects[obj] = [pos_x, pos_y]
+                        self.place_object(obj, pos_x, pos_y)
                     else:
                         object_meta = self.legend[token]
                         if object_meta is None:
@@ -106,7 +145,8 @@ class Map():
     def _setup_npcs(self):
         for player in self.properties.get('player', []):
             column_index, row_index = player['position']
-            player = PlayerCharacter.load(self.session, player['sheet'])
+            overrides = player.get('overrides', {})
+            player = PlayerCharacter.load(self.session, player['sheet'], override=overrides)
             self.add(player, column_index, row_index, group='a')
 
         for npc in self.properties.get('npc', []):
@@ -115,9 +155,9 @@ class Map():
             if not npc_meta['sub_type']:
                 raise Exception('npc type requires sub_type as well')
 
-            entity = self.session.npc(npc_meta['sub_type'], name=npc_meta['name'], overrides=npc_meta['overrides'], rand_life=True)
+            entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta.get('name', None), "overrides" : npc_meta['overrides'], "rand_life" : True})
 
-            self.add(entity, column_index, row_index, group=npc_meta['group'])
+            self.add(entity, column_index, row_index, group=npc_meta.get('group', None))
 
         if self.meta_map:
             for column_index, meta_row in enumerate(self.meta_map):
@@ -129,13 +169,41 @@ class Map():
                         if not npc_meta['sub_type']:
                             raise Exception('npc type requires sub_type as well')
 
-                        entity = self.session.npc(npc_meta['sub_type'], name=npc_meta['name'], overrides=npc_meta['overrides'], rand_life=True)
+                        entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta['name'], "overrides" : npc_meta.get('overrides', {}), "rand_life" : True })
 
-                        self.add(entity, column_index, row_index, group=npc_meta['group'])
+                        self.add(entity, column_index, row_index, group=npc_meta.get('group', None))
                     elif token_type == 'spawn_point':
                         self.spawn_points[self.legend.get(token, {}).get('name')] = {
                             'location': [column_index, row_index]
                         }
+
+    def entity_by_uid(self, uid):
+        for entity in self.entities.keys():
+            if entity.entity_uid == uid:
+                return entity
+        return None
+
+    def thing_at(self, pos_x, pos_y, reveal_concealed=False):
+        if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
+            return []
+        things = []
+        things.append(self.entity_at(pos_x, pos_y))
+        things.append(self.object_at(pos_x, pos_y, reveal_concealed=reveal_concealed))
+        return [thing for thing in things if thing is not None]
+
+    def add(self, entity, pos_x, pos_y, group='b'):
+        self.unaware_npcs.append({'group': group if group else 'b', 'entity': entity})
+        self.entities[entity] = [pos_x, pos_y]
+        self.place((pos_x, pos_y), entity, None)
+
+    def remove(self, entity, battle=None):
+        pos_x, pos_y = self.entities.pop(entity)
+
+        source_token_size = entity.token_size() - 1 if requires_squeeze(entity, pos_x, pos_y, self, battle) else entity.token_size()
+
+        for ofs_x in range(source_token_size):
+            for ofs_y in range(source_token_size):
+                self.tokens[pos_x + ofs_x][pos_y + ofs_y] = None
 
     def load(self, map_file_path):
         # Add .yml extension if not present
@@ -147,7 +215,14 @@ class Map():
         with open(map_file_path, 'r') as file:
             data = yaml.safe_load(file)
             return data
-        
+
+    def movement_cost(self, entity, path, battle=None, manual_jump=None):
+        if not path:
+            return Movement.empty()
+
+        budget = entity.available_movement(battle) / self.feet_per_grid
+        return compute_actual_moves(entity, path, self, battle, budget, test_placement=False, manual_jump=manual_jump)
+
     def move_to(self, entity: Entity, pos_x, pos_y, battle):
         cur_x, cur_y = self.entities[entity]
 
@@ -172,12 +247,20 @@ class Map():
 
         self.entities[entity] = [pos_x, pos_y]
 
+    def place_at_spawn_point(self, position, entity, token=None, battle=None):
+        if str(position) not in self.spawn_points:
+            raise Exception(f"unknown spawn position {position}. should be any of {','.join(self.spawn_points.keys())}")
+
+        pos_x, pos_y = self.spawn_points[str(position)]['location']
+        self.place((pos_x, pos_y), entity, token, battle)
+        print(f"place {entity.name} at {pos_x}, {pos_y}")
+
     def place(self, position, entity, token=None, battle=None):
         pos_x, pos_y = position
 
         if entity is None:
             raise ValueError('entity param is required')
-        
+
         if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
             raise ValueError(f"Invalid position: {pos_x},{pos_y} should not exceed (0 - {self.size[0]- 1 }),(0 - {self.size[1] - 1})")
 
@@ -198,14 +281,17 @@ class Map():
                 return obj
         return None
     
-    def place_object(self, object_info, pos_x, pos_y, object_meta={}):
+    def place_object(self, object_info, pos_x, pos_y, object_meta=None):
+        # print(f"placing object {object_info} at {pos_x}, {pos_y}")
+        if object_meta is None:
+            object_meta = {}
         if object_info is None:
             return
 
         if isinstance(object_info, Object):
             obj = object_info
         elif object_info.get('item_class'):
-            item_klass = globals()[object_info['item_class']]            
+            item_klass = globals()[object_info['item_class']]
             object_info = object_info.copy()
             object_info.update(object_meta)
 
@@ -229,7 +315,109 @@ class Map():
             self.objects[pos_x][pos_y].append(obj)
 
         return obj
-    
+
+    def is_heavily_obscured(self, entity, pos_override=None):
+        return self.light_at_entity(entity, pos_override) < 0.5
+
+
+    def hiding_spots_for(self, entity, battle=None):
+        hiding_spots = []
+        for pos_x in range(self.size[0]):
+            for pos_y in range(self.size[1]):
+                if self.line_of_sight(pos_x, pos_y, *self.entities[entity]) is None:
+                    continue
+                if not self.placeable(entity, pos_x, pos_y):
+                    continue
+                if self.can_hide(entity, [pos_x, pos_y], battle)[0]:
+                    hiding_spots.append([pos_x, pos_y])
+        return hiding_spots
+
+    def can_hide(self, entity, pos_override=None, battle=None):
+        if pos_override is not None:
+            entity_squares = self.entity_squares_at_pos(entity, pos_override[0], pos_override[1])
+        else:
+            entity_squares = self.entity_squares(entity)
+
+        behind_cover = False
+        heavily_obscured = False
+
+        opponents = []
+        if battle:
+            opponents = [opp for opp in battle.opponents_of(entity) if opp.conscious()]
+
+        opponent_line_of_sight = False
+
+        for opp in opponents:
+            if self.can_see(opp, entity, distance=None, entity_1_pos=None, entity_2_pos=pos_override, heavy_cover=True):
+                opponent_line_of_sight = True
+                break
+
+        # check if behind cover
+        for pos in entity_squares:
+            pos_x, pos_y = pos
+            for i in range(-1, 2):
+                for j in range(-1, 2):
+                    if i == 0 and j == 0:
+                        continue
+
+                    things = self.thing_at(pos_x + i, pos_y + j)
+                    for thing in things:
+                        if thing == entity:
+                            continue
+
+                        if isinstance(thing, Object):
+                            if thing.three_quarter_cover() or thing.total_cover():
+                                behind_cover = True
+                                break
+                        if isinstance(thing, Entity) and entity.class_feature('naturally_stealthy'):
+                            if entity.size_identifier() < thing.size_identifier():
+                                behind_cover = True
+                                break
+
+        hide_failed_reasons = []
+
+        if self.is_heavily_obscured(entity, pos_override=pos_override):
+            heavily_obscured = True
+
+        if not behind_cover and not heavily_obscured:
+            hide_failed_reasons.append("not behind cover or heavily obscured")
+
+        if opponent_line_of_sight:
+            hide_failed_reasons.append("opponent can see entity")
+
+        return len(hide_failed_reasons) == 0, hide_failed_reasons
+
+
+    def valid_targets_for(self, entity, action, target_types=None, range=None, active_perception=None, include_objects=False, filter=None):
+        if target_types is None:
+            target_types = ['enemies']
+
+        attack_range = compute_max_weapon_range(self.session, action, range)
+
+        if attack_range is None:
+            raise ValueError('attack range cannot be None')
+
+        targets = [k for k, pos in self.entities.items() if not k.dead() and k.hp() is not None and self.distance(k, entity) * self.feet_per_grid <= attack_range and (filter is None or k.eval_if(filter))]
+
+        if include_objects:
+            targets += [obj for obj, _position in self.interactable_objects.items() if not obj.dead() and ('ignore_los' in target_types or self.can_see(entity, obj, active_perception=active_perception)) and self.distance(obj, entity) * self.feet_per_grid <= attack_range and (filter is None or obj.eval_if(filter))]
+
+        return targets
+
+    def difficult_terrain(self, entity, pos_x, pos_y, battle=None):
+        if entity is None:
+            return False
+
+        for pos in self.entity_squares_at_pos(entity, pos_x, pos_y):
+            r_x, r_y = pos
+            if self.tokens[r_x][r_y] and self.tokens[r_x][r_y]['entity'] == entity:
+                continue
+            if self.tokens[r_x][r_y] and not self.tokens[r_x][r_y]['entity'].dead():
+                return True
+            if self.object_at(r_x, r_y) and self.object_at(r_x, r_y).movement_cost() > 1:
+                return True
+
+        return False
 
     def wall(self, pos_x, pos_y):
         if pos_x < 0 or pos_y < 0:
@@ -288,11 +476,19 @@ class Map():
             return None
 
         return entity_data['entity']
-    
+
     def position_of(self, entity):
         if isinstance(entity, Object):
             return self.interactable_objects[entity]
         else:
+            if not entity:
+                raise ValueError('invalid entity')
+            if not self.entities.get(entity):
+                # might be a deepcopied object so we try with the uid
+                _entity = self.entity_by_uid(entity.entity_uid)
+                if not _entity:
+                    raise ValueError(f'entity {entity} not found')
+                return self.entities[_entity]
             return self.entities[entity]
 
     def entity_squares_at_pos(self, entity, pos1_x, pos1_y, squeeze=False):
@@ -316,7 +512,7 @@ class Map():
             pos1_x, pos1_y = pos1
             if [pos1_x, pos1_y] == [pos2_x, pos2_y]:
                 return True
-            if self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=False)==None:
+            if self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=False) is None:
                 continue
 
             location_illumination = self.light_at(pos2_x, pos2_y)
@@ -329,9 +525,23 @@ class Map():
 
         return has_line_of_sight
 
-    def can_see(self, entity, entity2, distance=None, entity_1_pos=None, entity_2_pos=None, allow_dark_vision=True, active_perception=0, active_perception_disadvantage=0):
+    def can_see(self, entity, entity2, distance=None, entity_1_pos=None, entity_2_pos=None, \
+                allow_dark_vision=True, active_perception=0, active_perception_disadvantage=0,\
+                creature_size_min=None, heavy_cover=False):
+        """
+        Check if entity can see entity2
+        """
+        if entity == entity2:
+            return True
+
         if entity not in self.entities and entity not in self.interactable_objects:
-            raise ValueError('Invalid entity passed')
+            return False
+
+        if entity2.hidden():
+            if entity.passive_perception() < entity2.hidden_stealth:
+                return False
+            if active_perception < entity2.hidden_stealth:
+                return False
 
         entity_1_squares = self.entity_squares_at_pos(entity, *entity_1_pos) if entity_1_pos else self.entity_squares(entity)
         entity_2_squares = self.entity_squares_at_pos(entity2, *entity_2_pos) if entity_2_pos else self.entity_squares(entity2)
@@ -351,8 +561,9 @@ class Map():
                 if pos2_x >= self.size[0] or pos2_x < 0 or pos2_y >= self.size[1] or pos2_y < 0:
                     # print(f"pos2_x {pos2_x} pos2_y {pos2_y} size {self.size}")
                     continue
-                line_of_sight_info = self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, distance=distance)
-                if line_of_sight_info==None:
+                line_of_sight_info = self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, distance=distance, \
+                                                        heavy_cover=heavy_cover, creature_size_min=creature_size_min)
+                if line_of_sight_info is None:
                     # print(f"no line of sight from {pos1_x},{pos1_y} to {pos2_x},{pos2_y} {distance}")
                     continue
 
@@ -362,9 +573,14 @@ class Map():
                 sighting_distance = math.floor(math.sqrt((pos1_x - pos2_x)**2 + (pos1_y - pos2_y)**2))
                 has_line_of_sight = True
 
-        if has_line_of_sight and max_illumination < 0.5:
-            has_line_of_sight =  allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid)
-        
+        if not has_line_of_sight:
+            return False
+
+        if allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid):
+            max_illumination += 0.5
+
+        if max_illumination == 0.0:
+            has_line_of_sight = False
 
         return has_line_of_sight
 
@@ -383,7 +599,7 @@ class Map():
                 entity_1_squares.append([pos1_x + ofs_x, pos1_y + ofs_y])
         return entity_1_squares
     
-    def passable(self, entity, pos_x, pos_y, battle=None, allow_squeeze=True):
+    def passable(self, entity, pos_x, pos_y, battle=None, allow_squeeze=True, ignore_opposing=False):
         effective_token_size = entity.token_size() - 1 if allow_squeeze and entity.token_size() > 1 else entity.token_size()
         for ofs_x in range(effective_token_size):
             for ofs_y in range(effective_token_size):
@@ -410,11 +626,11 @@ class Map():
                         continue
                     if not battle.opposing(location_entity, entity):
                         continue
-                    if location_entity.dead() or location_entity.unconscious():
+                    if location_entity.incapacitated():
                         continue
                     if entity.class_feature('halfling_nimbleness') and (location_entity.size_identifier() - entity.size_identifier()) >= 1:
                         continue
-                    if battle.opposing(location_entity, entity) and abs(location_entity.size_identifier() - entity.size_identifier()) < 2:
+                    if not ignore_opposing and battle.opposing(location_entity, entity) and abs(location_entity.size_identifier() - entity.size_identifier()) < 2:
                         return False
 
         return True
@@ -427,7 +643,7 @@ class Map():
             p_x, p_y = pos
             if self.tokens[p_x][p_y] and self.tokens[p_x][p_y]['entity'] == entity:
                 continue
-            if self.tokens[p_x][p_y] and not self.tokens[p_x][p_y]['entity'].dead():
+            if self.tokens[p_x][p_y]:
                 return False
             if self.object_at(p_x, p_y) and not self.object_at(p_x, p_y).passable():
                 return False
@@ -440,9 +656,11 @@ class Map():
         if isinstance(thing, Object):
             return self.interactable_objects[thing]
         else:
-            return self.entities[thing]
+            return self.entities.get(thing, None)
         
-    def line_of_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, inclusive=False, entity=False, log_path=False):
+    def line_of_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, \
+                      inclusive=False, heavy_cover=False, entity=False, log_path=False,\
+                        creature_size_min=None):
         squares = self.squares_in_path(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive)
         squares_results = []
         for index, s in enumerate(squares):
@@ -455,19 +673,23 @@ class Map():
                 return None
             if self.cover_at(*s) == 'total':
                 return None
+            if heavy_cover and self.cover_at(*s) == 'three_quarter':
+                return None
+            if creature_size_min and self.entity_at(*s) and self.entity_at(*s).size_identifier() >= creature_size_min:
+                return None
 
             squares_results.append([self.cover_at(*s, entity), s])
         return squares_results
-    
 
-    def light_in_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, min_distance=None, distance=None, inclusive=False, entity=False):
-        squares = self.squares_in_path(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive)
+
+    def light_in_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, min_distance=None, distance=None, inclusive=True, entity=False):
+        squares = self.squares_in_path(pos2_x, pos2_y, pos1_x, pos1_y, inclusive=inclusive)
         min_distance_reached = True
 
         for index, s in enumerate(squares):
-            if min_distance and index >= (min_distance - 1):
+            if min_distance and index > min_distance:
                 min_distance_reached = False
-            if distance and index >= (distance - 1):
+            if distance and index > distance:
                 return [False, False]
             if self.opaque(*s):
                 return [False, False]
@@ -518,13 +740,33 @@ class Map():
 
     def light_at(self, pos_x, pos_y):
         if self.light_map is not None:
-            if self.light_map[pos_x][pos_y] >= 1.0:
-                return self.light_map[pos_x][pos_y]
-
             return self.light_map[pos_x][pos_y] + self.light_builder.light_at(pos_x, pos_y)
         else:
             return self.light_builder.light_at(pos_x, pos_y)
 
+    def light_at_entity(self, entity, pos_override=None):
+        intensities = []
+        if pos_override:
+            entity_squares = self.entity_squares_at_pos(entity, *pos_override)
+        else:
+            entity_squares = self.entity_squares(entity)
+
+        for entity_square in entity_squares:
+            pos_x, pos_y = entity_square
+            intensities.append(self.light_at(pos_x, pos_y))
+        return max(intensities)
+
+
+    def entities_in_range(self, entity, range):
+        entities = []
+        for entity2, _position in self.entities.items():
+            if entity == entity2:
+                continue
+            if entity.dead():
+                continue
+            if self.distance(entity, entity2) * self.feet_per_grid <= range:
+                entities.append(entity2)
+        return entities
 
     def distance(self, entity1, entity2, entity_1_pos=None, entity_2_pos=None):
         if entity1 is None:
@@ -553,7 +795,9 @@ class Map():
         return trigger_results
 
 
-    def activate_map_triggers(self, trigger_type, source, opt={}):
+    def activate_map_triggers(self, trigger_type, source, opt=None):
+        if opt is None:
+            opt = {}
         if trigger_type in self.triggers:
             for trigger in self.triggers[trigger_type]:
                 if trigger.get('if') and not source.eval_if(trigger.get('if'), opt):
@@ -565,3 +809,87 @@ class Map():
                     return 'battle_end'
                 else:
                     raise ValueError(f"unknown trigger type {trigger['type']}")
+
+    def items_on_the_ground(self, entity):
+        target_squares = entity.melee_squares(self)
+        target_squares += self.entity_squares(entity)
+
+        available_objects = [obj for square in target_squares for obj in self.objects_at(*square) if obj]
+
+        ground_objects = [obj for obj in available_objects if isinstance(obj, Ground)]
+        result = []
+        for obj in ground_objects:
+            items = [o for o in obj.inventory if o.qty > 0]
+            if items:
+                result.append((obj, items))
+        return result
+
+    @staticmethod
+    def from_dict(session, data):
+        entity_hash = {}
+
+        battle_map = Map(session, None, properties=data['map']['properties'])
+        battle_map.entities = {}
+        for uid, entity_and_pos in data['entities'].items():
+            entity, pos = entity_and_pos
+            if entity['type']=='pc':
+                entity['entity_uid'] = uid
+                player_character = PlayerCharacter(session, entity['properties'], name=entity['name'])
+                player_character.attributes = entity['attributes']
+                battle_map.entities[player_character] = pos
+                entity_hash[uid] = player_character
+            elif entity['type']=='npc':
+                entity['entity_uid'] = uid
+                npc = Npc(session, entity['npc_type'], { "name" : entity['name']})
+                npc.properties = entity['properties']
+                npc.attributes = entity['attributes']
+                npc.inventory = entity['inventory']
+                battle_map.entities[npc] = pos
+                entity_hash[uid] = npc
+
+        map_data = data['map']
+
+        # reset tokens
+        for x in range(battle_map.size[0]):
+            for y in range(battle_map.size[1]):
+                battle_map.tokens[x][y] = None
+
+        for token in map_data['tokens']:
+            entity = entity_hash[token['entity']]
+            battle_map.place((token['x'], token['y']), entity)
+
+        return battle_map
+
+
+    def to_dict(self)->dict:
+        entity_hash = {}
+        for entity, pos in self.entities.items():
+            entity_hash[entity.entity_uid] = [
+                entity.to_dict(),
+                pos
+            ]
+        map_hash = {
+                'name': self.name,
+                'size': self.size,
+                'feet_per_grid': self.feet_per_grid,
+                'legend': self.legend,
+                'properties': self.properties
+        }
+
+        tokens = []
+        for x in range(self.size[0]):
+            for y in range(self.size[1]):
+                if self.tokens[x][y]:
+                    token = {
+                        'x': x,
+                        'y': y,
+                        'entity': self.tokens[x][y]['entity'].entity_uid,
+                        'token': self.tokens[x][y]['token']
+                    }
+                    tokens.append(token)
+        map_hash['tokens'] = tokens
+
+        return {
+            'entities' : entity_hash,
+            'map': map_hash
+        }

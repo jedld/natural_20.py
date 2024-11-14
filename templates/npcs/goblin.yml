@@ -33,29 +33,29 @@ cr: 0.25
 xp: 50
 proficiency_bonus: 2
 attributes:
-- nimble_escape
+  - nimble_escape
 actions:
-- name: Scimitar
-  type: melee_attack
-  if: equipped:scimitar
-  range: 5
-  targets: 1
-  attack: 4
-  damage: 5
-  damage_die: 1d6+2
-  damage_type: slashing
-- name: Shortbow
-  type: ranged_attack
-  if: equipped:shortbow
-  range: 80
-  range_max: 320
-  targets: 1
-  attack: 4
-  damage: 5
-  damage_die: 1d6
-  damage_mod: 2
-  damage_type: piercing
-  ammo: arrows
+  - name: Scimitar
+    type: melee_attack
+    if: equipped:scimitar
+    range: 5
+    targets: 1
+    attack: 4
+    damage: 5
+    damage_die: 1d6+2
+    damage_type: slashing
+  - name: Shortbow
+    type: ranged_attack
+    if: equipped:shortbow
+    range: 80
+    range_max: 320
+    targets: 1
+    attack: 4
+    damage: 5
+    damage_die: 1d6
+    damage_mod: 2
+    damage_type: piercing
+    ammo: arrows
 equipped:
   - scimitar
   - shortbow

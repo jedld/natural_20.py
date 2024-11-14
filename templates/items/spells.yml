@@ -1,5 +1,111 @@
 ---
+shield_of_faith:
+  label: Shield of Faith
+  casting_time: 1:bonus_action
+  components:
+    - verbal
+    - somatic
+  description: |
+    A shimmering field appears and surrounds a creature of your choice within range, granting it a +2 bonus to AC for the duration.
+  duration: 10m
+  level: 1
+  name: Shield of Faith
+  range: 60
+  school: abjuration
+  concentration: true
+  type: warding
+  spell_list_classes:
+    - Cleric
+  spell_class: Natural20::ShieldOfFaith
+spare_the_dying:
+  label: Spare the Dying
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  description: |
+    You touch a living creature that has 0 hit points. The creature becomes stable. This spell has no effect on undead or constructs.
+  duration: instant
+  level: 0
+  name: Spare the Dying
+  range: 15
+  school: necromancy
+  type: healing
+  spell_list_classes:
+    - Cleric
+bless:
+  casting_time: 1:action
+  label: Bless
+  components:
+    - verbal
+    - somatic
+  description: |
+    You bless up to three creatures of your choice within range. Whenever a target makes an attack roll or a saving throw before the spell ends, the target can roll a d4 and add the number rolled to the attack roll or saving throw.
+  duration: 1m
+  level: 1
+  name: Bless
+  range: 30
+  school: enchantment
+  type: buff
+  concentration: true
+  spell_list_classes:
+    - Cleric
+ice_knife:
+  label: Ice Knife
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  damage_type: piercing
+  description: |
+    You create a shard of ice and fling it at one creature within range. Make a ranged spell attack against the target. On a hit, the target takes 1d10 piercing damage. Hit or miss, the shard then explodes. The target and each creature within 5 feet of it must succeed on a Dexterity saving throw or take 2d6 cold damage.
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the cold damage increases by 1d6 for each slot level above 1st.
+  duration: instant
+  level: 1
+  name: Ice Knife
+  range: 60
+  school: conjuration
+  type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
+guiding_bolt:
+  label: Guiding Bolt
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  damage_type: radiant
+  description: |
+    A flash of light streaks toward a creature of your choice within range. Make a ranged spell attack against the target. On a hit, the target takes 4d6 radiant damage, and the next attack roll made against this target before the end of your next turn has advantage, thanks to the mystical dim light glittering on the target until then.
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d6 for each slot level above 1st.
+  duration: instant
+  level: 1
+  name: Guiding Bolt
+  range: 120
+  school: evocation
+  type: ranged_attack
+  spell_list_classes:
+    - Cleric
+cure_wounds:
+  label: Cure Wounds
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  description: |
+    A creature you touch regains a number of hit points equal to 1d8 + your spellcasting ability modifier. This spell has no effect on undead or constructs.
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the healing increases by 1d8 for each slot level above 1st.
+  duration: instant
+  level: 1
+  name: Cure Wounds
+  range: 5
+  school: evocation
+  type: healing
+  spell_list_classes:
+    - Cleric
 chill_touch:
+  label: Chill Touch
   casting_time: 1:action
   damage_type: necrotic
   description: |
@@ -12,8 +118,62 @@ chill_touch:
   range: 120
   school: necromancy
   type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
+sacred_flame:
+  label: Sacred Flame
+  casting_time: 1:action
+  damage_type: radiant
+  description: |
+    Flame-like radiance descends on a creature that you can see within range. The target must succeed on a Dexterity saving throw or take 1d8 radiant damage. The target gains no benefit from cover for this saving throw.
+    The spell's damage increases by 1d8 when you reach 5th level (2d8), 11th level (3d8), and 17th level (4d8).
+  duration: instant
+  level: 0
+  name: Sacred Flame
+  range: 60
+  school: evocation
+  type: ranged_attack
+  spell_list_classes:
+    - Cleric
+toll_the_dead:
+  label: Toll the Dead
+  casting_time: 1:action
+  damage_type: necrotic
+  description: |
+    You point at one creature you can see within range, and the single chime of a dolorous bell is audible within 10 feet of the target. The target must succeed on a Wisdom saving throw or take 1d8 Necrotic damage. If the target is missing any of its Hit Points, it instead takes 1d12 Necrotic damage.
+  duration: instant
+  level: 0
+  name: Toll the Dead
+  range: 60
+  school: necromancy
+  type: ranged_attack
+  spell_list_classes:
+    - Cleric
+inflict_wounds:
+  label: Inflict Wounds
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  damage_type: necrotic
+  description: |
+    Make a melee spell attack against a creature you can reach. On a hit, the target takes 3d10 necrotic damage.
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d10 for each slot level above 1st.
+  duration: instant
+  level: 1
+  name: Inflict Wounds
+  range: 5
+  school: necromancy
+  type: melee_attack
+  spell_list_classes:
+    - Cleric
+  spell_class: Natural20::InflictWounds
 expeditious_retreat:
+  label: Expeditious Retreat
   casting_time: 1:bonus_action
+  description: |
+    This spell allows you to move at an incredible pace. When you cast this spell, and then as a bonus action on each of your turns until the spell ends, you can take the Dash action.
   components:
     - verbal
     - somatic
@@ -23,7 +183,11 @@ expeditious_retreat:
   range: 0
   school: transmutation
   type: movement
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 find_familiar:
+  label: Find Familiar
   casting_time: 1:hour
   components:
     - verbal
@@ -41,7 +205,11 @@ find_familiar:
   range: 10
   school: conjuration
   type: summoning
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 firebolt:
+  label: Firebolt
   base_damage: 1d10
   casting_time: 1:action
   components:
@@ -60,7 +228,28 @@ firebolt:
   school: evocation
   spell_class: Natural20::Firebolt
   type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
+healing_word:
+  label: Healing Word
+  casting_time: 1:bonus_action
+  components:
+    - verbal
+  description: |
+    A creature of your choice that you can see within range regains hit points equal to 1d4 + your spellcasting ability modifier. This spell has no effect on undead or constructs.
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the healing increases by 1d4 for each slot level above 1st.
+  duration: instant
+  level: 1
+  name: Healing Word
+  range: 60
+  school: evocation
+  type: healing
+  spell_list_classes:
+    - Cleric
+  spell_class: Natural20::HealingWord
 mage_armor:
+  label: Mage Armor
   casting_time: 1:action
   components:
     - verbal
@@ -69,13 +258,18 @@ mage_armor:
   description: You touch a willing creature who isn't wearing armor, and a protective magical force surrounds it until the spell ends. The target's base AC becomes 13 + its Dexterity modifier. The spell ends if the target dons armor or if you dismiss the spell as an action.
   duration: 8h
   level: 1
+  range: 5
   materials:
     - cured_leather
   name: Mage Armor
   school: abjuration
   spell_class: Natural20::MageArmor
   type: buff
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 magic_missile:
+  label: Magic Missile
   casting_time: 1:action
   damage_type: force
   description: You create three glowing darts of magical force. Each dart hits a creature of your choice that you can see within range.
@@ -86,7 +280,11 @@ magic_missile:
   school: evocation
   spell_class: Natural20::MagicMissile
   type: force
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 ray_of_frost:
+  label: Ray of Frost
   base_damage: 1d8
   casting_time: 1:action
   components:
@@ -107,8 +305,14 @@ ray_of_frost:
   range: 60
   school: evocation
   type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 shield:
+  label: Shield
   casting_time: 1:reaction
+  description: |
+    An invisible barrier of magical force appears and protects you. Until the start of your next turn, you have a +5 bonus to AC, including against the triggering attack, and you take no damage from magic missile.
   components:
     - verbal
     - somatic
@@ -119,7 +323,11 @@ shield:
   school: abjuration
   spell_class: Natural20::Shield
   type: warding
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 shocking_grasp:
+  label: Shocking Grasp
   base_damage: 1d8
   casting_time: 1:action
   components:
@@ -143,7 +351,11 @@ shocking_grasp:
   range: 5
   school: evocation
   type: melee_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 true_strike:
+  label: True Strike
   casting_time: 1:action
   components:
     - somatic
@@ -156,3 +368,6 @@ true_strike:
   range: 30
   school: divination
   type: foreknowledge
+  spell_list_classes:
+    - Sorcerer
+    - Wizard

@@ -1,0 +1,55 @@
+---
+kind: Bugbear
+description: Bugbears are hairy, fanged goblinoids that are known for their stealth and their ability to surprise their enemies.
+size: medium
+race:
+  - humanoid
+  - goblinoid
+alignment: chaotic_evil
+default_ac: 16
+max_hp: 27
+hp_die: 5d8+5
+speed: 30
+passive_perception: 10
+darkvision: 60
+token:
+ - h
+color: green
+ability:
+  str: 15
+  dex: 14
+  con: 13
+  int: 8
+  wis: 11
+  cha: 9
+skills:
+  stealth: 6
+  survival: 2
+languages:
+- common
+- goblin
+cr: 0.50
+xp: 100
+proficiency_bonus: 2
+attributes:
+- surprise_attack
+actions:
+- name: Morningstar
+  type: melee_attack
+  range: 5
+  targets: 1
+  attack: 11
+  damage: 7
+  damage_die: 2d8+2
+  damage_type: piercing
+- name: Javelin
+  type: ranged_attack
+  range: 30
+  range_max: 120
+  targets: 1
+  attack: 4
+  damage: 9
+  damage_die: 2d6+2
+  damage_die_ranged: 1d6+2
+  damage_type: piercing
+  ammo: javelin

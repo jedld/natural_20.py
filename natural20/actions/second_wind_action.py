@@ -23,8 +23,7 @@ class SecondWindAction(Action):
 
 
     def build_map(self):
-        ActionMap = namedtuple('ActionMap', ['action', 'param', 'next'])
-        return ActionMap(action=self, param=None, next=types.MethodType(lambda self: self, self))
+        return self
 
     @staticmethod
     def build(session, source):
@@ -43,7 +42,7 @@ class SecondWindAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'second_wind':
             # print(f"{item['source'].name} uses Second Wind with {item['roll']} healing")
             battle.event_manager.received_event({'source': item['source'], 'value': item['roll'], 'event': 'second_wind'})

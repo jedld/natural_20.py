@@ -1,0 +1,16 @@
+{% if battle.current_turn() %}
+    {% set entity = battle.current_turn() %}
+    <img class="current-turn-img" src="/assets/{{ entity.token_image() }}" style="max-width: 75px;">
+    <button class="btn btn-primary" id="player-end-turn" style="pointer-events: auto">End Turn</button>
+    <div class="indicator-container" >
+        <div class="indicator action" style="background-color: blue;" title="Action" data-toggle="tooltip" data-placement="top">
+            <span>{{ entity.total_actions(battle) }}</span>
+        </div>
+        <div class="indicator bonus-action" style="background-color: green;" title="Bonus Action" data-toggle="tooltip" data-placement="top">
+            <span>{{ entity.total_bonus_actions(battle) }}</span>
+        </div>
+        <div class="indicator movement" style="background-color: teal;" title="Movement" data-toggle="tooltip" data-placement="top">
+            <span>{{ entity.available_movement(battle) }}ft</span>
+        </div>
+    </div>
+{% endif %}

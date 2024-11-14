@@ -382,6 +382,8 @@ unarmed_attack:
     noise_source: 5
     noise_target: 5
   modifiers: null
+  properties:
+    - unarmed
   name: Unarmed Attack
   range: 5
   subtype: weapon

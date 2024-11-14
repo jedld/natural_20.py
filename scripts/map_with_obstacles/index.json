@@ -1,0 +1,35 @@
+{
+  "tile_size" : 75,
+  "title" : "The Point of Conflict",
+  "login_background" : "goblin_ambush_login.png",
+  "map" : "maps/game_map",
+  "soundtracks" : [
+    {
+      "name" : "The Point of Conflict",
+      "file" : "goblin_ambush.mp3"
+    }
+  ],
+  "logins" : [
+    {
+      "name" : "player",
+      "password" : "iamauser",
+      "role" : ["player"]
+    },
+    {
+      "name" : "dm",
+      "password" : "admin",
+      "role" : ["dm"]
+    }
+  ],
+  "default_controllers": [
+    {
+      "entity_uid" : "player",
+      "controllers" : ["player"]
+    }
+  ],
+  "extensions": [{
+    "name": "gym_web_extension",
+    "options": {
+    }
+  }]
+}
