@@ -13,3 +13,8 @@ termcolor
 prompt_toolkit
 lark
 ipywidgets
+flask
+flask-session
+flask-socketio
+pillow
+tensorboard

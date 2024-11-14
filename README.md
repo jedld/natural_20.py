@@ -14,10 +14,10 @@ Features
 ========
 
 - Simulation of DnD Maps, Line of Sight Computations, Cover
-- Character classes (Fighter, Rogue & Mage)
+- Character classes (Fighter, Rogue, Cleric & Mage)
 - Weapons and Spells systems
 - Text-based interface with ability to be used as a backend for web based interfaces.
-
+- Web-based VTT (virtual tabletop) interface for playing against agents.
 
 
 Installation
@@ -139,7 +139,7 @@ print("Probability of rolling at least 10 on 1d20+5: ", round(probability, 2))
 # Probability of rolling at least 10 on 1d20+5:  0.8
 ```
 
-These also feature the fact that you are able to extract the details of the individual die rolls
+These also feature the fact that you are able to        self.assertEqual(self.entity.armor_class(), 12) extract the details of the individual die rolls
 and not just the end result.
 
 ### Extracting Individual Die Roll Details
@@ -177,16 +177,60 @@ print("Contains a roll equal to max die side: ", contains_max)
 # Contains a roll equal to max die side:  False
 ```
 
+Setting Up LLM Agents
+=====================
+
+The following sample scripts illustrates how to setup LLM vs agent, ai fights:
+
+samples/agent_vs_ai.py
+samples/llm_vs_ai.py
+samples/llm_vs_llm.py
+
+There are also training scripts that uses LLMs instead of the built-in AI:
+
+DQN_tests_gpt4o.py
+DQN_tests_llama.py
+DQN_tests_mistral.py
+
+Note that it is recommended to use [VLLM](https://github.com/vllm-project/vllm) to host your local LLMs, OpenAIs gpt4o has better performance but at the cost of being more expensive to run. For OpenAI's gpt4 it goes without saying that you need a subscription to take advantage of API access.
+
+The recommended route to run and setup VLLM is via Docker, below is a sample on how to get started with LLama 3:
+
+```bash        self.assertEqual(self.entity.armor_class(), 12)
+docker run --runtime=nvidia --gpus all -p 8000:8000 -v ~/.cache/huggingface:/root/.cache/huggingface \
+       -it vllm --model NousResearch/Meta-Llama-3-8B-Instruct --dtype=auto --api-key token1234
+```
+
+Running the interactive Webapp
+==============================
+
+A built-in webapp can be used to interact and test the agent. It is a full featured VTT that allows you to play against various types of AI including Reinforcement Learning trained or rules based agents.
+
+To run the webapp in gym mode, navigate to the project root
+
+```
+cd webapp
+TEMPLATE_DIR=../samples/map_with_obstacles python -m flask run
+
+```
+
+By default this will open a port 5000 where you can view using the web browser at http://localhost:5000, clicking on this will allow you to login and view the battlemap.
+
+For the list of usernames/passwords you may checkout the natural_20.py/samples/map_with_obstacles/index.json file
+
+![Web Screenshot](./web_screenshot.png)
+
 Running Tests
 =============
 
-```python
+```bash
 python -m unittest discover tests
 ```
 
 Run specific tests
 
-```
+```bash
 python -m unittest tests.test_gym.TestGym.test_reset
 python -m unittest tests.test_map.TestMap.test_line_of_sight
 ```
+python -m unittest discover tests

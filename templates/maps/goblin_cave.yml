@@ -1,0 +1,98 @@
+name: Goblin Cave
+description: A cave inhabited by goblins
+map:
+  illumination: 0.0
+  base:
+    - wwwwwww###
+    - ..wwwww..#
+    - ......##.#
+    - ......##..
+    - ......##..
+    - ...##.##.#
+    - '#####....#'
+    - '###......#'
+    - '##.......#'
+    - '#.........'
+  base_1:
+    - ..........
+    - ..........
+    - ..........
+    - ..........
+    - ..........
+    - ..........
+    - ..........
+    - ..........
+    - ........o.
+    - ..........
+  light:
+    - ..........
+    - .....A....
+    - ..........
+    - ..........
+    - ...A......
+    - ..........
+    - ..........
+    - ..........
+    - .....B....
+    - ..........
+  meta:
+    - ..........
+    - ..........
+    - ..........
+    - .........g
+    - .........x
+    - ..........
+    - ..........
+    - ...g..g...
+    - .A....x...
+    - .g..hBh..g
+lights:
+  A:
+    bright: 5
+    dim: 5
+  B:
+    bright: 10
+    dim: 10
+legend:
+  h:
+    name: _auto_
+    type: npc
+    sub_type: hobgoblin
+  g:
+    name: _auto_
+    type: npc
+    sub_type: goblin
+  x:
+    name: _auto_
+    type: npc
+    sub_type: wolf
+  B:
+    name: _auto_
+    type: npc
+    sub_type: bugbear
+  w:
+    name: Pool of water
+    type: water
+  o:
+    name: barrel
+    type: barrel
+player:
+  - position: [1, 4]
+    sheet: characters/halfling_rogue.yml
+    overrides:
+      entity_uid: rumblebelly
+  - position: [0, 4]
+    sheet: characters/high_elf_fighter.yml
+    overrides:
+      entity_uid: gomerin
+  - position: [1, 5]
+    sheet: characters/dwarf_cleric.yml
+    overrides:
+      entity_uid: shorvalu
+  - position: [0, 5]
+    sheet: characters/high_elf_mage.yml
+    overrides:
+      entity_uid: crysania
+extensions:
+  web:
+    background_color: '#000000'

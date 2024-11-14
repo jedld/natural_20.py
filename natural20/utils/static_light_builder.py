@@ -21,9 +21,9 @@ class StaticLightBuilder:
         max_x, max_y = self.map.size
 
         light_map = np.full((max_x, max_y), self.base_illumination)
-
         for x in range(max_x):
-            for y in range(max_y):
+            for index_2 in range(max_y):
+                y = max_y - index_2 - 1
                 intensity = self.base_illumination
                 for light in self.lights:
                     light_pos_x, light_pos_y = light['position']
@@ -32,7 +32,7 @@ class StaticLightBuilder:
 
                     in_bright, in_dim = self.map.light_in_sight(x, y, light_pos_x, light_pos_y, min_distance=bright_light,
                                                                 distance=bright_light + dim_light,
-                                                                inclusive=False)
+                                                                inclusive=True)
 
                     intensity += 1.0 if in_bright else (0.5 if in_dim else 0.0)
 
@@ -61,7 +61,7 @@ class StaticLightBuilder:
 
             in_bright, in_dim = self.map.light_in_sight(pos_x, pos_y, light_pos_x, light_pos_y, min_distance=bright_light,
                                                         distance=bright_light + dim_light,
-                                                        inclusive=False)
+                                                        inclusive=True)
 
             intensity += 1.0 if in_bright else (0.5 if in_dim else 0.0)
 

@@ -1,0 +1,16 @@
+<div class="turn-order-item" data-id="{{ entity.entity_uid }}">
+  <form class="form-inline">
+    <img src="{{ url_for('static', filename='assets/' + entity.token_image()) }}" style="max-width: 75px;">
+    <select class="group-select form-control" style="width: 100px;">
+      <option value="a" {% if is_pc %}selected{% endif %}>Group A</option>
+      <option value="b" {% if not is_pc %}selected{% endif %}>Group B</option>
+      <option value="c">Group C</option>
+    </select>
+    <select class="controller-select form-control" style="width: 100px;">
+      <option value="manual" {% if is_pc %}selected{% endif %}>Manual</option>
+      <option value="ai" {% if not is_pc%}selected{% endif %}>AI</option>
+    </select>
+    <button class="remove-turn-order-item btn btn-danger" style="width: 100px; margin-left: 10px;">Remove</button>
+  </form>
+  <span style="width: 100px;">{{ entity.name }}</span>
+</div>

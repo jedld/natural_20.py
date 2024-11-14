@@ -1,0 +1,75 @@
+{% for layer in tiles %}
+  {% for row in layer %}
+    <div style="display: flex;">
+      {% for tile in row %}
+        {% set tooltips = describe_terrain(tile) %}
+        <div class="tile" data-light="{{tile['light']}}" data-tooltip="{{ tooltips }}" data-coords-x="{{ tile['x'] }}" data-coords-y="{{ tile['y'] }}" data-coords-id="{{tile['id']}}" data-darkvision="{{tile['has_darkvision']}}" data-darkvision-color="{{ tile.darkvision_color }}" style="top: {{ tile['y'] * tile_size_px + tile_size_px }}px; left: {{ tile['x'] * tile_size_px + tile_size_px}}px; ">
+          {% if not tile['line_of_sight'] %}
+            <div class="fog-of-war" style="width: {{ tile_size_px }}px; height: {{ tile_size_px }}px;"></div>
+          {% endif %}
+          <div class="brightness-overlay" style="opacity: {{tile['opacity'] }};"></div>
+          {% if tile['entity'] is undefined %}
+            <div style="position: relative;">
+              <div style="width: {{ tile_size_px }}px; height: {{ tile_size_px }}px;"></div>
+              <div class="popover-menu" style="display: none;">
+                <ul>
+                  <li>Info</li>
+                </ul>
+              </div>
+              <div class="floating-text-bar" style="background-color: white; color: black;">{{ tile.name }}</div>
+            </div>
+          {% else %}
+            <div class="entity" style="position: relative; " data-id="{{ tile.id }}"  >
+              {% set entity_size = tile.entity_size %}
+              {% set multiplier = 1 %}
+              {% if entity_size == 'large' %}
+                {% set multiplier = 2 %}
+              {% endif %}
+              {% set image_size_px = tile_size_px * multiplier %}
+              <img class="npc" src="{{ url_for('static', filename='assets/' ~ tile['entity']) }}" style="width: {{ image_size_px }}px; height: {{ image_size_px }}px; opacity: {{ opacity_for(tile) }};
+                    filter: {{ filter_for(tile) }}; transform: {{ transform_for(tile)}};"/>
+              {% if is_setup and not tile.in_battle %}
+                <button class="btn add-to-turn-order button text-center" style="top: 7px; right: 0;" data-id="{{ tile.id }}" data-name="{{ tile.name }}">
+                  <i class="glyphicon glyphicon-plus"></i>
+                </button>
+              {% endif %}
+              <div class="effect">
+              {% for effect in tile['effects'] %}
+
+                  <img src="{{ url_for('static', filename='assets/effect/' ~ effect ~ '.png') }}" class="effect-img" alt="{{effect}}" data-tooltip="{{effect}}">
+
+              {% endfor %}
+              </div>
+              <button class="btn add-to-target button text-center" style="top: 7px; right: 0; display: none" data-id="{{ tile.id }}" data-name="{{ tile.name }}">
+                <i class="glyphicon glyphicon-plus"></i>
+              </button>
+              <div class="popover-menu" style="display: none;">
+                <ul>
+                  <li>Info</li>
+                  <li data-item="move">Move</li>
+                </ul>
+              </div>
+              <div class="popover-menu-2 execute-multi-target" style="display: none;">
+                <ul>
+                  <li>
+                    <button class="execute-action" data-action-type="SpellAction" data-coords-x="{{ tile['x'] }}" data-coords-y="{{ tile['y'] }}" data-coords-id="{{tile['id']}}">
+                      <img src="" style="width: 50px; height: 50px;">
+                    </button>
+                  </li>
+                </ul>
+              </div>
+              {% if tile['hp'] is defined %}
+                {% set health_width = (tile['hp'] / tile['max_hp']) * image_size_px %}
+                {% set color = 'red' if (tile['hp'] / tile['max_hp']) < 0.2 else 'green' %}
+                <div class="health-bar" style="width: {{ health_width }}px; background-color: {{ color }};"></div>
+                {% endif %}
+              {% if tile['name'] %}
+                <div class="nameplate">{{ tile['name'] }}</div>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endfor %}
+{% endfor %}

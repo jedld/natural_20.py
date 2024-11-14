@@ -1,10 +1,8 @@
 from typing import List, Tuple
-from dataclasses import dataclass
-from types import SimpleNamespace
 from natural20.action import Action
 from natural20.utils.movement import compute_actual_moves, retrieve_opportunity_attacks
-from natural20.event_manager import EventManager
-# typed: true
+from natural20.map_renderer import MapRenderer
+import pdb
 class MoveAction(Action):
     """
     Move action
@@ -14,9 +12,11 @@ class MoveAction(Action):
     as_dash: bool
     as_bonus_action: bool
 
-    def __init__(self, session, source, action_type, opts={}):
+    def __init__(self, session, source, action_type, opts=None):
         super().__init__(session, source, action_type, opts)
-        self.move_path = []
+        if opts is None:
+            opts = {}
+        self.move_path = opts.get('move_path', [])
         self.jump_index = []
         self.as_dash = False
         self.as_bonus_action = False
@@ -25,20 +25,32 @@ class MoveAction(Action):
         return f"move to {self.move_path[-1]}"
     
     def __repr__(self):
-        return f"move to {self.move_path[-1]}"
+        if self.move_path:
+            return f"move to {self.move_path[-1]}"
+        return "move"
+    
+    def clone(self):
+        return MoveAction(self.session, self.source, self.action_type, self.opts)
 
     @staticmethod
     def can(entity, battle):
         return battle is None or entity.available_movement(battle) > 0
 
     def build_map(self):
-        return SimpleNamespace(
-            action=self,
-            param=[{
-                'type': 'movement'
+        def set_path(path_and_jump_index):
+            action = self.clone()
+            path, jump_index = path_and_jump_index
+            action.move_path = path
+            action.jump_index = jump_index
+            return action
+
+        return {
+            'action': self,
+            'param': [{
+            'type': 'movement'
             }],
-            next=lambda path_and_jump_index: self.set_move_path(*path_and_jump_index)
-        )
+            'next': set_path
+        }
 
     @staticmethod
     def build(session, source):
@@ -52,7 +64,9 @@ class MoveAction(Action):
         if self.move_path is None or len(self.move_path) == 0:
             if opts.get('move_path') is None:
                 raise ValueError('no path specified')
-
+        # print("move path", self.move_path)
+        # renderer = MapRenderer(map)
+        # print(renderer.render())
         self.result = []
         battle = opts.get('battle')
 
@@ -75,11 +89,16 @@ class MoveAction(Action):
 
         actual_moves = self.check_opportunity_attacks(self.source, actual_moves, battle)
 
+
         actual_moves = self.check_movement_athletics(actual_moves, movement.athletics_check_locations, battle, map)
 
         actual_moves = self.check_movement_acrobatics(actual_moves, movement.acrobatics_check_locations, battle)
 
-        cutoff = False
+        if self.source.unconscious():
+            battle.entity_state_for(self.source)['movement'] = 0
+            return self
+
+        # cutoff = False
 
         safe_moves = []
         for move in actual_moves:
@@ -116,6 +135,8 @@ class MoveAction(Action):
 
                 grappled_movement.pop()
         # print(f"budget: {movement_budget}  {movement.budget}")
+        movement_cost = movement_budget - movement.budget
+
         self.result.append({
             'source': self.source,
             'map': map,
@@ -124,7 +145,7 @@ class MoveAction(Action):
             'as_bonus_action': self.as_bonus_action,
             'type': 'move',
             'path': movement.movement,
-            'move_cost': movement_budget - movement.budget -1,
+            'move_cost': movement_cost,
             'position': movement.movement[-1]
         })
         self.result += additional_effects
@@ -144,7 +165,7 @@ class MoveAction(Action):
         return move_list
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         item_type = item['type']
         if item_type == 'state':
             for k, v in item['params'].items():
@@ -169,12 +190,20 @@ class MoveAction(Action):
         elif item_type == 'move':
             item['map'].move_to(item['source'], *item['position'], battle)
 
+            # mark path
+            if battle:
+                path_taken = item['path']
+                positions_entered = battle.entity_state_for(item['source'])['positions_entered']
+                for p in path_taken:
+                    p_key = tuple(p)
+                    visit_count = positions_entered.get(p_key, 0)
+                    positions_entered[p_key] = visit_count + 1
+
             if item['as_dash'] and item['as_bonus_action']:
                 battle.entity_state_for(item['source'])['bonus_action'] -= 1
             elif item['as_dash']:
                 battle.entity_state_for(item['source'])['action'] -= 1
             elif battle:
-                # print(f"available movement {battle.entity_state_for(item['source'])['movement']} {item['move_cost']}")
                 battle.entity_state_for(item['source'])['movement'] -= item['move_cost'] * battle.map.feet_per_grid
 
             battle.session.event_manager.received_event({

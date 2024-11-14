@@ -1,0 +1,23 @@
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Agent} & \textbf{Wins} & \textbf{Losses} & \textbf{Ties} & \textbf{AVG Rounds} \\
+\hline
+
+llm\_mistral & 174.0 & 63.0 & 3.0 & 56.63 \\
+llm\_gpt4 & 142.0 & 95.0 & 3.0 & 52.77 \\
+rl\_gpt4\_trained & 132.0 & 84.0 & 24.0 & 188.47 \\
+ai & 127.0 & 109.0 & 4.0 & 50.60 \\
+llm\_llama3 & 113.0 & 125.0 & 2.0 & 60.40 \\
+rl\_mistral\_trained & 109.0 & 98.0 & 33.0 & 176.10 \\
+rl\_llama3\_trained & 100.0 & 118.0 & 22.0 & 161.57 \\
+rl\_rules\_trained & 97.0 & 101.0 & 42.0 & 264.07 \\
+random & 14.0 & 215.0 & 11.0 & 100.33 \\
+
+\hline
+\end{tabular}
+\caption{Leaderboard for the Fighter Class Tournament: LLMs vs RL Agents}
+\label{tab:fighter-class-leaderboard}
+\end{table}

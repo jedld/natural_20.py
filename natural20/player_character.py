@@ -1,38 +1,81 @@
 from natural20.entity import Entity
-from natural20.utils.utils import Session
 from natural20.die_roll import DieRoll
 from natural20.entity_class.fighter import Fighter
 from natural20.entity_class.rogue import Rogue
 from natural20.entity_class.wizard import Wizard
+from natural20.entity_class.cleric import Cleric
+from natural20.actions.action_surge_action import ActionSurgeAction
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.dodge_action import DodgeAction
-from natural20.actions.disengage_action import DisengageAction
+from natural20.actions.first_aid_action import FirstAidAction
+from natural20.actions.hide_action import HideAction, HideBonusAction
+from natural20.actions.disengage_action import DisengageAction, DisengageBonusAction
 from natural20.actions.dash import DashAction, DashBonusAction
 from natural20.actions.second_wind_action import SecondWindAction
+from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
+from natural20.actions.escape_grapple_action import EscapeGrappleAction
+from natural20.actions.stand_action import StandAction
+from natural20.actions.prone_action import ProneAction
+from natural20.actions.shove_action import ShoveAction
+from natural20.actions.help_action import HelpAction
+from natural20.actions.use_item_action import UseItemAction
+from natural20.actions.ground_interact_action import GroundInteractAction
+from natural20.actions.spell_action import SpellAction
+from natural20.utils.action_builder import autobuild
+
 from natural20.utils.movement import compute_actual_moves
 import yaml
 import os
 import copy
+import uuid
+import pdb
 
-class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
+
+class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
   ACTION_LIST = [
-    LookAction, AttackAction, MoveAction, DisengageAction, DodgeAction, DashAction, DashBonusAction,
-    TwoWeaponAttackAction, SecondWindAction
+    SpellAction,
+    AttackAction,
+    HideAction,
+    HideBonusAction,
+    DashAction,
+    DashBonusAction,
+    DisengageAction,
+    DisengageBonusAction,
+    DodgeAction,
+    MoveAction,
+    ProneAction,
+    SecondWindAction,
+    StandAction,
+    TwoWeaponAttackAction,
+    HelpAction,
+    UseItemAction,
+    GroundInteractAction,
+    GrappleAction,
+    DropGrappleAction,
+    EscapeGrappleAction,
+    ActionSurgeAction,
+    ShoveAction,
+    FirstAidAction
   ]
 
   def __init__(self, session, properties, name=None):
-    super(PlayerCharacter, self).__init__(name, f"PC {name}", {})
+    super(PlayerCharacter, self).__init__(name, f"PC {name}", attributes={}, event_manager=session.event_manager)
     self.properties = properties
-    
+
     if name is None:
       self.name = self.properties['name']
-      
+
+    self.display_name = self.properties.get('display_name', self.name)
+
     race_file = self.properties['race']
     self.session = session
     self.equipped = self.properties.get('equipped', [])
     self.inventory = {}
+
+    # use ordered dict to maintain order of spell slots
+    self.spell_slots = {}
     with open(f"{self.session.root_path}/races/{race_file}.yml") as file:
       self.race_properties = yaml.safe_load(file)
 
@@ -48,9 +91,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
         self.inventory[inventory_type]['qty'] += inventory_qty
 
     self.class_properties = {}
-    self.current_hit_die = {}
+    self._current_hit_die = {}
     self.max_hit_die = {}
     self.resistances = []
+    self.entity_uid =  self.properties.get('entity_uid', str(uuid.uuid4()))
 
     for klass, level in self.properties.get('classes', {}).items():
       setattr(self, f"{klass}_level", level)
@@ -60,17 +104,41 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
       self.max_hit_die[klass] = level
 
       hit_die_details = DieRoll.parse(character_class_properties['hit_die'])
-      self.current_hit_die[int(hit_die_details.die_type)] = level
+      self._current_hit_die[int(hit_die_details.die_type)] = level
       self.class_properties[klass] = character_class_properties
 
     self.attributes["hp"] = copy.deepcopy(self.max_hp())
 
+  def description(self):
+    return super().description()
+
+  def class_descriptor(self):
+    class_level = []
+    for klass, level in self.properties.get('classes', {}).items():
+      class_level.append(f"{klass}-{level}")
+    return "_".join(class_level).lower()
+  
+  def class_and_level(self):
+    class_level = []
+    for klass, level in self.properties.get('classes', {}).items():
+      class_level.append((klass, level))
+    return class_level
+
   @staticmethod
-  def load(session: Session, path, override={}):
+  def load(session, path, override=None):
+    if override is None:
+      override = {}
+
+    if not path.endswith('.yml'):
+      path = f"{path}.yml"
+
     with open(os.path.join(session.root_path, path), 'r') as file:
       properties = yaml.safe_load(file)
     properties.update(override)
     return PlayerCharacter(session, properties)
+  
+  def label(self):
+    return self.display_name
 
   def level(self):
       return self.properties['level']
@@ -88,7 +156,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
     effective_speed = self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('base_speed') or self.race_properties.get('base_speed')
 
     if self.has_effect('speed_override'):
-      effective_speed = self.eval_effect('speed_override', stacked=True, value=self.properties.get('speed'))
+      effective_speed = self.eval_effect('speed_override', { "stacked": True, "value" : effective_speed})
 
     return effective_speed
   
@@ -99,7 +167,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
       return self.properties['max_hp']
     
   def melee_distance(self):
-    if not self.properties['equipped']:
+    if not self.properties.get('equipped', None):
       return 5
 
     max_range = 5
@@ -116,8 +184,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   def armor_class(self):
     current_ac = self.equipped_ac()
     if self.has_effect('ac_override'):
-      current_ac = self.eval_effect('ac_override', armor_class=self.equipped_ac)
-
+      current_ac = self.eval_effect('ac_override', { "armor_class" : self.equipped_ac() })
+  
     if self.has_effect('ac_bonus'):
       current_ac += self.eval_effect('ac_bonus')
 
@@ -126,7 +194,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   def c_class(self):
     return self.properties['classes']
 
-  def available_actions(self, session: Session, battle, opportunity_attack=False):
+  def available_actions(self, session, battle, opportunity_attack=False, auto_target=True):
     if self.unconscious():
       return []
 
@@ -143,16 +211,24 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
         if action_type == LookAction:
           action_list.append(LookAction(session, self, 'look'))
         elif action_type == AttackAction:
-          action_list = action_list + self._player_character_attack_actions(session, battle)
+          action_list = action_list + self._player_character_attack_actions(session, battle, auto_target=auto_target)
         elif action_type == TwoWeaponAttackAction:
-          action_list = action_list + self._player_character_attack_actions(session, battle, second_weapon=True)
+          action_list = action_list + self._player_character_attack_actions(session, battle, second_weapon=True, auto_target=auto_target)
         elif action_type == DodgeAction:
           action_list.append(DodgeAction(session, self, 'dodge'))
         elif action_type == DisengageAction:
           action_list.append(DisengageAction(session, self, 'disengage'))
         elif action_type == SecondWindAction:
           action_list.append(SecondWindAction(session, self, 'second_wind'))
-        if action_type == DashBonusAction:
+        elif action_type == FirstAidAction:
+          action_list.append(FirstAidAction(session, self, 'first_aid'))
+        elif action_type == ActionSurgeAction:
+          action_list.append(ActionSurgeAction(session, self, 'action_surge'))
+        elif action_type == HideAction:
+          action_list.append(HideAction(session, self, 'hide'))
+        elif action_type == HideBonusAction:
+          action_list.append(HideBonusAction(session, self, 'hide_bonus'))
+        elif action_type == DashBonusAction:
           action = DashBonusAction(session, self, 'dash_bonus')
           action.as_bonus_action = True
           action_list.append(action)
@@ -160,7 +236,14 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
           action = DashAction(session, self, 'dash')
           action_list.append(action)
         elif action_type == MoveAction:
-          # generate possible moves
+          if not battle or not auto_target:
+            action_list.append(MoveAction(session, self, 'move'))
+            continue
+
+          # no map? we skip, must be a theater of the mind mode
+          if battle.map is None:
+            continue
+
           cur_x, cur_y = battle.map.position_of(self)
           for x_pos in range(-1, 2):
             for y_pos in range(-1, 2):
@@ -168,21 +251,44 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
                 continue
               if battle.map.passable(self, cur_x + x_pos, cur_y + y_pos, battle, allow_squeeze=False) and battle.map.placeable(self, cur_x + x_pos, cur_y + y_pos, battle, squeeze=False):
                 chosen_path = [[cur_x, cur_y], [cur_x + x_pos, cur_y + y_pos]]
-                shortest_path = compute_actual_moves(self, chosen_path, battle.map, battle, self.available_movement(battle) // 5).movement
-                if len(shortest_path) > 1:
-                  # print(f"shortest_path: {shortest_path}")
+                actual_movement = compute_actual_moves(self, chosen_path, battle.map, battle, self.available_movement(battle) // 5)
+                if len(actual_movement.movement) > 1 and actual_movement.impediment is None:
+                  # print(f"Adding move action {actual_movement.movement}")
                   move_action = MoveAction(session, self, 'move')
-                  move_action.move_path = shortest_path
+                  move_action.move_path = actual_movement.movement
                   action_list.append(move_action)
-
+        elif action_type == ProneAction:
+          action = ProneAction(session, self, 'prone')
+          action_list.append(action)
+        elif action_type == StandAction:
+          action = StandAction(session, self, 'stand')
+          action_list.append(action)
+        elif action_type == DisengageBonusAction:
+          action = DisengageBonusAction(session, self, 'disengage_bonus')
+          action_list.append(action)
+        elif action_type == ShoveAction:
+          action = ShoveAction(session, self, 'shove')
+          action_list.append(action)
+        elif action_type == GrappleAction:
+          action = GrappleAction(session, self, 'grapple')
+          action_list.append(action)
+        elif action_type == EscapeGrappleAction:
+          action = EscapeGrappleAction(session, self, 'escape_grapple')
+          action_list.append(action)
+        elif action_type == SpellAction:
+          if auto_target:
+            action_list = action_list + autobuild(self.session, SpellAction, self, battle)
+          else:
+            action_list.append(SpellAction(session, self, 'spell'))
     return action_list
 
-  def _player_character_attack_actions(self, session, battle, opportunity_attack=False, second_weapon=False):
+  def _player_character_attack_actions(self, session, battle, opportunity_attack=False, second_weapon=False, auto_target=True):
     # check all equipped and create attack for each
     valid_weapon_types = ['melee_attack'] if opportunity_attack else ['ranged_attack', 'melee_attack']
 
     weapon_attacks = []
-    for item in self.properties['equipped']:
+
+    for item in self.properties.get('equipped', []):
       weapon_detail = session.load_weapon(item)
       if weapon_detail is None:
         continue
@@ -191,43 +297,53 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
       if 'ammo' in weapon_detail and not self.item_count(weapon_detail['ammo']) > 0:
         continue
 
-      attacks = []
-
       attack_class = AttackAction
       attack_type = 'attack'
+
       if second_weapon:
-        attack_class = TwoWeaponAttackAction
-        attack_type = 'two_weapon_attack'
+        if 'light' in weapon_detail.get('properties', []) and weapon_detail['type'] == 'melee_attack' and TwoWeaponAttackAction.can(self, battle, { 'weapon': item }):
+          attack_class = TwoWeaponAttackAction
+          attack_type = 'two_weapon_attack'
+        else:
+          continue
 
       action = attack_class(session, self, attack_type)
       action.using = item
-      attacks.append(action)
+      weapon_attacks.append(action)
+
       if not opportunity_attack and weapon_detail.get('properties') and 'thrown' in weapon_detail.get('properties', []):
         action = attack_class(session, self, attack_type)
         action.using = item
         action.thrown = True
-        attacks.append(action)
+        weapon_attacks.append(action)
 
-      weapon_attacks.extend(attacks)
-
-    unarmed_attack = attack_class(session, self, attack_type)
-    unarmed_attack.using = 'unarmed_attack'
-
-    pre_target_attack_list = weapon_attacks + [unarmed_attack]
+    if not second_weapon:
+      unarmed_attack = AttackAction(session, self, 'attack')
+      unarmed_attack.using = 'unarmed_attack'
+      weapon_attacks.append(unarmed_attack)
 
     # assign possible attack targets
-    final_attack_list = []
-    for action in pre_target_attack_list:
-      valid_targets = battle.valid_targets_for(self, action)
-      for target in valid_targets:
-        targeted_action = copy.copy(action)
-        targeted_action.target = target
-        final_attack_list.append(targeted_action)
+    if battle and auto_target:
+      final_attack_list = []
+      for action in weapon_attacks:
+        valid_targets = battle.valid_targets_for(self, action, target_types=["enemies"])
+        for target in valid_targets:
+          targeted_action = copy.copy(action)
+          targeted_action.target = target
+          final_attack_list.append(targeted_action)
+    else:
+      final_attack_list = weapon_attacks
     return final_attack_list
-
 
   def prepared_spells(self):
     return self.properties.get('cantrips', []) + self.properties.get('prepared_spells', [])
+
+  # Consumes a character's spell slot
+  def consume_spell_slot(self, level, character_class=None, qty=1):
+    if character_class is None:
+      character_class = list(self.spell_slots.keys())[0]
+    if self.spell_slots[character_class][level]:
+      self.spell_slots[character_class][level] = max(self.spell_slots[character_class][level] - qty, 0)
 
   def class_feature(self, feature):
     if feature in self.properties.get('class_features', []):
@@ -245,6 +361,12 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
       if feature in properties.get('class_features', []):
         return True
 
+      progression = properties.get('progression', {})
+      for level in range(1, self.level() + 1):
+        h_features = progression.get(f"level_{level}", { "class_features": [] }).get('class_features', [])
+        if feature in  h_features:
+          return True
+
     return False
 
   def proficient_with_weapon(self, weapon):
@@ -255,15 +377,14 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
 
     if weapon['name'].lower() in all_weapon_proficiencies:
       return True
-    
+
     proficiency_type = weapon.get('proficiency_type', [])
-    
+
     # if weapon in DnD 5e does not list any required proficiency, then it is considered a simple weapon
     if len(proficiency_type) == 0:
       return True
-    
-    return any(prof in proficiency_type for prof in all_weapon_proficiencies)
 
+    return any(prof in proficiency_type for prof in all_weapon_proficiencies)
 
   def weapon_proficiencies(self):
     all_weapon_proficiencies = []
@@ -289,6 +410,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
   def proficient(self, prof):
     if any(prof in c.get('proficiencies', []) for c in self.class_properties.values()):
       return True
+    if any(prof in [f"{f}_save" for f in c.get('saving_throw_proficiencies', [])] for c in self.class_properties.values()):
+      return True
     if self.race_properties.get('skills') and prof in self.race_properties['skills']:
       return True
     if prof in self.weapon_proficiencies():
@@ -296,10 +419,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
 
     return super().proficient(prof)
 
-
   def equipped_ac(self):
     with open(os.path.join(self.session.root_path, 'items', 'equipment.yml')) as file:
-      equipments = yaml.load(file, Loader=yaml.FullLoader)
+      equipments = yaml.safe_load(file)
     equipped_meta = [equipments[e] for e in self.equipped if e in equipments]
     armor = next((equipment for equipment in equipped_meta if equipment['type'] == 'armor'), None)
     shield = next((equipment for equipment in equipped_meta if equipment['type'] == 'shield'), None)
@@ -308,4 +430,88 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard):
 
     return armor_ac + (0 if shield is None else shield['bonus_ac'])
 
+  def any_class_feature(self, features):
+    return any(self.class_feature(f) for f in features)
+  
+  def darkvision(self, distance):
+    if super().darkvision(distance):
+      return True
 
+    return bool(self.race_properties.get('darkvision', None) and (self.race_properties['darkvision'] >= distance))
+
+  def spell_slots_count(self, level, character_class=None):
+    if character_class is None:
+      character_class = list(self.spell_slots.keys())
+      total_slots = 0
+      for klass in character_class:
+        if self.spell_slots[klass].get(level, 0) > 0:
+          total_slots += self.spell_slots[klass][level]
+      return total_slots
+    elif character_class not in self.spell_slots:
+      return 0
+
+    return self.spell_slots[character_class].get(level, 0)
+
+
+  # Returns the number of spell slots
+  # @param level [Integer]
+  # @return [Integer]
+  def max_spell_slots(self, level, character_class=None):
+    if character_class is None:
+      character_class = list(self.spell_slots.keys())[0]
+
+    if hasattr(self, f"max_slots_for_{character_class}"):
+      return getattr(self, f"max_slots_for_{character_class}")(level)
+
+    return 0
+  
+  def available_spells(self, battle):
+    spell_list = self.spell_list(battle)
+    return [k for k, v in spell_list.items() if not v['disabled']]
+  
+  def available_spells_per_level(self, battle):
+    spell_list = self.spell_list(battle)
+    spell_per_level = [[],[],[],[],[],[],[],[],[]]
+    for spell, details in spell_list.items():
+      spell_per_level[details['level']].append((spell, details))
+
+    return enumerate(spell_per_level)
+
+  def languages(self):
+    class_languages = []
+    for prop in self.class_properties.values():
+      class_languages += prop.get('languages', [])
+
+    racial_languages = self.race_properties.get('languages', [])
+
+    return sorted(super().languages() + class_languages + racial_languages)
+  
+  def passive_investigation(self):
+    return 10 + self.int_mod() + self.investigation_proficiency()
+
+  def passive_insight(self):
+    return 10 + self.wis_mod() + self.insight_proficiency()
+  
+  def passive_perception(self):
+    return 10 + self.wis_mod() + self.perception_proficiency()
+  
+  def investigation_proficiency(self):
+    return self.proficiency_bonus() if self.investigation_proficient() else 0
+  
+  def insight_proficiency(self):
+    return self.proficiency_bonus() if self.insight_proficient() else 0
+  
+  def perception_proficiency(self):
+    return self.proficiency_bonus() if self.perception_proficient() else 0
+  
+  def to_dict(self):
+    base_dict = super().to_dict()
+
+    pc_dict = {
+      'name': self.name,
+      'classes': self.c_class(),
+      'hp': self.attributes['hp'],
+      'type': 'pc'
+    }
+    base_dict.update(pc_dict)
+    return base_dict

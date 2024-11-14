@@ -1,0 +1,34 @@
+<table class="spells-container" data-coords-id="{{ entity.entity_uid }}" >
+{% for klass, _ in entity_class_level %}
+    <tr>
+    {% if  not spells_by_level %}
+        <td class="level-slot-container">No Spells Available to Cast</td>
+    {% else %}
+    {% for level, spells in spells_by_level.items() %}
+        <tr>
+            {% if level==0 %}
+                <td class="level-slot-container">Cantrips</td>
+            {% else %}
+                <td class="level-slot-container">
+                    Level {{ level }}
+                    <div class="spell-slot-progress">
+                    <div class="progress">
+                        <div class="progress-bar" role="progressbar" style="width: {{ entity.spell_slots_count(level, klass) / entity.max_spell_slots(level, klass) * 100 }}%;" aria-valuenow="{{ entity.spell_slots_count(level, klass) }}" aria-valuemin="0" aria-valuemax="{{ entity.max_spell_slots(level, klass) }}">
+                            {{ entity.spell_slots_count(level, klass) }}/{{ entity.max_spell_slots(level, klass) }}
+                        </div>
+                    </div>
+                </div></td>
+            {% endif %}
+            {% for spell in spells %}
+                {% set spell_opts = { "spell" : spell, "at_level" : level } %}
+                <td data-spell-name="{{ spell }}" class="spell-action-button">
+                    <button class="action-button" data-action-type="SpellAction" data-id="{{ entity.entity_uid }}" data-coords-x="{{ entity_x }}" data-coords-y="{{ entity_y }}" data-action-opts='{{ spell_opts | tojson}}' title="{{ spell }}">
+                        <img src="{{ url_for('static', filename='spells/spell_' + spell + '.png') }}" alt="{{ spell }}" class="spell-icon">
+                    </button>
+                </td>
+            {% endfor %}
+        </tr>
+    {% endfor %}
+    {% endif %}
+{% endfor %}
+</table>

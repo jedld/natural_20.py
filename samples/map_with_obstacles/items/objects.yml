@@ -7,6 +7,7 @@ barrel:
   interactable: true
   max_hp: 18
   name: Barrel
+  placeable: false
   token:
     - o
 bottomless_pit:
@@ -87,7 +88,7 @@ water:
   name: Water
   passable: true
   token:
-    - ^
+    - '~'
 wooden_door:
   color: magenta
   default_ac: 15

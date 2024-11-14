@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D&D Character Sheet</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="/styles.css?salt={{ salt }}" rel="stylesheet">
+    <link href="/sheet.css?salt={{ salt }}" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Cinzel|Uncial+Antiqua|IM+Fell+English" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Times New Roman', serif;
+            background: beige;
+            padding: 20px;
+        }
+        .sheet {
+            background: white;
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            color: darkred;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        /* Tab Styling */
+        .tab {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+        }
+        .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+            font-size: 17px;
+        }
+        .tab button:hover {
+            background-color: #ddd;
+        }
+        .tab button.active {
+            background-color: #ccc;
+        }
+        .tabcontent {
+            display: none;
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+    </style>
+
+</head>
+<body>
+    <div class="sheet">
+        <h1>{{ entity.label() }}'s Character Sheet</h1>
+        <div class="tab">
+            <button class="tablinks" onclick="openTab(event, 'BasicInfo')">Basic Info</button>
+            <button class="tablinks" onclick="openTab(event, 'Spells')">Spells</button>
+            <button class="tablinks" onclick="openTab(event, 'Equipment')">Equipment/Inventory</button>
+        </div>
+
+        <!-- Tab content -->
+        <div id="BasicInfo" class="tabcontent">
+            <h2>Basic Information</h2>
+            <div class="basic-info-container">
+                <div class="profile-image">
+                    <img src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}" alt="Profile Image">
+                </div>
+                <div class="description">
+                    <p>{{ entity.description() }}</p>
+                </div>
+            </div>
+        <table>
+            <tr>
+                <th>Class & Level</th>
+                {% for class, level in entity.class_and_level() %}
+                {% if level %}
+                <td>Level {{level}} {{ class }}</td>
+                {% else %}
+                <td>{{ class }}</td>
+                {% endif %}
+                {% endfor %}
+            </tr>
+            <tr>
+                <th>Race</th>
+                <td>{{ entity.race() }}</td>
+            </tr>
+
+        </table>
+        <h2>Armor Class</h2>
+        <table>
+            <tr>
+                <th>AC</th>
+                {% if entity.equipped_ac()!=entity.armor_class()%}
+                <td>{{ entity.equipped_ac() }} ({{ entity.armor_class() }})</td>
+                {% else %}
+                <td>{{ entity.armor_class() }}</td>
+                {% endif %}
+            </tr>
+        </table>
+        <h2>Hit Points</h2>
+        <table>
+            <tr>
+                <th>Max HP</th>
+                <td>{{ entity.max_hp() }}</td>
+            </tr>
+            <tr>
+                <th>Current HP</th>
+                <td>{{ entity.hp() }}</td>
+            </tr>
+            <tr>
+                <th>Temporary HP</th>
+                <td>{{ entity.temp_hp() }}</td>
+            </tr>
+        </table>
+        <h2>Ability Scores</h2>
+        <table>
+            <tr>
+            <th>Strength</th>
+            <th>Dexterity</th>
+            <th>Constitution</th>
+            <th>Intelligence</th>
+            <th>Wisdom</th>
+            <th>Charisma</th>
+            </tr>
+            <tr>
+            <td>{{ entity.ability_score_str() }} ({{entity.str_mod() | mod_str}})</td>
+            <td>{{ entity.ability_score_dex()}} ({{entity.dex_mod() | mod_str }} )</td>
+            <td>{{ entity.ability_score_con()}} ({{entity.con_mod() | mod_str }} )</td>
+            <td>{{ entity.ability_score_int() }} ({{entity.int_mod() | mod_str }} )</td>
+            <td>{{ entity.ability_score_wis() }} ({{entity.wis_mod() | mod_str }} )</td>
+            <td>{{ entity.ability_score_cha() }} ({{entity.cha_mod() | mod_str }} )</td>
+            </tr>
+        </table>
+        <h2>Saving Throws</h2>
+        <table>
+            <tr>
+                <th>Ability</th>
+                <th>Modifier</th>
+                <th>Proficient</th>
+            </tr>
+            {% for ability in entity.ATTRIBUTE_TYPES %}
+            <tr>
+                <td>{{ ability }}</td>
+                <td>{{ entity.saving_throw_mod(ability) | mod_str }}</td>
+                <td{% if entity.proficient(ability + "_save") %} style="border: 2px solid black;"{% endif %}>{{ "Yes" if entity.proficient(ability+ "_save") else ""}}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        <h3>Proficiency and Initiative Bonus</h3>
+        <table>
+            <tr>
+                <th>Proficiency Bonus</th>
+                <th>Initiative</th>
+
+            </tr>
+            <tr>
+                <td>+{{ entity.proficiency_bonus() }}</td>
+                <td>+{{ entity.initiative_bonus() }}</td>
+            </tr>
+        </table>
+        <h2>Passive Scores</h2>
+        <table>
+            <tr>
+                <th>Passive Perception</th>
+                <th>Passive Investigation</th>
+                <th>Passive Insight</th>
+            </tr>
+            <tr>
+                <td>{{ entity.passive_perception() }}</td>
+                <td>{{ entity.passive_investigation() }}</td>
+                <td>{{ entity.passive_insight() }}</td>
+            </tr>
+        </table>
+        <h2>Skills</h2>
+        <table>
+            <tr>
+                <th>Skill</th>
+                <th>Modifier</th>
+                <th>Proficient</th>
+            </tr>
+            {% for ability, skills in entity.SKILL_AND_ABILITY_MAP.items() %}
+            {% for skill in skills %}
+            <tr>
+                <td>{{ skill }}</td>
+                <td>{{ entity[skill + "_mod"]() | mod_str }}</td>
+                <td{% if entity.proficient(skill) %} style="border: 2px solid black;"{% endif %}>{{ "Yes" if entity.proficient(skill) else ""}}</td>
+            </tr>
+            {% endfor %}
+            {% endfor %}
+        </table>
+    </div>
+ <div id="Spells" class="tabcontent">
+    <h2>Spells</h2>
+    <!-- Spells section -->
+    {% for klass, level in entity.class_and_level() %}
+    <h3>{{ klass }} Spells</h3>
+    {% set spells_per_level = entity.available_spells_per_level(battle) %}
+    
+    {% for level, level_spells in spells_per_level %}
+    {% if level_spells %}
+    <div class="spell-level">
+        {% if level == 0 %}
+        <div class="spell-level-header">Cantrips</div>
+        {% else %}
+        <div class="spell-level-header">
+            Level {{ level }} - {{ entity.spell_slots_count(level, klass) }}/{{ entity.max_spell_slots(level, klass)}} Slots
+        </div>
+        {% endif %}
+        <div class="spells-container-sheet">
+            {% for name, details in level_spells %}
+             <div class="spell" role="button" aria-pressed="false">
+                <div class="spell-inner">
+                    <div class="spell-front">
+                        <img src="{{ url_for('static', filename='spells/spell_' + name + '.png') }}" alt="{{ name }}" class="spell-icon-sheet">
+                        <div class="spell-label">{{ details['label'] }}</div>
+                        <!-- add details like action, casting time, range, components, duration, and concentration -->
+                        <table class="spell-details-table">
+                            <tr>
+                                <td class="spell-details-name"><i class="fas fa-hourglass-start"></i> <strong>Casting Time</strong></td>
+                                <td>{{ details['casting_time'] | casting_time }}</td>
+                            </tr>
+                            <tr>
+                                <td class="spell-details-name"><i class="fas fa-bullseye"></i> <strong>Range</strong></td>
+                                <td>{{ details['range'] }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="spell-back">
+                        <div class="spell-description">
+                            {{ details['description'] }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% endfor %}
+</div>
+
+        <div id="Equipment" class="tabcontent">
+            <h2>Equipment/Inventory</h2>
+            {% for item in entity.equipped_items() %}
+            <h3>{{ item['label'] }}</h3>
+            {% if item['damage'] and not item['ac'] %}
+            <table>
+                <tr>
+                    <th>Damage</th>
+                    <th>Damage Type</th>
+                    <th>Range</th>
+                </tr>
+                <tr>
+                    <td>{{ item['damage'] }}</td>
+                    <td>{{ item['damage_type'] }}</td>
+                    <td>{{ item['range'] }}</td>
+                </tr>
+            </table>
+            {% endif %}
+            {% if item['ac'] %}
+            <table>
+                <tr>
+                    <th>AC</th>
+                    <th>Stealth Disadvantage</th>
+                </tr>
+                <tr>
+                    <td>{{ item['ac'] }}</td>
+                    <td>{{ "Yes" if item['stealth_disadvantage'] else "" }}</td>
+                </tr>
+            </table>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    <script src="/sheet.js?salt={{ salt }}"></script>
+</body>
+</html>

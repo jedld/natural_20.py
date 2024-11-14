@@ -4,9 +4,9 @@ race: elf
 subrace: high_elf
 pronoun: he/him/his
 classes:
-  fighter: 1
+  fighter: 2
 description: A high elf fighter seeking for glory
-level: 1
+level: 2
 hit_die: inherit
 max_hp: 24
 ability:

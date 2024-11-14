@@ -1,53 +1,73 @@
-import unittest
 from natural20.map import Map, Terrain
 from natural20.battle import Battle
 from natural20.player_character import PlayerCharacter
 from natural20.map_renderer import MapRenderer
 from natural20.die_roll import DieRoll
 from natural20.generic_controller import GenericController
-from natural20.utils.utils import Session
+from natural20.session import Session
 from natural20.actions.move_action import MoveAction
 from natural20.action import Action
 from natural20.gym.dndenv import dndenv, action_type_to_int
 from gymnasium import register, envs, make
 from llm_interface import GPT4Interfacer, LLama3Interface
 from natural20.gym.dndenv_controller import DndenvController
-from model import QNetwork
+from natural20.gym.llm_helpers.prompting_utils import action_to_prompt
+from natural20.gym.dqn.policy import ModelPolicy
+from natural20.event_manager import EventManager
 import os
 import time
 import torch
+import random
+import pdb
 
 
 MAX_EPISODES = 500
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-class ModelPolicy:
-    def __init__(self):
-        self.model = QNetwork(device=device)
-        self.model.to(device)
-        if not os.path.exists('samples/model_best_dnd_egreedy.pt'):
-            raise FileNotFoundError("Model file not found. Please run dnd_dqn.ipynb notebook to train an agent.")
-        self.model.load_state_dict(torch.load('samples/model_best_dnd_egreedy.pt'))
 
-    def action(self, state, info):
-        available_moves = info["available_moves"]
-        values = torch.stack([self.model(state, move) for move in available_moves])
-        for index, v in enumerate(values):
-            print(f"{index}: {available_moves[index]} {v.item()}")
+# setup event manager so that we can see combat logs shown in the console
+event_manager = EventManager()
+event_manager.standard_cli()
+session = Session(root_path="samples/map_with_obstacles", event_manager=event_manager)
 
-        chosen_index = torch.argmax(values).item()
-        return available_moves[chosen_index]
+# setup the environment
+env = make("dndenv-v0", root_path="samples/map_with_obstacles", render_mode="ansi",
+            show_logs=True,
+            custom_session=session,
+            profiles=lambda: random.choice([('high_elf_mage.yml','Joe'), \
+                                            ('high_elf_fighter.yml','Joe'), \
+                                            ('halfling_rogue.yml', 'Joe'),
+                                            ('dwarf_cleric.yml', 'Joe')]),
+            enemies=lambda: random.choice([('high_elf_fighter.yml', 'Mike'),\
+                                           ('halfling_rogue.yml','Mike'),\
+                                           ('dwarf_cleric.yml', 'Mike'),\
+                                           ('high_elf_mage.yml', 'Mike')]),
+            map_file=lambda: random.choice(['maps/simple_map',\
+                                            'maps/complex_map',\
+                                                'maps/game_map',\
+                                                'maps/walled_map']))
 
-env = make("dndenv-v0", root_path="samples/map_with_obstacles", render_mode="ansi", show_logs=True)
+# setup the model and policy wrapper
+model = ModelPolicy(session, weights_file="samples/training_output_all/model_best_dnd_egreedy.pt", device=device, debug=True)
 
-observation, info = env.reset()
+def reaction_callback(state, reward, done, truncated, info):
+    """
+    Callback function to be called when the environment is waiting for a reaction from the agent.
+    Reactions in DnD are typically reactions to enemy actions, such as opportunity attacks.
+    """
+    print(f"{info['reactor']}: Reaction for {info['trigger']}:")
+    action = model.action(state, info)
+    return action
+
+observation, info = env.reset(reaction_callback=reaction_callback)
 
 print("=========================================")
 print("Battle between an RL agent vs a Rules based AI")
 print("=========================================")
-model = ModelPolicy()
-action = action = model.action(observation, info)
+print(env.render())
+
+action = model.action(observation, info)
 
 print(f"selected action: {action}")
 terminal = False
@@ -73,7 +93,6 @@ while not terminal and episode < MAX_EPISODES:
             f.write(env.render())
         
         action = model.action(observation, info)
-        print(f"agent selected action: {action}")
 
     if terminal or truncated:
         print(f"Reward: {reward}")

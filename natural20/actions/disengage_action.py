@@ -1,7 +1,5 @@
-from typing import Callable
 from dataclasses import dataclass
 from natural20.action import Action
-from natural20.event_manager import EventManager
 
 @dataclass
 class DisengageAction(Action):
@@ -13,19 +11,16 @@ class DisengageAction(Action):
 
     def __repr__(self):
         if self.as_bonus_action:
-            return f"disengage as a bonus action"
+            return "disengage as a bonus action"
         else:
-            return f"disengage"        
+            return "disengage"
 
     @staticmethod
     def can(entity, battle):
         return battle and battle.combat_ongoing() and entity.total_actions(battle) > 0
 
     def build_map(self):
-        return {
-            'param': None,
-            'next': lambda: self
-        }
+        return self
 
     @staticmethod
     def build(session, source):
@@ -42,7 +37,7 @@ class DisengageAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         if item['type'] == 'disengage':
             # print(f"{item['source'].name} disengages")
             battle.session.event_manager.received_event({'source': item['source'], 'event': 'disengage'})
@@ -54,6 +49,10 @@ class DisengageAction(Action):
 
 @dataclass
 class DisengageBonusAction(DisengageAction):
+    def __init__(self, session, source, action_type, opts=None):
+        super().__init__(session, source, action_type, opts)
+        self.as_bonus_action = True
+
     @staticmethod
     def can(entity, battle):
-        return battle and battle.combat and entity.any_class_feature(['cunning_action', 'nimble_escape']) and entity.total_bonus_actions(battle) > 0
+        return battle and entity.any_class_feature(['cunning_action', 'nimble_escape']) and entity.total_bonus_actions(battle) > 0

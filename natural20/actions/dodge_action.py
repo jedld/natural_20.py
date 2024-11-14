@@ -22,10 +22,7 @@ class DodgeAction(Action):
         return battle and entity.total_actions(battle) > 0
 
     def build_map(self):
-        return {
-            'param': None,
-            'next': lambda: self
-        }
+        return self
 
     @staticmethod
     def build(session, source):
@@ -43,7 +40,7 @@ class DodgeAction(Action):
         return self
 
     @staticmethod
-    def apply(battle, item):
+    def apply(battle, item, session=None):
         item_type = item.get('type')
         if item_type == 'dodge':
             # print(f"{item.get('source').name} dodges")
@@ -51,6 +48,6 @@ class DodgeAction(Action):
             item.get('source').do_dodge(battle)
 
             if item.get('as_bonus_action'):
-                battle.entity_state_for(item.get('source'))['bonus_action'] -= 1
+                battle.consume(item['source'], 'bonus_action')
             else:
-                battle.entity_state_for(item.get('source'))['action'] -= 1
+                battle.consume(item['source'], 'action')

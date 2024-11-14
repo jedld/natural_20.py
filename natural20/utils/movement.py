@@ -1,4 +1,5 @@
 from natural20.entity import Entity
+import json
 
 class Movement:
     def __init__(self, movement, original_budget, acrobatics_check_locations, athletics_check_locations, jump_locations, jump_start_locations, land_locations, jump_budget, budget, impediment):
@@ -24,7 +25,30 @@ class Movement:
     def cost(self):
         return self.original_budget - self.budget
 
-def valid_move_path(entity: Entity, path: list, battle, map, test_placement=True, manual_jump=[]):
+    def to_json(self):
+        return json.dumps(self.__dict__)
+
+    def to_dict(self):
+        # Convert the object to a dictionary
+        return {
+            "jump_start_locations": self.jump_start_locations,
+            "athletics_check_locations": self.athletics_check_locations,
+            "jump_locations": self.jump_locations,
+            "land_locations": self.land_locations,
+            "jump_budget": self.jump_budget,
+            "movement": self.movement,
+            "original_budget": self.original_budget,
+            "acrobatics_check_locations": self.acrobatics_check_locations,
+            "impediment": self.impediment,
+            "budget": self.budget
+        }    
+
+    @staticmethod
+    def from_json(json_str):
+        data = json.loads(json_str)
+        return Movement(**data)
+
+def valid_move_path(entity: Entity, path: list, battle, map, test_placement=True, manual_jump=None):
     return path == compute_actual_moves(entity, path, map, battle, entity.available_movement(battle) / map.feet_per_grid,
                                         test_placement=test_placement, manual_jump=manual_jump).movement
 
@@ -32,7 +56,7 @@ def requires_squeeze(entity: Entity, pos_x, pos_y, map, battle=None):
     return not map.passable(entity, pos_x, pos_y, battle, False) and map.passable(entity, pos_x, pos_y, battle, True)
 
 
-def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_budget, fixed_movement=False, test_placement=True, manual_jump=[]):
+def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_budget, fixed_movement=False, test_placement=True, manual_jump=None):
     actual_moves = []
     provisional_moves = []
     jump_budget = int(entity.standing_jump_distance() / map.feet_per_grid)
@@ -48,7 +72,6 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
     original_budget = movement_budget
 
     for index, m in enumerate(current_moves):
-        # print(f"{index}: {movement_budget}")
         if len(m) != 2:
             raise Exception('invalid move coordinate')  # assert move correctness
 
@@ -63,7 +86,11 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
         if fixed_movement:
             movement_budget -= 1
         else:
-            movement_budget -= 2 if not manual_jump or index not in manual_jump and map.difficult_terrain(entity, *m, battle) and not entity.flying else 1
+            if map.difficult_terrain(entity, *m, battle) and not entity.is_flying() and (not manual_jump or len(manual_jump)==0 or index not in manual_jump):
+                movement_budget -= 2
+            else:
+                movement_budget -= 1
+
             if requires_squeeze(entity, *m, map, battle):
                 movement_budget -= 1
             if entity.prone():
@@ -75,16 +102,18 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
             impediment = 'movement_budget'
             break
 
-        if not fixed_movement and (map.jump_required(entity, *m) or manual_jump and index in manual_jump):
+        if not fixed_movement and (map.jump_required(entity, *m) or (manual_jump and index in manual_jump)):
             if entity.prone():  # can't jump if prone
                 impediment = 'prone_need_to_jump'
                 break
 
             if not jumped:
                 jump_start_locations.append(m)
+
             jump_locations.append(m)
             jump_budget -= 1
             jump_distance += 1
+
             if not fixed_movement and jump_budget < 0:
                 impediment = 'jump_distance_not_enough'
                 break
@@ -94,7 +123,7 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
             provisional_moves.append(m)
 
             entity_at_square = map.entity_at(*m)
-            if entity_at_square and entity_at_square.conscious and not entity_at_square.prone:
+            if entity_at_square and entity_at_square.conscious() and not entity_at_square.prone():
                 athletics_check_locations.append(m)
         else:
             actual_moves += provisional_moves
@@ -148,6 +177,9 @@ def opportunity_attack_list(entity, current_moves, battle, map):
     left_melee_range = []
     for index, path in enumerate(current_moves):
         for enemy in opponents:
+            if battle:
+                if not enemy.has_reaction(battle):
+                    continue
             if enemy.entered_melee(map, entity, *path):
                 entered_melee_range.add(enemy)
             elif enemy in entered_melee_range and not enemy.entered_melee(map, entity, *path) and not (entity.class_feature('flyby') and entity.flying):

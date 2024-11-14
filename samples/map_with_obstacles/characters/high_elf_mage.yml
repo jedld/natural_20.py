@@ -4,11 +4,11 @@ race: elf
 subrace: high_elf
 pronoun: she/her/hers
 classes:
-  wizard: 1
+  wizard: 2
 description: A high elf mage with a mysterious noble background
-level: 1
+level: 2
 hit_die: inherit
-max_hp: 6
+max_hp: 14
 ability:
   str: 10
   dex: 15
@@ -16,14 +16,14 @@ ability:
   int: 18
   wis: 12
   cha: 8
-:prepared_spells:
+prepared_spells:
 - chill_touch
 - firebolt
 - ray_of_frost
 - mage_armor
 - magic_missile
 - shield
-:spellbook:
+spellbook:
 - mage_armor
 - magic_missile
 - shield

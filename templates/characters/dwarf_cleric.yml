@@ -1,0 +1,34 @@
+---
+name: ShorValu
+race: dwarf
+subrace: mountain_dwarf
+pronoun: she/her/hers
+classes:
+  cleric: 2
+description: A mountain dwarf cleric with a strong sense of justice
+level: 2
+hit_die: inherit
+max_hp: 16
+ability:
+  str: 14
+  dex: 10
+  con: 16
+  int: 10
+  wis: 16
+  cha: 12
+divine_domain: life
+prepared_spells:
+- sacred_flame
+- cure_wounds
+- healing_word
+- guiding_bolt
+- bless
+- toll_the_dead
+- inflict_wounds
+- spare_the_dying
+- shield_of_faith
+equipped:
+- dagger
+- scale_mail
+- shield
+- warhammer

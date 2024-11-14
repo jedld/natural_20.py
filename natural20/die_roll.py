@@ -1,5 +1,6 @@
 import random
 import i18n
+import copy
 class DieRollDetail:
     def __init__(self):
         self.die_count = None  # Integer
@@ -82,6 +83,24 @@ class DieRolls(Rollable):
     def expected(self):
         return sum(roll.expected() for roll in self.rolls)
 
+    def nat_20(self):
+        return any(roll.nat_20() for roll in self.rolls)
+
+    def nat_1(self):
+        return any(roll.nat_1() for roll in self.rolls)
+
+    def reroll(self, lucky=False):
+        new_rolls = copy.deepcopy(self.rolls)
+        die_rolls = DieRolls(rolls=new_rolls)
+        if lucky:
+            for index, roll in enumerate(self.rolls):
+                if roll.nat_1():
+                   new_rolls[index] = roll.reroll(lucky=True)
+        else:
+            for index, roll in self.rolls:
+                new_rolls[index] = roll.reroll()
+        return die_rolls
+
     def __eq__(self, other):
         if len(other.rolls) != len(self.rolls):
             return False
@@ -93,7 +112,19 @@ class DieRolls(Rollable):
         return True
 
     def __str__(self):
-        return ' + '.join(str(roll) for roll in self.rolls)
+        output_string = []
+        for roll in self.rolls:
+            if len(output_string) > 0:
+                if roll.result() >= 0:
+                    output_string.append(' + ')
+                    output_string.append(str(roll))
+                else:
+                    output_string.append(' - ')
+                    output_string.append(str(roll).replace('-', ''))
+            else:
+                output_string.append(str(roll))
+            
+        return ''.join(output_string)
 
 class DieRoll(Rollable):
     def __init__(self, rolls, modifier, die_sides=20, advantage=False, disadvantage=False, description=None, roller=None):
@@ -180,7 +211,7 @@ class DieRoll(Rollable):
                 prob3 = (self.die_sides - i) * (1.0 / self.die_sides)
                 sum_prob += prob * prob2 + prob3 * prob
         else:
-            for i in range(x, self.die_sides + 1):
+            for _ in range(x, self.die_sides + 1):
                 sum_prob += 1.0 / self.die_sides
 
         return sum_prob
@@ -197,16 +228,19 @@ class DieRoll(Rollable):
         rolls = []
         for r in self.rolls:
             if self.advantage:
-                rolls.append(' | '.join(self.color_roll(i) if i == max(r) else str(i) for i in r))
+                rolls.append(' | '.join(f"{self.color_roll(i)}*" if i == max(r) else str(i) for i in r))
             elif self.disadvantage:
-                rolls.append(' | '.join(self.color_roll(i) if i == min(r) else str(i) for i in r))
+                rolls.append(' | '.join(f"{self.color_roll(i)}*" if i == min(r) else str(i) for i in r))
             else:
                 rolls.append(self.color_roll(r))
 
         if self.modifier != 0:
-            return f"({' + '.join(rolls)}) + {self.modifier}"
+            if self.modifier < 0:
+                return f"d{self.die_sides}({' + '.join(rolls)}) - {abs(self.modifier)}"
+
+            return f"d{self.die_sides}({' + '.join(rolls)}) + {self.modifier}"
         else:
-            return f"({' + '.join(rolls)})"
+            return f"d{self.die_sides}({' + '.join(rolls)})"
 
     @staticmethod
     def numeric(c):
@@ -220,7 +254,10 @@ class DieRoll(Rollable):
         return other.rolls == self.rolls and other.modifier == self.modifier and other.die_sides == self.die_sides
 
     def __lt__(self, other):
-        return self.result() < other.result()
+        if isinstance(other, DieRoll):
+            return self.result() < other.result()
+        else:
+            return self.result() < other
 
     def __add__(self, other):
         if isinstance(other, DieRolls):

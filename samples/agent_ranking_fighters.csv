@@ -1,0 +1,10 @@
+,Agent,Wins
+1,llm_mistral,7
+3,llm_gpt4,6
+7,rl_gpt4_trained,6
+8,rl_mistral_trained,5
+4,ai,4
+2,llm_llama3,3
+5,rl_rules_trained,3
+6,rl_llama3_trained,2
+0,random,0
