@@ -20,13 +20,14 @@ AI related research on the Dungeons and Dragons 5th edition RPGs.
 - [Setting Up LLM Agents](#setting-up-llm-agents)
 - [Running the interactive Webapp](#running-the-interactive-webapp)
 - [Running Tests](#running-tests)
+- [Observation and Action Spaces](#observation-and-action-spaces)
+- [Environment Initialization Options](#environment-initialization-options)
 
 Disclaimer
 ==========
 
-Note that this library is meant as an independent research project for AI research. The developers and researchers in this project is in no way affiliated with Wizards of the Coast or any of its subsidiaries. Please note that "Dungeons and Dragons" is a registered trademark of the aformentioned company.
-
-Rules implementation and "assets" in this library are based on the DnD 5e System Reference Document (SRD). No specific content like characters, spells and abilities that are outside the SRD and come from official published sources will be included in this library.
+Note that this library is meant as an independent research project for AI research. The developers and researchers in this project is in no way affiliate
+  abilities that are outside the SRD and come from official published sources will be included in this library.
 
 Features
 ========
@@ -49,6 +50,7 @@ Installing Gym
 You can install the Gymnasium library using pip:
 
 ```
+ 
 gymnasium
 ```
 
@@ -252,3 +254,64 @@ python -m unittest tests.test_gym.TestGym.test_reset
 python -m unittest tests.test_map.TestMap.test_line_of_sight
 ```
 python -m unittest discover tests
+
+Observation and Action Spaces
+=============================
+
+The `dndenv` environment provides a detailed observation space and a flexible action space to interact with the Dungeons and Dragons game.
+
+### Observation Space
+
+The observation space is a dictionary containing the following keys:
+
+- `map`: A 3D array representing the game map with dimensions `(view_port_size[0], view_port_size[0], 5)`.
+- `turn_info`: A 1D array of shape `(3,)` indicating the turn information.
+- `conditions`: A 1D array of shape `(8,)` representing the conditions affecting the player.
+- `player_ac`: A 1D array of shape `(1,)` representing the player's armor class.
+- `player_equipped`: A 1D array of shape `(5,)` representing the items equipped by the player.
+- `enemy_ac`: A 1D array of shape `(1,)` representing the enemy's armor class.
+- `health_pct`: A 1D array of shape `(1,)` representing the player's health percentage.
+- `health_enemy`: A 1D array of shape `(1,)` representing the enemy's health percentage.
+- `enemy_reactions`: A 1D array of shape `(1,)` representing the enemy's reactions.
+- `enemy_conditions`: A 1D array of shape `(8,)` representing the conditions affecting the enemy.
+- `player_type`: A 1D array of shape `(1,)` representing the player's type.
+- `enemy_type`: A 1D array of shape `(1,)` representing the enemy's type.
+- `ability_info`: A 1D array of shape `(8,)` representing the player's ability information.
+- `movement`: A 1D array of shape `(1,)` representing the player's movement.
+- `spell_slots`: A 1D array of shape `(9,)` representing the player's spell slots.
+- `is_reaction`: A 1D array of shape `(1,)` indicating if the current action is a reaction.
+
+### Action Space
+
+The action space is a tuple containing the following elements:
+
+- `action_type`: A 1D array of shape `(1,)` representing the type of action to be performed.
+- `target_position`: A 1D array of shape `(2,)` representing the target position for the action.
+- `movement_vector`: A 1D array of shape `(2,)` representing the movement vector.
+- `spell_index`: A discrete value representing the index of the spell to be cast.
+- `item_index`: A discrete value representing the index of the item to be used.
+
+Environment Initialization Options
+==================================
+
+The `dndenv` environment can be initialized with various options to customize the game setup:
+
+- `view_port_size`: The size of the view port for the agent (default is 12x12).
+- `max_rounds`: The maximum number of rounds before the game ends.
+- `render_mode`: The mode to render the game in (e.g., 'ansi').
+- `root_path`: The root path for the game.
+- `map_file`: The file to load the map from.
+- `profiles`: The profiles to load for the heroes.
+- `enemies`: The profiles to load for the enemies.
+- `hero_names`: The names of the heroes, can be a list or a lambda function.
+- `enemy_names`: The names of the enemies.
+- `show_logs`: Whether to show logs.
+- `custom_controller`: A custom controller to use.
+- `custom_agent`: A custom agent to use, can be a lambda function.
+- `custom_initializer`: A custom initializer to use.
+- `control_groups`: The control groups that the agent controls.
+- `damage_based_reward`: Whether to use damage based rewards, -10 * (enemy final hp / enemy initial hp).
+- `event_manager`: An event manager to handle game events.
+- `custom_session`: A custom session to use.
+- `reactions_callback`: A callback function for reactions.
+
