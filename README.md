@@ -234,6 +234,18 @@ TEMPLATE_DIR=../samples/map_with_obstacles python -m flask run
 
 ```
 
+A sample battlemap template, is available to get started quickly. You can test it by running:
+
+```
+TEMPLATE_DIR=../templates python -m flask run
+```
+
+A flask app should be running at port 5000 and can be accessed by going pointing your web browser to http://localhost:5000.
+
+Battle is not yet started at this point, so as the player with the DM role, you need to click on "Start Battle" and include the characters that are part of the battle.
+
+Note: Login details of the PCs and DM on this game can be found at templates/index.json, for example the dm login is dm/admin
+
 By default this will open a port 5000 where you can view using the web browser at http://localhost:5000, clicking on this will allow you to login and view the battlemap.
 
 For the list of usernames/passwords you may checkout the natural_20.py/samples/map_with_obstacles/index.json file
