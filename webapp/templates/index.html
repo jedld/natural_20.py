@@ -93,7 +93,17 @@
         </div>
     </div>
     <div id="console-container" class="floating-window" style="display: none;">
-        <div class="header" style="cursor: move;">Combat Log</div>
+        <div class="header" style="cursor: move; display: flex; justify-content: space-between; align-items: center;">
+            <span>Combat Log</span>
+            <div>
+                <a href="/combat-log" target="_blank" style="text-decoration: none;">
+                    <span class="glyphicon glyphicon-new-window" aria-hidden="true"></span>
+                </a>
+                <button id="hide-combat-log" class="btn btn-default" style="margin-left: 5px;">
+                    <span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
         <div id="console" class="console">
             {% for message in messages %}
                 <p>{{ message }}</p>

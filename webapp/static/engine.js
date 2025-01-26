@@ -805,8 +805,27 @@ $(document).ready(function () {
     refreshTileSet(true)
   });
 
+  function showConsole() {
+    $('#console-container').fadeIn();
+    $('#open-console').html('Hide Console')
+  }
+
+
+  function hideConsole() {
+    $('#console-container').fadeOut();
+    $('#open-console').html('Show Console')
+  }
+
   $('#open-console').click(function () {
-    $('#console-container').fadeIn()
+    if ($('#console-container').is(':visible')) {
+      hideConsole();
+    } else {
+      showConsole();
+    }
+  });
+
+  $('#hide-combat-log').click(function () {
+    hideConsole();
   });
 
   $('#start-initiative').click(function () {
