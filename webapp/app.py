@@ -559,6 +559,29 @@ def focus():
     socketio.emit('message', {'type': 'focus', 'message': {'x': x, 'y': y}})
     return jsonify(status='ok')
 
+#                 // Fetch combat log messages from the server
+# $.get('/api/combat-log', function(data) {
+#     $('#console').empty();
+#     data.messages.forEach(function(message) {
+#         $('#console').append('<p>' + message + '</p>');
+#     });
+# });
+@app.route('/api/combat-log', methods=['GET'])
+def combat_log():
+    global current_game
+    battle = current_game.get_current_battle()
+    logs = output_logger.get_all_logs()
+    response =[{'message': log} for log in logs]
+    return jsonify(combat_log=response)
+
+@app.route('/combat-log', methods=['GET'])
+def get_combat_log():
+    global current_game
+    battle = current_game.get_current_battle()
+    logs = output_logger.get_all_logs()
+    return render_template('combat-log.html', combat_log=logs,
+                           username=session['username'], role=user_role())
+
 @app.route('/path', methods=['GET'])
 def compute_path():
     global current_game

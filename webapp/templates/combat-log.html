@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <title>Combat Log</title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/styles.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="/combat-log.js"></script>
+</head>
+<body data-username="{{ username }}" data-role="{{ role }}">
+    <div class="container">
+        <h1>Combat Log</h1>
+        <div id="console" class="console">
+            <!-- Combat log messages will be dynamically inserted here -->
+        </div>
+        <button id="refresh-log" class="btn btn-primary" style="margin-top: 20px;">Refresh Log</button>
+    </div>
+    <script>
+        $(document).ready(function() {
+            // Function to fetch and display combat log messages
+            function fetchCombatLog() {
+                // Fetch combat log messages from the server
+                $.get('/api/combat-log', function(data) {
+                    $('#console').empty();
+                    data.combat_log.forEach(function(item) {
+                        $('#console').append('<p>' + item.message + '</p>');
+                    });
+                });
+            }
+
+            // Initial fetch of combat log messages
+            fetchCombatLog();
+
+            // Refresh log button click event
+            $('#refresh-log').click(function() {
+                fetchCombatLog();
+            });
+        });
+    </script>
+</body>
+</html>
