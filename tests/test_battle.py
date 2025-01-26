@@ -6,9 +6,12 @@ from natural20.event_manager import EventManager
 from natural20.die_roll import DieRoll
 from natural20.map_renderer import MapRenderer
 from natural20.actions.attack_action import AttackAction
+from natural20.actions.move_action import MoveAction
 import unittest
 import random
 import pdb
+from natural20.controller import Controller
+from natural20.action import AsyncReactionHandler
 
 
 class TestBattle(unittest.TestCase):
@@ -162,6 +165,65 @@ class TestBattle(unittest.TestCase):
         valid_targets2 = battle.valid_targets_for(fighter2, action)
         print(valid_targets2)
         assert fighter1 not in valid_targets2, valid_targets2
+
+    # Tests that an action can have reactions attached to it
+    # and can be resolved
+    def test_opportunity_attack_reactions(self):
+        class CustomReactionController(Controller):
+            def __init__(self, session):
+                self.state = {}
+                self.session = session
+                self.battle_data = {}
+                self.user = None
+
+            def opportunity_attack_listener(self, battle, session, entity, map, event):
+                self.reaction = event
+                actions = [s for s in entity.available_actions(session, battle, opportunity_attack=True)]
+
+                valid_actions = []
+                for action in actions:
+                    valid_targets = battle.valid_targets_for(entity, action)
+                    if event['target'] in valid_targets:
+                        action.target = event['target']
+                        action.as_reaction = True
+                        valid_actions.append(action)
+
+                yield battle, entity, valid_actions
+
+
+        session = self.make_session()
+        battle_map = Map(session, 'battle_sim_objects')
+        battle = Battle(session, battle_map)
+        map_renderer = MapRenderer(battle_map)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml', override={"token": '1'})
+        npc = session.npc('goblin', { "name" : 'a'})
+        battle_map.place((0, 5), fighter, 'G')
+        controller = CustomReactionController(session)
+        battle.add(fighter, 'a', controller=controller, token = '1')
+        controller.register_handlers_on(fighter)
+        battle.add(npc, 'b', position=(1, 5), token='2')
+        battle.start(combat_order=[fighter, npc])
+        fighter.reset_turn(battle)
+        npc.reset_turn(battle)
+        self.assertTrue(fighter.has_reaction(battle))
+        move_action = MoveAction(session, npc, 'move')
+        move_action.move_path = [[1,5],[2, 5]]
+        try:
+            move_action = battle.action(move_action)
+        except AsyncReactionHandler as e:
+            print("waiting for reaction")
+            if (e.reaction_type == 'opportunity_attack'):
+                for battle, entity, valid_actions in e.resolve():
+                    print(f"{valid_actions}")
+                    # return value to the generator
+                    e.send(valid_actions[0])
+                move_action = battle.action(move_action)
+        battle.commit(move_action)
+
+        # fighter should have taken an opportunity attack
+        self.assertFalse(fighter.has_reaction(battle))
+        print(map_renderer.render())
+
 
     # def test_has_controller_for():
     #     session = Session()

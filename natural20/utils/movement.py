@@ -1,5 +1,6 @@
 from natural20.entity import Entity
 import json
+import pdb
 
 class Movement:
     def __init__(self, movement, original_budget, acrobatics_check_locations, athletics_check_locations, jump_locations, jump_start_locations, land_locations, jump_budget, budget, impediment):

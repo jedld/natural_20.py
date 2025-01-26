@@ -87,6 +87,12 @@ class Battle():
             self.map.remove(entity, battle=self)
 
     def start(self, combat_order=None, custom_initiative=None):
+        """
+        Starts the combat
+
+        :param combat_order: the order of combat
+        :param custom_initiative: a custom function to determine initiative
+        """
         self.started = True
         self.current_turn_index = 0
 
@@ -95,15 +101,18 @@ class Battle():
             return
 
         # roll for initiative
-        _combat_order = [[entity,v] for entity, v in self.entities.items() if not entity.dead()]
-        for entity, v in _combat_order:
-            if custom_initiative:
-                v['initiative'] = custom_initiative(self, entity)
-            else:
-                v['initiative'] = entity.initiative(self)
+        if isinstance(custom_initiative, list):
+            self.combat_order = custom_initiative
+        else:
+            _combat_order = [[entity,v] for entity, v in self.entities.items() if not entity.dead()]
+            for entity, v in _combat_order:
+                if custom_initiative:
+                    v['initiative'] = custom_initiative(self, entity)
+                else:
+                    v['initiative'] = entity.initiative(self)
 
-        self.combat_order = [entity for entity, _ in _combat_order]
-        self.combat_order = sorted(self.combat_order, key=lambda a: self.entities[a]['initiative'], reverse=True)
+            self.combat_order = [entity for entity, _ in _combat_order]
+            self.combat_order = sorted(self.combat_order, key=lambda a: self.entities[a]['initiative'], reverse=True)
         self.event_manager.received_event({"event": 'start_of_combat',
                                            "target" : self.current_turn,
                                            "combat_order" : [[e, self.entities[e]['initiative']] for e in self.combat_order],
@@ -303,7 +312,11 @@ class Battle():
         opts = {
             'battle': self
         }
-        return action.resolve(self.session, self.map, opts)
+        # check if action is a generator due to a yield
+        if hasattr(action, 'send'):
+            return action
+        else:
+            return action.resolve(self.session, self.map, opts)
     
     def resolve_action(self, source, action_type, opts=None):
         if opts is None:
@@ -316,6 +329,10 @@ class Battle():
         if action is None:
             print('action is None')
             return
+        
+        # if action is a generator, just return it
+        if hasattr(action, 'send'):
+            return action
 
         # check_action_serialization(action)
         for item in action.result:
@@ -339,6 +356,7 @@ class Battle():
             self.trigger_event('interact', action)
 
         self.battle_log.append(action)
+        return None
 
     def get_animation_logs(self):
         return self.animation_log
@@ -526,12 +544,18 @@ class Battle():
 
         return False
 
-    def trigger_opportunity_attack(self, entity, target, cur_x, cur_y):
+    def trigger_opportunity_attack(self, entity, target, cur_x, cur_y, action=None):
         event = {
             'target': target,
             'position': [cur_x, cur_y]
         }
-        action = entity.trigger_event('opportunity_attack', self, self.session, self.map, event)
+        if action is None:
+            action = entity.trigger_event('opportunity_attack', self, self.session, self.map, event)
+            # check if action is a generator due to a yield
+            if hasattr(action, 'send'):
+                return action
+
         if action:
             self.action(action)
             self.commit(action)
+        return None
