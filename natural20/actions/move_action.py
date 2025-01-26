@@ -2,6 +2,7 @@ from typing import List, Tuple
 from natural20.action import Action
 from natural20.utils.movement import compute_actual_moves, retrieve_opportunity_attacks
 from natural20.map_renderer import MapRenderer
+from natural20.action import AsyncReactionHandler
 import pdb
 class MoveAction(Action):
     """
@@ -89,6 +90,9 @@ class MoveAction(Action):
 
         actual_moves = self.check_opportunity_attacks(self.source, actual_moves, battle)
 
+        # if acutal_moves is a generator just exit
+        if actual_moves and hasattr(actual_moves, 'send'):
+            return actual_moves
 
         actual_moves = self.check_movement_athletics(actual_moves, movement.athletics_check_locations, battle, map)
 
@@ -157,8 +161,14 @@ class MoveAction(Action):
             for enemy_opportunity in retrieve_opportunity_attacks(entity, move_list, battle):
                 original_location = move_list[:enemy_opportunity['path']]
                 attack_location = original_location[-1]
-                battle.trigger_opportunity_attack(enemy_opportunity['source'], entity, *attack_location)
+                stored_reaction = self.has_async_reaction_for_source(enemy_opportunity['source'], 'opportunity_attack')
 
+                if stored_reaction:
+                    result = battle.trigger_opportunity_attack(enemy_opportunity['source'], entity, *attack_location, stored_reaction)
+                else:
+                    result = battle.trigger_opportunity_attack(enemy_opportunity['source'], entity, *attack_location)
+                    if hasattr(result, 'send'):
+                        raise AsyncReactionHandler(enemy_opportunity['source'], result, self, 'opportunity_attack')
                 if not grappled and not entity.conscious():
                     return original_location
 
