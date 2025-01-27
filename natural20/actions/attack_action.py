@@ -36,7 +36,10 @@ class AttackAction(Action):
             if self.as_reaction:
                 return f"{self.source} uses {self.using} as a reaction to attack {self.target}"
             else:
-                return f"{self.source} attacks {self.target} with {self.using}"
+                if self.npc_action:
+                    return f"{self.source} uses {self.npc_action['name']} to attack {self.target}"
+                else:
+                    return f"{self.source} attacks {self.target} with {self.using}"
 
     def to_dict(self):
         return {
@@ -231,7 +234,7 @@ class AttackAction(Action):
 
         target_ac, _cover_ac = effective_ac(battle, self.source, target)
 
-        after_attack_roll_hook(battle, target, self.source, attack_roll, target_ac)
+        after_attack_roll_hook(battle, target, self.source, attack_roll, target_ac, {'original_action': self })
 
         return self._resolve_hit(battle, target, weapon, attack_roll, damage_roll, attack_name, ammo_type, adv_info)
 

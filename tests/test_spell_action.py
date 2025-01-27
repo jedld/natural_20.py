@@ -1,8 +1,13 @@
 import unittest
 from natural20.actions.spell_action import SpellAction
+from natural20.actions.attack_action import AttackAction
+from natural20.spell.shield_spell import ShieldSpell
 from natural20.session import Session
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
+from natural20.die_roll import DieRoll
+from natural20.controller import Controller
+from natural20.action import AsyncReactionHandler
 
 from natural20.map import Map
 from natural20.battle import Battle
@@ -163,6 +168,86 @@ class TestSpellAction(unittest.TestCase):
         action = SpellAction.build(self.session, self.entity)['next'](['firebolt', 0])['next'](self.npc)
         self.assertAlmostEqual(action.compute_hit_probability(self.battle), 0.49)
         self.assertAlmostEqual(action.avg_damage(self.battle), 5.5)
+
+    def test_shield_spell(self):
+        class CustomReactionController(Controller):
+            def __init__(self, session):
+                self.state = {}
+                self.session = session
+                self.battle_data = {}
+                self.user = None
+
+            def select_reaction(self, entity, battle, map, valid_actions, event):
+                return valid_actions[0]
+        self.battle.set_controller_for(self.entity, CustomReactionController(self.session))
+        self.assertEqual(self.entity.armor_class(), 12)
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[1, 6])
+        self.npc.reset_turn(self.battle)
+        random.seed(1003)
+        print(MapRenderer(self.battle_map).render())
+        # make the skeleton attack the mage
+        DieRoll.fudge(10)
+        action = AttackAction(self.session, self.npc, 'attack')
+        action.target = self.entity
+        action.npc_action = {
+            "name": "Short Sword",
+            "type": 'melee_attack',
+            "range": 5,
+            "targets": 1,
+            "attack": 4,
+            "damage": 5,
+            "damage_die": "1d6+2",
+            "damage_type": "piercing"
+        }
+        self.battle.action(action)
+        self.battle.commit(action)
+        DieRoll.unfudge()
+        self.assertEqual(self.entity.hp(), 6)
+
+    def test_shield_spell_async(self):
+        class CustomReactionController(Controller):
+            def __init__(self, session):
+                self.state = {}
+                self.session = session
+                self.battle_data = {}
+                self.user = None
+
+            def select_reaction(self, entity, battle, map, valid_actions, event):
+                yield entity, event, valid_actions
+
+        self.battle.set_controller_for(self.entity, CustomReactionController(self.session))
+        self.assertEqual(self.entity.armor_class(), 12)
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[1, 6])
+        self.npc.reset_turn(self.battle)
+        random.seed(1003)
+        print(MapRenderer(self.battle_map).render())
+        # make the skeleton attack the mage
+        DieRoll.fudge(10)
+        action = AttackAction(self.session, self.npc, 'attack')
+        action.target = self.entity
+        action.npc_action = {
+            "name": "Short Sword",
+            "type": 'melee_attack',
+            "range": 5,
+            "targets": 1,
+            "attack": 4,
+            "damage": 5,
+            "damage_die": "1d6+2",
+            "damage_type": "piercing"
+        }
+        try:
+            self.battle.action(action)
+        except AsyncReactionHandler as e:
+            print("waiting for reaction")
+            if (e.reaction_type == 'shield'):
+                for _, _, valid_actions in e.resolve():
+                    e.send(valid_actions[0])
+                action = self.battle.action(action)
+        self.battle.commit(action)
+        DieRoll.unfudge()
+        self.assertEqual(self.entity.hp(), 6)
 
     def test_autobuild(self):
         self.npc = self.session.npc('skeleton')
