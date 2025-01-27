@@ -29,7 +29,25 @@
         }
     </style>
 </head>
-<body data-soundtrack="{{ soundtrack }}" data-battle_in_progress="{{ 'true' if battle else 'false' }}" data-username="{{ username }}" data-role="{{ role }}" data-controls="{{ entity_ids }}">
+<body data-soundtrack="{{ soundtrack }}" data-battle_in_progress="{{ 'true' if battle else 'false' }}" 
+      data-waiting-for-reaction="{{ 'true' if waiting_for_reaction else 'false' }}"
+      data-username="{{ username }}" data-role="{{ role }}" data-controls="{{ entity_ids }}">
+    <div id="reaction-modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content actions-container">
+                <div class="modal-body">
+                    <form id="reaction-from"  method="post" action="/reaction" class="form-horizontal" role="form" style="margin-top: 20px;" data-remote="true">
+                        <div class="reaction-content">
+                            {% if waiting_for_reaction %}
+                                {% include "reactions/" ~ waiting_for_reaction[1].reaction_type ~ ".html" %}
+                            {% endif %}
+                        </div>
+                        
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div id="floating-menu">
         <button id="expand-menu" class="menu-button">

@@ -1,5 +1,6 @@
 import inflect
 import i18n
+import uuid
 # typed: true
 class AsyncReactionHandler(Exception):
     def __init__(self, source, generator, action, reaction_type):
@@ -19,8 +20,15 @@ class AsyncReactionHandler(Exception):
     def send(self, result):
         self.action.add_reaction(self.reaction_type, self.source, result)
 
+    def __repr__(self):
+        return f"{self.source} -> {self.reaction_type} on {self.action} by {self.action.source}"
+    
+    def __str__(self):
+        return f"{self.source} -> {self.reaction_type} on {self.action} by {self.action.source}"
+
 class Action:
     def __init__(self, session, source, action_type, opts=None):
+        self.uid = uuid.uuid4()
         self.source = source
         self.session = session
         self.action_type = action_type
@@ -42,7 +50,7 @@ class Action:
         for key, value in self.async_reactions.items():
             if key == reaction_type and value[0] == source:
                 return value[1]
-        return None
+        return False
 
     def clone(self):
         return Action(self.session, self.source, self.action_type, self.opts)

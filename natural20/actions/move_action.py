@@ -163,7 +163,7 @@ class MoveAction(Action):
                 attack_location = original_location[-1]
                 stored_reaction = self.has_async_reaction_for_source(enemy_opportunity['source'], 'opportunity_attack')
 
-                if stored_reaction:
+                if stored_reaction is not False:
                     result = battle.trigger_opportunity_attack(enemy_opportunity['source'], entity, *attack_location, stored_reaction)
                 else:
                     result = battle.trigger_opportunity_attack(enemy_opportunity['source'], entity, *attack_location)

@@ -26,3 +26,17 @@ class WebController(GenericController):
     def move_for(self, entity, battle):
         # raise exception to return back to the webapp
         raise ManualControl()
+    
+    def opportunity_attack_listener(self, battle, session, entity, map, event):
+        self.reaction = event
+        actions = [s for s in entity.available_actions(session, battle, opportunity_attack=True)]
+
+        valid_actions = []
+        for action in actions:
+            valid_targets = battle.valid_targets_for(entity, action)
+            if event['target'] in valid_targets:
+                action.target = event['target']
+                action.as_reaction = True
+                valid_actions.append(action)
+
+        yield battle, entity, valid_actions
