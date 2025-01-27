@@ -540,7 +540,9 @@ def index():
                            width_px=width_px,
                            height_px=height_px,
                            waiting_for_reaction=waiting_for_reaction,
-                           soundtrack=current_soundtrack, title=TITLE, username=session['username'], role=user_role())
+                           soundtrack=current_soundtrack,
+                           title=TITLE,
+                           username=session['username'], role=user_role())
 
 
 @app.route('/response', methods=['POST'])
@@ -953,6 +955,17 @@ def get_spell():
                            entity_x=entity_x, entity_y=entity_y, entity_class_level=entity_class_level)
 
 
+@app.route('/reaction', methods=['GET'])
+def get_reaction():
+    global current_game
+    battle_map = current_game.get_current_battle_map()
+    battle = current_game.get_current_battle()
+    reaction_type = waiting_for_reaction[1].reaction_type
+    return render_template(f"reactions/{reaction_type}.html",
+                           username=session['username'],
+                           waiting_for_reaction=waiting_for_reaction,
+                           battle=battle)
+
 @app.route('/reaction', methods=['POST'])
 def handle_reaction():
     global current_game, waiting_for_reaction, waiting_for_user
@@ -977,6 +990,7 @@ def handle_reaction():
     try:
         battle.action(handler.action)
         battle.commit(handler.action)
+        socketio.emit('message', {'type': 'dismiss_reaction', 'message': {}})
         ai_loop()
         continue_game()
     except AsyncReactionHandler as e:
@@ -1159,7 +1173,7 @@ def action():
         for battle, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
             waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
-        socketio.emit('message', {'type': 'reaction', 'message': {'id': entity_id, 'reaction': 'opportunity_attack', 'choices': valid_actions_str}})
+        socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
         return jsonify(status='ok')
 
 
