@@ -153,6 +153,11 @@ $(document).ready(function () {
   const controls_entities = $('body').data('controls');
   const socket = io();
 
+  var waitingForReaction = $('body').data('waiting-for-reaction');
+  if (waitingForReaction) {
+    $('#reaction-modal').modal('show');
+  }
+
   socket.on('connect', function() {
     console.log("Connected to the server");
     socket.emit('register', {

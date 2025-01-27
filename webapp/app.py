@@ -28,7 +28,7 @@ from natural20.actions.first_aid_action import FirstAidAction
 from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.entity import Entity
-from natural20.action import Action
+from natural20.action import Action, AsyncReactionHandler
 from natural20.battle import Battle
 from natural20.map import Map
 from natural20.utils.movement import Movement
@@ -209,6 +209,7 @@ class GameManagement:
 
 current_game = GameManagement(game_session=game_session, map_location=BATTLEMAP)
 waiting_for_user = None
+waiting_for_reaction = None
 current_soundtrack = None
 i18n.set('locale', 'en')
 
@@ -419,8 +420,9 @@ def process_action_hash(action):
 
 app.add_template_global(process_action_hash, name='process_action_hash')
 
+            
 def game_loop():
-    global waiting_for_user, current_game
+    global waiting_for_user, waiting_for_reaction, current_game
 
     battle = current_game.get_current_battle()
     try:
@@ -456,8 +458,6 @@ def game_loop():
 
             battle.end_turn()
             battle.next_turn()
-
-
     except ManualControl:
         logger.info("waiting for user to end turn.")
         waiting_for_user = True
@@ -539,6 +539,7 @@ def index():
                            background_color=background_color,
                            width_px=width_px,
                            height_px=height_px,
+                           waiting_for_reaction=waiting_for_reaction,
                            soundtrack=current_soundtrack, title=TITLE, username=session['username'], role=user_role())
 
 
@@ -725,11 +726,26 @@ def start_battle_with_initiative():
 
 @app.route('/end_turn', methods=['POST'])
 def end_turn():
+    global waiting_for_reaction, current_game
     battle = current_game.get_current_battle()
     battle_map = current_game.get_current_battle_map()
     battle.end_turn()
     battle.next_turn()
+    try:
+        continue_game()
+        return jsonify(status='ok')
+    except AsyncReactionHandler as e:
+        for battle, entity, valid_actions in e.resolve():
+            valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
+            waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
+        socketio.emit('message', {'type': 'reaction', 'message': {'id': str(entity.uid), 'reaction': 'opportunity_attack', 'choices': valid_actions_str}})
+
+
+def continue_game():
+    battle = current_game.get_current_battle()
+    battle_map = current_game.get_current_battle_map()
     game_loop()
+
     current_turn = battle.current_turn()
     socketio.emit('message', { 'type': 'initiative', 'message': { 'index': battle.current_turn_index} })
     socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 'animation_log' : battle.get_animation_logs() }})
@@ -738,7 +754,6 @@ def end_turn():
     # battle.clear_animation_logs()
     with open('save.yml','w+') as f:
         f.write(yaml.dump(battle_map.to_dict()))
-    return jsonify(status='ok')
 
 @app.route('/turn_order', methods=['GET'])
 def get_turn_order():
@@ -938,9 +953,47 @@ def get_spell():
                            entity_x=entity_x, entity_y=entity_y, entity_class_level=entity_class_level)
 
 
+@app.route('/reaction', methods=['POST'])
+def handle_reaction():
+    global current_game, waiting_for_reaction, waiting_for_user
+    battle = current_game.get_current_battle()
+    reaction_id = request.form.get('reaction')
+    if not reaction_id:
+        return jsonify(error="No reaction provided"), 400
+    if waiting_for_reaction is None:
+        return jsonify(error="No reaction expected"), 400
+    entity, handler, generator, valid_actions_str = waiting_for_reaction
+
+    if reaction_id == 'no-reaction':
+        handler.send(None)
+    else:
+        for _, _, action in valid_actions_str:
+            print(f"action {action.uid} == reaction {reaction_id}")
+            if str(action.uid) == reaction_id:
+                print(f"selected action {action}")
+                handler.send(action)
+                break
+    waiting_for_reaction = None
+    try:
+        battle.action(handler.action)
+        battle.commit(handler.action)
+        ai_loop()
+        continue_game()
+    except AsyncReactionHandler as e:
+        for battle, entity, valid_actions in e.resolve():
+            valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
+            waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
+        socketio.emit('message', {'type': 'reaction', 'message': {'id': str(entity.entity_uid), 'reaction': 'opportunity_attack', 'choices': valid_actions_str}})
+    except ManualControl:
+        logger.info("waiting for user to end turn.")
+        waiting_for_user = True
+    return jsonify(status='ok')
+
+
+
 @app.route('/action', methods=['POST'])
 def action():
-    global current_game
+    global current_game, waiting_for_reaction
     battle_map = current_game.get_current_battle_map()
     battle = current_game.get_current_battle()
     action_request = request.json
@@ -951,133 +1004,44 @@ def action():
     action_info = {}
     action_hash = None
     target_coords = action_request.get('target', None)
-
-    if action_type == 'MoveAction':
-        path = action_request.get('path', None)
-        action = MoveAction(game_session, entity, 'move')
-        if path:
-            move_path = sorted([(int(index), [int(coord[0]), int(coord[1])]) for index, coord in enumerate(path)])
-            move_path = [coords for _, coords in move_path]
-            action.move_path = move_path
-            if battle:
-                return jsonify(commit_and_update(action))
+    try:
+        if action_type == 'MoveAction':
+            path = action_request.get('path', None)
+            action = MoveAction(game_session, entity, 'move')
+            if path:
+                move_path = sorted([(int(index), [int(coord[0]), int(coord[1])]) for index, coord in enumerate(path)])
+                move_path = [coords for _, coords in move_path]
+                action.move_path = move_path
+                if battle:
+                    return jsonify(commit_and_update(action))
+                else:
+                    last_coords = move_path[-1]
+                    if battle_map.placeable(entity, last_coords[0], last_coords[1]):
+                        battle_map.move_to(entity, *last_coords, battle)
+                        if battle:
+                            socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1],
+                                                                                'animation_log': battle.get_animation_logs()}})
+                            battle.clear_animation_logs()
+                        return jsonify({'status': 'ok'})
             else:
-                last_coords = move_path[-1]
-                if battle_map.placeable(entity, last_coords[0], last_coords[1]):
-                    battle_map.move_to(entity, *last_coords, battle)
-                    if battle:
-                        socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1],
-                                                                            'animation_log': battle.get_animation_logs()}})
-                        battle.clear_animation_logs()
-                    return jsonify({'status': 'ok'})
-        else:
-            action_info['action'] = 'movement'
-            action_info['type'] = 'select_path'
-            build_map = action.build_map()
-            action_info['param'] = build_map['param']
-            return jsonify(action_info)
-    elif action_type == 'SpellAction':
-        action = SpellAction(game_session, entity, 'spell')
-        selected_spell = opts.get('spell')
-        at_level = opts.get('at_level')
-        target = opts.get('target')
+                action_info['action'] = 'movement'
+                action_info['type'] = 'select_path'
+                build_map = action.build_map()
+                action_info['param'] = build_map['param']
+                return jsonify(action_info)
+        elif action_type == 'SpellAction':
+            action = SpellAction(game_session, entity, 'spell')
+            selected_spell = opts.get('spell')
+            at_level = opts.get('at_level')
+            target = opts.get('target')
 
-        if selected_spell:
-            action.spell = game_session.load_spell(selected_spell)
-            current_map = action.build_map()
-            current_map = current_map['next']((selected_spell, at_level))
-            if isinstance(current_map, Action):
-                return jsonify(commit_and_update(current_map))
-            else:
-                if target_coords:
-                    if isinstance(target_coords, list):
-                        target = []
-                        for entity_uids in target_coords:
-                            target.append(battle_map.entity_by_uid(entity_uids))
-                    else:
-                        target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
-                        if target is None:
-                            raise ValueError(f"Invalid target {target_coords}")
-
-                    current_map = current_map['next'](target)
-
-                    if isinstance(current_map, Action):
-                        validate_targets(current_map, entity, target, current_map, battle)
-                        return jsonify(commit_and_update(current_map))
-                    else:
-                        raise ValueError(f"Invalid action map {current_map}")
-
-                action_info["action"] = "spell"
-                action_info["type"] = "select_target"
-                action_info["param"] = current_map["param"]
-                param_details = current_map["param"][0]
-                action_info['total_targets'] = param_details.get('num', 1)
-                action_info['target_types'] = param_details.get('target_types', ['enemies'])
-                action_info['range'] = param_details.get('range', 5)
-                action_info['range_max'] = param_details.get('range', 5)
-                action_info['spell'] = selected_spell
-                if param_details.get('num', 1) > 1:
-                    target_hints = [ t.entity_uid for t in acquire_targets(param_details, entity, battle, battle_map)]
-                    action_info['target_hints'] = target_hints
-                    action_info['unique_targets'] = param_details.get('unique_targets', False)
-        else:
-            action_info["action"] = "spell"
-            action_info["type"] = "select_spell"
-            current_map = action.build_map()
-            action_info["param"] = current_map["param"]
-
-
-
-    elif action_type == 'AttackAction' or action_type == 'TwoWeaponAttackAction':
-        if action_type == 'AttackAction':
-            action = AttackAction(game_session, entity, 'attack')
-        else:
-            action = TwoWeaponAttackAction(game_session, entity, 'attack')
-        action.using = opts.get('using')
-        action.npc_action = opts.get('npc_action', None)
-        action.thrown = opts.get('thrown', False)
-
-        valid_targets = battle_map.valid_targets_for(entity, action)
-        valid_targets = { target.entity_uid: battle_map.entity_or_object_pos(target) for target in valid_targets}
-
-        if action.npc_action:
-            weapon_details = action.npc_action
-        else:
-            weapon_details = game_session.load_weapon(action.using)
-
-        if target_coords:
-            target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
-            if valid_targets.get(target.entity_uid):
-                action.target = target
-                return jsonify(commit_and_update(action))
-        else:
-            action_info['action'] = 'attack'
-            action_info['type'] = 'select_target'
-            action_info['valid_targets'] = valid_targets
-            action_info['total_targets'] = 1
-            if action.thrown:
-                action_info['range'] = weapon_details.get('thrown', {}).get('range')
-                action_info['range_max'] = weapon_details.get('thrown', {}).get('range_max', weapon_details.get('thrown', {}).get('range'))
-            else:
-                action_info['range'] = weapon_details['range']
-                action_info['range_max'] = weapon_details.get('range_max', weapon_details['range'])
-
-            build_map = action.build_map()
-
-            action_info['param'] = build_map['param']
-    else:
-        action_class = action_type_to_class(action_type)
-        opts = action_request.get('opts', {})
-        action = action_class(game_session, entity, opts.get('action_type'))
-        action = action.build_map()
-        if isinstance(action, Action):
-            return jsonify(commit_and_update(action))
-        else:
-            if len(action['param'])==1:
-                param_details = action['param'][0]
-                if param_details['type'] == 'select_target':
-                    valid_targets = battle_map.valid_targets_for(entity, param_details)
-                    valid_targets = {target.entity_uid: battle_map.entity_or_object_pos(target) for target in valid_targets}
+            if selected_spell:
+                action.spell = game_session.load_spell(selected_spell)
+                current_map = action.build_map()
+                current_map = current_map['next']((selected_spell, at_level))
+                if isinstance(current_map, Action):
+                    return jsonify(commit_and_update(current_map))
+                else:
                     if target_coords:
                         if isinstance(target_coords, list):
                             target = []
@@ -1087,24 +1051,117 @@ def action():
                             target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
                             if target is None:
                                 raise ValueError(f"Invalid target {target_coords}")
-                        current_map = action['next'](target)
+
+                        current_map = current_map['next'](target)
 
                         if isinstance(current_map, Action):
+                            validate_targets(current_map, entity, target, current_map, battle)
                             return jsonify(commit_and_update(current_map))
                         else:
                             raise ValueError(f"Invalid action map {current_map}")
-                    else:
-                        action_info['action'] = action_type
-                        action_info['type'] = 'select_target'
-                        action_info['valid_targets'] = valid_targets
-                        action_info['total_targets'] = param_details['num']
-                        action_info['param'] = action['param']
-                        action_info['range'] = param_details.get('range', 5)
-                        action_info['range_max'] = param_details.get('max_range', param_details.get('range', 5))
-            else:
-                raise ValueError(f"Invalid action map {action}")
 
-    return jsonify(action_info)
+                    action_info["action"] = "spell"
+                    action_info["type"] = "select_target"
+                    action_info["param"] = current_map["param"]
+                    param_details = current_map["param"][0]
+                    action_info['total_targets'] = param_details.get('num', 1)
+                    action_info['target_types'] = param_details.get('target_types', ['enemies'])
+                    action_info['range'] = param_details.get('range', 5)
+                    action_info['range_max'] = param_details.get('range', 5)
+                    action_info['spell'] = selected_spell
+                    if param_details.get('num', 1) > 1:
+                        target_hints = [ t.entity_uid for t in acquire_targets(param_details, entity, battle, battle_map)]
+                        action_info['target_hints'] = target_hints
+                        action_info['unique_targets'] = param_details.get('unique_targets', False)
+            else:
+                action_info["action"] = "spell"
+                action_info["type"] = "select_spell"
+                current_map = action.build_map()
+                action_info["param"] = current_map["param"]
+        elif action_type == 'AttackAction' or action_type == 'TwoWeaponAttackAction':
+            if action_type == 'AttackAction':
+                action = AttackAction(game_session, entity, 'attack')
+            else:
+                action = TwoWeaponAttackAction(game_session, entity, 'attack')
+            action.using = opts.get('using')
+            action.npc_action = opts.get('npc_action', None)
+            action.thrown = opts.get('thrown', False)
+
+            valid_targets = battle_map.valid_targets_for(entity, action)
+            valid_targets = { target.entity_uid: battle_map.entity_or_object_pos(target) for target in valid_targets}
+
+            if action.npc_action:
+                weapon_details = action.npc_action
+            else:
+                weapon_details = game_session.load_weapon(action.using)
+
+            if target_coords:
+                target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
+                if valid_targets.get(target.entity_uid):
+                    action.target = target
+                    return jsonify(commit_and_update(action))
+            else:
+                action_info['action'] = 'attack'
+                action_info['type'] = 'select_target'
+                action_info['valid_targets'] = valid_targets
+                action_info['total_targets'] = 1
+                if action.thrown:
+                    action_info['range'] = weapon_details.get('thrown', {}).get('range')
+                    action_info['range_max'] = weapon_details.get('thrown', {}).get('range_max', weapon_details.get('thrown', {}).get('range'))
+                else:
+                    action_info['range'] = weapon_details['range']
+                    action_info['range_max'] = weapon_details.get('range_max', weapon_details['range'])
+
+                build_map = action.build_map()
+
+                action_info['param'] = build_map['param']
+        else:
+            action_class = action_type_to_class(action_type)
+            opts = action_request.get('opts', {})
+            action = action_class(game_session, entity, opts.get('action_type'))
+            action = action.build_map()
+            if isinstance(action, Action):
+                return jsonify(commit_and_update(action))
+            else:
+                if len(action['param'])==1:
+                    param_details = action['param'][0]
+                    if param_details['type'] == 'select_target':
+                        valid_targets = battle_map.valid_targets_for(entity, param_details)
+                        valid_targets = {target.entity_uid: battle_map.entity_or_object_pos(target) for target in valid_targets}
+                        if target_coords:
+                            if isinstance(target_coords, list):
+                                target = []
+                                for entity_uids in target_coords:
+                                    target.append(battle_map.entity_by_uid(entity_uids))
+                            else:
+                                target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
+                                if target is None:
+                                    raise ValueError(f"Invalid target {target_coords}")
+                            current_map = action['next'](target)
+
+                            if isinstance(current_map, Action):
+                                return jsonify(commit_and_update(current_map))
+                            else:
+                                raise ValueError(f"Invalid action map {current_map}")
+                        else:
+                            action_info['action'] = action_type
+                            action_info['type'] = 'select_target'
+                            action_info['valid_targets'] = valid_targets
+                            action_info['total_targets'] = param_details['num']
+                            action_info['param'] = action['param']
+                            action_info['range'] = param_details.get('range', 5)
+                            action_info['range_max'] = param_details.get('max_range', param_details.get('range', 5))
+                else:
+                    raise ValueError(f"Invalid action map {action}")
+
+        return jsonify(action_info)
+    except AsyncReactionHandler as e:
+        for battle, entity, valid_actions in e.resolve():
+            valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
+            waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
+        socketio.emit('message', {'type': 'reaction', 'message': {'id': entity_id, 'reaction': 'opportunity_attack', 'choices': valid_actions_str}})
+        return jsonify(status='ok')
+
 
 @app.route('/info', methods=['GET'])
 def get_info():
