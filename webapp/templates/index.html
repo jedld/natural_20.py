@@ -36,7 +36,7 @@
         <div class="modal-dialog">
             <div class="modal-content actions-container">
                 <div class="modal-body">
-                    <form id="reaction-from"  method="post" action="/reaction" class="form-horizontal" role="form" style="margin-top: 20px;" data-remote="true">
+                    <form id="reaction-form"  method="post" action="/reaction" class="form-horizontal" role="form" style="margin-top: 20px;" data-remote="true">
                         <div class="reaction-content">
                             {% if waiting_for_reaction %}
                                 {% include "reactions/" ~ waiting_for_reaction[1].reaction_type ~ ".html" %}

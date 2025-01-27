@@ -396,6 +396,15 @@ $(document).ready(function () {
         $('#start-battle').show();
         $('#end-battle').hide();
         break;
+      case 'reaction':
+        $.get('/reaction', function (data) {
+          $('#reaction-modal .reaction-content').html(data);
+          $('#reaction-modal').modal('show');
+        });
+        break;
+      case 'dismiss_reaction':
+        $('#reaction-modal').modal('hide');
+        break;
       default:
         console.log('Unknown message type:', data.type);
     }
@@ -410,6 +419,26 @@ $(document).ready(function () {
       playSound(currentSoundtrack, track_id);
       currentSoundtrack = null;
     }
+  });
+
+  $('#reaction-form').on('submit', function (event) {
+    event.preventDefault();
+    var reaction = $('#reaction-form input[name="reaction"]:checked').val();
+    var data = {
+      reaction: reaction
+    };
+    $.ajax({
+      url: '/reaction',
+      type: 'POST',
+      data: data,
+      success: function (data) {
+        console.log('Reaction submitted successfully:', data);
+        $('#reaction-modal').modal('hide');
+      },
+      error: function (jqXHR, textStatus, errorThrown) {
+        console.error('Error submitting reaction:', textStatus, errorThrown);
+      }
+    });
   });
 
   // Listen for changes on the volume slider
