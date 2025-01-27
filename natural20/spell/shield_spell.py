@@ -1,5 +1,5 @@
 from natural20.spell.spell import Spell, consume_resource
-from natural20.action import Action
+from natural20.action import Action, AsyncReactionHandler
 from natural20.actions.spell_action import SpellAction
 import pdb
 class ShieldSpell(Spell):
@@ -34,8 +34,8 @@ class ShieldSpell(Spell):
             opts = {}
 
         spell = battle.session.load_spell('shield')
-
-        if attack_roll is None or attack_roll.result in range(effective_ac, effective_ac + 5):
+        original_action = opts.get('original_action', None)
+        if attack_roll is None or attack_roll.result() in range(effective_ac, effective_ac + 5):
             entity_controller = battle.controller_for(entity)
             if entity_controller is None:
                 return [[], False]
@@ -54,8 +54,16 @@ class ShieldSpell(Spell):
                 'spell': spell,
                 'trigger': 'shield'
             }
-            result = entity_controller.select_reaction(entity, battle, battle.map, valid_actions, event)
+            if original_action:
+                stored_reaction = original_action.has_async_reaction_for_source(entity, 'shield')
+                result = stored_reaction if stored_reaction is not False else entity_controller.select_reaction(
+                    entity, battle, battle.map, valid_actions, event
+                )
+            else:
+                result = entity_controller.select_action(battle, entity, valid_actions)
 
+            if hasattr(result, 'send'):
+                raise AsyncReactionHandler(entity, result, original_action, 'shield')
             if result:
                 return [[event], False]
             else:

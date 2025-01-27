@@ -40,3 +40,7 @@ class WebController(GenericController):
                 valid_actions.append(action)
 
         yield battle, entity, valid_actions
+
+    def select_reaction(self, entity, battle, map, valid_actions, event):
+        yield battle , entity, valid_actions
+    

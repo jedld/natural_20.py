@@ -1,6 +1,10 @@
 import random
 import i18n
 import copy
+import pdb
+
+FUDGE_HASH = {}
+
 class DieRollDetail:
     def __init__(self):
         self.die_count = None  # Integer
@@ -50,13 +54,15 @@ class Roller:
             if self.battle:
                 rolls = self.battle.roll_for(self.entity, die_sides, number_of_die, description, advantage=self.advantage, disadvantage=self.disadvantage, controller=self.controller)
             else:
-                rolls = [(random.randint(1, die_sides), random.randint(1, die_sides)) for _ in range(number_of_die)]
+                rolls = [(DieRoll.generate_number(die_sides), DieRoll.generate_number(die_sides)) for _ in range(number_of_die)]
         elif self.battle:
             rolls = self.battle.roll_for(self.entity, die_sides, number_of_die, description, controller=self.controller)
         else:
-            rolls = [random.randint(1, die_sides) for _ in range(number_of_die)]
+            rolls = [DieRoll.generate_number(die_sides) for _ in range(number_of_die)]
 
         return DieRoll(rolls, 0 if not modifier_str else int(f"{modifier_op}{modifier_str}"), die_sides, advantage=self.advantage, disadvantage=self.disadvantage, roller=self)
+
+
 
     def t(self, key, options=None):
         return i18n.t(key, **options)
@@ -315,6 +321,38 @@ class DieRoll(Rollable):
         roller = Roller(roll_str, crit=crit, disadvantage=disadvantage, advantage=advantage,
                         description=description, entity=entity, battle=battle, controller=controller)
         return roller.roll()
+    
+    @staticmethod
+    def fudge(fixed_roll, die_sides=20):
+        global FUDGE_HASH
+        FUDGE_HASH[die_sides] = fixed_roll
+
+    @staticmethod
+    def unfudge(die_sides=20):
+        global FUDGE_HASH
+        if die_sides in FUDGE_HASH:
+            del FUDGE_HASH[die_sides]
+
+    @staticmethod
+    def roll_for(die_type, number_of_times, advantage=False, disadvantage=False):
+        if advantage or disadvantage:
+            return [DieRoll.generate_number(die_type, advantage=advantage, disadvantage=disadvantage) for _ in range(number_of_times)]
+        else:
+            return [DieRoll.generate_number(die_type) for _ in range(number_of_times)]
+
+    @staticmethod
+    def generate_number(die_sides, advantage=False, disadvantage=False):
+        global FUDGE_HASH
+        if die_sides in FUDGE_HASH:
+            if advantage or disadvantage:
+                return [FUDGE_HASH[die_sides], FUDGE_HASH[die_sides]]
+            else:
+                return FUDGE_HASH[die_sides]
+
+        if advantage or disadvantage:
+            return random.sample(range(1, die_sides + 1), 2)
+        else:
+            return random.randint(1, die_sides)
 
     @staticmethod
     def roll_with_lucky(entity, roll_str, crit=False, disadvantage=False, advantage=False, description=None, battle=None):

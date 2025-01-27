@@ -7,6 +7,7 @@ from natural20.utils.ac_utils import cover_calculation
 from natural20.map import Map
 from natural20.session import Session
 from natural20.entity import Entity
+from natural20.die_roll import DieRoll
 import pdb
 class Battle():
     def __init__(self, session: Session, map: Map, standard_controller = None, animation_log_enabled=False):
@@ -119,10 +120,7 @@ class Battle():
                                            "players" : self.entities })
 
     def roll_for(self, entity, die_type, number_of_times, description, advantage=False, disadvantage=False, controller=None):
-        if advantage or disadvantage:
-            return [random.sample(range(1, die_type + 1), 2) for _ in range(number_of_times)]
-        else:
-            return [random.randint(1, die_type) for _ in range(number_of_times)]
+        return DieRoll.roll_for(die_type, number_of_times, advantage, disadvantage)
         
     def controller_for(self, entity):
         if entity not in self.entities:
