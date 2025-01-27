@@ -957,7 +957,7 @@ def get_spell():
 
 @app.route('/reaction', methods=['GET'])
 def get_reaction():
-    global current_game
+    global current_game, waiting_for_reaction
     battle = current_game.get_current_battle()
     reaction_type = waiting_for_reaction[1].reaction_type
     return render_template(f"reactions/{reaction_type}.html",

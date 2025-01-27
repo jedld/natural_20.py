@@ -41,7 +41,8 @@ actions:
     damage_die: 1d6+2
     damage_type: piercing
     on_hit:
-      - save_dc: strength:11
+      - description: If the target is a creature, it must succeed on a DC 11 Strength saving throw or be knocked prone.
+        save_dc: strength:11
         if: "target:!object"
         flavor_fail: wolf.lunge
         fail: status:prone

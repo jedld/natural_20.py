@@ -38,7 +38,8 @@ class WebController(GenericController):
                 action.target = event['target']
                 action.as_reaction = True
                 valid_actions.append(action)
-
+        if len(valid_actions) == 0:
+            return None
         yield battle, entity, valid_actions
 
     def select_reaction(self, entity, battle, map, valid_actions, event):

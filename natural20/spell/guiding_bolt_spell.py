@@ -40,7 +40,7 @@ class GuidingBoltSpell(AttackSpell):
     def resolve(self, entity, battle, spell_action):
         target = spell_action.target
 
-        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties)
+        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})
 
         if hit:
             damage_roll = self._damage(battle, opts={"at_level": spell_action.at_level})

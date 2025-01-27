@@ -183,6 +183,7 @@ class EventManager:
             'miss': miss,
             'hide': hide,
             'ice_knife': ice_knife,
+            'flavor': lambda event: self.output_logger.log(self.t(f"event.flavor.{event['text']}", **event)),
             'lucky_reroll': lambda event: self.output_logger.log(f"{self.show_name(event)} uses luck to reroll from {event['old_roll']} to {event['roll']}"),
             'grapple_success': lambda event: self.output_logger.log(f"{self.show_name(event)} grapples {self.show_target_name(event)}"),            'move': lambda event: self.output_logger.log(f"{self.show_name(event)} moved to {event['position']} {event['move_cost'] * 5} feet"),
             'grapple_failed': lambda event: self.output_logger.log(f"{self.show_name(event)} failed to grapple {self.show_target_name(event)}"),
@@ -191,6 +192,8 @@ class EventManager:
             'start_of_turn': lambda event: self.output_logger.log(f"======== {self.show_name(event)} starts their turn. ========"),
             'spell_buf': lambda event: self.output_logger.log(f"{self.show_name(event)} cast {event['spell'].name} on {self.show_target_name(event)}"),
             'spell_heal': lambda event: self.output_logger.log(f"{self.show_name(event)} cast {event['spell']['name']} on {self.show_target_name(event)} and healed for {event['heal_roll']}={event['heal_roll'].result()} hit points."),
+            'save_success': lambda event: self.output_logger.log(f"{self.show_name(event)} succeeded on a saving throw against DC {event['dc']} with {event['roll']}={event['roll'].result()}"),
+            'save_fail': lambda event: self.output_logger.log(f"{self.show_name(event)} failed on a saving throw against {event['dc']} with {event['roll']}={event['roll'].result()}"),
             'start_of_combat': start_of_combat,
         }
 
