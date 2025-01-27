@@ -16,6 +16,7 @@ class AttackAction(Action):
         self.as_reaction = None
         self.thrown = None
         self.advantage_mod = None
+        self.attack_roll = None
 
     def second_hand(self):
         return False
@@ -31,15 +32,12 @@ class AttackAction(Action):
 
     def __str__(self):
         if self.thrown:
-            return f"{self.source} throws a {self.using} to {self.target}"
-        else:
-            if self.as_reaction:
-                return f"{self.source} uses {self.using} as a reaction to attack {self.target}"
-            else:
-                if self.npc_action:
-                    return f"{self.source} uses {self.npc_action['name']} to attack {self.target}"
-                else:
-                    return f"{self.source} attacks {self.target} with {self.using}"
+            weapon = self.npc_action['name'] if self.npc_action else self.using
+            return f"{self.source} throws a {weapon} at {self.target}"
+        weapon = self.npc_action['name'] if self.npc_action else self.using
+        if self.as_reaction:
+            return f"{self.source} uses {weapon} as a reaction to attack {self.target}"
+        return f"{self.source} uses {weapon} to attack {self.target}"
 
     def to_dict(self):
         return {
@@ -112,7 +110,7 @@ class AttackAction(Action):
         if 'flavor' in item and item['flavor']:
             flavor = item['flavor']
             if battle:
-                battle.event_manager.received_event({'event': 'flavor', 'source': item['source'], 'target': item['target'], 'text': flavor})
+                battle.event_manager.received_event({'event': 'flavor', 'source': item['source'], 'target': item.get('target', None), 'text': flavor})
 
         if item['type'] == 'prone':
             item['source'].prone()
@@ -214,29 +212,30 @@ class AttackAction(Action):
         if map:
             self.evaluate_feature_protection(battle, map, target, adv_info)
 
-        attack_roll = DieRoll.roll(f"1d20+{attack_mod}", disadvantage=self.with_disadvantage(),
-                                    advantage=self.with_advantage(), description='dice_roll.attack',
-                                    entity=self.source, battle=battle)
+        if self.attack_roll is None:
+            self.attack_roll = DieRoll.roll(f"1d20+{attack_mod}", disadvantage=self.with_disadvantage(),
+                                        advantage=self.with_advantage(), description='dice_roll.attack',
+                                        entity=self.source, battle=battle)
 
-        if self.source.has_effect('bless'):
-            bless_roll = DieRoll.roll("1d4", description='dice_roll.bless', entity=self.source, battle=battle)
-            attack_roll += bless_roll
+            if self.source.has_effect('bless'):
+                bless_roll = DieRoll.roll("1d4", description='dice_roll.bless', entity=self.source, battle=battle)
+                self.attack_roll += bless_roll
 
         # print(f"{self.source.name} rolls a {attack_roll} to attack {target.name}")
         self.source.resolve_trigger('attack_resolved', {'target': target})
 
-        if self.source.class_feature('lucky') and attack_roll.nat_1():
-            self.session.log_event({'event': 'lucky_reroll', 'source': self.source, 'roll': attack_roll})
-            prev_roll = attack_roll
-            attack_roll = attack_roll.reroll(lucky=True)
-            self.session.event_manager.received_event({'event': 'lucky_reroll', 'source': self.source, 'old_roll': prev_roll, 'roll': attack_roll})
+        if self.source.class_feature('lucky') and self.attack_roll.nat_1():
+            self.session.log_event({'event': 'lucky_reroll', 'source': self.source, 'roll': self.attack_roll})
+            prev_roll = self.attack_roll
+            self.attack_roll = self.attack_roll.reroll(lucky=True)
+            self.session.event_manager.received_event({'event': 'lucky_reroll', 'source': self.source, 'old_roll': prev_roll, 'roll': self.attack_roll})
             # print(f"{self.source.name} uses lucky to reroll the attack roll to {attack_roll}")
 
         target_ac, _cover_ac = effective_ac(battle, self.source, target)
 
-        after_attack_roll_hook(battle, target, self.source, attack_roll, target_ac, {'original_action': self })
+        after_attack_roll_hook(battle, target, self.source, self.attack_roll, target_ac, {'original_action': self })
 
-        return self._resolve_hit(battle, target, weapon, attack_roll, damage_roll, attack_name, ammo_type, adv_info)
+        return self._resolve_hit(battle, target, weapon, self.attack_roll, damage_roll, attack_name, ammo_type, adv_info)
 
     def _resolve_hit(self, battle, target, weapon, attack_roll, damage_roll, attack_name, ammo_type, adv_info):
         sneak_attack_roll = None
@@ -303,27 +302,34 @@ class AttackAction(Action):
                 'npc_action': self.npc_action
             })
             if weapon.get('on_hit'):
+                print(f"Applying on_hit effects for {weapon}")
                 for effect in weapon['on_hit']:
                     if effect.get('if') and not self.source.eval_if(effect['if'], {
                          "weapon": weapon, "target":target
                     }):
+                        print(f"Skipping on_hit effect {effect}")
                         continue
-
                     if effect.get('save_dc'):
                         save_type, dc = effect['save_dc'].split(':')
                         if not save_type or not dc:
                             raise Exception('invalid values: save_dc should be of the form <save>:<dc>')
                         # if save_type not in Natural20.Entity.ATTRIBUTE_TYPES:
                         #     raise Exception('invalid save type')
-
+                        description = effect.get('description', 'save')
+                        self.session.event_manager.received_event({'event': 'flavor', 'text': description})
                         save_roll = target.saving_throw(save_type, battle=battle)
                         if save_roll.result() >= int(dc):
+                            self.session.event_manager.received_event({'event': 'save_success', 'source': target, 'roll': save_roll, 'dc': dc})
                             if effect.get('success'):
-                                self.result.append(target.apply_effect(effect['success'], battle=battle,
-                                                                        flavor=effect['flavor_success']))
+                                self.result.append(target.apply_effect(effect['success'], {
+                                    "battle": battle,
+                                    "target": target,
+                                    "flavor" : effect.get('flavor_success',None)}))
                         elif effect.get('fail'):
-                            self.result.append(target.apply_effect(effect['fail'], battle=battle,
-                                                                    flavor=effect['flavor_fail']))
+                            self.session.event_manager.received_event({'event': 'save_fail', 'source': target, 'roll': save_roll, 'dc': dc})
+                            self.result.append(target.apply_effect(effect['fail'], { "battle" : battle,
+                                                                    "target": target,
+                                                                    "flavor": effect['flavor_fail']}))
                     else:
                         target.apply_effect(effect['effect'])
         else:

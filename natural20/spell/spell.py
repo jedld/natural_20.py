@@ -36,6 +36,7 @@ class Spell:
         self.source = source
         self.target = None
         self.errors = []
+        self.attack_roll = None
 
     def short_name(self):
         # remove the spell suffix and turn Camelcase to space separated

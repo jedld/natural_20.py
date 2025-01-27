@@ -36,7 +36,9 @@ class ShockingGraspSpell(AttackSpell):
 
     def resolve(self, entity, battle, spell_action):
         target = spell_action.target
-        advantage_override = {}
+        advantage_override = {
+            "action": spell_action
+        }
 
         if any(armor["metallic"] for armor in target.equipped_armor()):
             advantage_override['advantage'] = ['shocking_grasp_metallic']

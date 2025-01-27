@@ -40,6 +40,9 @@ class ShieldSpell(Spell):
             if entity_controller is None:
                 return [[], False]
 
+            if entity.has_effect(ShieldSpell):
+                return [[], False]
+
             shield_spell = ShieldSpell(battle.session, entity, 'ShieldSpell', spell)
             action = SpellAction(battle.session, entity, 'spell')
             action.target = entity

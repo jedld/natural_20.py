@@ -1,0 +1,20 @@
+
+{% set entity = waiting_for_reaction[0] %}
+<img class="current-turn-img" src="/assets/{{ entity.token_image() }}" style="max-width: 75px;">
+{% if controller_of(entity, username) %}
+<h4>{{waiting_for_reaction[1]}}</h4>
+
+{% for reaction_id, label, _ in waiting_for_reaction[3] %}
+    <div>
+        <input type="radio" id="{{ reaction_id }}" name="reaction" value="{{ reaction_id }}">
+        <label for="{{ reaction_id }}">{{ label }}</label>
+    </div>
+{% endfor %}
+<div>
+    <input type="radio" id="no-reaction" name="reaction" value="no-reaction" checked>
+    <label for="no-reaction">No Reaction</label>
+</div>
+<button type="submit" class="btn btn-primary">Submit Choice</button>
+{% else %}
+<h4>Waiting on a reaction ({{waiting_for_reaction[1]}}) for {{ entity.name }}.</h4>
+{% endif %}
