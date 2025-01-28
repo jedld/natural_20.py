@@ -65,12 +65,29 @@ class TestMoveAction(unittest.TestCase):
         move_actions = autobuild(self.session, MoveAction, ogre, self.battle)
         self.assertEqual(len(move_actions), 3)
 
-
+    def test_opportunity_attack_list_2(self):
+        def extract_position(move_path, attack_list):
+            positions = [[0, 0]]
+            for attack in attack_list:
+                positions.append(move_path[attack['path']])
+            return positions
+        self.action.move_path = [[2, 3], [1, 3], [0, 4], [0, 5], [1, 6], [2, 6], [3, 6]]
+        map_renderer = MapRenderer(self.map)
+        print(map_renderer.render(self.battle, path=self.tupleize(self.action.move_path), path_char='*'))
+        attack_list = opportunity_attack_list(self.action.source, self.action.move_path, self.battle, self.map)
+        self.assertEqual(attack_list, [{'path': 6, 'source': self.npc}])
+        hit_positions = extract_position(self.action.move_path, attack_list)
+        self.assertEqual(hit_positions,[[0, 0], [3, 6]])
+        print(map_renderer.render(self.battle, path=self.tupleize(hit_positions), path_char='*'))
+        self.action.move_path = [[2, 3], [1, 3], [0, 4], [0, 5], [1, 6], [2, 6], [2, 5],[3, 5]]
+        attack_list = opportunity_attack_list(self.action.source, self.action.move_path, self.battle, self.map)
+        self.assertEqual(attack_list, [{'path': 7, 'source': self.npc}])
+        print(map_renderer.render(self.battle, path=self.tupleize(self.action.move_path), path_char='*'))
 
     def test_opportunity_attack_triggers(self):
         def opportunity_attack_handler(battle, session, entity, map, event):
             actions = [
-                a for a in self.npc.available_actions(session, battle, opportunity_attack=True)
+                a for a in self.npc.available_actions(session, battle, opportunity_attack=True, auto_target=False)
                 if a.action_type == 'attack' and a.npc_action.get('type') == 'melee_attack'
             ]
 
