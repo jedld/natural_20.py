@@ -31,13 +31,17 @@ class AttackAction(Action):
         return battle is None or entity.total_actions(battle) > 0 or entity.multiattack(battle, options.get('npc_action'))
 
     def __str__(self):
-        if self.thrown:
-            weapon = self.npc_action['name'] if self.npc_action else self.using
-            return f"{self.source} throws a {weapon} at {self.target}"
         weapon = self.npc_action['name'] if self.npc_action else self.using
+        base_str = f"{self.source} {'throws' if self.thrown else 'uses'} {weapon}"
+        target_str = f"{'at' if self.thrown else ''} {self.target}"
+        attack_roll_str = f" ({self.attack_roll} = {self.attack_roll.result()})" if self.attack_roll else ""
+
+        full_action = f"{base_str}{target_str}"
         if self.as_reaction:
-            return f"{self.source} uses {weapon} as a reaction to attack {self.target}"
-        return f"{self.source} uses {weapon} to attack {self.target}"
+            full_action = f"{full_action} as a reaction"
+
+        return f"{full_action}{attack_roll_str}"
+
 
     def to_dict(self):
         return {
