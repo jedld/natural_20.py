@@ -7,17 +7,21 @@ from natural20.battle import Battle
 from natural20.player_character import PlayerCharacter
 from natural20.utils.movement import opportunity_attack_list
 from natural20.utils.action_builder import autobuild
+from natural20.map_renderer import MapRenderer
 import pdb
+import random
 
 class TestMoveAction(unittest.TestCase):
     def make_session(self):
             event_manager = EventManager()
+            event_manager.standard_cli()
             event_manager.register_event_listener(['died'], lambda event: print(f"{event['source'].name} died."))
             event_manager.register_event_listener(['unconscious'], lambda event: print(f"{event['source'].name} unconscious."))
             event_manager.register_event_listener(['initiative'], lambda event: print(f"{event['source'].name} rolled a {event['roll']} = ({event['value']}) with dex tie break for initiative."))
             return Session(root_path='tests/fixtures', event_manager=event_manager)
 
     def setUp(self):
+        random.seed(7000)
         self.session = self.make_session()
         self.map = Map(self.session, 'battle_sim')
         self.battle = Battle(self.session, self.map)
@@ -60,20 +64,35 @@ class TestMoveAction(unittest.TestCase):
         ogre.reset_turn(self.battle)
         move_actions = autobuild(self.session, MoveAction, ogre, self.battle)
         self.assertEqual(len(move_actions), 3)
-    # def opportunity_attack_handler(self, battle, session, entity, map, event):
-    #     action = self.npc.available_actions(session, battle).filter(lambda s: s.action_type == 'attack').filter(lambda s: s.npc_action['type'] == 'melee_attack').first()
-    #     action.target = event['target']
-    #     action.as_reaction = True
-    #     return action
 
-    # def test_opportunity_attack_triggers(self):
-    #     Natural20.EventManager.standard_cli()
-    #     self.npc.attach_handler('opportunity_attack', self.opportunity_attack_handler)
-    #     self.action.move_path = [[2, 5], [3, 5]]
-    #     self.assertEqual(self.fighter.hp, 67)
-    #     self.battle.action(self.action)
-    #     self.battle.commit(self.action)
-    #     self.assertEqual(self.fighter.hp, 60)
+
+
+    def test_opportunity_attack_triggers(self):
+        def opportunity_attack_handler(battle, session, entity, map, event):
+            actions = [
+                a for a in self.npc.available_actions(session, battle, opportunity_attack=True)
+                if a.action_type == 'attack' and a.npc_action.get('type') == 'melee_attack'
+            ]
+
+            if not actions:
+                return None
+
+            action = actions[0]
+            action.target = event['target']
+            action.as_reaction = True
+            return action
+        self.npc.attach_handler('opportunity_attack', opportunity_attack_handler)
+        self.action.move_path = [[2, 3], [1, 3], [0, 4], [0, 5], [1, 6], [2, 6], [3, 6]]
+        map_renderer = MapRenderer(self.map)
+        print(map_renderer.render(self.battle, path=self.tupleize(self.action.move_path), path_char='*'))
+        self.assertEqual(self.fighter.hp(), 67)
+        self.battle.action(self.action)
+        self.battle.commit(self.action)
+        print(map_renderer.render(self.battle))
+        self.assertEqual(self.fighter.hp(), 67)
+
+    def tupleize(self, path):
+        return [(p[0], p[1]) for p in path]
 
     # def test_handles_traps(self):
     #     self.map = Natural20.BattleMap(self.session, 'fixtures/traps')
