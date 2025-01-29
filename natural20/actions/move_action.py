@@ -169,7 +169,11 @@ class MoveAction(Action):
                     result = battle.trigger_opportunity_attack(enemy_opportunity['source'], entity, *attack_location)
                     if hasattr(result, 'send'):
                         raise AsyncReactionHandler(enemy_opportunity['source'], result, self, 'opportunity_attack')
+
                 if not grappled and not entity.conscious():
+                    return original_location
+
+                if entity.prone():
                     return original_location
 
         return move_list

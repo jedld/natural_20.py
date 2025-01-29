@@ -322,20 +322,25 @@ class Battle():
         action = next((act for act in source.available_actions(self.session, self) if act.action_type == action_type), None)
         opts['battle'] = self
         return action.resolve(self.session, self.map, opts) if action else None
-    
+
     def commit(self, action):
         if action is None:
             print('action is None')
             return
-        
+
         # if action is a generator, just return it
         if hasattr(action, 'send'):
             return action
 
+        if action.committed:
+            return
+
+        action.committed = True
         # check_action_serialization(action)
         for item in action.result:
             for klass in Action.__subclasses__():
                 klass.apply(self, item)
+
         if action.action_type == 'move':
             self.trigger_event('movement', action.source, { 'move_path': action.move_path})
             if self.animation_log_enabled:

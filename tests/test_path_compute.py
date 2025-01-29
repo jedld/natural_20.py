@@ -29,6 +29,7 @@ class TestPathCompute(unittest.TestCase):
         )
         expected_path = [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 4), (6, 4), (7, 5), (6, 6)]
         self.assertEqual(self.path_compute.compute_path(0, 0, 6, 6), expected_path)
+        # print(self.map_renderer.render(path=self.path_compute.compute_path(0, 0, 6, 6), path_char='+'))
         self.assertEqual(
             self.map_renderer.render(path=self.path_compute.compute_path(0, 0, 6, 6), path_char='+'),
             "········\n" +
@@ -39,6 +40,13 @@ class TestPathCompute(unittest.TestCase):
             "·######+\n" +
             "······+·\n"
         )
+
+
+        # 2nd case
+        expected_path2 = [(1, 3), (2, 4), (3, 4), (4, 4), (5, 4), (6, 4), (7, 4)]
+        self.assertEqual(self.path_compute.compute_path(1, 3, 7, 4), expected_path2)
+
+        print(self.map_renderer.render(path=self.path_compute.compute_path(1, 1, 7, 4), path_char='+'))
 
     def test_difficult_terrain(self):
         map = Map(self.session, 'path_finding_test_2')

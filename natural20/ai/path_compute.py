@@ -4,125 +4,142 @@ import math
 MAX_DISTANCE = 4_000_000
 
 class PathCompute:
-    def __init__(self, battle, map, entity, ignore_opposing=False):
+    def __init__(self, battle, map_, entity, ignore_opposing=False):
         self.entity = entity
-        self.map = map
+        self.map = map_
         self.battle = battle
         self.ignore_opposing = ignore_opposing
         self.max_x, self.max_y = self.map.size
 
-    def build_structures(self, source_x, source_y):
-        self.pq = []
-        self.visited_nodes = set()
+    def compute_path(self, source_x, source_y, destination_x, destination_y, available_movement_cost=None):
+        """
+        A* search from (source_x, source_y) to (destination_x, destination_y).
 
-        self.distances = [[MAX_DISTANCE for _ in range(self.max_y)] for _ in range(self.max_x)]
+        Returns:
+            A list of (x, y) for the path or None if no path exists.
+            If available_movement_cost is given, trims path that exceeds the cost in feet.
+        """
 
-        self.current_node = (source_x, source_y)
-        self.distances[source_x][source_y] = 0
-        self.visited_nodes.add(self.current_node)
+        # Initialize arrays
+        distances = [[MAX_DISTANCE] * self.max_y for _ in range(self.max_x)]  # g-cost
+        parents   = [[None]         * self.max_y for _ in range(self.max_x)]  # store parents to reconstruct path
+        
+        # Priority queue items: (f_cost, g_cost, (x, y))
+        #  - f_cost = g_cost + heuristic(x,y)
+        #  - g_cost = actual distance from source
+        pq = []
 
-    def backtrace(self, source_x, source_y, destination_x, destination_y, show_cost=False, available_movement_cost=None):
+        # Initialize start
+        distances[source_x][source_y] = 0
+        start_heuristic = self.heuristic(source_x, source_y, destination_x, destination_y)
+        heapq.heappush(pq, (start_heuristic, 0, (source_x, source_y)))
+
+        # A* main loop
+        while pq:
+            current_f, current_g, (cx, cy) = heapq.heappop(pq)
+
+            # If this is stale data (we already found a better route), skip
+            if current_g > distances[cx][cy]:
+                continue
+
+            # If we've reached destination, we can stop
+            if (cx, cy) == (destination_x, destination_y):
+                break
+
+            # Explore neighbors
+            for (nx, ny), move_cost in self.get_neighbors(cx, cy):
+                new_g = current_g + move_cost
+                if new_g < distances[nx][ny]:
+                    distances[nx][ny] = new_g
+                    parents[nx][ny] = (cx, cy)
+
+                    # f = g + h
+                    h = self.heuristic(nx, ny, destination_x, destination_y)
+                    f = new_g + h
+                    heapq.heappush(pq, (f, new_g, (nx, ny)))
+
+        # If destination is unreachable
+        if distances[destination_x][destination_y] == MAX_DISTANCE:
+            return None
+
+        # Reconstruct path
         path = []
-        current_node = (destination_x, destination_y)
-        if self.distances[destination_x][destination_y] == MAX_DISTANCE:
-            return None  # No route!
+        node = (destination_x, destination_y)
+        while node is not None:
+            path.append(node)
+            node = parents[node[0]][node[1]]
+        
+        path.reverse()  # get source -> destination
 
-        path.append(current_node)
-        cost = self.distances[destination_x][destination_y]
-        visited_nodes = set()
-        visited_nodes.add(current_node)
+        # If we have a movement budget, trim
+        if available_movement_cost is not None:
+            path = self.trim_path_by_movement(path, distances, available_movement_cost)
+        
+        return path
 
-        while True:
-            adjacent_squares = self.get_adjacent_from(*current_node)
-            adjacent_squares.update(self.get_adjacent_from(*current_node, squeeze=True))
-
-            min_node = None
-            min_distance = None
-
-            for node in adjacent_squares - visited_nodes:
-                line_distance = math.sqrt((destination_x - node[0])**2 + (destination_y - node[1])**2)
-                current_distance = self.distances[node[0]][node[1]] + line_distance / MAX_DISTANCE
-                if min_node is None or current_distance < min_distance:
-                    min_distance = current_distance
-                    min_node = node
-
-            if min_node is None:
-                return None
-
-            path.append(min_node)
-            current_node = min_node
-            visited_nodes.add(current_node)
-            if current_node == (source_x, source_y):
-                break
-        if available_movement_cost:
-            trimmed_path = []
-            for i in range(0, len(path)):
-                destination_x, destination_y = path[i]
-                incremental_cost = self.distances[destination_x][destination_y] * self.map.feet_per_grid
-                # print(f"Checking {destination_x}, {destination_y} with {available_movement_cost} cost {incremental_cost}")
-                if incremental_cost <= available_movement_cost:
-                    trimmed_path.append(path[i])
-            path = trimmed_path
-
-        return (path[::-1], cost) if show_cost else path[::-1]
-
-    def path(self, destination=None):
-        while True:
-            distance = self.distances[self.current_node[0]][self.current_node[1]]
-
-            adjacent_squares = self.get_adjacent_from(*self.current_node)
-            self.visit_squares(self.pq, adjacent_squares, self.visited_nodes, self.distances, distance)
-
-            squeeze_adjacent_squares = self.get_adjacent_from(*self.current_node, squeeze=True) - adjacent_squares
-
-            if squeeze_adjacent_squares:
-                self.visit_squares(self.pq, squeeze_adjacent_squares, self.visited_nodes, self.distances, distance, override_move_cost=2)
-
-            if destination and self.current_node == destination:
-                break
-
-            self.visited_nodes.add(self.current_node)
-
-            if not self.pq:
-                break
-
-            node_d, self.current_node = heapq.heappop(self.pq)
-            if node_d == MAX_DISTANCE:
-                return None
-
-    def compute_path(self, source_x, source_y, destination_x, destination_y, available_movement_cost = None):
-        self.build_structures(source_x, source_y)
-        self.path((destination_x, destination_y))
-        return self.backtrace(source_x, source_y, destination_x, destination_y, available_movement_cost=available_movement_cost)
-
-    def incremental_path(self, source_x, source_y, destination_x, destination_y):
-        rpath = self.backtrace(source_x, source_y, destination_x, destination_y, show_cost=True)
-        if rpath and len(rpath) > 1:
-            return rpath
-        return None
-
-    def visit_squares(self, pq, adjacent_squares, visited_nodes, distances, distance, override_move_cost=None):
-        for node in adjacent_squares - visited_nodes:
-            move_cost = override_move_cost if override_move_cost else (2 if self.map.difficult_terrain(self.entity, node[0], node[1], self.battle) else 1)
-            if self.entity.prone():
-                move_cost += 1
-            current_distance = distance + move_cost
-            if distances[node[0]][node[1]] > current_distance:
-                distances[node[0]][node[1]] = current_distance
-                heapq.heappush(pq, (current_distance, node))
-
-    def get_adjacent_from(self, pos_x, pos_y, squeeze=False):
-        valid_paths = set()
-        for x_op in [-1, 0, 1]:
-            for y_op in [-1, 0, 1]:
-                cur_x = pos_x + x_op
-                cur_y = pos_y + y_op
-
-                if cur_x < 0 or cur_y < 0 or cur_x >= self.max_x or cur_y >= self.max_y:
+    def get_neighbors(self, x, y):
+        """
+        Return a list of tuples: [((nx, ny), move_cost), ...].
+        Similar to Dijkstra code, but we don't need separate 'squeeze' vs. normal
+        calls; we can decide the cost or if passable inside here.
+        """
+        neighbors = []
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
                     continue
-                if x_op == 0 and y_op == 0:
+                nx = x + dx
+                ny = y + dy
+                if not (0 <= nx < self.max_x and 0 <= ny < self.max_y):
                     continue
-                if self.map.passable(self.entity, cur_x, cur_y, self.battle, squeeze, ignore_opposing=self.ignore_opposing):
-                    valid_paths.add((cur_x, cur_y))
 
-        return valid_paths
+                # Try normal passable
+                if self.map.passable(self.entity, nx, ny, self.battle, False,
+                                     ignore_opposing=self.ignore_opposing):
+                    move_cost = self.base_move_cost(nx, ny)
+                    neighbors.append(((nx, ny), move_cost))
+                # Otherwise, if not normal passable, check if passable with squeeze
+                elif self.map.passable(self.entity, nx, ny, self.battle, True,
+                                       ignore_opposing=self.ignore_opposing):
+                    # e.g., let's define squeeze cost = 2
+                    move_cost = 2
+                    if self.entity.prone():
+                        move_cost += 1
+                    neighbors.append(((nx, ny), move_cost))
+        
+        return neighbors
+
+    def base_move_cost(self, x, y):
+        """
+        If the terrain is difficult or the entity is prone, adjust cost accordingly.
+        """
+        cost = 2 if self.map.difficult_terrain(self.entity, x, y, self.battle) else 1
+        if self.entity.prone():
+            cost += 1
+        return cost
+
+    def heuristic(self, cx, cy, dx, dy):
+        """
+        Example Euclidean (straight-line) distance.
+        For grid movement, a typical approach is:
+            - Euclidean:   math.sqrt((cx - dx)**2 + (cy - dy)**2)
+            - Manhattan:   abs(cx - dx) + abs(cy - dy)
+        Choose whichever is suitable or consistent with your movement rules.
+        """
+        # Euclidean distance
+        return math.sqrt((cx - dx)**2 + (cy - dy)**2)
+
+    def trim_path_by_movement(self, path, distances, available_movement_cost):
+        """
+        After building the path, remove nodes beyond a certain movement cost (in feet).
+        """
+        trimmed = []
+        for (px, py) in path:
+            # Convert grid cost to feet
+            g_cost_in_feet = distances[px][py] * self.map.feet_per_grid
+            if g_cost_in_feet <= available_movement_cost:
+                trimmed.append((px, py))
+            else:
+                # Once we exceed movement, no need to keep trailing nodes
+                break
+        return trimmed

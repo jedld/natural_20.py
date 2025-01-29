@@ -36,6 +36,7 @@ class Action:
         self.async_reactions = {}
         self.errors = []
         self.result = []
+        self.committed = False
 
         if opts is None:
             opts = {}
