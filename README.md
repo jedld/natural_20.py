@@ -128,7 +128,7 @@ result = DieRoll.roll('1d20').result()
 print("Result of a d20 roll: ", result)
 # Result of a d20 roll:  7
 
-# Rolling two d6 dice with a +2 modifier
+# Rolling two d6 dice with a +2 modifier            
 result = DieRoll.roll('2d6+2').result()
 print("Result of 2d6 + 2: ", result)
 
