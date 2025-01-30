@@ -323,14 +323,14 @@ class AttackAction(Action):
                         self.session.event_manager.received_event({'event': 'flavor', 'text': description})
                         save_roll = target.saving_throw(save_type, battle=battle)
                         if save_roll.result() >= int(dc):
-                            self.session.event_manager.received_event({'event': 'save_success', 'source': target, 'roll': save_roll, 'dc': dc})
+                            self.session.event_manager.received_event({'event': 'save_success', 'source': target, 'save_type': save_type, 'roll': save_roll, 'dc': dc})
                             if effect.get('success'):
                                 self.result.append(target.apply_effect(effect['success'], {
                                     "battle": battle,
                                     "target": target,
                                     "flavor" : effect.get('flavor_success',None)}))
                         elif effect.get('fail'):
-                            self.session.event_manager.received_event({'event': 'save_fail', 'source': target, 'roll': save_roll, 'dc': dc})
+                            self.session.event_manager.received_event({'event': 'save_fail', 'source': target, 'save_type': save_type, 'roll': save_roll, 'dc': dc})
                             self.result.append(target.apply_effect(effect['fail'], { "battle" : battle,
                                                                     "target": target,
                                                                     "flavor": effect['flavor_fail']}))
