@@ -662,13 +662,15 @@ $(document).ready(function () {
             var valid_target = data.valid_target;
 
             drawTargetLine(ctx, source, coordsx, coordsy, valid_target=valid_target);
-
-            $.each(adv_info[0], function(index, value) {
-              tooltip += '<p><span style="color: green;">+' + value + '</span></p>';
-            })
-            $.each(adv_info[1], function(index, value) {
-              tooltip += '<p><span style="color: red;">-' + value + '</span></p>';
-            })
+            if (adv_info !== null) {
+              $.each(adv_info[0], function(index, value) {
+                tooltip += '<p><span style="color: green;">+' + value + '</span></p>';
+              })
+              
+              $.each(adv_info[1], function(index, value) {
+                tooltip += '<p><span style="color: red;">-' + value + '</span></p>';
+              })
+            };
             $('#coords-box').html('<p>X: ' + coordsx + '</p><p>Y: ' + coordsy + '</p>' + tooltip);
           },
           error: function (jqXHR, textStatus, errorThrown) {
@@ -1071,6 +1073,22 @@ $(document).ready(function () {
               }
             });
             break;
+          case 'select_item':
+            $.ajax({
+              url: '/usable_items',
+              type: 'GET',
+              data: { id: entity_uid, action: action, opts: opts },
+              success: function (data) {
+                entity_tile = $('.tile[data-coords-id="' + entity_uid + '"]');
+                var popoverMenuContainer = $(entity_tile).find('.popover-menu');
+                // show and replace the action menu with the item menu
+                popoverMenuContainer.html(data);
+              },
+              error: function (jqXHR, textStatus, errorThrown) {
+                console.error('Error requesting items:', textStatus, errorThrown);
+              }
+            });
+            break;
           case 'select_target':
             $('.tiles-container .popover-menu').hide();
             $('#modal-1').modal('hide');
@@ -1164,7 +1182,7 @@ $(document).ready(function () {
       data: {
       },
       success: function (data) {
-        $('.game-turn-container').hide()
+        // $('.game-turn-container').hide()
       },
       error: function (jqXHR, textStatus, errorThrown) {
         console.error('Error requesting action:', textStatus, errorThrown);

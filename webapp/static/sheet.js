@@ -1,4 +1,5 @@
 $(document).ready(function() {
+    var entityId = $('body').data('id');
     // Handle Tab Switching
     function openTab(evt, tabName) {
         $('.tabcontent').hide();
@@ -7,6 +8,15 @@ $(document).ready(function() {
         $(evt.currentTarget).addClass('active');
     }
 
+    function refreshEquipment() {
+        $.get('/equipment', 
+        {
+            id: entityId
+        },
+            function(response) {
+            $('.equipment-container').html(response);
+        });
+    }
 
 
     // Add click event listeners to spell cards using event delegation
@@ -50,6 +60,29 @@ $(document).ready(function() {
             event.preventDefault();
         }
     });
+
+    $('.equipment-container').on('submit', '.form-unequip', function(event) {
+        event.preventDefault();
+        var form = $(this);
+        var url = form.attr('action');
+        var data = form.serialize();
+        $.post(url, data, function(response) {
+            // Update the spell list
+            refreshEquipment();
+        });
+    });
+
+    $('.equipment-container').on('submit', '.form-equip', function(event) {
+        event.preventDefault();
+        var form = $(this);
+        var url = form.attr('action');
+        var data = form.serialize();
+        $.post(url, data, function(response) {
+            // Update the spell list
+            refreshEquipment();
+        });
+    });
+
     // Attach the openTab function to the window so it can be called inline
     window.openTab = openTab;
 

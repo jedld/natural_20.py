@@ -1,4 +1,6 @@
 from natural20.die_roll import DieRoll
+from natural20.player_character import PlayerCharacter
+from natural20.session import Session
 import unittest
 import random
 import pdb
@@ -70,6 +72,28 @@ class TestDieRoll(unittest.TestCase):
     roll = DieRoll.roll('1d20-5')
     self.assertEqual(roll.__str__(), 'd20(14) - 5')
     self.assertEqual(roll.result(), 9)
+
+  def test_roll_with_luck(self):
+    session = Session(root_path='tests/fixtures')
+    random.seed(1000)
+    player = PlayerCharacter.load(session, 'halfling_rogue.yml')
+    DieRoll.fudge(1, 20)
+    roll = DieRoll.roll_with_lucky(player, '1d20')
+    self.assertEqual(str(roll), 'd20(1) lucky -> d20(14)')
+    self.assertEqual(roll.description, '(lucky) None [1] -> [14]')
+
+  def test_roll_with_luck_advantage_and_disadvantage(self):
+    session = Session(root_path='tests/fixtures')
+    random.seed(1000)
+    player = PlayerCharacter.load(session, 'halfling_rogue.yml')
+    DieRoll.fudge(1, 20)
+    roll = DieRoll.roll_with_lucky(player, '1d20', advantage=True)
+    self.assertEqual(str(roll), 'd20(1 | 14*) lucky -> d20(4 | 14*)')
+    self.assertEqual(roll.description, '(lucky) None [(1, 14)] -> [(4, 14)]')
+    DieRoll.fudge(1, 20)
+    roll = DieRoll.roll_with_lucky(player, '1d20', disadvantage=True)
+    self.assertEqual(str(roll), 'd20(1* | 13) lucky -> d20(12* | 13)')
+    self.assertEqual(roll.description, '(lucky) None [(1, 13)] -> [(12, 13)]')
 
 
 if __name__ == '__main__':

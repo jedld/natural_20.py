@@ -9,7 +9,6 @@
     <link href="/sheet.css?salt={{ salt }}" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css?family=Cinzel|Uncial+Antiqua|IM+Fell+English" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-
     <style>
         body {
             font-family: 'Times New Roman', serif;
@@ -70,7 +69,7 @@
     </style>
 
 </head>
-<body>
+<body data-id="{{ entity.entity_uid }}">
     <div class="sheet">
         <h1>{{ entity.label() }}'s Character Sheet</h1>
         <div class="tab">
@@ -262,36 +261,21 @@
 </div>
 
         <div id="Equipment" class="tabcontent">
-            <h2>Equipment/Inventory</h2>
-            {% for item in entity.equipped_items() %}
-            <h3>{{ item['label'] }}</h3>
-            {% if item['damage'] and not item['ac'] %}
-            <table>
-                <tr>
-                    <th>Damage</th>
-                    <th>Damage Type</th>
-                    <th>Range</th>
-                </tr>
-                <tr>
-                    <td>{{ item['damage'] }}</td>
-                    <td>{{ item['damage_type'] }}</td>
-                    <td>{{ item['range'] }}</td>
-                </tr>
-            </table>
-            {% endif %}
-            {% if item['ac'] %}
-            <table>
-                <tr>
-                    <th>AC</th>
-                    <th>Stealth Disadvantage</th>
-                </tr>
-                <tr>
-                    <td>{{ item['ac'] }}</td>
-                    <td>{{ "Yes" if item['stealth_disadvantage'] else "" }}</td>
-                </tr>
-            </table>
-            {% endif %}
+            <h2>Equipment</h2>
+            <div class="equipment-container">
+            {% include 'equipment.html' %}
+            </div>
+            <h2>Potions/Consumables</h2>
+            <ul class="consumables-list tile-inventory">
+            {% for item in entity.usable_items() %}
+            <li class="tile-item" data-tooltip="{{ item['label'] }}">
+            <div class="item-icon-container">
+                <img class="item-icon" src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
+                <div class="item-quantity">{{ 'x ' ~ item.get('quantity', 1) }}</div>
+            </div>
+            </li>
             {% endfor %}
+            </ul>
         </div>
     </div>
     <script src="/sheet.js?salt={{ salt }}"></script>

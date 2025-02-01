@@ -5,6 +5,7 @@ from natural20.session import Session
 from natural20.battle import Battle
 import random
 import numpy as np
+import pdb
 
 class TestPlayerCharacter(unittest.TestCase):
     def make_session(self):
@@ -141,8 +142,9 @@ class TestPlayerCharacter(unittest.TestCase):
         expected_items = [{
             'item': {
                 'consumable': True,
+                'equippable': True,
                 'hp_regained': '2d4+2',
-                'item_class': 'ItemLibrary::HealingPotion',
+                'item_class': 'HealingPotion',
                 'name': 'Potion of Healing',
                 'type': 'potion',
                 'usable': True
@@ -282,5 +284,18 @@ class TestPlayerCharacter(unittest.TestCase):
         self.player = self.load_elf_rogue_lvl2_character()
         self.assertTrue(self.player.class_feature('cunning_action'))
 
+    def test_equip(self):
+        self.player = self.load_rogue_character()
+        self.assertEqual([item['name'] for item in self.player.equipped_items()], ['dagger', 'dagger', 'torch', 'studded_leather'])
+        self.assertEqual(len(self.player.equipped_items()), 4)
+        self.assertEqual(len(self.player.unequipped_items()), 0)
+        self.player.unequip('dagger')
+        self.assertEqual(len(self.player.equipped_items()), 3)
+        self.assertEqual(len(self.player.unequipped_items()), 1)
+        self.assertEqual(self.player.unequipped_items()[0]['name'], 'dagger')
+        self.assertEqual(self.player.unequipped_items()[0]['qty'], 1)
+        self.player.unequip('dagger')
+        self.assertEqual([item['name'] for item in self.player.equipped_items()], ['torch', 'studded_leather'])
+        self.assertEqual(self.player.unequipped_items()[0]['qty'], 2)
 if __name__ == '__main__':
     unittest.main()

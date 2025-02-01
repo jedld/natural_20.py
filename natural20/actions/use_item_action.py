@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from natural20.action import Action
+from natural20.item_library.healing_potion import HealingPotion
+import pdb
 
 @dataclass
 class UseItemAction(Action):
@@ -7,21 +9,40 @@ class UseItemAction(Action):
     target_item: any
 
     def __init__(self, session, source, action_type):
+        super().__init__(session, source, action_type)
         self.session = session
         self.source = source
         self.action_type = action_type
 
 
+    def __str__(self):
+        if self.target_item:
+            return f"{str(self.action_type).capitalize()} {self.target_item.name}"
+        return str(self.action_type).capitalize()
+    
+    def __repr__(self):
+        return str(self.action_type).capitalize()
+    
     @staticmethod
     def can(entity, battle):
         return battle is None or entity.total_actions(battle) > 0
 
+    def can_use_on(self, entity):
+        return self.target_item.can_use(entity)
+
+    def usable_items(self):
+        return self.source.usable_items()
+
     @staticmethod
     def build(session, source):
-        action = UseItemAction(session, source, "attack")
-        action.build_map()
+        action = UseItemAction(session, source, "use_item")
+        return action.build_map()
 
     def build_map(self):
+        def next_fn(item):
+            self.target_item = item
+            return self.build_next(item)
+
         return {
             "action": self,
             "param": [
@@ -29,7 +50,7 @@ class UseItemAction(Action):
                     "type": "select_item"
                 }
             ],
-            "next": lambda item: self.build_next(item)
+            "next": next_fn
         }
 
     def build_next(self, item):
@@ -37,10 +58,21 @@ class UseItemAction(Action):
         if not item_details["usable"]:
             raise Exception(f"item {item_details['name']} not usable!")
 
-        self.target_item = item_details["item_class"](item, item_details)
-        self.target_item.build_map(self)
+        klass = UseItemAction.to_item_class(item_details['item_class'])
+        self.target_item = klass(item, item_details)
+        return self.target_item.build_map(self)
+
+    def to_item_class(item_class):
+        if item_class == 'HealingPotion':
+            klass = HealingPotion
+        else:
+            raise Exception(f"item class {item_class} not found")
+        return klass
+
 
     def resolve(self, session, map=None, opts=None):
+        if opts is None:
+            opts = {}
         battle = opts.get("battle")
         result_payload = {
             "source": self.source,
@@ -57,7 +89,10 @@ class UseItemAction(Action):
     @staticmethod
     def apply(battle, item, session=None):
         if item["type"] == "use_item":
-            battle.event_manager.received_event({"event": "use_item", "source": item["source"], "item": item["item"]})
+            if session is None:
+                session = battle.session
+            if session:
+                session.event_manager.received_event({"event": "use_item", "source": item["source"], "item": item["item"]})
             item["item"].use(item["target"], item)
             if item["item"].consumable():
                 item["source"].deduct_item(item["item"].name, 1)

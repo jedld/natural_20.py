@@ -1,0 +1,225 @@
+Joe rolled initiative d20(12) + 2 value 14.15
+Mike rolled initiative d20(6) + 5 value 11.2
+Combat begins with 2 players.
+Players: <p>Joe (wizard-2) Team a</p>
+<p>Mike (rogue-2) Team b</p>
+======== Joe starts their turn. ========
+======== Joe starts their turn. ========
+=========================================
+Battle between an RL agent vs a LLM agent
+=========================================
+____________
+____________
+____________
+____________
+____________
+......._____
+...E..P_____
+......._____
+......._____
+......._____
+......._____
+____________
+Setup Description:
+LLM Model: ollama
+0: cast the  chill_touch spell 1.9708313941955566
+1: cast the  firebolt spell 2.5477981567382812
+2: cast the  ray_of_frost spell 1.6575908660888672
+3: cast the  mage_armor spell -2.4543521404266357
+4: cast the  magic_missile spell 4.294941425323486
+5: attack enemy with ranged weapon: dagger -2.5087316036224365
+6: hide action -0.5559118390083313
+7: dash action -0.29420071840286255
+8: disengage action -0.4582643508911133
+9: dodge action 0.05470582842826843
+10: move 5ft up and to the left 1.925316333770752
+11: move 5ft to the left 2.182152032852173
+12: move 5ft down and to the left 2.3088600635528564
+13: move 5ft up 2.1204957962036133
+14: move 5ft down 2.4038608074188232
+15: go prone 1.0707240104675293
+16: end my turn -3.105644464492798
+Chosen index: 4
+selected action: (12, (-1, -1), (0, 0), 110, 1)
+Joe attacked Mike with Magic Missile and hits.
+Mike took d4(1) + 1 = 2 damage.
+Joe attacked Mike with Magic Missile and hits.
+Mike took d4(1) + 1 = 2 damage.
+Joe attacked Mike with Magic Missile and hits.
+Mike took d4(2) + 1 = 3 damage.
+____________
+____________
+____________
+____________
+____________
+......._____
+...E..P_____
+......._____
+......._____
+......._____
+......._____
+____________
+0: move 5ft up and to the left 2.604856014251709
+1: move 5ft to the left 3.0008716583251953
+2: move 5ft down and to the left 3.42712664604187
+3: move 5ft up 2.7300913333892822
+4: move 5ft down 3.568169593811035
+5: go prone 2.8517110347747803
+6: end my turn 2.40596604347229
+Chosen index: 4
+Joe moved to [6, 2] 5 feet
+____________
+____________
+____________
+____________
+......._____
+...E..._____
+......P_____
+......._____
+......._____
+......._____
+____________
+____________
+0: move 5ft up and to the left 4.936133861541748
+1: move 5ft to the left 5.439428806304932
+2: move 5ft down and to the left 5.990509986877441
+3: move 5ft up 5.050351142883301
+4: move 5ft down 6.144099235534668
+5: go prone 5.836274147033691
+6: end my turn 7.8619465827941895
+Chosen index: 6
+======== Mike starts their turn. ========
+Mike dodges.
+Mike bonus action dashes.
+Mike moved to [2, 1] 5 feet
+Mike goes prone.
+Mike stands up.
+Mike moved to [1, 0] 5 feet
+Mike moved to [0, 0] 5 feet
+Mike goes prone.
+Mike stands up.
+Mike moved to [0, 1] 5 feet
+Mike moved to [1, 0] 5 feet
+======== Joe starts their turn. ========
+____________
+____________
+____________
+____________
+.E....._____
+......._____
+......P_____
+......._____
+......._____
+......._____
+____________
+____________
+0: cast the  chill_touch spell 7.4365081787109375
+1: cast the  firebolt spell 7.575804233551025
+2: cast the  ray_of_frost spell 7.219205856323242
+3: cast the  mage_armor spell 6.359230041503906
+4: cast the  magic_missile spell 9.433733940124512
+5: attack enemy with ranged weapon: dagger 6.384702205657959
+6: hide action 5.908139228820801
+7: dash action 5.924914360046387
+8: disengage action 6.82197380065918
+9: dodge action 6.718994617462158
+10: move 5ft up and to the left 6.323330879211426
+11: move 5ft to the left 6.695996284484863
+12: move 5ft down and to the left 7.0966691970825195
+13: move 5ft up 6.291153907775879
+14: move 5ft down 7.099359512329102
+15: go prone 6.693698406219482
+16: end my turn 7.704633712768555
+Chosen index: 4
+Joe attacked Mike with Magic Missile and hits.
+Mike took d4(2) + 1 = 3 damage.
+Joe attacked Mike with Magic Missile and hits.
+Mike took d4(2) + 1 = 3 damage.
+Joe attacked Mike with Magic Missile and hits.
+Mike took d4(1) + 1 = 2 damage.
+____________
+____________
+____________
+____________
+.E....._____
+......._____
+......P_____
+......._____
+......._____
+......._____
+____________
+____________
+0: move 5ft up and to the left 7.182349681854248
+1: move 5ft to the left 7.390871047973633
+2: move 5ft down and to the left 7.577570915222168
+3: move 5ft up 7.110501766204834
+4: move 5ft down 7.546804904937744
+5: go prone 7.564662933349609
+6: end my turn 8.843284606933594
+Chosen index: 6
+======== Mike starts their turn. ========
+Mike attacked Joe with Dagger(thrown) and hits with attack roll d20(19) + 7 = 26.
+Joe took d4(1) + 5 = 6 damage.
+Mike goes prone.
+Mike stands up.
+Mike bonus action dashes.
+Mike moved to [0, 0] 5 feet
+Mike goes prone.
+Mike moved to [1, 0] 10 feet
+Mike stands up.
+Mike moved to [1, 1] 5 feet
+Mike moved to [0, 0] 5 feet
+Mike goes prone.
+======== Joe starts their turn. ========
+____________
+____________
+____________
+____________
+E......_____
+......._____
+......P_____
+......._____
+......._____
+......._____
+____________
+____________
+0: cast the  chill_touch spell 8.373934745788574
+1: cast the  firebolt spell 8.472484588623047
+2: cast the  ray_of_frost spell 8.224883079528809
+3: cast the  mage_armor spell 8.623164176940918
+4: cast the  magic_missile spell 9.540752410888672
+5: attack enemy with ranged weapon: dagger 6.879073143005371
+6: hide action 6.873908996582031
+7: dash action 6.863907814025879
+8: disengage action 7.2947998046875
+9: dodge action 7.493669509887695
+10: move 5ft up and to the left 6.980691432952881
+11: move 5ft to the left 7.324560165405273
+12: move 5ft down and to the left 7.685805320739746
+13: move 5ft up 7.099675178527832
+14: move 5ft down 7.814455509185791
+15: go prone 7.541686058044434
+16: end my turn 7.495011806488037
+Chosen index: 4
+Joe attacked Mike with Magic Missile and hits.
+Mike unconscious.
+Mike took d4(4) + 1 = 5 damage.
+Joe attacked Mike with Magic Missile and hits.
+Mike received damage that caused a death saving throw failure.
+Mike took d4(2) + 1 = 3 damage.
+Joe attacked Mike with Magic Missile and hits.
+Mike received damage that caused a death saving throw failure.
+Mike took d4(3) + 1 = 4 damage.
+____________
+____________
+____________
+____________
+E......_____
+......._____
+......P_____
+......._____
+......._____
+......._____
+____________
+____________
+Reward: 10

@@ -1,0 +1,78 @@
+{% for item in entity.equipped_items() %}
+{% if item['damage'] and not item['ac'] %}
+<table class="equipped-item-stats">
+    <thead>
+        <tr>
+            <th style="width: 60px;">{{ item['label'] }}</th>
+            <th>Damage</th>
+            <th>Type</th>
+            <th>Range</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+                <div class="tile-item">
+                <img class="item-icon"
+                         src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}"
+                         alt="{{ item['label'] }}">
+                </div>
+            </td>
+            <td>{{ item['damage'] }}</td>
+            <td>{{ item['damage_type'] }}</td>
+            {% if item['range_max'] %}
+            <td>{{ item['range'] }}/{{ item['range_max'] }}</td>
+            {% else %}
+            <td>{{ item['range'] }}</td>
+            {% endif %}
+        </tr>
+    </tbody>
+</table>
+{% endif %}
+
+{% if item['ac'] or item['bonus_ac'] %}
+<table>
+    <tr>
+        <th style="width: 60px;">{{ item['label'] }}</th>
+        <th>AC</th>
+        <th>Stealth Disadvantage</th>
+    </tr>
+    <tr>
+        <td>
+            <div class="tile-item">
+            <img class="item-icon"
+                     src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}"
+                     alt="{{ item['label'] }}">
+            </div>
+        </td>
+        <td>{{ item['ac'] or item['bonus_ac'] }}</td>
+        <td>{{ "Yes" if item['stealth_disadvantage'] else "" }}</td>
+    </tr>
+</table>
+{% endif %}
+<form method="post" class="form-unequip" action="/unequip">
+    <input type="hidden" name="id" value="{{ entity.entity_uid }}">
+    <input type="hidden" name="item_id" value="{{ item['name'] }}">
+    <button>Unequip</button>
+</form>
+{% endfor %}
+<h2 class="unequipped-items-title">Unequipped Items</h2>
+<ul class="unequipped-items-list tile-inventory">
+{% for item in entity.unequipped_items() %}
+    <li class="tile-item" data-tooltip="{{ item['label'] }}">
+        <div class="item-icon-container">
+            <img class="item-icon" src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
+            <div class="item-quantity">{{ 'x ' ~ item.get('qty', 1) }}</div>
+        </div>
+        {% if entity.check_equip(item['name']) %}
+        <form method="post" class="form-equip" action="/equip">
+            <input type="hidden" name="id" value="{{ entity.entity_uid }}">
+            <input type="hidden" name="item_id" value="{{ item['name'] }}">
+            <button class="equip-button">Equip</button>
+        </form>
+        {% else %}
+        <p>Cannot equip this item</p>
+        {% endif %}
+    </li>
+{% endfor %}
+</ul>

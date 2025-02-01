@@ -6,15 +6,14 @@
 \textbf{Agent} & \textbf{Wins} & \textbf{Losses} & \textbf{Ties} & \textbf{AVG Rounds} \\
 \hline
 
-rl\_gpt4\_trained & 146.0 & 86.0 & 8.0 & 49.30 \\
-rl\_mistral\_trained & 142.0 & 85.0 & 13.0 & 66.50 \\
-rl\_rules\_trained & 135.0 & 93.0 & 12.0 & 77.57 \\
-rl\_llama3\_trained & 131.0 & 94.0 & 15.0 & 86.93 \\
-ai & 123.0 & 115.0 & 2.0 & 28.60 \\
-llm\_gpt4 & 116.0 & 121.0 & 3.0 & 42.87 \\
-llm\_mistral & 107.0 & 128.0 & 5.0 & 37.90 \\
-llm\_llama3 & 79.0 & 149.0 & 12.0 & 52.07 \\
-random & 61.0 & 169.0 & 10.0 & 53.80 \\
+rl\_rules\_trained & 87.0 & 18.0 & 4.0 & 19.48 \\
+ai & 69.0 & 49.0 & 2.0 & 22.30 \\
+llm\_llama3 & 58.0 & 51.0 & 0.0 & 21.48 \\
+llm\_mistral & 35.0 & 80.0 & 5.0 & 40.20 \\
+random & 32.0 & 83.0 & 5.0 & 43.23 \\
+rl\_gpt4\_trained & 0.0 & 0.0 & 0.0 & 0.00 \\
+rl\_llama3\_trained & 0.0 & 0.0 & 0.0 & 0.00 \\
+rl\_mistral\_trained & 0.0 & 0.0 & 0.0 & 0.00 \\
 
 \hline
 \end{tabular}

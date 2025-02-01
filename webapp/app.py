@@ -27,6 +27,7 @@ from natural20.actions.hide_action import HideAction, HideBonusAction
 from natural20.actions.first_aid_action import FirstAidAction
 from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
+from natural20.actions.use_item_action import UseItemAction
 from natural20.entity import Entity
 from natural20.action import Action, AsyncReactionHandler
 from natural20.battle import Battle
@@ -460,7 +461,6 @@ def game_loop():
             battle.next_turn()
     except ManualControl:
         logger.info("waiting for user to end turn.")
-        waiting_for_user = True
 
 @app.route('/assets/maps/<path:filename>')
 def serve_map_image(filename):
@@ -740,7 +740,7 @@ def end_turn():
         for battle, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
             waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
-        socketio.emit('message', {'type': 'reaction', 'message': {'id': str(entity.uid), 'reaction': 'opportunity_attack', 'choices': valid_actions_str}})
+        socketio.emit('message', {'type': 'reaction', 'message': {'id': str(entity.entity_uid), 'reaction': 'opportunity_attack', 'choices': valid_actions_str}})
 
 
 def continue_game():
@@ -884,6 +884,8 @@ def action_type_to_class(action_type):
         return DropGrappleAction
     elif action_type == 'EscapeGrappleAction':
         return EscapeGrappleAction
+    elif action_type == 'UseItemAction':
+        return UseItemAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
 
@@ -929,6 +931,10 @@ def get_target():
             valid_targets = battle.valid_targets_for(entity, action)
             valid_target = target in valid_targets
         return jsonify(valid_target=valid_target, adv_mod=adv_mod, adv_info=adv_info, attack_mod=attack_mod)
+    elif entity and target and action_info == 'UseItemAction':
+        action = UseItemAction(game_session, entity, 'use_item')
+        valid_target = True
+        return jsonify(valid_target=valid_target, adv_info=[[],[]], attack_mod=0)
     else:
         success_rate = None
 
@@ -1017,6 +1023,16 @@ def action():
     action_info = {}
     action_hash = None
     target_coords = action_request.get('target', None)
+    target = None
+
+    if target_coords:
+        if isinstance(target_coords, list):
+            target = []
+            for entity_uids in target_coords:
+                target.append(battle_map.entity_by_uid(entity_uids))
+        else:
+            target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
+
     try:
         if action_type == 'MoveAction':
             path = action_request.get('path', None)
@@ -1035,6 +1051,11 @@ def action():
                             socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1],
                                                                                 'animation_log': battle.get_animation_logs()}})
                             battle.clear_animation_logs()
+                        else:
+                            animation_log = []
+                            for path in move_path:
+                                animation_log.append((entity.entity_uid, move_path, None))
+                            socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1], 'animation_log': animation_log}})
                         return jsonify({'status': 'ok'})
             else:
                 action_info['action'] = 'movement'
@@ -1055,16 +1076,7 @@ def action():
                 if isinstance(current_map, Action):
                     return jsonify(commit_and_update(current_map))
                 else:
-                    if target_coords:
-                        if isinstance(target_coords, list):
-                            target = []
-                            for entity_uids in target_coords:
-                                target.append(battle_map.entity_by_uid(entity_uids))
-                        else:
-                            target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
-                            if target is None:
-                                raise ValueError(f"Invalid target {target_coords}")
-
+                    if target:
                         current_map = current_map['next'](target)
 
                         if isinstance(current_map, Action):
@@ -1133,29 +1145,15 @@ def action():
             opts = action_request.get('opts', {})
             action = action_class(game_session, entity, opts.get('action_type'))
             action = action.build_map()
-            if isinstance(action, Action):
-                return jsonify(commit_and_update(action))
-            else:
+            while not isinstance(action, Action):
                 if len(action['param'])==1:
                     param_details = action['param'][0]
                     if param_details['type'] == 'select_target':
                         valid_targets = battle_map.valid_targets_for(entity, param_details)
                         valid_targets = {target.entity_uid: battle_map.entity_or_object_pos(target) for target in valid_targets}
-                        if target_coords:
-                            if isinstance(target_coords, list):
-                                target = []
-                                for entity_uids in target_coords:
-                                    target.append(battle_map.entity_by_uid(entity_uids))
-                            else:
-                                target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
-                                if target is None:
-                                    raise ValueError(f"Invalid target {target_coords}")
-                            current_map = action['next'](target)
-
-                            if isinstance(current_map, Action):
-                                return jsonify(commit_and_update(current_map))
-                            else:
-                                raise ValueError(f"Invalid action map {current_map}")
+                        if target:
+                            action = action['next'](target)
+                            continue
                         else:
                             action_info['action'] = action_type
                             action_info['type'] = 'select_target'
@@ -1164,9 +1162,25 @@ def action():
                             action_info['param'] = action['param']
                             action_info['range'] = param_details.get('range', 5)
                             action_info['range_max'] = param_details.get('max_range', param_details.get('range', 5))
+                            return jsonify(action_info)
+                    elif param_details['type'] == 'select_item':
+                        target_item = opts.get('name', None)
+                        if target_item:
+                            action = action['next'](target_item)
+                            continue
+                        else:
+                            valid_items = entity.usable_items()
+                            action_info['action'] = action_type
+                            action_info['type'] = 'select_item'
+                            action_info['valid_items'] = valid_items
+                            action_info['param'] = action['param']
+                            return jsonify(action_info)
+                    else:
+                        raise ValueError(f"Unknown action type {action_type}")
                 else:
                     raise ValueError(f"Invalid action map {action}")
 
+            return jsonify(commit_and_update(action))
         return jsonify(action_info)
     except AsyncReactionHandler as e:
         for battle, entity, valid_actions in e.resolve():
@@ -1251,6 +1265,41 @@ def set_volume():
     return jsonify(status='ok')
 
 
+@app.route('/unequip', methods=['POST'])
+def unequip():
+    global current_game
+    battle_map = current_game.get_current_battle_map()
+    entity_id = request.form['id']
+    item_id = request.form['item_id']
+    entity = battle_map.entity_by_uid(entity_id)
+    if entity:
+        entity.unequip(item_id)
+        return jsonify(status='ok')
+    return jsonify(error="Entity not found"), 404
+
+@app.route('/equip', methods=['POST'])
+def equip():
+    global current_game
+    battle_map = current_game.get_current_battle_map()
+    entity_id = request.form['id']
+    item_id = request.form['item_id']
+    entity = battle_map.entity_by_uid(entity_id)
+    if entity:
+        entity.equip(item_id)
+        return jsonify(status='ok')
+
+    return jsonify(error="Entity not found"), 404
+
+@app.route('/equipment', methods=['GET'])
+def get_equipment():
+    global current_game
+    battle_map = current_game.get_current_battle_map()
+    entity_id = request.args.get('id')
+    entity = battle_map.entity_by_uid(entity_id)
+    if entity:
+        return render_template('equipment.html', entity=entity)
+    return jsonify(error="Entity not found"), 404
+
 def ai_loop():
     global current_game
     battle = current_game.get_current_battle()
@@ -1273,6 +1322,22 @@ def end_current_battle():
     current_game.set_current_battle(None)
     socketio.emit('message', {'type': 'console', 'message': 'TPK. Battle has ended.'})
     socketio.emit('message', {'type': 'stop', 'message': {}})
+
+@app.route('/usable_items', methods=['GET'])
+def usable_items():
+    global current_game
+    battle_map = current_game.get_current_battle_map()
+    entity_id = request.args.get('id', None)
+    if not entity_id:
+        return jsonify({"error": "entity_id parameter is required"}), 400
+    entity = battle_map.entity_by_uid(entity_id)
+
+    if not entity:
+        return jsonify({"error": f"Entity with id {entity_id} not found"}), 404
+    available_items = entity.usable_items()
+    available_items.sort(key=lambda item: item['name'])
+    action = UseItemAction(game_session, entity, 'use_item')
+    return render_template('usable_items.html', entity=entity, usable_items=available_items, action=action)
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)

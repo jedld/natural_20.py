@@ -34,7 +34,8 @@ class FileOutputLogger:
 
     def log(self, event_msg):
         with open(self.file_path, "a") as f:
-            f.write(event_msg)
+            f.write(f"{event_msg}\n")
+            f.flush()
 
 class EventManager:
     def __init__(self, output_logger=None, output_file=None):
@@ -69,6 +70,8 @@ class EventManager:
             for callable in self.event_listeners[event['event']]:
                 callable(event)
 
+
+
     def set_context(self, battle, entities=None):
         if entities is None:
             entities = []
@@ -81,6 +84,13 @@ class EventManager:
 
     def standard_cli(self):
         self.clear()
+
+        def handle_use_item(event):
+            source = event["source"]
+            item = event["item"]
+            # Simple log entry or any additional logic needed
+            f_item = self.t(f"item.{item.name}")
+            self.output_logger.log(f"{source.name} used {f_item}")
 
         def attack_roll(event):
             msg = f"{self.show_name(event)} attacked {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {self.t(event['attack_name'])}{'(thrown)' if event['thrown'] else ''} and hits"
@@ -195,6 +205,7 @@ class EventManager:
             'save_success': lambda event: self.output_logger.log(f"{self.show_name(event)} succeeded on a {event['save_type']} saving throw against DC {event['dc']} with {event['roll']}={event['roll'].result()}"),
             'save_fail': lambda event: self.output_logger.log(f"{self.show_name(event)} failed on a {event['save_type']} saving throw against DC {event['dc']} with {event['roll']}={event['roll'].result()}"),
             'start_of_combat': start_of_combat,
+            'use_item': handle_use_item,
         }
 
         for event, handler in event_handlers.items():

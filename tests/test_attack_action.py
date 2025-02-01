@@ -190,5 +190,8 @@ class TestAttackAction(unittest.TestCase):
         self.assertEqual(advantages, [])
         self.assertEqual(disadvantages, [])
 
+# typed: false
+
+
 if __name__ == '__main__':
     unittest.main()

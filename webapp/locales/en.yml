@@ -239,6 +239,8 @@ en:
       stand: '%{name} stands up.'
   exit: Exit
   game_author: By %{author}
+  item:
+    healing_potion: Healing Potion
   inventory:
     cannot_change_armor_combat: Cannot change armor during combat
     equiped_items: '%{name} (equipped)'

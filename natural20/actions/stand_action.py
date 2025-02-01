@@ -4,6 +4,7 @@ from natural20.entity import Entity
 
 class StandAction(Action):
     def __init__(self, session, source, action_type):
+        super().__init__(session, source, action_type)
         self.session = session
         self.source = source
         self.action_type = action_type

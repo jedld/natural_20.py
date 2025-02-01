@@ -23,7 +23,8 @@ def acquire_targets(param, entity, battle, map=None):
             if map is None:
                 map = battle.map
         else:
-            targets = map.entities.keys()
+            if map:
+                targets = map.entities.keys()
         if spell_range > 0 and map:
             for t in targets:
                 if map.can_see(entity, t) and map.distance(entity, t) <= spell_range:
@@ -49,11 +50,14 @@ def build_params(session, entity, battle, build_info, map=None) -> list:
                     build_info = None
                     break
             params.append(possible_spells)
+        elif param["type"] == "select_item":
+            possible_items = []
+            for items in entity.usable_items():
+                possible_items.append(items['name'])
+            params.append(possible_items)
         elif param["type"] == "select_target":
             selected_target_combinations = []
-
             possible_targets = acquire_targets(param, entity, battle, map)
-
             if len(possible_targets) == 0:
                 return None
 

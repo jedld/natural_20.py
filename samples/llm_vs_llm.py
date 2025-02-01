@@ -24,7 +24,6 @@ VARIANT = 'gpt-4o'
 BACKUP_VARIANT = 'NousResearch/Meta-Llama-3.1-8B-Instruct'
 
 prompt = GPT4Interfacer(debug=True, tools=True, api_key="OPENAI_TOKEN", variant=VARIANT, explain=False)
-
 prompt2 = GPT4Interfacer(debug=True, tools=False, base_url=LLAMA3_URL, api_key="token1234", variant=BACKUP_VARIANT)
 
 

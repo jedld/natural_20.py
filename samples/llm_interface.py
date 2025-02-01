@@ -7,6 +7,7 @@ import requests
 import json
 from natural20.gym.llm_helpers.prompting_utils import actions_to_prompt
 import pdb
+import re
 
 class LLMInterfacer:
     def __init__(self, debug=False, explain=False):
@@ -89,7 +90,7 @@ class LLMInterfacer:
             prompt += "Following that line, please provide an explanation of why you chose that action.\n"
 
         prompt + "See sample below:\n\n"
-        prompt += "1: attack enemy with ranged weapon\n"
+        prompt += "<choice no.>: <choice description>\n"
 
         if self.explain:
             prompt += "explanation: I attacked the enemy because he was low and health.\n"
@@ -151,23 +152,33 @@ class LLMInterfacer:
         return prompt
 
 class OllamaInterfacer(LLMInterfacer):
-    def __init__(self, url="http://localhost:11411/generate", model="llama2-7b", debug=False, explain=False):
+    def __init__(self, url="http://127.0.0.1:11434/api/generate", model="deepseek-r1:7b", debug=False, explain=False):
         super().__init__(debug, explain=explain)
         self.url = url
         self.model = model
+        self.explain = explain
 
     def select_action_for_state(self, state, info):
         prompt = self.dndenv_state_to_prompt(state, info)
-        try:
-            response = requests.post(self.url, json={"prompt": prompt, "model": self.model})
-            result = response.json()
-            raw_text = result.get("completion", "")
-            extracted = "".join(ch for ch in raw_text if ch.isdigit())
-            choice = int(extracted[0]) if extracted else 0
-        except:
-            choice = 0
-        return info["available_moves"][choice - 1] if choice > 0 else random.choice(info["available_moves"])
 
+        if self.debug:
+            print(f"prompt: -------------------------------\n{prompt}\n---------------------------------")
+
+        response = requests.post(self.url, json={"prompt": prompt, "model": self.model, "stream": False})
+
+
+        result = response.json()
+        raw_text = result.get("response", "")
+        # remove text in between <think>....</think>  and the tag themselves
+        if self.explain:
+            print(f"raw_text: {raw_text}")
+        raw_text = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL)
+        # remove newlines
+        raw_text = raw_text.replace("\n", "")
+        extracted = "".join(ch for ch in raw_text if ch.isdigit())
+        choice = int(extracted[0]) if extracted else 0
+
+        return info["available_moves"][choice - 1] if choice > 0 else random.choice(info["available_moves"])
 
 class GPT4Interfacer(LLMInterfacer):
     def __init__(self, variant="NousResearch/Meta-Llama-3-8B-Instruct", debug=False, api_key=None, base_url=None, tools=False, explain=False, weapon_mappings=None, max_retries=4):
