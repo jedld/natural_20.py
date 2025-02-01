@@ -133,7 +133,7 @@ class DieRolls(Rollable):
         return ''.join(output_string)
 
 class DieRoll(Rollable):
-    def __init__(self, rolls, modifier, die_sides=20, advantage=False, disadvantage=False, description=None, roller=None):
+    def __init__(self, rolls, modifier, die_sides=20, advantage=False, disadvantage=False, description=None, roller=None, prev_roll=None):
         self.rolls = rolls
         self.modifier = modifier
         self.die_sides = die_sides
@@ -141,6 +141,7 @@ class DieRoll(Rollable):
         self.disadvantage = disadvantage
         self.description = description
         self.roller = roller
+        self.prev_roll = prev_roll
 
     def nat_20(self):
         if self.advantage:
@@ -157,9 +158,35 @@ class DieRoll(Rollable):
             return any(roll == 1 for roll in [min(r) for r in self.rolls])
         else:
             return 1 in self.rolls
+        
+    def rolled_a_1(self):
+        if self.advantage or self.disadvantage:
+            return any(roll == 1 for roll in [min(r) for r in self.rolls])
+        else:
+            return 1 in self.rolls
 
     def reroll(self, lucky=False):
-        return self.roller.roll(lucky=lucky)
+        new_rolls = copy.deepcopy(self.rolls)
+        if lucky:
+            for index, roll in enumerate(self.rolls):
+                if isinstance(roll, tuple):
+                    roll_arr = list(roll)
+                    for i, r in enumerate(roll):
+                        if r == 1:
+                            roll_arr[i] = DieRoll.generate_number(self.die_sides)
+                    new_rolls[index] = tuple(roll_arr)
+                elif roll == 1:
+                    new_rolls[index] = DieRoll.generate_number(self.die_sides)
+        else:
+            for index, roll in self.rolls:
+                if roll == 1 or roll == self.die_sides:
+                    new_rolls[index] = DieRoll.generate_number(self.die_sides)
+        description = f"(lucky) {self.description} {self.rolls} -> {new_rolls}" if lucky else self.description
+        return DieRoll(new_rolls, self.modifier, self.die_sides, advantage=self.advantage,
+                       disadvantage=self.disadvantage,
+                       roller=self.roller,
+                       description=description,
+                       prev_roll=self)
 
     def result(self):
         if self.advantage:
@@ -230,7 +257,7 @@ class DieRoll(Rollable):
         else:
             return str(roll)
 
-    def __str__(self):
+    def describe(self):
         rolls = []
         for r in self.rolls:
             if self.advantage:
@@ -247,6 +274,15 @@ class DieRoll(Rollable):
             return f"d{self.die_sides}({' + '.join(rolls)}) + {self.modifier}"
         else:
             return f"d{self.die_sides}({' + '.join(rolls)})"
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        if self.prev_roll:
+            return f"{self.prev_roll.describe()} lucky -> {self.describe()}"
+        else:
+            return self.describe()
 
     @staticmethod
     def numeric(c):
@@ -344,10 +380,12 @@ class DieRoll(Rollable):
     def generate_number(die_sides, advantage=False, disadvantage=False):
         global FUDGE_HASH
         if die_sides in FUDGE_HASH:
+            fudge_val = FUDGE_HASH[die_sides]
+            del FUDGE_HASH[die_sides]
             if advantage or disadvantage:
-                return [FUDGE_HASH[die_sides], FUDGE_HASH[die_sides]]
+                return [fudge_val, fudge_val]
             else:
-                return FUDGE_HASH[die_sides]
+                return fudge_val
 
         if advantage or disadvantage:
             return random.sample(range(1, die_sides + 1), 2)
@@ -359,8 +397,8 @@ class DieRoll(Rollable):
         roller = Roller(roll_str, crit=crit, disadvantage=disadvantage, advantage=advantage,
                         description=description, entity=entity, battle=battle)
         result = roller.roll()
-        if result.nat_1() and entity.class_feature('lucky'):
-            return roller.roll(lucky=True)
+        if result.rolled_a_1() and entity.class_feature('lucky'):
+            return result.reroll(lucky=True)
         else:
             return result
 

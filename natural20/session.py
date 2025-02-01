@@ -188,6 +188,8 @@ class Session:
         if weapon not in self.weapons:
             weapons = self.load_yaml_file('items', 'weapons')
             self.weapons[weapon] = weapons.get(weapon)
+            if self.weapons[weapon] is not None:
+                self.weapons[weapon]['equippable'] = True
         return self.weapons[weapon]
 
     def load_weapons(self):
@@ -202,8 +204,13 @@ class Session:
         if item not in self.equipment:
             equipment = self.load_yaml_file('items', 'equipment')
             self.equipment[item] = equipment.get(item)
+            if self.equipment[item] and 'equippable' not in self.equipment[item]:
+                if self.equipment[item].get('type') in ['shield', 'armor']:
+                    self.equipment[item]['equippable'] = True
+                else:
+                    self.equipment[item]['equippable'] = False
         return self.equipment[item]
-    
+
     def load_all_equipments(self):
         return self.load_yaml_file('items', 'equipment')
 

@@ -499,7 +499,7 @@ class Entity(EntityStateEvaluator):
         return self.dex_mod()
 
     def initiative(self, battle=None):
-        roll = DieRoll.roll(f"1d20+{self.initiative_bonus()}", description="initiative", entity=self, battle=battle)
+        roll = DieRoll.roll_with_lucky(self, f"1d20+{self.initiative_bonus()}", description="initiative", battle=battle)
         value = float(roll.result()) + self.ability_scores.get('dex') / 100.0
         self.event_manager.received_event({ "source": self,
                                      "event": "initiative",
@@ -960,6 +960,22 @@ class Entity(EntityStateEvaluator):
 
         return equipped_list
     
+    def unequipped_items(self):
+        inventory = self.inventory
+        unequipped_list = []
+        for k in inventory.keys():
+            item = self.session.load_thing(k)
+            if not item.get('equippable', False):
+                continue
+
+            if not item:
+                raise Exception(f"unknown item {k}")
+            item_info = self._to_item(k, item)
+            item_info['qty'] = inventory[k]['qty']
+            unequipped_list.append(item_info)
+
+        return unequipped_list
+    
     def equipped_armor(self):
         return [item for item in self.equipped_items() if item['type'] in ['armor', 'shield']]
     
@@ -1027,9 +1043,11 @@ class Entity(EntityStateEvaluator):
         return {
             'name': k,
             'ac' : item.get('ac', None),
+            'bonus_ac' : item.get('bonus_ac', None),
             'damage' : item.get('damage', None),
             'damage_type' : item.get('damage_type', None),
             'range' : item.get('range', None),
+            'range_max' : item.get('range_max', None),
             'label': item.get('label', str(item.get('name')).capitalize()),
             'type': item.get('type'),
             'subtype': item.get('subtype'),
@@ -1052,7 +1070,8 @@ class Entity(EntityStateEvaluator):
 
         qty = self.inventory[ammo_type]['qty']
         self.inventory[ammo_type]['qty'] = max(qty - amount, 0)
-
+        if self.inventory[ammo_type]['qty'] == 0:
+            return self.inventory.pop(ammo_type)
         return self.inventory[ammo_type]
 
 
@@ -1067,7 +1086,7 @@ class Entity(EntityStateEvaluator):
                 'type': source_item.type if source_item else ammo_type
             }
 
-        qty = self.inventory[ammo_type]['qty']
+        qty = self.inventory[ammo_type].get('qty', 1)
         self.inventory[ammo_type]['qty'] = qty + amount
 
     def ranged_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
@@ -1355,7 +1374,7 @@ class Entity(EntityStateEvaluator):
     def usable_items(self):
         usable = []
         for k, v in self.inventory.items():
-            item_details = self.session.load_equipment(v['type'])
+            item_details = self.session.load_equipment(k)
 
             if not item_details or not item_details.get('usable', False):
                 continue
@@ -1436,9 +1455,8 @@ class Entity(EntityStateEvaluator):
     # @param item_name [String,Symbol]
     # @return [str]
     def check_equip(self, item_name):
-        item_name = item_name
         weapon = self.session.load_thing(item_name)
-        if weapon and weapon['subtype'] == 'weapon' or weapon['type'] in ['shield', 'armor']:
+        if weapon and weapon.get('subtype') == 'weapon' or weapon['type'] in ['shield', 'armor']:
             hand_slots = self.used_hand_slots() + self.hand_slots_required(self._to_item(item_name, weapon))
             armor_slots = len([item for item in self.equipped_items() if item['type'] == 'armor'])
             if hand_slots > 2.0:

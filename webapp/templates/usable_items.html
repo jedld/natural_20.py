@@ -1,0 +1,21 @@
+{% if usable_items|length == 0 %}
+<p>There are no items to use.</p>
+{% else %}
+<table>
+    {% for items in usable_items|batch(10) %}
+    <tr>
+        {% for item in items %}
+        <td>
+            <button class="action-button item-image" title="{{ item.label }}"
+                    data-action-opts='{{ item|tojson }}'
+                    data-tooltip="{{ item.label }}"
+                    data-action-type="{{ action.__class__.__name__ }}">
+                <img src="{{ url_for('static', filename='items/' + item.name + '.png') }}"
+                     style="width: 50px; height: 50px;">
+            </button>
+        </td>
+        {% endfor %}
+    </tr>
+    {% endfor %}
+</table>
+{% endif %}

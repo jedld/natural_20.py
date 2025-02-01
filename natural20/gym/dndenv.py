@@ -278,7 +278,8 @@ class dndenv(gym.Env):
 
         if event_manager is None:
             self.log("Creating new event manager")
-            event_manager = EventManager(output_file=self.output_file)
+            output_file = kwargs.get('output_file', self.output_file)
+            event_manager = EventManager(output_file=output_file)
             if self.show_logs:
                 event_manager.standard_cli()
 

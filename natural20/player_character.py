@@ -23,6 +23,7 @@ from natural20.actions.help_action import HelpAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.ground_interact_action import GroundInteractAction
 from natural20.actions.spell_action import SpellAction
+from natural20.actions.use_item_action import UseItemAction
 from natural20.utils.action_builder import autobuild
 
 from natural20.utils.movement import compute_actual_moves
@@ -50,14 +51,14 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
     StandAction,
     TwoWeaponAttackAction,
     HelpAction,
-    UseItemAction,
     GroundInteractAction,
     GrappleAction,
     DropGrappleAction,
     EscapeGrappleAction,
     ActionSurgeAction,
     ShoveAction,
-    FirstAidAction
+    FirstAidAction,
+    UseItemAction
   ]
 
   def __init__(self, session, properties, name=None):
@@ -280,6 +281,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
             action_list = action_list + autobuild(self.session, SpellAction, self, battle)
           else:
             action_list.append(SpellAction(session, self, 'spell'))
+        elif action_type == UseItemAction:
+          if auto_target:
+            action_list = action_list +  autobuild(self.session, UseItemAction, self, battle)
+          else:
+            action_list.append(UseItemAction(session, self, 'use_item'))
     return action_list
 
   def _player_character_attack_actions(self, session, battle, opportunity_attack=False, second_weapon=False, auto_target=True):

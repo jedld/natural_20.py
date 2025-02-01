@@ -103,20 +103,22 @@ class AttackAction(Action):
                 }
             ],
             'next': set_target
-            
         }
 
     def build(session, source):
         action = AttackAction(session, source, 'attack')
         return action.build_map()
-    
+
     def apply(battle, item, session=None):
         if 'flavor' in item and item['flavor']:
-            flavor = item['flavor']
+            flavor = item.get('flavor', item.get('description', None))
             if battle:
                 battle.event_manager.received_event({'event': 'flavor', 'source': item['source'], 'target': item.get('target', None), 'text': flavor})
-
-        if item['type'] == 'prone':
+        if item['type'] == 'save_success':
+            battle.session.event_manager.received_event({'event': 'save_success', 'source': item['source'], 'save_type': item['save_type'], 'roll': item['roll'], 'dc': item['dc']})
+        elif item['type'] == 'save_fail':
+            battle.session.event_manager.received_event({'event': 'save_fail', 'source': item['source'], 'save_type': item['save_type'], 'roll': item['roll'], 'dc': item['dc']})
+        elif item['type'] == 'prone':
             item['source'].prone()
         elif item['type'] == 'damage':
             damage_event(item, battle)
@@ -217,9 +219,8 @@ class AttackAction(Action):
             self.evaluate_feature_protection(battle, map, target, adv_info)
 
         if self.attack_roll is None:
-            self.attack_roll = DieRoll.roll(f"1d20+{attack_mod}", disadvantage=self.with_disadvantage(),
-                                        advantage=self.with_advantage(), description='dice_roll.attack',
-                                        entity=self.source, battle=battle)
+            self.attack_roll = DieRoll.roll_with_lucky(self.source, f"1d20+{attack_mod}", disadvantage=self.with_disadvantage(),
+                                        advantage=self.with_advantage(), description='dice_roll.attack', battle=battle)
 
             if self.source.has_effect('bless'):
                 bless_roll = DieRoll.roll("1d4", description='dice_roll.bless', entity=self.source, battle=battle)
@@ -320,24 +321,41 @@ class AttackAction(Action):
                         # if save_type not in Natural20.Entity.ATTRIBUTE_TYPES:
                         #     raise Exception('invalid save type')
                         description = effect.get('description', 'save')
-                        self.session.event_manager.received_event({'event': 'flavor', 'text': description})
+                        self.result.append({
+                            'type': 'flavor',
+                            'source': self.source,
+                            'description': description
+                        })
+
                         save_roll = target.saving_throw(save_type, battle=battle)
                         if save_roll.result() >= int(dc):
-                            self.session.event_manager.received_event({'event': 'save_success', 'source': target, 'save_type': save_type, 'roll': save_roll, 'dc': dc})
+                            self.result.append({
+                                'type': 'save_success',
+                                'source': target,
+                                'save_type': save_type,
+                                'roll': save_roll,
+                                'dc': dc
+                            })
+
                             if effect.get('success'):
                                 self.result.append(target.apply_effect(effect['success'], {
                                     "battle": battle,
                                     "target": target,
                                     "flavor" : effect.get('flavor_success',None)}))
                         elif effect.get('fail'):
-                            self.session.event_manager.received_event({'event': 'save_fail', 'source': target, 'save_type': save_type, 'roll': save_roll, 'dc': dc})
+                            self.result.append({
+                                'type': 'save_fail',
+                                'source': target,
+                                'save_type': save_type,
+                                'roll': save_roll,
+                                'dc': dc
+                            })
                             self.result.append(target.apply_effect(effect['fail'], { "battle" : battle,
                                                                     "target": target,
                                                                     "flavor": effect['flavor_fail']}))
                     else:
                         target.apply_effect(effect['effect'])
         else:
-            
             self.result.append({
                 'attack_name': attack_name,
                 'source': self.source,

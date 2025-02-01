@@ -26,7 +26,9 @@ class Object(Entity):
         self.name = properties.get('name')
         self.map = map
         self.effects = {}
-        self.session = map.session
+
+        if map:
+            self.session = map.session
         self.statuses = set()
         self.properties = properties
         self.resistances = properties.get('resistances', [])

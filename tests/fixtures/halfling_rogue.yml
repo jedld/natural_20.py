@@ -32,6 +32,7 @@ weapon_proficiencies:
 - simple
 equipped:
 - dagger
+- dagger
 - torch
 - studded_leather
 inventory:

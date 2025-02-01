@@ -9,6 +9,7 @@ flask_session
 static/.DS_Store
 webapp/flask_session/
 webapp/save.yml
+samples/output/
 samples/training_output_all/
 samples/training_output_figher_only/
 samples/model_weights_all/

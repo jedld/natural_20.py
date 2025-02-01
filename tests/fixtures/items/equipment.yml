@@ -96,7 +96,7 @@ gold_piece:
 healing_potion:
   consumable: true
   hp_regained: 2d4+2
-  item_class: ItemLibrary::HealingPotion
+  item_class: HealingPotion
   name: Potion of Healing
   type: potion
   usable: true

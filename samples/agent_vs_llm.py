@@ -10,7 +10,7 @@ from natural20.actions.move_action import MoveAction
 from natural20.action import Action
 from natural20.gym.dndenv import dndenv, action_type_to_int
 from gymnasium import register, envs, make
-from llm_interface import GPT4Interfacer, LLama3Interface
+from llm_interface import GPT4Interfacer, LLama3Interface, OllamaInterfacer
 from natural20.gym.dndenv_controller import DndenvController
 from model import ModelPolicy
 
@@ -24,12 +24,14 @@ import pdb
 
 
 MAX_EPISODES = 500
-USE_OPENAI = True
+LLM_MODEL = "ollama"
 MODEL_PATH = "samples/model_best_dnd_egreedy.pt"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-if not USE_OPENAI:
+if LLM_MODEL == "ollama":
+    prompt = OllamaInterfacer(explain=False, debug=False)
+elif not LLM_MODEL == "openai":
     URL = os.getenv("OPENAI_BASE_URL", "http://localhost:8000/v1")
 
     if not URL:
@@ -90,6 +92,9 @@ print("=========================================")
 print("Battle between an RL agent vs a LLM agent")
 print("=========================================")
 print(env.render())
+print("Setup Description:")
+print(f"LLM Model: {LLM_MODEL}")
+
 
 action = model.action(observation, info)
 
