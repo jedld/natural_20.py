@@ -142,7 +142,7 @@ class TestPlayerCharacter(unittest.TestCase):
         expected_items = [{
             'item': {
                 'consumable': True,
-                'equippable': True,
+                'equippable': False,
                 'hp_regained': '2d4+2',
                 'item_class': 'HealingPotion',
                 'name': 'Potion of Healing',
