@@ -1286,14 +1286,14 @@ class Entity(EntityStateEvaluator):
             self.statuses.remove("unconscious")
         if 'stable' in self.statuses:
             self.statuses.remove("stable")
-    
+
     def heal(self, amt):
         if self.dead():
             return
 
         if self.has_effect("heal_override"):
             amt = self.eval_effect("heal_override", {"heal": amt})
-            
+
         prev_hp = self.hp()
 
         self.attributes["hp"] = min(self.max_hp(), self.hp() + amt)
@@ -1330,7 +1330,7 @@ class Entity(EntityStateEvaluator):
         return {'dim': dim, 'bright': bright}
     
     def death_saving_throw(self, battle=None):
-        roll = DieRoll.roll('1d20', description='dice_roll.death_saving_throw', entity=self, battle=battle)
+        roll = DieRoll.roll_with_lucky(self, '1d20', description='dice_roll.death_saving_throw', battle=battle)
         if roll.nat_20():
             self.make_conscious()
             self.heal(1)
@@ -1380,7 +1380,7 @@ class Entity(EntityStateEvaluator):
                 continue
             if item_details['consumable'] and v['qty'] == 0:
                 continue
-            
+
             usable.append({
                 'name': str(k),
                 'label': item_details.get('name', k),
