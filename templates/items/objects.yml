@@ -89,6 +89,7 @@ water:
   token:
     - ^
 wooden_door:
+  description: An ominous wooden door. Standard for your typical fantasy dungeon.
   color: magenta
   default_ac: 15
   hp_die: 4d8
@@ -96,5 +97,6 @@ wooden_door:
   item_class: DoorObject
   max_hp: 18
   name: Wooden Door
+  token_image: wooden_door
   token:
     - '='

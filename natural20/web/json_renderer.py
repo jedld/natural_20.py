@@ -43,7 +43,7 @@ class JsonRenderer:
                         if not any([self.map.can_see_square(entity, (x, y)) for entity in entity_pov]):
                             result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 0.0})
                             continue
-
+                object_entity = self.map.object_at(x, y)
                 entity = self.map.entity_at(x, y)
                 light = self.map.light_at(x, y)
 
@@ -65,6 +65,15 @@ class JsonRenderer:
                     'has_darkvision': has_darkvision,
                     'darkvision_color': darkvision_color
                 }
+
+                if object_entity:
+                    shared_attributes['objects'] = [{
+                        "id" : object_entity.entity_uid,
+                        "name" : object_entity.name,
+                        "label" : object_entity.label(),
+                        "image" : object_entity.token_image(),
+                        "transforms" : object_entity.token_image_transform()
+                    }]
 
                 if entity:
                     if entity_pov and len(entity_pov) > 0:

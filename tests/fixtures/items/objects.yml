@@ -96,5 +96,6 @@ wooden_door:
   item_class: DoorObject
   max_hp: 18
   name: Wooden Door
+  token_image: wooden_door
   token:
     - '='

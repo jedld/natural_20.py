@@ -36,7 +36,7 @@ class Npc(Entity, Multiattack):
         DisengageBonusAction, HideAction, HideBonusAction,
         DodgeAction, LookAction, MoveAction,
         StandAction, ShoveAction, HelpAction, UseItemAction, GroundInteractAction,
-        SpellAction
+        SpellAction, InteractAction
     ]
 
     def __init__(self, session, type, opt=None):

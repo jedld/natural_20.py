@@ -74,8 +74,10 @@
         <h1>{{ entity.label() }}'s Character Sheet</h1>
         <div class="tab">
             <button class="tablinks" onclick="openTab(event, 'BasicInfo')">Basic Info</button>
+            {% if not entity.object() %}
             <button class="tablinks" onclick="openTab(event, 'Spells')">Spells</button>
             <button class="tablinks" onclick="openTab(event, 'Equipment')">Equipment/Inventory</button>
+            {% endif %}
         </div>
 
         <!-- Tab content -->
@@ -90,6 +92,7 @@
                 </div>
             </div>
         <table>
+            {% if not entity.object() %}
             <tr>
                 <th>Class & Level</th>
                 {% for class, level in entity.class_and_level() %}
@@ -104,7 +107,7 @@
                 <th>Race</th>
                 <td>{{ entity.race() }}</td>
             </tr>
-
+            {% endif %}
         </table>
         <h2>Armor Class</h2>
         <table>
@@ -132,6 +135,7 @@
                 <td>{{ entity.temp_hp() }}</td>
             </tr>
         </table>
+        {% if not entity.object() %}
         <h2>Ability Scores</h2>
         <table>
             <tr>
@@ -208,7 +212,9 @@
             {% endfor %}
             {% endfor %}
         </table>
+        {% endif %}
     </div>
+    {% if not entity.object() %}
  <div id="Spells" class="tabcontent">
     <h2>Spells</h2>
     <!-- Spells section -->
@@ -278,6 +284,7 @@
             </ul>
         </div>
     </div>
+    {% endif %}
     <script src="/sheet.js?salt={{ salt }}"></script>
 </body>
 </html>

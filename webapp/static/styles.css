@@ -416,3 +416,15 @@ input.initiative-input.form-control {
 .spell-action-button {
   padding: 5px;
 }
+
+.object-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.object-container img {
+  display: block;
+  max-width: 100%;
+}

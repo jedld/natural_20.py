@@ -7,7 +7,10 @@ from typing import Tuple
 from typing import Any
 from natural20.entity import Entity
 from natural20.die_roll import DieRoll
+from natural20.utils.action_builder import autobuild
+from natural20.actions.interact_action import InteractAction
 import uuid
+import pdb
 
 
 class InvalidInteractionAction(Exception):
@@ -24,8 +27,25 @@ class Object(Entity):
     def __init__(self, map: Any, properties: Dict[str, Any]) -> None:
         self.entity_uid = uuid.uuid4()
         self.name = properties.get('name')
+        self._description = properties.get('description', self.name)
         self.map = map
+        self.type = properties.get('type')
+        self.concentration = None
         self.effects = {}
+        self.inventory = {}
+        self._temp_hp = 0
+        # fake attributes for dungeons and dragons objects
+        self.attributes = properties.get('attributes', {
+            
+        })
+        self.ability_scores = properties.get('ability_scores', {
+            "str": 0,
+            "dex": 0,
+            "con": 0,
+            "int": 0,
+            "wis": 0,
+            "cha": 0
+        })
 
         if map:
             self.session = map.session
@@ -34,14 +54,20 @@ class Object(Entity):
         self.resistances = properties.get('resistances', [])
         self.setup_other_attributes()
         if properties.get('hp_die', None):
-            self.hp = DieRoll.roll(properties['hp_die']).result()
+            self.attributes["hp"] = DieRoll.roll(properties['hp_die']).result()
         else:
-            self.hp = properties.get('max_hp', None)
+            self.attributes["hp"] = properties.get('max_hp', None)
 
         if properties.get('inventory'):
             self.inventory = {
                 inventory['type']: {'qty': inventory['qty']} for inventory in properties['inventory']
             }
+
+        for ability, skills in self.SKILL_AND_ABILITY_MAP.items():
+            for skill in skills:
+                setattr(self, f"{skill}_mod", self.make_skill_mod_function(skill, ability))
+                setattr(self, f"{skill}_check", self.make_skill_check_function(skill))
+
 
 
     def __str__(self) -> str:
@@ -97,6 +123,9 @@ class Object(Entity):
 
     def interactable(self) -> bool:
         return False
+    
+    def max_hp(self) -> int:
+        return self.hp
 
     def placeable(self) -> bool:
         return self.properties.get('placeable', True)
@@ -106,12 +135,29 @@ class Object(Entity):
 
     def token(self) -> Optional[str]:
         return self.properties.get('token')
+    
+    def token_image(self):
+        return self.properties.get('token_image')
+    
+    def profile_image(self):
+        return self.properties.get('token_image') + ".png"
+    
+    def token_image_transform(self):
+        return None
 
     def size(self) -> str:
         return self.properties.get('size', 'medium')
 
     def available_interactions(self, entity: Any, battle: Any) -> List[Any]:
-        return []
+        return {}
+
+    def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True):
+        actions = []
+        for _interaction in self.available_interactions(None, battle).keys():
+            action = InteractAction(session, self, 'interact')
+            action.object_action = _interaction
+            actions.append(action)
+        return actions
 
     def light_properties(self) -> Optional[Dict[str, Any]]:
         return self.properties.get('light', None)

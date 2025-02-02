@@ -5,6 +5,7 @@ class DoorObject(Object):
     def __init__(self, map, properties):
         super().__init__(map, properties)
         self.front_direction = self.properties.get("front_direction", "auto")
+        self.privacy_lock = self.properties.get("privacy_lock", False)
         self.state = "closed"
         self.locked = False
         self.key_name = None
@@ -75,25 +76,87 @@ class DoorObject(Object):
 
     def token_closed(self):
         return self.properties.get("token_closed", "=")
+    
+    def token_image_transform(self):
+        # apply css style to rotate the image relative to the right hinge
+        # depending on the direction of the door
+        # Set transform-origin based on facing direction
+        if self.facing() == "up":
+            transform = "transform-origin: 100% 50%;"
+        elif self.facing() == "down":
+            transform = "transform-origin: 0% 50%;"
+        else:
+            transform = ""
+
+        # Now apply rotation and translation
+        if self.closed():
+            if self.facing() == "up":
+                transform += " transform: rotate(0deg);"
+            elif self.facing() == "down":
+                transform += " transform: rotate(180deg);"
+            elif self.facing() == "left":
+                transform += " transform: rotate(-90deg) translateX(-50%) translateY(120%);"
+            elif self.facing() == "right":
+                transform += " transform: rotate(90deg);"
+        elif self.opened():
+            if self.facing() == "up":
+                transform += " transform: rotate(90deg);"
+            elif self.facing() == "down":
+                transform += " transform: rotate(-90deg);"
+            elif self.facing() == "left":
+                transform += " transform: rotate(0deg) translatey(50%);"
+            elif self.facing() == "right":
+                transform += " transform: rotate(180deg);"
+        return transform
 
     def available_interactions(self, entity, battle=None):
-        interaction_actions = {}
+        def inside_range():
+            ex, ey = self.map.position_of(entity)
+            dx, dy = self.map.position_of(self)
+            facing = self.facing()
+            if facing == "up":    return ex == dx and ey == dy - 1
+            if facing == "down":  return ex == dx and ey == dy + 1
+            if facing == "left":  return ex == dx - 1 and ey == dy
+            if facing == "right": return ex == dx + 1 and ey == dy
+            return False
+
+        actions = {}
+        if entity:
+            has_key = entity.item_count(self.key_name) > 0
+        else:
+            has_key = False
+
         if self.locked:
-            interaction_actions["unlock"] = {
-                "disabled": not entity.item_count(self.key_name) > 0,
+            actions["unlock"] = {
+                "disabled": not has_key,
                 "disabled_text": "object.door.key_required"
             }
             if entity.item_count("thieves_tools") > 0 and entity.proficient("thieves_tools"):
-                interaction_actions["lockpick"] = {
+                actions["lockpick"] = {
                     "disabled": entity.action(battle),
                     "disabled_text": "object.door.action_required"
                 }
-            return interaction_actions
+            if self.privacy_lock and inside_range():
+                actions["unlock"] = {}
+            return actions
 
         if self.opened():
-            return {"close": {"disabled": self.someone_blocking_the_doorway(), "disabled_text": "object.door.door_blocked"}}
+            return {
+                "close": {
+                    "disabled": self.someone_blocking_the_doorway(),
+                    "disabled_text": "object.door.door_blocked"
+                }
+            }
+
+        actions["open"] = {}
+        if self.privacy_lock and inside_range():
+            actions["lock"] = {}
         else:
-            return {"open": {}, "lock": {"disabled": not entity.item_count(self.key_name) > 0, "disabled_text": "object.door.key_required"}}
+            actions["lock"] = {
+                "disabled": not has_key,
+                "disabled_text": "object.door.key_required"
+            }
+        return actions
 
     def interactable(self):
         return True
