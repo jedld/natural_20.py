@@ -4,9 +4,14 @@ import pdb
 class InteractAction(Action):
     def __init__(self, session, source, action_type, opts=None):
         super().__init__(session, source, action_type, opts)
-        self.target = None
-        self.object_action = None
-        self.other_params = None
+        if opts:
+            self.target = opts.get('target')
+            self.object_action = opts.get('object_action')
+            self.other_params = opts.get('other_params')
+        else:
+            self.target = None
+            self.object_action = None
+            self.other_params = None
 
     def __str__(self):
         return f"Interact({self.target},{self.object_action})"
