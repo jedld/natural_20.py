@@ -726,8 +726,12 @@ $(document).ready(() => {
     let entity_uid = $(this).closest('.tile').data('coords-id') ||
       $(this).data('id') ||
       $(this).closest('.tile').find('.object-container').data('id');
-    let coordsx = $(this).closest('.tile').data('coords-x') || $(this).data('coords-x');
-    let coordsy = $(this).closest('.tile').data('coords-y') || $(this).data('coords-y');
+    let coordsx = $(this).closest('.tile').data('coords-x') !== undefined 
+        ? $(this).closest('.tile').data('coords-x') 
+        : $(this).data('coords-x');
+    let coordsy = $(this).closest('.tile').data('coords-y') !== undefined 
+        ? $(this).closest('.tile').data('coords-y') 
+        : $(this).data('coords-y');
 
     if (moveMode) {
       moveMode = false;
@@ -804,6 +808,14 @@ $(document).ready(() => {
   $('.game-turn-container').on('click', '#player-end-turn', function () {
     ajaxPost('/end_turn', {}, (data) => {
       // Optionally hide game turn container
+    });
+  });
+
+  $('.actions-container').on('click', '.action-end-turn', function () {
+    
+    ajaxPost('/end_turn', {}, (data) => {
+      //hide actions
+      $('.popover-menu').hide();
     });
   });
 

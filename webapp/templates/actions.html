@@ -19,7 +19,14 @@
         <img src="{{ url_for('static', filename='info.png') }}" style="width: 50px; height: 50px;">
       </button>
     </td>
+  {% if battle and battle.current_turn() == entity %}
+    <td>
+      <button class="action-end-turn" title="End Turn">
+        <img src="{{ url_for('static', filename='end_turn.webp') }}" style="width: 50px; height: 50px;">
+      </button>
+    </td>
   </tr>
+  {% endif %}
   {% if entity.current_concentration() %}
     {% set spell = entity.current_concentration().__str__() %}
     <tr>

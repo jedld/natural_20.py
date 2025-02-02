@@ -428,3 +428,8 @@ input.initiative-input.form-control {
   display: block;
   max-width: 100%;
 }
+
+.action-end-turn {
+  background-color: red;
+  border-radius: 5px;
+}

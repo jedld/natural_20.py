@@ -98,7 +98,7 @@ class UseItemAction(Action):
             if session is None:
                 session = battle.session
             if session:
-                session.event_manager.received_event({"event": "use_item", "source": item["source"], "item": item["item"]})
+                session.event_manager.received_event({"event": "use_item", "source": item["source"], "item": item["item"], "target": item["target"]})
             item["item"].use(item["target"], item)
             if item["item"].consumable():
                 item["source"].deduct_item(item["item"].name, 1)

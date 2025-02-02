@@ -208,6 +208,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
         return []
 
     action_list = []
+    if map is None:
+      map = battle.map
 
     for action_type in self.ACTION_LIST:
       if action_type.can(self, battle):
@@ -244,7 +246,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
             continue
 
           # no map? we skip, must be a theater of the mind mode
-          if battle.map is None:
+          if map is None:
             continue
 
           cur_x, cur_y = battle.map.position_of(self)
@@ -252,9 +254,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
             for y_pos in range(-1, 2):
               if x_pos == 0 and y_pos == 0:
                 continue
-              if battle.map.passable(self, cur_x + x_pos, cur_y + y_pos, battle, allow_squeeze=False) and battle.map.placeable(self, cur_x + x_pos, cur_y + y_pos, battle, squeeze=False):
+              if map.passable(self, cur_x + x_pos, cur_y + y_pos, battle, allow_squeeze=False) and map.placeable(self, cur_x + x_pos, cur_y + y_pos, battle, squeeze=False):
                 chosen_path = [[cur_x, cur_y], [cur_x + x_pos, cur_y + y_pos]]
-                actual_movement = compute_actual_moves(self, chosen_path, battle.map, battle, self.available_movement(battle) // 5)
+                actual_movement = compute_actual_moves(self, chosen_path, map, battle, self.available_movement(battle) // 5)
                 if len(actual_movement.movement) > 1 and actual_movement.impediment is None:
                   # print(f"Adding move action {actual_movement.movement}")
                   move_action = MoveAction(session, self, 'move')
@@ -289,7 +291,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
           else:
             action_list.append(UseItemAction(session, self, 'use_item'))
         elif action_type == InteractAction:
-          action_list = action_list + autobuild(self.session, InteractAction, self, battle, map=map)
+          for objects in map.objects_near(self, battle):
+            for interaction in objects.available_interactions(self).keys():
+              action_list.append(InteractAction(session, self, 'interact', { "target": objects,
+                                                                            "object_action": interaction }))
     return action_list
 
   def _player_character_attack_actions(self, session, battle, opportunity_attack=False, second_weapon=False, auto_target=True):

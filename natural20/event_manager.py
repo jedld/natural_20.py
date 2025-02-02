@@ -90,7 +90,7 @@ class EventManager:
             item = event["item"]
             # Simple log entry or any additional logic needed
             f_item = self.t(f"item.{item.name}")
-            self.output_logger.log(f"{source.name} used {f_item}")
+            self.output_logger.log(f"{self.show_name(event)} used {f_item} on {self.show_target_name(event)}")
 
         def attack_roll(event):
             msg = f"{self.show_name(event)} attacked {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {self.t(event['attack_name'])}{'(thrown)' if event['thrown'] else ''} and hits"
