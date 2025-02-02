@@ -152,9 +152,9 @@ class LLMInterfacer:
         return prompt
 
 class OllamaInterfacer(LLMInterfacer):
-    def __init__(self, url="http://127.0.0.1:11434/api/generate", model="deepseek-r1:7b", debug=False, explain=False):
+    def __init__(self, base_url="http://127.0.0.1:11434", model="deepseek-r1:7b", debug=False, explain=False):
         super().__init__(debug, explain=explain)
-        self.url = url
+        self.base_url = base_url
         self.model = model
         self.explain = explain
 
@@ -164,7 +164,7 @@ class OllamaInterfacer(LLMInterfacer):
         if self.debug:
             print(f"prompt: -------------------------------\n{prompt}\n---------------------------------")
 
-        response = requests.post(self.url, json={"prompt": prompt, "model": self.model, "stream": False})
+        response = requests.post(self.base_url + '/api/generate', json={"prompt": prompt, "model": self.model, "stream": False})
 
 
         result = response.json()

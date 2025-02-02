@@ -81,6 +81,8 @@ def action_to_prompt(action, weapon_mappings=None, spell_mappings=None):
         message = "action surge"
     elif action_type == action_type_to_int("dash_bonus"):
         message = "dash as bonus action"
+    elif action_type == action_type_to_int("use_item"):
+        message = f"use item {_look_up_attack_name(param3, weapon_mappings)}"
     elif action_type == -1:
         message = "end my turn"
     else:
