@@ -5,14 +5,13 @@ import pdb
 
 @dataclass
 class UseItemAction(Action):
-    target: any
-    target_item: any
-
     def __init__(self, session, source, action_type):
         super().__init__(session, source, action_type)
         self.session = session
         self.source = source
         self.action_type = action_type
+        self.target = None
+        self.target_item = None
 
 
     def __str__(self):
