@@ -146,6 +146,9 @@ class Object(Entity):
     def setup_other_attributes(self):
         pass
 
+    def build_map(self, selected_interaction, action):
+        return None
+
 
 
 class ItemLibrary:

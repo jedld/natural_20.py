@@ -280,7 +280,29 @@ class Map():
             if reveal_concealed or not obj.concealed():
                 return obj
         return None
-    
+
+    def objects_near(self, entity, battle=None):
+        target_squares = entity.melee_squares(self)
+        if battle and battle.map:
+            target_squares += battle.map.entity_squares(entity)
+        objects = []
+
+        available_objects = []
+        for square in target_squares:
+            available_objects.extend(self.objects_at(square[0], square[1]))
+
+        for obj in available_objects:
+            if obj.available_interactions(entity, battle):
+                objects.append(obj)
+
+        for obj, position in self.entities.items():
+            if obj == entity:
+                continue
+            if obj.available_interactions(entity, battle) and position in target_squares:
+                objects.append(obj)
+
+        return objects
+
     def place_object(self, object_info, pos_x, pos_y, object_meta=None):
         # print(f"placing object {object_info} at {pos_x}, {pos_y}")
         if object_meta is None:

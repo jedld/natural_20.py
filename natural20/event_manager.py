@@ -168,6 +168,9 @@ class EventManager:
                 self.output_logger.log(f"{self.show_target_name(event)} failed the dexterity saving throw for ice knife. {event['roll']} < {event['source'].spell_save_dc()}")
             else:
                 self.output_logger.log(f"{self.show_target_name(event)} succeeded the dexterity saving throw for ice knife. {event['roll']} >= {event['source'].spell_save_dc()}")
+        
+        def interact(event):
+            self.output_logger.log(f"{self.show_name(event)} interacted with {self.show_target_name(event)} action [{event['object_action']}]")
 
         event_handlers = {
             'multiattack' : lambda event: self.output_logger.log(f"{self.show_name(event)} uses multiattack."),
@@ -206,6 +209,7 @@ class EventManager:
             'save_fail': lambda event: self.output_logger.log(f"{self.show_name(event)} failed on a {event['save_type']} saving throw against DC {event['dc']} with {event['roll']}={event['roll'].result()}"),
             'start_of_combat': start_of_combat,
             'use_item': handle_use_item,
+            'interact': interact,
         }
 
         for event, handler in event_handlers.items():
