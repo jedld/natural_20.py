@@ -14,6 +14,7 @@ samples/training_output_all/
 samples/training_output_figher_only/
 samples/model_weights_all/
 scripts/model_weights_std/**/*
+scripts/image_generators/*.png
 *.yml
 
 scripts/runs

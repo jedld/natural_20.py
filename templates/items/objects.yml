@@ -41,9 +41,13 @@ briar:
   token:
     - ▓
 chest:
+  description: A standard dungeon chest that may or may not be filled with treasure.
   color: yellow
   item_class: Chest
+  default_ac: 11
+  max_hp: 25
   name: Treasure Chest
+  token_image: wood_chest
   passable: true
   placeable: false
 ground:

@@ -6,6 +6,7 @@ from natural20.utils.movement import requires_squeeze
 from natural20.item_library.common import StoneWall, Ground
 from natural20.item_library.door_object import DoorObject
 from natural20.item_library.pit_trap import PitTrap
+from natural20.item_library.chest import Chest
 from natural20.player_character import PlayerCharacter
 from natural20.npc import Npc
 from natural20.weapons import compute_max_weapon_range

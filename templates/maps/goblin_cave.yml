@@ -15,7 +15,7 @@ map:
     - '#.........'
   base_1:
     - ..........
-    - .......=..
+    - .c.....=..
     - ..........
     - ..........
     - ..........
@@ -80,6 +80,9 @@ legend:
     name: front_door
     type: wooden_door
     state: closed
+  c:
+    name: chest
+    type: chest
 player:
   - position: [1, 4]
     sheet: characters/halfling_rogue.yml

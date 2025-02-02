@@ -26,6 +26,7 @@ class TestInteractAction(unittest.TestCase):
         self.battle = Battle(self.session, self.battle_map)
         self.battle_map.place((0, 5), self.entity, "G")
         self.door = self.battle_map.object_at(1, 4)
+        self.chest = self.battle_map.object_at(1, 6)
 
     def test_opening_and_closing_doors(self):
         print(MapRenderer(self.battle_map).render())
@@ -48,6 +49,27 @@ class TestInteractAction(unittest.TestCase):
         self.assertFalse(self.door.opened())
         print(MapRenderer(self.battle_map).render())
 
+    def test_opening_and_closing_chests(self):
+        print(MapRenderer(self.battle_map).render())
+        build = InteractAction.build(self.session, self.entity)
+        build = build['next'](self.chest)
+        self.assertEqual(build['param'], [{'type': 'interact', 'target': self.chest }])
+        self.assertEqual(set(self.chest.available_interactions(self.entity).keys()),set(['open', 'lock']))
+
+        self.assertFalse(self.chest.opened())
+        build = build['next']('open')
+        self.assertIsInstance(build, InteractAction)
+        build.resolve(self.session)
+        InteractAction.apply(None, build.result[0], session=self.session)
+        self.assertTrue(self.chest.opened())
+        self.assertIn(self.chest, self.battle_map.objects_near(self.entity, None))
+        print(MapRenderer(self.battle_map).render())
+        chest_close = self.build_chest_close()
+        chest_close.resolve(self.session)
+        InteractAction.apply(None, chest_close.result[0], session=self.session)
+        self.assertFalse(self.chest.opened())
+        print(MapRenderer(self.battle_map).render())
+
     def test_autobuild(self):
         self.assertTrue(self.door.closed())
         self.assertEqual(set(self.door.available_interactions(self.entity).keys()), set(['open', 'lock']))
@@ -63,6 +85,18 @@ class TestInteractAction(unittest.TestCase):
     def build_door_close(self):
         build = InteractAction.build(self.session, self.entity)
         build = build['next'](self.door)
+        build = build['next']('close')
+        return build
+    
+    def build_chest_open(self):
+        build = InteractAction.build(self.session, self.entity)
+        build = build['next'](self.chest)
+        build = build['next']('open')
+        return build
+    
+    def build_chest_close(self):
+        build = InteractAction.build(self.session, self.entity)
+        build = build['next'](self.chest)
         build = build['next']('close')
         return build
 
