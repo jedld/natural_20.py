@@ -61,6 +61,9 @@ class Entity(EntityStateEvaluator):
     def description(self):
         return self.properties.get('description', self._description)
 
+    def available_interactions(self, entity, battle):
+        return None
+
     def concentration_on(self, effect):
         if effect is None:
             raise ValueError("effect cannot be None")
@@ -322,6 +325,8 @@ class Entity(EntityStateEvaluator):
 
     def saving_throw_mod(self, save_type):
         modifier = self.ability_mod(save_type)
+        if modifier is None:
+            return 0
         modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
         return modifier
 
@@ -549,7 +554,8 @@ class Entity(EntityStateEvaluator):
         return False
 
     def modifier_table(self, value):
-        mod_table = [[1, 1, -5],
+        mod_table = [[0, 1, -5],
+                     [1, 1, -5],
                      [2, 3, -4],
                      [4, 5, -3],
                      [6, 7, -2],

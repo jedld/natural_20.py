@@ -181,6 +181,15 @@ class Map():
         for entity in self.entities.keys():
             if entity.entity_uid == uid:
                 return entity
+        for entity in self.interactable_objects.keys():
+            if str(entity.entity_uid) == uid:
+                return entity
+        return None
+    
+    def object_by_uid(self, uid):
+        for obj in self.interactable_objects.keys():
+            if str(obj.entity_uid) == uid:
+                return obj
         return None
 
     def thing_at(self, pos_x, pos_y, reveal_concealed=False):

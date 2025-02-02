@@ -148,7 +148,7 @@ def build_params(session, entity, battle, build_info, map=None):
                             selected_movement_options.append([shortest_path, []])
 
             params_list.append(selected_movement_options)
-        
+
         # -----------------------------
         # 5) SELECT OBJECT
         # -----------------------------
@@ -184,6 +184,9 @@ def autobuild(session, action_class, entity, battle, map=None, auto_target=True)
     previous_builds = [build_info]
     next_builds = []
 
+    if map is None and battle:
+        map = battle.map
+        
     while any(isinstance(item, dict) for item in previous_builds):
         next_builds.clear()
 

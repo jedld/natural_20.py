@@ -1,5 +1,5 @@
 <table>
-  {% set available_actions = entity.available_actions(session, battle, auto_target=False) %}
+  {% set available_actions = entity.available_actions(session, battle, auto_target=False, map=map) %}
   {% if entity and available_actions %}
     {% for actions in available_actions | batch(10) %}
       <tr>

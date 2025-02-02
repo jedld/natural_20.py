@@ -24,6 +24,7 @@ from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.ground_interact_action import GroundInteractAction
 from natural20.actions.spell_action import SpellAction
 from natural20.actions.use_item_action import UseItemAction
+from natural20.actions.interact_action import InteractAction
 from natural20.utils.action_builder import autobuild
 
 from natural20.utils.movement import compute_actual_moves
@@ -58,7 +59,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
     ActionSurgeAction,
     ShoveAction,
     FirstAidAction,
-    UseItemAction
+    UseItemAction,
+    InteractAction,
   ]
 
   def __init__(self, session, properties, name=None):
@@ -195,7 +197,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
   def c_class(self):
     return self.properties['classes']
 
-  def available_actions(self, session, battle, opportunity_attack=False, auto_target=True):
+  def available_actions(self, session, battle, opportunity_attack=False, auto_target=True, map=None):
     if self.unconscious():
       return []
 
@@ -286,6 +288,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
             action_list = action_list +  autobuild(self.session, UseItemAction, self, battle)
           else:
             action_list.append(UseItemAction(session, self, 'use_item'))
+        elif action_type == InteractAction:
+          action_list = action_list + autobuild(self.session, InteractAction, self, battle, map=map)
     return action_list
 
   def _player_character_attack_actions(self, session, battle, opportunity_attack=False, second_weapon=False, auto_target=True):

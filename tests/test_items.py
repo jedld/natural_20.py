@@ -25,6 +25,9 @@ class TestItems(unittest.TestCase):
         self.door = self.battle_map.object_at(1, 4)
 
     def test_doors(self):
+        self.assertIsNotNone(self.door.entity_uid)
+        self.assertEqual(self.door.token_image(), 'wooden_door')
+        print(f"door entity uid: {self.door.entity_uid}")
         self.assertEqual(self.door.facing(), 'up')
         print(MapRenderer(self.battle_map).render())
 

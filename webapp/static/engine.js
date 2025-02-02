@@ -515,6 +515,12 @@ $(document).ready(function () {
           } else {
             $('.tiles-container .popover-menu').hide();
             var entity_uid = $(this).data('coords-id');
+            
+            if (entity_uid == "" || entity_uid == null) {
+              // check if there is an object in the tile
+              entity_uid = $(this).find('.object-container').data('id');
+            }
+
             $.ajax({
               url: '/actions',
               type: 'GET',
@@ -1009,6 +1015,10 @@ $(document).ready(function () {
 
     if (entity_uid === undefined) {
       entity_uid = $(this).data('id')
+    }
+
+    if (entity_uid === "" || entity_uid === null) {
+      entity_uid = $(this).closest('.tile').find('.object-container').data('id');
     }
 
     if (coordsx === undefined) {

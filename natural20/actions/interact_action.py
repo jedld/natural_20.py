@@ -109,3 +109,10 @@ class InteractAction(Action):
                         "source": entity, 
                         "target": item['target'],
                         "object_action": item['object_action']})
+                    
+    def to_h(self):
+        return {
+            "action_type": self.action_type,
+            "target": self.target.entity_uid if self.target else None,
+            "object_action": self.object_action
+        }

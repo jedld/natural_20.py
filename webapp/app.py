@@ -28,6 +28,7 @@ from natural20.actions.first_aid_action import FirstAidAction
 from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.use_item_action import UseItemAction
+from natural20.actions.interact_action import InteractAction
 from natural20.entity import Entity
 from natural20.action import Action, AsyncReactionHandler
 from natural20.battle import Battle
@@ -39,6 +40,7 @@ from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
 from collections import deque
 from natural20.utils.action_builder import acquire_targets
+from natural20.dm import DungeonMaster
 import optparse
 import pdb
 import i18n
@@ -334,15 +336,22 @@ def action_flavors(action):
             return "_ranged"
         else:
             return ""
+    elif isinstance(action, InteractAction):
+        if action.object_action:
+            return f"_{action.object_action}"
     return ""
 
 app.add_template_global(action_flavors, name='action_flavors')
 
 def ability_mod_str(ability_mod):
+    if ability_mod is None:
+        return ""
+    
     if ability_mod >= 0:
         return f"+{ability_mod}"
     else:
         return str(ability_mod)
+
 app.add_template_filter(ability_mod_str, name='mod_str')
 
 def casting_time(casting_time):
@@ -828,9 +837,13 @@ def get_actions():
     entity = battle_map.entity_by_uid(id)
     if entity:
         if 'dm' in user_role() or current_user in entity_owners(entity.entity_uid):
-            return render_template('actions.html', entity=entity, battle=battle, session=game_session)
+            return render_template('actions.html', entity=entity, battle=battle, session=game_session, map=battle_map)
         else:
             return jsonify(error="Forbidden"), 403
+    object_ = battle_map.object_by_uid(id)
+    if object_:
+        return render_template('actions.html', entity=object_, battle=battle, session=game_session, map=battle_map)
+
     return jsonify(error="Entity not found"), 404
 
 @app.route("/hide", methods=['GET'])
@@ -886,6 +899,8 @@ def action_type_to_class(action_type):
         return EscapeGrappleAction
     elif action_type == 'UseItemAction':
         return UseItemAction
+    elif action_type == 'InteractAction':
+        return InteractAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
 
@@ -1175,8 +1190,21 @@ def action():
                             action_info['valid_items'] = valid_items
                             action_info['param'] = action['param']
                             return jsonify(action_info)
+                    elif param_details['type'] == 'select_object':
+                        if entity.object() and 'dm' in user_role():
+                            gm = DungeonMaster(game_session, name='dm')
+                            interact = InteractAction(game_session, gm, 'interact')
+                            interact.object_action = opts.get('object_action')
+                            interact.target = entity
+                            return jsonify(commit_and_update(interact))
+                        else:
+                            interact = InteractAction(game_session, entity, 'interact')
+                            object =  battle_map.object_by_uid(opts.get('target'))
+                            interact.object_action = opts.get('object_action')
+                            interact.target = object
+                            return jsonify(commit_and_update(interact))
                     else:
-                        raise ValueError(f"Unknown action type {action_type}")
+                        raise ValueError(f"Unknown action type {action_type} {param_details['type']}")
                 else:
                     raise ValueError(f"Invalid action map {action}")
 
@@ -1197,6 +1225,8 @@ def get_info():
     info_id = request.args.get('id')
     # Fetch the necessary information based on the info_id
     entity = battle_map.entity_by_uid(info_id)
+    if entity is None:
+        entity = battle_map.object_by_uid(info_id)
     return render_template('info.html.jinja', entity=entity, session=game_session, restricted=False)
 
 @app.route('/logout', methods=['POST'])
