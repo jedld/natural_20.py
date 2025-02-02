@@ -509,10 +509,16 @@ class Entity(EntityStateEvaluator):
     def initiative(self, battle=None):
         roll = DieRoll.roll_with_lucky(self, f"1d20+{self.initiative_bonus()}", description="initiative", battle=battle)
         value = float(roll.result()) + self.ability_scores.get('dex') / 100.0
-        self.event_manager.received_event({ "source": self,
+        if battle:
+            battle.event_manager.received_event({ "source": self,
                                      "event": "initiative",
                                      "roll": roll,
                                      "value" : value})
+        else:
+            self.event_manager.received_event({ "source": self,
+                                        "event": "initiative",
+                                        "roll": roll,
+                                        "value" : value})
         return value
 
     def str_mod(self):

@@ -154,11 +154,14 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
         # -----------------------------
         elif param_type == "select_object":
             possible_objects = []
-            nearby_objects = map.objects_near(entity)
-            for obj in nearby_objects:
-                if obj.interactable():
-                    possible_objects.append(obj)
-            params_list.append(possible_objects)
+            if map:
+                nearby_objects = map.objects_near(entity)
+                for obj in nearby_objects:
+                    if obj.interactable():
+                        possible_objects.append(obj)
+                params_list.append(possible_objects)
+            else:
+                return None
 
         # -----------------------------
         # 6) INTERACT
