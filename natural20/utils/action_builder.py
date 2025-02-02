@@ -49,7 +49,7 @@ def acquire_targets(param, entity, battle, map=None):
     return possible_targets
 
 
-def build_params(session, entity, battle, build_info, map=None):
+def build_params(session, entity, battle, build_info, map=None, auto_target=True):
     """
     Build a list (parallel to build_info["param"]) containing all possible
     parameter choices for each param in build_info["param"].
@@ -167,6 +167,9 @@ def build_params(session, entity, battle, build_info, map=None):
             object = param["target"]
             interaction_actions = object.available_interactions(entity, battle)
             params_list.append(list(interaction_actions.keys()))
+        elif param_type == "select_items":
+            if not auto_target:
+                params_list.append([])
         else:
             raise ValueError(f"Unknown param type: {param_type}")
 
@@ -186,7 +189,7 @@ def autobuild(session, action_class, entity, battle, map=None, auto_target=True)
 
     if map is None and battle:
         map = battle.map
-        
+
     while any(isinstance(item, dict) for item in previous_builds):
         next_builds.clear()
 
@@ -197,7 +200,7 @@ def autobuild(session, action_class, entity, battle, map=None, auto_target=True)
                 continue
 
             # Build a list of possible parameter options
-            possible_params = build_params(session, entity, battle, current_info, map=map)
+            possible_params = build_params(session, entity, battle, current_info, map=map, auto_target=auto_target)
             if possible_params is None:
                 # If we can't build any parameters, we append None
                 # to represent a failed/invalid build path

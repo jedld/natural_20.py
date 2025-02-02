@@ -223,7 +223,7 @@ class Session:
     
 
     def t(self, token, options=None):
-        return token
+        return i18n.t(token, **options)
 
     def load_yaml_file(self, category, resource):
         file_path = os.path.join(self.root_path, category, f'{resource}.yml')

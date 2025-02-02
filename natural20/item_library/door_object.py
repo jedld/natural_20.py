@@ -237,3 +237,5 @@ class DoorObject(Object):
         self.state = self.properties.get("state", "closed")
         self.locked = self.properties.get("locked")
         self.key_name = self.properties.get("key")
+
+

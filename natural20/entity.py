@@ -63,6 +63,9 @@ class Entity(EntityStateEvaluator):
 
     def available_interactions(self, entity, battle):
         return None
+    
+    def items_label(self):
+      return self.t(f"entity.#{self.__class__}.item_label", { "default": f"{self.name} Items"})
 
     def concentration_on(self, effect):
         if effect is None:
@@ -1494,3 +1497,6 @@ class Entity(EntityStateEvaluator):
             'grapples': self.grapples,
             'temp_hp' : self._temp_hp
         }
+    
+    def t(self, key, kwargs=None):
+        return self.session.t(key, kwargs)
