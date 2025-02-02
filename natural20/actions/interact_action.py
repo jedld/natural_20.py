@@ -1,4 +1,5 @@
 from natural20.action import Action
+import pdb
 
 class InteractAction(Action):
     def __init__(self, session, source, action_type, opts=None):
@@ -7,15 +8,27 @@ class InteractAction(Action):
         self.object_action = None
         self.other_params = None
 
+    def __str__(self):
+        return f"Interact({self.target},{self.object_action})"
+    
+    def __repr__(self):
+        return self.__str__()
+
     @staticmethod
     def can(entity, battle):
         return battle is None or not battle.ongoing or entity.total_actions(battle) > 0 or entity.free_object_interaction(battle)
 
     @staticmethod
     def build(session, source):
-        action = InteractAction()
-        action.build_map()
-        return action
+        action = InteractAction(session, source=source, action_type='interact')
+        return action.build_map()
+    
+    def clone(self):
+        interact_action = InteractAction(self.session, self.source, self.action_type, self.opts)
+        interact_action.target = self.target
+        interact_action.object_action = self.object_action
+        interact_action.other_params = self.other_params.copy() if self.other_params else None
+        return interact_action
 
     def build_map(self):
         return {
@@ -29,7 +42,8 @@ class InteractAction(Action):
         }
 
     def build_next(self, object):
-        self.target = object
+        action = self.clone()
+        action.target = object
         return {
             'param': [
                 {
@@ -37,18 +51,16 @@ class InteractAction(Action):
                     'target': object
                 }
             ],
-            'next': lambda action: self.build_custom_action(action, object)
+            'next': lambda interaction: action.build_custom_action(interaction, object)
         }
 
-    def build_custom_action(self, action, object):
-        self.object_action = action
-        custom_action = object.build_map(action, self) if object else None
+    def build_custom_action(self, interaction, object):
+        action = self.clone()
+        action.object_action = interaction
+        custom_action = object.build_map(interaction, action) if object else None
 
         if custom_action is None:
-            return {
-                'param': None,
-                'next': lambda: self
-            }
+            return action
         else:
             return custom_action
 
@@ -79,10 +91,21 @@ class InteractAction(Action):
 
         if item_type == 'interact':
             item['target'].use(entity, item)
-            if item['cost'] == 'action':
-                battle.consume(entity, 'action', 1)
-            else:
-                battle.consume(entity, 'free_object_interaction', 1) or battle.consume(entity, 'action', 1)
+            if battle:
+                if item.get('cost') == 'action':
+                    battle.consume(entity, 'action', 1)
+                else:
+                    battle.consume(entity, 'free_object_interaction', 1) or battle.consume(entity, 'action', 1)
 
-            battle.event_manager.received_event(event='interact', source=entity, target=item['target'],
-                                                  object_action=item['object_action'])
+                session.event_manager.received_event({
+                        "event": 'interact', 
+                        "source": entity, 
+                        "target": item['target'],
+                        "object_action": item['object_action']})
+            else:
+                if session:
+                    session.event_manager.received_event({
+                        "event": 'interact', 
+                        "source": entity, 
+                        "target": item['target'],
+                        "object_action": item['object_action']})

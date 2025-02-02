@@ -4,9 +4,28 @@ from natural20.event_manager import EventManager
 class DoorObject(Object):
     def __init__(self, map, properties):
         super().__init__(map, properties)
+        self.front_direction = self.properties.get("front_direction", "auto")
         self.state = "closed"
         self.locked = False
         self.key_name = None
+
+    def facing(self):
+        if self.front_direction == "auto":
+            # check for walls and auto determine the direction
+            pos = self.map.position_of(self)
+
+            if self.map.wall(pos[0] - 1, pos[1]):
+                self.front_direction = "up"
+            elif self.map.wall(pos[0] + 1, pos[1]):
+                self.front_direction = "down"
+            elif self.map.wall(pos[0], pos[1] - 1):
+                self.front_direction = "left"
+            elif self.map.wall(pos[0], pos[1] + 1):
+                self.front_direction = "right"
+            else:
+                self.front_direction = "up"
+
+        return self.front_direction
 
     def opaque(self):
         return self.closed() and not self.dead()
@@ -16,9 +35,6 @@ class DoorObject(Object):
 
     def lock(self):
         self.locked = True
-
-    def locked(self):
-        return self.locked
 
     def passable(self):
         return self.opened() or self.dead()
@@ -39,6 +55,15 @@ class DoorObject(Object):
         if self.dead():
             return "`"
 
+        if self.facing() == "up":
+            return "-" if self.opened() else "="
+        elif self.facing() == "down":
+            return "-" if self.opened() else "="
+        elif self.facing() == "left":
+            return ":" if self.opened() else "║"
+        elif self.facing() == "right":
+            return ":" if self.opened() else "║"
+
         pos_x, pos_y = self.position()
         if self.map.wall(pos_x - 1, pos_y) or self.map.wall(pos_x + 1, pos_y):
             return "-" if self.opened() else "="
@@ -53,7 +78,7 @@ class DoorObject(Object):
 
     def available_interactions(self, entity, battle=None):
         interaction_actions = {}
-        if self.locked():
+        if self.locked:
             interaction_actions["unlock"] = {
                 "disabled": not entity.item_count(self.key_name) > 0,
                 "disabled_text": "object.door.key_required"
@@ -78,7 +103,7 @@ class DoorObject(Object):
             return
 
         if action == "open":
-            if not self.locked():
+            if not self.locked:
                 return {"action": action}
             else:
                 return {"action": "door_locked"}

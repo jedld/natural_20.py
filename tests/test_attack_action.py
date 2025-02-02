@@ -11,6 +11,7 @@ from natural20.utils.ac_utils import calculate_cover_ac
 from natural20.weapons import compute_advantages_and_disadvantages
 from pdb import set_trace
 
+
 class TestAttackAction(unittest.TestCase):
     def make_session(self):
         event_manager = EventManager()
@@ -189,8 +190,6 @@ class TestAttackAction(unittest.TestCase):
         advantages, disadvantages = compute_advantages_and_disadvantages(battle, npc, character, npc.npc_actions[0])
         self.assertEqual(advantages, [])
         self.assertEqual(disadvantages, [])
-
-# typed: false
 
 
 if __name__ == '__main__':

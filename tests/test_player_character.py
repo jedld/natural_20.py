@@ -57,7 +57,7 @@ class TestPlayerCharacter(unittest.TestCase):
 
     def test_wizard_available_actions(self):
         self.player = self.load_mage_character()
-        expected_actions = ['Dash', 'Disengage', 'Dodge', 'Prone', 'Grapple', 'Shove']
+        expected_actions = ['SpellAction: mage_armor', 'Dash', 'Disengage', 'Dodge', 'Prone', 'Grapple', 'Shove']
         self.assertEqual([str(action) for action in self.player.available_actions(self.session, self.battle)], expected_actions)
 
     def test_wizard_spell_attack_modifier(self):
@@ -123,7 +123,7 @@ class TestPlayerCharacter(unittest.TestCase):
 
     def test_fighter_available_actions(self):
         self.player = self.load_fighter_character()
-        expected_actions = ['Dash', 'Disengage', 'Dodge', 'Prone', 'uses Second Wind', 'Grapple', 'Shove']
+        expected_actions = ['Dash', 'Disengage', 'Dodge', 'Prone', 'SecondWind', 'Grapple', 'Shove', 'UseItem: healing_potion']
         self.assertEqual([str(action) for action in self.player.available_actions(self.session, self.battle)], expected_actions)
 
     def test_fighter_to_h(self):

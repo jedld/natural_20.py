@@ -16,10 +16,10 @@ class SecondWindAction(Action):
         return 'Second Wind'
     
     def __str__(self):
-        return f"uses Second Wind"
+        return f"SecondWind"
     
     def __repr__(self):
-        return f"uses Second Wind"
+        return f"SecondWind"
 
 
     def build_map(self):

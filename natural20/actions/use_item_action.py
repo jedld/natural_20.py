@@ -17,11 +17,17 @@ class UseItemAction(Action):
 
     def __str__(self):
         if self.target_item:
-            return f"{str(self.action_type).capitalize()} {self.target_item.name}"
-        return str(self.action_type).capitalize()
+            return f"UseItem: {self.target_item.name}"
+        return "UseItem"
     
     def __repr__(self):
-        return str(self.action_type).capitalize()
+        return self.__str__()
+    
+    def clone(self):
+        action = UseItemAction(self.session, self.source, self.action_type)
+        action.target = self.target
+        action.target_item = self.target_item
+        return action
     
     @staticmethod
     def can(entity, battle):
@@ -40,8 +46,9 @@ class UseItemAction(Action):
 
     def build_map(self):
         def next_fn(item):
-            self.target_item = item
-            return self.build_next(item)
+            action = self.clone()
+            action.target_item = item
+            return action.build_next(item)
 
         return {
             "action": self,
