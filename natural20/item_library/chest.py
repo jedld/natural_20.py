@@ -1,5 +1,6 @@
 from natural20.item_library.object import Object
 from natural20.concern.container import Container
+import pdb
 
 class Chest(Object, Container):
     def __init__(self, map, properties=None):
@@ -9,6 +10,11 @@ class Chest(Object, Container):
         self.state = (self.properties.get('state') or 'closed')
         self.is_locked = self.properties.get('locked', False)
         self.key_name = self.properties.get('key', '')
+
+        inventory = self.properties.get('inventory', [])
+        self.inventory = {}
+        for item in inventory:
+            self.add_item(item['type'], item['qty'])
 
     def facing(self):
         # face away from a wall if possible
@@ -26,32 +32,32 @@ class Chest(Object, Container):
                 self.front_direction = 'up'
 
     def build_map(self, action, action_object):
-        # if action == 'store':
-        #     return {
-        #         'action': action_object,
-        #         'param': [{
-        #             'type': 'select_items',
-        #             'label': action_object.source.items_label(),
-        #             'items': action_object.source.inventory
-        #         }],
-        #         'next': lambda items: {
-        #             'param': None,
-        #             'next': lambda: action_object
-        #         }
-        #     }
-        # elif action == 'loot':
-        #     return {
-        #         'action': action_object,
-        #         'param': [{
-        #             'type': 'select_items',
-        #             'label': self.items_label(),
-        #             'items': self.inventory
-        #         }],
-        #         'next': lambda items: {
-        #             'param': None,
-        #             'next': lambda: action_object
-        #         }
-        #     }
+        if action == 'store':
+            return {
+                'action': action_object,
+                'param': [{
+                    'type': 'select_items',
+                    'label': action_object.source.items_label(),
+                    'items': action_object.source.inventory
+                }],
+                'next': lambda items: {
+                    'param': None,
+                    'next': lambda: action_object
+                }
+            }
+        elif action == 'loot':
+            def next_action(items):
+                action_object.other_params = items
+                return action_object
+            return {
+                'action': action_object,
+                'param': [{
+                    'type': 'select_items',
+                    'label': self.items_label(),
+                    'items': self.inventory
+                }],
+                'next': next_action
+            }
         return action_object
 
     def opaque(self):
@@ -152,6 +158,7 @@ class Chest(Object, Container):
     def resolve(self, entity, action, other_params, opts=None):
         if opts is None:
             opts = {}
+
         if action == 'open':
             return {'action': action } if not self.locked() else {'action': 'door_locked'}
         elif action in ['loot', 'store']:
@@ -203,13 +210,6 @@ class Chest(Object, Container):
 
     def lockpick_dc(self):
         return self.properties.get('lockpick_dc', 10)
-
-    # Placeholder stubs for container-like methods:
-    def inventory(self):
-        return []
-
-    def items_label(self):
-        return "Items"
 
     def interactable(self):
         return True

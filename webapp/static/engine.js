@@ -793,6 +793,53 @@ $(document).ready(() => {
               }, true);
           };
           break;
+        case 'select_items':
+          function initiateTransfer() {
+            ajaxGet('/items', { id: entity_uid, action, opts }, (data) => {
+              $('.modal-content').html(data);
+              $('#modal-1').modal('show');
+              $('.loot-items-form').on('submit', function (e) {
+                e.preventDefault();
+                fromItems = [];
+                fromItemsQty = [];
+                $(this).find('input[name="selected_items_target"]').each(function () {
+                  fromItems.push($(this).val());
+                });
+
+                $(this).find('input.transfer-qty').each(function () {
+                  fromItemsQty.push($(this).val());
+                });
+                toItems = []
+                toItemsQty = []     
+                $(this).find('input[name="selected_items_source"]').each(function () {
+                  toItems.push($(this).val());
+                });
+
+                $(this).find('input.transfer-qty-source').each(function () {
+                  toItemsQty.push($(this).val());
+                });
+
+                const itemsToTransfer = {
+                  from: {
+                    items: fromItems,
+                    qty: fromItemsQty
+                  },
+                  to: {
+                    items: toItems,
+                    qty: toItemsQty
+                  }
+                }
+                opts['items'] = itemsToTransfer;
+
+                ajaxPost('/action', { id: entity_uid, action, opts },
+                  (data) => {
+                    initiateTransfer();
+                  }, true);
+              });
+            });
+          }
+          initiateTransfer();
+          break;
         default:
           console.log('Unknown action type:', data.param[0].type);
       }
@@ -811,8 +858,26 @@ $(document).ready(() => {
     });
   });
 
+  //on mouse over an action button if there is a target, highlight the target
+  $('.actions-container').on('mouseover', '.action-button', function () {
+    const opts = $(this).data('action-opts');
+    if (opts['target'] !== undefined && opts['target'] !== '' && opts['target'] !== null) {
+      const target = opts['target'];
+      const $tile = $(`.object-container[data-id="${target}"]`);
+      $tile.css('background-color', 'rgba(0, 255, 0, 0.5)');
+    }
+  });
+
+  $('.actions-container').on('mouseleave', '.action-button', function () {
+    const opts = $(this).data('action-opts');
+    if (opts['target'] !== undefined && opts['target'] !== '' && opts['target'] !== null) {
+      const target = opts['target'];
+      const $tile = $(`.object-container[data-id="${target}"]`);
+      $tile.css('background-color', '');
+    }
+  });
+
   $('.actions-container').on('click', '.action-end-turn', function () {
-    
     ajaxPost('/end_turn', {}, (data) => {
       //hide actions
       $('.popover-menu').hide();

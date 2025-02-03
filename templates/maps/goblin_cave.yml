@@ -83,6 +83,11 @@ legend:
   c:
     name: chest
     type: chest
+    inventory:
+    - type: healing_potion
+      qty: 1
+    - type: arrows
+      qty: 20
 player:
   - position: [1, 4]
     sheet: characters/halfling_rogue.yml

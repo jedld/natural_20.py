@@ -18,6 +18,9 @@ class InteractAction(Action):
     
     def __repr__(self):
         return self.__str__()
+    
+    def label(self):
+        return f"{self.object_action} {self.target}"
 
     @staticmethod
     def can(entity, battle):

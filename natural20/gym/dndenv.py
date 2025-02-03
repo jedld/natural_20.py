@@ -1,5 +1,6 @@
 import gymnasium as gym
 import numpy as np
+import random, os
 from typing import Any, Dict
 from natural20.map import Map
 from natural20.battle import Battle
@@ -10,95 +11,114 @@ from natural20.entity import Entity
 from natural20.gym.dndenv_controller import DndenvController
 from natural20.controller import Controller
 from natural20.event_manager import EventManager
-from natural20.gym.tools import dndenv_action_to_nat20action, build_observation, compute_available_moves, \
-    render_terrain, render_object_token, action_to_gym_action, build_info
-import random
-import os
-import pdb
+from natural20.gym.tools import (
+    dndenv_action_to_nat20action,
+    build_observation,
+    compute_available_moves,
+    render_terrain,
+    render_object_token,
+    action_to_gym_action,
+    build_info
+)
 
 class GymInternalController(Controller):
+    """
+    Internal controller for gym-based DnD environments.
+    Handles reaction callbacks and registers event handlers.
+    """
     def __init__(self, session, dndenv, reaction_callback=None):
-        self.state = {}
         self.session = session
         self.env = dndenv
-        self.battle_data = {}
         self.reaction_callback = reaction_callback
+        self.state = {}
+        self.battle_data = {}
 
-    def update_reaction_callback(self, callback):
+    def update_reaction_callback(self, callback) -> None:
         self.reaction_callback = callback
 
-    # @param entity [Natural20::Entity]
-    def register_handlers_on(self, entity):
+    def register_handlers_on(self, entity: Entity) -> None:
         entity.attach_handler("opportunity_attack", self.opportunity_attack_listener)
 
-    def opportunity_attack_listener(self, battle, session, entity, map, event):
-        actions = [s for s in entity.available_actions(session, battle, opportunity_attack=True)]
-
+    def opportunity_attack_listener(self, battle, session, entity, map_obj, event):
         valid_actions = []
-        for action in actions:
-            valid_targets = battle.valid_targets_for(entity, action)
-            if event['target'] in valid_targets:
+        for action in entity.available_actions(session, battle, opportunity_attack=True):
+            if event['target'] in battle.valid_targets_for(entity, action):
                 action.target = event['target']
                 action.as_reaction = True
                 valid_actions.append(action)
+        return self.select_reaction(entity, battle, map_obj, valid_actions, event)
 
-        return self.select_reaction(entity, battle, map, valid_actions, event)
-
-    def select_reaction(self, entity, battle, map, valid_actions, event):
-        if self.reaction_callback:
-            observation = self.env.generate_observation(entity, is_reaction=True)
-            available_moves = action_to_gym_action(entity, map, valid_actions, weapon_mappings=self.env.weapon_mappings, \
-                                                   spell_mappings=self.env.spell_mappings)
-            reward = 0
-            done = False
-            truncated = False
-            info = self.env._info(available_moves, entity)
-            info['trigger'] = event['trigger']
-            info['entity'] = self.env.entity_mappings[entity.class_descriptor()]
-            info['reactor'] = entity.name
-            chosen_action = self.reaction_callback(observation, reward, done, truncated, info)
-            if chosen_action[0] == -1:
-                return None
-            else:
-                return dndenv_action_to_nat20action(entity, battle, map, valid_actions, chosen_action, weapon_mappings=self.env.weapon_mappings, \
-                                                    spell_mappings=self.env.spell_mappings)
-        else:
+    def select_reaction(self, entity, battle, map_obj, valid_actions, event):
+        if not self.reaction_callback:
             return None
+        observation = self.env.generate_observation(entity, is_reaction=True)
+        available_moves = action_to_gym_action(
+            entity, map_obj, valid_actions,
+            weapon_mappings=self.env.weapon_mappings,
+            spell_mappings=self.env.spell_mappings
+        )
+        info = self.env._info(available_moves, entity)
+        info.update({
+            'trigger': event['trigger'],
+            'entity': self.env.entity_mappings[entity.class_descriptor()],
+            'reactor': entity.name
+        })
+        chosen_action = self.reaction_callback(observation, 0, False, False, info)
+        if chosen_action[0] == -1:
+            return None
+        return dndenv_action_to_nat20action(
+            entity, battle, map_obj, valid_actions, chosen_action,
+            weapon_mappings=self.env.weapon_mappings,
+            spell_mappings=self.env.spell_mappings
+        )
+
+
+def load_mapping(session, file_name: str, offset: int = 0) -> Dict[str, int]:
+    mapping = {}
+    path = os.path.join(session.root_path, file_name)
+    with open(path, 'r') as f:
+        for line in f:
+            name, idx = line.strip().split(',')
+            mapping[name] = int(idx) + offset
+    return mapping
 
 def embedding_loader(session, weapon_mappings=None, spell_mappings=None, entity_mappings=None, **kwargs):
-    weapon_embeddings_file = kwargs.get('weapon_embeddings', 'weapon_token_map.csv')
-    spell_embeddings_file = kwargs.get('spell_embeddings', 'spell_token_map.csv')
-    entity_embeddings_file = kwargs.get('entity_embeddings', 'entity_token_map.csv')
-
     if weapon_mappings is None:
-        # read CSV file in the folloing format name,idx
-        weapon_mappings = {}
-        fname = os.path.join(session.root_path, weapon_embeddings_file)
-
-        with open(fname, 'r') as f:
-            for line in f:
-                parts = line.strip().split(',')
-                weapon_mappings[parts[0]] = int(parts[1])
-
+        weapon_mappings = load_mapping(session, kwargs.get('weapon_embeddings', 'weapon_token_map.csv'))
     if spell_mappings is None:
-        spell_mappings = {}
-        fname = os.path.join(session.root_path, spell_embeddings_file)
-        with open(fname, 'r') as f:
-            for line in f:
-                parts = line.strip().split(',')
-                spell_mappings[parts[0]] = int(parts[1]) + 100
-
+        spell_mappings = load_mapping(session, kwargs.get('spell_embeddings', 'spell_token_map.csv'), offset=100)
     if entity_mappings is None:
-        entity_mappings = {}
-        fname = os.path.join(session.root_path, entity_embeddings_file)
-        with open(fname, 'r') as f:
-            for line in f:
-                parts = line.strip().split(',')
-                entity_mappings[parts[0]] = int(parts[1])
-
+        entity_mappings = load_mapping(session, kwargs.get('entity_embeddings', 'entity_token_map.csv'))
     return weapon_mappings, spell_mappings, entity_mappings
 
+ACTION_TYPE_MAP = {
+    "attack": 0,
+    "move": 1,
+    "disengage": 2,
+    "dodge": 3,
+    "dash": 4,
+    "dash_bonus": 5,
+    "stand": 6,
+    "look": 7,
+    "second_wind": 8,
+    "two_weapon_attack": 9,
+    "prone": 10,
+    "disengage_bonus": 11,
+    "spell": 12,
+    "shove": 13,
+    "help": 14,
+    "hide": 15,
+    "use_item": 16,
+    "action_surge": 17,
+    -1: -1,
+}
 
+def action_type_to_int(action_type):
+    try:
+        return ACTION_TYPE_MAP[action_type]
+    except KeyError:
+        raise ValueError(f"Unknown action type {action_type}")
+    
 """
 This is a custom environment for the game Dungeons and Dragons 5e. It is based on the OpenAI Gym environment.
 """
@@ -625,47 +645,5 @@ class dndenv(gym.Env):
 
 def end_of_turn_move():
     return [(-1, (0,0), (0,0), 0, 0)]
-
-def action_type_to_int(action_type):
-    if action_type == "attack":
-        return 0
-    elif action_type == "move":
-        return 1
-    elif action_type == "disengage":
-        return 2
-    elif action_type == "dodge":
-        return 3
-    elif action_type == "dash":
-        return 4
-    elif action_type == "dash_bonus":
-        return 5
-    elif action_type == "stand":
-        return 6
-    elif action_type == "look":
-        return 7
-    elif action_type == "second_wind":
-        return 8
-    elif action_type == "two_weapon_attack":
-        return 9
-    elif action_type == "prone":
-        return 10
-    elif action_type == "disengage_bonus":
-        return 11
-    elif action_type == "spell":
-        return 12
-    elif action_type == "shove":
-        return 13
-    elif action_type == "help":
-        return 14
-    elif action_type == "hide":
-        return 15
-    elif action_type == "use_item":
-        return 16
-    elif action_type == "action_surge":
-        return 17
-    elif action_type == -1:
-        return -1
-    else:
-        raise ValueError(f"Unknown action type {action_type}")  
 
 gym.register(id='dndenv-v0', entry_point=lambda **kwargs: dndenv(**kwargs))

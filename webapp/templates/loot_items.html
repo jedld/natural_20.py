@@ -1,0 +1,110 @@
+<!-- ...existing code... -->
+
+<form method="POST" action="/loot" class="loot-items-form">
+  <div class="panel panel-default">
+    <div class="panel-heading">
+      <h3 class="panel-title">Transfer Items</h3>
+    </div>
+    <div class="panel-body">
+      <p class="text-info">
+        To transfer items, check the box next to the desired item and enter the quantity you wish to transfer.
+        Click the "Max" button to quickly use up all available quantity of that item.
+      </p>
+      <div class="row">
+        <!-- Target Object Items -->
+        <div class="col-md-6">
+          <div class="media">
+            <div class="media-left">
+              <img class="media-object img-thumbnail" src="{{ url_for('static', filename='assets/' ~ target_object.profile_image())}}" alt="{{ target_object.label() }}" style="width:64px;height:64px;border:0px">
+            </div>
+            <div class="media-body">
+              <h4 class="media-heading">{{ target_object.label() }}'s Items</h4>
+            </div>
+          </div>
+          <ul class="list-group">
+            {% for item in inventory %}
+            <li class="list-group-item">
+              <div class="row">
+                <div class="col-xs-4">
+                  <div class="checkbox">
+                    <label>
+                      <input type="checkbox" name="selected_items_target" value="{{ item.name }}">
+                      <strong>{{ item.label }}</strong>
+                    </label>
+                  </div>
+                </div>
+                <div class="col-xs-3 text-right">
+                  <span class="badge">{{ item.qty }}</span>
+                </div>
+                <div class="col-xs-5">
+                  <div class="input-group">
+                    <input type="number" name="quantity_{{ item.type }}" min="0" max="{{ item.qty }}" class="form-control input-sm transfer-qty" value="0">
+                    <span class="input-group-btn">
+                      <button type="button" class="btn btn-default btn-sm max-btn" onclick="setMax(this)">Max</button>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        <!-- Entity's Source Inventory -->
+        <div class="col-md-6">
+          <div class="media">
+            <div class="media-left">
+              <img class="media-object img-thumbnail" src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}" alt="{{ entity.label() }}" style="width:64px;height:64px;border: 0px">
+            </div>
+            <div class="media-body">
+              <h4 class="media-heading">{{ entity.label() }}'s Inventory</h4>
+            </div>
+          </div>
+          <ul class="list-group">
+            {% for item in source_inventory %}
+            <li class="list-group-item">
+              <div class="row">
+                <div class="col-xs-4">
+                  <div class="checkbox">
+                    <label style="white-space: nowrap; display: block;">
+                      <input type="checkbox" name="selected_items_source" value="{{ item.name }}">
+                      <strong>{{ item.name }}</strong>
+                    </label>
+                  </div>
+                </div>
+                <div class="col-xs-3 text-center">
+                  <span class="badge">{{ item.qty }}</span>
+                </div>
+                <div class="col-xs-5">
+                  <div class="input-group">
+                    <input type="number" name="quantity_source_{{ item.name }}" min="0" max="{{ item.qty }}" class="form-control input-sm transfer-qty-source" value="0">
+                    <span class="input-group-btn">
+                      <button type="button" class="btn btn-default btn-sm max-btn" onclick="setMax(this)">Max</button>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="panel-footer text-right">
+      <button type="submit" class="btn btn-primary action-perform-transfer">Transfer Selected</button>
+    </div>
+  </div>
+</form>
+
+<script>
+  // When the "Max" button is clicked, set the associated input's value to its max attribute.
+  function setMax(btn) {
+    // Find the closest input in the same input-group
+    const inputGroup = btn.closest('.input-group');
+    if (inputGroup) {
+      const input = inputGroup.querySelector('input[type="number"]');
+      if (input) {
+        input.value = input.max;
+      }
+    }
+  }
+</script>
