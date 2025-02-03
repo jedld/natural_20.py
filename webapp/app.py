@@ -1202,7 +1202,20 @@ def action():
                             object =  battle_map.object_by_uid(opts.get('target'))
                             interact.object_action = opts.get('object_action')
                             interact.target = object
-                            return jsonify(commit_and_update(interact))
+                            action = interact.build_custom_action(interact.object_action, object)
+                            continue
+                    elif param_details['type'] == 'select_items':
+                        target_items = opts.get('items', [])
+                        if target_items:
+                            action = action['next'](target_items)
+                            continue
+                        else:
+                            valid_items = entity.usable_items()
+                            action_info['action'] = action_type
+                            action_info['type'] = 'select_items'
+                            action_info['valid_items'] = param_details['items']
+                            action_info['param'] = action['param']
+                            return jsonify(action_info)
                     else:
                         raise ValueError(f"Unknown action type {action_type} {param_details['type']}")
                 else:
@@ -1216,6 +1229,22 @@ def action():
             waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
         socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
         return jsonify(status='ok')
+
+
+@app.route('/items', methods=['GET'])
+# GET /items?id=rumblebelly&action=InteractAction&opts[action_type]=interact&opts[object_action]=loot&opts[target]=3fb25042-df48-4003-8ddc-dd2b04d5fbeb HTTP/1.1
+def get_items():
+    global current_game
+    battle_map = current_game.get_current_battle_map()
+    entity_id = request.args.get('id')
+    entity = battle_map.entity_by_uid(entity_id)
+    if entity is None:
+        return jsonify(error="Entity not found"), 404
+    action_type = request.args.get('action')
+    target_object = battle_map.entity_by_uid(request.args.get("opts[target]"))
+    inventory = target_object.inventory_items(game_session) or []
+    source_inventory = entity.inventory_items(game_session) or []
+    return render_template('loot_items.html', entity=entity, source_inventory=source_inventory, inventory=inventory, action_type=action_type, target_object=target_object)
 
 
 @app.route('/info', methods=['GET'])

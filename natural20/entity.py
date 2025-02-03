@@ -1403,7 +1403,21 @@ class Entity(EntityStateEvaluator):
                 'qty': v['qty'],
                 'consumable': item_details['consumable']
             })
-        return usable       
+        return usable
+
+    def other_items(self):
+        other = []
+        for k, v in self.inventory.items():
+            item_details = self.session.load_equipment(k)
+            if not item_details or item_details.get('usable', False):
+                continue
+            other.append({
+                'name': str(k),
+                'label': item_details.get('name', k),
+                'item': item_details,
+                'qty': v['qty']
+            })
+        return other
 
     def has_spells(self):
         if not self.properties.get('prepared_spells', None):

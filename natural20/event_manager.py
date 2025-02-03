@@ -86,7 +86,6 @@ class EventManager:
         self.clear()
 
         def handle_use_item(event):
-            source = event["source"]
             item = event["item"]
             # Simple log entry or any additional logic needed
             f_item = self.t(f"item.{item.name}")

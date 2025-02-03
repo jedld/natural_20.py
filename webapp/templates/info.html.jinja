@@ -277,7 +277,18 @@
             <li class="tile-item" data-tooltip="{{ item['label'] }}">
             <div class="item-icon-container">
                 <img class="item-icon" src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
-                <div class="item-quantity">{{ 'x ' ~ item.get('quantity', 1) }}</div>
+                <div class="item-quantity">{{ 'x ' ~ item.get('qty', 1) }}</div>
+            </div>
+            </li>
+            {% endfor %}
+            </ul>
+            <h3>Other Items</h3>
+            <ul class="consumables-list tile-inventory">
+            {% for item in entity.other_items() %}
+            <li class="tile-item" data-tooltip="{{ item['label'] }}">
+            <div class="item-icon-container">
+                <img class="item-icon" src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
+                <div class="item-quantity">{{ 'x ' ~ item.get('qty', 1) }}</div>
             </div>
             </li>
             {% endfor %}

@@ -433,3 +433,7 @@ input.initiative-input.form-control {
   background-color: red;
   border-radius: 5px;
 }
+
+.modal-dialog {
+  width: 800px;
+}
