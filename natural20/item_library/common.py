@@ -95,10 +95,10 @@ class Ground(Object, Container):
         if result['action'] == 'drop':
             self.store(result['battle'], result['source'], result['target'], result['items'])
         elif result['action'] == 'pickup':
-            self.retrieve(result['battle'], result['source'], result['target'], result['items'])
+            self.transfer(result['battle'], result['source'], result['target'], result['items'])
 
     def list_notes(self, entity, perception, highlight=False):
-        return [t("object.{}".format(m.label), default=m.label) for m in self.inventory]
+        return [self.t("object.{}".format(m.label), default=m.label) for m in self.inventory]
 
     def on_take_damage(self, battle, damage_params):
         pass

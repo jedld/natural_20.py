@@ -1199,7 +1199,7 @@ def action():
                             return jsonify(commit_and_update(interact))
                         else:
                             interact = InteractAction(game_session, entity, 'interact')
-                            object =  battle_map.object_by_uid(opts.get('target'))
+                            object =  battle_map.entity_by_uid(opts.get('target'))
                             interact.object_action = opts.get('object_action')
                             interact.target = object
                             action = interact.build_custom_action(interact.object_action, object)
@@ -1213,6 +1213,7 @@ def action():
                             valid_items = entity.usable_items()
                             action_info['action'] = action_type
                             action_info['type'] = 'select_items'
+                            action_info['mode'] = param_details.get('mode', 'transfer')
                             action_info['valid_items'] = param_details['items']
                             action_info['param'] = action['param']
                             return jsonify(action_info)
@@ -1240,10 +1241,15 @@ def get_items():
     entity = battle_map.entity_by_uid(entity_id)
     if entity is None:
         return jsonify(error="Entity not found"), 404
-    action_type = request.args.get('action')
+    action_type = request.args.get('opts[object_action]')
     target_object = battle_map.entity_by_uid(request.args.get("opts[target]"))
-    inventory = target_object.inventory_items(game_session) or []
-    source_inventory = entity.inventory_items(game_session) or []
+    if action_type == 'give':
+        inventory = entity.inventory_items(game_session) or []
+        source_inventory = []
+        return render_template('loot_items.html', entity=target_object, source_inventory=source_inventory, inventory=inventory, action_type=action_type, target_object=entity)
+    else:
+        inventory = target_object.inventory_items(game_session) or []
+        source_inventory = entity.inventory_items(game_session) or []
     return render_template('loot_items.html', entity=entity, source_inventory=source_inventory, inventory=inventory, action_type=action_type, target_object=target_object)
 
 

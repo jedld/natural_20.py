@@ -207,10 +207,10 @@ def train(env, gamma, learning_rate, max_steps=MAX_STEPS, use_td_target=True,
         temperature = checkpoint['temperature']
         best_avg = checkpoint.get('best_avg', best_avg)
         best_step = checkpoint.get('best_step', best_step)
-        replay_buffer = checkpoint.get('replay_buffer', replay_buffer)
+        # Removed replay_buffer assignment to avoid pickling errors
 
     writer = SummaryWriter(log_dir=f"runs/{label}")
-    CHECKPOINT_FREQ = 100
+    CHECKPOINT_FREQ = 5
 
     def save_checkpoint(path, current_step):
         checkpoint_data = {
@@ -222,7 +222,7 @@ def train(env, gamma, learning_rate, max_steps=MAX_STEPS, use_td_target=True,
             'temperature': temperature,
             'best_avg': best_avg,
             'best_step': best_step,
-            'replay_buffer': replay_buffer,
+            # 'replay_buffer' removed to prevent pickling errors
         }
         torch.save(checkpoint_data, path)
         print(f"Checkpoint saved to {path}")

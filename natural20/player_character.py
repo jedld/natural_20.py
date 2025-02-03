@@ -26,8 +26,9 @@ from natural20.actions.spell_action import SpellAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.interact_action import InteractAction
 from natural20.utils.action_builder import autobuild
-
+from natural20.concern.container import Container
 from natural20.utils.movement import compute_actual_moves
+from natural20.concern.lootable import Lootable
 import yaml
 import os
 import copy
@@ -35,7 +36,7 @@ import uuid
 import pdb
 
 
-class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
+class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootable):
   ACTION_LIST = [
     SpellAction,
     AttackAction,
@@ -196,7 +197,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
 
   def c_class(self):
     return self.properties['classes']
-
+  
   def available_actions(self, session, battle, opportunity_attack=False, auto_target=True, map=None):
     if self.unconscious():
       return []
@@ -291,10 +292,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric):
           else:
             action_list.append(UseItemAction(session, self, 'use_item'))
         elif action_type == InteractAction:
-          for objects in map.objects_near(self, battle):
-            for interaction in objects.available_interactions(self).keys():
-              action_list.append(InteractAction(session, self, 'interact', { "target": objects,
-                                                                            "object_action": interaction }))
+          if map:
+            for objects in map.objects_near(self, battle):
+              for interaction in objects.available_interactions(self).keys():
+                action_list.append(InteractAction(session, self, 'interact', { "target": objects,
+                                                                              "object_action": interaction }))
     return action_list
 
   def _player_character_attack_actions(self, session, battle, opportunity_attack=False, second_weapon=False, auto_target=True):

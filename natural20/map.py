@@ -300,9 +300,12 @@ class Map():
         available_objects = []
         for square in target_squares:
             available_objects.extend(self.objects_at(square[0], square[1]))
+            nearby_entity = self.entity_at(square[0], square[1])
+            if nearby_entity:
+                available_objects.append(nearby_entity)
 
         for obj in available_objects:
-            if obj.available_interactions(entity, battle):
+            if hasattr(obj,'available_interactions') and obj.available_interactions(entity, battle):
                 objects.append(obj)
 
         for obj, position in self.entities.items():

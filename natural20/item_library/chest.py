@@ -188,7 +188,7 @@ class Chest(Object, Container):
         if action == 'store':
             self.store(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
         elif action == 'loot':
-            self.retrieve(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
+            self.transfer(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
         elif action == 'open':
             if self.closed():
                 self.open()

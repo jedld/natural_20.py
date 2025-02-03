@@ -37,4 +37,9 @@ class TestMap(unittest.TestCase):
         path = map.squares_in_path(0, 0, 5, 5)
         assert path == [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)], f"Path: {path}"
         
-        
+    def test_directional_walls(self):
+        session = Session(root_path='tests/fixtures')
+        map = Map(session, 'tests/fixtures/maps/game_map.yml')
+        assert map.wall(0, 0) == False
+        assert map.wall(0, 1) == True
+        assert map.wall(1, 0) == True

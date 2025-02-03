@@ -12,6 +12,7 @@
       </p>
       <div class="row">
         <!-- Target Object Items -->
+        
         <div class="col-md-6">
           <div class="media">
             <div class="media-left">
@@ -22,6 +23,7 @@
             </div>
           </div>
           <ul class="list-group">
+
             {% for item in inventory %}
             <li class="list-group-item">
               <div class="row">
@@ -47,6 +49,7 @@
               </div>
             </li>
             {% endfor %}
+
           </ul>
         </div>
         <!-- Entity's Source Inventory -->
@@ -56,10 +59,15 @@
               <img class="media-object img-thumbnail" src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}" alt="{{ entity.label() }}" style="width:64px;height:64px;border: 0px">
             </div>
             <div class="media-body">
+              {% if action_type=='give' %}
+              <h4 class="media-heading">Give Items to {{ entity.label() }}</h4>
+              {% else %}
               <h4 class="media-heading">{{ entity.label() }}'s Inventory</h4>
+              {% endif %}
             </div>
           </div>
           <ul class="list-group">
+            {% if action_type!='give' %}
             {% for item in source_inventory %}
             <li class="list-group-item">
               <div class="row">
@@ -85,6 +93,7 @@
               </div>
             </li>
             {% endfor %}
+            {% endif %}
           </ul>
         </div>
       </div>
