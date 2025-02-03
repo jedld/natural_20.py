@@ -25,12 +25,13 @@ from natural20.utils.action_builder import autobuild
 from natural20.actions.shove_action import ShoveAction
 from natural20.utils.multiattack import Multiattack
 from natural20.utils.npc_random_name_generator import generate_goblinoid_name, generate_ogre_name
+from natural20.concern.lootable import Lootable
 import pdb
 
 
 import copy
 
-class Npc(Entity, Multiattack):
+class Npc(Entity, Multiattack, Lootable):
     ACTION_LIST = [
         AttackAction, DashAction, DashBonusAction, DisengageAction,
         DisengageBonusAction, HideAction, HideBonusAction,
