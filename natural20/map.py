@@ -3,7 +3,7 @@ from natural20.item_library.object import Object
 from natural20.utils.static_light_builder import StaticLightBuilder
 from natural20.entity import Entity
 from natural20.utils.movement import requires_squeeze
-from natural20.item_library.common import StoneWall, Ground
+from natural20.item_library.common import StoneWall, Ground, StoneWallDirectional
 from natural20.item_library.door_object import DoorObject
 from natural20.item_library.pit_trap import PitTrap
 from natural20.item_library.chest import Chest
@@ -597,7 +597,8 @@ class Map():
                     # print(f"pos2_x {pos2_x} pos2_y {pos2_y} size {self.size}")
                     continue
                 line_of_sight_info = self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, distance=distance, \
-                                                        heavy_cover=heavy_cover, creature_size_min=creature_size_min)
+                                                        inclusive=True, heavy_cover=heavy_cover,
+                                                        creature_size_min=creature_size_min)
                 if line_of_sight_info is None:
                     # print(f"no line of sight from {pos1_x},{pos1_y} to {pos2_x},{pos2_y} {distance}")
                     continue
@@ -698,20 +699,25 @@ class Map():
                         creature_size_min=None):
         squares = self.squares_in_path(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive)
         squares_results = []
+        prev_square = (pos1_x, pos1_y)
         for index, s in enumerate(squares):
             if log_path:
-                print(f"checking {s}")
                 self.base_map[s[1]][s[0]] = 'H'
+
             if distance and index == (distance - 1):
                 return None
-            if self.opaque(*s):
+
+            if self.opaque(*s, origin=prev_square):
                 return None
+
             if self.cover_at(*s) == 'total':
                 return None
             if heavy_cover and self.cover_at(*s) == 'three_quarter':
                 return None
             if creature_size_min and self.entity_at(*s) and self.entity_at(*s).size_identifier() >= creature_size_min:
                 return None
+
+            prev_square = s
 
             squares_results.append([self.cover_at(*s, entity), s])
         return squares_results
@@ -732,19 +738,23 @@ class Map():
                 return [False, False]
 
         return [min_distance_reached, True]
-        
-    def opaque(self, pos_x, pos_y):
+
+    def opaque(self, pos_x, pos_y, origin=None):
         if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
             raise ValueError(f"Invalid position: {pos_x},{pos_y} should not exceed (0 - {self.size[0]- 1 }),(0 - {self.size[1] - 1})")
-        
+
         if self.base_map[pos_x][pos_y] == '#':
             return True
         elif self.base_map[pos_x][pos_y] == '.':
             return False
         else:
-            return self.object_at(pos_x, pos_y).opaque() if self.object_at(pos_x, pos_y) else None
-
-
+            if self.object_at(pos_x, pos_y):
+                return self.object_at(pos_x, pos_y).opaque(origin)
+            else:
+                if origin:
+                    if self.object_at(*origin) and self.object_at(*origin).opaque((pos_x, pos_y)):
+                        return True
+                return None
 
     def squares_in_path(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, inclusive=True):
         if [pos1_x, pos1_y] == [pos2_x, pos2_y]:

@@ -70,6 +70,86 @@ stone_wall:
   token:
     - '#'
   wall: true
+stone_wall_tl:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  max_hp: 27
+  name: Stone Wall Thin Top Left
+  opaque: true
+  passable: false
+  token:
+    - ┌
+stone_wall_t:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  max_hp: 27
+  name: Stone Wall Thin Top
+  opaque: true
+  passable: false
+  token:
+    - ─
+stone_wall_tr:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  max_hp: 27
+  name: Stone Wall Thin Top Right
+  opaque: true
+  passable: false
+  token:
+    - ┐
+stone_wall_r:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  max_hp: 27
+  name: Stone Wall Thin Right
+  opaque: true
+  passable: false
+  token:
+    - │
+stone_wall_l:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  max_hp: 27
+  name: Stone Wall Thin Left
+  opaque: true
+  passable: false
+  token:
+    - │
+stone_wall_b:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  max_hp: 27
+  name: Stone Wall Thin Bottom
+  opaque: true
+  passable: false
+  token:
+    - ─
+stone_wall_br:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  max_hp: 27
+  name: Stone Wall Thin Bottom Right
+  opaque: true
+  passable: false
+  token:
+    - ┘
+stone_wall_bl:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  max_hp: 27
+  name: Stone Wall Thin Bottom Left
+  opaque: true
+  passable: false
+  token:
+    - └
 tree:
   allow_hide: true
   color: green

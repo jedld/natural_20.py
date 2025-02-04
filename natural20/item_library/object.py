@@ -97,7 +97,7 @@ class Object(Entity):
     def armor_class(self) -> Optional[int]:
         return self.properties.get('default_ac')
 
-    def opaque(self) -> Optional[bool]:
+    def opaque(self, origin=None) -> Optional[bool]:
         return self.properties.get('opaque')
 
     def half_cover(self) -> Optional[bool]:

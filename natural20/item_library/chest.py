@@ -60,7 +60,7 @@ class Chest(Object, Container):
             }
         return action_object
 
-    def opaque(self):
+    def opaque(self, origin=None):
         return False
 
     def unlock(self):
