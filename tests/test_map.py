@@ -39,7 +39,18 @@ class TestMap(unittest.TestCase):
         
     def test_directional_walls(self):
         session = Session(root_path='tests/fixtures')
-        map = Map(session, 'tests/fixtures/maps/game_map.yml')
-        assert map.wall(0, 0) == False
-        assert map.wall(0, 1) == True
-        assert map.wall(1, 0) == True
+        map = Map(session, 'tests/fixtures/maps/thinwall_map.yml')
+        character = PlayerCharacter.load(session, 'characters/halfling_rogue.yml')
+        character2 = PlayerCharacter.load(session, 'characters/high_elf_fighter.yml')
+        character3 = PlayerCharacter.load(session, 'characters/high_elf_mage.yml')
+        map.place((0,4), character)
+        map.place((2,4), character2)
+        map.place((1,4), character3)
+        print(MapRenderer(map).render())
+        self.assertEqual(map.can_see_square(character, (2, 4)), False)
+        self.assertEqual(map.can_see_square(character, (1, 4)), True)
+        self.assertEqual(map.can_see(character3, character2), True)
+        self.assertEqual(map.can_see(character2, character3), True)
+
+        self.assertEqual(map.can_see(character, character3), False)
+        self.assertEqual(map.can_see(character3, character), False)

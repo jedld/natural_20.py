@@ -28,7 +28,7 @@ class DoorObject(Object):
 
         return self.front_direction
 
-    def opaque(self):
+    def opaque(self, origin=None):
         return self.closed() and not self.dead()
 
     def unlock(self):

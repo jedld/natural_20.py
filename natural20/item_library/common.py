@@ -1,11 +1,13 @@
 from natural20.item_library.object import Object
+from typing import Optional
 from natural20.concern.container import Container
+import pdb
 
 class StoneWall(Object):
     def __init__(self, map, properties):
         super().__init__(map, properties)
 
-    def opaque(self):
+    def opaque(self, origin=None):
         return not self.dead()
 
     def passable(self):
@@ -16,6 +18,82 @@ class StoneWall(Object):
             return ['`']
         else:
             return ['#']
+
+
+class StoneWallDirectional(StoneWall):
+    def __init__(self, map, properties):
+        super().__init__(map, properties)
+        self.wall_direction = self.properties['type']
+        self.border = [0, # top
+                       0, # right
+                       0, # bottom
+                       0] # left
+        
+        if self.wall_direction == 'stone_wall_tl':
+            self.border = [1, 0, 0, 1]
+        elif self.wall_direction == 'stone_wall_t':
+            self.border = [1, 0, 0, 0]
+        elif self.wall_direction == 'stone_wall_tr':
+            self.border = [1, 1, 0, 0]
+        elif self.wall_direction == 'stone_wall_r':
+            self.border = [0, 1, 0, 0]
+        elif self.wall_direction == 'stone_wall_br':
+            self.border = [0, 1, 1, 0]
+        elif self.wall_direction == 'stone_wall_b':
+            self.border = [0, 0, 1, 0]
+        elif self.wall_direction == 'stone_wall_bl':
+            self.border = [0, 0, 1, 1]
+        elif self.wall_direction == 'stone_wall_l':
+            self.border = [0, 0, 0, 1]
+
+    def token(self) -> Optional[str]:
+        return self.properties.get('token')
+
+    def passable(self, origin_pos = None):
+        if origin_pos is None:
+            return True
+
+        pos_x, pos_y = self.map.position_of(self)
+        if self.border[0] and origin_pos[1] > pos_y:
+            return False
+        if self.border[1] and origin_pos[0] < pos_x:
+            return False
+        if self.border[2] and origin_pos[1] < pos_y:
+            return False
+        if self.border[3] and origin_pos[0] > pos_x:
+            return False
+        return True
+
+    def placeable(self, origin_pos = None):
+        if origin_pos is None:
+            return True
+
+        pos_x, pos_y = self.map.position_of(self)
+        if self.border[0] and origin_pos[1] < pos_y:
+            return False
+        if self.border[1] and origin_pos[0] > pos_x:
+            return False
+        if self.border[2] and origin_pos[1] > pos_y:
+            return False
+        if self.border[3] and origin_pos[0] < pos_x:
+            return False
+        return True
+    
+    def opaque(self, origin_pos = None):
+        if origin_pos is None:
+            return not self.dead()
+
+        pos_x, pos_y = self.map.position_of(self)
+        if self.border[0] and origin_pos[1] < pos_y:
+            return not self.dead()
+        if self.border[1] and origin_pos[0] < pos_x:
+            return not self.dead()
+        if self.border[2] and origin_pos[1] > pos_y:
+            return not self.dead()
+        if self.border[3] and origin_pos[0] < pos_x:
+            return not self.dead()
+
+        return self.dead()
 
 
 class Ground(Object, Container):
@@ -57,7 +135,7 @@ class Ground(Object, Container):
                 }
             }
 
-    def opaque(self):
+    def opaque(self, origin=None):
         return False
 
     def passable(self):
