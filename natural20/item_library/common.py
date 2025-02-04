@@ -24,27 +24,31 @@ class StoneWallDirectional(StoneWall):
     def __init__(self, map, properties):
         super().__init__(map, properties)
         self.wall_direction = self.properties['type']
-        self.border = [0, # top
-                       0, # right
-                       0, # bottom
-                       0] # left
-        
-        if self.wall_direction == 'stone_wall_tl':
-            self.border = [1, 0, 0, 1]
-        elif self.wall_direction == 'stone_wall_t':
-            self.border = [1, 0, 0, 0]
-        elif self.wall_direction == 'stone_wall_tr':
-            self.border = [1, 1, 0, 0]
-        elif self.wall_direction == 'stone_wall_r':
-            self.border = [0, 1, 0, 0]
-        elif self.wall_direction == 'stone_wall_br':
-            self.border = [0, 1, 1, 0]
-        elif self.wall_direction == 'stone_wall_b':
-            self.border = [0, 0, 1, 0]
-        elif self.wall_direction == 'stone_wall_bl':
-            self.border = [0, 0, 1, 1]
-        elif self.wall_direction == 'stone_wall_l':
-            self.border = [0, 0, 0, 1]
+        self.custom_border = self.properties.get('border')
+        if self.custom_border:
+            self.border = self.custom_border
+        else:
+            self.border = [0, # top
+                        0, # right
+                        0, # bottom
+                        0] # left
+
+            if self.wall_direction == 'stone_wall_tl':
+                self.border = [1, 0, 0, 1]
+            elif self.wall_direction == 'stone_wall_t':
+                self.border = [1, 0, 0, 0]
+            elif self.wall_direction == 'stone_wall_tr':
+                self.border = [1, 1, 0, 0]
+            elif self.wall_direction == 'stone_wall_r':
+                self.border = [0, 1, 0, 0]
+            elif self.wall_direction == 'stone_wall_br':
+                self.border = [0, 1, 1, 0]
+            elif self.wall_direction == 'stone_wall_b':
+                self.border = [0, 0, 1, 0]
+            elif self.wall_direction == 'stone_wall_bl':
+                self.border = [0, 0, 1, 1]
+            elif self.wall_direction == 'stone_wall_l':
+                self.border = [0, 0, 0, 1]
 
     def token(self) -> Optional[str]:
         return self.properties.get('token')
@@ -78,7 +82,7 @@ class StoneWallDirectional(StoneWall):
         if self.border[3] and origin_pos[0] < pos_x:
             return False
         return True
-    
+
     def opaque(self, origin_pos = None):
         if origin_pos is None:
             return not self.dead()
@@ -95,6 +99,8 @@ class StoneWallDirectional(StoneWall):
 
         return self.dead()
 
+    def wall(self, origin_pos = None):
+        return True
 
 class Ground(Object, Container):
     def __init__(self, map, properties):

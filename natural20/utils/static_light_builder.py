@@ -3,10 +3,30 @@ class StaticLightBuilder:
     def __init__(self, battlemap):
         self.map = battlemap
         self.properties = battlemap.properties
+        base = self.properties.get('map', {}).get('base', [])
+        self.size = [len(base[0]), len(base)]
         self.light_properties = self.properties.get('lights')
         self.light_map = self.properties.get('map', {}).get('light')
         self.base_illumination = self.properties.get('map', {}).get('illumination', 1.0)
+        manual_light_map = self.properties.get('light_map', [])
         self.lights = []
+        self.fixed_lights = []
+
+        for _ in range(self.size[0]):
+            row = []
+            for _ in range(self.size[1]):
+                row.append(0.0)
+            self.fixed_lights.append(row)
+
+        if manual_light_map:
+            for cur_y, lines in enumerate(manual_light_map):
+                for cur_x, c in enumerate(lines):
+                    if not c=='.':
+                        if c=='l':
+                            self.fixed_lights[cur_x][cur_y] = 0.5
+                        elif c=='h':
+                            self.fixed_lights[cur_x][cur_y] = 1.0
+
         if self.light_map and self.light_properties:
             for cur_y, row in enumerate(self.light_map):
                 for cur_x, key in enumerate(row):
@@ -33,7 +53,7 @@ class StaticLightBuilder:
                     in_bright, in_dim = self.map.light_in_sight(x, y, light_pos_x, light_pos_y, min_distance=bright_light,
                                                                 distance=bright_light + dim_light,
                                                                 inclusive=True)
-
+                    intensity += self.fixed_lights[x][y]
                     intensity += 1.0 if in_bright else (0.5 if in_dim else 0.0)
 
                 light_map[x][y] = intensity

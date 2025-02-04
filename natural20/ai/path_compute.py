@@ -106,7 +106,7 @@ class PathCompute:
                     if self.entity.prone():
                         move_cost += 1
                     neighbors.append(((nx, ny), move_cost))
-        
+
         return neighbors
 
     def base_move_cost(self, x, y):

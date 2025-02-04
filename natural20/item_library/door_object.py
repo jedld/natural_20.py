@@ -1,4 +1,5 @@
 from natural20.item_library.object import Object
+from natural20.item_library.common import StoneWallDirectional
 from natural20.event_manager import EventManager
 
 class DoorObject(Object):
@@ -10,11 +11,10 @@ class DoorObject(Object):
         self.locked = False
         self.key_name = None
 
-    def facing(self):
+    def after_setup(self):
         if self.front_direction == "auto":
             # check for walls and auto determine the direction
             pos = self.map.position_of(self)
-
             if self.map.wall(pos[0] - 1, pos[1]):
                 self.front_direction = "up"
             elif self.map.wall(pos[0] + 1, pos[1]):
@@ -26,6 +26,7 @@ class DoorObject(Object):
             else:
                 self.front_direction = "up"
 
+    def facing(self):
         return self.front_direction
 
     def opaque(self, origin=None):
@@ -56,6 +57,12 @@ class DoorObject(Object):
         if self.dead():
             return "`"
 
+        if self.opened() and self.properties.get("token_open"):
+            return self.properties.get("token_open")
+
+        if self.closed() and self.properties.get("token_closed"):
+            return self.properties.get("token_closed")
+
         if self.facing() == "up":
             return "-" if self.opened() else "="
         elif self.facing() == "down":
@@ -76,7 +83,7 @@ class DoorObject(Object):
 
     def token_closed(self):
         return self.properties.get("token_closed", "=")
-    
+
     def token_image_transform(self):
         # apply css style to rotate the image relative to the right hinge
         # depending on the direction of the door
@@ -238,4 +245,133 @@ class DoorObject(Object):
         self.locked = self.properties.get("locked")
         self.key_name = self.properties.get("key")
 
+class DoorObjectWall(DoorObject, StoneWallDirectional):
+    def __init__(self, map, properties):
+        DoorObject.__init__(self, map, properties)
+        StoneWallDirectional.__init__(self, map, properties)
+        self.door_pos = self.properties.get("door_pos", 0)
+        self.window = self.properties.get("window", [0, 0, 0, 0])
 
+    def token(self):
+        return StoneWallDirectional.token(self)
+
+    def token_opened(self):
+        return StoneWallDirectional.token_opened(self)
+
+    def token_closed(self):
+        return StoneWallDirectional.token_closed(self)
+
+    def token_image_transform(self):
+        return StoneWallDirectional.token_image_transform(self)
+
+    def facing(self):
+        return StoneWallDirectional.facing(self)
+
+    def opaque(self, origin=None):
+        pos_x, pos_y = self.map.position_of(self)
+
+        def check_door_opaque():
+            if self.opened():
+                return False
+
+            if self.door_pos == 0 and origin[1] < pos_y:
+                return True
+            if self.door_pos == 1 and origin[0] > pos_x:
+                return True
+            if self.door_pos == 2 and origin[1] > pos_y:
+                return True
+            if self.door_pos == 3 and origin[0] < pos_x:
+                return True
+
+            return True
+
+        def check_window_opaque():
+            if self.window[0] and origin[1] < pos_y:
+                return False
+            if self.window[1] and origin[0] > pos_x:
+                return False
+            if self.window[2] and origin[1] > pos_y:
+                return False
+            if self.window[3] and origin[0] < pos_x:
+                return False
+            return True
+
+        wall_opaque = StoneWallDirectional.opaque(self, origin_pos=origin)
+        pos_x, pos_y = self.map.position_of(self)
+        # handle windows
+        window_opaque = check_window_opaque()
+        door_opaque = check_door_opaque()
+
+        if not window_opaque:
+            return False
+
+        if not wall_opaque and door_opaque:
+            return True
+
+        return wall_opaque
+
+    def unlock(self):
+        return DoorObject.unlock(self)
+
+    def lock(self):
+        return DoorObject.lock(self)
+
+    def passable(self, origin_pos = None):
+        wall_passable = StoneWallDirectional.passable(self, origin_pos)
+
+        if origin_pos is None:
+            return wall_passable
+
+        if wall_passable:
+            if self.opened():
+                return True
+
+            pos_x, pos_y = self.map.position_of(self)
+            if self.door_pos == 0 and origin_pos[1] < pos_y:
+                return False
+            if self.door_pos == 1 and origin_pos[0] > pos_x:
+                return False
+            if self.door_pos == 2 and origin_pos[1] > pos_y:
+                return False
+            if self.door_pos == 3 and origin_pos[0] < pos_x:
+                return False
+
+            return True
+
+        return False
+
+    def closed(self):
+        return DoorObject.closed(self)
+
+    def opened(self):
+        return DoorObject.opened(self)
+
+    def open(self):
+        return DoorObject.open(self)
+
+    def close(self):
+        return DoorObject.close(self)
+
+    def available_interactions(self, entity, battle=None):
+        return DoorObject.available_interactions(self, entity, battle)
+
+    def interactable(self):
+        return DoorObject.interactable(self)
+
+    def resolve(self, entity, action, other_params, opts=None):
+        return DoorObject.resolve(self, entity, action, other_params, opts)
+
+    def use(self, entity, result):
+        return DoorObject.use(self, entity, result)
+
+    def lockpick_dc(self):
+        return DoorObject.lockpick_dc(self)
+
+    def someone_blocking_the_doorway(self):
+        return DoorObject.someone_blocking_the_doorway(self)
+
+    def on_take_damage(self, battle, damage_params):
+        return DoorObject.on_take_damage(self, battle, damage_params)
+
+    def setup_other_attributes(self):
+        return DoorObject.setup_other_attributes(self)
