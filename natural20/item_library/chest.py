@@ -72,7 +72,7 @@ class Chest(Object, Container):
     def locked(self):
         return self.is_locked
 
-    def passable(self):
+    def passable(self, origin=None):
         return True
 
     def closed(self):

@@ -165,7 +165,7 @@ class Object(Entity):
     def jump_required(self) -> Optional[bool]:
         return self.properties.get('jump')
 
-    def passable(self) -> Optional[bool]:
+    def passable(self, origin=None) -> Optional[bool]:
         return self.properties.get('passable')
 
     def wall(self) -> Optional[bool]:

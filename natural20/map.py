@@ -635,7 +635,7 @@ class Map():
                 entity_1_squares.append([pos1_x + ofs_x, pos1_y + ofs_y])
         return entity_1_squares
     
-    def passable(self, entity, pos_x, pos_y, battle=None, allow_squeeze=True, ignore_opposing=False):
+    def passable(self, entity, pos_x, pos_y, battle=None, allow_squeeze=True, origin=None, ignore_opposing=False):
         effective_token_size = entity.token_size() - 1 if allow_squeeze and entity.token_size() > 1 else entity.token_size()
         for ofs_x in range(effective_token_size):
             for ofs_y in range(effective_token_size):
@@ -652,7 +652,7 @@ class Map():
                     return False
                 if self.base_map[relative_x][relative_y] == '#':
                     return False
-                if self.object_at(relative_x, relative_y) and not self.object_at(relative_x, relative_y).passable():
+                if self.object_at(relative_x, relative_y) and not self.object_at(relative_x, relative_y).passable(origin):
                     return False
 
                 if battle and self.tokens[relative_x][relative_y]:

@@ -37,7 +37,7 @@ class DoorObject(Object):
     def lock(self):
         self.locked = True
 
-    def passable(self):
+    def passable(self, origin=None):
         return self.opened() or self.dead()
 
     def closed(self):
