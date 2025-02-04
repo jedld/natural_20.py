@@ -4,7 +4,7 @@ from natural20.utils.static_light_builder import StaticLightBuilder
 from natural20.entity import Entity
 from natural20.utils.movement import requires_squeeze
 from natural20.item_library.common import StoneWall, Ground, StoneWallDirectional
-from natural20.item_library.door_object import DoorObject
+from natural20.item_library.door_object import DoorObject, DoorObjectWall
 from natural20.item_library.pit_trap import PitTrap
 from natural20.item_library.chest import Chest
 from natural20.player_character import PlayerCharacter
@@ -104,6 +104,7 @@ class Map():
         self._compute_lights()
         self._setup_objects()
         self._setup_npcs()
+        self._trigger_after_setup()
 
     def _compute_lights(self):
         self.light_map = self.light_builder.build_map()
@@ -142,7 +143,15 @@ class Map():
                         object_info = self.session.load_object(object_meta['type'])
                         self.place_object(object_info, pos_x, pos_y, object_meta)
 
-
+    def _trigger_after_setup(self):
+        for trigger_name, trigger in self.triggers.items():
+            if trigger.get('type') == 'area':
+                self.area_triggers[trigger_name] = trigger
+        for row in self.objects:
+            for objects in row:
+                for obj in objects:
+                    obj.after_setup()
+    
     def _setup_npcs(self):
         for player in self.properties.get('player', []):
             column_index, row_index = player['position']
@@ -354,7 +363,6 @@ class Map():
     def is_heavily_obscured(self, entity, pos_override=None):
         return self.light_at_entity(entity, pos_override) < 0.5
 
-
     def hiding_spots_for(self, entity, battle=None):
         hiding_spots = []
         for pos_x in range(self.size[0]):
@@ -547,7 +555,7 @@ class Map():
             pos1_x, pos1_y = pos1
             if [pos1_x, pos1_y] == [pos2_x, pos2_y]:
                 return True
-            if self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=False) is None:
+            if self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=True) is None:
                 continue
 
             location_illumination = self.light_at(pos2_x, pos2_y)

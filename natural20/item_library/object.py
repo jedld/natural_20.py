@@ -81,6 +81,9 @@ class Object(Entity):
 
     def __hash__(self) -> int:
         return id(self)
+    
+    def after_setup(self):
+        pass
 
     def name(self) -> str:
         return self.properties.get('label') or self.name

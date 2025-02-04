@@ -18,3 +18,4 @@ flask-session
 flask-socketio
 pillow
 tensorboard
+pyfiglet

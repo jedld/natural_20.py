@@ -150,6 +150,90 @@ stone_wall_bl:
   passable: false
   token:
     - └
+stone_wall_door:
+  color: light_magenta
+  default_ac: 17
+  item_class: DoorObjectWall
+  max_hp: 27
+  name: Stone Wall Door
+  token:
+    - ┼
+corner_door_tl:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Corner Door Top Left
+  token_image: corner_door_tl
+  door_pos: 0
+  border:
+    - 0
+    - 0
+    - 0
+    - 1
+  token:
+    - ╒
+  token_open:
+    - │
+corner_door_tl:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Corner Door Top Left
+  token_image: corner_door_tl
+  door_pos: 3
+  border:
+    - 1
+    - 0
+    - 0
+    - 0
+  token:
+    - ╓
+  token_open:
+    - ─
+corner_door_bl:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Corner Door Top Left
+  token_image: corner_door_tl
+  door_pos: 1
+  border:
+    - 1
+    - 0
+    - 0
+    - 0
+  token:
+    - ╖
+  token_open:
+    - ─
+corner_door_rb:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Corner Door Top Left
+  token_image: corner_door_tl
+  door_pos: 3
+  border:
+    - 0
+    - 0
+    - 1
+    - 0
+  token:
+    - ╙
+  token_open:
+    - ─
 tree:
   allow_hide: true
   color: green
