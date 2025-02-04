@@ -635,6 +635,11 @@ class Map():
                 entity_1_squares.append([pos1_x + ofs_x, pos1_y + ofs_y])
         return entity_1_squares
     
+    def bidirectionally_passable(self, entity, pos_x, pos_y, origin, battle=None, allow_squeeze=True, ignore_opposing=False):
+        if self.passable(entity, pos_x, pos_y, battle, allow_squeeze, origin=origin, ignore_opposing=ignore_opposing) and \
+            self.passable(entity, *origin, battle, allow_squeeze, origin=(pos_x, pos_y), ignore_opposing=ignore_opposing):
+            return True
+
     def passable(self, entity, pos_x, pos_y, battle=None, allow_squeeze=True, origin=None, ignore_opposing=False):
         effective_token_size = entity.token_size() - 1 if allow_squeeze and entity.token_size() > 1 else entity.token_size()
         for ofs_x in range(effective_token_size):

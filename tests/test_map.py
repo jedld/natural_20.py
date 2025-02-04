@@ -89,6 +89,11 @@ class TestMap(unittest.TestCase):
         self.assertEqual(computed_path, [(0, 5), (1, 6), (2, 5), (1, 5)])
         render = MapRenderer(map)
         print(render.render(path=computed_path, path_char='+'))
+        computed_path = path_compute.compute_path(1, 5, 0, 5)
+        render = MapRenderer(map)
+        print(render.render(path=computed_path, path_char='+'))
+        self.assertEqual(computed_path, [(1, 5), (2, 5), (1, 6), (0, 5)])
+
 
     def test_directional_walls_closed(self):
         """
@@ -97,7 +102,7 @@ class TestMap(unittest.TestCase):
         map = Map(session, 'tests/fixtures/maps/thinwall_map_closed.yml')
         character4 = PlayerCharacter.load(session, 'characters/dwarf_cleric.yml')
         map.place((0,4), character4)
-        path_compute = PathCompute(session, map, character4)
+        path_compute = PathCompute(None, map, character4)
         print(MapRenderer(map).render())
         seen_squares = []
         traveled_squares = []
@@ -109,3 +114,17 @@ class TestMap(unittest.TestCase):
                     traveled_squares.append((i, j))
         self.assertEqual(traveled_squares, [])
         self.assertEqual(seen_squares, [(1, 3), (1, 4), (1, 5)])
+        
+        character = PlayerCharacter.load(session, 'characters/halfling_rogue.yml')
+        map.place((1,4), character)
+        print(MapRenderer(map).render())
+        seen_squares = []
+        traveled_squares = []
+        for i in range(0, 6):
+            for j in range(0, 2):
+                if map.can_see_square(character, (i, j)):
+                    seen_squares.append((i, j))
+                if path_compute.compute_path(1, 4, i, j) is not None:
+                    traveled_squares.append((i, j))
+        print(MapRenderer(map).render(path=traveled_squares, path_char='+'))
+        self.assertEqual(traveled_squares, [])
