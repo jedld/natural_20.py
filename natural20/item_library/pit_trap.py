@@ -46,7 +46,7 @@ class PitTrap(Object):
 
         return self.properties.get('name', 'pit trap')
 
-    def passable(self):
+    def passable(self, origin=None):
         return True
 
     def token(self):

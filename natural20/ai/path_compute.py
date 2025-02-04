@@ -95,11 +95,13 @@ class PathCompute:
 
                 # Try normal passable
                 if self.map.passable(self.entity, nx, ny, self.battle, False,
+                                     origin=(x, y),
                                      ignore_opposing=self.ignore_opposing):
                     move_cost = self.base_move_cost(nx, ny)
                     neighbors.append(((nx, ny), move_cost))
                 # Otherwise, if not normal passable, check if passable with squeeze
                 elif self.map.passable(self.entity, nx, ny, self.battle, True,
+                                       origin=(x, y),
                                        ignore_opposing=self.ignore_opposing):
                     # e.g., let's define squeeze cost = 2
                     move_cost = 2

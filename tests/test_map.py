@@ -3,6 +3,7 @@ from natural20.map import Map, Terrain
 from natural20.map_renderer import MapRenderer
 from natural20.session import Session
 from natural20.player_character import PlayerCharacter
+from natural20.ai.path_compute import PathCompute
 import pdb
 
 class TestMap(unittest.TestCase):
@@ -54,3 +55,57 @@ class TestMap(unittest.TestCase):
 
         self.assertEqual(map.can_see(character, character3), False)
         self.assertEqual(map.can_see(character3, character), False)
+
+    def test_directional_walls_diagonals(self):
+        session = Session(root_path='tests/fixtures')
+        map = Map(session, 'tests/fixtures/maps/thinwall_map.yml')
+        character = PlayerCharacter.load(session, 'characters/halfling_rogue.yml')
+        character2 = PlayerCharacter.load(session, 'characters/high_elf_fighter.yml')
+        character3 = PlayerCharacter.load(session, 'characters/high_elf_mage.yml')
+        character4 = PlayerCharacter.load(session, 'characters/dwarf_cleric.yml')
+        map.place((1,3), character)
+        map.place((2,4), character2)
+        map.place((0,5), character3)
+        map.place((1,4), character4)
+        print(MapRenderer(map).render())
+        self.assertEqual(map.can_see(character3, character2), False)
+        self.assertEqual(map.can_see(character2, character3), False)
+        self.assertEqual(map.can_see(character, character2), True)
+        self.assertEqual(map.can_see(character3, character4), False)
+        self.assertEqual(map.can_see(character, character4), True)
+
+    def test_directional_walls_pathing(self):
+        session = Session(root_path='tests/fixtures')
+        map = Map(session, 'tests/fixtures/maps/thinwall_map.yml')
+        character4 = PlayerCharacter.load(session, 'characters/dwarf_cleric.yml')
+        map.place((0,5), character4)
+        print(MapRenderer(map).render())
+        path_compute = PathCompute(session, map, character4)
+        computed_path = path_compute.compute_path(0, 5, 1, 4)
+        self.assertEqual(computed_path, [(0, 5), (0, 4), (1, 3), (1, 4)])
+        render = MapRenderer(map)
+        print(render.render(path=computed_path, path_char='+'))
+        computed_path = path_compute.compute_path(0, 5, 1, 5)
+        self.assertEqual(computed_path, [(0, 5), (1, 6), (2, 5), (1, 5)])
+        render = MapRenderer(map)
+        print(render.render(path=computed_path, path_char='+'))
+
+    def test_directional_walls_closed(self):
+        """
+        Tests that a character can NOT travel to any point inside the boxed area"""
+        session = Session(root_path='tests/fixtures')
+        map = Map(session, 'tests/fixtures/maps/thinwall_map_closed.yml')
+        character4 = PlayerCharacter.load(session, 'characters/dwarf_cleric.yml')
+        map.place((0,4), character4)
+        path_compute = PathCompute(session, map, character4)
+        print(MapRenderer(map).render())
+        seen_squares = []
+        traveled_squares = []
+        for i in range(1, 5):
+            for j in range(2, 6):
+                if map.can_see_square(character4, (i, j)):
+                    seen_squares.append((i, j))
+                if path_compute.compute_path(0, 4, i, j) is not None:
+                    traveled_squares.append((i, j))
+        self.assertEqual(traveled_squares, [])
+        self.assertEqual(seen_squares, [(1, 3), (1, 4), (1, 5)])

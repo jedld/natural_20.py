@@ -10,7 +10,7 @@ class StoneWall(Object):
     def opaque(self, origin=None):
         return not self.dead()
 
-    def passable(self):
+    def passable(self, origin=None):
         return self.dead()
 
     def token(self):
@@ -54,13 +54,13 @@ class StoneWallDirectional(StoneWall):
             return True
 
         pos_x, pos_y = self.map.position_of(self)
-        if self.border[0] and origin_pos[1] > pos_y:
+        if self.border[0] and origin_pos[1] < pos_y:
             return False
-        if self.border[1] and origin_pos[0] < pos_x:
+        if self.border[1] and origin_pos[0] > pos_x:
             return False
-        if self.border[2] and origin_pos[1] < pos_y:
+        if self.border[2] and origin_pos[1] > pos_y:
             return False
-        if self.border[3] and origin_pos[0] > pos_x:
+        if self.border[3] and origin_pos[0] < pos_x:
             return False
         return True
 
@@ -86,7 +86,7 @@ class StoneWallDirectional(StoneWall):
         pos_x, pos_y = self.map.position_of(self)
         if self.border[0] and origin_pos[1] < pos_y:
             return not self.dead()
-        if self.border[1] and origin_pos[0] < pos_x:
+        if self.border[1] and origin_pos[0] > pos_x:
             return not self.dead()
         if self.border[2] and origin_pos[1] > pos_y:
             return not self.dead()
@@ -138,7 +138,7 @@ class Ground(Object, Container):
     def opaque(self, origin=None):
         return False
 
-    def passable(self):
+    def passable(self, origin=None):
         return True
 
     def placeable(self):
