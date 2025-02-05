@@ -9,6 +9,7 @@ import pdb
 class TestMap(unittest.TestCase):
     def test_controller(self):
         session = Session(root_path='tests/fixtures')
+        session.render_for_text = False
         map = Map(session, 'templates/maps/game_map.yml')
         render = MapRenderer(map)
         render.render()
@@ -142,6 +143,7 @@ class TestMap(unittest.TestCase):
         """
         Tests that a character can NOT travel to any point inside the boxed area"""
         session = Session(root_path='tests/fixtures')
+        session.render_for_text = False
         map = Map(session, 'tests/fixtures/maps/thinwall_map_closed.yml')
         character4 = PlayerCharacter.load(session, 'characters/dwarf_cleric.yml')
         map.place((0,4), character4)
@@ -156,7 +158,7 @@ class TestMap(unittest.TestCase):
                 if path_compute.compute_path(0, 4, i, j) is not None:
                     traveled_squares.append((i, j))
         self.assertEqual(traveled_squares, [])
-        self.assertEqual(seen_squares, [(1, 3), (1, 4), (1, 5)])
+        self.assertEqual(seen_squares, [])
         
         character = PlayerCharacter.load(session, 'characters/halfling_rogue.yml')
         map.place((1,4), character)

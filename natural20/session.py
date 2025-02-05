@@ -24,6 +24,7 @@ class Session:
             'manual_dice_roll': False
         }
         self.game_time = 0
+        self.render_for_text = True
         self.event_log = deque(maxlen=100)
         self.default_locale = 'en'
         self.event_manager = event_manager
