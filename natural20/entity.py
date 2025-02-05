@@ -57,13 +57,10 @@ class Entity(EntityStateEvaluator):
 
     def profile_image(self):
         return self.token_image()
-    
+
     def description(self):
         return self.properties.get('description', self._description)
 
-    def available_interactions(self, entity, battle):
-        return None
-    
     def items_label(self):
       return self.t(f"entity.#{self.__class__}.item_label", { "default": f"{self.name} Items"})
 
@@ -631,6 +628,9 @@ class Entity(EntityStateEvaluator):
     
     def reset_turn(self, battle):
         entity_state = battle.entity_state_for(self)
+        if not entity_state:
+            raise ValueError("entity has not been added to the battle yet")
+
         entity_state.update({
             'action': 1,
             'bonus_action': 1,

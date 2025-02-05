@@ -310,17 +310,11 @@ class Map():
         for square in target_squares:
             available_objects.extend(self.objects_at(square[0], square[1]))
             nearby_entity = self.entity_at(square[0], square[1])
-            if nearby_entity:
+            if nearby_entity and nearby_entity!=entity:
                 available_objects.append(nearby_entity)
 
         for obj in available_objects:
             if hasattr(obj,'available_interactions') and obj.available_interactions(entity, battle):
-                objects.append(obj)
-
-        for obj, position in self.entities.items():
-            if obj == entity:
-                continue
-            if obj.available_interactions(entity, battle) and position in target_squares:
                 objects.append(obj)
 
         return objects
@@ -555,7 +549,14 @@ class Map():
             pos1_x, pos1_y = pos1
             if [pos1_x, pos1_y] == [pos2_x, pos2_y]:
                 return True
-            if self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=True) is None:
+
+            # for ascii map rendering we don't want to hide the walls themselves
+            # so that the user is aware of the walls otherwise it will just 
+            # look like an empty space. For web rendering we don't need to do this
+            # since we have the map as an image background and the walls are visible
+            inclusive = not self.session.render_for_text
+
+            if self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive) is None:
                 continue
 
             location_illumination = self.light_at(pos2_x, pos2_y)

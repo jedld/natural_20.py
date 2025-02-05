@@ -121,7 +121,7 @@ output_logger.log("Server started")
 event_manager = EventManager(output_logger=output_logger)
 event_manager.standard_cli()
 game_session = GameSession.Session(LEVEL, event_manager=event_manager)
-
+game_session.render_for_text = False # render for text is disabled since we are using a web renderer
 
 class GameManagement:
     def __init__(self, game_session, map_location):

@@ -27,6 +27,8 @@ class TestInteractAction(unittest.TestCase):
         self.battle_map.place((0, 5), self.entity, "G")
         self.door = self.battle_map.object_at(1, 4)
         self.chest = self.battle_map.object_at(1, 6)
+        self.battle.add(self.entity, group='a')
+        self.entity.reset_turn(self.battle)
 
     def test_opening_and_closing_doors(self):
         print(MapRenderer(self.battle_map).render())
@@ -69,6 +71,27 @@ class TestInteractAction(unittest.TestCase):
         InteractAction.apply(None, chest_close.result[0], session=self.session)
         self.assertFalse(self.chest.opened())
         print(MapRenderer(self.battle_map).render())
+
+    def test_player_item_transfer(self):
+        self.entity2 = PlayerCharacter.load(self.session, os.path.join("dwarf_cleric.yml"))
+        self.battle_map.place((0, 6), self.entity2, "G")
+        self.assertListEqual(self.battle_map.objects_near(self.entity, self.battle),[self.entity2, self.door, self.chest])
+        print(MapRenderer(self.battle_map).render())
+        self.assertListEqual([str(a) for a in self.entity.available_actions(self.session, self.battle)], ['Hide',
+            'Dash',
+            'Disengage',
+            'Dodge',
+            'Prone',
+            'SecondWind',
+            'Grapple',
+            'Shove',
+            'UseItem: healing_potion',
+            'Interact(Shor Valu,give)',
+            'Interact(front_door,open)',
+            'Interact(front_door,lock)',
+            'Interact(chest,open)',
+            'Interact(chest,lock)'])
+
 
     def test_autobuild(self):
         self.assertTrue(self.door.closed())
