@@ -11,6 +11,8 @@ class Container:
         for direction, (src, dst) in [('from', (target, source)), ('to', (source, target))]:
             for item, qty in zip(items[direction]['items'], items[direction]['qty']):
                 if item in src.inventory:
+                    if qty==0:
+                        continue
                     src.deduct_item(item, int(qty))
                     dst.add_item(item, int(qty))
                     if battle:
