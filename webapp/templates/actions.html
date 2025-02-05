@@ -5,9 +5,27 @@
       <tr>
         {% for action in actions if action.__class__.can(entity, battle) %}
           <td>
-            <button class="action-button action-image {{'bonus-action' if action.as_bonus_action else ''}}  {{'hide-action' if action.action_type in ['hide','hide_bonus'] else ''}}" data-action-type="{{ action.__class__.__name__ }}" data-action-opts='{{ action.to_h() | tojson }}' title="{{ action.label() }}">
-              <img src="{{ url_for('static', filename='actions/' + action.action_type + action_flavors(action) + '.png') }}" style="width: 50px; height: 50px;">
-            </button>
+        <button class="action-button action-image {{ 'bonus-action' if action.as_bonus_action else '' }} {{ 'hide-action' if action.action_type in ['hide', 'hide_bonus'] else '' }}"
+            data-action-type="{{ action.__class__.__name__ }}"
+            data-action-opts='{{ action.to_h() | tojson }}'
+            title="{{ action.label() }}"
+            style="position: relative;">
+          {% if action.using %}
+          <img src="{{ url_for('static', filename='items/' + action.using + '.png') }}" style="width: 50px; height: 50px;">
+          {% else %}
+          <img src="{{ url_for('static', filename='actions/' + action.action_type + action_flavors(action) + '.png') }}" style="width: 50px; height: 50px;">
+          {% endif %}
+          {% if action.as_bonus_action %}
+          <div style="position: absolute; top: 0; left: 0; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; background-color: rgba(255,255,255,0.7); color: black; font-weight: bold;">
+            Bonus
+          </div>
+          {% endif %}
+          {% if action.thrown %}
+          <div style="position: absolute; top: 0; left: 0; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; background-color: rgba(0,0,0,0.2); color: white; font-weight: bold;">
+            Thrown
+          </div>
+          {% endif %}
+        </button>
           </td>
         {% endfor %}
       </tr>

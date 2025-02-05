@@ -402,7 +402,7 @@ class Battle():
     # @param entity [Natural20::Entity]
     # @param resource [str]
     def consume(self, entity, resource, qty=1):
-        valid_resources = ['action', 'reaction', 'bonus_action', 'movement']
+        valid_resources = ['action', 'reaction', 'bonus_action', 'movement', 'free_object_interaction']
         if resource not in valid_resources:
             raise Exception('invalid resource')
 

@@ -96,6 +96,8 @@ class InteractAction(Action):
     def apply(battle, item, session=None):
         entity = item['source']
         item_type = item['type']
+        if session is None:
+            session = battle.session
 
         if item_type == 'interact':
             item['target'].use(entity, item)
