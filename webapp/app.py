@@ -41,6 +41,7 @@ from natural20.player_character import PlayerCharacter
 from collections import deque
 from natural20.utils.action_builder import acquire_targets
 from natural20.dm import DungeonMaster
+from natural20.die_roll import DieRoll
 import optparse
 import pdb
 import i18n
@@ -1023,7 +1024,22 @@ def handle_reaction():
         waiting_for_user = True
     return jsonify(status='ok')
 
-
+@app.route('/manual_roll', methods=['POST'])
+def manual_roll():
+    global current_game
+    battle = current_game.get_current_battle()
+    battle_map = current_game.get_current_battle_map()
+    entity_id = request.json['id']
+    entity = battle_map.entity_by_uid(entity_id)
+    roll = request.json['roll']
+    advantage = request.json.get('advantage', False)
+    disadvantage = request.json.get('disadvantage', False)
+    description = request.json.get('description', None)
+    roll_result = DieRoll.roll(roll, disadvantage=disadvantage, advantage=advantage,
+                entity=entity, battle=battle, description=description)
+    output_logger.log(f"{entity.name} rolled a {roll_result}={roll_result.result()} for {description}")
+   
+    return jsonify(roll_result=roll_result.result(), roll_explaination=str(roll_result))
 
 @app.route('/action', methods=['POST'])
 def action():

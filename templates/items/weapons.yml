@@ -253,6 +253,8 @@ longsword:
     noise_target: 5
   modifiers: null
   name: Longsword
+  weapon_mastery:
+    - sap
   proficiency_type:
     - martial
   properties:

@@ -4,6 +4,7 @@
     <thead>
         <tr>
             <th style="width: 60px;">{{ item['label'] }}</th>
+            <th>To Hit</th>
             <th>Damage</th>
             <th>Type</th>
             <th>Range</th>
@@ -18,7 +19,16 @@
                          alt="{{ item['label'] }}">
                 </div>
             </td>
-            <td>{{ item['damage'] }}</td>
+            <td class="auto-die-roll" data-entity="{{ entity.entity_uid }}" data-description="Attack Roll">
+                1d20&nbsp;+&nbsp;{{ entity.attack_roll_mod(item) }}
+            </td>
+            <td>
+            {% if entity.is_two_handed_weapon(item) %}
+                {{ item['damage_2'] }} (2 handed)
+            {% else %}
+                {{ item['damage'] }}
+            {% endif %}
+            </td>
             <td>{{ item['damage_type'] }}</td>
             {% if item['range_max'] %}
             <td>{{ item['range'] }}/{{ item['range_max'] }}</td>
