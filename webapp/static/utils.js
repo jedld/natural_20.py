@@ -20,16 +20,22 @@ const Utils = {
       url: '/manual_roll',
       contentType: 'application/json',
       data: json_data,
-    }, function (data) {
-      result = data.roll_result
-      breakdown =  data.roll_explaination
+    success: function (data) {
+      var result = data.roll_result;
+      var breakdown =  data.roll_explaination;
       console.log(data);
-    const $toast = $('<div>')
-      .addClass('toast-message')
-      .text('Roll completed: ' + data.roll_result)
-      .appendTo('body');
-    setTimeout(() => $toast.fadeOut(() => $toast.remove()), 3000);
-    });
+      const $toast = $('<div>')
+        .addClass('toast-message')
+        .text('Roll completed: ' + breakdown + "= " + result);
+      // Append to toast container, create one if it doesn't exist
+      if (!$('.toast-container').length) {
+        $('body').append('<div class="toast-container"></div>');
+      }
+      $('.toast-container').append($toast);
+      setTimeout(() => $toast.fadeOut(() => $toast.remove()), 10000);
+    }
+  }
+  );
   },
   draggable: function (container_selector) {
     $(function () {

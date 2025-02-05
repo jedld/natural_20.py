@@ -380,8 +380,8 @@ th, td {
 }
 
 .die-roll-component {
-    margin: 10px 0;
-    padding: 10px;
+    margin: 5px 0;
+    padding: 5px;
     border: 2px solid #4a2f19;
     background-color: rgba(255, 248, 220, 0.9);
     border-radius: 5px;
@@ -392,13 +392,13 @@ th, td {
 }
 
 .rollable-die {
-    font-size: 18px;
+    font-size: 12px;
     font-weight: bold;
     color: #4a2f19;
     cursor: pointer;
-    padding: 10px 20px;
+    padding: 5px 10px;
     border: 1px solid #4a2f19;
-    border-radius: 5px;
+    border-radius: 2px;
     background-color: #f9f1e7;
     transition: background-color 0.3s ease;
 }
@@ -428,4 +428,22 @@ th, td {
     background-color: #a67c52;
     opacity: 1;
     box-shadow: 0 0 5px rgba(0,0,0,0.3);
+}
+
+/* Create a container for toasts that is fixed at top left */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+}
+
+/* Update toast-message styling without fixed positioning */
+.toast-message {
+    background-color: #333;
+    color: #fff;
+    padding: 3px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    margin-bottom: 10px; /* space between multiple toasts */
 }
