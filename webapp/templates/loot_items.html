@@ -40,7 +40,7 @@
                 </div>
                 <div class="col-xs-5">
                   <div class="input-group">
-                    <input type="number" name="quantity_{{ item.type }}" min="0" max="{{ item.qty }}" class="form-control input-sm transfer-qty" value="0">
+                    <input type="number" name="quantity_{{ item.type }}" min="0" max="{{ item.qty }}" class="form-control input-sm transfer-qty" value="0" oninput="checkItem(this)">
                     <span class="input-group-btn">
                       <button type="button" class="btn btn-default btn-sm max-btn" onclick="setMax(this)">Max</button>
                     </span>
@@ -84,7 +84,7 @@
                 </div>
                 <div class="col-xs-5">
                   <div class="input-group">
-                    <input type="number" name="quantity_source_{{ item.name }}" min="0" max="{{ item.qty }}" class="form-control input-sm transfer-qty-source" value="0">
+                    <input type="number" name="quantity_source_{{ item.name }}" min="0" max="{{ item.qty }}" class="form-control input-sm transfer-qty-source" value="0" oninput="checkItem(this)">
                     <span class="input-group-btn">
                       <button type="button" class="btn btn-default btn-sm max-btn" onclick="setMax(this)">Max</button>
                     </span>
@@ -113,7 +113,17 @@
       const input = inputGroup.querySelector('input[type="number"]');
       if (input) {
         input.value = input.max;
+        checkItem(input);
       }
+    }
+  }
+
+  // Check the associated checkbox if a non-zero value is entered
+  function checkItem(input) {
+    const value = parseInt(input.value, 10);
+    const checkbox = input.closest('.list-group-item').querySelector('input[type="checkbox"]');
+    if (checkbox) {
+      checkbox.checked = value > 0;
     }
   }
 </script>

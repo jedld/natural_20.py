@@ -1115,7 +1115,6 @@ class Entity(EntityStateEvaluator):
         attack_modifers = [self.spell_attack_modifier(class_type=class_type.lower()) for class_type in class_types]
         return DieRoll.roll(f"1d20+{max(attack_modifers)}", description=f"Ranged Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
 
-
     def melee_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
         spell_classes = spell.get('spell_list_classes', [])
         class_types = spell_classes if spell_classes else ['wizard']
