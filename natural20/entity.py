@@ -102,6 +102,9 @@ class Entity(EntityStateEvaluator):
     def expertise(self, prof):
         return prof in self.properties.get('expertise', [])
 
+    def is_two_handed_weapon(self, weapon):
+        return 'versatile' in weapon.get('properties', []) and self.used_hand_slots() <= 1.0
+
     # Returns the proficiency bonus of this entity
     # @return [Integer]
     def proficiency_bonus(self):
@@ -1060,6 +1063,7 @@ class Entity(EntityStateEvaluator):
             'ac' : item.get('ac', None),
             'bonus_ac' : item.get('bonus_ac', None),
             'damage' : item.get('damage', None),
+            'damage_2' : item.get('damage_2', None),
             'damage_type' : item.get('damage_type', None),
             'range' : item.get('range', None),
             'range_max' : item.get('range_max', None),
@@ -1071,6 +1075,7 @@ class Entity(EntityStateEvaluator):
             'light_properties': item.get('light'),
             'proficiency_type': item.get('proficiency_type'),
             'metallic': bool(item.get('metallic')),
+            'properties': item.get('properties'),
             'qty': 1,
             'equipped': True,
             'weight': item.get('weight')

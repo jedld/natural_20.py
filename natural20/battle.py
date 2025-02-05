@@ -278,7 +278,7 @@ class Battle():
             return 'help' in self.entities[target]['target_effect'].values()
 
         return False
-    
+
     # Returns opponents of entity
     # @param entity [Natural20::Entity] target entity
     # @return [List<Natural20::Entity>]

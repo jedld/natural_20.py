@@ -370,3 +370,62 @@ th, td {
     white-space: nowrap;
     z-index: 999;
 }
+
+/* Die Roll Component Styles */
+.auto-die-roll {
+    font-size: 14px;
+    padding: 4px 8px;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.die-roll-component {
+    margin: 10px 0;
+    padding: 10px;
+    border: 2px solid #4a2f19;
+    background-color: rgba(255, 248, 220, 0.9);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.rollable-die {
+    font-size: 18px;
+    font-weight: bold;
+    color: #4a2f19;
+    cursor: pointer;
+    padding: 10px 20px;
+    border: 1px solid #4a2f19;
+    border-radius: 5px;
+    background-color: #f9f1e7;
+    transition: background-color 0.3s ease;
+}
+
+.roll-switch {
+    display: flex;
+    gap: 5px;
+}
+
+.roll-mode {
+    padding: 8px 12px;
+    font-size: 14px;
+    color: #fff;
+    background-color: #4a2f19;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, opacity 0.3s ease;
+    opacity: 0.8;
+}
+
+.roll-mode:hover {
+    opacity: 1;
+}
+
+.roll-mode.active {
+    background-color: #a67c52;
+    opacity: 1;
+    box-shadow: 0 0 5px rgba(0,0,0,0.3);
+}
