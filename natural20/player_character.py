@@ -78,6 +78,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
     self.session = session
     self.equipped = self.properties.get('equipped', [])
     self.inventory = {}
+    self.group = self.properties.get('group', 'a')
 
     # use ordered dict to maintain order of spell slots
     self.spell_slots = {}
