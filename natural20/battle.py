@@ -340,6 +340,10 @@ class Battle():
         for item in action.result:
             for klass in Action.__subclasses__():
                 klass.apply(self, item)
+                if self.animation_log_enabled:
+                    if item.get('perception_targets'):
+                        perception_targets = item['perception_targets']
+                        self.animation_log.append({"type": "perception", "targets": [p.entity_uid for p in perception_targets]})
 
         if action.action_type == 'move':
             self.trigger_event('movement', action.source, { 'move_path': action.move_path})

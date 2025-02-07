@@ -32,3 +32,16 @@ spellbook:
 - shield
 equipped:
 - dagger
+inventory:
+- type: healing_potion
+  qty: 1
+- type: arcane_focus
+  qty: 1
+- type: spellbook
+  qty: 1
+- type: ink
+  qty: 1
+- type: ink_pen
+  qty: 1
+- type: parchment
+  qty: 5

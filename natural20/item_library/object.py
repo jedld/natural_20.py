@@ -71,13 +71,17 @@ class Object(Entity):
 
 
     def __str__(self) -> str:
-        return self.name
+        if self.name:
+            return self.name
+        return self.__class__.__name__
     
     def __repr__(self):
         """
         Return the string representation of the object
         """
-        return self.name
+        if self.name:
+            return self.name
+        return self.__class__.__name__
 
     def __hash__(self) -> int:
         return id(self)
@@ -143,7 +147,11 @@ class Object(Entity):
         return self.properties.get('token_image')
     
     def profile_image(self):
-        return self.properties.get('token_image') + ".png"
+        if self.properties.get('profile_image'):
+            return self.properties.get('profile_image') + ".png"
+        if self.properties.get('token_image'):
+            return self.properties.get('token_image') + ".png"
+        return None
     
     def token_image_transform(self):
         return None
@@ -156,7 +164,7 @@ class Object(Entity):
 
     def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True):
         actions = []
-        for _interaction in self.available_interactions(None, battle).keys():
+        for _interaction in self.available_interactions(self, battle).keys():
             action = InteractAction(session, self, 'interact')
             action.object_action = _interaction
             actions.append(action)

@@ -20,7 +20,10 @@ class InteractAction(Action):
         return self.__str__()
     
     def label(self):
-        return f"{self.object_action} {self.target}"
+        if self.disabled:
+            return f"{self.source} cannot {self.action_type} with [{self.target}] because of [{self.disabled_reason}]"
+        else:
+            return f"{self.object_action} {self.target}"
 
     @staticmethod
     def can(entity, battle):

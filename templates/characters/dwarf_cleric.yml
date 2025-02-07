@@ -32,3 +32,8 @@ equipped:
 - scale_mail
 - shield
 - warhammer
+inventory:
+- type: healing_potion
+  qty: 1
+- type: healers_kit
+  qty: 1

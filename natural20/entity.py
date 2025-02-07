@@ -4,9 +4,10 @@ import pdb
 from natural20.event_manager import EventManager
 from natural20.evaluator.entity_state_evaluator import EntityStateEvaluator
 from typing import List, Tuple
-from natural20.i18n import I18n
+from natural20.concern.notable import Notable
 import uuid
-class Entity(EntityStateEvaluator):
+import i18n
+class Entity(EntityStateEvaluator, Notable):
 
     ATTRIBUTE_TYPES = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']
     ATTRIBUTE_TYPES_ABBV = ['str', 'dex', 'con', 'int', 'wis', 'cha']
@@ -62,7 +63,7 @@ class Entity(EntityStateEvaluator):
         return self.properties.get('description', self._description)
 
     def items_label(self):
-      return self.t(f"entity.#{self.__class__}.item_label", { "default": f"{self.name} Items"})
+      return self.t(f"entity.#{self.__class__}.item_label", default=f"{self.name} Items")
 
     def concentration_on(self, effect):
         if effect is None:
@@ -157,7 +158,7 @@ class Entity(EntityStateEvaluator):
     
 
     def label(self):
-        return I18n.t(self.name)
+        return i18n.t(self.name)
 
     def token_image(self):
         return self.properties.get('token_image') or f"token_{(self.properties.get('kind') or self.properties.get('sub_type') or self.properties.get('name')).lower()}.png"
@@ -1061,6 +1062,7 @@ class Entity(EntityStateEvaluator):
         return {
             'name': k,
             'ac' : item.get('ac', None),
+            'description': item.get('description', None),
             'bonus_ac' : item.get('bonus_ac', None),
             'damage' : item.get('damage', None),
             'damage_2' : item.get('damage_2', None),
@@ -1093,6 +1095,13 @@ class Entity(EntityStateEvaluator):
         if self.inventory[ammo_type]['qty'] == 0:
             return self.inventory.pop(ammo_type)
         return self.inventory[ammo_type]
+    
+    # Removes an item from the inventory
+    # @param ammo_type [Symbol,String]
+    # @param amount [Integer]
+    # @return [Hash]
+    def remove_item(self, ammo_type, amount=1):
+        return self.deduct_item(ammo_type, amount)
 
 
     # Adds an item to your inventory
@@ -1522,5 +1531,5 @@ class Entity(EntityStateEvaluator):
             'temp_hp' : self._temp_hp
         }
     
-    def t(self, key, kwargs=None):
+    def t(self, key, **kwargs):
         return self.session.t(key, kwargs)

@@ -9,11 +9,11 @@ $(document).ready(function() {
     }
 
     function refreshEquipment() {
-        $.get('/equipment', 
+        $.get('/equipment',
         {
             id: entityId
         },
-            function(response) {
+        function(response) {
             $('.equipment-container').html(response);
         });
     }

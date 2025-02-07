@@ -62,6 +62,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
     FirstAidAction,
     UseItemAction,
     InteractAction,
+    LookAction
   ]
 
   def __init__(self, session, properties, name=None):
@@ -294,9 +295,14 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
         elif action_type == InteractAction:
           if map:
             for objects in map.objects_near(self, battle):
-              for interaction in objects.available_interactions(self).keys():
-                action_list.append(InteractAction(session, self, 'interact', { "target": objects,
-                                                                              "object_action": interaction }))
+              for interaction, details in objects.available_interactions(self).items():
+                action = InteractAction(session, self, 'interact', { "target": objects,
+                                                                              "object_action": interaction })
+                if details.get('disabled'):
+                  action.disabled = True
+                  action.disabled_reason = self.t(details['disabled_text'])
+
+                action_list.append(action)
     return action_list
 
   def _player_character_attack_actions(self, session, battle, opportunity_attack=False, second_weapon=False, auto_target=True):

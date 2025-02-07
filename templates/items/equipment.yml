@@ -1,4 +1,9 @@
 ---
+arcane_focus:
+  cost: 10
+  name: Arcane Focus
+  type: arcane_focus
+  weight: 1
 arrows:
   cost: 0.05
   name: Arrows
@@ -54,6 +59,21 @@ scale_mail:
   subtype: medium
   type: armor
   weight: 45
+spellbook:
+  cost: 50
+  name: Spellbook
+  type: spellbook
+  weight: 3
+ink:
+  cost: 10
+  name: Ink
+  type: ink
+  weight: 0.05
+ink_pen:
+  cost: 0.02
+  name: Ink Pen
+  type: ink_pen
+  weight: 0.02
 breastplate:
   ac: 14
   cost: 400
@@ -93,6 +113,12 @@ gold_piece:
   name: Gold Piece (gp)
   type: currency
   weight: 0.02
+healers_kit:
+  description:  As an action, you can expend one use of the kit to stabilize a creature that has 0 hit points, without needing to make a Wisdom (Medicine) check.
+  cost: 5
+  name: Healer's Kit
+  type: tool
+  weight: 3
 healing_potion:
   consumable: true
   hp_regained: 2d4+2
@@ -121,6 +147,11 @@ padded:
   subtype: light
   type: armor
   weight: 8
+parchment:
+  cost: 0.1
+  name: Parchment
+  type: parchment
+  weight: 0.02
 platinum:
   cost: 10
   name: platinum (pp)

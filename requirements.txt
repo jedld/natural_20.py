@@ -19,3 +19,4 @@ flask-socketio
 pillow
 tensorboard
 pyfiglet
+pytest-xdist

@@ -64,6 +64,7 @@ class TestMap(unittest.TestCase):
         character2 = PlayerCharacter.load(session, 'characters/high_elf_fighter.yml')
         character3 = PlayerCharacter.load(session, 'characters/high_elf_mage.yml')
         character4 = PlayerCharacter.load(session, 'characters/dwarf_cleric.yml')
+        print(MapRenderer(map).render())
         map.place((1,3), character)
         map.place((2,4), character2)
         map.place((0,5), character3)

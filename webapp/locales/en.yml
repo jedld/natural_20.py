@@ -333,7 +333,7 @@ en:
     navigation: ESC- back, (wsad) - inspect square, x, space, enter - select
     navigation_look: ESC- back, (wsad) - inspect square
     note_with_language: (in %{note_language}) %{note}
-    passed: (perception) %{note}
+    passed: (perception DC %{dc}) %{note}
     terrain_and_surroundings: Terrain and Surroundings
     using_darkvision: 'Using darkvision:'
   prompt_dice_roller: Dice Roll (ex. d20, d8+1) (a) >

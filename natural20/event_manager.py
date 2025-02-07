@@ -149,7 +149,10 @@ class EventManager:
 
         def first_aid(event):
             if event['success']:
-                self.output_logger.log(f"{self.show_name(event)} performs first aid on {self.show_target_name(event)} and stabilizes them with a {event['roll']}={event['roll'].result()} medicine check.")
+                if event['roll']:
+                    self.output_logger.log(f"{self.show_name(event)} performs first aid on {self.show_target_name(event)} and stabilizes them with a {event['roll']}={event['roll'].result()} medicine check.")
+                else:
+                    self.output_logger.log(f"{self.show_name(event)} performs first aid on {self.show_target_name(event)} and stabilizes them using a healer's kit.")
             else:
                 self.output_logger.log(f"{self.show_name(event)} performs first aid on {self.show_target_name(event)} and fails to stabilize them with a {event['roll']}={event['roll'].result()} medicine check.")
 
@@ -167,9 +170,12 @@ class EventManager:
                 self.output_logger.log(f"{self.show_target_name(event)} failed the dexterity saving throw for ice knife. {event['roll']} < {event['source'].spell_save_dc()}")
             else:
                 self.output_logger.log(f"{self.show_target_name(event)} succeeded the dexterity saving throw for ice knife. {event['roll']} >= {event['source'].spell_save_dc()}")
-        
+
         def interact(event):
             self.output_logger.log(f"{self.show_name(event)} interacted with {self.show_target_name(event)} action [{event['object_action']}]")
+
+        def look(event):
+            self.output_logger.log(f"{self.show_name(event)} looked around and rolled {event['die_roll']} = {event['die_roll'].result()} perception check.")
 
         event_handlers = {
             'multiattack' : lambda event: self.output_logger.log(f"{self.show_name(event)} uses multiattack."),
@@ -209,6 +215,7 @@ class EventManager:
             'start_of_combat': start_of_combat,
             'use_item': handle_use_item,
             'interact': interact,
+            'look': look,
         }
 
         for event, handler in event_handlers.items():

@@ -148,12 +148,12 @@
             <th>Charisma</th>
             </tr>
             <tr>
-            <td>{{ entity.ability_score_str() }} ({{entity.str_mod() | mod_str}})</td>
-            <td>{{ entity.ability_score_dex()}} ({{entity.dex_mod() | mod_str }} )</td>
-            <td>{{ entity.ability_score_con()}} ({{entity.con_mod() | mod_str }} )</td>
-            <td>{{ entity.ability_score_int() }} ({{entity.int_mod() | mod_str }} )</td>
-            <td>{{ entity.ability_score_wis() }} ({{entity.wis_mod() | mod_str }} )</td>
-            <td>{{ entity.ability_score_cha() }} ({{entity.cha_mod() | mod_str }} )</td>
+            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.str_mod() | mod_str }}" data-description="Strength Check">{{ entity.ability_score_str() }} ({{entity.str_mod() | mod_str}})</td>
+            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.dex_mod() | mod_str }}" data-description="Dexterity Check">{{ entity.ability_score_dex()}} ({{entity.dex_mod() | mod_str }} )</td>
+            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.con_mod() | mod_str }}" data-description="Constitution Check">{{ entity.ability_score_con()}} ({{entity.con_mod() | mod_str }} )</td>
+            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.int_mod() | mod_str }}" data-description="Intelligence Check">{{ entity.ability_score_int() }} ({{entity.int_mod() | mod_str }} )</td>
+            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.wis_mod() | mod_str }}" data-description="Wisdom Check">{{ entity.ability_score_wis() }} ({{entity.wis_mod() | mod_str }} )</td>
+            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.cha_mod() | mod_str }}" data-description="Charisma Check">{{ entity.ability_score_cha() }} ({{entity.cha_mod() | mod_str }} )</td>
             </tr>
         </table>
         <h2>Saving Throws</h2>
@@ -166,7 +166,7 @@
             {% for ability in entity.ATTRIBUTE_TYPES %}
             <tr>
                 <td>{{ ability }}</td>
-                <td>{{ entity.saving_throw_mod(ability) | mod_str }}</td>
+                <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.saving_throw_mod(ability) | mod_str }}" data-description="{{ability}} save">{{ entity.saving_throw_mod(ability) | mod_str }}</td>
                 <td{% if entity.proficient(ability + "_save") %} style="border: 2px solid black;"{% endif %}>{{ "Yes" if entity.proficient(ability+ "_save") else ""}}</td>
             </tr>
             {% endfor %}
@@ -180,7 +180,7 @@
             </tr>
             <tr>
                 <td>+{{ entity.proficiency_bonus() }}</td>
-                <td>+{{ entity.initiative_bonus() }}</td>
+                <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.initiative_bonus() | mod_str }}">+{{ entity.initiative_bonus() }}</td>
             </tr>
         </table>
         <h2>Passive Scores</h2>
@@ -207,7 +207,7 @@
             {% for skill in skills %}
             <tr>
                 <td>{{ skill }}</td>
-                <td>{{ entity[skill + "_mod"]() | mod_str }}</td>
+                <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity[skill + '_mod']() | mod_str }}" data-description="{{skill}} check">{{ entity[skill + "_mod"]() | mod_str }}</td>
                 <td{% if entity.proficient(skill) %} style="border: 2px solid black;"{% endif %}>{{ "Yes" if entity.proficient(skill) else ""}}</td>
             </tr>
             {% endfor %}
