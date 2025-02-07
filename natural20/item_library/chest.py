@@ -9,7 +9,7 @@ class Chest(Object, Container):
         self.properties = properties or {}
         self.state = (self.properties.get('state') or 'closed')
         self.is_locked = self.properties.get('locked', False)
-        self.key_name = self.properties.get('key', '')
+        self.key_name = self.properties.get('key', None)
 
         inventory = self.properties.get('inventory', [])
         self.inventory = {}
@@ -122,13 +122,12 @@ class Chest(Object, Container):
         return 'white' if self.is_opened() else 'default'
 
     def available_interactions(self, entity, battle=None):
+        interactions = {}
         if self.locked():
-            interactions = {
-                'unlock': {
+            interactions['unlock'] = {
                     'disabled': not (entity.item_count(self.key_name) > 0),
                     'disabled_text': 'Key required'
                 }
-            }
             # Example lockpick check
             if entity.item_count('thieves_tools') > 0 and entity.proficient('thieves_tools'):
                 interactions['lockpick'] = {
@@ -144,13 +143,14 @@ class Chest(Object, Container):
                     'loot': {}
                 }
             else:
-                return {
-                    'open': {},
-                    'lock': {
+                interactions['open'] = {}
+                if self.key_name:
+                    interactions['lock'] = {
                         'disabled': not (entity and entity.item_count(self.key_name) > 0),
                         'disabled_text': 'Key required'
                     }
-                }
+
+            return interactions
 
     def is_interactable(self):
         return True

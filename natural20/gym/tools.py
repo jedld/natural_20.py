@@ -215,6 +215,8 @@ def render_terrain(battle, map, entity_type_mappings, view_port_size=(12, 12)):
                         terrain_int = 4
                     elif terrain == '#':
                         terrain_int = 2
+                    elif terrain == '·':
+                        terrain_int = 1
                     else:
                         raise ValueError(f"Unknown terrain {terrain}")
 

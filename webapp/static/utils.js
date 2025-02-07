@@ -6,6 +6,10 @@ const Utils = {
   euclideanDistance: function (sourceX, sourceY, destX, destY) {
     return Math.sqrt(Math.pow(sourceX - destX, 2) + Math.pow(sourceY - destY, 2));
   },
+  toggleNoteOverlay: function (btn) {
+    const overlay = btn.nextElementSibling;
+    overlay.style.display = (overlay.style.display === "none" || overlay.style.display === "") ? "block" : "none";
+  },
   rollable: function (entity_id, roll_str, advantage, disadvantage, description) {
     json_data = JSON.stringify({
       id: entity_id,
@@ -26,7 +30,7 @@ const Utils = {
       console.log(data);
       const $toast = $('<div>')
         .addClass('toast-message')
-        .text('Roll completed: ' + breakdown + "= " + result);
+        .text('Roll completed: ' + description + ' ' + breakdown + "= " + result);
       // Append to toast container, create one if it doesn't exist
       if (!$('.toast-container').length) {
         $('body').append('<div class="toast-container"></div>');
@@ -72,19 +76,41 @@ const Utils = {
       if ($container.find('.die-roll-component').length === 0) {
         // Read entity id from the container's data attribute (data-entity)
         var entityId = $container.data('entity');
+        var compact = $container.data('compact');
         var description = $container.data('description');
-        var rollStr = $container.text();
+        var rollStr = $container.data('roll');
+        if (!rollStr) {
+          rollStr = $container.text();
+        }
         var safeDescription = $('<div>').text(description).html();
-        $container.append(
-          '<div class="die-roll-component">' +
-            '<span class="rollable-die" data-roll="'+rollStr+'" data-entity="' + entityId + '" data-description="' + safeDescription + '">Roll!</span>' +
-            '<div class="roll-switch">' +
-              '<button type="button" class="roll-mode" data-mode="normal">Normal</button>' +
-              '<button type="button" class="roll-mode" data-mode="advantage">Adv</button>' +
-              '<button type="button" class="roll-mode" data-mode="disadvantage">Dis</button>' +
-            '</div>' +
-          '</div>'
-        );
+        
+        if (compact) {
+          $container.append(`
+            <button class="die-roll-toggle">Roll</button>
+            <div class="die-roll-component" style="display: none;">
+              <span class="rollable-die" data-roll="${rollStr}" data-entity="${entityId}" data-description="${safeDescription}">Roll!</span>
+              <div class="roll-switch">
+                <button type="button" class="roll-mode" data-mode="normal" label="Normal">&nbsp;</button>
+                <button type="button" class="roll-mode" data-mode="advantage" label="Advantage">+</button>
+                <button type="button" class="roll-mode" data-mode="disadvantage" label="Disadvantage">-</button>
+              </div>
+            </div>
+          `);
+          $container.find('.die-roll-toggle').click(function() {
+            $container.find('.die-roll-component').toggle();
+          });
+        } else {
+          $container.append(`
+            <div class="die-roll-component">
+              <span class="rollable-die" data-roll="${rollStr}" data-entity="${entityId}" data-description="${safeDescription}">Roll!</span>
+              <div class="roll-switch">
+                <button type="button" class="roll-mode" data-mode="normal">&nbsp;</button>
+                <button type="button" class="roll-mode" data-mode="advantage">+</button>
+                <button type="button" class="roll-mode" data-mode="disadvantage">-</button>
+              </div>
+            </div>
+          `);
+        }
       }
     });
   },

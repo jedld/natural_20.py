@@ -18,17 +18,18 @@ class MapRenderer:
         right_y = min(top_y + viewport_size[1] - 1, self.map.size[1] - 1)
 
         rendered_map = []
+
         for row_index in range(top_y, right_y + 1):
             row = []
             for col_index in range(top_x, right_x + 1):
                 c = self.map.base_map[col_index][row_index]
                 display = self.render_position(c, col_index, row_index, path=path,
-                                               override_path_char=path_char,
-                                               entity=entity,
-                                               line_of_sight=line_of_sight,
-                                               update_on_drop=update_on_drop,
-                                               acrobatics_checks=acrobatics_checks,
-                                               athletics_checks=athletics_checks)
+                                            override_path_char=path_char,
+                                            entity=entity,
+                                            line_of_sight=line_of_sight,
+                                            update_on_drop=update_on_drop,
+                                            acrobatics_checks=acrobatics_checks,
+                                            athletics_checks=athletics_checks)
 
                 if [col_index, row_index] in highlight_positions:
                     display = display.replace('\033[0m', '\033[48;5;9m')
@@ -41,9 +42,9 @@ class MapRenderer:
                         display = ' '
                     else:
                         display = display.replace('\033[0m', '\033[48;5;9m')
-
                 row.append(display)
             rendered_map.append(''.join(row))
+
         return '\n'.join(rendered_map) + '\n'
 
     def render_light(self, pos_x, pos_y):

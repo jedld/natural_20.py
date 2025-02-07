@@ -37,6 +37,8 @@ class Action:
         self.errors = []
         self.result = []
         self.committed = False
+        self.disabled = False
+        self.disabled_reason = None
 
         if opts is None:
             opts = {}

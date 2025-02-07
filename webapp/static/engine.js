@@ -450,6 +450,11 @@ $(document).ready(() => {
     globalOpts = null,
     globalSourceEntity = null;
 
+
+  $('.tiles-container').on('click','.show-note-btn, .object-note-overlay', function(e) {
+    e.stopPropagation();
+  });
+
   // --- Canvas Setup ---
   const tile_size = $('.tiles-container').data('tile-size');
   const canvas = document.createElement('canvas');
@@ -472,6 +477,10 @@ $(document).ready(() => {
     $('#main-map-area').css('transform', `scale(${scale})`);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   });
+
+
+
+ 
 
   // Draws a target line from a source to a given set of coordinates.
   function drawTargetLine(ctx, source, coordsx, coordsy, valid_target = true) {

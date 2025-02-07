@@ -51,9 +51,12 @@ chest:
   passable: true
   placeable: false
 ground:
+  color: brown
+  name: ground
   passable: true
   placeable: true
   token: inherit
+  profile_image: ground
 pit_trap:
   damage_die: 1d10
   damage_type: piercing
@@ -95,6 +98,8 @@ water:
 wooden_door:
   description: An ominous wooden door. Standard for your typical fantasy dungeon.
   color: magenta
+  locked: true
+  key: wooden_door_key
   default_ac: 15
   hp_die: 4d8
   interactable: true

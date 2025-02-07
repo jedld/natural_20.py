@@ -82,7 +82,7 @@ class Map():
 
         for cur_y, lines in enumerate(self.properties.get('map', {}).get('base', [])):
             for cur_x, c in enumerate(lines):
-                if not c=='.':
+                if not c=='_':
                     self.base_map[cur_x][cur_y] = c
 
         for cur_y, lines in enumerate(self.properties.get('map', {}).get('base_1', [])):
@@ -128,7 +128,10 @@ class Map():
                     elif token == '?':
                         pass
                     elif token == '.':
-                        self.place_object(Ground(self, name='ground'), pos_x, pos_y)
+                        object_info = self.session.load_object('ground')
+                        obj = Ground(self, object_info)
+                        self.place_object(obj, pos_x, pos_y)
+                        self.interactable_objects[obj] = [pos_x, pos_y]
                     elif token == '-' or token == '|':
                         object_info = self.session.load_object('door')
                         obj = DoorObject(self, object_info, token)
@@ -302,8 +305,7 @@ class Map():
 
     def objects_near(self, entity, battle=None):
         target_squares = entity.melee_squares(self)
-        if battle and battle.map:
-            target_squares += battle.map.entity_squares(entity)
+        target_squares += self.entity_squares(entity)
         objects = []
 
         available_objects = []
@@ -713,7 +715,7 @@ class Map():
                         creature_size_min=None):
         squares = self.squares_in_path(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive)
         squares_results = []
-        prev_square = (pos1_x, pos1_y)
+        prev_square = [pos1_x, pos1_y]
         for index, s in enumerate(squares):
             if log_path:
                 self.base_map[s[1]][s[0]] = 'H'
@@ -721,11 +723,12 @@ class Map():
             if distance and index == (distance - 1):
                 return None
 
-            if self.opaque(*s, origin=prev_square):
+            if self.opaque(*s, origin=prev_square) or self.opaque(*prev_square, origin=s):
                 return None
 
             if self.cover_at(*s) == 'total':
                 return None
+
             if heavy_cover and self.cover_at(*s) == 'three_quarter':
                 return None
             if creature_size_min and self.entity_at(*s) and self.entity_at(*s).size_identifier() >= creature_size_min:
@@ -768,6 +771,7 @@ class Map():
                 if origin:
                     if self.object_at(*origin) and self.object_at(*origin).opaque((pos_x, pos_y)):
                         return True
+
                 return None
 
     def squares_in_path(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, inclusive=True):
@@ -878,9 +882,10 @@ class Map():
         ground_objects = [obj for obj in available_objects if isinstance(obj, Ground)]
         result = []
         for obj in ground_objects:
-            items = [o for o in obj.inventory if o.qty > 0]
+            items = [name for name, meta in obj.inventory.items() if meta['qty'] > 0]
             if items:
                 result.append((obj, items))
+
         return result
 
     @staticmethod

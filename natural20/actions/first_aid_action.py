@@ -60,9 +60,15 @@ class FirstAidAction(Action):
         if target is None:
             raise Exception('target is a required option for :first_aid')
 
-        medicine_check = self.source.medicine_check(battle)
+        if 'healers_kit' in self.source.inventory:
+            self.source.remove_item('healers_kit')
+            medicine_check = None
+            success = True
+        else:
+            medicine_check = self.source.medicine_check(battle)
+            success = medicine_check.result() >= 10
 
-        if medicine_check.result() >= 10:
+        if success:
             self.result = [{
                 'source': self.source,
                 'target': target,

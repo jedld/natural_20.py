@@ -437,3 +437,34 @@ input.initiative-input.form-control {
 .modal-dialog {
   width: 800px;
 }
+
+
+.show-note-btn {
+  position: absolute;
+  font-size: 10px;
+  padding: 2px 4px;
+  border: none;
+  background-color: #4a2f19;
+  color: #f9f1e7;
+  border-radius: 3px;
+  cursor: pointer;
+  z-index: 1000;
+}
+
+.object-note-overlay {
+  position: absolute;
+  display: none;
+  top: 0;
+  left: 0;
+  width: 150px;
+  overflow: visible;
+  background: rgba(255, 248, 220, 0.95);
+  border: 1px solid #4a2f19;
+  border-radius: 5px;
+  padding: 5px;
+  z-index: 1001;
+}
+
+.close-note-btn {
+  background-color: transparent;
+}

@@ -171,8 +171,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             interaction_actions = object.available_interactions(entity, battle)
             params_list.append(list(interaction_actions.keys()))
         elif param_type == "select_items":
-            if not auto_target:
-                params_list.append([])
+            return None
         else:
             raise ValueError(f"Unknown param type: {param_type}")
 

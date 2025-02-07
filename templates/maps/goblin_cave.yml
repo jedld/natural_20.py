@@ -83,6 +83,11 @@ legend:
   c:
     name: chest
     type: chest
+    key: wooden_door_key
+    notes:
+      - note: A mysterious chest
+      - note: This chest contains a healing potion and 20 arrows
+        perception_dc: 10
     inventory:
     - type: healing_potion
       qty: 1

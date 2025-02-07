@@ -20,6 +20,7 @@ from natural20.actions.dodge_action import DodgeAction
 from natural20.actions.prone_action import ProneAction
 from natural20.actions.spell_action import SpellAction
 from natural20.actions.stand_action import StandAction
+from natural20.actions.look_action import LookAction
 from natural20.actions.drop_concentration_action import DropConcentrationAction
 from natural20.actions.action_surge_action import ActionSurgeAction
 from natural20.actions.shove_action import ShoveAction
@@ -42,6 +43,7 @@ from collections import deque
 from natural20.utils.action_builder import acquire_targets
 from natural20.dm import DungeonMaster
 from natural20.die_roll import DieRoll
+import random
 import optparse
 import pdb
 import i18n
@@ -324,6 +326,12 @@ def entities_controlled_by(username, map):
 
 
     return list(entities)
+
+def interact_flavors(action):
+    if isinstance(action, InteractAction):
+        if action.object_action == 'give':
+            return action.target.profile_image()
+    return ""
 
 def action_flavors(action):
     if isinstance(action, AttackAction):
@@ -822,7 +830,7 @@ def update():
         else:
             pov_entities = entities_controlled_by(session['username'], battle_map)
     my_2d_array = [renderer.render(entity_pov=pov_entities)]
-    return render_template('map.html', tiles=my_2d_array, tile_size_px=TILE_PX, is_setup=(request.args.get('is_setup') == 'true'))
+    return render_template('map.html', tiles=my_2d_array, tile_size_px=TILE_PX, random=random, is_setup=(request.args.get('is_setup') == 'true'))
 
 @app.route('/actions', methods=['GET'])
 def get_actions():
@@ -902,6 +910,8 @@ def action_type_to_class(action_type):
         return UseItemAction
     elif action_type == 'InteractAction':
         return InteractAction
+    elif action_type == 'LookAction':
+        return LookAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
 

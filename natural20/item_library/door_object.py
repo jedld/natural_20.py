@@ -8,8 +8,7 @@ class DoorObject(Object):
         self.front_direction = self.properties.get("front_direction", "auto")
         self.privacy_lock = self.properties.get("privacy_lock", False)
         self.state = "closed"
-        self.locked = False
-        self.key_name = None
+        self.key_name = self.properties.get("key")
 
     def after_setup(self):
         if self.front_direction == "auto":

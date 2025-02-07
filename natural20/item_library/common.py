@@ -1,6 +1,7 @@
 from natural20.item_library.object import Object
 from typing import Optional
 from natural20.concern.container import Container
+from natural20.concern.lootable import Lootable
 import pdb
 
 class StoneWall(Object):
@@ -18,7 +19,6 @@ class StoneWall(Object):
             return ['`']
         else:
             return ['#']
-
 
 class StoneWallDirectional(StoneWall):
     def __init__(self, map, properties):
@@ -102,44 +102,12 @@ class StoneWallDirectional(StoneWall):
     def wall(self, origin_pos = None):
         return True
 
-class Ground(Object, Container):
+class Ground(Object, Container, Lootable):
     def __init__(self, map, properties):
         super().__init__(map, properties)
         self.state = None
         self.locked = None
         self.key_name = None
-
-    def build_map(self, action, action_object):
-        if action == 'drop':
-            return {
-                'action': action_object,
-                'param': [
-                    {
-                        'type': 'select_items',
-                        'label': action_object.source.items_label,
-                        'items': action_object.source.inventory
-                    }
-                ],
-                'next': lambda items: {
-                    'param': None,
-                    'next': lambda: action_object
-                }
-            }
-        elif action == 'pickup':
-            return {
-                'action': action_object,
-                'param': [
-                    {
-                        'type': 'select_items',
-                        'label': self.items_label,
-                        'items': self.inventory
-                    }
-                ],
-                'next': lambda items: {
-                    'param': None,
-                    'next': lambda: action_object
-                }
-            }
 
     def opaque(self, origin=None):
         return False
@@ -151,22 +119,45 @@ class Ground(Object, Container):
         return True
 
     def token(self):
-        return ["\u00B7".encode('utf-8')]
+        return ["·"]
 
     def color(self):
         return 'cyan'
 
+    def build_map(self, action, action_object):
+        if action == 'pickup_drop':
+            def next_action(items):
+                action_object.other_params = items
+                return action_object
+            return {
+                'action': action_object,
+                'param': [{
+                    'type': 'select_items',
+                    'mode': 'transfer',
+                    'label': action_object.source.items_label(),
+                    'items': action_object.source.inventory
+                }],
+                'next': next_action
+            }
+
     def available_interactions(self, entity, battle=None):
-        return []
+        interactions = {}
+        if self.map.position_of(entity) == self.map.position_of(self):
+            if len(self.inventory) > 0 or len(entity.inventory) > 0:
+                interactions['pickup_drop'] = {}
+        return interactions
 
     def interactable(self):
-        return False
+        return True
 
-    def resolve(self, entity, action, other_params, opts={}):
+    def resolve(self, entity, action, other_params, opts=None):
+        if opts is None:
+            opts = {}
+
         if action is None:
             return
 
-        if action == 'drop' or action == 'pickup':
+        if action == 'pickup_drop':
             return {
                 'action': action,
                 'items': other_params,
@@ -176,13 +167,8 @@ class Ground(Object, Container):
             }
 
     def use(self, entity, result):
-        if result['action'] == 'drop':
-            self.store(result['battle'], result['source'], result['target'], result['items'])
-        elif result['action'] == 'pickup':
+         if result['action'] == 'pickup_drop':
             self.transfer(result['battle'], result['source'], result['target'], result['items'])
-
-    def list_notes(self, entity, perception, highlight=False):
-        return [self.t("object.{}".format(m.label), default=m.label) for m in self.inventory]
 
     def on_take_damage(self, battle, damage_params):
         pass

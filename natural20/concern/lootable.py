@@ -7,19 +7,23 @@ class Lootable:
 
     def build_map(self, action, action_object):
             if action == 'give':
-                def next_action(items):
-                    action_object.other_params = items
-                    return action_object
-                return {
-                    'action': action_object,
-                    'param': [{
-                        'type': 'select_items',
-                        'mode': 'give',
-                        'label': action_object.source.items_label(),
-                        'items': action_object.source.inventory
-                    }],
-                    'next': next_action
-                }
+                mode = 'give'
+            else:
+                mode = 'loot'
+
+            def next_action(items):
+                action_object.other_params = items
+                return action_object
+            return {
+                'action': action_object,
+                'param': [{
+                    'type': 'select_items',
+                    'mode': mode,
+                    'label': action_object.source.items_label(),
+                    'items': action_object.source.inventory
+                }],
+                'next': next_action
+            }
 
     def use(self, entity, result):
         action = result.get('action')
@@ -32,7 +36,7 @@ class Lootable:
     def resolve(self, entity, action, other_params, opts=None):
             if opts is None:
                 opts = {}
-            if action in ['give']:
+            if action in ['give', 'loot', 'pickup_drop']:
                 return {
                     'action': action,
                     'items': other_params,

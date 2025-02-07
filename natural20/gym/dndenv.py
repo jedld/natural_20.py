@@ -251,6 +251,8 @@ class dndenv(gym.Env):
                                 render_char = "o"
                             elif terrain == "#":
                                 render_char = "#"
+                            elif terrain == "·":
+                                render_char = "·"
                             else:
                                 raise ValueError(f"Unknown terrain {terrain}")
 
