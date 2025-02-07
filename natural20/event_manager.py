@@ -203,7 +203,8 @@ class EventManager:
             'ice_knife': ice_knife,
             'flavor': lambda event: self.output_logger.log(self.t(f"event.flavor.{event['text']}", **event)),
             'lucky_reroll': lambda event: self.output_logger.log(f"{self.show_name(event)} uses luck to reroll from {event['old_roll']} to {event['roll']}"),
-            'grapple_success': lambda event: self.output_logger.log(f"{self.show_name(event)} grapples {self.show_target_name(event)}"),            'move': lambda event: self.output_logger.log(f"{self.show_name(event)} moved to {event['position']} {event['move_cost'] * 5} feet"),
+            'grapple_success': lambda event: self.output_logger.log(f"{self.show_name(event)} grapples {self.show_target_name(event)}"),
+            'move': lambda event: self.output_logger.log(f"{self.show_name(event)} moved to {event['position']} {event['move_cost'] * 5} feet"),
             'grapple_failed': lambda event: self.output_logger.log(f"{self.show_name(event)} failed to grapple {self.show_target_name(event)}"),
             'drop_grapple': lambda event: self.output_logger.log(f"{self.show_name(event)} drops grapple on {self.show_target_name(event)}"),
             'initiative': lambda event: self.output_logger.log(f"{self.show_name(event)} rolled initiative {event['roll']} value {event['value']}"),
@@ -216,10 +217,17 @@ class EventManager:
             'use_item': handle_use_item,
             'interact': interact,
             'look': look,
+            # New event handlers:
+            'lockpick_success': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} unlocked the door using lockpick. Roll: {event['roll']}"
+            ),
+            'lockpick_fail': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} failed lockpicking. Roll: {event['roll']}. Thieves tools deducted."
+            ),
+            'unlock': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} unlocked the door. Reason: {event.get('reason', 'No reason provided')}"
+            )
         }
-
-        for event, handler in event_handlers.items():
-            self.register_event_listener(event, handler)
 
     def show_name(self, event):
         return self.decorate_name(event['source'])

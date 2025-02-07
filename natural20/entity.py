@@ -327,6 +327,18 @@ class Entity(EntityStateEvaluator, Notable):
             self.do_prone()
             self.statuses.append('unconscious')
 
+
+    def lockpick(self, battle=None):
+        proficiency_mod = self.dex_mod()
+        if self.proficient("thieves_tools"):
+            bonus = self.proficiency_bonus() * 2 if self.expertise("thieves_tools") else self.proficiency_bonus()
+        else:
+            bonus = 0
+        proficiency_mod += bonus
+        return DieRoll.roll_with_lucky(self, "1d20+{proficiency_mod}",
+                            description=self.t('dice_roll.thieves_tools'),
+                            battle=battle)
+
     def saving_throw_mod(self, save_type):
         modifier = self.ability_mod(save_type)
         if modifier is None:

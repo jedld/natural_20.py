@@ -138,10 +138,13 @@ class DoorObject(Object):
                 "disabled_text": "object.door.key_required"
             }
             if entity.item_count("thieves_tools") > 0 and entity.proficient("thieves_tools"):
-                actions["lockpick"] = {
-                    "disabled": entity.action(battle),
-                    "disabled_text": "object.door.action_required"
-                }
+                if battle:
+                    actions["lockpick"] = {
+                        "disabled": entity.action(battle),
+                        "disabled_text": "object.door.action_required"
+                    }
+                else:
+                    actions["lockpick"] = {}
             if self.privacy_lock and inside_range():
                 actions["unlock"] = {}
             return actions
@@ -168,8 +171,12 @@ class DoorObject(Object):
         return True
 
     def resolve(self, entity, action, other_params, opts=None):
+        if opts is None:
+            opts = {}
+
         if action is None:
             return
+        
 
         if action == "open":
             if not self.locked:
@@ -179,18 +186,24 @@ class DoorObject(Object):
         elif action == "close":
             return {"action": action}
         elif action == "lockpick":
-            lock_pick_roll = entity.lockpick(opts["battle"])
+            lock_pick_roll = entity.lockpick(opts.get("battle"))
 
             if lock_pick_roll.result() >= self.lockpick_dc():
-                return {"action": "lockpick_success", "roll": lock_pick_roll, "cost": "action"}
+                return {
+                        "action": "lockpick_success",
+                        "roll": lock_pick_roll,
+                        "dc" : self.lockpick_dc(),
+                        "cost": "action"
+                        }
             else:
-                return {"action": "lockpick_fail", "roll": lock_pick_roll, "cost": "action"}
+                return {"action": "lockpick_fail", "roll": lock_pick_roll, "dc" : self.lockpick_dc(),
+                         "cost": "action"}
         elif action == "unlock":
             return {"action": "unlock"} if entity.item_count(self.key_name) > 0 else {"action": "unlock_failed"}
         elif action == "lock":
             return {"action": "lock"} if not self.unlocked() else {"action": "lock_failed"}
 
-    def use(self, entity, result):
+    def use(self, entity, result, session=None):
         action = result["action"]
         if action == "open":
             if self.closed():
@@ -203,21 +216,38 @@ class DoorObject(Object):
                                                           reason="Cannot close door since something is in the doorway")
                 self.close()
         elif action == "lockpick_success":
-            if self.locked():
+            if self.locked:
                 self.unlock()
-                EventManager.received_event(source=self, user=entity, event="object_interaction",
-                                                      sub_type="unlock", result="success", lockpick=True,
-                                                      roll=result["roll"], reason="Door unlocked using lockpick.")
+                session.event_manager.received_event( { "source": entity,
+                                                        "target": self,
+                                                        "event": "object_interaction",
+                                                        "sub_type": "unlock",
+                                                        "result": "success",
+                                                        "lockpick": True,
+                                                        "roll": result["roll"],
+                                                        "reason": "Door unlocked using lockpick."})
         elif action == "lockpick_fail":
             entity.deduct_item("thieves_tools")
-            EventManager.received_event(source=self, user=entity, event="object_interaction",
-                                                  sub_type="unlock", result="failed", roll=result["roll"],
-                                                  reason="Lockpicking failed and the theives tools are now broken")
+            if session:
+                session.event_manager.received_event({ "source": entity,
+                                            "target": self,
+                                            "event": "object_interaction",
+                                            "sub_type": "unlock",
+                                            "result": "failed",
+                                            "roll": result["roll"],
+                                            "reason":"Lockpicking failed and the theives tools are now broken"})
         elif action == "unlock":
             if self.locked():
                 self.unlock()
-                EventManager.received_event(source=self, user=entity, event="object_interaction",
-                                                      sub_type="unlock", result="success", reason="object.door.unlock")
+                if session:
+                    session.event_manager.received_event({
+                                                        "source": entity,
+                                                        "target": entity,
+                                                        "event": "object_interaction",
+                                                        "sub_type": "unlock",
+                                                        "result": "success",
+                                                        "reason":"object.door.unlock"
+                                                        })
         elif action == "lock":
             if self.unlocked():
                 self.lock()
