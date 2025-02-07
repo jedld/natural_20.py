@@ -58,18 +58,22 @@ legend:
     name: _auto_
     type: npc
     sub_type: hobgoblin
+    group: b
   g:
     name: _auto_
     type: npc
     sub_type: goblin
+    group: b
   x:
     name: _auto_
     type: npc
     sub_type: wolf
+    group: b
   B:
     name: _auto_
     type: npc
     sub_type: bugbear
+    group: b
   w:
     name: Pool of water
     type: water

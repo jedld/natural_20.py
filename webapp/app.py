@@ -33,13 +33,13 @@ from natural20.actions.interact_action import InteractAction
 from natural20.entity import Entity
 from natural20.action import Action, AsyncReactionHandler
 from natural20.battle import Battle
-from natural20.map import Map
+
 from natural20.utils.movement import Movement
 from natural20.generic_controller import GenericController
 import natural20.session as GameSession
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
-from collections import deque
+
 from natural20.utils.action_builder import acquire_targets
 from natural20.dm import DungeonMaster
 from natural20.die_roll import DieRoll
@@ -50,6 +50,7 @@ import i18n
 import yaml
 import time
 import uuid
+from utils import SocketIOOutputLogger, GameManagement
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 app.config['SECRET_KEY'] = 'fe9707b4704da2a96d0fd3cbbb465756e124b8c391c72a27ff32a062110de589'
@@ -93,31 +94,7 @@ if 'extensions' in index_data:
 sockets = []
 controllers = {}
 
-class SocketIOOutputLogger:
-    """
-    A simple logger that logs to stdout
-    """
-    def __init__(self):
-        self.logging_queue = deque(maxlen=1000)
-
-    def get_all_logs(self):
-        return self.logging_queue
-
-    def clear_logs(self):
-        self.logging_queue.clear()
-
-    def update(self):
-        socketio.emit('message', {'type': 'console', 'messages': self.get_all_logs()})
-
-    def log(self, event_msg):
-        # add time to the message
-        current_time_str = time.strftime("%Y:%m:%d.%H:%M:%S", time.localtime())
-        event_msg = f"{current_time_str}: {event_msg}"
-
-        self.logging_queue.append(event_msg)
-        socketio.emit('message', {'type': 'console', 'message': event_msg})
-
-output_logger = SocketIOOutputLogger()
+output_logger = SocketIOOutputLogger(socketio)
 output_logger.log("Server started")
 
 event_manager = EventManager(output_logger=output_logger)
@@ -125,98 +102,14 @@ event_manager.standard_cli()
 game_session = GameSession.Session(LEVEL, event_manager=event_manager)
 game_session.render_for_text = False # render for text is disabled since we are using a web renderer
 
-class GameManagement:
-    def __init__(self, game_session, map_location):
-        self.map_location = map_location
-        self.game_session = game_session
-        if os.path.exists('save.yml'):
-            with open('save.yml','r') as f:
-                map_dict = yaml.safe_load(f)
-                self.battle_map = Map.from_dict(game_session, map_dict)
-        else:
-            self.battle_map = Map(game_session, BATTLEMAP)
-        self.battle = None
-        self.trigger_handlers = {}
-        self.callbacks = {}
-
-    def reset(self):
-        self.battle_map = Map(self.game_session, self.map_location)
-        self.battle = None
-        socketio.emit('message', {'type': 'reset', 'message': {}})
-
-    def set_current_battle_map(self, battle_map):
-        self.battle_map = battle_map
-
-    def set_current_battle(self, battle):
-        self.battle = battle
-
-    def get_current_battle(self) -> Battle:
-        return self.battle
-
-    def get_current_battle_map(self) -> Map:
-        return self.battle_map
-
-    def register_event_handler(self, event, handler):
-        """
-        Register an event handler
-        """
-        if event not in self.trigger_handlers:
-            self.trigger_handlers[event] = []
-        self.trigger_handlers[event].append(handler)
-
-    def trigger_event(self, event):
-        """
-        Trigger an event
-        """
-        results = []
-        if event in self.trigger_handlers:
-            for handlers in self.trigger_handlers[event]:
-                results.append(handlers(self, self.game_session))
-        if len(results) == 0:
-            return False
-        return any(results)
-
-    def prompt(self, message, callback=None):
-        callback_id = uuid.uuid4().hex
-        self.callbacks[callback_id] = callback
-        socketio.emit('message', {'type': 'prompt', 'message': message, 'callback': callback_id})
-
-    def push_animation(self):
-        socketio.emit('message', {'type': 'move', 'message': {'animation_log': self.battle.get_animation_logs()}})
-        self.battle.clear_animation_logs()
-
-    def execute_game_loop(self):
-        output_logger.log("Battle started.")
-        game_loop()
-        socketio.emit('message',{'type': 'initiative', 'message': {}})
-
-        if self.battle:
-            socketio.emit('message', {
-                'type': 'move',
-                'message': { 'animation_log' : self.battle.get_animation_logs() }
-                })
-            self.battle.clear_animation_logs()
-
-        socketio.emit('message',{ 'type': 'turn', 'message': {}})
-
-    def refresh_client_map(self):
-        width, height = self.battle_map.size
-        tiles_dimension_width = width * TILE_PX
-        tiles_dimension_height = height * TILE_PX
-        map_image_url = f"assets/{ self.battle_map.name + '.png'}"
-
-        socketio.emit('message', {'type': 'map',
-                                  'width': tiles_dimension_width,
-                                  'height': tiles_dimension_height,
-                                  'message': map_image_url})
-        socketio.emit('message', {'type': 'initiative', 'message': {}})
-        socketio.emit('message', {'type': 'turn', 'message': {}})
-
-
-current_game = GameManagement(game_session=game_session, map_location=BATTLEMAP)
-waiting_for_user = None
-waiting_for_reaction = None
 current_soundtrack = None
+
+current_game = GameManagement(game_session=game_session,
+                              map_location=BATTLEMAP,
+                              socketio=socketio,
+                              output_logger=output_logger,
+                              tile_px=TILE_PX)
+
 i18n.set('locale', 'en')
 
 # initialize all extensiond
@@ -248,7 +141,7 @@ def commit_and_update(action):
         battle.action(action)
         battle.commit(action)
         if battle.battle_ends():
-            end_current_battle()
+            current_game.end_current_battle()
     else:
       action.resolve(session, battle_map)
       events = action.result
@@ -262,6 +155,7 @@ def commit_and_update(action):
         socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
     socketio.emit('message', {'type': 'turn', 'message': {}})
 
+    current_game.loop_environment()
 
 def controller_of(entity_uid, username):
     if username == 'dm':
@@ -440,46 +334,6 @@ def process_action_hash(action):
 
 app.add_template_global(process_action_hash, name='process_action_hash')
 
-            
-def game_loop():
-    global waiting_for_user, waiting_for_reaction, current_game
-
-    battle = current_game.get_current_battle()
-    try:
-        while True:
-            battle.start_turn()
-            current_turn = current_game.get_current_battle().current_turn()
-            current_turn.reset_turn(battle)
-
-            if battle.battle_ends():
-                end_current_battle()
-                return
-
-
-            while current_turn.dead() or current_turn.unconscious():
-                current_turn.resolve_trigger('end_of_turn')
-                battle.end_turn()
-                battle.next_turn()
-                current_turn = battle.current_turn()
-                battle.start_turn()
-                current_turn.reset_turn(battle)
-
-                if battle.battle_ends():
-                    end_current_battle()
-                    return
-
-
-            ai_loop()
-            current_turn.resolve_trigger('end_of_turn')
-
-            if battle.battle_ends():
-                end_current_battle()
-                break
-
-            battle.end_turn()
-            battle.next_turn()
-    except ManualControl:
-        logger.info("waiting for user to end turn.")
 
 @app.route('/assets/maps/<path:filename>')
 def serve_map_image(filename):
@@ -513,6 +367,7 @@ def index():
     global current_game, current_soundtrack
     battle_map = current_game.get_current_battle_map()
     battle = current_game.get_current_battle()
+    waiting_for_reaction = current_game.waiting_for_reaction
 
     if not logged_in():
         print("not logged in")
@@ -787,7 +642,6 @@ def next_turn():
     global current_game
     battle = current_game.get_current_battle()
     battle_map = current_game.get_current_battle_map()
-    global waiting_for_user
     if battle:
         current_turn = battle.current_turn()
         if waiting_for_user:
@@ -796,9 +650,9 @@ def next_turn():
             battle.end_turn()
             battle.next_turn()
             if battle.battle_ends():
-                end_current_battle()
+                current_game.end_current_battle()
 
-        game_loop()
+        current_game.game_loop()
         socketio.emit('message', { 'type': 'initiative','message': {'index': battle.current_turn_index}})
         socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 
                                                                'animation_log' : battle.get_animation_logs() }})
@@ -990,9 +844,9 @@ def get_spell():
 
 @app.route('/reaction', methods=['GET'])
 def get_reaction():
-    global current_game, waiting_for_reaction
+    global current_game
     battle = current_game.get_current_battle()
-    reaction_type = waiting_for_reaction[1].reaction_type
+    reaction_type = current_game.waiting_for_reaction_input()[1].reaction_type
     return render_template(f"reactions/{reaction_type}.html",
                            username=session['username'],
                            waiting_for_reaction=waiting_for_reaction,
@@ -1000,14 +854,14 @@ def get_reaction():
 
 @app.route('/reaction', methods=['POST'])
 def handle_reaction():
-    global current_game, waiting_for_reaction, waiting_for_user
+    global current_game
     battle = current_game.get_current_battle()
     reaction_id = request.form.get('reaction')
     if not reaction_id:
         return jsonify(error="No reaction provided"), 400
     if waiting_for_reaction is None:
         return jsonify(error="No reaction expected"), 400
-    entity, handler, generator, valid_actions_str = waiting_for_reaction
+    entity, handler, generator, valid_actions_str = current_game.waiting_for_reaction_input()
 
     if reaction_id == 'no-reaction':
         handler.send(None)
@@ -1018,12 +872,12 @@ def handle_reaction():
                 print(f"selected action {action}")
                 handler.send(action)
                 break
-    waiting_for_reaction = None
+    current_game.clear_reaction_input()
     try:
         battle.action(handler.action)
         battle.commit(handler.action)
         socketio.emit('message', {'type': 'dismiss_reaction', 'message': {}})
-        ai_loop()
+        current_game.ai_loop()
         continue_game()
     except AsyncReactionHandler as e:
         for battle, entity, valid_actions in e.resolve():
@@ -1032,7 +886,8 @@ def handle_reaction():
         socketio.emit('message', {'type': 'reaction', 'message': {'id': str(entity.entity_uid), 'reaction': 'opportunity_attack', 'choices': valid_actions_str}})
     except ManualControl:
         logger.info("waiting for user to end turn.")
-        waiting_for_user = True
+        current_game.set_waiting_for_user_input(True)
+
     return jsonify(status='ok')
 
 @app.route('/manual_roll', methods=['POST'])
@@ -1054,7 +909,7 @@ def manual_roll():
 
 @app.route('/action', methods=['POST'])
 def action():
-    global current_game, waiting_for_reaction
+    global current_game
     battle_map = current_game.get_current_battle_map()
     battle = current_game.get_current_battle()
     action_request = request.json
@@ -1253,7 +1108,7 @@ def action():
     except AsyncReactionHandler as e:
         for battle, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
-            waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
+            current_game.set_waiting_for_reaction_input([entity, e, e.resolve(), valid_actions_str])
         socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
         return jsonify(status='ok')
 
@@ -1390,29 +1245,6 @@ def get_equipment():
     if entity:
         return render_template('equipment.html', entity=entity)
     return jsonify(error="Entity not found"), 404
-
-def ai_loop():
-    global current_game
-    battle = current_game.get_current_battle()
-    entity = battle.current_turn()
-    cycles = 0
-    while True:
-        cycles += 1
-        action = battle.move_for(entity)
-        if not action:
-            print(f"{entity.name}: End turn.")
-            break
-        battle.action(action)
-        battle.commit(action)
-        if not action or entity.unconscious() or entity.dead():
-            break
-
-def end_current_battle():
-    global current_game
-    current_game.trigger_event('on_battle_end')
-    current_game.set_current_battle(None)
-    socketio.emit('message', {'type': 'console', 'message': 'TPK. Battle has ended.'})
-    socketio.emit('message', {'type': 'stop', 'message': {}})
 
 @app.route('/usable_items', methods=['GET'])
 def usable_items():

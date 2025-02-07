@@ -229,6 +229,9 @@ class EventManager:
             )
         }
 
+        for event, handler in event_handlers.items():
+            self.register_event_listener(event, handler)
+
     def show_name(self, event):
         return self.decorate_name(event['source'])
 

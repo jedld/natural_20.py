@@ -42,6 +42,21 @@ class Session:
         self.session_state = {}
         self.event_log = deque(maxlen=100)
 
+    def groups(self):
+        return self.game_properties.get('groups', {})
+
+    def opposing(self, group1, group2):
+
+        group1_info = self.groups()[group1]
+        group2_info = self.groups()[group2]
+
+        if group2 in group1_info.get('enemies', []):
+            return True
+        if group1 in group2_info.get('enemies', []):
+            return True
+        return False
+
+
     @staticmethod
     def new_session(root_path=None):
         session = Session(root_path)

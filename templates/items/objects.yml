@@ -98,7 +98,7 @@ water:
 wooden_door:
   description: An ominous wooden door. Standard for your typical fantasy dungeon.
   color: magenta
-  locked: true
+  locked: false
   key: wooden_door_key
   default_ac: 15
   hp_die: 4d8

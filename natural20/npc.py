@@ -57,6 +57,7 @@ class Npc(Entity, Multiattack, Lootable):
         self.color = self.properties["color"]
         self.session = session
         self.npc_type = type
+        self.group = opt.get("group", "b")
         self.properties["familiar"] = opt.get("familiar", False)
         self.inventory = {}
 
