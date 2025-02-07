@@ -254,6 +254,7 @@ def commit_and_update(action):
       events = action.result
       for event in events:
         action.apply(None, event, session=game_session)
+
     if battle:
         socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
         battle.clear_animation_logs()
@@ -1094,8 +1095,7 @@ def action():
                             battle.clear_animation_logs()
                         else:
                             animation_log = []
-                            for path in move_path:
-                                animation_log.append((entity.entity_uid, move_path, None))
+                            animation_log.append((entity.entity_uid, move_path, None))
                             socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1], 'animation_log': animation_log}})
                         return jsonify({'status': 'ok'})
             else:

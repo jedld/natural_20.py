@@ -103,7 +103,7 @@ class InteractAction(Action):
             session = battle.session
 
         if item_type == 'interact':
-            item['target'].use(entity, item)
+            item['target'].use(entity, item, session)
             if battle:
                 if item.get('cost') == 'action':
                     battle.consume(entity, 'action', 1)
