@@ -8,8 +8,14 @@ class Chest(Object, Container):
         self.front_direction = self.properties.get('front_direction', 'auto')
         self.properties = properties or {}
         self.state = (self.properties.get('state') or 'closed')
-        self.is_locked = self.properties.get('locked', False)
-        self.key_name = self.properties.get('key', None)
+
+        self.lockable = self.properties.get('lockable', True)
+        if self.lockable:
+            self.is_locked = self.properties.get('locked', False)
+            self.key_name = self.properties.get('key', None)
+        else:
+            self.is_locked = False
+            self.key_name = None
 
         inventory = self.properties.get('inventory', [])
         self.inventory = {}
@@ -131,7 +137,7 @@ class Chest(Object, Container):
             # Example lockpick check
             if entity.item_count('thieves_tools') > 0 and entity.proficient('thieves_tools'):
                 interactions['lockpick'] = {
-                    'disabled': not entity.action_available(battle),
+                    'disabled': not entity.has_action(battle),
                     'disabled_text': 'Action needed'
                 }
             return interactions
@@ -173,7 +179,7 @@ class Chest(Object, Container):
             return {'action': action}
         elif action == 'lockpick':
             roll = entity.lockpick(opts.get('battle'))
-            if roll.result >= self.lockpick_dc():
+            if roll.result() >= self.lockpick_dc():
                 return {'action': 'lockpick_success', 'roll': roll, 'cost': 'action'}
             else:
                 return {'action': 'lockpick_fail', 'roll': roll, 'cost': 'action'}
@@ -196,16 +202,16 @@ class Chest(Object, Container):
             if self.opened():
                 self.close()
         elif action == 'lockpick_success':
-            if self.is_locked():
+            if self.is_locked:
                 self.unlock()
         elif action == 'lockpick_fail':
-            if self.is_locked():
+            if self.is_locked:
                 entity.deduct_item('thieves_tools')
         elif action == 'unlock':
-            if self.is_locked():
+            if self.is_locked:
                 self.unlock()
         elif action == 'lock':
-            if not self.is_locked():
+            if not self.is_locked:
                 self.lock()
 
     def lockpick_dc(self):

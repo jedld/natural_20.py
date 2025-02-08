@@ -29,6 +29,7 @@ from natural20.utils.action_builder import autobuild
 from natural20.concern.container import Container
 from natural20.utils.movement import compute_actual_moves
 from natural20.concern.lootable import Lootable
+from natural20.concern.inventory import Inventory
 import yaml
 import os
 import copy
@@ -36,7 +37,7 @@ import uuid
 import pdb
 
 
-class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootable):
+class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootable, Inventory):
   ACTION_LIST = [
     SpellAction,
     AttackAction,
@@ -77,7 +78,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
     race_file = self.properties['race']
     self.session = session
     self.equipped = self.properties.get('equipped', [])
-    self.inventory = {}
+
     self.group = self.properties.get('group', 'a')
 
     # use ordered dict to maintain order of spell slots
@@ -87,15 +88,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
 
 
     self.ability_scores = self.properties.get('ability', {})
-
-    for inventory in self.properties.get('inventory', []):
-      inventory_type = inventory.get('type')
-      inventory_qty = inventory.get('qty')
-      if inventory_type:
-        if inventory_type not in self.inventory:
-          self.inventory[inventory_type] = {'type': inventory_type, 'qty': 0}
-        self.inventory[inventory_type]['qty'] += inventory_qty
-
+    self.load_inventory()
     self.class_properties = {}
     self._current_hit_die = {}
     self.max_hit_die = {}
