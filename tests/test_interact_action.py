@@ -28,6 +28,7 @@ class TestInteractAction(unittest.TestCase):
         self.door = self.battle_map.object_at(1, 4)
         self.chest = self.battle_map.object_at(1, 6)
         self.battle.add(self.entity, group='a')
+        self.battle.start()
         self.entity.reset_turn(self.battle)
 
     def test_opening_and_closing_doors(self):

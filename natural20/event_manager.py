@@ -65,28 +65,37 @@ class EventManager:
                 self.event_listeners[event].append(callable)
 
     def received_event(self, event):
+        def process_event(event):
+            for handler in self.event_listeners.get(event['event'], []):
+                handler(event)
+
         if not self.event_listeners:
             return
 
-        # Consolidate consecutive move events if configured
-        if event.get('event') == 'move' and self.movement_consolidation:
-            if getattr(self, 'previous_move_event', None):
-                if self.previous_move_event['source'] == event['source']:
-                    self.previous_move_event['position'].append(event['position'])
-                    self.previous_move_event['move_cost'] += event['move_cost']
-                    return
+        if self.movement_consolidation and event.get('event') == 'move':
+            prev = getattr(self, 'previous_move_event', None)
+
+            if prev and prev['source'] == event['source']:
+                prev['position'].append(event['position'])
+                prev['move_cost'] += event['move_cost']
+                return
+            else:
+                if prev:
+                    self.event_buffer.append(prev)
+                    process_event(prev)
+
+            # Initialize move event positions as a list
+            event['position'] = event['path']
             self.previous_move_event = event
-            event['position'] = [event['position']]
             return
-        
-        elif getattr(self, 'previous_move_event', None):
-            # Process the stored move event before the current non-move event
-            event = self.previous_move_event
+
+        if getattr(self, 'previous_move_event', None):
+            self.event_buffer.append(self.previous_move_event)
+            process_event(self.previous_move_event)
             self.previous_move_event = None
 
         self.event_buffer.append(event)
-        for handler in self.event_listeners.get(event['event'], []):
-            handler(event)
+        process_event(event)
 
 
 
