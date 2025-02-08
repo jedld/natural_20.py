@@ -54,4 +54,11 @@ class EntityStateEvaluator:
                 'battle': context.get('battle'),
                 'flavor': context.get('flavor')
             }
+        elif action == 'effect':
+            return {
+                'source': self,
+                'effect': value,
+                'battle': context.get('battle'),
+                'flavor': context.get('flavor')
+            }
         return None

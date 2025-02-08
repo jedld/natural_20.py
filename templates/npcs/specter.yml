@@ -1,0 +1,59 @@
+---
+kind: Specter
+description: A specter is the angry, unfettered spirit of a humanoid that has been prevented from passing to the afterlife. Specters no longer possess connections to who or what they were, yet are condemned to walk the world forever. Some are spawned when dark magic or the touch of a wraith rips a soul from a living body.
+size: medium
+race:
+  - undead
+alignment: chaotic_evil
+default_ac: 12
+max_hp: 22
+hp_die: 5d8
+speed: 50
+fly: 50
+passive_perception: 10
+darkvision: 60
+token:
+ - h
+color: green
+ability:
+  str: 1
+  dex: 14
+  con: 11
+  int: 10
+  wis: 10
+  cha: 11
+languages:
+- common
+cr: 0.50
+xp: 200
+proficiency_bonus: 2
+resistances:
+  - acid
+  - cold
+  - fire
+  - lightning
+  - thunder
+  - bludgeoning
+  - piercing
+  - slashing
+immunities:
+  - necrotic
+  - poison
+attributes:
+- incorporeal_movement
+- sunlight_sensitivity
+actions:
+- name: Life Drain
+  type: melee_attack
+  range: 5
+  targets: 1
+  attack: 4
+  damage: 10
+  damage_die: 3d6
+  damage_type: piercing
+  on_hit:
+    - description: The target must succeed on a DC 10 Constitution saving throw or its hit point maximum is reduced by an amount equal to the damage taken. This reduction lasts until the target finishes a long rest. The target dies if this effect reduces its hit point maximum to 0.
+      save_dc: constitution:10
+      if: "target:!object"
+      flavor_fail: specter.life_drain
+      fail: effect:life_drain

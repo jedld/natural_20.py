@@ -1,0 +1,48 @@
+name: Natural20::Battle Sim
+description: Map for Natural20::Battle Sim
+map:
+  illumination: 1.0
+  base:
+    - ......
+    - .H....
+    - .┌┬┬┐.
+    - .├..┤.
+    - .├..┤.
+    - .└┴┴┘.
+    - ....H.
+  meta:
+    - ......
+    - ......
+    - ......
+    - ......
+    - ......
+    - ......
+    - ......
+legend:
+  ┌:
+    name: Stone Wall Thin_Top_Left
+    type: stone_wall_tl
+  ┬:
+    name: Stone Wall Thin_Top
+    type: stone_wall_t
+  ┐:
+    name: Stone Wall Thin_Top_Right
+    type: stone_wall_tr
+  ┤:
+    name: Stone Wall Thin_Right
+    type: stone_wall_r
+  ├:
+    name: Stone Wall Thin_Left
+    type: stone_wall_l
+  ┴:
+    name: Stone Wall Thin_Bottom
+    type: stone_wall_b
+  ┘:
+    name: Stone Wall Thin_Bottom_Right
+    type: stone_wall_br
+  └:
+    name: Stone Wall Thin_Bottom_Left
+    type: stone_wall_bl
+  H:
+    name: Stone Wall
+    type: stone_wall

@@ -652,7 +652,8 @@ class Map():
             self.passable(entity, *origin, battle, allow_squeeze, origin=(pos_x, pos_y), ignore_opposing=ignore_opposing):
             return True
 
-    def passable(self, entity, pos_x, pos_y, battle=None, allow_squeeze=True, origin=None, ignore_opposing=False):
+    def passable(self, entity, pos_x, pos_y, battle=None, allow_squeeze=True, origin=None, ignore_opposing=False,
+                 incorporeal=False):
         effective_token_size = entity.token_size() - 1 if allow_squeeze and entity.token_size() > 1 else entity.token_size()
         for ofs_x in range(effective_token_size):
             for ofs_y in range(effective_token_size):
@@ -671,7 +672,7 @@ class Map():
                     return False
 
                 for object in self.objects_at(relative_x, relative_y):
-                    if not object.passable(origin):
+                    if not object.passable(origin) and not incorporeal:
                         return False
 
                 if battle and self.tokens[relative_x][relative_y]:
