@@ -16,6 +16,6 @@ samples/model_weights_all/
 scripts/model_weights_std/**/*
 scripts/image_generators/*.png
 user_levels/**/*
-*.yml
+/*.yml
 
 scripts/runs

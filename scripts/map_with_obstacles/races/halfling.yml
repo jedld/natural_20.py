@@ -1,0 +1,22 @@
+base_speed: 25
+size: small
+languages:
+  - common
+  - halfling
+attribute_bonus:
+  dex: 2
+race_features:
+  - brave
+  - lucky
+  - halfling_nimbleness
+subrace:
+  lightfoot:
+    attribute_bonus:
+      cha: 1
+    race_features:
+      - naturally_stealthy
+  stout:
+    attribute_bonus:
+      con: 1
+    race_features:
+      - stout_resilience

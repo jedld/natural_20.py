@@ -1,0 +1,380 @@
+---
+en:
+  action:
+    arcane_recovery: Arcane Recovery for %{name}
+    attack_action: '%{name} with %{weapon_name} -> Hit: %{mod} Dmg: %{dmg}'
+    attack_action_throw: '%{name} with %{weapon_name} (Throw) -> Hit: %{mod} Dmg: %{dmg}'
+    dash: Dash
+    dash_bonus: Bonus Action -> Dash
+    disengage: Disengage
+    disengage_bonus: Bonus Action -> Disengage
+    dodge: Dodge
+    drop_grapple: Drop Grapple
+    escape_grapple: Escape a Grapple
+    first_aid: Perform First Aid
+    grapple: Grapple
+    ground_interact: Pickup items
+    help: Help
+    hide: Hide
+    hide_bonus: Bonus Action -> Hide
+    interact: Interact/Loot
+    inventory: Show Character Sheet & Inventory
+    look: Look Around (Perception Check)
+    move: Move
+    npc_action: '%{name} with %{action_name}'
+    opportunity_attack: Opportunity Attack for %{name} on %{target}
+    prone: Go Prone
+    push: Shove (Push Away)
+    short_rest: Short Rest
+    shove: Shove (Knock Prone)
+    spell: Spellcasting
+    spell_choice: '%{spell} (%{level})'
+    stand: Stand Up
+    use_item: Use Item
+    waive_arcane_recovery: Skip Arcane Recovery
+  attack_status:
+    being_helped: Being being_helped
+    invisible_attacker: Target is hidden/invisible
+    prone: Target Prone
+    ranged_with_enemy_in_melee: Ranged weapon with enemy in melee range
+    shocking_grasp_metallic: Target wearing metal armor for Shocking Grasp
+    small_creature_using_heavy: Heavy weapon used by small creature
+    squeezed: Target is squeezing into a tight location
+    target_dodge: Target is Dodging
+    target_is_prone: Target is prone in melee
+    target_is_prone_range: Ranged attack on prone target
+    target_long_range: Long range penalty
+    unseen_attacker: Attacker is unseen
+  back: Back
+  battle_end: Battle ended in %{num} rounds
+  battle_simulator: Battle Simulator
+  builder:
+    ability_score:
+      fixed: Fixed ability score 15, 14, 13, 12, 10, 8
+      point_buy: Point purchase
+      random: Random dice roll
+    ability_score_method: Select method to generate ability scores
+    assign_ability_scores: Assign ability scores to attributes [%{scores}]
+    cha: Select Charisma ability score
+    class: Select a class
+    con: Select Constitution ability score
+    default_description: An adventurer with something to prove
+    description: Enter a description for your character
+    dex: Select Dexterity ability score
+    enter_name: Enter name for your character
+    enter_name_pronoun: Enter pronouns to be used for your character
+    fighter:
+      archery: Archery - You gain a +2 bonus to attack rolls you make with ranged weapons.
+      defense: Defence - While you are wearing armor, you gain a +1 bonus to AC.
+      dueling: Dueling - When you are wielding a melee weapon in one hand and no other weapons, you gain a +2 bonus to damage rolls with that weapon.
+      great_weapon_fighting: Great Weapon Fighting - When you roll a 1 or 2 on a damage die for an attack you make with a melee weapon that you are wielding with two hands, you can reroll the die and must use the new roll, even if the new roll is a 1 or a 2. The weapon must have the two-handed or versatile property for you to gain this benefit.
+      protection: Protection - When a creature you can see attacks a target other than you that is within 5 feet of you, you can use your reaction to impose disadvantage on the attack roll. You must be wielding a shield.
+      select_fighting_style: Please select a fighting style
+      select_skill: Select a fighter skill. Pick 2
+      select_starting_weapon: Select starting weapon set
+      two_weapon_fighting: Two-Weapon Fighting - When you engage in two-weapon fighting, you can add your ability modifier to the damage of the second attack.
+    int: Select Intelligence ability score
+    pronoun:
+      he: he/him/his
+      she: she/her/hers
+      they: they/them/their
+      ze: ze/hir/hirs
+    races:
+      dark_elf: Dark Elf
+      high_elf: High Elf
+      hill_dwarf: Hill Dwarf
+      lightfoot: Lightfoot
+      mountain_dwarf: Mountain Dwarf
+      stout: Stout
+      wood_elf: Wood Elf
+    review: Confirm this character?
+    rogue:
+      expertise: Select Expertise
+      select_skill: Select a Rogue skill. Pick 4
+      select_starting_weapon: Select a starting weapon
+      select_starting_weapon_2: Select second weapon set
+    select_languages: Select languages
+    select_race: Please select a racetargets.first -race
+    select_subrace: Select a subrace
+    skill:
+      acrobatics: Acrobatics
+      animal_handling: Animal Handling
+      arcana: Arcana
+      athletics: Athletics
+      deception: Deception
+      history: History
+      insight: Insight
+      intimidation: Intimidation
+      investigation: Investigation
+      medicine: Medicine
+      perception: Perception
+      performance: Performance
+      persuasion: Persuasion
+      religion: Religion
+      sleight_of_hand: Sleight of Hand
+      stealth: Stealth
+      survival: Survival
+      thieves_tools: Thieves Tools
+    str: Select Strength ability score
+    token: Select a token to represent this character on the board
+    token_color: Select a color for your token
+    tools:
+      brewers_supplies: Brewer's Supplies
+      masons_tools: Mason's Tools
+      smiths_tools: Smith's Tools
+    wis: Select Wisdom ability score
+    wizard:
+      select_cantrip: Select Cantrip
+      select_prepared_spells: Select prepared spells
+      select_skill: Select a wizard skill
+      select_spells: Select starting spells in your spellbook
+      select_starting_weapon: Select starting weapon
+      select_starting_weapon_2: Select starting equipment
+  character_action_prompt: '%{name} (%{token}) will'
+  character_builder: Character Builder ...
+  character_sheet:
+    ac: 'AC: %{ac}'
+    class: 'Class: %{name}'
+    expertise: Expertise
+    hp: 'HP: %{current}/%{max}'
+    inventory: Inventory %{weight}/%{carry_capacity} lbs
+    languages: 'Languages:'
+    level: 'Level: %{level}'
+    name: 'Name: %{name}'
+    proficiency_bonus: 'Proficiency Bonus: +%{bonus}'
+    race: 'Race: %{race}'
+    skill_mod: '%{prefix} %{skill} %{bonus}'
+    skills: Skills
+    speed: 'Speed: %{speed}ft.'
+    spell_attack: 'Spell Attack: +%{spell_attack}'
+    subrace: 'Subrace: %{race}'
+  character_status_line: 'AC: %{ac} HP: %{hp}/%{max_hp} actions: %{total_actions} bonus action: %{bonus_action}, movement: %{available_movement} ft. statuses: %{statuses}'
+  dead_goblin_items: Dead Goblin's items
+  dice_roll:
+    ability_score: 'Rolling for ability score #%{roll_num}'
+    acrobatics: Rolling for an acrobatics check
+    athletics: Rolling for an athletics check
+    attack: Rolling for attack (to hit)
+    damage: Roll for attack damage
+    death_saving_throw: Roll for death saving throw
+    description: '%{description} (%{roll_str})'
+    dexterity: Roll for dexterity (skill check)
+    great_weapon_fighting_reroll: Damage die reroll on a 1 or 2 for Great Weapon Fighting style
+    healing_potion: Roll for healing potion (heal amount)
+    hit_die: Roll for hit die
+    hit_die_selection: Use a hit die to regain HP for %{name} (%{hp}/%{max_hp})?
+    initiative: Roll for initiative
+    medicine: Roll for medicine check
+    perception: Roll for a perception check
+    prompt: '%{name} - %{description}'
+    roll_attempt: 'roll %{number}/%{total}. Please roll a d%{die_type} [1-%{die_type}]:'
+    roll_attempt_advantage: 'roll %{number}/%{total}. roll a d%{die_type} [1-%{die_type}] (advantage):'
+    roll_attempt_disadvantage: 'roll %{number}/%{total}. roll a d%{die_type} [1-%{die_type}] (disadvantage):'
+    second_wind: Roll for second wind hp gain
+    sneak_attack: Roll for sneak attack damage
+    special_weapon_damage: Roll for special weapon additional damage
+    spells:
+      chill_touch: Roll for Chill Touch spell damage
+      firebolt: Roll for Firebolt spell damage
+      generic_damage: Roll for %{spell} spell damage
+      ray_of_frost: Roll for Ray Of Frost damage
+      shocking_grasp: Roll for Shocking Grasp spell damage
+    stealth: Rolling for stealth check
+    strength_check: Roll for strength (skill check)
+    thieves_tools: Roll for thieves tools (skill check)
+    wisdom_check: Roll for wisdom check
+  dice_roller: Dice Roller
+  drop: Drop Item
+  effect_line: '%{effect_name} (%{source})'
+  end_turn: '%{name}: End turn.'
+  engine_title: Welcome to Wizards and Goblins (DnD 5e Adventure Engine)
+  entity:
+    health_flavor:
+      almost_dead: barely hanging on, one more solid blow may take them down
+      dead: appears to be dead
+      max: looks to be in good condition
+      over_10: looking in bad condition, unable to fight or survive much longer
+      over_25: starting to look more ragged or visibly slowing down
+      over_50: visibly wounded with some injuries, but still fighting strong
+      over_75: doesn't show any signs of slowing, just a few minor inconveniencing injuries
+      unconscious: appears to be unconscious
+  event:
+    acrobatics:
+      failure: '%{roll} = %{value} (dc 10) %{name} failed on an acrobatics check'
+      success: '%{roll} = %{value} (dc 10) %{name} succeeded on an acrobatics check'
+    athletics:
+      failure: '%{roll} = %{value} (dc 10) %{name} failed on an athletics check'
+      success: '%{roll} = %{value} (dc 10) %{name} succeeded on an athletics check'
+    attack: '%{opportunity}%{source} attacked %{target} with %{attack_name} to Hit%{advantage}: %{attack_roll} = %{attack_value} for %{damage} damage.'
+    attack_no_roll: '%{opportunity}%{source} attacked %{target} with %{attack_name} to Hit for %{damage} damage.'
+    combat_end: Combat has ended
+    combat_start: Combat has started!
+    death_fail: 'Death Saving Throw: %{name} rolls a %{roll} = %{value} (fail). Saves: %{saves} Fails: %{fails}'
+    death_fail_hit: 'Death Saving Throw Failure. Saves: %{saves} Fails: %{fails}'
+    death_save: 'Death Saving Throw: %{name} rolls a %{roll} = %{value} (success). Saves: %{saves} Fails: %{fails}'
+    dodge: '%{name} takes the dodge action.'
+    drop_grapple: '%{source} has dropped grapple on %{target}'
+    escape_grapple_failure: '%{source} failed to escape the grapple from %{target}. %{source_roll} = %{source_roll_value} vs %{target_roll} = %{target_roll_value}'
+    escape_grapple_success: '%{source} successfully escaped the grapple from %{target}. %{source_roll} = %{source_roll_value} vs %{target_roll} = %{target_roll_value}'
+    feature_protection: '%{source} quickly uses shield in an attempt to protect %{target} from %{attacker}''s attack.'
+    first_aid: '%{roll} = %{value} %{name} (DC 10) successfully applied first aid to %{target}'
+    first_aid_failure: '%{roll} = %{value} %{name} (DC 10) failed to apply first aid to %{target}'
+    flavor:
+      wolf:
+        lunge: The wolf lunges forward and %{target} is now prone
+    grapple_failure: '%{source} failed to grapple %{target}. %{source_roll} = %{source_roll_value} vs %{target_roll} = %{target_roll_value}'
+    grapple_success: '%{source} successfully grappled %{target}. %{source_roll} = %{source_roll_value} vs %{target_roll} = %{target_roll_value}'
+    grapple_success_no_roll: '%{source} successfully grappled %{target}'
+    great_weapon_fighting_roll: 'Great Weapon Fighting (reroll): %{prev_roll} -> %{roll}'
+    hide: '%{name} attempts to hide. Stealth roll = %{roll} = %{roll_value}'
+    hit_die: '%{source} rolls hit die %{roll} = %{value}'
+    knock_prone_failure: '%{source_roll} < %{target_roll}. %{source} tried but failed to knock %{target} prone'
+    knock_prone_success: '%{source_roll} >= %{target_roll}. %{source} knocks %{target} prone'
+    shove_failure: '%{source_roll} < %{target_roll}. ${source} tried but failed to shove %{target} 5ft away'
+    shove_success: '%{source_roll} >= %{target_roll}. ${source} shoves %{target} 5ft away'
+    something: (something)
+    spell_buff: '%{source} casts %{spell} on %{target}.'
+    status:
+      prone: '%{name} is now prone.'
+      stand: '%{name} stands up.'
+  exit: Exit
+  game_author: By %{author}
+  inventory:
+    cannot_change_armor_combat: Cannot change armor during combat
+    equiped_items: '%{name} (equipped)'
+    how_many: 'How many %{item_label} (1-%{item_count})? '
+    inventory_items: '%{name} x %{qty}'
+  language:
+    abyssal: Abyssal
+    celestial: Celestial
+    common: Common
+    deep_speech: Deep Speech
+    draconic: Draconic
+    dwarvish: Dwarvish
+    elvish: Elvish
+    giant: Giant
+    gnomish: Gnomish
+    goblin: Goblin
+    halfling: Halfling
+    infernal: Infernal
+    orc: Orc
+    primordial: Primordial
+    sylvan: Sylvan
+    thieves_cant: Thieves Cant
+    undercommon: Undercommon
+  manual_target: Target object using the map
+  map_description: 'Battle Map (%{width}x%{length}) %{feet_per_grid}ft per square, pov %{pov}:'
+  missing_game: missing game.yml in the current folder
+  multiple_target_prompt: Multiple targets at location(s) please select specific targets
+  multiple_targets: 'Total Targets: %{total_targets}'
+  'no': 'No'
+  object:
+    Arrows: Arrows
+    ItemLibrary::Chest:
+      loot: Retreive Contents
+    Wooden door key: Wooden Door Key
+    arcane_focus: Arcane Focus
+    chain_mail: Chain Mail
+    chest:
+      lock: clink. chest is now locked
+      unlock: Ka-chink! chest is now unlocked
+    component_pouch: Component Pouch
+    door:
+      door_blocked: (door is blocked)
+      key_required: (missing key)
+      lock: clink. door is now locked
+      unlock: Ka-chink! door is now unlocked
+    equip_problem:
+      armor_equipped: You already have an armor on (please unequip armor)
+      hands_full: Hand Slots are full (please unequip a weapon/shield)
+    ground: Ground
+    light_crossbow_and_20_bolts: Light crossbow and 20 bolts
+    lockpick_failed: Lockpicking failed and the theives tools are now broken
+    longbow_and_arrows: Longbow and Arrows
+    martial_weapon_and_shield: (1) Martial Weapon & Shield
+    properties:
+      ammunition: Ammunition - You make a ranged attack only if you have ammunition to fire from the weapon
+      finesse: Finesse - When making an attack with a finesse weapon, your Strength or Dexterity modifier can be used for the attack and damage roll (Best mod will be automatically be used)
+      heavy: Heavy - Small creatures have disadvantage on attack rolls with heavy weapons
+      light: Light - A light weapon  is small and easy to handle, making it ideal for use when fighting with  two weapons
+      ranged: Ranged - This weapon can be used to make a ranged attack
+      thrown: Thrown - You can throw the weapon to make a ranged attack
+      versatile: Versatile - This weapon can be used with one or two hands
+    rapier: Rapier
+    shortbow_and_quiver: a shortbow and quiver of 20 arrows
+    shortsword: Shortsword
+    two_handaxes: Two handaxes
+    two_martial_weapons: (2) Martial Weapons
+    weapons:
+      battleaxe: Battleaxe
+      chain_mail: Chain Mail
+      dagger: Dagger
+      hand_crossbow: Hand Crossbow
+      longbow: Longbow
+      longbow_and_arrows: Longbow and Arrows
+      longsword: Longsword
+      quarterstaff: Quarterstaff
+      rapier: Rapier
+      scimitar: Scimitar
+      shortbow: Shortbow
+      shortsword: Shortsword
+      warhammer: Warhammer
+  options:
+    automatic_roll: Roll Dice for me automatically (Computer will roll for you)
+    dice_roll: Toggle Manual Dice Roll ...
+    roll_dice_manually: Prompt for each player die roll (Make sure you have a dice set on hand)
+    title: Game Options
+  perception:
+    dark: Dark and hard to make out
+    hide_success: (You are hidden from %{label})
+    looking_around: Looking around using Perception %{perception}
+    navigation: ESC- back, (wsad) - inspect square, x, space, enter - select
+    navigation_look: ESC- back, (wsad) - inspect square
+    note_with_language: (in %{note_language}) %{note}
+    passed: (perception) %{note}
+    terrain_and_surroundings: Terrain and Surroundings
+    using_darkvision: 'Using darkvision:'
+  prompt_dice_roller: Dice Roll (ex. d20, d8+1) (a) >
+  pronoun:
+    he: he
+    her: her
+    hers: hers
+    him: him
+    his: his
+    she: she
+    them: them
+    they: they
+  save_already_present: A save game is already present. This will overwrite your game. Are you sure?
+  select_npcs: Select NPCs
+  select_party_member: Select Party Member %{index}
+  skip_hit_die: Skip Hit Die
+  spell:
+    chill_touch: Chill Touch
+    expeditious_retreat: Expeditious Retreat
+    find_familiar: Find Familiar
+    firebolt: Firebolt
+    mage_armor: Mage Armor
+    magic_missile: Magic Missile
+    ray_of_frost: Ray Of Frost
+    shield: Shield
+    shocking_grasp: Shocking Grasp
+    true_strike: True Strike
+  spell_level: Recover Spell Level %{level}
+  spell_level_slots: 'level %{level}: %{slots}'
+  spell_slots: Spell Slots
+  spells:
+    disabled:
+      in_battle: Cannot be used in combat
+      no_action: '- No more actions'
+      no_bonus_action: '- No more bonus actions'
+      no_spell_slot: '- No more spell slots'
+      reaction_only: ' (Reaction)'
+  tpk: The entire party has fallen. Game Over!
+  unequip: Unequip
+  validation:
+    shove:
+      invalid_target_size: The target must be no more than one size larger than you
+  waive_opportunity_attack: Waive Opportunity Attack
+  with_advantage: advantage
+  with_disadvantage: disadvantage
+  'yes': 'Yes'

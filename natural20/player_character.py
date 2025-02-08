@@ -158,13 +158,19 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
       effective_speed = self.eval_effect('speed_override', { "stacked": True, "value" : effective_speed})
 
     return effective_speed
-  
+
   def max_hp(self):
+    _max_hp = 0
     if self.class_feature('dwarven_toughness'):
-      return self.properties['max_hp'] + self.level
+      _max_hp = self.properties['max_hp'] + self.level
     else:
-      return self.properties['max_hp']
-    
+      _max_hp = self.properties['max_hp']
+
+    if self.has_effect('hit_point_max_override'):
+      return self.eval_effect('hit_point_max_override', { "max_hp" : _max_hp})
+
+    return _max_hp
+
   def melee_distance(self):
     if not self.properties.get('equipped', None):
       return 5

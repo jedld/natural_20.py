@@ -79,15 +79,19 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
         if index == 0:
             actual_moves.append(m)
             continue
-
+        
+        incorporeal_movement = False
         if not map.passable(entity, *m, battle):
-            impediment = 'path_blocked'
+            if entity.class_feature('incorporeal_movement') and map.passable(entity, *m, battle, True):
+                incorporeal_movement = True
+            else:
+                impediment = 'path_blocked'
             break
 
         if fixed_movement:
             movement_budget -= 1
         else:
-            if map.difficult_terrain(entity, *m, battle) and not entity.is_flying() and (not manual_jump or len(manual_jump)==0 or index not in manual_jump):
+            if incorporeal_movement or (map.difficult_terrain(entity, *m, battle) and not entity.is_flying() and (not manual_jump or len(manual_jump)==0 or index not in manual_jump)):
                 movement_budget -= 2
             else:
                 movement_budget -= 1

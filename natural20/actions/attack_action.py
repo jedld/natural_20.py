@@ -5,6 +5,7 @@ from natural20.item_library.common import Ground
 from natural20.weapons import damage_modifier, target_advantage_condition
 from natural20.utils.attack_util import after_attack_roll_hook, damage_event
 from natural20.utils.ac_utils import effective_ac
+from natural20.spell.effects.life_drain_effect import LifeDrainEffect
 import pdb
 
 class AttackAction(Action):
@@ -120,6 +121,9 @@ class AttackAction(Action):
             battle.session.event_manager.received_event({'event': 'save_fail', 'source': item['source'], 'save_type': item['save_type'], 'roll': item['roll'], 'dc': item['dc']})
         elif item['type'] == 'prone':
             item['source'].prone()
+        elif item['type'] == 'life_drain':
+            item['source'].register_effect('hit_point_max_override', LifeDrainEffect, effect=item['effect'])
+            item['source'].register_event_hook('long_rest', LifeDrainEffect, effect=item['effect'])
         elif item['type'] == 'damage':
             damage_event(item, battle)
             AttackAction.consume_resource(battle, item)
@@ -352,6 +356,7 @@ class AttackAction(Action):
                             })
                             self.result.append(target.apply_effect(effect['fail'], { "battle" : battle,
                                                                     "target": target,
+                                                                    "damage": damage,
                                                                     "flavor": effect['flavor_fail']}))
                     else:
                         target.apply_effect(effect['effect'])
