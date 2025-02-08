@@ -4,8 +4,13 @@ import os
 import yaml
 from natural20.map import Map
 from natural20.battle import Battle
+from natural20.generic_controller import GenericController
 from webapp.controller.web_controller import WebController, ManualControl
+from natural20.player_character import PlayerCharacter
 import uuid
+import pdb
+from itertools import combinations
+import logging
 
 class SocketIOOutputLogger:
     """
@@ -33,8 +38,22 @@ class SocketIOOutputLogger:
         self.socketio.emit('message', {'type': 'console', 'message': event_msg})
 
 
+
+# Defines a class for high level game management
 class GameManagement:
-    def __init__(self, game_session, map_location, socketio, output_logger, tile_px):
+    def __init__(self, game_session, map_location, socketio, output_logger, tile_px, controllers,
+                 auto_battle=True):
+        """
+        Initialize the game management
+
+        :param game_session: the game session
+        :param map_location: the map location
+        :param socketio: the socketio instance
+        :param output_logger: the output logger
+        :param tile_px: the tile pixel size
+        :param controllers: the controllers
+        :param auto_battle: whether to auto battle
+        """
         self.map_location = map_location
         self.game_session = game_session
         self.socketio = socketio
@@ -42,6 +61,11 @@ class GameManagement:
         self.tile_px = tile_px
         self.waiting_for_user = False
         self.waiting_for_reaction = False
+        self.controllers = controllers
+        self.auto_battle = auto_battle
+        self.web_controllers = {}
+        self.logger = logging.getLogger('werkzeug')
+        self.logger.setLevel(logging.INFO)
 
         if os.path.exists('save.yml'):
             with open('save.yml','r') as f:
@@ -142,6 +166,9 @@ class GameManagement:
         self.socketio.emit('message', {'type': 'turn', 'message': {}})
 
     def loop_environment(self):
+        if not self.auto_battle:
+            return
+
         # check all entities in the map if it would set off a battle
         entity_by_groups = {}
 
@@ -149,31 +176,83 @@ class GameManagement:
             if entity.group not in entity_by_groups:
                 entity_by_groups[entity.group] = set()
             entity_by_groups[entity.group].add(entity)
+
         start_battle = False
-        add_to_initiative = []
-        for group1 in entity_by_groups.keys():
-            for group2 in entity_by_groups.keys():
-                if group1 == group2:
-                    continue
-                if self.game_session.opposing(group1, group2):
-                    for entity1 in entity_by_groups[group1]:
-                        for entity2 in entity_by_groups[group2]:
-                            if self.battle_map.can_see(entity1, entity2):
-                                add_to_initiative.append((entity1, group1))
-                                add_to_initiative.append((entity2, group2))
-                                start_battle = True
+        add_to_initiative_set = set()
+        for group1, group2 in combinations(entity_by_groups.keys(), 2):
+            if self.game_session.opposing(group1, group2):
+                for entity1 in entity_by_groups[group1]:
+                    for entity2 in entity_by_groups[group2]:
+                        # Ignore if both entities already belong to an ongoing battle
+                        if self.battle and (entity1 in self.battle.entities and entity2 in self.battle.entities):
+                            continue
+                        if self.battle_map.can_see(entity1, entity2):
+                            add_to_initiative_set.add((entity1, group1))
+                            add_to_initiative_set.add((entity2, group2))
 
-        if start_battle and len(add_to_initiative) > 0:
-            battle = Battle(self.game_session, self.battle_map, animation_log_enabled=True)
-            self.set_current_battle(battle)
-            for entity, group in add_to_initiative:
-                battle.add(entity, group)
-            battle.start_turn()
-            self.game_loop()
+                            # Add allies for entity1
+                            for ally in entity_by_groups[group1]:
+                                if ally != entity1 and self.battle_map.can_see(ally, entity1):
+                                    add_to_initiative_set.add((ally, group1))
 
+                            # Add allies for entity2
+                            for ally in entity_by_groups[group2]:
+                                if ally != entity2 and self.battle_map.can_see(ally, entity2):
+                                    add_to_initiative_set.add((ally, group2))
+
+                            start_battle = True
+        add_to_initiative = list(add_to_initiative_set)
+
+        if start_battle and add_to_initiative:
+            # Helper to select the correct controller for an entity
+            def get_controller(entity, default_controller):
+                if isinstance(entity, PlayerCharacter):
+                    usernames = self.entity_owners(entity.entity_uid)
+                    return default_controller if not usernames else self.get_web_controller_user(usernames[0], default_controller)
+                return GenericController(self.game_session)
+
+            dm_controller = self.get_web_controller_user("dm", GenericController(self.game_session))
+
+            if not self.battle:
+                self.battle = Battle(self.game_session, self.battle_map, animation_log_enabled=True)
+                for entity, group in add_to_initiative:
+                    controller = get_controller(entity, dm_controller)
+                    controller.register_handlers_on(entity)
+                    self.battle.add(entity, group, controller=controller)
+                self.output_logger.log("Battle started.")
+                self.battle.start()
+                self.execute_game_loop()
+            else:
+                for entity, group in add_to_initiative:
+                    controller = get_controller(entity, dm_controller)
+                    controller.register_handlers_on(entity)
+                    self.battle.add(entity, group, add_to_initiative=True, controller=controller)
+
+            self.socketio.emit('message', { 'type': 'initiative','message': {'index': self.battle.current_turn_index}})
+            self.socketio.emit('message', { 'type': 'turn', 'message': {}})
+
+
+    def get_controllers(self, entity):
+        # [{'entity_uid': 'gomerin', 'controllers': ['gomerin', 'shorvalu', 'leandro']}, {'entity_uid': 'crysania', 'controllers': ['crysania', 'shorvalu']}, {'entity_uid': 'shorvalu', 'controllers': ['shorvalu', 'keo']}, {'entity_uid': 'rumblebelly', 'controllers': ['rumblebelly', 'gomerin', 'shorvalu', 'jm']}]
+        for entity_info in self.controllers:
+            if entity_info['entity_uid'] == entity.entity_uid:
+                for controller_name in entity_info['controllers']:
+                    if controller_name in self.controllers:
+                        return self.controllers[controller_name]
+        return self.controllers
+
+    def get_web_controller_user(self, username, default_controller = None):
+        if username in self.web_controllers:
+            return self.web_controllers[username]
+        else:
+            self.web_controllers[username] = default_controller
+        return self.web_controllers[username]
+
+    def entity_owners(self, entity_uid):
+        ctrl_info = next((controller for controller in self.controllers if controller['entity_uid'] == entity_uid), None)
+        return [] if not ctrl_info else ctrl_info['controllers']
 
     def game_loop(self):
-
         battle = self.get_current_battle()
         try:
             while True:
@@ -184,7 +263,6 @@ class GameManagement:
                 if battle.battle_ends():
                     self.end_current_battle()
                     return
-
 
                 while current_turn.dead() or current_turn.unconscious():
                     current_turn.resolve_trigger('end_of_turn')
@@ -207,7 +285,9 @@ class GameManagement:
                     break
 
                 battle.end_turn()
+                self.loop_environment()
                 battle.next_turn()
+
         except ManualControl:
             self.logger.info("waiting for user to end turn.")
 

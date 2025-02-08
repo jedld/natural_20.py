@@ -183,7 +183,7 @@ class Chest(Object, Container):
             return {'action': 'lock'} if entity.item_count(self.key_name) > 0 else {'action': 'lock_failed'}
         return None
 
-    def use(self, entity, result):
+    def use(self, entity, result, session=None):
         action = result.get('action')
         if action == 'store':
             self.store(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))

@@ -92,12 +92,11 @@ if 'extensions' in index_data:
         EXTENSIONS.append(extension_module)
 
 sockets = []
-controllers = {}
 
 output_logger = SocketIOOutputLogger(socketio)
 output_logger.log("Server started")
 
-event_manager = EventManager(output_logger=output_logger)
+event_manager = EventManager(output_logger=output_logger, movement_consolidation=True)
 event_manager.standard_cli()
 game_session = GameSession.Session(LEVEL, event_manager=event_manager)
 game_session.render_for_text = False # render for text is disabled since we are using a web renderer
@@ -108,7 +107,8 @@ current_game = GameManagement(game_session=game_session,
                               map_location=BATTLEMAP,
                               socketio=socketio,
                               output_logger=output_logger,
-                              tile_px=TILE_PX)
+                              tile_px=TILE_PX,
+                              controllers=CONTROLLERS)
 
 i18n.set('locale', 'en')
 
@@ -152,10 +152,9 @@ def commit_and_update(action):
         socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
         battle.clear_animation_logs()
     else:
+        current_game.loop_environment()
         socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
     socketio.emit('message', {'type': 'turn', 'message': {}})
-
-    current_game.loop_environment()
 
 def controller_of(entity_uid, username):
     if username == 'dm':
@@ -272,6 +271,7 @@ app.add_template_filter(casting_time, name='casting_time')
 def entity_owners(entity_uid):
     ctrl_info = next((controller for controller in CONTROLLERS if controller['entity_uid'] == entity_uid), None)
     return [] if not ctrl_info else ctrl_info['controllers']
+
 app.add_template_global(entity_owners, name='entity_owners')
 
 def describe_terrain(tile):
@@ -504,9 +504,8 @@ def handle_connect(data):
     global current_game, first_connect
     username = data.get('username')
     ws = request.sid
-    web_controller_for_user = controllers.get(username, WebController(game_session, username))
+    web_controller_for_user = current_game.get_web_controller_user(username, WebController(game_session, username))
     web_controller_for_user.add_sid(ws)
-    controllers[username] = web_controller_for_user
 
     battle = current_game.get_current_battle()
     if battle:
@@ -585,9 +584,9 @@ def start_battle_with_initiative():
             else:
                 usernames = entity_owners(entity.entity_uid)
                 if not usernames:
-                    controller = controllers["dm"]
+                    controller = current_game.get_web_controller_user('dm', ManualControl(game_session, 'dm'))
                 else:
-                    controller = controllers.get(usernames[0], None) or controllers["dm"]
+                    controller = current_game.get_web_controller_user(usernames[0], ManualControl(game_session, 'dm')) or GenericController(game_session)
             controller.register_handlers_on(entity)
             battle.add(entity, param_item['group'], controller=controller)
         output_logger.log("Battle started.")
@@ -620,7 +619,7 @@ def end_turn():
 def continue_game():
     battle = current_game.get_current_battle()
     battle_map = current_game.get_current_battle_map()
-    game_loop()
+    current_game.game_loop()
 
     current_turn = battle.current_turn()
     socketio.emit('message', { 'type': 'initiative', 'message': { 'index': battle.current_turn_index} })
@@ -644,8 +643,8 @@ def next_turn():
     battle_map = current_game.get_current_battle_map()
     if battle:
         current_turn = battle.current_turn()
-        if waiting_for_user:
-            waiting_for_user = False
+        if current_game.waiting_for_user_input():
+            current_game.set_waiting_for_user_input(False)
             current_turn.resolve_trigger('end_of_turn')
             battle.end_turn()
             battle.next_turn()
@@ -952,6 +951,7 @@ def action():
                             animation_log = []
                             animation_log.append((entity.entity_uid, move_path, None))
                             socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1], 'animation_log': animation_log}})
+                        current_game.loop_environment()
                         return jsonify({'status': 'ok'})
             else:
                 action_info['action'] = 'movement'
