@@ -40,5 +40,5 @@ class HealingPotion(Object):
         )
         return { "hp_gain_roll": hp_regain_roll }
 
-    def use(self, entity, result):
+    def use(self, entity, result, session=None):
         entity.heal(result["hp_gain_roll"].result())

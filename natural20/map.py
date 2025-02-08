@@ -762,8 +762,6 @@ class Map():
 
         if self.base_map[pos_x][pos_y] == '#':
             return True
-        elif self.base_map[pos_x][pos_y] == '.':
-            return False
         else:
             if self.object_at(pos_x, pos_y):
                 return self.object_at(pos_x, pos_y).opaque(origin)

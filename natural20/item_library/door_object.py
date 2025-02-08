@@ -390,8 +390,8 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
     def resolve(self, entity, action, other_params, opts=None):
         return DoorObject.resolve(self, entity, action, other_params, opts)
 
-    def use(self, entity, result):
-        return DoorObject.use(self, entity, result)
+    def use(self, entity, result, session=None):
+        return DoorObject.use(self, entity, result, session)
 
     def lockpick_dc(self):
         return DoorObject.lockpick_dc(self)

@@ -39,7 +39,9 @@ class Battle():
     def current_round(self):
         return self.round
 
-    def add(self, entity, group, controller=None, position=None, token=None, add_to_initiative=False):
+    def add(self, entity, group, controller=None,
+            position=None,
+            token=None, custom_initiative=None, add_to_initiative=False):
         if entity in self.entities:
             return
 
@@ -67,7 +69,19 @@ class Battle():
         self.groups.setdefault(group, set()).add(entity)
 
         if add_to_initiative:
+            if custom_initiative:
+                state['initiative'] = custom_initiative(self, entity)
+            else:
+                state['initiative'] = entity.initiative(self)
             self.combat_order.append(entity)
+
+            # get current entity in current turn
+            current_entity = self.current_turn()
+            self.combat_order = sorted(self.combat_order, key=lambda a: self.entities[a]['initiative'], reverse=True)
+            for i, e in enumerate(self.combat_order):
+                if e == current_entity:
+                    self.current_turn_index = i
+                    break
 
         if position is None or self.map is None:
             return
@@ -121,7 +135,7 @@ class Battle():
 
     def roll_for(self, entity, die_type, number_of_times, description, advantage=False, disadvantage=False, controller=None):
         return DieRoll.roll_for(die_type, number_of_times, advantage, disadvantage)
-        
+
     def controller_for(self, entity):
         if entity not in self.entities:
             return None
@@ -271,6 +285,15 @@ class Battle():
         return self.entities[entity]['controller'] != 'manual'
 
     def move_for(self, entity):
+        """
+        Returns the move for the entity, calls AI or manual user control
+        associated to the entity
+        """
+        if entity not in self.entities:
+            raise Exception('unknown entity in battle')
+        if not self.entities[entity]['controller']:
+            raise Exception(f"no controller for entity {entity}")
+
         return self.entities[entity]['controller'].move_for(entity, self)
 
     def help_with(self, target):
@@ -367,7 +390,7 @@ class Battle():
 
     def get_animation_logs(self):
         return self.animation_log
-    
+
     def clear_animation_logs(self):
         self.animation_log.clear()
         entity = self.current_turn()

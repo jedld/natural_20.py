@@ -38,10 +38,12 @@ class FileOutputLogger:
             f.flush()
 
 class EventManager:
-    def __init__(self, output_logger=None, output_file=None):
+    def __init__(self, output_logger=None, output_file=None, movement_consolidation=False):
         self.event_listeners = {}
         self.battle = None
         self.event_buffer = deque(maxlen=1000)
+        self.movement_consolidation = movement_consolidation
+
         if output_file:
             self.output_logger = FileOutputLogger(output_file)
         else:
@@ -63,12 +65,28 @@ class EventManager:
                 self.event_listeners[event].append(callable)
 
     def received_event(self, event):
-        if self.event_listeners is None:
+        if not self.event_listeners:
             return
+
+        # Consolidate consecutive move events if configured
+        if event.get('event') == 'move' and self.movement_consolidation:
+            if getattr(self, 'previous_move_event', None):
+                if self.previous_move_event['source'] == event['source']:
+                    self.previous_move_event['position'].append(event['position'])
+                    self.previous_move_event['move_cost'] += event['move_cost']
+                    return
+            self.previous_move_event = event
+            event['position'] = [event['position']]
+            return
+        
+        elif getattr(self, 'previous_move_event', None):
+            # Process the stored move event before the current non-move event
+            event = self.previous_move_event
+            self.previous_move_event = None
+
         self.event_buffer.append(event)
-        if event['event'] in self.event_listeners:
-            for callable in self.event_listeners[event['event']]:
-                callable(event)
+        for handler in self.event_listeners.get(event['event'], []):
+            handler(event)
 
 
 

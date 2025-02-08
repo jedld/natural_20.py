@@ -736,6 +736,9 @@ class Entity(EntityStateEvaluator, Notable):
 
     def total_actions(self, battle):
         if battle:
+            if not battle.entity_state_for(self):
+                return 0
+
             return battle.entity_state_for(self).get('action')
         else:
             return 1

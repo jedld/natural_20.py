@@ -25,7 +25,7 @@ class Lootable:
                 'next': next_action
             }
 
-    def use(self, entity, result):
+    def use(self, entity, result, session=None):
         action = result.get('action')
         if action == 'give':
             self.transfer(result.get('battle'), result.get('target'), result.get('source'), result.get('items'))
