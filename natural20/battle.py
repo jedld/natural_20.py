@@ -78,10 +78,9 @@ class Battle():
             # get current entity in current turn
             current_entity = self.current_turn()
             self.combat_order = sorted(self.combat_order, key=lambda a: self.entities[a]['initiative'], reverse=True)
-            for i, e in enumerate(self.combat_order):
-                if e == current_entity:
-                    self.current_turn_index = i
-                    break
+
+            # retain current turn
+            self.set_current_turn(current_entity)
 
         if position is None or self.map is None:
             return
@@ -154,9 +153,18 @@ class Battle():
         return True
 
     def current_turn(self) -> Entity:
+        if len(self.combat_order) == 0:
+            return None
+
         if self.current_turn_index >= len(self.combat_order):
             raise Exception(f'current_turn_index out of bounds {self.current_turn_index} >= {len(self.combat_order)}')
         return self.combat_order[self.current_turn_index]
+
+    def set_current_turn(self, entity):
+        if entity not in self.combat_order:
+            raise Exception('entity not in combat order')
+
+        self.current_turn_index = self.combat_order.index(entity)
 
     def check_combat(self):
         if not self.started and not self.battle_ends():

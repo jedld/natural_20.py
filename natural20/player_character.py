@@ -203,6 +203,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
   def available_actions(self, session, battle, opportunity_attack=False, auto_target=True, map=None):
     if self.unconscious():
       return []
+    
+    if battle and battle.current_turn() != self and not opportunity_attack:
+      return []
 
     if opportunity_attack:
       if AttackAction.can(self, battle, { 'opportunity_attack': True }):

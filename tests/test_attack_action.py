@@ -69,7 +69,7 @@ class TestAttackAction(unittest.TestCase):
 
         battle.add(character, 'a', position='spawn_point_1', token='G')
         battle.add(npc, 'b', position='spawn_point_2', token='g')
-
+        battle.start()
         battle_map.move_to(character, 0, 0, battle)
         battle_map.move_to(npc, 1, 0, battle)
 
@@ -85,7 +85,7 @@ class TestAttackAction(unittest.TestCase):
         action.resolve(session, battle_map, { "battle": battle})
         battle.commit(action)
         self.assertTrue(TwoWeaponAttackAction.can(character, battle))
-
+        battle.set_current_turn(character)
         available_act = character.available_actions(session, battle)
         available_act = [act.action_type for act in available_act]
         self.assertTrue('two_weapon_attack' in available_act)

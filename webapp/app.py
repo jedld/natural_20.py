@@ -323,7 +323,7 @@ def validate_targets(action, entity, target, current_map, battle=None):
         if isinstance(target, list):
             for t in target:
                 if t not in valid_targets:
-                    raise ValueError(f"Invalid target {t}")
+                    raise ValueError(f"Invalid target {t} ({current_map.entity_by_uid(t)})")
         else:
             if target not in valid_targets:
                 raise ValueError(f"Invalid target {target}")
@@ -594,8 +594,8 @@ def start_battle_with_initiative():
     else:
         print("skipping default battle start")
     current_game.execute_game_loop()
-    with open('save.yml','w+') as f:
-        f.write(yaml.dump(battle_map.to_dict()))
+    # with open('save.yml','w+') as f:
+    #     f.write(yaml.dump(battle_map.to_dict()))
     return jsonify(status='ok')
 
 
@@ -627,8 +627,8 @@ def continue_game():
     battle.clear_animation_logs()
     socketio.emit('message', { 'type': 'turn', 'message': {}})
     # battle.clear_animation_logs()
-    with open('save.yml','w+') as f:
-        f.write(yaml.dump(battle_map.to_dict()))
+    # with open('save.yml','w+') as f:
+    #     f.write(yaml.dump(battle_map.to_dict()))
 
 @app.route('/turn_order', methods=['GET'])
 def get_turn_order():
@@ -658,8 +658,8 @@ def next_turn():
         socketio.emit('message', { 'type': 'turn', 'message': {}})
         battle.clear_animation_logs()
 
-    with open('save.yml','w+') as f:
-        f.write(yaml.dump(battle_map.to_dict()))
+    # with open('save.yml','w+') as f:
+    #     f.write(yaml.dump(battle_map.to_dict()))
     return jsonify(status='ok')
 
 @app.route('/update')
@@ -963,7 +963,7 @@ def action():
             action = SpellAction(game_session, entity, 'spell')
             selected_spell = opts.get('spell')
             at_level = opts.get('at_level')
-            target = opts.get('target')
+            target = opts.get('target', target)
 
             if selected_spell:
                 action.spell = game_session.load_spell(selected_spell)
@@ -976,7 +976,7 @@ def action():
                         current_map = current_map['next'](target)
 
                         if isinstance(current_map, Action):
-                            validate_targets(current_map, entity, target, current_map, battle)
+                            validate_targets(current_map, entity, target, battle_map, battle)
                             return jsonify(commit_and_update(current_map))
                         else:
                             raise ValueError(f"Invalid action map {current_map}")

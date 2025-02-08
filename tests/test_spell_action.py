@@ -32,6 +32,7 @@ class TestSpellAction(unittest.TestCase):
         self.battle = Battle(self.session, self.battle_map)
         self.npc = self.battle_map.entity_at(5, 5)
         self.battle.add(self.entity, 'a', position=[0, 5])
+        self.battle.start()
         self.entity.reset_turn(self.battle)
 
     def test_firebolt(self):
@@ -140,6 +141,26 @@ class TestSpellAction(unittest.TestCase):
         available_actions = [a.action_type for a in self.entity.available_actions(self.session, self.battle)]
         self.assertIn('spell', available_actions)
         self.assertIn('dash_bonus', available_actions)
+
+    def test_magic_missile(self):
+        random.seed(1003)
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[0, 6])
+        self.npc2 = self.session.npc('skeleton')
+        self.battle.add(self.npc2, 'b', position=[2, 5])
+        self.npc.reset_turn(self.battle)
+        self.npc2.reset_turn(self.battle)
+        print(MapRenderer(self.battle_map).render())
+        action = SpellAction.build(self.session, self.entity)['next'](['magic_missile', 0])['next']([self.npc, self.npc2])
+        valid_targets = self.battle.valid_targets_for(self.entity, action)
+        print(valid_targets)
+        self.assertEqual(len(valid_targets), 3)
+        action.resolve(self.session, self.battle_map, { "battle": self.battle})
+        starting_hp = [self.npc.hp(), self.npc2.hp()]
+        self.assertEqual([s['type'] for s in action.result], ['spell_damage', 'spell_damage'])
+        self.battle.commit(action)
+        ending_hp = [self.npc.hp(), self.npc2.hp()]
+        self.assertNotEqual(starting_hp, ending_hp)
 
     def test_ray_of_frost(self):
         self.npc = self.session.npc('skeleton')

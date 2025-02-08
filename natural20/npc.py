@@ -123,6 +123,9 @@ class Npc(Entity, Multiattack, Lootable):
 
         actions = []
 
+        if battle and battle.current_turn() != self and not opportunity_attack:
+            return []
+
         if opportunity_attack:
             actions = [s for s in self.generate_npc_attack_actions(battle, opportunity_attack=True, auto_target=auto_target) if s.action_type == "attack" and s.npc_action["type"] == "melee_attack"]
         else:
@@ -235,4 +238,5 @@ class Npc(Entity, Multiattack, Lootable):
         base_dict = super().to_dict()
         base_dict['type'] = 'npc'
         base_dict["npc_type"] = self.npc_type
+        base_dict["_max_hp"] = self.max_hp()
         return base_dict

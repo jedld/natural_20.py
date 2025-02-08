@@ -18,30 +18,35 @@ class TestPlayerCharacter(unittest.TestCase):
     def load_mage_character(self):
         player = PlayerCharacter.load(self.session, 'high_elf_mage.yml')
         self.battle.add(player, 'a')
+        self.battle.start()
         player.reset_turn(self.battle)
         return player
     
     def load_fighter_character(self):
         player = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
         self.battle.add(player, 'a')
+        self.battle.start()
         player.reset_turn(self.battle)
         return player
 
     def load_rogue_character(self):
         player = PlayerCharacter.load(self.session, 'halfling_rogue.yml')
         self.battle.add(player, 'a')
+        self.battle.start()
         player.reset_turn(self.battle)
         return player
 
     def load_elf_rogue_character(self):
         player = PlayerCharacter.load(self.session, 'elf_rogue.yml')
         self.battle.add(player, 'a')
+        self.battle.start()
         player.reset_turn(self.battle)
         return player
 
     def load_elf_rogue_lvl2_character(self):
         player = PlayerCharacter.load(self.session, 'elf_rogue_2.yml')
         self.battle.add(player, 'a')
+        self.battle.start()
         player.reset_turn(self.battle)
         return player
 
@@ -167,29 +172,29 @@ class TestPlayerCharacter(unittest.TestCase):
     def test_fighter_perception_check(self):
         self.player = self.load_fighter_character()
         self.assertEqual(self.player.perception_check().modifier, 4)
-        self.assertEqual(self.player.perception_check().result(), 6)
+        self.assertEqual(self.player.perception_check().result(), 15)
 
     def test_fighter_dexterity_check(self):
         self.player = self.load_fighter_character()
         check_val = self.player.dexterity_check()
-        self.assertEqual(str(check_val), 'd20(11) + 5')
-        self.assertEqual(check_val.result(), 16)
+        self.assertEqual(str(check_val), 'd20(2) + 5')
+        self.assertEqual(check_val.result(), 7)
 
     def test_fighter_stealth_check(self):
         self.player = self.load_fighter_character()
-        self.assertEqual(str(self.player.stealth_check()), 'd20(11) + 5')
+        self.assertEqual(str(self.player.stealth_check()), 'd20(2) + 5')
 
     def test_fighter_acrobatics_check(self):
         self.player = self.load_fighter_character()
         check_val = self.player.acrobatics_check()
-        self.assertEqual(str(check_val), 'd20(11) + 8')
-        self.assertEqual(check_val.result(), 19)
+        self.assertEqual(str(check_val), 'd20(2) + 8')
+        self.assertEqual(check_val.result(), 10)
 
     def test_fighter_athletics_check(self):
         self.player = self.load_fighter_character()
         check_val = self.player.athletics_check()
-        self.assertEqual(str(check_val), 'd20(11) + 4')
-        self.assertEqual(check_val.result(), 15)
+        self.assertEqual(str(check_val), 'd20(2) + 4')
+        self.assertEqual(check_val.result(), 6)
 
     def test_fighter_languages(self):
         self.player = self.load_fighter_character()
@@ -238,7 +243,7 @@ class TestPlayerCharacter(unittest.TestCase):
         self.player.take_damage(4)
         self.assertEqual(self.player.hit_die(), {10: 1})
         self.player.short_rest(self.battle)
-        self.assertEqual(self.player.hp(), 67)
+        self.assertEqual(self.player.hp(), 64)
         self.assertEqual(self.player.hit_die(), {10: 0})
 
     def test_fighter_saving_throw(self):
