@@ -1,9 +1,11 @@
 class Lootable:
     def available_interactions(self, entity, battle=None):
+        interactions = {}
         if self.unconscious() or self.dead():
-            return {'loot': {}}
+            interactions['loot'] = {}
         else:
-            return { 'give': {} }
+            interactions['give'] = {}
+        return interactions
 
     def build_map(self, action, action_object):
             if action == 'give':
@@ -27,7 +29,7 @@ class Lootable:
 
     def use(self, entity, result, session=None):
         action = result.get('action')
-        if action == 'give':
+        if action in ['loot','give']:
             self.transfer(result.get('battle'), result.get('target'), result.get('source'), result.get('items'))
 
     def is_interactable(self):

@@ -7,6 +7,7 @@ from natural20.item_library.common import StoneWall, Ground, StoneWallDirectiona
 from natural20.item_library.door_object import DoorObject, DoorObjectWall
 from natural20.item_library.pit_trap import PitTrap
 from natural20.item_library.chest import Chest
+from natural20.item_library.fireplace import Fireplace
 from natural20.player_character import PlayerCharacter
 from natural20.npc import Npc
 from natural20.weapons import compute_max_weapon_range
@@ -668,8 +669,10 @@ class Map():
                     return False
                 if self.base_map[relative_x][relative_y] == '#':
                     return False
-                if self.object_at(relative_x, relative_y) and not self.object_at(relative_x, relative_y).passable(origin):
-                    return False
+
+                for object in self.objects_at(relative_x, relative_y):
+                    if not object.passable(origin):
+                        return False
 
                 if battle and self.tokens[relative_x][relative_y]:
                     location_entity = self.tokens[relative_x][relative_y]['entity']
@@ -743,16 +746,17 @@ class Map():
     def light_in_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, min_distance=None, distance=None, inclusive=True, entity=False):
         squares = self.squares_in_path(pos2_x, pos2_y, pos1_x, pos1_y, inclusive=inclusive)
         min_distance_reached = True
-
+        prev = [pos2_x, pos2_y]
         for index, s in enumerate(squares):
             if min_distance and index > min_distance:
                 min_distance_reached = False
             if distance and index > distance:
                 return [False, False]
-            if self.opaque(*s):
+            if self.opaque(*s, prev) or self.opaque(*prev, s):
                 return [False, False]
             if self.cover_at(*s) == 'total':
                 return [False, False]
+            prev = s
 
         return [min_distance_reached, True]
 
@@ -764,11 +768,15 @@ class Map():
             return True
         else:
             if self.object_at(pos_x, pos_y):
-                return self.object_at(pos_x, pos_y).opaque(origin)
+                for object in self.objects_at(pos_x, pos_y):
+                    if object.opaque(origin):
+                        return True
             else:
                 if origin:
-                    if self.object_at(*origin) and self.object_at(*origin).opaque((pos_x, pos_y)):
-                        return True
+                    if self.object_at(*origin):
+                        for object in self.objects_at(*origin):
+                            if object.opaque((pos_x, pos_y)):
+                                return True
 
                 return None
 

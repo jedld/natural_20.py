@@ -236,7 +236,6 @@ class Session:
             self.objects[object_name] = objects.get(object_name)
             assert self.objects[object_name], f'Object {object_name} not found'
         return self.objects[object_name]
-    
 
     def t(self, token, options=None):
         return i18n.t(token, **options)

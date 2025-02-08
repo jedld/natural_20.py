@@ -179,6 +179,51 @@ javelin:
     range_max: 120
   type: melee_attack
   weight: 2
+hand_crossbow:
+  ammo: bolts
+  cost: 75
+  damage: 1d6
+  damage_type: piercing
+  meta:
+    noise_source: 5
+    noise_target: 5
+  modifiers: null
+  name: Hand Crossbow
+  proficiency_type:
+    - martial
+  properties:
+    - loading
+    - ammunition
+    - ranged
+    - light
+  range: 30
+  range_max: 120
+  subtype: weapon
+  type: ranged_attack
+  weight: 3
+heavy_crossbow:
+  ammo: bolts
+  cost: 25
+  damage: 1d10
+  damage_type: piercing
+  meta:
+    noise_source: 5
+    noise_target: 5
+  modifiers: null
+  name: Heavy Crossbow
+  proficiency_type:
+    - martial
+  properties:
+    - heavy
+    - loading
+    - ammunition
+    - ranged
+    - two_handed
+  range: 100
+  range_max: 400
+  subtype: weapon
+  type: ranged_attack
+  weight: 18
 light_crossbow:
   ammo: bolts
   cost: 25

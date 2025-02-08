@@ -443,6 +443,11 @@ class Entity(EntityStateEvaluator, Notable):
     def has_reaction(self, battle):
         return battle.entity_state_for(self).get('reaction', 0) > 0
 
+    def has_action(self, battle):
+        if not battle:
+            return True
+
+        return battle.entity_state_for(self).get('action', 0) > 0
     def hidden(self):
         return 'hidden' in self.statuses
     
@@ -1451,7 +1456,14 @@ class Entity(EntityStateEvaluator, Notable):
         if not self.properties.get('prepared_spells', None):
             return False
         return len(self.properties['prepared_spells']) > 0
-    
+
+    def has_item(self, item_name):
+        if item_name in self.inventory:
+            return True
+        if item_name in self.equipped_items():
+            return True
+        return False
+
     # Returns items in the "backpack" of the entity
     # @return [List]
     def inventory_items(self, session):
