@@ -9,7 +9,8 @@ from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.map_renderer import MapRenderer
 from natural20.utils.ac_utils import calculate_cover_ac
 from natural20.weapons import compute_advantages_and_disadvantages
-from pdb import set_trace
+from natural20.utils.action_builder import autobuild
+import pdb
 
 
 class TestAttackAction(unittest.TestCase):
@@ -41,19 +42,7 @@ class TestAttackAction(unittest.TestCase):
         character.reset_turn(battle)
         npc.reset_turn(battle)
 
-        ptr = AttackAction.build(session, character)
-
-        while True:
-            param = [None for _ in ptr['param']]
-            if ptr['param'][0]['type'] == 'select_target':
-                param[0] = npc
-            elif ptr['param'][0]['type'] == 'select_weapon':
-                param[0] = 'vicious_rapier'
-            ptr = ptr['next'](*param)
-
-            if ptr['param'] is None:
-               ptr = ptr['next']()
-               break
+        ptr = autobuild(session, AttackAction, character, battle, match=[npc, 'vicious_rapier'])[0]
 
         self.assertEqual(ptr.target, npc)
         self.assertEqual(ptr.source, character)
@@ -81,7 +70,7 @@ class TestAttackAction(unittest.TestCase):
 
         self.assertFalse(TwoWeaponAttackAction.can(character, battle))
 
-        action = AttackAction.build(session, character)['next'](npc)['next']('dagger')['next']()
+        action =  autobuild(session, AttackAction, character, battle, match=[npc,'dagger'])[0]
         action.resolve(session, battle_map, { "battle": battle})
         battle.commit(action)
         self.assertTrue(TwoWeaponAttackAction.can(character, battle))
@@ -109,7 +98,7 @@ class TestAttackAction(unittest.TestCase):
 
         map_renderer = MapRenderer(battle_map)
         map_renderer.render(battle)
-        action = AttackAction.build(session, character)['next'](npc)['next']('dagger')['next']()
+        action =  autobuild(session, AttackAction, character, battle, match=[npc, 'dagger'])[0]
         action.resolve(session, battle_map, { "battle": battle})
         battle.commit(action)
 
@@ -141,13 +130,15 @@ class TestAttackAction(unittest.TestCase):
 
         battle.add(character, 'a', position="spawn_point_1", token='G')
         battle.add(npc, 'b', position="spawn_point_2", token='g')
-
+        character.reset_turn(battle)
+        battle.start()
+        battle.set_current_turn(character)
         battle_map.move_to(character, 0, 5, battle)
 
         map_renderer = MapRenderer(battle_map)
         print(map_renderer.render())
 
-        action = AttackAction.build(session, character)['next'](npc)['next']('unarmed_attack')['next']()
+        action = AttackAction.build(session, character)['next']('unarmed_attack')['next'](npc)
         hit_probability = action.compute_hit_probability(battle)
         self.assertAlmostEqual(hit_probability, 0.70, places=2)
 

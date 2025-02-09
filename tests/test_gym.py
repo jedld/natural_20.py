@@ -58,7 +58,7 @@ class TestGym(unittest.TestCase):
         _, info = env.reset(seed=42)
         print(info['available_moves'])
         self.assertIsNotNone(info['available_moves'])
-        self.assertEqual(len(info['available_moves']), 16)
+        self.assertEqual(len(info['available_moves']), 7)
 
     def test_custom_setup(self):
         def make_session():

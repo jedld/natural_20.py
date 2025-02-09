@@ -303,9 +303,12 @@ class DieRoll(Rollable):
             return False
 
     def __eq__(self, other):
-        return (self.rolls == other.rolls and
-                self.modifier == other.modifier and
-                self.die_sides == other.die_sides)
+        if isinstance(other, DieRoll):
+            return (self.rolls == other.rolls and
+                    self.modifier == other.modifier and
+                    self.die_sides == other.die_sides)
+        else:
+            return self.result() == other
 
     def __lt__(self, other):
         if isinstance(other, DieRoll):

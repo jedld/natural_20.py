@@ -71,7 +71,7 @@ class Npc(Entity, Multiattack, Lootable):
         self.npc_actions = self.properties["actions"]
         self.battle_defaults = self.properties.get("battle_defaults", None)
         self.opt = opt
-        self.resistances = []
+        self.resistances = self.properties.get("resistances", [])
         self.statuses = []
 
         for stat in self.properties.get("statuses", []):
@@ -188,12 +188,8 @@ class Npc(Entity, Multiattack, Lootable):
 
         return enumerate(spell_per_level)
 
-    def generate_npc_attack_actions(self, battle, opportunity_attack=False, auto_target=True):
-        if self.familiar():
-            return []
-
+    def attack_options(self, battle, opportunity_attack=False):
         actions = []
-
         for npc_action in self.npc_actions:
             if npc_action.get("ammo") and self.item_count(npc_action["ammo"]) <= 0:
                 continue
@@ -201,6 +197,16 @@ class Npc(Entity, Multiattack, Lootable):
                 continue
             if not AttackAction.can(self, battle, { "npc_action" : npc_action, "opportunity_attack" : opportunity_attack}):
                 continue
+            actions.append(npc_action)
+        return actions
+
+    def generate_npc_attack_actions(self, battle, opportunity_attack=False, auto_target=True):
+        if self.familiar():
+            return []
+        actions = []
+
+        npc_actions = self.attack_options(battle, opportunity_attack=opportunity_attack)
+        for npc_action in npc_actions:
             action = AttackAction(self.session, self, "attack")
             action.npc_action = npc_action
             actions.append(action)

@@ -92,7 +92,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
     self.class_properties = {}
     self._current_hit_die = {}
     self.max_hit_die = {}
-    self.resistances = []
+    self.resistances = self.properties.get("resistances", [])
     self.entity_uid =  self.properties.get('entity_uid', str(uuid.uuid4()))
 
     for klass, level in self.properties.get('classes', {}).items():
@@ -165,7 +165,6 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
       _max_hp = self.properties['max_hp'] + self.level
     else:
       _max_hp = self.properties['max_hp']
-
     if self.has_effect('hit_point_max_override'):
       return self.eval_effect('hit_point_max_override', { "max_hp" : _max_hp})
 
@@ -307,6 +306,20 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
 
                 action_list.append(action)
     return action_list
+
+  def equipped_weapons(self, session, valid_weapon_types=['ranged_attack', 'melee_attack']):
+    weapon_attacks = []
+    for item in self.properties.get('equipped', []):
+      weapon_detail = session.load_weapon(item)
+      if weapon_detail is None:
+        continue
+      if weapon_detail['type'] not in valid_weapon_types:
+        continue
+      if 'ammo' in weapon_detail and not self.item_count(weapon_detail['ammo']) > 0:
+        continue
+      weapon_attacks.append(item)
+
+    return weapon_attacks
 
   def _player_character_attack_actions(self, session, battle, opportunity_attack=False, second_weapon=False, auto_target=True):
     # check all equipped and create attack for each

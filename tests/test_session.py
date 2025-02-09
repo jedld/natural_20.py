@@ -10,6 +10,7 @@ from natural20.map_renderer import MapRenderer
 from natural20.utils.ac_utils import calculate_cover_ac
 from natural20.weapons import compute_advantages_and_disadvantages
 from pdb import set_trace
+from natural20.utils.action_builder import autobuild
 import uuid
 import yaml
 
@@ -42,19 +43,8 @@ class TestSession(unittest.TestCase):
         character.reset_turn(battle)
         npc.reset_turn(battle)
 
-        ptr = AttackAction.build(session, character)
-
-        while True:
-            param = [None for _ in ptr['param']]
-            if ptr['param'][0]['type'] == 'select_target':
-                param[0] = npc
-            elif ptr['param'][0]['type'] == 'select_weapon':
-                param[0] = 'vicious_rapier'
-            ptr = ptr['next'](*param)
-
-            if ptr['param'] is None:
-               ptr = ptr['next']()
-               break
+        # action = autobuild(session, AttackAction, character, battle, match=[npc, 'vicious_rapier'])[0]
+        
         random_filename = uuid.uuid4().hex
 
 
