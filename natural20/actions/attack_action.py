@@ -30,11 +30,22 @@ class AttackAction(Action):
             return entity.total_reactions(battle) > 0
 
         return battle is None or entity.total_actions(battle) > 0 or entity.multiattack(battle, options.get('npc_action'))
+    
+    def clone(self):
+        action = AttackAction(self.session, self.source, self.action_type, self.opts)
+        action.target = self.target
+        action.using = self.using
+        action.npc_action = self.npc_action
+        action.as_reaction = self.as_reaction
+        action.thrown = self.thrown
+        action.advantage_mod = self.advantage_mod
+        action.attack_roll = self.attack_roll
+        return action
 
     def __str__(self):
         weapon = self.npc_action['name'] if self.npc_action else self.using
         base_str = f"{self.source} {'throws' if self.thrown else 'uses'} {weapon}"
-        target_str = f"{'at' if self.thrown else ''} {self.target}"
+        target_str = f"{'at' if self.thrown else ''} on {self.target}"
         attack_roll_str = f" ({self.attack_roll} = {self.attack_roll.result()})" if self.attack_roll else ""
 
         full_action = f"{base_str}{target_str}"
@@ -43,6 +54,8 @@ class AttackAction(Action):
 
         return f"{full_action}{attack_roll_str}"
 
+    def __repr__(self):
+        return f"AttackAction({self.source}, {self.action_type}, {self.opts})"
 
     def to_dict(self):
         return {
@@ -79,31 +92,34 @@ class AttackAction(Action):
         return 'unarmed' in weapon.get('properties', [])
 
     def build_map(self):
-        def set_target(target):
-            def set_weapon(weapon):
-                self.using = weapon
-                return {
-                    'param': None,
-                    'next': lambda: self
-                }
-            self.target = target
+        def set_weapon(weapon):
+            action2 = self.clone()
+            if self.source.npc():
+                action2.npc_action = weapon
+            else:
+                action2.using = weapon
+            def set_target(target):
+                action = action2.clone()
+                action.target = target
+                return action
             return {
+                'action': action2,
+                'param': [
+                    {
+                        'type': 'select_target',
+                        'num': 1,
+                        'weapon': action2.using,
+                        'target_types': ['enemies'],
+                    }
+                    ],
+                'next': set_target
+            }
+
+        return {
                 'param': [
                     {'type': 'select_weapon'}
                 ],
                 'next': set_weapon
-            }
-            
-        return {
-            'action': self,
-            'param': [
-                {
-                    'type': 'select_target',
-                    'num': 1,
-                    'weapon': self.using
-                }
-            ],
-            'next': set_target
         }
 
     def build(session, source):
@@ -121,9 +137,11 @@ class AttackAction(Action):
             battle.session.event_manager.received_event({'event': 'save_fail', 'source': item['source'], 'save_type': item['save_type'], 'roll': item['roll'], 'dc': item['dc']})
         elif item['type'] == 'prone':
             item['source'].prone()
-        elif item['type'] == 'life_drain':
-            item['source'].register_effect('hit_point_max_override', LifeDrainEffect, effect=item['effect'])
-            item['source'].register_event_hook('long_rest', LifeDrainEffect, effect=item['effect'])
+        elif item['type'] == 'effect':
+            if item['effect'] == 'life_drain':
+                effect = LifeDrainEffect(battle, item['source'], item['context']['damage'].result())
+                item['source'].register_effect('hit_point_max_override', effect, effect=effect)
+                item['source'].register_event_hook('long_rest', effect)
         elif item['type'] == 'damage':
             damage_event(item, battle)
             AttackAction.consume_resource(battle, item)
@@ -286,8 +304,7 @@ class AttackAction(Action):
                     if entity != target and battle.map.distance(entity, target) <= 5:
                         damage += DieRoll.roll("2d6", description='dice_roll.martial_advantage', entity=self.source, battle=battle)
                         break
-
-            self.result.append({
+            hit_result = {
                 'source': self.source,
                 'target': target,
                 'type': 'damage',
@@ -309,7 +326,9 @@ class AttackAction(Action):
                 'as_reaction': bool(self.as_reaction),
                 'second_hand': self.second_hand(),
                 'npc_action': self.npc_action
-            })
+            }
+            self.result.append(hit_result)
+
             if weapon.get('on_hit'):
                 print(f"Applying on_hit effects for {weapon}")
                 for effect in weapon['on_hit']:
@@ -325,9 +344,11 @@ class AttackAction(Action):
                         # if save_type not in Natural20.Entity.ATTRIBUTE_TYPES:
                         #     raise Exception('invalid save type')
                         description = effect.get('description', 'save')
+
                         self.result.append({
                             'type': 'flavor',
                             'source': self.source,
+                            'target': target,
                             'description': description
                         })
 
@@ -354,12 +375,14 @@ class AttackAction(Action):
                                 'roll': save_roll,
                                 'dc': dc
                             })
+
                             self.result.append(target.apply_effect(effect['fail'], { "battle" : battle,
                                                                     "target": target,
                                                                     "damage": damage,
-                                                                    "flavor": effect['flavor_fail']}))
+                                                                    "flavor": effect['flavor_fail'],
+                                                                    "info" : hit_result}))
                     else:
-                        target.apply_effect(effect['effect'])
+                        target.apply_effect(effect['effect'], {"info": hit_result, "battle": battle})
         else:
             self.result.append({
                 'attack_name': attack_name,
@@ -429,6 +452,8 @@ class AttackAction(Action):
             ammo_type = npc_action.get("ammo", None)
         else:
             weapon = self.session.load_weapon(using)
+            if not weapon:
+                raise Exception(f"weapon {using} not found")
             attack_name = weapon['name']
             ammo_type = weapon.get('ammo', None)
             attack_mod = self.source.attack_roll_mod(weapon)
@@ -486,7 +511,9 @@ class TwoWeaponAttackAction(AttackAction):
         if options is None:
             options = {}
 
-        return battle and (entity.total_bonus_actions(battle) > 0 and battle.two_weapon_attack(entity) and (options.get('weapon') != battle.first_hand_weapon(entity) or len([a for a in entity.equipped_weapons() if a == battle.first_hand_weapon(entity)]) >= 2))
+        session = options.get('session', battle.session)
+
+        return battle and (entity.total_bonus_actions(battle) > 0 and battle.two_weapon_attack(entity) and (options.get('weapon') != battle.first_hand_weapon(entity) or len([a for a in entity.equipped_weapons(session) if a == battle.first_hand_weapon(entity)]) >= 2))
 
     def second_hand(self):
         return True

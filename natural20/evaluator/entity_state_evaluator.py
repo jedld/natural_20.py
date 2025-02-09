@@ -47,18 +47,22 @@ class EntityStateEvaluator:
         if context is None:
             context = {}
         action, value = expression.split(':')
+
         if action == 'status':
             return {
                 'source': self,
                 'type': value,
                 'battle': context.get('battle'),
-                'flavor': context.get('flavor')
+                'flavor': context.get('flavor'),
+                'context': context
             }
         elif action == 'effect':
             return {
                 'source': self,
                 'effect': value,
+                'type': 'effect',
                 'battle': context.get('battle'),
-                'flavor': context.get('flavor')
+                'flavor': context.get('flavor'),
+                'context': context
             }
         return None

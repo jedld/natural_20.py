@@ -263,3 +263,14 @@ wooden_door:
   token_image: wooden_door
   token:
     - '='
+door:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObject
+  max_hp: 18
+  name: Wooden Door
+  token_image: wooden_door
+  token:
+    - '='

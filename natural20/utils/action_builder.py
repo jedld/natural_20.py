@@ -26,7 +26,7 @@ def acquire_targets(param, entity, battle, map=None):
             if map.can_see(entity, t) and map.distance(entity, t) <= spell_range
         }
 
-    target_types = param["target_types"]
+    target_types = param.get("target_types", ['enemies'])
 
     # Handle multiple target types in a single param (if needed).
     # If your logic only ever expects one target type per param, 
@@ -49,7 +49,7 @@ def acquire_targets(param, entity, battle, map=None):
     return possible_targets
 
 
-def build_params(session, entity, battle, build_info, map=None, auto_target=True):
+def build_params(session, entity, battle, build_info, map=None, auto_target=True, match=None):
     """
     Build a list (parallel to build_info["param"]) containing all possible
     parameter choices for each param in build_info["param"].
@@ -76,6 +76,8 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                     # If any spell is not castable, 
                     # original code breaks and sets build_info to None
                     return None
+            if match:
+                possible_spells = [spell for spell in possible_spells if spell[0] in match]
             params_list.append(possible_spells)
 
         # -----------------------------
@@ -93,7 +95,8 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             if not possible_targets:
                 # No valid targets => entire build fails
                 return None
-
+            if match:
+                possible_targets = [target for target in possible_targets if target in match]
             selected_target_combinations = []
             total_targets = param.get("num", 1)
             min_targets = param.get("min", total_targets)
@@ -170,6 +173,16 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             object = param["target"]
             interaction_actions = object.available_interactions(entity, battle)
             params_list.append(list(interaction_actions.keys()))
+        elif param_type == "select_weapon":
+            if hasattr(entity, 'attack_options'):
+                usable_weapons = entity.attack_options(battle, session)
+            else:
+                usable_weapons = entity.equipped_weapons(session)
+
+            if match:
+                usable_weapons = [weapon for weapon in usable_weapons if weapon in match]
+
+            params_list.append(usable_weapons)
         elif param_type == "select_items":
             return None
         else:
@@ -178,7 +191,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
     return params_list
 
 
-def autobuild(session, action_class, entity, battle, map=None, auto_target=True):
+def autobuild(session, action_class, entity, battle, map=None, auto_target=True, match=None):
     """
     Orchestrates the building of possible actions by repeatedly calling
     `build_info['next'](...)` with all combinations of parameters
@@ -202,7 +215,7 @@ def autobuild(session, action_class, entity, battle, map=None, auto_target=True)
                 continue
 
             # Build a list of possible parameter options
-            possible_params = build_params(session, entity, battle, current_info, map=map, auto_target=auto_target)
+            possible_params = build_params(session, entity, battle, current_info, map=map, auto_target=auto_target, match=match)
             if possible_params is None:
                 # If we can't build any parameters, we append None
                 # to represent a failed/invalid build path

@@ -105,7 +105,11 @@ class TestNpc(unittest.TestCase):
         roll = npc.stealth_check(battle)
         assert roll.roller.roll_str == '1d20+6'
 
-        assert npc.apply_effect('status:prone') == {'battle': None, 'source': npc, 'type': 'prone', 'flavor': None}
+        self.assertEqual(npc.apply_effect('status:prone'),{'battle': None,
+                                                           'source': npc,
+                                                           'type': 'prone',
+                                                           'context' : {},
+                                                           'flavor': None})
 
         # owlbear npc
         npc = session.npc('owlbear', { "name" : 'Grunt'})

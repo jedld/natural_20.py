@@ -80,6 +80,7 @@ class TestClericSpellAction(unittest.TestCase):
         random.seed(7003)
         self.entity2 = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
         self.battle.add(self.entity2, 'a', position=[0, 6], token='E')
+        self.battle.start()
         self.entity2.reset_turn(self.battle)
         bless_action = SpellAction.build(self.session, self.entity)['next'](['bless', 0])['next']([self.entity2])
         bless_action.resolve(self.session, self.battle_map, { "battle": self.battle})
@@ -90,15 +91,15 @@ class TestClericSpellAction(unittest.TestCase):
         self.assertTrue(self.entity2.has_effect('bless'))
         print(MapRenderer(self.battle_map).render())
 
-        action = AttackAction.build(self.session,  self.entity2)['next'](self.npc)['next']('dagger')['next']()
+        action = AttackAction.build(self.session,  self.entity2)['next']('dagger')['next'](self.npc)
         action = action.resolve(self.session, self.battle_map, { "battle": self.battle})
         result = action.result[0]
-        self.assertEqual(str(result['attack_roll']), "d20(4) + 8 + d4(4)")
+        self.assertEqual(str(result['attack_roll']), "d20(3) + 8 + d4(3)")
         result = self.entity2.save_throw('wisdom', self.battle)
-        self.assertEqual(str(result),"d20(9) + 1 + d4(4)")
+        self.assertEqual(str(result),"d20(10) + 1 + d4(2)")
         self.entity2.dismiss_effect(bless_action.spell_action)
         result = self.entity2.save_throw('wisdom', self.battle)
-        self.assertEqual(str(result),"d20(10) + 1")
+        self.assertEqual(str(result),"d20(19) + 1")
 
     def test_compute_hit_probability(self):
         self.entity.ability_scores['wis'] = 20

@@ -622,7 +622,8 @@ class Entity(EntityStateEvaluator, Notable):
         return dismiss_count
 
     def remove_effect(self, effect):
-        effect.source.casted_effects = [f for f in effect.source.casted_effects if f['effect'].id != effect.id]
+        if effect.source:
+            effect.source.casted_effects = [f for f in effect.source.casted_effects if f['effect'].id != effect.id]
 
         dismiss_count = 0
 
@@ -1224,7 +1225,7 @@ class Entity(EntityStateEvaluator, Notable):
 
         return spell_list
 
-    def equipped_weapons(self):
+    def equipped_npc_weapons(self, session=None):
         return [item['name'] for item in self.equipped_items() if item["subtype"] == 'weapon']
 
     def take_damage(self, dmg: int, battle=None, damage_type='piercing', \
@@ -1557,6 +1558,17 @@ class Entity(EntityStateEvaluator, Notable):
             'grapples': self.grapples,
             'temp_hp' : self._temp_hp
         }
-    
+
+    def long_rest(self):
+        self.attributes['hp'] = self.properties['max_hp']
+        self.death_saves = 0
+        self.death_fails = 0
+        self.statuses.clear()
+        self.casted_effects.clear()
+        self.grapples.clear()
+        self.concentration = None
+        self._temp_hp = 0
+        self.resolve_trigger('long_rest')
+
     def t(self, key, **kwargs):
         return self.session.t(key, kwargs)
