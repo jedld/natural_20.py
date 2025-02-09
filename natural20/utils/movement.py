@@ -172,7 +172,7 @@ def retrieve_opportunity_attacks(entity, move_list, battle):
     if entity.disengage(battle):
         return []
 
-    opportunity_attacks = opportunity_attack_list(entity, move_list, battle, battle.map)
+    opportunity_attacks = opportunity_attack_list(entity, move_list, battle, battle.map_for(entity))
     return [enemy_opportunity for enemy_opportunity in opportunity_attacks if enemy_opportunity['source'].has_reaction(battle) and enemy_opportunity['source'] not in entity.grappling_targets()]
 
 

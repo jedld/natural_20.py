@@ -166,8 +166,8 @@ class AttackAction(Action):
             if item['type'] == 'damage':
                 item['target'].add_item(item['weapon'])
             else:
-                ground_pos = item['battle'].map.entity_or_object_pos(item['target'])
-                ground_object = next((o for o in item['battle'].map.objects_at(*ground_pos) if isinstance(o, Ground)), None)
+                ground_pos = item['battle'].entity_or_object_pos(item['target'])
+                ground_object = next((o for o in item['battle'].map_for(item['source']).objects_at(*ground_pos) if isinstance(o, Ground)), None)
                 if ground_object:
                     ground_object.add_item(item['weapon'])
         

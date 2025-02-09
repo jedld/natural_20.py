@@ -13,7 +13,7 @@ class HideAction(Action):
         if options is None:
             options = {}
 
-        return battle and battle.map and entity.total_actions(battle) > 0
+        return battle and battle.maps and entity.total_actions(battle) > 0
 
     def build_map(self):
         return self
@@ -29,7 +29,7 @@ class HideAction(Action):
         stealth_roll = self.source.stealth_check(opts.get('battle', None))
 
         if map is None:
-            map = opts.get('battle').map
+            map = opts.get('battle').map_for(self.source)
 
         if opts['battle']:
             opponents = [opp for opp in opts['battle'].opponents_of(self.source) if opp.conscious()]
@@ -109,5 +109,4 @@ class HideBonusAction(HideAction):
     @staticmethod
     def can(entity, battle):
         return battle and entity.any_class_feature(['cunning_action', 'nimble_escape']) \
-            and battle.map \
             and entity.total_bonus_actions(battle) > 0

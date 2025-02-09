@@ -113,8 +113,8 @@ class TestGym(unittest.TestCase):
                 for action in available_actions:
                     if isinstance(action, MoveAction):
                         for opponent in opponents:
-                            orig_distance = battle.map.distance(entity, opponent)
-                            new_distance = battle.map.distance(entity, opponent, entity_1_pos=action.move_path[-1])
+                            orig_distance = battle.map_for(entity).distance(entity, opponent)
+                            new_distance = battle.map_for(entity).distance(entity, opponent, entity_1_pos=action.move_path[-1])
                             if new_distance > orig_distance:
                                 return action
                 return None

@@ -2,8 +2,8 @@ import pdb
 
 def effective_ac(battle, source, target):
     cover_ac_adjustments = 0
-    if battle and battle.map:
-        cover_ac_adjustments = calculate_cover_ac(battle.map, source, target)
+    if battle:
+        cover_ac_adjustments = calculate_cover_ac(battle.map_for(source), source, target)
         ac = target.armor_class() + cover_ac_adjustments  # calculate AC with cover
     else:
         ac = target.armor_class()

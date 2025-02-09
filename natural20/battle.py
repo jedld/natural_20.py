@@ -10,8 +10,13 @@ from natural20.entity import Entity
 from natural20.die_roll import DieRoll
 import pdb
 class Battle():
-    def __init__(self, session: Session, map: Map, standard_controller = None, animation_log_enabled=False):
-        self.map = map
+    def __init__(self, session: Session, maps: Map, standard_controller = None, animation_log_enabled=False):
+        if isinstance(maps, list):
+            self.maps = maps
+        elif maps:
+            self.maps = [maps]
+        else:
+            self.maps = None
         self.session = session
         self.combat_order = []
         self.current_turn_index = 0
@@ -39,8 +44,26 @@ class Battle():
     def current_round(self):
         return self.round
 
+    def map_for(self, entity):
+        if not self.maps or len(self.maps) == 0:
+            return None
+
+        if isinstance(entity, str):
+            for map in self.maps:
+                if map.entity_by_uid(entity):
+                    return map
+            return None
+        else:
+            for map in self.maps:
+                if entity in map.entities:
+                    return map
+                if entity in map.objects:
+                    return map
+        return None
+
     def add(self, entity, group, controller=None,
             position=None,
+            index = 0,
             token=None, custom_initiative=None, add_to_initiative=False):
         if entity in self.entities:
             return
@@ -82,13 +105,13 @@ class Battle():
             # retain current turn
             self.set_current_turn(current_entity)
 
-        if position is None or self.map is None:
+        if position is None or self.maps is None:
             return
 
         if isinstance(position, list) or isinstance(position, tuple):
-            self.map.place(position, entity, token, self)
+            self.maps[index].place(position, entity, token, self)
         else:
-            self.map.place_at_spawn_point(position, entity, token)
+            self.maps[index].place_at_spawn_point(position, entity, token)
 
     # remove an entity from the battle and from the map
     def remove(self, entity):
@@ -97,8 +120,7 @@ class Battle():
             self.late_comers.remove(entity)
         if entity in self.combat_order:
             self.combat_order.remove(entity)
-        if self.map:
-            self.map.remove(entity, battle=self)
+        self.map_for(entity).remove(entity, battle=self)
 
     def start(self, combat_order=None, custom_initiative=None):
         """
@@ -174,9 +196,14 @@ class Battle():
             return True
         return False
 
+    def entity_or_object_pos(self, entity):
+        if not self.map_for(entity):
+            return None
+        return self.map_for(entity).entity_or_object_pos(entity)
+
     def start_turn(self):
         entity = self.current_turn()
-        entity_pos = self.map.entity_or_object_pos(entity)
+        entity_pos = self.entity_or_object_pos(entity)
 
         if self.animation_log_enabled:
             self.animation_log.append([entity.entity_uid, [entity_pos], None])
@@ -272,11 +299,18 @@ class Battle():
                 return 'tpk'
             if result:
                 return result
+            
+    def entity_by_uid(self, entity_uid):
+        for map in self.maps:
+            entity = map.entity_by_uid(entity_uid)
+            if entity:
+                return entity
+        return None
 
     def entity_state_for(self, entity):
         entity_state = self.entities.get(entity, None)
         if entity_state is None:
-            _entity = self.map.entity_by_uid(entity.entity_uid)
+            _entity = self.entity_by_uid(entity.entity_uid)
             return self.entities.get(_entity, None)
         return entity_state
 
@@ -315,12 +349,13 @@ class Battle():
     # @return [List<Natural20::Entity>]
     def opponents_of(self, entity):
         return [k for k in (list(self.entities.keys()) + self.late_comers) if not k.dead() and self.opposing(k, entity)]
-    
+
     def allies_of(self, entity):
         return [k for k in (list(self.entities.keys()) + self.late_comers) if not k.dead() and self.allies(k, entity)]
 
     def enemy_in_melee_range(self, source, exclude=None, source_pos=None):
-        objects_around_me = self.map.look(source)
+        map_for_source = self.map_for(source)
+        objects_around_me = map_for_source.look(source)
         exclude = exclude or []
         for object in objects_around_me:
             if object in exclude:
@@ -332,7 +367,7 @@ class Battle():
             if not object.conscious():
                 continue
 
-            if self.opposing(source, object) and (self.map.distance(source, object, entity_1_pos=source_pos) <= (object.melee_distance() / self.map.feet_per_grid)):
+            if self.opposing(source, object) and (map_for_source.distance(source, object, entity_1_pos=source_pos) <= (object.melee_distance() / map_for_source.feet_per_grid)):
                 return True
 
         return False
@@ -345,14 +380,14 @@ class Battle():
         if hasattr(action, 'send'):
             return action
         else:
-            return action.resolve(self.session, self.map, opts)
+            return action.resolve(self.session, self.map_for(action.source), opts)
     
     def resolve_action(self, source, action_type, opts=None):
         if opts is None:
             opts = {}
         action = next((act for act in source.available_actions(self.session, self) if act.action_type == action_type), None)
         opts['battle'] = self
-        return action.resolve(self.session, self.map, opts) if action else None
+        return action.resolve(self.session, self.map_for(action.source), opts) if action else None
 
     def commit(self, action):
         if action is None:
@@ -380,7 +415,7 @@ class Battle():
             self.trigger_event('movement', action.source, { 'move_path': action.move_path})
             if self.animation_log_enabled:
                 if len(self.animation_log) == 0:
-                    self.animation_log.append([action.source.entity_uid, [self.map.entity_or_object_pos(action.source)], None])
+                    self.animation_log.append([action.source.entity_uid, [self.entity_or_object_pos(action.source)], None])
                 self.animation_log.append([action.source.entity_uid, action.move_path, None])
         elif action.action_type == 'attack':
             if self.animation_log_enabled and len(self.animation_log) > 0:
@@ -388,7 +423,7 @@ class Battle():
         elif action.action_type == 'spell':
             if self.animation_log_enabled and action.target and action.avg_damage(self) > 0:
                 if len(self.animation_log) == 0:
-                    self.animation_log.append([action.source.entity_uid, [self.map.entity_or_object_pos(action.source)], None])
+                    self.animation_log.append([action.source.entity_uid, [self.entity_or_object_pos(action.source)], None])
                 self.animation_log[-1][2] = { "target" : action.target.entity_uid, "type" : "spell", "label" : action.label() }
         elif action.action_type == 'interact':
             self.trigger_event('interact', action)
@@ -402,12 +437,12 @@ class Battle():
     def clear_animation_logs(self):
         self.animation_log.clear()
         entity = self.current_turn()
-        entity_pos = self.map.entity_or_object_pos(entity)
+        entity_pos = self.entity_or_object_pos(entity)
         self.animation_log.append([entity.entity_uid, [entity_pos], None])
 
     def entity_group_for(self, entity):
         if entity not in self.entities:
-            _entity = self.map.entity_by_uid(entity.entity_uid)
+            _entity = self.entity_by_uid(entity.entity_uid)
             if _entity:
                 if _entity not in self.entities:
                     return 'none'
@@ -478,16 +513,21 @@ class Battle():
         if event in self.battle_field_events:
             for object, handler in self.battle_field_events[event].items():
                 object.__getattribute__(handler)(self, source, {**opt, 'ui_controller': self.controller_for(source)})
-        self.map.activate_map_triggers(event, source, {**opt, 'ui_controller': self.controller_for(source)})
+        if self.maps and self.map_for(source):
+            self.map_for(source).activate_map_triggers(event, source, {**opt, 'ui_controller': self.controller_for(source)})
 
     # Determines if an entity can see someone in battle
     # @param entity1 [Natural20::Entity] observer
     # @param entity2 [Natural20::Entity] entity being observed
     # @return [Boolean]
     def can_see(self, entity1, entity2, active_perception=0, entity_1_pos=None, entity_2_pos=None):
+        map1 = self.map_for(entity1)
+        map2 = self.map_for(entity2)
+        if map1 != map2:
+            return False
         if entity1 == entity2:
             return True
-        if not self.map.can_see(entity1, entity2, entity_1_pos=entity_1_pos, entity_2_pos=entity_2_pos):
+        if not map1.can_see(entity1, entity2, entity_1_pos=entity_1_pos, entity_2_pos=entity_2_pos):
             return False
 
         return True
@@ -505,7 +545,7 @@ class Battle():
         target_types = [target_type.lower() for target_type in target_types] if target_types else ['enemies']
 
         if entity not in self.entities:
-            entity = self.map.entity_by_uid(entity.entity_uid)
+            entity = self.entity_by_uid(entity.entity_uid)
 
         entity_group = self.entities[entity]['group']
  
@@ -528,7 +568,7 @@ class Battle():
                 continue
             if 'ignore_los' not in target_types and not entity==k and not self.can_see(entity, k, active_perception=active_perception):
                 continue
-            if self.map and self.map.distance(k, entity) * self.map.feet_per_grid > attack_range:
+            if self.maps and self.map_for(k).distance(k, entity) * self.map_for(k).feet_per_grid > attack_range:
                 continue
             if filter and not k.eval_if(filter):
                 continue
@@ -542,12 +582,13 @@ class Battle():
                 print(action.errors)
 
         if include_objects:
-            for object, _position in self.map.interactable_objects.items():
+            _map = self.map_for(entity)
+            for object, _position in _map.interactable_objects.items():
                 if object.dead():
                     continue
                 if 'ignore_los' not in target_types and not self.can_see(entity, object, active_perception=active_perception):
                     continue
-                if self.map.distance(object, entity) * self.map.feet_per_grid > attack_range:
+                if _map.distance(object, entity) * _map.feet_per_grid > attack_range:
                     continue
                 if filter and not k.eval_if(filter):
                     continue
@@ -558,7 +599,8 @@ class Battle():
     
         # @return [Boolean]
     def ally_within_enemy_melee_range(self, source, target, exclude=None, source_pos=None):
-        objects_around_me = self.map.look(target)
+        _map = self.map_for(source)
+        objects_around_me = _map.look(target)
 
         if exclude is None:
             exclude = []
@@ -577,7 +619,7 @@ class Battle():
             if object.incapacitated():
                 continue
 
-            if self.allies(source, object) and (self.map.distance(target, object, entity_1_pos=source_pos) <= (object.melee_distance() / self.map.feet_per_grid)):
+            if self.allies(source, object) and (_map.distance(target, object, entity_1_pos=source_pos) <= (object.melee_distance() / _map.feet_per_grid)):
                 return True
 
         return False
@@ -588,7 +630,7 @@ class Battle():
             'position': [cur_x, cur_y]
         }
         if action is None:
-            action = entity.trigger_event('opportunity_attack', self, self.session, self.map, event)
+            action = entity.trigger_event('opportunity_attack', self, self.session, self.map_for(entity), event)
             # check if action is a generator due to a yield
             if hasattr(action, 'send'):
                 return action
