@@ -11,7 +11,7 @@ def acquire_targets(param, entity, battle, map=None):
     filtering by line-of-sight and range if applicable.
     """
     if battle and map is None:
-        map = battle.map
+        map = battle.map_for(entity)
 
     spell_range = param.get("range", 0)
     possible_targets = set()
@@ -55,7 +55,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
     parameter choices for each param in build_info["param"].
     """
     if battle and map is None:
-        map = battle.map
+        map = battle.map_for(entity)
 
     params_list = []
 
@@ -203,7 +203,7 @@ def autobuild(session, action_class, entity, battle, map=None, auto_target=True,
     next_builds = []
 
     if map is None and battle:
-        map = battle.map
+        map = battle.map_for(entity)
 
     while any(isinstance(item, dict) for item in previous_builds):
         next_builds.clear()

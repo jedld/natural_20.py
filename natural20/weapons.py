@@ -88,12 +88,12 @@ def compute_advantages_and_disadvantages(battle, source, target, weapon, source_
     if battle and battle.help_with(target):
         advantage.append('being_helped')
 
-    if weapon and (thrown or weapon['type'] == 'ranged_attack') and battle.map:
+    if weapon and (thrown or weapon['type'] == 'ranged_attack'):
         if battle.enemy_in_melee_range(source, source_pos=source_pos):
             disadvantage.append('ranged_with_enemy_in_melee')
         if target.prone():
             disadvantage.append('target_is_prone_range')
-        if weapon['range'] and battle.map.distance(source, target, entity_1_pos=source_pos) > weapon['range']:
+        if weapon['range'] and battle.map_for(source).distance(source, target, entity_1_pos=source_pos) > weapon['range']:
             disadvantage.append('target_long_range')
 
     if source.class_feature('pack_tactics') and battle.ally_within_enemy_melee_range(source, target, source_pos=source_pos):
@@ -105,10 +105,10 @@ def compute_advantages_and_disadvantages(battle, source, target, weapon, source_
     if weapon and (not thrown and weapon['type'] == 'melee_attack') and target.prone():
         advantage.append('target_is_prone')
 
-    if battle and battle.map and not battle.can_see(target, source, entity_2_pos=source_pos):
+    if battle and not battle.can_see(target, source, entity_2_pos=source_pos):
         advantage.append('unseen_attacker')
 
-    if battle and battle.map and not battle.can_see(source, target, entity_1_pos=source_pos):
+    if battle and not battle.can_see(source, target, entity_1_pos=source_pos):
         disadvantage.append('invisible_attacker')
 
     return [advantage, disadvantage]

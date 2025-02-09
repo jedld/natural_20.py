@@ -105,10 +105,10 @@ class GenericController(Controller):
     def _observe_enemies(self, battle, entity, enemy_positions=None):
         if enemy_positions is None:
             enemy_positions = {}
+        current_map = battle.map_for(entity)
+        objects_around_me = current_map.look(entity)
 
-        objects_around_me = battle.map.look(entity)
-
-        entity_x, entity_y = battle.map.position_of(entity)
+        entity_x, entity_y = current_map.position_of(entity)
 
         for object, location in objects_around_me.items():
             group = battle.entity_group_for(object)
@@ -119,7 +119,7 @@ class GenericController(Controller):
             if not object.conscious():
                 continue
             if battle.opposing(entity, object):
-                path = PathCompute(battle, battle.map, entity, ignore_opposing=True).compute_path(entity_x, entity_y,
+                path = PathCompute(battle, current_map, entity, ignore_opposing=True).compute_path(entity_x, entity_y,
                 location[0], location[1])
                 enemy_positions[object] = (location, path)
 

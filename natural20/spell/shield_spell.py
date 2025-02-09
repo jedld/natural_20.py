@@ -60,7 +60,7 @@ class ShieldSpell(Spell):
             if original_action:
                 stored_reaction = original_action.has_async_reaction_for_source(entity, 'shield')
                 result = stored_reaction if stored_reaction is not False else entity_controller.select_reaction(
-                    entity, battle, battle.map, valid_actions, event
+                    entity, battle, battle.map_for(entity), valid_actions, event
                 )
             else:
                 result = entity_controller.select_action(battle, entity, valid_actions)

@@ -213,7 +213,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
 
     action_list = []
     if map is None:
-      map = battle.map
+      map = battle.map_for(self)
 
     for action_type in self.ACTION_LIST:
       if action_type.can(self, battle):
@@ -253,7 +253,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
           if map is None:
             continue
 
-          cur_x, cur_y = battle.map.position_of(self)
+          cur_x, cur_y = map.position_of(self)
           for x_pos in range(-1, 2):
             for y_pos in range(-1, 2):
               if x_pos == 0 and y_pos == 0:

@@ -218,7 +218,7 @@ class MoveAction(Action):
             elif item['as_dash']:
                 battle.entity_state_for(item['source'])['action'] -= 1
             elif battle:
-                battle.entity_state_for(item['source'])['movement'] -= item['move_cost'] * battle.map.feet_per_grid
+                battle.entity_state_for(item['source'])['movement'] -= item['move_cost'] * battle.map_for(item['source']).feet_per_grid
 
             battle.session.event_manager.received_event({
                 'event': 'move',
@@ -226,7 +226,7 @@ class MoveAction(Action):
                 'position': item['position'],
                 'path': item['path'],
                 'move_cost' : item['move_cost'],
-                'feet_per_grid': battle.map.feet_per_grid if battle.map else None,
+                'feet_per_grid': battle.map_for(item['source']).feet_per_grid if battle.map_for(item['source']) else None,
                 'as_dash': item['as_dash'],
                 'as_bonus': item['as_bonus_action']
             })

@@ -21,10 +21,10 @@ class GroundInteractAction(Action):
 
     @staticmethod
     def items_on_the_ground_count(entity, battle):
-        if battle.map is None:
+        if battle.map_for(entity) is None:
             return 0
 
-        return sum(len(items) for items in battle.map.items_on_the_ground(entity))
+        return sum(len(items) for items in battle.map_for(entity).items_on_the_ground(entity))
 
     def build_map(self):
         def set_ground_items(obj):
