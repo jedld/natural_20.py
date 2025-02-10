@@ -41,3 +41,6 @@ class TestUseItemAction(unittest.TestCase):
         UseItemAction.apply(self.battle, self.action.result[0])
         self.assertEqual(self.entity.hp(), 22)
         self.assertEqual(self.entity.item_count("healing_potion"), 0)
+
+    def test_spell_scroll(self):
+        

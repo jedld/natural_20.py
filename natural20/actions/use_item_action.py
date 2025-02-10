@@ -88,7 +88,7 @@ class UseItemAction(Action):
             "type": "use_item",
             "item": self.target_item
         }
-        result_payload.update(self.target_item.resolve(self.source, battle))
+        result_payload.update(self.target_item.resolve(self.source, battle, self))
         self.result = [result_payload]
         return self
 

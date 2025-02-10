@@ -31,7 +31,7 @@ class HealingPotion(Object):
             "next": next_fn
         }
 
-    def resolve(self, entity, battle):
+    def resolve(self, entity, battle, action):
         hp_regain_roll = DieRoll.roll(
             self.properties.get("hp_regained", "1d4"),
             description="Healing Potion",
