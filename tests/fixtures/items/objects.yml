@@ -274,3 +274,10 @@ door:
   token_image: wooden_door
   token:
     - '='
+teleport:
+  color: blue
+  passable: true
+  placeable: true
+  item_class: Teleporter
+  token:
+    - T

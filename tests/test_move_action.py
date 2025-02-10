@@ -52,10 +52,15 @@ class TestMoveAction(unittest.TestCase):
         self.assertEqual(opportunity_attack_list(self.action.source, self.action.move_path, self.battle, self.map), [{'source': self.npc, 'path': 1}])
 
     def test_opportunity_attack_large_creature(self):
-        self.map = Map(self.session, 'battle_sim_2')
-        self.ogre = self.session.npc('ogre')
-        self.battle.add(self.ogre, 'b', position=[1, 1], token='g')
-        self.ogre.reset_turn(self.battle)
+        map = Map(self.session, 'battle_sim_2')
+        battle = Battle(self.session, map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position='spawn_point_1', token='G')
+        ogre = self.session.npc('ogre')
+        battle.add(ogre, 'b', position=[1, 1], token='g')
+        battle.start()
+        print(MapRenderer(map).render())
+        ogre.reset_turn(battle)
         self.assertEqual(len(opportunity_attack_list(self.action.source, [[1, 0], [2, 0], [3, 0]], self.battle, self.map)), 0)
 
     def test_auto_generate(self):

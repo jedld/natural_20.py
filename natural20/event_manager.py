@@ -122,6 +122,8 @@ class EventManager:
             msg = f"{self.show_name(event)} attacked {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {self.t(event['attack_name'])}{'(thrown)' if event['thrown'] else ''} and hits"
             if event['attack_roll']:
                 msg += f" with attack roll {event['attack_roll']} = {event['attack_roll'].result()}"
+            if event['attack_roll'] and event['attack_roll'].nat_20():
+                msg += " (critical hit)."
             if event.get('total_damage') < event.get('value'):
                 msg += f" {self.show_target_name(event)} takes only {event['total_damage']} of expected {event['value']} damage!"
             elif event.get('total_damage') > event.get('value'):

@@ -1032,10 +1032,14 @@ def action():
                 else:
                     action_info['range'] = weapon_details['range']
                     action_info['range_max'] = weapon_details.get('range_max', weapon_details['range'])
-
-                build_map = action.build_map()
-
-                action_info['param'] = build_map['param']
+                action_info['param'] = [
+                    {
+                        'type': 'select_target',
+                        'num': 1,
+                        'weapon': action.using,
+                        'target_types': ['enemies'],
+                    }
+                    ]
         else:
             action_class = action_type_to_class(action_type)
             opts = action_request.get('opts', {})

@@ -205,6 +205,9 @@ class Object(Entity):
 
     def build_map(self, selected_interaction, action):
         return None
+    
+    def on_enter(self, entity, map, battle):
+        pass
 
 
 

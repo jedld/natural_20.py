@@ -8,7 +8,7 @@ class StaticLightBuilder:
         self.light_properties = self.properties.get('lights')
         self.light_map = self.properties.get('map', {}).get('light')
         self.base_illumination = self.properties.get('map', {}).get('illumination', 1.0)
-        manual_light_map = self.properties.get('light_map', [])
+        manual_light_map = self.properties.get('map', {}).get('light_map',[])
         self.lights = []
         self.fixed_lights = []
 
@@ -53,10 +53,9 @@ class StaticLightBuilder:
                     in_bright, in_dim = self.map.light_in_sight(x, y, light_pos_x, light_pos_y, min_distance=bright_light,
                                                                 distance=bright_light + dim_light,
                                                                 inclusive=True)
-                    intensity += self.fixed_lights[x][y]
                     intensity += 1.0 if in_bright else (0.5 if in_dim else 0.0)
 
-                light_map[x][y] = intensity
+                light_map[x][y] = intensity + self.fixed_lights[x][y]
 
         return light_map
 
