@@ -62,6 +62,7 @@
                     <li id="select-soundtrack">Sound Manager</li>
                     <li id="start-battle" style="{{ 'display: none;' if battle}}">Start Battle</li>
                     <li id="end-battle" style="{{ 'display: none;' if not battle}}">End Battle</li>
+                    <li id="switch-map" data-toggle="modal" data-target="#mapModal">Switch Map</li>
                 {% endif %}
                 <li id="open-console">Open Console</li>
                 <li>
@@ -72,6 +73,33 @@
             </ul>
         </div>
     </div>
+    {% if 'dm' in role %}
+    <div id="mapModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="mapModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    <h4 class="modal-title" id="mapModalLabel">Select a Map</h4>
+                </div>
+                <div class="modal-body">
+                    <form id="map-selection-form">
+                        <div class="form-group">
+                            <label for="map-select">Available Maps</label>
+                            <select id="map-select" name="map" class="form-control">
+                                {% for map in available_maps %}
+                                    <option value="{{ map }}">{{ map }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Set Map</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     <div id="coords-box" style="position: fixed; top: 0; right: 0; background-color: white; padding: 10px; border: 1px solid black;"></div>
     <div id="main-map-area" style="background-color: {{ background_color }};">
         <div class="image-container" style="position: absolute; top: {{tile_size_px}}px; left: {{tile_size_px}}px; height: {{ background_height }}px; ">
