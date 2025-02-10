@@ -510,6 +510,8 @@ class TwoWeaponAttackAction(AttackAction):
     def can(entity, battle, options=None):
         if options is None:
             options = {}
+        if not battle:
+            return False
 
         session = options.get('session', battle.session)
 

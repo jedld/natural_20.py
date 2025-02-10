@@ -8,6 +8,12 @@ class LifeDrainEffect:
         self.entity = entity
         self.source = None
         self.hit_point_reduction = hit_point_reduction
+    
+    def __str__(self):
+        return "life_drain"
+    
+    def __repr__(self):
+        return self.__str__()
 
     def hit_point_max_override(self, entity, opt=None):
         return opt['max_hp'] - self.hit_point_reduction

@@ -174,3 +174,26 @@ class TestMap(unittest.TestCase):
                     traveled_squares.append((i, j))
         print(MapRenderer(map).render(path=traveled_squares, path_char='+'))
         self.assertEqual(traveled_squares, [])
+
+    def test_multimap_transitions(self):
+        session = Session(root_path='tests/fixtures')
+        session.render_for_text = False
+        map1 = Map(session, 'tests/fixtures/maps/thinwall_map_teleport.yml')
+        map2 = Map(session, 'tests/fixtures/maps/thinwall_map.yml')
+        map1.add_linked_map("map2", map2)
+        character = PlayerCharacter.load(session, 'characters/halfling_rogue.yml')
+        map1.place((0,4), character)
+        map1.move_to(character, 5, 6, None)
+        self.assertEqual(map2.entity_at(1, 1), character)
+        print(MapRenderer(map1).render())
+        print(MapRenderer(map2).render())
+
+    def test_map_transitions(self):
+        session = Session(root_path='tests/fixtures')
+        session.render_for_text = False
+        map1 = Map(session, 'tests/fixtures/maps/thinwall_map_teleport.yml')
+        character = PlayerCharacter.load(session, 'characters/halfling_rogue.yml')
+        map1.place((0,4), character)
+        map1.move_to(character, 1, 6, None)
+        print(MapRenderer(map1).render())
+        self.assertEqual(map1.entity_at(0, 0), character)

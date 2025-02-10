@@ -8,6 +8,7 @@ from natural20.item_library.door_object import DoorObject, DoorObjectWall
 from natural20.item_library.pit_trap import PitTrap
 from natural20.item_library.chest import Chest
 from natural20.item_library.fireplace import Fireplace
+from natural20.item_library.teleporter import Teleporter
 from natural20.player_character import PlayerCharacter
 from natural20.npc import Npc
 from natural20.weapons import compute_max_weapon_range
@@ -22,7 +23,6 @@ class Terrain():
         self.name = name
         self.passable = passable
         self.movement_cost = movement_cost
-        
         self.symbol = symbol if symbol else name[0].upper()
 
     def symbol(self):
@@ -56,6 +56,7 @@ class Map():
         self.entities = {}  # Assuming entities is a dictionary
         self.interactable_objects = {}
         self.legend = self.properties.get('legend', {})
+        self.linked_maps = {}
 
         for _ in range(self.size[0]):
             row = []
@@ -109,7 +110,6 @@ class Map():
 
     def _compute_lights(self):
         self.light_map = self.light_builder.build_map()
-
 
     def _setup_objects(self):
         for pos_x in range(self.size[0]):
@@ -191,6 +191,9 @@ class Map():
                             'location': [column_index, row_index]
                         }
 
+    def add_linked_map(self, name, map):
+        self.linked_maps[name] = map
+
     def entity_by_uid(self, uid):
         for entity in self.entities.keys():
             if entity.entity_uid == uid:
@@ -269,6 +272,10 @@ class Map():
                 self.tokens[pos_x + ofs_x][pos_y + ofs_y] = entity_data
 
         self.entities[entity] = [pos_x, pos_y]
+
+        for obj in self.objects_at(pos_x, pos_y):
+            if obj != entity:
+                obj.on_enter(entity, self, battle)
 
     def place_at_spawn_point(self, position, entity, token=None, battle=None):
         if str(position) not in self.spawn_points:
@@ -648,8 +655,9 @@ class Map():
         return entity_1_squares
     
     def bidirectionally_passable(self, entity, pos_x, pos_y, origin, battle=None, allow_squeeze=True, ignore_opposing=False):
-        if self.passable(entity, pos_x, pos_y, battle, allow_squeeze, origin=origin, ignore_opposing=ignore_opposing) and \
-            self.passable(entity, *origin, battle, allow_squeeze, origin=(pos_x, pos_y), ignore_opposing=ignore_opposing):
+        incorporeal = entity.class_feature('incorporeal_movement')
+        if self.passable(entity, pos_x, pos_y, battle, allow_squeeze, origin=origin, ignore_opposing=ignore_opposing, incorporeal=incorporeal) and \
+            self.passable(entity, *origin, battle, allow_squeeze, origin=(pos_x, pos_y), ignore_opposing=ignore_opposing, incorporeal=incorporeal):
             return True
 
     def passable(self, entity, pos_x, pos_y, battle=None, allow_squeeze=True, origin=None, ignore_opposing=False,

@@ -23,7 +23,7 @@ class PathCompute:
         # Initialize arrays
         distances = [[MAX_DISTANCE] * self.max_y for _ in range(self.max_x)]  # g-cost
         parents   = [[None]         * self.max_y for _ in range(self.max_x)]  # store parents to reconstruct path
-        
+
         # Priority queue items: (f_cost, g_cost, (x, y))
         #  - f_cost = g_cost + heuristic(x,y)
         #  - g_cost = actual distance from source
