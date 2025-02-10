@@ -41,8 +41,8 @@ class SocketIOOutputLogger:
 
 # Defines a class for high level game management
 class GameManagement:
-    def __init__(self, game_session, map_location, socketio, output_logger, tile_px, controllers,
-                 auto_battle=True):
+    def __init__(self, game_session, map_location, other_maps, socketio, output_logger, tile_px, controllers,
+                 auto_battle=True, system_logger=None):
         """
         Initialize the game management
 
@@ -55,6 +55,7 @@ class GameManagement:
         :param auto_battle: whether to auto battle
         """
         self.map_location = map_location
+        self.other_maps = other_maps
         self.game_session = game_session
         self.socketio = socketio
         self.output_logger = output_logger
@@ -64,18 +65,51 @@ class GameManagement:
         self.controllers = controllers
         self.auto_battle = auto_battle
         self.web_controllers = {}
-        self.logger = logging.getLogger('werkzeug')
-        self.logger.setLevel(logging.INFO)
+        self.maps = {}
+        self.current_map_for_user = {}
+        if not system_logger:
+            self.logger = logging.getLogger(__name__)
+            self.logger.setLevel(logging.INFO)
+        else:
+            self.logger = system_logger
 
         if os.path.exists('save.yml'):
             with open('save.yml','r') as f:
                 map_dict = yaml.safe_load(f)
                 self.battle_map = Map.from_dict(game_session, map_dict)
         else:
+            self.logger.info(f"Loading map from {self.map_location}")
             self.battle_map = Map(game_session, self.map_location)
+
+        self.maps['index'] = self.battle_map
+
+        if other_maps:
+            for name, map_location in other_maps.items():
+                self.logger.info(f"Loading map {name} from {map_location}")
+                self.maps[name] = Map(game_session, map_location)
+
+        # add links to the other maps
+        for _, map_obj in self.maps.items():
+            for name, linked_map in self.maps.items():
+                if map_obj!=linked_map:
+                    map_obj.add_linked_map(name, linked_map)
+
         self.battle = None
         self.trigger_handlers = {}
         self.callbacks = {}
+
+    def switch_map_for_user(self, username, map_name):
+        self.logger.info(f"Switching map for {username} to {map_name}")
+        self.current_map_for_user[username] = (map_name, self.maps[map_name])
+
+    def get_map_for_user(self, username):
+        self.logger.info(f"Getting map for {username}")
+        name, _map = self.current_map_for_user.get(username, ('index', self.maps['index']))
+        return _map
+    
+    def get_background_image_for_user(self, username):
+        name, _ = self.current_map_for_user.get(username, ('index', self.maps['index']))
+        return 'maps/' + name + '.png'
 
     def waiting_for_user_input(self):
         return self.waiting_for_user
@@ -164,6 +198,9 @@ class GameManagement:
                                   'message': map_image_url})
         self.socketio.emit('message', {'type': 'initiative', 'message': {}})
         self.socketio.emit('message', {'type': 'turn', 'message': {}})
+
+    def get_available_maps(self):
+        return list(self.maps.keys())
 
     def loop_environment(self):
         if not self.auto_battle:

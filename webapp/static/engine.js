@@ -384,6 +384,16 @@ $(document).ready(() => {
     }
   });
 
+  $('#mapModal').on('submit', '#map-selection-form', function (event) {
+    event.preventDefault();
+    const map_id = $('#map-select').val();
+    ajaxPost('/switch_map', { map: map_id }, (data) => {
+      console.log('Map selection successful:', data);
+      $('#mapModal').modal('hide');
+      refreshTileSet();
+    });
+  });
+
   // --- Tile & Action Event Handlers ---
   $('.tiles-container').on('click', '.execute-action', (e) => {
     targetModeCallback(multiTargetList);

@@ -68,14 +68,11 @@ with open(os.path.join(LEVEL, 'index.json')) as f:
 TITLE = index_data["title"]
 TILE_PX = int(index_data["tile_size"])
 
-if 'background' not in index_data:
-    # auto determine the background name based on the map name
-    BACKGROUND = index_data["map"] + ".png"
-else:
-    BACKGROUND = index_data["background"]
+
 
 LOGIN_BACKGROUND = index_data["login_background"]
 BATTLEMAP = index_data["map"]
+OTHERMAPS = index_data.get("other_maps", {})
 SOUNDTRACKS = index_data["soundtracks"]
 LOGINS = index_data["logins"]
 CONTROLLERS = index_data["default_controllers"]
@@ -103,12 +100,17 @@ game_session.render_for_text = False # render for text is disabled since we are 
 
 current_soundtrack = None
 
+logger = logging.getLogger('werkzeug')
+logger.setLevel(logging.INFO)
+
 current_game = GameManagement(game_session=game_session,
                               map_location=BATTLEMAP,
+                              other_maps=OTHERMAPS,
                               socketio=socketio,
                               output_logger=output_logger,
                               tile_px=TILE_PX,
-                              controllers=CONTROLLERS)
+                              controllers=CONTROLLERS,
+                              system_logger=logger)
 
 i18n.set('locale', 'en')
 
@@ -117,8 +119,7 @@ for extension in EXTENSIONS:
     extension.init(app, current_game, game_session)
 
 
-logger = logging.getLogger('werkzeug')
-logger.setLevel(logging.INFO)
+
 
 # Assuming Natural20 and other dependencies are available in Python, they should be implemented or imported accordingly.
 # This is a placeholder import
@@ -365,17 +366,19 @@ def login():
 @app.route('/')
 def index():
     global current_game, current_soundtrack
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
+    available_maps = current_game.get_available_maps()
     waiting_for_reaction = current_game.waiting_for_reaction
 
     if not logged_in():
         print("not logged in")
         return redirect(url_for('login'))
+    
     if battle_map and battle_map.name:
         background = battle_map.name + ".png"
     else:
-        background = BACKGROUND
+        background = current_game.get_background_image_for_user(session['username'])
 
     file_path = os.path.join(LEVEL, "assets", background)
     image = Image.open(file_path)
@@ -416,6 +419,7 @@ def index():
                            waiting_for_reaction=waiting_for_reaction,
                            soundtrack=current_soundtrack,
                            title=TITLE,
+                           available_maps=available_maps,
                            username=session['username'], role=user_role())
 
 
@@ -434,6 +438,13 @@ def focus():
     y = request.form['y']
 
     socketio.emit('message', {'type': 'focus', 'message': {'x': x, 'y': y}})
+    return jsonify(status='ok')
+
+@app.route('/switch_map', methods=['POST'])
+def switch_map():
+    global current_game
+    map_name = request.form['map']
+    current_game.switch_map_for_user(session['username'], map_name)
     return jsonify(status='ok')
 
 #                 // Fetch combat log messages from the server
@@ -462,7 +473,7 @@ def get_combat_log():
 @app.route('/path', methods=['GET'])
 def compute_path():
     global current_game
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
 
     source = {
@@ -603,7 +614,6 @@ def start_battle_with_initiative():
 def end_turn():
     global waiting_for_reaction, current_game
     battle = current_game.get_current_battle()
-    battle_map = current_game.get_current_battle_map()
     battle.end_turn()
     battle.next_turn()
     try:
@@ -618,7 +628,6 @@ def end_turn():
 
 def continue_game():
     battle = current_game.get_current_battle()
-    battle_map = current_game.get_current_battle_map()
     current_game.game_loop()
 
     current_turn = battle.current_turn()
@@ -640,7 +649,6 @@ def get_turn_order():
 def next_turn():
     global current_game
     battle = current_game.get_current_battle()
-    battle_map = current_game.get_current_battle_map()
     if battle:
         current_turn = battle.current_turn()
         if current_game.waiting_for_user_input():
@@ -668,7 +676,7 @@ def update():
     enable_pov = request.args.get('pov', 'false') == 'true'
     x = int(request.args.get('x'))
     y = int(request.args.get('y'))
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     renderer = JsonRenderer(battle_map, battle)
 
@@ -690,7 +698,7 @@ def update():
 def get_actions():
     global current_game
     current_user = session['username']
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(current_user)
     battle = current_game.get_current_battle()
 
     id = request.args.get('id')
@@ -712,7 +720,7 @@ def get_actions():
 @app.route("/hide", methods=['GET'])
 def get_hiding_spots():
     global current_game
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     entity_id = request.args.get('id')
     entity = battle_map.entity_by_uid(entity_id)
@@ -772,7 +780,7 @@ def action_type_to_class(action_type):
 @app.route('/target', methods=['GET'])
 def get_target():
     global current_game
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     payload = json.loads(request.args.get('payload'))
     
@@ -823,7 +831,7 @@ def get_target():
 @app.route('/spells', methods=['GET'])
 def get_spell():
     global current_game
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
 
     entity_id = request.args.get('id')
@@ -893,7 +901,7 @@ def handle_reaction():
 def manual_roll():
     global current_game
     battle = current_game.get_current_battle()
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     entity_id = request.json['id']
     entity = battle_map.entity_by_uid(entity_id)
     roll = request.json['roll']
@@ -909,7 +917,7 @@ def manual_roll():
 @app.route('/action', methods=['POST'])
 def action():
     global current_game
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     action_request = request.json
     entity_id = action_request['id']
@@ -1121,7 +1129,7 @@ def action():
 # GET /items?id=rumblebelly&action=InteractAction&opts[action_type]=interact&opts[object_action]=loot&opts[target]=3fb25042-df48-4003-8ddc-dd2b04d5fbeb HTTP/1.1
 def get_items():
     global current_game
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     entity_id = request.args.get('id')
     entity = battle_map.entity_by_uid(entity_id)
     if entity is None:
@@ -1140,8 +1148,7 @@ def get_items():
 
 @app.route('/info', methods=['GET'])
 def get_info():
-    battle_map = current_game.get_current_battle_map()
-    battle = current_game.get_current_battle
+    battle_map = current_game.get_map_for_user(session['username'])
     info_id = request.args.get('id')
     # Fetch the necessary information based on the info_id
     entity = battle_map.entity_by_uid(info_id)
@@ -1171,7 +1178,7 @@ def get_turn():
 @app.route('/add', methods=['GET'])
 def add():
     global current_game
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     entity_uid = request.args.get('id')
     entity = battle_map.entity_by_uid(entity_uid)
@@ -1218,7 +1225,7 @@ def set_volume():
 @app.route('/unequip', methods=['POST'])
 def unequip():
     global current_game
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     entity_id = request.form['id']
     item_id = request.form['item_id']
     entity = battle_map.entity_by_uid(entity_id)
@@ -1230,7 +1237,7 @@ def unequip():
 @app.route('/equip', methods=['POST'])
 def equip():
     global current_game
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     entity_id = request.form['id']
     item_id = request.form['item_id']
     entity = battle_map.entity_by_uid(entity_id)
@@ -1243,7 +1250,7 @@ def equip():
 @app.route('/equipment', methods=['GET'])
 def get_equipment():
     global current_game
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     entity_id = request.args.get('id')
     entity = battle_map.entity_by_uid(entity_id)
     if entity:
@@ -1253,7 +1260,7 @@ def get_equipment():
 @app.route('/usable_items', methods=['GET'])
 def usable_items():
     global current_game
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     entity_id = request.args.get('id', None)
     if not entity_id:
         return jsonify({"error": "entity_id parameter is required"}), 400
