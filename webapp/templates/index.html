@@ -89,7 +89,9 @@
                             <label for="map-select">Available Maps</label>
                             <select id="map-select" name="map" class="form-control">
                                 {% for map in available_maps %}
-                                    <option value="{{ map }}">{{ map }}</option>
+                                    {% if map != current_map %}
+                                        <option value="{{ map }}">{{ map }}</option>
+                                    {% endif %}
                                 {% endfor %}
                             </select>
                         </div>

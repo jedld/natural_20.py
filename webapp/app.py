@@ -408,8 +408,10 @@ def index():
     width_px = (map_width + 2) * TILE_PX
     height_px = (map_height + 2) * TILE_PX
     return render_template('index.html', tiles=my_2d_array, tile_size_px=TILE_PX,
-                           background_path=f"assets/{background}", background_width=tiles_dimension_width,
+                           background_path=f"assets/{background}",
+                           background_width=tiles_dimension_width,
                            messages=messages,
+                           current_map=battle_map.name,
                            background_height=tiles_dimension_height,
                            battle=battle,
                            entity_ids=entity_ids,
@@ -445,7 +447,17 @@ def switch_map():
     global current_game
     map_name = request.form['map']
     current_game.switch_map_for_user(session['username'], map_name)
-    return jsonify(status='ok')
+    battle_map = current_game.get_map_for_user(session['username'])
+    if battle_map and battle_map.name:
+        background = battle_map.name + ".png"
+    else:
+        background = current_game.get_background_image_for_user(session['username'])
+    map_width, map_height = battle_map.size
+    tiles_dimension_height = map_height * TILE_PX
+    tiles_dimension_width = map_width * TILE_PX
+    return jsonify(background=f"assets/{background}",
+                   height=tiles_dimension_height,
+                   width=tiles_dimension_width)
 
 #                 // Fetch combat log messages from the server
 # $.get('/api/combat-log', function(data) {
