@@ -56,7 +56,7 @@ class SpellAction(Action):
         return SpellAction.can_cast(entity, battle, opt.get("spell", None))
 
     @staticmethod
-    def can_cast(entity, battle, spell, at_level=None):
+    def can_cast(entity, battle, spell, at_level=None, as_scroll=False):
         if not spell:
             return True
 
@@ -65,14 +65,15 @@ class SpellAction(Action):
         if at_level is None:
             at_level = spell_details['level']
 
-        if spell_details['level'] > 0:
-            total_slots_count = 0
-            for spell_class in spell_details.get("spell_list_classes", []):
-                # check spell slots
-                total_slots_count += entity.spell_slots_count(at_level, spell_class.lower())
+        if not as_scroll:
+            if spell_details['level'] > 0:
+                total_slots_count = 0
+                for spell_class in spell_details.get("spell_list_classes", []):
+                    # check spell slots
+                    total_slots_count += entity.spell_slots_count(at_level, spell_class.lower())
 
-            if total_slots_count == 0:
-                return False
+                if total_slots_count == 0:
+                    return False
 
         if not battle:
             return True

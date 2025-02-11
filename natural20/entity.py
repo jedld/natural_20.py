@@ -1422,6 +1422,7 @@ class Entity(EntityStateEvaluator, Notable):
 
     def usable_items(self):
         usable = []
+
         for k, v in self.inventory.items():
             item_details = self.session.load_equipment(k)
 

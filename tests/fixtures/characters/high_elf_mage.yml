@@ -29,3 +29,6 @@ spellbook:
 - shield
 equipped:
 - dagger
+inventory:
+- type: scroll_of_magic_missile
+  qty: 1

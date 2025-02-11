@@ -216,6 +216,7 @@ def autobuild(session, action_class, entity, battle, map=None, auto_target=True,
 
             # Build a list of possible parameter options
             possible_params = build_params(session, entity, battle, current_info, map=map, auto_target=auto_target, match=match)
+
             if possible_params is None:
                 # If we can't build any parameters, we append None
                 # to represent a failed/invalid build path

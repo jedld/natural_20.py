@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from natural20.action import Action
 from natural20.item_library.healing_potion import HealingPotion
+from natural20.item_library.spell_scroll import SpellScroll
 import pdb
 
 @dataclass
@@ -12,6 +13,8 @@ class UseItemAction(Action):
         self.action_type = action_type
         self.target = None
         self.target_item = None
+        self.at_level = 0
+        self.spell_action = None
 
 
     def __str__(self):
@@ -26,14 +29,16 @@ class UseItemAction(Action):
         action = UseItemAction(self.session, self.source, self.action_type)
         action.target = self.target
         action.target_item = self.target_item
+        action.at_level = self.at_level
+        action.spell_action = self.spell_action
         return action
     
     @staticmethod
     def can(entity, battle):
         return battle is None or entity.total_actions(battle) > 0
 
-    def can_use_on(self, entity):
-        return self.target_item.can_use(entity)
+    def can_use_on(self, entity, battle=None):
+        return self.target_item.can_use(entity, battle)
 
     def usable_items(self):
         return self.source.usable_items()
@@ -61,7 +66,7 @@ class UseItemAction(Action):
 
     def build_next(self, item):
         item_details = self.session.load_equipment(item)
-        if not item_details["usable"]:
+        if not item_details.get("usable"):
             raise Exception(f"item {item_details['name']} not usable!")
 
         klass = UseItemAction.to_item_class(item_details['item_class'])
@@ -71,6 +76,8 @@ class UseItemAction(Action):
     def to_item_class(item_class):
         if item_class == 'HealingPotion':
             klass = HealingPotion
+        elif item_class == 'SpellScroll':
+            klass = SpellScroll
         else:
             raise Exception(f"item class {item_class} not found")
         return klass
@@ -88,8 +95,19 @@ class UseItemAction(Action):
             "type": "use_item",
             "item": self.target_item
         }
-        result_payload.update(self.target_item.resolve(self.source, battle, self))
-        self.result = [result_payload]
+        item_result = self.target_item.resolve(self.source, battle, self)
+
+        if isinstance(item_result, dict):
+            result_payload.update(item_result)
+            self.result = [result_payload]
+        else:
+            self.result = []
+            for item in item_result:
+                if (item['type'] == 'use_item'):
+                    item.update(result_payload)
+                else:
+                    item.update({'target_item': self.target_item})
+                self.result.append(item)
         return self
 
     @staticmethod
