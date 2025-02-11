@@ -390,7 +390,11 @@ $(document).ready(() => {
     ajaxPost('/switch_map', { map: map_id }, (data) => {
       console.log('Map selection successful:', data);
       $('#mapModal').modal('hide');
-      refreshTileSet();
+      refreshTileSet(callback = () => {
+        $('#main-map-area .image-container img').attr('src', data.background);
+        $('#main-map-area .image-container').css({ width: `${data.width}px`, height: `${data.height}px` });
+        $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
+      })
     });
   });
 
