@@ -10,7 +10,7 @@ class HealingPotion(Object):
     def consumable(self):
         return self.properties.get("consumable", False)
 
-    def can_use(self, entity):
+    def can_use(self, entity, battle):
         return True
         # return entity.hp() < entity.max_hp()
 

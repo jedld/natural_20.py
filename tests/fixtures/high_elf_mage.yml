@@ -26,3 +26,6 @@ prepared_spells:
   - magic_missile
   - shield
   - magic_missile
+inventory:
+- type: scroll_of_magic_missile
+  qty: 1

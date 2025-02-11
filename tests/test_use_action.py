@@ -5,7 +5,10 @@ from natural20.battle import Battle
 from natural20.map import Map
 from natural20.player_character import PlayerCharacter
 from natural20.event_manager import EventManager
+from natural20.map_renderer import MapRenderer
+from natural20.utils.action_builder import autobuild
 import random
+import pdb
 
 class TestUseItemAction(unittest.TestCase):
     def setUp(self):
@@ -43,4 +46,15 @@ class TestUseItemAction(unittest.TestCase):
         self.assertEqual(self.entity.item_count("healing_potion"), 0)
 
     def test_spell_scroll(self):
-        
+        self.entity = PlayerCharacter.load(self.session, "high_elf_mage.yml")
+
+        self.npc = self.session.npc('goblin')
+        self.battle.add(self.entity, 'a', position='spawn_point_1', token='C')
+        self.battle.add(self.npc, 'b', position=[1, 1], token='g')
+        self.entity.reset_turn(self.battle)
+        print(MapRenderer(self.map).render(self.battle))
+
+        action = autobuild(self.session, UseItemAction, self.entity, self.battle, self.map, match=['scroll_of_magic_missile', self.npc])
+        self.assertIsInstance(action[0], UseItemAction)
+        self.battle.action(action[0])
+        self.battle.commit(action[0])

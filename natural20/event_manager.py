@@ -289,6 +289,14 @@ class EventManager:
         self.output_logger.log(f"{string}")
 
     def decorate_name(self, entity):
+        if isinstance(entity, tuple) or isinstance(entity, list):
+            decorated_names = [self.decorate_name(e) for e in entity]
+            if not decorated_names:
+                return ""
+            elif len(decorated_names) == 1:
+                return decorated_names[0]
+            else:
+                return ", ".join(decorated_names[:-1]) + " and " + decorated_names[-1]
         return entity.label()
 
     def t(self, token, **options):

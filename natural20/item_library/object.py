@@ -47,8 +47,6 @@ class Object(Entity):
             "cha": 0
         })
 
-        if map:
-            self.session = map.session
         self.statuses = set()
         self.properties = properties
         self.resistances = properties.get('resistances', [])

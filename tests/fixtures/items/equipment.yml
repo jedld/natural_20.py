@@ -136,6 +136,16 @@ ruby_gem:
   name: Ruby Gemstone
   type: gemstone
   weight: 1
+scroll_of_magic_missile:
+  spell: magic_missile
+  level: 1
+  cost: 25
+  name: Scroll of Magic Missile
+  type: scroll
+  item_class: SpellScroll
+  usable: true
+  consumable: true
+  weight: 0.05
 shield:
   bonus_ac: 2
   name: Shield
