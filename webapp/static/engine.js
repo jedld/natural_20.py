@@ -2,18 +2,6 @@
 
 let scale = 1;
 
-// Simple wrappers to reduce duplicate $.ajax boilerplate.
-const ajaxGet = (url, data, onSuccess) => {
-  $.ajax({
-    url,
-    type: 'GET',
-    data,
-    success: onSuccess,
-    error: (jqXHR, textStatus, errorThrown) => {
-      console.error(`Error with GET ${url}:`, textStatus, errorThrown);
-    }
-  });
-};
 
 const ajaxPost = (url, data, onSuccess, isJSON = false) => {
   $.ajax({
@@ -47,7 +35,7 @@ function addToInitiative($btn, battleEntityList) {
 
   if (index === -1) {
     battleEntityList.push({ id, group: 'a', name });
-    ajaxGet('/add', { id }, (data) => {
+    Utils.ajaxGet('/add', { id }, (data) => {
       $('#turn-order').append(data);
       $btn.find('i.glyphicon').removeClass('glyphicon-plus').addClass('glyphicon-minus');
       $btn.css('background-color', 'red');
@@ -191,29 +179,21 @@ $(document).ready(() => {
     socket.emit('register', { username });
   });
 
-  // Refresh functions
-  const refreshTileSet = (is_setup = false, pov = false, x = 0, y = 0, callback = null) => {
-    ajaxGet('/update', { is_setup, pov, x, y }, (data) => {
-      lastMovedEntityBeforeRefresh = null;
-      $('.tiles-container').html(data);
-      if (callback) callback();
-    });
-  };
 
   const refreshTurnOrder = () => {
-    ajaxGet('/turn_order', {}, (data) => {
+    Utils.ajaxGet('/turn_order', {}, (data) => {
       $('#turn-order').html(data);
       $('#battle-turn-order').show();
     });
   };
 
   const refreshTurn = () => {
-    ajaxGet('/turn', {}, (data) => {
+    Utils.ajaxGet('/turn', {}, (data) => {
       $('.game-turn-container').html(data).show();
     });
   };
 
-  refreshTileSet();
+  Utils.refreshTileSet();
 
   // --- Socket Message Handler ---
   socket.on('message', (data) => {
@@ -229,14 +209,14 @@ $(document).ready(() => {
         const canvas = document.querySelector('canvas');
         canvas.width = width + $('.tiles-container').data('tile-size');
         canvas.height = height + $('.tiles-container').data('tile-size');
-        refreshTileSet();
+        Utils.refreshTileSet();
         break;
       }
       case 'move': {
         const animationBuffer = data.message.animation_log;
         const animateFunction = (animationLog, idx) => {
           if (idx >= animationLog.length) {
-            refreshTileSet();
+            Utils.refreshTileSet();
             return;
           }
           const [entity_uid, path, action] = animationLog[idx];
@@ -281,7 +261,7 @@ $(document).ready(() => {
         if (animationBuffer) {
           animateFunction(animationBuffer, 0);
         } else {
-          refreshTileSet();
+          Utils.refreshTileSet();
         }
         break;
       }
@@ -345,13 +325,17 @@ $(document).ready(() => {
         $('#end-battle').hide();
         break;
       case 'reaction':
-        ajaxGet('/reaction', {}, (data) => {
+        Utils.ajaxGet('/reaction', {}, (data) => {
           $('#reaction-modal .reaction-content').html(data);
           $('#reaction-modal').modal('show');
         });
         break;
       case 'dismiss_reaction':
         $('#reaction-modal').modal('hide');
+        break;
+      case 'switch_map':
+        var map_id = data.message.map
+        Utils.switchMap(map_id);
         break;
       default:
         console.log('Unknown message type:', data.type);
@@ -390,7 +374,7 @@ $(document).ready(() => {
     ajaxPost('/switch_map', { map: map_id }, (data) => {
       console.log('Map selection successful:', data);
       $('#mapModal').modal('hide');
-      refreshTileSet(callback = () => {
+      Utils.refreshTileSet(callback = () => {
         $('#main-map-area .image-container img').attr('src', data.background);
         $('#main-map-area .image-container').css({ width: `${data.width}px`, height: `${data.height}px` });
         $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
@@ -426,7 +410,7 @@ $(document).ready(() => {
       }
     } else {
       if (e.metaKey || e.ctrlKey) {
-        refreshTileSet(false, true, coordsx, coordsy);
+        Utils.refreshTileSet(false, true, coordsx, coordsy);
       } else if (e.metaKey || e.shiftKey) {
         ajaxPost('/focus', { x: coordsx, y: coordsy }, (data) => {
           console.log('Focus request successful:', data);
@@ -434,7 +418,7 @@ $(document).ready(() => {
       } else {
         $('.popover-menu').hide();
         let entity_uid = $tile.data('coords-id') || $tile.find('.object-container').data('id');
-        ajaxGet('/actions', { id: entity_uid }, (data) => {
+        Utils.ajaxGet('/actions', { id: entity_uid }, (data) => {
           const $menu = $tile.find('.popover-menu');
           $menu.html(data).toggle();
           const tileRightEdge = $menu.offset().left + $menu.outerWidth();
@@ -543,7 +527,7 @@ $(document).ready(() => {
         action_info: globalActionInfo,
         opts: globalOpts
       });
-      ajaxGet('/target', { payload: data_payload }, (data) => {
+      Utils.ajaxGet('/target', { payload: data_payload }, (data) => {
         const { adv_info, valid_target } = data;
         drawTargetLine(ctx, source, coordsx, coordsy, valid_target);
         if (adv_info) {
@@ -555,7 +539,7 @@ $(document).ready(() => {
     } else {
       $('#coords-box').html(`<p>X: ${coordsx}</p><p>Y: ${coordsy}</p>${tooltip}`);
       if (moveMode && (source.x !== coordsx || source.y !== coordsy)) {
-        ajaxGet('/path', { from: source, to: { x: coordsx, y: coordsy } }, (data) => {
+        Utils.ajaxGet('/path', { from: source, to: { x: coordsx, y: coordsy } }, (data) => {
           if (data.cost.budget < 0) return;
           const available_cost = (data.cost.original_budget - data.cost.budget) * 5;
           movePath = data.path;
@@ -666,7 +650,7 @@ $(document).ready(() => {
   $('#start-battle').click(() => {
     $('#battle-turn-order').fadeIn();
     battle_setup = true;
-    refreshTileSet(true);
+    Utils.refreshTileSet(true);
   });
 
   const showConsole = () => {
@@ -776,14 +760,14 @@ $(document).ready(() => {
           source = { x: coordsx, y: coordsy };
           break;
         case 'select_spell':
-          ajaxGet('/spells', { id: entity_uid, action, opts }, (data) => {
+          Utils.ajaxGet('/spells', { id: entity_uid, action, opts }, (data) => {
             $('.modal-content').html(data);
             $('#modal-1').modal('show');
           });
           break;
         case 'select_item': {
           const $entity_tile = $(`.tile[data-coords-id="${entity_uid}"]`);
-          ajaxGet('/usable_items', { id: entity_uid, action, opts }, (data) => {
+          Utils.ajaxGet('/usable_items', { id: entity_uid, action, opts }, (data) => {
             $entity_tile.find('.popover-menu').html(data);
           });
           break;
@@ -818,7 +802,7 @@ $(document).ready(() => {
           break;
         case 'select_items':
           function initiateTransfer() {
-            ajaxGet('/items', { id: entity_uid, action, opts }, (data) => {
+            Utils.ajaxGet('/items', { id: entity_uid, action, opts }, (data) => {
               $('.modal-content').html(data);
               $('#modal-1').modal('show');
               $('.loot-items-form').on('submit', function (e) {
@@ -872,7 +856,7 @@ $(document).ready(() => {
 
   $('#turn-order').on('click', '#add-more', function () {
     battle_setup = !battle_setup;
-    refreshTileSet(battle_setup);
+    Utils.refreshTileSet(battle_setup);
   });
 
   $('.game-turn-container').on('click', '#player-end-turn', function () {
@@ -917,7 +901,7 @@ $(document).ready(() => {
 
   $(document).on('mouseenter', '.hide-action', function () {
     const entity_uid = $(this).closest('.tile').data('coords-id');
-    ajaxGet('/hide', { id: entity_uid }, (data) => {
+    Utils.ajaxGet('/hide', { id: entity_uid }, (data) => {
       data.hiding_spots.forEach(value => {
         $(`.tile[data-coords-x="${value[0]}"][data-coords-y="${value[1]}"]`).css('background-color', 'rgba(0, 255, 0, 0.5)');
       });

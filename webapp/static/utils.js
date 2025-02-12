@@ -10,6 +10,35 @@ const Utils = {
     const overlay = btn.nextElementSibling;
     overlay.style.display = (overlay.style.display === "none" || overlay.style.display === "") ? "block" : "none";
   },
+  switchMap: function (mapId) {
+    ajaxPost('/switch_map', { map: mapId }, (data) => {
+      console.log('Map selection successful:', data);
+      $('#mapModal').modal('hide');
+      Utils.refreshTileSet(callback = () => {
+        $('#main-map-area .image-container img').attr('src', data.background);
+        $('#main-map-area .image-container').css({ width: `${data.width}px`, height: `${data.height}px` });
+        $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
+      })
+    });
+  },
+  refreshTileSet: function(is_setup = false, pov = false, x = 0, y = 0, callback = null)  {
+    Utils.ajaxGet('/update', { is_setup, pov, x, y }, (data) => {
+      lastMovedEntityBeforeRefresh = null;
+      $('.tiles-container').html(data);
+      if (callback) callback();
+    });
+  },
+  ajaxGet: function (url, data, onSuccess) {
+    $.ajax({
+      url,
+      type: 'GET',
+      data,
+      success: onSuccess,
+      error: (jqXHR, textStatus, errorThrown) => {
+        console.error(`Error with GET ${url}:`, textStatus, errorThrown);
+      }
+    });
+  },
   rollable: function (entity_id, roll_str, advantage, disadvantage, description) {
     json_data = JSON.stringify({
       id: entity_id,

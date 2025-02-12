@@ -18,6 +18,7 @@ class AttackAction(Action):
         self.thrown = None
         self.advantage_mod = None
         self.attack_roll = None
+        self.as_bonus_action = False
 
     def second_hand(self):
         return False
@@ -173,6 +174,8 @@ class AttackAction(Action):
         
         if item['as_reaction']:
             battle.consume(item['source'], 'reaction')
+        elif item['as_bonus_action']:
+            battle.consume(item['source'], 'bonus_action')
         elif item['second_hand']:
             battle.consume(item['source'], 'bonus_action')
         else:
@@ -324,6 +327,7 @@ class AttackAction(Action):
                 'damage': damage,
                 'ammo': ammo_type,
                 'as_reaction': bool(self.as_reaction),
+                'as_bonus_action': bool(self.as_bonus_action),
                 'second_hand': self.second_hand(),
                 'npc_action': self.npc_action
             }
