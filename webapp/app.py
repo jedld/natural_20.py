@@ -132,11 +132,31 @@ def user_role():
     login_info = next((login for login in LOGINS if login["name"].lower() == session['username']), None)
     return login_info["role"] if login_info else []
 
+def check_and_notify_map_change(pov_map, pov_entity):
+    global logger, current_game
+    new_battle_map = current_game.get_map_for_entity(pov_entity)
+    logger.info(f"pov_map: {pov_map.name} new_battle_map: {new_battle_map.name}")
+
+    if new_battle_map != pov_map:
+        current_game.switch_map_for_user(session['username'], new_battle_map.name)
+        web_controller = current_game.get_web_controller_user(session['username'])
+        if web_controller:
+            for sid in web_controller.sids:
+                socketio.emit('message', {'type': 'switch_map', 'message': {'map': new_battle_map.name}}, to=sid)
+
+
 def commit_and_update(action):
-    global current_game
+    global current_game, logger
 
     battle = current_game.get_current_battle()
     battle_map = current_game.get_current_battle_map()
+    pov_entity = current_game.get_pov_entity_for_user(session['username'])
+
+    if pov_entity:
+        pov_map = current_game.get_map_for_entity(pov_entity)
+    else:
+        pov_entities = entities_controlled_by(session['username'], battle_map)
+        pov_entity = pov_entities[0] if pov_entities else None
 
     if battle:
         battle.action(action)
@@ -149,6 +169,10 @@ def commit_and_update(action):
       for event in events:
         action.apply(None, event, session=game_session)
 
+   
+    # did the map change for the current pov?
+    check_and_notify_map_change(pov_map, pov_entity)
+
     if battle:
         socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
         battle.clear_animation_logs()
@@ -156,6 +180,9 @@ def commit_and_update(action):
         current_game.loop_environment()
         socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
     socketio.emit('message', {'type': 'turn', 'message': {}})
+
+
+
 
 def controller_of(entity_uid, username):
     if username == 'dm':
@@ -375,10 +402,8 @@ def index():
         print("not logged in")
         return redirect(url_for('login'))
     
-    if battle_map and battle_map.name:
-        background = battle_map.name + ".png"
-    else:
-        background = current_game.get_background_image_for_user(session['username'])
+
+    background = current_game.get_background_image_for_user(session['username'])
 
     file_path = os.path.join(LEVEL, "assets", background)
     image = Image.open(file_path)
@@ -448,10 +473,7 @@ def switch_map():
     map_name = request.form['map']
     current_game.switch_map_for_user(session['username'], map_name)
     battle_map = current_game.get_map_for_user(session['username'])
-    if battle_map and battle_map.name:
-        background = battle_map.name + ".png"
-    else:
-        background = current_game.get_background_image_for_user(session['username'])
+    background = current_game.get_background_image_for_user(session['username'])
     map_width, map_height = battle_map.size
     tiles_dimension_height = map_height * TILE_PX
     tiles_dimension_width = map_width * TILE_PX
@@ -529,16 +551,18 @@ def handle_connect(data):
     ws = request.sid
     web_controller_for_user = current_game.get_web_controller_user(username, WebController(game_session, username))
     web_controller_for_user.add_sid(ws)
-
     battle = current_game.get_current_battle()
-    if battle:
-        for info in CONTROLLERS:
-            users = info.get('controllers', [])
-            entity_uid = info.get('entity_uid')
-            if username in users:
-                entity = battle.map.entity_by_uid(entity_uid)
-                if entity:
-                    web_controller_for_user.add_user(username)
+
+    for info in CONTROLLERS:
+        users = info.get('controllers', [])
+        entity_uid = info.get('entity_uid')
+        if username in users:
+            entity = current_game.get_entity_by_uid(entity_uid)
+            if entity:
+                web_controller_for_user.add_user(username)
+                current_game.set_pov_entity_for_user(username, entity)
+
+                if battle:
                     battle.set_controller_for(entity, web_controller_for_user)
 
     if not first_connect:
@@ -692,12 +716,15 @@ def update():
     battle = current_game.get_current_battle()
     renderer = JsonRenderer(battle_map, battle)
 
-    pov_entities = None
+    pov_entities = [current_game.get_pov_entity_for_user(session['username'])]
 
     if enable_pov and 'dm' in user_role():
         entity = battle_map.entity_at(x, y)
         if entity:
+            current_game.set_pov_entity_for_user(session['username'], entity)
             pov_entities = [entity]
+        else:
+            current_game.set_pov_entity_for_user(session['username'], None)
     else:
         if 'dm' in user_role():
             pov_entities = None
@@ -963,6 +990,7 @@ def action():
                     last_coords = move_path[-1]
                     if battle_map.placeable(entity, last_coords[0], last_coords[1]):
                         battle_map.move_to(entity, *last_coords, battle)
+                        check_and_notify_map_change(battle_map, entity)
                         if battle:
                             socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1],
                                                                                 'animation_log': battle.get_animation_logs()}})

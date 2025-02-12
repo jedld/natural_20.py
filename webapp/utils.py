@@ -66,6 +66,7 @@ class GameManagement:
         self.auto_battle = auto_battle
         self.web_controllers = {}
         self.maps = {}
+        self.pov_entity_for_user = {}
         self.current_map_for_user = {}
         if not system_logger:
             self.logger = logging.getLogger(__name__)
@@ -79,14 +80,14 @@ class GameManagement:
                 self.battle_map = Map.from_dict(game_session, map_dict)
         else:
             self.logger.info(f"Loading map from {self.map_location}")
-            self.battle_map = Map(game_session, self.map_location)
+            self.battle_map = Map(game_session, self.map_location, name='index')
 
         self.maps['index'] = self.battle_map
 
         if other_maps:
             for name, map_location in other_maps.items():
                 self.logger.info(f"Loading map {name} from {map_location}")
-                self.maps[name] = Map(game_session, map_location)
+                self.maps[name] = Map(game_session, map_location, name=name)
 
         # add links to the other maps
         for _, map_obj in self.maps.items():
@@ -98,6 +99,14 @@ class GameManagement:
         self.trigger_handlers = {}
         self.callbacks = {}
 
+    def get_pov_entity_for_user(self, username):
+        self.logger.info(f"Getting POV entity for {username}")
+        return self.pov_entity_for_user.get(username, None)
+
+    def set_pov_entity_for_user(self, username, entity):
+        self.logger.info(f"Setting POV entity for {username} to {entity.name}")
+        self.pov_entity_for_user[username] = entity
+
     def switch_map_for_user(self, username, map_name):
         self.logger.info(f"Switching map for {username} to {map_name}")
         self.current_map_for_user[username] = (map_name, self.maps[map_name])
@@ -106,7 +115,25 @@ class GameManagement:
         self.logger.info(f"Getting map for {username}")
         name, _map = self.current_map_for_user.get(username, ('index', self.maps['index']))
         return _map
+
+    def get_map_for_entity(self, entity):
+        for _, map_obj in self.maps.items():
+            if isinstance(entity, str):
+                _entity = map_obj.get_entity_by_uid(entity)
+            else:
+                _entity = entity
+
+            if _entity in map_obj.entities:
+                return map_obj
+        return None
     
+    def get_entity_by_uid(self, entity_uid):
+        for _, map_obj in self.maps.items():
+            entity = map_obj.entity_by_uid(entity_uid)
+            if entity:
+                return entity
+        return None
+
     def get_background_image_for_user(self, username):
         name, _ = self.current_map_for_user.get(username, ('index', self.maps['index']))
         return 'maps/' + name + '.png'
