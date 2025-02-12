@@ -97,7 +97,7 @@ class StoneWallDirectional(StoneWall):
         if self.border[3] and origin_pos[0] < pos_x:
             return not self.dead()
 
-        return self.dead()
+        return False
 
     def wall(self, origin_pos = None):
         return True

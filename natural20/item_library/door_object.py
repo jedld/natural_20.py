@@ -312,7 +312,7 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
             if self.door_pos == 3 and origin[0] < pos_x:
                 return True
 
-            return True
+            return False
 
         def check_window_opaque():
             if self.window[0] and origin[1] < pos_y:
