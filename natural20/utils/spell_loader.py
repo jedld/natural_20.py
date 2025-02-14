@@ -17,6 +17,7 @@ def load_spell_class(spell_name):
   from natural20.spell.spare_the_dying_spell import SpareTheDyingSpell
   from natural20.spell.ice_knife_spell import IceKnifeSpell
   from natural20.spell.shield_of_faith_spell import ShieldOfFaithSpell
+  from natural20.spell.spiritual_weapon_spell import SpiritualWeaponSpell
 
   if spell_name == 'ShockingGraspSpell':
       spell_class = ShockingGraspSpell
@@ -54,6 +55,8 @@ def load_spell_class(spell_name):
       spell_class = IceKnifeSpell
   elif spell_name == 'ShieldOfFaithSpell':
       spell_class = ShieldOfFaithSpell
+  elif spell_name == 'SpiritualWeaponSpell':
+      spell_class = SpiritualWeaponSpell
   else:
       raise Exception(f"spell class not found {spell_name}")
   

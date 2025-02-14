@@ -1,6 +1,7 @@
 from natural20.entity import Entity
 from natural20.actions.move_action import MoveAction
 from natural20.actions.attack_action import AttackAction
+from natural20.actions.attack_action import LinkedAttackAction
 
 class SpiritualWeapon(Entity):
     def __init__(self, owner, name, description, attributes, **kwargs):
@@ -8,9 +9,9 @@ class SpiritualWeapon(Entity):
         self.owner = owner
         self.damage = kwargs.get('damage', '1d8')
         self.group = owner.group
-        self.properties({
+        self.properties = {
             'speed': 20
-        })
+        }
         spell = kwargs.get('spell', {})
         spell_classes = spell.get('spell_list_classes', [])
         class_types = spell_classes if spell_classes else ['wizard']
@@ -25,6 +26,12 @@ class SpiritualWeapon(Entity):
             "damage_die": self.damage,
             "damage_type": "force"
         }
+
+    def size(self):
+        return 'medium'
+
+    def hp(self):
+        return None
 
     def npc(self):
         return True
@@ -41,6 +48,7 @@ class SpiritualWeapon(Entity):
     def opaque(self, origin=None):
         return False
 
+
     def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True):
         actions = []
 
@@ -50,7 +58,7 @@ class SpiritualWeapon(Entity):
         if battle:
             if battle.current_turn() == self.owner:
                 actions.append(MoveAction(session, self, 'move'))
-                attack = AttackAction(session, self, 'attack')
+                attack = LinkedAttackAction(session, self, 'attack')
                 attack.npc_action = self.npc_action
                 attack.as_bonus_action = True
                 actions.append(attack)

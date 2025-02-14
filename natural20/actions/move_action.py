@@ -23,7 +23,10 @@ class MoveAction(Action):
         self.as_bonus_action = False
 
     def __str__(self):
-        return f"move to {self.move_path[-1]}"
+        if len(self.move_path) > 0:
+            return f"move to {self.move_path[-1]}"
+        else:
+            return "move"
     
     def __repr__(self):
         if self.move_path:

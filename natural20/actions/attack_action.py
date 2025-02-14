@@ -402,6 +402,7 @@ class AttackAction(Action):
                 'damage_roll': damage_roll,
                 'attack_roll': attack_roll,
                 'as_reaction': bool(self.as_reaction),
+                'as_bonus_action': bool(self.as_bonus_action),
                 'target_ac': target.armor_class,
                 'cover_ac': cover_ac_adjustments,
                 'ammo': ammo_type,
@@ -529,3 +530,18 @@ class TwoWeaponAttackAction(AttackAction):
 
     def __str__(self):
         return f"TwoWeaponAttack({self.using})"
+
+class LinkedAttackAction(AttackAction):
+    def __init__(self, session, source, action_type, opts=None):
+        super().__init__(session, source, action_type, opts)
+
+    @staticmethod
+    def can(entity, battle, options=None):
+        if hasattr(entity, 'owner') and entity.owner:
+            entity = entity.owner
+            return super().can(entity, battle, options)
+
+    def consume_resource(battle, item):
+        if item.get('source'):
+            item['source'] = item['source'].owner
+        super().consume_resource(battle, item)

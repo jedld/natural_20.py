@@ -23,7 +23,7 @@ class MagicMissileSpell(Spell):
     def compute_hit_probability(self, battle, opts = None):
         return 1.0
 
-    def resolve(self, entity, battle, spell_action):
+    def resolve(self, entity, battle, spell_action, _battle_map):
         targets = spell_action.target
 
         result = []

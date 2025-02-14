@@ -287,5 +287,24 @@ class TestSpellAction(unittest.TestCase):
         # mage armor should take effect
         self.assertEqual(self.entity.armor_class(), 15)
 
+    def test_spiritual_weapon(self):
+        self.entity = PlayerCharacter.load(self.session, 'dwarf_cleric.yml')
+        self.battle.add(self.entity, 'a', position=[0, 1])
+        self.battle.start()
+        self.entity.reset_turn(self.battle)
+        self.battle.set_current_turn(self.entity)
+        print(MapRenderer(self.battle_map).render())
+        action = autobuild(self.session, SpellAction, self.entity, self.battle, self.battle_map,
+                          match=['spiritual_weapon'])[0]
+        self.assertIsInstance(action, SpellAction)
+        self.battle.action(action)
+        self.battle.commit(action)
+        print(MapRenderer(self.battle_map).render())
+        spiritual_weapon = self.battle_map.entity_at(0, 2)
+        available_spiritual_weapon_actions = spiritual_weapon.available_actions(self.session, self.battle)
+        self.assertEqual(spiritual_weapon.hp(), None)
+        self.assertEqual([str(a) for a in available_spiritual_weapon_actions],  ['move', 'spiritual_weapon uses Spiritual Weapon on None'])
+
+
 if __name__ == '__main__':
     unittest.main()

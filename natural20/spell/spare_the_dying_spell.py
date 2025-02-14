@@ -34,7 +34,7 @@ class SpareTheDyingSpell(Spell):
     def avg_damage(self, battle, opts=None):
         return 0
 
-    def resolve(self, entity, battle, spell_action):
+    def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target
         return [{
             "source": entity,

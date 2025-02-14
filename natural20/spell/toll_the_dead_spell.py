@@ -57,7 +57,7 @@ class TollTheDeadSpell(Spell):
 
         return 1.0 - result.prob(entity.spell_save_dc("wisdom"))
 
-    def resolve(self, entity, battle, spell_action):
+    def resolve(self, entity, battle, spell_action, _battle_map):
             target = spell_action.target
 
             result = target.save_throw('wisdom', battle)

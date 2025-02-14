@@ -60,7 +60,7 @@ class MageArmorSpell(Spell):
         if entity.wearing_armor():
             entity.dismiss_effect(opts['effect'])
 
-    def resolve(self, entity, battle, spell_action):
+    def resolve(self, entity, battle, spell_action, _battle_map):
         return [{
             'type': 'mage_armor',
             'target': spell_action.target,

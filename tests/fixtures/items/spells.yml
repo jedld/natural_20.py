@@ -297,6 +297,23 @@ shocking_grasp:
   spell_list_classes:
     - Sorcerer
     - Wizard
+spiritual_weapon:
+  label: Spiritual Weapon
+  casting_time: 1:bonus_action
+  level: 2
+  duration: 1m
+  name: Spiritual Weapon
+  range: 60
+  school: evocation
+  type: summoning
+  spell_list_classes:
+    - Cleric
+  components:
+    - verbal
+    - somatic
+  description: |
+    You create a floating, spectral weapon within range that lasts for the duration or until you cast this spell again. When you cast the spell, you can make a melee spell attack against a creature within 5 feet of the weapon. On a hit, the target takes force damage equal to 1d8 + your spellcasting ability modifier.
+    As a bonus action on your turn, you can move the weapon up to 20 feet and repeat
 true_strike:
   label: True Strike
   casting_time: 1:action

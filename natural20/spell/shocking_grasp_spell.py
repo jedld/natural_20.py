@@ -34,7 +34,7 @@ class ShockingGraspSpell(AttackSpell):
         target_ac, _cover_ac = effective_ac(battle, self.source, self.action.target)
         return attack_roll.prob(target_ac)
 
-    def resolve(self, entity, battle, spell_action):
+    def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target
         advantage_override = {
             "action": spell_action

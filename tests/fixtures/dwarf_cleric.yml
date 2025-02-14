@@ -4,9 +4,9 @@ race: dwarf
 subrace: mountain_dwarf
 pronoun: she/her/hers
 classes:
-  cleric: 2
+  cleric: 3
 description: A mountain dwarf cleric with a strong sense of justice
-level: 2
+level: 3
 hit_die: inherit
 max_hp: 8
 ability:
@@ -20,6 +20,7 @@ prepared_spells:
 - sacred_flame
 - cure_wounds
 - guiding_bolt
+- spiritual_weapon
 equipped:
 - dagger
 - scale_mail

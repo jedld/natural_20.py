@@ -26,7 +26,7 @@ class BlessSpell(Spell):
             'next': set_target
         }
 
-    def resolve(self, entity, battle, spell_action):
+    def resolve(self, entity, battle, spell_action, _battle_map):
         targets = spell_action.target
         results = []
         if not isinstance(targets, list):

@@ -33,7 +33,7 @@ class HealingWordSpell(Spell):
     def avg_damage(self, battle, opts=None):
         return -self._heal(battle, opts).expected()
 
-    def resolve(self, entity, battle, spell_action):
+    def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target
 
         heal_roll = self._heal(battle)
