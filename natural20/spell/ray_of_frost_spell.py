@@ -38,7 +38,7 @@ class RayOfFrostSpell(AttackSpell):
     def avg_damage(self, battle, opts=None):
         return self._damage(battle, opts).expected()
 
-    def resolve(self, entity, battle, spell_action):
+    def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target
 
         hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})

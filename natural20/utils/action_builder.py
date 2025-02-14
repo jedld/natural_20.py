@@ -194,14 +194,15 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
 
             # Check all 8 directions (3x3 grid minus the center)
             position_choices = []
-            for dx in range(-1, 2):
-                for dy in range(-1, 2):
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
                     if dx == 0 and dy == 0:
                         continue
 
                     new_x = cur_x + dx
                     new_y = cur_y + dy
                     if (map.passable(entity, new_x, new_y, battle, allow_squeeze=False)
+                        and map.can_see_square(entity, (new_x, new_y))
                             and map.placeable(entity, new_x, new_y, battle, squeeze=False)):
                         position_choices.append([new_x, new_y])
             params_list.append(position_choices)

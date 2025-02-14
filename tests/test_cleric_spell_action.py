@@ -101,6 +101,34 @@ class TestClericSpellAction(unittest.TestCase):
         result = self.entity2.save_throw('wisdom', self.battle)
         self.assertEqual(str(result),"d20(19) + 1")
 
+    def test_spiritual_weapon(self):
+        self.battle.add(self.entity, 'a', position=[0, 1])
+        self.battle.start()
+        self.entity.reset_turn(self.battle)
+        self.battle.set_current_turn(self.entity)
+        print(MapRenderer(self.battle_map).render())
+        action = autobuild(self.session, SpellAction, self.entity, self.battle, self.battle_map,
+                          match=['spiritual_weapon'])[0]
+        self.assertIsInstance(action, SpellAction)
+        self.battle.action(action)
+        self.battle.commit(action)
+        print(MapRenderer(self.battle_map).render())
+        spiritual_weapon = self.battle_map.entity_at(0, 6)
+        available_spiritual_weapon_actions = spiritual_weapon.available_actions(self.session, self.battle)
+        self.assertEqual(spiritual_weapon.hp(), None)
+        self.assertEqual([str(a) for a in available_spiritual_weapon_actions],  ['move', 'spiritual_weapon uses Spiritual Weapon on None'])
+        self.assertEqual(self.entity.has_casted_effect('spiritual_weapon'), True)
+        self.entity.reset_turn(self.battle)
+        # player casts it again, should dismiss the previous ome
+        action = autobuild(self.session, SpellAction, self.entity, self.battle, self.battle_map,
+                          match=['spiritual_weapon'])[0]
+        self.battle.action(action)
+        self.battle.commit(action)
+        print(MapRenderer(self.battle_map).render())
+        spiritual_weapon = self.battle_map.entity_at(0, 6)
+        self.assertEqual(spiritual_weapon, None)
+
+
     def test_compute_hit_probability(self):
         self.entity.ability_scores['wis'] = 20
         self.npc = self.session.npc('ogre')
@@ -117,8 +145,8 @@ class TestClericSpellAction(unittest.TestCase):
         self.npc = self.session.npc('skeleton')
         self.battle.add(self.npc, 'b', position=[0, 6])
         auto_build_actions = autobuild(self.session, SpellAction, self.entity, self.battle)
-        self.assertEqual(len(auto_build_actions), 3)
-        self.assertEqual([str(a) for a in  auto_build_actions], ['SpellAction: sacred_flame', 'SpellAction: cure_wounds', 'SpellAction: guiding_bolt'])
+        self.assertEqual(len(auto_build_actions), 4)
+        self.assertEqual([str(a) for a in  auto_build_actions], ['SpellAction: sacred_flame', 'SpellAction: cure_wounds', 'SpellAction: guiding_bolt', 'SpellAction: spiritual_weapon'])
 
 if __name__ == '__main__':
     unittest.main()
