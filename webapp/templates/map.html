@@ -150,7 +150,7 @@
                 </ul>
               </div>
               
-              {% if tile['hp'] is defined %}
+              {% if tile['hp'] is defined and tile['hp'] is not none %}
                 {% set health_width = (tile['hp'] / tile['max_hp']) * image_size_px %}
                 {% set color = 'red' if (tile['hp'] / tile['max_hp']) < 0.2 else 'green' %}
                 <div class="health-bar"

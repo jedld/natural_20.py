@@ -800,6 +800,23 @@ $(document).ready(() => {
               }, true);
           };
           break;
+        case 'select_empty_space':
+          $('.popover-menu').hide();
+          $('#modal-1').modal('hide');
+          source = { x: coordsx, y: coordsy, entity_uid };
+          targetModeMaxRange = data.range_max !== undefined ? data.range_max : data.range;
+          targetMode = true;
+          globalActionInfo = action;
+          globalOpts = opts;
+          globalSourceEntity = entity_uid;
+          targetModeCallback = (target) => {
+            ajaxPost('/action', { id: entity_uid, action, opts, target },
+              (data) => {
+                console.log('Action request successful:', data);
+                refreshTurn();
+              }, true);
+          };
+          break;
         case 'select_items':
           function initiateTransfer() {
             Utils.ajaxGet('/items', { id: entity_uid, action, opts }, (data) => {

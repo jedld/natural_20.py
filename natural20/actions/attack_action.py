@@ -538,8 +538,7 @@ class LinkedAttackAction(AttackAction):
     @staticmethod
     def can(entity, battle, options=None):
         if hasattr(entity, 'owner') and entity.owner:
-            entity = entity.owner
-            return super().can(entity, battle, options)
+            return AttackAction.can(entity.owner, battle, options)
 
     def consume_resource(battle, item):
         if item.get('source'):

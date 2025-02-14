@@ -2,6 +2,7 @@ from natural20.entity import Entity
 from natural20.actions.move_action import MoveAction
 from natural20.actions.attack_action import AttackAction
 from natural20.actions.attack_action import LinkedAttackAction
+import uuid
 
 class SpiritualWeapon(Entity):
     def __init__(self, owner, name, description, attributes, **kwargs):
@@ -10,7 +11,8 @@ class SpiritualWeapon(Entity):
         self.damage = kwargs.get('damage', '1d8')
         self.group = owner.group
         self.properties = {
-            'speed': 20
+            'speed': 20,
+            'name' : f"{owner.name}'s Spiritual Weapon",
         }
         spell = kwargs.get('spell', {})
         spell_classes = spell.get('spell_list_classes', [])
@@ -26,11 +28,15 @@ class SpiritualWeapon(Entity):
             "damage_die": self.damage,
             "damage_type": "force"
         }
+        self.entity_uid = str(uuid.uuid4())
 
     def size(self):
         return 'medium'
 
     def hp(self):
+        return None
+    
+    def max_hp(self):
         return None
 
     def npc(self):
@@ -38,6 +44,9 @@ class SpiritualWeapon(Entity):
 
     def token(self):
         return ["⚔"]
+    
+    def token_image(self):
+        return 'token_spiritual_weapon.png'
 
     def placeable(self):
         return False
@@ -63,4 +72,11 @@ class SpiritualWeapon(Entity):
                 attack.as_bonus_action = True
                 actions.append(attack)
                 return actions
+        else:
+            actions.append(MoveAction(session, self, 'move'))
+            attack = LinkedAttackAction(session, self, 'attack')
+            attack.npc_action = self.npc_action
+            attack.as_bonus_action = True
+            actions.append(attack)
+            return actions
         return []
