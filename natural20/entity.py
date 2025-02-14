@@ -78,6 +78,9 @@ class Entity(EntityStateEvaluator, Notable):
 
     def class_descriptor(self):
         return self.name.lower()
+    
+    def class_feature(self, feature):
+        return False
 
     def class_and_level(self):
         return []
@@ -200,6 +203,8 @@ class Entity(EntityStateEvaluator, Notable):
         return self.properties.get('languages', [])
         
     def long_jump_distance(self):
+        if not self.ability_scores.get('str'):
+            return 0
         return self.ability_scores.get('str')
 
     def passive_perception(self):
@@ -429,6 +434,8 @@ class Entity(EntityStateEvaluator, Notable):
         self.statuses.remove('prone')
 
     def standing_jump_distance(self):
+        if not self.ability_scores.get('str'):
+            return 0
         return int(self.ability_scores.get('str') / 2)
     
     def resistant_to(self, damage_type):

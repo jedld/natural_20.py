@@ -11,7 +11,7 @@ import importlib
 from natural20.ai.path_compute import PathCompute
 from natural20.web.json_renderer import JsonRenderer
 from webapp.controller.web_controller import WebController, ManualControl
-from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
+from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction, LinkedAttackAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.second_wind_action import SecondWindAction
 from natural20.actions.disengage_action import DisengageAction, DisengageBonusAction
@@ -135,6 +135,10 @@ def user_role():
 def check_and_notify_map_change(pov_map, pov_entity):
     global logger, current_game
     new_battle_map = current_game.get_map_for_entity(pov_entity)
+    if pov_map is None:
+        return
+    if new_battle_map is None:
+        return
     logger.info(f"pov_map: {pov_map.name} new_battle_map: {new_battle_map.name}")
 
     if new_battle_map != pov_map:
@@ -152,11 +156,11 @@ def commit_and_update(action):
     battle_map = current_game.get_current_battle_map()
     pov_entity = current_game.get_pov_entity_for_user(session['username'])
 
-    if pov_entity:
-        pov_map = current_game.get_map_for_entity(pov_entity)
-    else:
+    if not pov_entity:
         pov_entities = entities_controlled_by(session['username'], battle_map)
         pov_entity = pov_entities[0] if pov_entities else None
+
+    pov_map = current_game.get_map_for_entity(pov_entity)
 
     if battle:
         battle.action(action)
@@ -751,6 +755,7 @@ def get_actions():
         else:
             return jsonify(error="Forbidden"), 403
     object_ = battle_map.object_by_uid(id)
+
     if object_:
         return render_template('actions.html', entity=object_, battle=battle, session=game_session, map=battle_map)
 
@@ -813,6 +818,8 @@ def action_type_to_class(action_type):
         return InteractAction
     elif action_type == 'LookAction':
         return LookAction
+    elif action_type == 'LinkedAttackAction':
+        return LinkedAttackAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
 
@@ -975,6 +982,8 @@ def action():
                 target.append(battle_map.entity_by_uid(entity_uids))
         else:
             target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
+            if not target:
+                target = [target_coords['x'], target_coords['y']]
 
     try:
         if action_type == 'MoveAction':
