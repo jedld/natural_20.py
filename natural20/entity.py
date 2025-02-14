@@ -236,6 +236,9 @@ class Entity(EntityStateEvaluator, Notable):
         if effect not in self.casted_effects:
             self.casted_effects.append(effect)
 
+    def has_casted_effect(self, effect):
+        return effect in self.casted_effects
+
     def has_spell_effect(self, spell):
         active_effects = [effect for effects in self.effects.values() for effect in effects if not effect.get('expiration') or effect.get('expiration') > self.session.game_time]
         return any(effect['effect'].id == spell for effect in active_effects)

@@ -27,7 +27,7 @@ class ExpeditiousRetreatSpell(Spell):
     def dash_override(entity, effect, opts=None):
         return True
 
-    def resolve(self, entity, battle, spell_action):
+    def resolve(self, entity, battle, spell_action, _battle_map):
         return [{
             'type': 'expeditious_retreat',
             'target': entity,

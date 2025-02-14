@@ -74,7 +74,7 @@ class ShieldSpell(Spell):
         else:
            return [[], False]
 
-    def resolve(self, entity, battle, spell_action):
+    def resolve(self, entity, battle, spell_action, _battle_map):
         return [{
             'type': 'shield',
             'target': spell_action.source,

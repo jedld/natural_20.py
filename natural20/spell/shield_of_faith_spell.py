@@ -50,7 +50,7 @@ class ShieldOfFaithSpell(Spell):
         return 2
 
 
-    def resolve(self, entity, battle, spell_action):
+    def resolve(self, entity, battle, spell_action, _battle_map):
         return [{
             'type': 'shield_of_faith',
             'target': spell_action.target,
