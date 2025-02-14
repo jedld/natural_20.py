@@ -95,7 +95,7 @@ class UseItemAction(Action):
             "type": "use_item",
             "item": self.target_item
         }
-        item_result = self.target_item.resolve(self.source, battle, self)
+        item_result = self.target_item.resolve(self.source, battle, self, map)
 
         if isinstance(item_result, dict):
             result_payload.update(item_result)

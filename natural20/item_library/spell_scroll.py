@@ -41,8 +41,8 @@ class SpellScroll(Object):
         interact_action.spell_action.action = interact_action
         return interact_action.spell_action.build_map(interact_action)
 
-    def resolve(self, entity, battle, action):
-        result = action.spell_action.resolve(entity, battle, action)
+    def resolve(self, entity, battle, action, battle_map):
+        result = action.spell_action.resolve(entity, battle, action, battle_map)
         result.append({
             'source': entity,
             'spell': self.spell,

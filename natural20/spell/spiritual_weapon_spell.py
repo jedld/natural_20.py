@@ -1,11 +1,18 @@
 from natural20.spell.spell import Spell, consume_resource
 from natural20.spell.objects.spiritual_weapon import SpiritualWeapon
-
+import pdb
 class SpiritualWeaponEffect:
-    def __init__(self, spiritual_weapon, battle_map):
-        self.spiritual_weapon = None
+    def __init__(self, source, spiritual_weapon, battle_map):
+        self.source = source
+        self.spiritual_weapon = spiritual_weapon
         self.battle_map = battle_map
 
+    @property
+    def id(self):
+        return 'spiritual_weapon'
+    
+    def dismiss(self, entity, effect):
+        self.battle_map.remove(self.spiritual_weapon)
 class SpiritualWeaponSpell(Spell):
     def __init__(self, session, source, spell_name, details):
         super().__init__(session, source, spell_name, details)
@@ -33,22 +40,16 @@ class SpiritualWeaponSpell(Spell):
             session = battle.session
 
         if item['type'] == 'spiritual_weapon':
+            # remove other spiritual weapon effects
+            item['source'].remove_effect('spiritual_weapon')
+
             spiritual_weapon = SpiritualWeapon(item['source'], 'spiritual_weapon', '', {})
             battle_map = item['map']
             battle_map.place(item['target'], spiritual_weapon)
 
-            for casted_effect in item['source'].casted_effects:
-                if isinstance(casted_effect['effect'], SpiritualWeaponEffect):
-                    ref_map = casted_effect['effect'].battle_map
-                    casted_effect['effect'].spiritual_weapon
-                    ref_map.remove(casted_effect['effect'].spiritual_weapon)
-
-            # remove other spiritual weapon effects
-            item['source'].casted_effects = [effect for effect in item['source'].casted_effects if not isinstance(effect['effect'], SpiritualWeaponEffect)]
-
             item['source'].add_casted_effect({
                 'target': item['target'],
-                'effect': SpiritualWeaponEffect(spiritual_weapon, battle_map),
+                'effect': SpiritualWeaponEffect(item['source'], spiritual_weapon, battle_map),
                 'expiration': session.game_time + 60
             })
 

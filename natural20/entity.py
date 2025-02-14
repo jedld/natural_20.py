@@ -236,8 +236,9 @@ class Entity(EntityStateEvaluator, Notable):
         if effect not in self.casted_effects:
             self.casted_effects.append(effect)
 
-    def has_casted_effect(self, effect):
-        return effect in self.casted_effects
+    def has_casted_effect(self, effect: str):
+        casted_effects_id = [effect['effect'].id for effect in self.casted_effects]
+        return effect in casted_effects_id
 
     def has_spell_effect(self, spell):
         active_effects = [effect for effects in self.effects.values() for effect in effects if not effect.get('expiration') or effect.get('expiration') > self.session.game_time]
@@ -625,16 +626,36 @@ class Entity(EntityStateEvaluator, Notable):
         return dismiss_count
 
     def remove_effect(self, effect):
+        def resolve_effect(effect_id):
+            for f in self.casted_effects:
+                if f['effect'].id == effect_id:
+                    effect = f['effect']
+                    return effect
+            return None
+        
+        if isinstance(effect, str):
+            effect = resolve_effect(effect)
+            if not effect:
+                return 0
+
+        removed_effects = {}
         if effect.source:
+            for f in effect.source.casted_effects:
+                if f['effect'].id == effect.id:
+                    removed_effects[f['effect'].id] = f
+
             effect.source.casted_effects = [f for f in effect.source.casted_effects if f['effect'].id != effect.id]
 
         dismiss_count = 0
 
         new_effects = {}
         for key, value in self.effects.items():
-            delete_effects = [f for f in value if f['effect'].id == effect.id]
-            dismiss_count += len(delete_effects)
-            new_effects[key] = [f for f in value if f not in delete_effects]
+            for f in value:
+                if f['effect'].id == effect.id:
+                    removed_effects[f['effect'].id] = f
+                    dismiss_count += 1
+
+            new_effects[key] = [f for f in value if f['effect'].id not in removed_effects]
         self.effects = new_effects
         
         new_entity_event_hooks = {}
@@ -643,6 +664,11 @@ class Entity(EntityStateEvaluator, Notable):
             dismiss_count += len(delete_hooks)
             new_entity_event_hooks[key] = [f for f in value if f not in delete_hooks]
         self.entity_event_hooks = new_entity_event_hooks
+
+        # call the dismiss hooks
+        for f in removed_effects.values():
+            if f['effect'] and hasattr(f['effect'], 'dismiss'):
+                getattr(f['effect'], 'dismiss')(self, f)
         return dismiss_count
     
     def wearing_armor(self):
