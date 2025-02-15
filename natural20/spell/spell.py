@@ -67,7 +67,7 @@ class Spell:
     def apply(battle, item, session=None):
         pass
 
-    def validate(self, action, target=None):
+    def validate(self, battle_map, target=None):
         self.errors.clear()
 
     def load_spell_info(self):

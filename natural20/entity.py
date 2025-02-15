@@ -128,21 +128,24 @@ class Entity(EntityStateEvaluator, Notable):
         def skill_check(battle=None, **opts):
             modifiers = getattr(self, f"{skill}_mod")()
             description = opts.get('description', f"dice roll for {skill}")
-            return DieRoll.roll_with_lucky(self, f"1d20+{modifiers}", description=description, battle=battle)
+            disavantage = False
+            if self.poisoned():
+                disavantage = True
+            return DieRoll.roll_with_lucky(self, f"1d20+{modifiers}", description=description, battle=battle, disadvantage=disavantage)
         return skill_check
 
     def __str__(self):
         return f"{self.name}"
-    
+
     def __repr__(self):
         return f"{self.name}"
-    
+
     def name(self):
         return self.name
-    
+
     def hp(self):
         return self.attributes["hp"]
-    
+
     def temp_hp(self):
         return self._temp_hp
 
@@ -159,6 +162,17 @@ class Entity(EntityStateEvaluator, Notable):
             return False
         return True
     
+    def blindsight(self, distance):
+        if not self.properties.get('blindsight'):
+            return False
+        adjusted_blindsight_distance = self.properties.get('blindsight')
+        if adjusted_blindsight_distance < distance:
+            return False
+        return True
+
+    def has_blindsight(self):
+        return self.properties.get('blindsight')
+
 
     def label(self):
         return i18n.t(self.name)
@@ -418,7 +432,7 @@ class Entity(EntityStateEvaluator, Notable):
     # @param target [Natural20::Entity]
     def ungrapple(self, target):
         self.grappling.remove(target)
-        if  self in target.grapples:
+        if self in target.grapples:
             target.grapples.remove(self)
         if len(target.grapples)==0 and 'grappled' in target.statuses:
             target.statuses.remove('grappled')
@@ -426,10 +440,16 @@ class Entity(EntityStateEvaluator, Notable):
 
     def unconscious(self):
         return not self.dead() and 'unconscious' in self.statuses
-    
+
     def conscious(self):
         return not self.dead() and not self.unconscious()
-    
+
+    def poisoned(self):
+        return 'poisoned' in self.statuses
+
+    def invisible(self):
+        return 'invisible' in self.statuses
+
     def stand(self):
         self.statuses.remove('prone')
 
@@ -437,10 +457,14 @@ class Entity(EntityStateEvaluator, Notable):
         if not self.ability_scores.get('str'):
             return 0
         return int(self.ability_scores.get('str') / 2)
-    
+
     def resistant_to(self, damage_type):
-        return damage_type in self.resistances
-    
+        _resistances = self.resistances
+        if self.has_effect('resistance_override'):
+            _resistances = self.eval_effect('resistance_override', { "stacked": True, "value" : _resistances})
+
+        return damage_type in _resistances
+
     def disengage(self, battle):
         entity_state = battle.entity_state_for(self)
         if entity_state and 'disengage' in entity_state.get('statuses', []):
@@ -536,7 +560,13 @@ class Entity(EntityStateEvaluator, Notable):
         return self.dex_mod()
 
     def initiative(self, battle=None):
-        roll = DieRoll.roll_with_lucky(self, f"1d20+{self.initiative_bonus()}", description="initiative", battle=battle)
+        if self.invisible():
+            advantage = True
+        else:
+            advantage = False
+        roll = DieRoll.roll_with_lucky(self, f"1d20+{self.initiative_bonus()}", description="initiative",
+                                       advantage=advantage,
+                                       battle=battle)
         value = float(roll.result()) + self.ability_scores.get('dex') / 100.0
         if battle:
             battle.event_manager.received_event({ "source": self,
@@ -1055,6 +1085,9 @@ class Entity(EntityStateEvaluator, Notable):
     def equipped_armor(self):
         return [item for item in self.equipped_items() if item['type'] in ['armor', 'shield']]
     
+    def equipped_metallic_armor(self):
+        return [item for item in self.equipped_items() if item['type'] == 'armor' and item['metallic']]
+    
     def is_familiar(self):
         return self.properties.get('familiar')
 
@@ -1265,8 +1298,21 @@ class Entity(EntityStateEvaluator, Notable):
         return [item['name'] for item in self.equipped_items() if item["subtype"] == 'weapon']
 
     def take_damage(self, dmg: int, battle=None, damage_type='piercing', \
+                    session=None, item=None,
                     critical=False, roll_info=None, sneak_attack=None):
-        self.attributes["hp"] -= dmg
+        if session is None:
+            if battle and battle.session:
+                session = battle.session
+            else:
+                self.session
+        if self.resistant_to(damage_type):
+            total_damage = int(dmg // 2)
+        elif self.vulnerable_to(damage_type):
+            total_damage = dmg * 2
+        else:
+            total_damage = dmg
+
+        self.attributes["hp"] -= total_damage
         instant_death = False
         if self.unconscious():
             if 'stable' in self.statuses:
@@ -1280,7 +1326,7 @@ class Entity(EntityStateEvaluator, Notable):
                 self.death_saves = 0
                 self.death_fails = 0
             if battle:
-                battle.event_manager.received_event({'source': self, 'event': 'death_fail', 'saves': self.death_saves,
+                session.event_manager.received_event({'source': self, 'event': 'death_fail', 'saves': self.death_saves,
                                                     'fails': self.death_fails, 'complete': complete})
 
         if self.hp() < 0 and abs(self.hp()) >= self.properties['max_hp']:
@@ -1302,7 +1348,7 @@ class Entity(EntityStateEvaluator, Notable):
                 concentration_check = self.save_throw('constitution', battle)
                 diffculty_class = max([10, dmg // 2])
                 if concentration_check.result() < diffculty_class:
-                    self.event_manager.received_event({'source': self,
+                    session.event_manager.received_event({'source': self,
                                                        'event': 'concentration_check',
                                                        'result': 'failure',
                                                        'effect' : self.concentration,
@@ -1311,7 +1357,7 @@ class Entity(EntityStateEvaluator, Notable):
                                         })
                     self.dismiss_effect(self.concentration)
                 else:
-                    self.event_manager.received_event({'source': self,
+                    session.event_manager.received_event({'source': self,
                                                        'event': 'concentration_check',
                                                        'result': 'success',
                                                        'effect' : self.concentration,
@@ -1322,8 +1368,10 @@ class Entity(EntityStateEvaluator, Notable):
         if self.hp() <= 0:
             self.attributes["hp"] = 0
 
-        if battle:
-            battle.event_manager.received_event({'source': self, 'event': 'damage', 'value': dmg, 'roll_info': roll_info, 'instant_death': instant_death, 'sneak_attack': sneak_attack})
+        session.event_manager.received_event({'source': self, 'event': 'damage', 'total_damage': total_damage, 'value': dmg, 'damage_type': damage_type, 'roll_info': roll_info, 'instant_death': instant_death, 'sneak_attack': sneak_attack})
+
+        if battle and item and total_damage > 0:
+            self.on_take_damage(battle, item)
 
     def on_take_damage(self, battle, _damage_params):
         controller = battle.controller_for(self)
@@ -1531,6 +1579,8 @@ class Entity(EntityStateEvaluator, Notable):
     
     def dexterity_check(self, bonus=0, battle=None, description=None):
         disadvantage = not self.proficient_with_equipped_armor() if battle is None else False
+        if self.poisoned():
+            disadvantage = True
         return DieRoll.roll_with_lucky(self, f"1d20+{self.dex_mod() + bonus}", disadvantage=disadvantage, description=description or 'dice_roll.dexterity', battle=battle)
 
     def perception_proficient(self):

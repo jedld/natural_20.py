@@ -10,7 +10,7 @@ class ShoveAction(Action):
     def can(entity, battle, options=None):
         return battle is None or entity.total_actions(battle) > 0
 
-    def validate(self, target=None):
+    def validate(self, battle_map, target=None):
         if target is None:
             target = self.target
 

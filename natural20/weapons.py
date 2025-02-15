@@ -81,6 +81,8 @@ def compute_advantages_and_disadvantages(battle, source, target, weapon, source_
         disadvantage.append('squeezed')
     if target.dodge(battle):
         disadvantage.append('target_dodge')
+    if target.poisoned():
+        disadvantage.append('target_poisoned')
     if not source.proficient_with_equipped_armor():
         disadvantage.append('armor_proficiency')
     if target.squeezed():

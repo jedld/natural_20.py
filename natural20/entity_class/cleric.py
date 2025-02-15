@@ -63,7 +63,3 @@ class Cleric:
 
     def reset_cleric_spell_slots(self):
         return OrderedDict((index, slots) for index, slots in enumerate(CLERIC_SPELL_SLOT_TABLE[self.cleric_level - 1]))
-
-    def proficiency_bonus(self):
-        # Implement your own logic for calculating proficiency bonus
-        pass

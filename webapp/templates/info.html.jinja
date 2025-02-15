@@ -93,7 +93,7 @@
                 </div>
             </div>
         <table>
-            {% if not entity.object() %}
+            {% if not entity.object() and entity.class_and_level() %}
             <tr>
                 <th>Class & Level</th>
                 {% for class, level in entity.class_and_level() %}
@@ -121,6 +121,7 @@
                 {% endif %}
             </tr>
         </table>
+        {% if entity.hp() %}
         <h2>Hit Points</h2>
         <table>
             <tr>
@@ -136,7 +137,8 @@
                 <td>{{ entity.temp_hp() }}</td>
             </tr>
         </table>
-        {% if not entity.object() %}
+        {% endif %}
+        {% if not entity.object() and entity.ability_scores %}
         <h2>Ability Scores</h2>
         <table>
             <tr>
@@ -171,16 +173,17 @@
             </tr>
             {% endfor %}
         </table>
-        <h3>Proficiency and Initiative Bonus</h3>
+        <h3>Proficiency, Speed and Initiative Bonus</h3>
         <table>
             <tr>
                 <th>Proficiency Bonus</th>
                 <th>Initiative</th>
-
+                <th>Speed</th>
             </tr>
             <tr>
                 <td>+{{ entity.proficiency_bonus() }}</td>
-                <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.initiative_bonus() | mod_str }}">+{{ entity.initiative_bonus() }}</td>
+                <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.initiative_bonus() | mod_str }}" data-description="Initiative">+{{ entity.initiative_bonus() }}</td>
+                <td>{{ entity.speed() }} ft.</td>
             </tr>
         </table>
         <h2>Passive Scores</h2>
@@ -266,11 +269,13 @@
     {% endfor %}
     {% endfor %}
 </div>
-
+        {% if entity.inventory %}
         <div id="Equipment" class="tabcontent">
             <h2>Equipment</h2>
             <div class="equipment-container">
-            {% include 'equipment.html' %}
+
+                {% include 'equipment.html' %}
+
             </div>
             <h2>Potions/Consumables</h2>
             <ul class="consumables-list tile-inventory">
@@ -295,6 +300,7 @@
             {% endfor %}
             </ul>
         </div>
+        {% endif %}
     </div>
     {% endif %}
     <script src="/sheet.js?salt={{ salt }}"></script>

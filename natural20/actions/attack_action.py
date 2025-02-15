@@ -31,7 +31,7 @@ class AttackAction(Action):
             return entity.total_reactions(battle) > 0
 
         return battle is None or entity.total_actions(battle) > 0 or entity.multiattack(battle, options.get('npc_action'))
-    
+
     def clone(self):
         action = AttackAction(self.session, self.source, self.action_type, self.opts)
         action.target = self.target
@@ -127,15 +127,17 @@ class AttackAction(Action):
         action = AttackAction(session, source, 'attack')
         return action.build_map()
 
+    @staticmethod
     def apply(battle, item, session=None):
+        if session is None:
+            session = battle.session
         if 'flavor' in item and item['flavor']:
             flavor = item.get('flavor', item.get('description', None))
-            if battle:
-                battle.event_manager.received_event({'event': 'flavor', 'source': item['source'], 'target': item.get('target', None), 'text': flavor})
+            session.event_manager.received_event({'event': 'flavor', 'source': item['source'], 'target': item.get('target', None), 'text': flavor})
         if item['type'] == 'save_success':
-            battle.session.event_manager.received_event({'event': 'save_success', 'source': item['source'], 'save_type': item['save_type'], 'roll': item['roll'], 'dc': item['dc']})
+            session.event_manager.received_event({'event': 'save_success', 'source': item['source'], 'save_type': item['save_type'], 'roll': item['roll'], 'dc': item['dc']})
         elif item['type'] == 'save_fail':
-            battle.session.event_manager.received_event({'event': 'save_fail', 'source': item['source'], 'save_type': item['save_type'], 'roll': item['roll'], 'dc': item['dc']})
+            session.event_manager.received_event({'event': 'save_fail', 'source': item['source'], 'save_type': item['save_type'], 'roll': item['roll'], 'dc': item['dc']})
         elif item['type'] == 'prone':
             item['source'].prone()
         elif item['type'] == 'effect':
@@ -148,22 +150,22 @@ class AttackAction(Action):
             AttackAction.consume_resource(battle, item)
         elif item['type'] == 'miss':
             AttackAction.consume_resource(battle, item)
-            battle.event_manager.received_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], \
+            session.event_manager.received_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], \
                                                  'attack_thrown': item['thrown'], 'advantage_mod': item['advantage_mod'], \
                                                  'as_reaction': bool(item['as_reaction']), 'adv_info': item['adv_info'], \
                                                  'thrown': item['thrown'], \
                                                  'source': item['source'], 'target': item['target'], 'event': 'miss'})
-    
+
     def consume_resource(battle, item):
         if item['ammo']:
             item['source'].deduct_item(item['ammo'], 1)
-        
+
         if item['thrown']:
             if item['source'].item_count(item['weapon']) > 0:
                 item['source'].deduct_item(item['weapon'], 1)
             else:
                 item['source'].unequip(item['weapon'], transfer_inventory=False)
-            
+
             if item['type'] == 'damage':
                 item['target'].add_item(item['weapon'])
             else:
@@ -171,33 +173,34 @@ class AttackAction(Action):
                 ground_object = next((o for o in item['battle'].map_for(item['source']).objects_at(*ground_pos) if isinstance(o, Ground)), None)
                 if ground_object:
                     ground_object.add_item(item['weapon'])
-        
-        if item['as_reaction']:
-            battle.consume(item['source'], 'reaction')
-        elif item['as_bonus_action']:
-            battle.consume(item['source'], 'bonus_action')
-        elif item['second_hand']:
-            battle.consume(item['source'], 'bonus_action')
-        else:
-            battle.consume(item['source'], 'action')
-        
-        item['source'].break_stealth()
-        
-        weapon = battle.session.load_weapon(item['weapon']) if item['weapon'] else None
-        
-        if weapon and 'light' in weapon.get('properties', []) and not battle.two_weapon_attack(item['source']) and not item['second_hand']:
-            battle.entity_state_for(item['source'])['two_weapon'] = item['weapon']
-        elif battle.entity_state_for(item['source']):
-            battle.entity_state_for(item['source'])['two_weapon'] = None
-        
-        if battle.entity_state_for(item['source']):
-            for _, attacks in battle.entity_state_for(item['source']).get('multiattack', {}).items():
-                if item['attack_name'] in attacks:
-                    attacks.remove(item['attack_name'])
-                    if not attacks:
-                        item['source'].clear_multiattack(battle)
-        
-        battle.dismiss_help_for(item['target'])
+
+        if battle:
+            if item['as_reaction']:
+                battle.consume(item['source'], 'reaction')
+            elif item['as_bonus_action']:
+                battle.consume(item['source'], 'bonus_action')
+            elif item['second_hand']:
+                battle.consume(item['source'], 'bonus_action')
+            else:
+                battle.consume(item['source'], 'action')
+
+            item['source'].break_stealth()
+
+            weapon = battle.session.load_weapon(item['weapon']) if item['weapon'] else None
+
+            if weapon and 'light' in weapon.get('properties', []) and not battle.two_weapon_attack(item['source']) and not item['second_hand']:
+                battle.entity_state_for(item['source'])['two_weapon'] = item['weapon']
+            elif battle.entity_state_for(item['source']):
+                battle.entity_state_for(item['source'])['two_weapon'] = None
+
+            if battle.entity_state_for(item['source']):
+                for _, attacks in battle.entity_state_for(item['source']).get('multiattack', {}).items():
+                    if item['attack_name'] in attacks:
+                        attacks.remove(item['attack_name'])
+                        if not attacks:
+                            item['source'].clear_multiattack(battle)
+
+            battle.dismiss_help_for(item['target'])
 
     def with_advantage(self):
         return self.advantage_mod > 0

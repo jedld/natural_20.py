@@ -67,7 +67,7 @@ class TestClericSpellAction(unittest.TestCase):
 
     def test_cure_wounds(self):
         random.seed(7003)
-        self.entity.take_damage(4)
+        self.entity.take_damage(4, session=self.session)
         self.assertEqual(self.entity.hp(), 4)
         print(MapRenderer(self.battle_map).render())
         action = SpellAction.build(self.session, self.entity)['next'](['cure_wounds',0])['next'](self.entity)
@@ -101,6 +101,20 @@ class TestClericSpellAction(unittest.TestCase):
         result = self.entity2.save_throw('wisdom', self.battle)
         self.assertEqual(str(result),"d20(19) + 1")
 
+    def test_protection_from_poison(self):
+        random.seed(7003)
+        self.entity2 = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        self.battle.add(self.entity2, 'a', position=[0, 6], token='E')
+        self.battle.start()
+        print(MapRenderer(self.battle_map).render())
+        action = autobuild(self.session, SpellAction, self.entity, self.battle, self.battle_map
+                           , match=['protection_from_poison', self.entity2])[0]
+        self.assertIsInstance(action, SpellAction)
+        action.resolve(self.session, self.battle_map, { "battle": self.battle})
+        self.assertEqual([s['type'] for s in action.result], ['protection_from_poison'])
+        self.battle.commit(action)
+        self.assertEqual(self.entity2.has_effect('protection_from_poison'), True)
+
     def test_spiritual_weapon(self):
         self.battle.add(self.entity, 'a', position=[0, 1])
         self.battle.start()
@@ -114,6 +128,7 @@ class TestClericSpellAction(unittest.TestCase):
         self.battle.commit(action)
         print(MapRenderer(self.battle_map).render())
         spiritual_weapon = self.battle_map.entity_at(0, 6)
+        self.assertEqual(str(spiritual_weapon.damage), "1d8+3")
         available_spiritual_weapon_actions = spiritual_weapon.available_actions(self.session, self.battle)
         self.assertEqual(spiritual_weapon.hp(), None)
         self.assertEqual([str(a) for a in available_spiritual_weapon_actions],  ['move', 'spiritual_weapon uses Spiritual Weapon on None'])

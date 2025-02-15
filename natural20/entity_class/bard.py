@@ -45,7 +45,3 @@ class Bard:
 
   def reset_spell_slots(self):
     return OrderedDict((index, slots) for index, slots in enumerate(WIZARD_SPELL_SLOT_TABLE[self.wizard_level - 1]))
-
-  def proficiency_bonus(self):
-    # Implement your own logic for calculating proficiency bonus
-    pass

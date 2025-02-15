@@ -85,7 +85,7 @@ class Action:
         p = inflect.engine()
         return p.plural(self.action_type)
 
-    def validate(self, target=None):
+    def validate(self, battle_map, target=None):
         pass
 
     @staticmethod

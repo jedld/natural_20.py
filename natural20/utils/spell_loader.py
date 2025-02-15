@@ -11,6 +11,7 @@ def load_spell_class(spell_name):
   from natural20.spell.guiding_bolt_spell import GuidingBoltSpell
   from natural20.spell.shield_spell import ShieldSpell
   from natural20.spell.bless_spell import BlessSpell
+  from natural20.spell.protection_from_poison_spell import ProtectionFromPoisonSpell
   from natural20.spell.toll_the_dead_spell import TollTheDeadSpell
   from natural20.spell.inflict_wounds_spell import InflictWoundsSpell
   from natural20.spell.healing_word_spell import HealingWordSpell
@@ -57,6 +58,8 @@ def load_spell_class(spell_name):
       spell_class = ShieldOfFaithSpell
   elif spell_name == 'SpiritualWeaponSpell':
       spell_class = SpiritualWeaponSpell
+  elif spell_name == 'ProtectionFromPoisonSpell':
+      spell_class = ProtectionFromPoisonSpell
   else:
       raise Exception(f"spell class not found {spell_name}")
   

@@ -28,6 +28,7 @@ prepared_spells:
 - spare_the_dying
 - shield_of_faith
 - spiritual_weapon
+- protection_from_poison
 equipped:
 - dagger
 - scale_mail

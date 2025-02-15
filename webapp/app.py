@@ -30,6 +30,7 @@ from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.interact_action import InteractAction
+from natural20.spell.extensions.hit_computations import AttackSpell
 from natural20.entity import Entity
 from natural20.action import Action, AsyncReactionHandler
 from natural20.battle import Battle
@@ -168,12 +169,12 @@ def commit_and_update(action):
         if battle.battle_ends():
             current_game.end_current_battle()
     else:
-      action.resolve(session, battle_map)
-      events = action.result
-      for event in events:
-        action.apply(None, event, session=game_session)
+        action.resolve(session, battle_map)
 
-   
+        for item in action.result:
+            for klass in Action.__subclasses__():
+                klass.apply(None, item, session=game_session)
+
     # did the map change for the current pov?
     check_and_notify_map_change(pov_map, pov_entity)
 
@@ -300,7 +301,15 @@ def casting_time(casting_time):
     return f"{qty}{r_str}"
 app.add_template_filter(casting_time, name='casting_time')
 
-def entity_owners(entity_uid):
+def entity_owners(entity):
+    if isinstance(entity, Entity):
+        if hasattr(entity, 'owner'):
+            entity_uid = entity.owner.entity_uid
+        else:
+            entity_uid = entity.entity_uid
+    else:
+        entity_uid = entity
+
     ctrl_info = next((controller for controller in CONTROLLERS if controller['entity_uid'] == entity_uid), None)
     return [] if not ctrl_info else ctrl_info['controllers']
 
@@ -633,7 +642,7 @@ def start_battle_with_initiative():
             if param_item['controller'] == 'ai':
                 controller = GenericController(game_session)
             else:
-                usernames = entity_owners(entity.entity_uid)
+                usernames = entity_owners(entity)
                 if not usernames:
                     controller = current_game.get_web_controller_user('dm', ManualControl(game_session, 'dm'))
                 else:
@@ -663,7 +672,7 @@ def end_turn():
         for battle, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
             waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
-        socketio.emit('message', {'type': 'reaction', 'message': {'id': str(entity.entity_uid), 'reaction': 'opportunity_attack', 'choices': valid_actions_str}})
+        socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
 
 
 def continue_game():
@@ -750,7 +759,7 @@ def get_actions():
 
     entity = battle_map.entity_by_uid(id)
     if entity:
-        if 'dm' in user_role() or current_user in entity_owners(entity.entity_uid):
+        if 'dm' in user_role() or current_user in entity_owners(entity):
             return render_template('actions.html', entity=entity, battle=battle, session=game_session, map=battle_map)
         else:
             return jsonify(error="Forbidden"), 403
@@ -836,35 +845,48 @@ def get_target():
     action_info = payload.get('action_info')
     opts = payload.get('opts', {})
     entity = battle_map.entity_by_uid(entity_id)
-    target = battle_map.entity_at(x, y)
+    target_entity = battle_map.entity_at(x, y)
+    if not target_entity:
+        target_position = [x, y]
 
-    if entity and target and action_info == 'AttackAction':
+    if entity and target_entity and action_info in ['AttackAction', 'LinkedAttackAction']:
         action = AttackAction(game_session, entity, 'attack')
         action.using = opts.get('using')
         action.npc_action = opts.get('npc_action', None)
         action.thrown = opts.get('thrown', False)
-        action.target = target
+        action.target = target_entity
 
         adv_mod, adv_info, attack_mod = action.compute_advantage_info(battle)
         valid_target = True
         if battle:
             valid_targets = battle.valid_targets_for(entity, action)
-            valid_target = target in valid_targets
+            valid_target = target_entity in valid_targets
         return jsonify(valid_target=valid_target, adv_mod=adv_mod, adv_info=adv_info, attack_mod=attack_mod)
 
-    elif entity and target and action_info =='SpellAction':
+    elif entity and (target_entity or target_position) and action_info =='SpellAction':
         build_map = SpellAction.build(game_session, entity)
         spell_choice = (opts['spell'], opts['at_level'])
         build_map = build_map['next'](spell_choice)
+        if target_entity:
+            target = target_entity
+        else:
+            target = target_position
+
         action = build_map['next'](target)
 
-        adv_mod, adv_info, attack_mod = action.compute_advantage_info(battle)
-        valid_target = True
+        if isinstance(action, AttackSpell):
+            adv_mod, adv_info, attack_mod = action.compute_advantage_info(battle)
+            valid_target = True
 
-        if battle:
-            valid_targets = battle.valid_targets_for(entity, action)
-            valid_target = target in valid_targets
-        return jsonify(valid_target=valid_target, adv_mod=adv_mod, adv_info=adv_info, attack_mod=attack_mod)
+            if battle:
+                valid_targets = battle.valid_targets_for(entity, action)
+                valid_target = target in valid_targets
+            return jsonify(valid_target=valid_target, adv_mod=adv_mod, adv_info=adv_info, attack_mod=attack_mod)
+        else:
+            action.validate(battle_map, target)
+            if len(action.errors)  > 0:
+                return jsonify(valid_target=False, errors=action.errors)
+            return jsonify(valid_target=True, errors=action.errors)
     elif entity and target and action_info == 'UseItemAction':
         action = UseItemAction(game_session, entity, 'use_item')
         valid_target = True
@@ -936,7 +958,7 @@ def handle_reaction():
         for battle, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
             waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
-        socketio.emit('message', {'type': 'reaction', 'message': {'id': str(entity.entity_uid), 'reaction': 'opportunity_attack', 'choices': valid_actions_str}})
+        socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
     except ManualControl:
         logger.info("waiting for user to end turn.")
         current_game.set_waiting_for_user_input(True)
@@ -1056,7 +1078,7 @@ def action():
                 action_info["type"] = "select_spell"
                 current_map = action.build_map()
                 action_info["param"] = current_map["param"]
-        elif action_type == 'AttackAction' or action_type == 'TwoWeaponAttackAction':
+        elif action_type in ['LinkedAttackAction', 'AttackAction', 'TwoWeaponAttackAction']:
             if action_type == 'AttackAction':
                 action = AttackAction(game_session, entity, 'attack')
             else:

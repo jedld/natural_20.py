@@ -12,7 +12,7 @@ class GrappleAction(Action):
     def __str__(self):
         return str(self.action_type).capitalize()
 
-    def validate(self, target=None):
+    def validate(self, battle_map, target=None):
         if target is None:
             target = self.target
         if target is None:

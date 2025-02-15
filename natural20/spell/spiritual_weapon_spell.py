@@ -1,5 +1,6 @@
 from natural20.spell.spell import Spell, consume_resource
 from natural20.spell.objects.spiritual_weapon import SpiritualWeapon
+from natural20.map import Map
 import pdb
 class SpiritualWeaponEffect:
     def __init__(self, source, spiritual_weapon, battle_map):
@@ -33,6 +34,30 @@ class SpiritualWeaponSpell(Spell):
             'next': set_target
         }
 
+    def validate(self, battle_map: Map, target=None):
+        super().validate(target)
+        if target is None:
+            target = self.target
+
+        self.errors = []
+        if not target:
+            self.errors.append("Invalid target")
+
+        if target and (not isinstance(target, tuple) and not isinstance(target, list)) or len(target) != 2:
+            self.errors.append("Invalid target type, should be a position")
+            return
+
+        # target must be empty space
+        if target and not battle_map.placeable(SpiritualWeapon(None, self.source, 'spiritual_weapon', '', {}), *target):
+            self.errors.append("Target must be empty space")
+
+        if target and not battle_map.distance_to_square(self.source, *target) < 60:
+            self.errors.append("Target is out of range")
+
+        if target and not battle_map.can_see_square(self.source, target):
+            self.errors.append("Target is not visible")
+
+        return len(self.errors) == 0
 
     @staticmethod
     def apply(battle, item, session=None):
@@ -42,8 +67,19 @@ class SpiritualWeaponSpell(Spell):
         if item['type'] == 'spiritual_weapon':
             # remove other spiritual weapon effects
             item['source'].remove_effect('spiritual_weapon')
+            damage_die = 1
 
-            spiritual_weapon = SpiritualWeapon(item['source'], 'spiritual_weapon', '', {})
+            if item['level'] > 2:
+                damage_die += (item['level'] - 2) // 2
+
+            spell_casting_modifier = item['source'].cleric_spell_casting_modifier()
+            attributes = {
+            }
+            spiritual_weapon = SpiritualWeapon(session, item['source'],
+                                               'spiritual_weapon', '', attributes,
+                                               damage=f"{damage_die}d8+{spell_casting_modifier}",
+                                               spell=item['spell'])
+
             battle_map = item['map']
             battle_map.place(item['target'], spiritual_weapon)
 
@@ -66,6 +102,7 @@ class SpiritualWeaponSpell(Spell):
         return [{
             'type': 'spiritual_weapon',
             'map': battle_map,
+            'level': spell_action.at_level,
             'target': position,
             'source': spell_action.source,
             'effect': self,

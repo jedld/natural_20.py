@@ -106,6 +106,7 @@ class IceKnifeSpell(AttackSpell):
                                                damage_type='cold',
                                                critical=attack_roll.nat_20(),
                                                roll_info=damage_roll,
+                                               session=session,
                                                battle=battle)
                 else:
                     session.event_manager.received_event({

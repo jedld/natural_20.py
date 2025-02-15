@@ -93,7 +93,7 @@ class TestNpc(unittest.TestCase):
         assert npc.hit_die() == {6: 2}, npc.hit_die()
 
         random.seed(7000)
-        npc.take_damage(4)
+        npc.take_damage(4, session=session)
         assert npc.hit_die() == {6: 2}
         npc.short_rest(battle)
         assert npc.hp() == 6, npc.hp()

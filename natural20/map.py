@@ -628,6 +628,11 @@ class Map():
                 sighting_distance = math.floor(math.sqrt((pos1_x - pos2_x)**2 + (pos1_y - pos2_y)**2))
                 has_line_of_sight = True
 
+        if sighting_distance and entity.has_blindsight():
+            if entity.blindsight(sighting_distance * self.feet_per_grid):
+                return True
+            return False
+
         if not has_line_of_sight:
             return False
 
@@ -653,7 +658,7 @@ class Map():
 
                 entity_1_squares.append([pos1_x + ofs_x, pos1_y + ofs_y])
         return entity_1_squares
-    
+
     def bidirectionally_passable(self, entity, pos_x, pos_y, origin, battle=None, allow_squeeze=True, ignore_opposing=False):
         incorporeal = entity.class_feature('incorporeal_movement')
         if self.passable(entity, pos_x, pos_y, battle, allow_squeeze, origin=origin, ignore_opposing=ignore_opposing, incorporeal=incorporeal) and \
@@ -863,6 +868,14 @@ class Map():
                 pos2_x, pos2_y = ent2_pos
                 distances.append(int(((pos1_x - pos2_x) ** 2 + (pos1_y - pos2_y) ** 2) ** 0.5))
 
+        return min(distances)
+
+    def distance_to_square(self, entity, pos_x, pos_y):
+        entity_squares = self.entity_squares(entity)
+        distances = []
+        for entity_square in entity_squares:
+            pos1_x, pos1_y = entity_square
+            distances.append(int(((pos1_x - pos_x) ** 2 + (pos1_y - pos_y) ** 2) ** 0.5))
         return min(distances)
 
 

@@ -21,7 +21,7 @@ prepared_spells:
 - cure_wounds
 - guiding_bolt
 - shield_of_faith
-- spiritual_weapon
+- protection_from_poison
 equipped:
 - dagger
 - scale_mail
