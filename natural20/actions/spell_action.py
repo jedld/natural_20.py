@@ -92,11 +92,11 @@ class SpellAction(Action):
 
         return True
 
-    def validate(self, target=None):
+    def validate(self, battle_map, target=None):
         if target is None:
             target = self.target
 
-        self.spell_action.validate(target)
+        self.spell_action.validate(battle_map, target)
         self.errors = self.spell_action.errors
 
     @staticmethod

@@ -35,12 +35,14 @@ splint:
   name: Splint Armor
   subtype: heavy
   type: armor
+  metallic: true
   weight: 60
 plate:
   ac: 18
   cost: 1500
   name: Plate Armor
   subtype: heavy
+  metallic: true
   type: armor
   weight: 65
 chain_shirt:
@@ -57,6 +59,7 @@ scale_mail:
   cost: 50
   name: Scale Mail
   subtype: medium
+  metallic: true
   type: armor
   weight: 45
 spellbook:
@@ -79,6 +82,7 @@ breastplate:
   cost: 400
   name: Breastplate
   subtype: medium
+  metallic: true
   type: armor
   weight: 20
 half_plate:
@@ -86,6 +90,7 @@ half_plate:
   cost: 750
   name: Half Plate
   subtype: medium
+  metallic: true
   type: armor
   weight: 40
 component_pouch:

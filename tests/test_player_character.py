@@ -224,14 +224,14 @@ class TestPlayerCharacter(unittest.TestCase):
 
     def test_fighter_take_damage(self):
         self.player = self.load_fighter_character()
-        self.player.take_damage(80)
+        self.player.take_damage(80, session=self.session)
         self.assertTrue(self.player.unconscious())
         self.assertFalse(self.player.dead())
 
         self.player.heal(10)
         self.assertFalse(self.player.unconscious())
 
-        self.player.take_damage(200)
+        self.player.take_damage(200, session=self.session)
         self.assertTrue(self.player.dead())
 
     def test_fighter_hit_die(self):
@@ -240,7 +240,7 @@ class TestPlayerCharacter(unittest.TestCase):
 
     def test_fighter_short_rest(self):
         self.player = self.load_fighter_character()
-        self.player.take_damage(4)
+        self.player.take_damage(4, session=self.session)
         self.assertEqual(self.player.hit_die(), {10: 1})
         self.player.short_rest(self.battle)
         self.assertEqual(self.player.hp(), 64)

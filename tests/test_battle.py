@@ -72,7 +72,7 @@ class TestBattle(unittest.TestCase):
 
         random.seed(3001)
         battle.start()
-        fighter.take_damage(DieRoll([20], 80).result())
+        fighter.take_damage(DieRoll([20], 80).result(), session=session)
         self.assertTrue(fighter.unconscious())
         self.assertTrue(battle.ongoing())
         random.seed(3004)
@@ -94,7 +94,7 @@ class TestBattle(unittest.TestCase):
 
         random.seed(2010)
         battle.start(combat_order=[fighter, npc2, mage])
-        fighter.take_damage(DieRoll([40], 80).result())
+        fighter.take_damage(DieRoll([40], 80).result(), session=session)
         self.assertTrue(fighter.unconscious())
         self.assertFalse(fighter.stable())
         random.seed(1333)
@@ -114,7 +114,7 @@ class TestBattle(unittest.TestCase):
 
         random.seed(1004)
         battle.start()
-        fighter.take_damage(DieRoll([20], 80).result())
+        fighter.take_damage(DieRoll([20], 80).result(), session=session)
         assert fighter.unconscious()
         battle.while_active(3, lambda entity: False)
         assert fighter.conscious()

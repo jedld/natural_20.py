@@ -104,7 +104,8 @@ class GameManagement:
         return self.pov_entity_for_user.get(username, None)
 
     def set_pov_entity_for_user(self, username, entity):
-        self.logger.info(f"Setting POV entity for {username} to {entity.name}")
+        if entity:
+            self.logger.info(f"Setting POV entity for {username} to {entity.name}")
         self.pov_entity_for_user[username] = entity
 
     def switch_map_for_user(self, username, map_name):
@@ -246,10 +247,17 @@ class GameManagement:
         for group1, group2 in combinations(entity_by_groups.keys(), 2):
             if self.game_session.opposing(group1, group2):
                 for entity1 in entity_by_groups[group1]:
+                    if not entity1.conscious():
+                        continue
+
                     for entity2 in entity_by_groups[group2]:
+                        if not entity2.conscious():
+                            continue
+
                         # Ignore if both entities already belong to an ongoing battle
                         if self.battle and (entity1 in self.battle.entities and entity2 in self.battle.entities):
                             continue
+
                         if self.battle_map.can_see(entity1, entity2):
                             add_to_initiative_set.add((entity1, group1))
                             add_to_initiative_set.add((entity2, group2))
@@ -271,7 +279,7 @@ class GameManagement:
             # Helper to select the correct controller for an entity
             def get_controller(entity, default_controller):
                 if isinstance(entity, PlayerCharacter):
-                    usernames = self.entity_owners(entity.entity_uid)
+                    usernames = self.entity_owners(entity)
                     return default_controller if not usernames else self.get_web_controller_user(usernames[0], default_controller)
                 return GenericController(self.game_session)
 
@@ -312,7 +320,12 @@ class GameManagement:
             self.web_controllers[username] = default_controller
         return self.web_controllers[username]
 
-    def entity_owners(self, entity_uid):
+    def entity_owners(self, entity):
+        if hasattr(entity, 'owner'):
+            entity_uid = entity.owner.entity_uid
+        else:
+            entity_uid = entity.entity_uid
+
         ctrl_info = next((controller for controller in self.controllers if controller['entity_uid'] == entity_uid), None)
         return [] if not ctrl_info else ctrl_info['controllers']
 

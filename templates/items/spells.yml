@@ -121,6 +121,24 @@ chill_touch:
   spell_list_classes:
     - Sorcerer
     - Wizard
+protection_from_poison:
+  label: Protection from Poison
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  description: |
+    You touch a creature. If it is poisoned, you neutralize the poison. If more than one poison afflicts the target, you neutralize one poison that you know is present, or you neutralize one at random.
+    For the duration, the target has advantage on saving throws against being poisoned, and it has resistance to poison damage.
+  duration: 1h
+  level: 2
+  name: Protection from Poison
+  range: touch
+  school: abjuration
+  type: warding
+  spell_list_classes:
+    - Cleric
+  spell_class: Natural20::ProtectionFromPoison
 sacred_flame:
   label: Sacred Flame
   casting_time: 1:action

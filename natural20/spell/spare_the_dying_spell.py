@@ -43,7 +43,7 @@ class SpareTheDyingSpell(Spell):
             "spell": self.properties
         }]
 
-    def validate(self, target=None):
+    def validate(self, battle_map, target=None):
         if target is None:
             self.errors.append("target is a required option")
 

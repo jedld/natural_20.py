@@ -20,12 +20,7 @@ def damage_event(item, battle):
     dmg += item['sneak_attack'].result() if item.get('sneak_attack') is not None else 0
 
 
-    if target.resistant_to(item['damage_type']):
-        total_damage = int(dmg // 2)
-    elif target.vulnerable_to(item['damage_type']):
-        total_damage = dmg * 2
-    else:
-        total_damage = dmg
+
 
     session.event_manager.received_event({
         'source': item['source'],
@@ -44,16 +39,19 @@ def damage_event(item, battle):
         'dc': item.get('dc', None),
         'resistant': target.resistant_to(item['damage_type']),
         'vulnerable': target.vulnerable_to(item['damage_type']),
-        'value': dmg,
-        'total_damage': total_damage
+        'value': dmg
     })
 
     critical = item['attack_roll'].nat_20() if item.get('attack_roll') else False
 
-    item['target'].take_damage(total_damage, battle=battle, critical=critical, roll_info=item['damage'], sneak_attack=item.get('sneak_attack', False))
+    item['target'].take_damage(dmg, battle=battle, critical=critical,
+                               session=session,
+                               damage_type=item['damage_type'],
+                               roll_info=item['damage'],
+                               sneak_attack=item.get('sneak_attack', False),
+                               item=item)
 
-    if battle and total_damage > 0:
-        item['target'].on_take_damage(battle, item)
+
 
 def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, opts=None):
     if opts is None:

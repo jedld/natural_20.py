@@ -573,7 +573,7 @@ class Battle():
             if filter and not k.eval_if(filter):
                 continue
 
-            action.validate(target=k)
+            action.validate(self.map_for(k), target=k)
 
             if not action.errors:
                 targets.append(k)

@@ -39,7 +39,7 @@ class TestUseItemAction(unittest.TestCase):
                             'qty': 1}])
         self.assertEqual(self.entity.item_count("healing_potion"), 1)
         self.action.resolve(self.session)
-        self.entity.take_damage(53)
+        self.entity.take_damage(53, session=self.session)
         self.assertEqual(self.entity.hp(), 14)
         UseItemAction.apply(self.battle, self.action.result[0])
         self.assertEqual(self.entity.hp(), 22)

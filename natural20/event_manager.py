@@ -124,14 +124,7 @@ class EventManager:
                 msg += f" with attack roll {event['attack_roll']} = {event['attack_roll'].result()}"
             if event['attack_roll'] and event['attack_roll'].nat_20():
                 msg += " (critical hit)."
-            if event.get('total_damage') < event.get('value'):
-                msg += f" {self.show_target_name(event)} takes only {event['total_damage']} of expected {event['value']} damage!"
-            elif event.get('total_damage') > event.get('value'):
-                self.output_logger.log(f" {self.show_target_name(event)} takes {event['total_damage']} from {event['value']} original damage.")
-
             self.output_logger.log(f"{msg}.")
-
-        
 
         def miss(event):
             if event.get('spell_save'):
@@ -175,17 +168,24 @@ class EventManager:
                 damage = event.get('value', event.get('roll_info').result())
             else:
                 damage = event['value']
-            if (event.get('roll_info').result() > damage):
-                keyword = "reduced to"
-            elif (event.get('roll_info').result() < damage):
-                keyword = "increased to"
-            else:
-                keyword = "="
+            keyword = ""
+            if event.get('roll_info'):
+                if (event.get('roll_info').result() > damage):
+                    keyword = "reduced to"
+                elif (event.get('roll_info').result() < damage):
+                    keyword = "increased to"
+                else:
+                    keyword = "="
+            msg = ""
+            if event.get('total_damage') < event.get('value'):
+                msg += f" {self.show_name(event)} seems to have taken less damage than expected."
+            elif event.get('total_damage') > event.get('value'):
+                msg += f" {self.show_name(event)} seems to be vulnerable to {event['damage_type']} damage."
 
             if event.get('sneak_attack'):
-                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} {keyword} {damage} damage and {event['sneak_attack']}={event['sneak_attack'].result()} sneak attack damage.")
+                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} {keyword} {damage} {event['damage_type']} damage and {event['sneak_attack']}={event['sneak_attack'].result()} sneak attack damage. {msg}")
             else:
-                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} {keyword} {damage} damage."),
+                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} {keyword} {damage} {event['damage_type']} damage. {msg}"),
 
             if event.get('instant_death'):
                 self.output_logger.log(f"{self.show_name(event)} died instantly.")

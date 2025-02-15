@@ -21,7 +21,7 @@ class MageArmorSpell(Spell):
             'next': set_target
         }
 
-    def validate(self, target=None):
+    def validate(self, battle_map, target=None):
         self.errors.clear()
         if target.wearing_armor():
             self.errors.append('wearing_armor')
