@@ -10,13 +10,16 @@
             data-action-opts='{{ action.to_h() | tojson }}'
             title="{{ action.label() }}"
             style="position: relative;"
-            
             {{'disabled' if action.disabled else ''}}
             data-tooltips="{{ action.disabled_reason }}">
           {% if action.using %}
-          <img src="{{ url_for('static', filename='items/' + action.using + '.png') }}" style="width: 50px; height: 50px;">
+             <img src="{{ url_for('static', filename='items/' + action.using + '.png') }}" style="width: 50px; height: 50px;">
           {% else %}
-          <img src="{{ url_for('static', filename='actions/' + action.action_type + action_flavors(action) + '.png') }}" style="width: 50px; height: 50px;">
+            {% if action.button_image()  %}
+              <img src="{{ url_for('static', filename='actions/' + action.button_image() + '.png') }}" style="width: 50px; height: 50px;">
+            {% else %}
+              <img src="{{ url_for('static', filename='actions/' + action.action_type + action_flavors(action) + '.png') }}" style="width: 50px; height: 50px;">
+            {% endif %}
           {% endif %}
           {% if action.as_bonus_action %}
           <div style="position: absolute; top: 0; left: 0; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; background-color: rgba(255,255,255,0.7); color: black; font-weight: bold;">

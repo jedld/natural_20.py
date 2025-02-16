@@ -64,6 +64,11 @@ class Object(Entity):
                 inventory['type']: {'qty': inventory['qty']} for inventory in properties['inventory']
             }
 
+
+        if properties.get('buttons'):
+            for button in properties['buttons']:
+                self.buttons[button['action']] = button
+
         for ability, skills in self.SKILL_AND_ABILITY_MAP.items():
             for skill in skills:
                 setattr(self, f"{skill}_mod", self.make_skill_mod_function(skill, ability))

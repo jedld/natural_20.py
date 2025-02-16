@@ -50,6 +50,13 @@ chest:
   token_image: wood_chest
   passable: true
   placeable: false
+  buttons:
+    - name: Open Chest
+      action: open
+      image: open_chest
+    - name: Close Chest
+      action: close
+      image: closed_chest
 ground:
   color: brown
   name: ground

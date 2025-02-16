@@ -992,6 +992,28 @@ def manual_roll():
    
     return jsonify(roll_result=roll_result.result(), roll_explaination=str(roll_result))
 
+@app.route('/read_letter', methods=['POST'])
+def read_letter():
+    global current_game
+    battle_map = current_game.get_map_for_user(session['username'])
+    battle = current_game.get_current_battle()
+    entity_id = request.form['id']
+    item_id = request.form['item_id']
+
+    entity = battle_map.entity_by_uid(entity_id)
+    if not entity:
+        return jsonify(error="Entity not found"), 404
+
+    # Process the letter for the entity using the provided item_id.
+    item, letter_content = entity.read_item(item_id)
+
+    output_logger.log(f"{entity.name} read {item['label']}: {letter_content}")
+
+    # process raw text so that linebreaks are preserved when rendering on the web page
+    letter_content = letter_content.replace('\n', '<br>')
+
+    return render_template('letter.html', letter_label=item['label'], letter_content=letter_content)
+
 @app.route('/action', methods=['POST'])
 def action():
     global current_game

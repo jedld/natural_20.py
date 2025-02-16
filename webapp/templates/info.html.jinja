@@ -295,6 +295,13 @@
             <div class="item-icon-container">
                 <img class="item-icon" src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
                 <div class="item-quantity">{{ 'x ' ~ item.get('qty', 1) }}</div>
+                {% if item['type'] == 'letter' %}
+                <form method="post" action="/read_letter" target="_blank">
+                    <input type="hidden" name="id" value="{{ entity.entity_uid }}">
+                    <input type="hidden" name="item_id" value="{{ item['name'] }}">
+                    <button>Read</button>
+                </form>
+                {% endif %}
             </div>
             </li>
             {% endfor %}

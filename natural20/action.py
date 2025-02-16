@@ -88,6 +88,12 @@ class Action:
     def validate(self, battle_map, target=None):
         pass
 
+    def button_label(self):
+        return None
+
+    def button_image(self):
+        return None
+
     @staticmethod
     def apply(battle, item, session=None):
         pass

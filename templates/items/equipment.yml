@@ -157,6 +157,17 @@ parchment:
   name: Parchment
   type: parchment
   weight: 0.02
+letter_from_a_dead_friend:
+  cost: 0.05
+  name: letter_from_a_dead_friend
+  label: Letter from a Dead Friend
+  type: letter
+  content: |
+    Dear RumbleBelly,
+    I hope this letter finds you well. I have been thinking about you a lot lately and I wanted to reach out to you. I know we haven't spoken in a while, but I wanted to let you know that I miss you and I hope you are doing okay. I know things have been tough for you lately, but I want you to know that I am here for you if you need me. Please don't hesitate to reach out if you need anything. I care about you and I want you to be happy. I hope to hear from you soon.
+    Sincerely,
+    Your friend
+  weight: 0.05
 platinum:
   cost: 10
   name: platinum (pp)

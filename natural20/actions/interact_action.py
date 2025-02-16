@@ -25,6 +25,20 @@ class InteractAction(Action):
         else:
             return f"{self.object_action} {self.target}"
 
+    def button_label(self):
+        if self.target and self.object_action:
+            button_info = self.target.buttons.get(self.object_action)
+            if button_info:
+                return button_info.get('label', self.object_action)
+        return None
+
+    def button_image(self):
+        if self.target and self.object_action:
+            button_info = self.target.buttons.get(self.object_action)
+            if button_info:
+                return button_info.get('image')
+        return None
+
     @staticmethod
     def can(entity, battle):
         return battle is None or not battle.ongoing or entity.total_actions(battle) > 0 or entity.free_object_interaction(battle)
