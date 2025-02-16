@@ -3,8 +3,8 @@ from natural20.concern.container import Container
 import pdb
 
 class Chest(Object, Container):
-    def __init__(self, map, properties=None):
-        super().__init__(map, properties)
+    def __init__(self, session, map, properties=None):
+        super().__init__(session, map, properties)
         self.front_direction = self.properties.get('front_direction', 'auto')
         self.properties = properties or {}
         self.state = (self.properties.get('state') or 'closed')

@@ -274,6 +274,17 @@ door:
   token_image: wooden_door
   token:
     - '='
+switch:
+  color: yellow
+  interactable: true
+  item_class: Switch
+  placeable: true
+  passable: true
+  opaque: false
+  name: Switch
+  state: off
+  token:
+    - S
 teleport:
   color: blue
   passable: true

@@ -162,6 +162,8 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                 for obj in nearby_objects:
                     if obj.interactable():
                         possible_objects.append(obj)
+                if match:
+                    possible_objects = [obj for obj in possible_objects if obj in match]
                 params_list.append(possible_objects)
             else:
                 return None
@@ -172,7 +174,10 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
         elif param_type == "interact":
             object = param["target"]
             interaction_actions = object.available_interactions(entity, battle)
-            params_list.append(list(interaction_actions.keys()))
+            _interaction_actions = list(interaction_actions.keys())
+            if match:
+                _interaction_actions = [ action for action in _interaction_actions if action in match]
+            params_list.append(_interaction_actions)
         elif param_type == "select_weapon":
             if hasattr(entity, 'attack_options'):
                 usable_weapons = entity.attack_options(battle, session)

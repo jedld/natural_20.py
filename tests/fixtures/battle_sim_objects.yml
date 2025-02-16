@@ -12,7 +12,7 @@ map:
     - "########"
   base_1:
     - ........
-    - ........
+    - .s......
     - ..o.....
     - .T......
     - ........
@@ -42,6 +42,23 @@ notes:
     notes:
       - note: A vile stench fills this room
 legend:
+  s:
+    name: switch
+    type: switch
+    state: 'off'
+    concealed: true
+    perception_dc: 15
+    events:
+      - event: 'on'
+        message: You hear a loud click as the switch is flipped
+        update_state:
+          target: front_door
+          state: opened
+      - event: 'off'
+        message: You hear a loud click as the switch is flipped
+        update_state:
+          target: front_door
+          state: closed
   =:
     name: front_door
     type: wooden_door

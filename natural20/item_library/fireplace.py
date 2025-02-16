@@ -6,8 +6,9 @@ from natural20.concern.inventory import Inventory
 import pdb
 
 class Fireplace(Object, Lootable, Inventory, Container):
-    def __init__(self, map, properties=None):
-        super().__init__(map, properties)
+    def __init__(self, session, map, properties=None):
+        super().__init__(session, map, properties)
+        self.session = session
         self.lit = properties.get('lit', False)
         self.bright = properties.get('light', {}).get('bright', 20)
         self.dim = properties.get('light', {}).get('dim', 10)

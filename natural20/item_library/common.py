@@ -5,8 +5,8 @@ from natural20.concern.lootable import Lootable
 import pdb
 
 class StoneWall(Object):
-    def __init__(self, map, properties):
-        super().__init__(map, properties)
+    def __init__(self, session, map, properties):
+        super().__init__(session, map, properties)
 
     def opaque(self, origin=None):
         return not self.dead()
@@ -21,8 +21,8 @@ class StoneWall(Object):
             return ['#']
 
 class StoneWallDirectional(StoneWall):
-    def __init__(self, map, properties):
-        super().__init__(map, properties)
+    def __init__(self, session, map, properties):
+        super().__init__(session, map, properties)
         self.wall_direction = self.properties['type']
         self.custom_border = self.properties.get('border')
         if self.custom_border:
@@ -103,9 +103,9 @@ class StoneWallDirectional(StoneWall):
         return True
 
 class Ground(Object, Container, Lootable):
-    def __init__(self, map, properties):
-        super().__init__(map, properties)
-        self.state = None
+    def __init__(self, session, map, properties):
+        super().__init__(session, map, properties)
+        self.state = self.properties.get('state', 'open')
         self.locked = None
         self.key_name = None
 

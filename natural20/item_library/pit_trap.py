@@ -4,8 +4,8 @@ from natural20.die_roll import DieRoll
 
 # Represents a staple of DnD the concealed pit trap
 class PitTrap(Object):
-    def __init__(self, map, properties):
-        super().__init__(map, properties=properties)
+    def __init__(self, session, map, properties):
+        super().__init__(session, map, properties=properties)
         self.activated = False
 
     def area_trigger_handler(self, entity, entity_pos, is_flying):
