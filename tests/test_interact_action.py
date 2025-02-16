@@ -76,7 +76,7 @@ class TestInteractAction(unittest.TestCase):
     def test_player_item_transfer(self):
         self.entity2 = PlayerCharacter.load(self.session, os.path.join("dwarf_cleric.yml"))
         self.battle_map.place((0, 6), self.entity2, "G")
-        self.assertListEqual([str(s) for s in self.battle_map.objects_near(self.entity, self.battle)], ['Shor Valu', 'front_door', 'chest', 'Ground'])
+        self.assertListEqual([str(s) for s in self.battle_map.objects_near(self.entity, self.battle)], ['Shor Valu', 'chest', 'Ground'])
         print(MapRenderer(self.battle_map).render())
         self.assertListEqual([str(a) for a in self.entity.available_actions(self.session, self.battle)], ['Hide',
             'Dash',

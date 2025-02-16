@@ -27,7 +27,7 @@ class Object(Entity):
     def __init__(self, session, map: Any, properties: Dict[str, Any]) -> None:
         Entity.__init__(self, properties.get('name'), properties.get('description', ''), properties)
         self.entity_uid = uuid.uuid4()
-        self.name = properties.get('name')
+        self._name = properties.get('name')
         self._description = properties.get('description', self.name)
         self.map = map
         self.session = session
@@ -103,7 +103,7 @@ class Object(Entity):
         self.trigger_event('reveal', None, self.session, self.map, None)
 
     def name(self) -> str:
-        return self.properties.get('label') or self.name
+        return self._name
 
     def label(self) -> str:
         return self.properties.get('label', "")

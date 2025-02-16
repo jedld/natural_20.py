@@ -2,9 +2,8 @@ from natural20.die_roll import DieRoll
 from natural20.item_library.object import Object
 
 class HealingPotion(Object):
-    def __init__(self, name, properties):
-        super().__init__(None, properties)
-        self.name = name
+    def __init__(self, session, map, properties):
+        super().__init__(session, map, properties)
         self.properties = properties
 
     def consumable(self):

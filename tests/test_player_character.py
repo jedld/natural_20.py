@@ -150,7 +150,7 @@ class TestPlayerCharacter(unittest.TestCase):
                 'equippable': False,
                 'hp_regained': '2d4+2',
                 'item_class': 'HealingPotion',
-                'name': 'Potion of Healing',
+                'label': 'Potion of Healing',
                 'type': 'potion',
                 'usable': True
             },
