@@ -70,7 +70,8 @@ class UseItemAction(Action):
             raise Exception(f"item {item_details['name']} not usable!")
 
         klass = UseItemAction.to_item_class(item_details['item_class'])
-        self.target_item = klass(item, item_details)
+        item_details['name'] = item
+        self.target_item = klass(self.session, None, item_details)
         return self.target_item.build_map(self)
 
     def to_item_class(item_class):

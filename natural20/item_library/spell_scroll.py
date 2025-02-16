@@ -8,8 +8,8 @@ from typing import Any
 import pdb
 
 class SpellScroll(Object):
-    def __init__(self, name: Any, properties: Dict[str, Any]):
-        super().__init__(name, properties)
+    def __init__(self, session, map, properties: Dict[str, Any]):
+        super().__init__(session, None, properties)
         self.spell = properties['spell']
         self.level = properties['level']
         self.properties = properties

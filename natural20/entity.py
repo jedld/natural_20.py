@@ -1526,7 +1526,7 @@ class Entity(EntityStateEvaluator, Notable):
 
             usable.append({
                 'name': str(k),
-                'label': item_details.get('name', k),
+                'label': item_details.get('label', str(k)),
                 'item': item_details,
                 'qty': v['qty'],
                 'consumable': item_details['consumable']
