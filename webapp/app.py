@@ -90,6 +90,7 @@ if 'extensions' in index_data:
         EXTENSIONS.append(extension_module)
 
 sockets = []
+MAP_PADDING = [6, 6]
 
 output_logger = SocketIOOutputLogger(socketio)
 output_logger.log("Server started")
@@ -426,7 +427,7 @@ def index():
     image = Image.open(file_path)
     width, height = image.size
 
-    renderer = JsonRenderer(battle_map, battle)
+    renderer = JsonRenderer(battle_map, battle, padding=MAP_PADDING)
 
     if 'dm' in user_role():
         pov_entities = None
@@ -435,6 +436,8 @@ def index():
 
     my_2d_array = [renderer.render(entity_pov=pov_entities)]
     map_width, map_height = battle_map.size
+
+
     tiles_dimension_height = map_height * TILE_PX
     tiles_dimension_width = map_width * TILE_PX
     messages = output_logger.get_all_logs()
@@ -464,6 +467,7 @@ def index():
                            soundtrack=current_soundtrack,
                            title=TITLE,
                            available_maps=available_maps,
+                           pov_entities=entities_controlled_by(session['username']),
                            username=session['username'], role=user_role())
 
 
@@ -737,7 +741,7 @@ def update():
     y = int(request.args.get('y'))
     battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
-    renderer = JsonRenderer(battle_map, battle)
+    renderer = JsonRenderer(battle_map, battle, padding=MAP_PADDING)
 
     pov_entities = [current_game.get_pov_entity_for_user(session['username'])]
 
@@ -991,6 +995,26 @@ def manual_roll():
     output_logger.log(f"{entity.name} rolled a {roll_result}={roll_result.result()} for {description}")
    
     return jsonify(roll_result=roll_result.result(), roll_explaination=str(roll_result))
+
+@app.route('/switch_pov', methods=['POST'])
+def switch_pov():
+    global current_game
+    battle_map = current_game.get_map_for_user(session['username'])
+    entity_id = request.form['entity_uid']
+    entity = current_game.get_entity_by_uid(entity_id)
+    entity_battle_map = current_game.get_map_for_entity(entity)
+    current_game.set_pov_entity_for_user(session['username'], entity)
+    if battle_map != entity_battle_map:
+        current_game.switch_map_for_user(session['username'], entity_battle_map.name)
+        background = current_game.get_background_image_for_user(session['username'])
+        map_width, map_height = battle_map.size
+        tiles_dimension_height = map_height * TILE_PX
+        tiles_dimension_width = map_width * TILE_PX
+        return jsonify(background=f"assets/{background}",
+                    height=tiles_dimension_height,
+                    width=tiles_dimension_width)
+
+    return jsonify(status='ok')
 
 @app.route('/read_letter', methods=['POST'])
 def read_letter():

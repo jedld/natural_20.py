@@ -190,5 +190,12 @@
             <span class="glyphicon glyphicon-zoom-out"></span>
         </button>
     </span>
+    {% for entity in pov_entities %}
+    {% set index = loop.index0 %}
+    <div class="floating-entity-portrait" onclick="switchPOV('{{ entity.entity_uid }}');" style="position: fixed; bottom: 10px; left: {{ 250 + index * 100 }}px; cursor: pointer; z-index: 1000;">
+        <img src="{{  url_for('static', filename='assets/' ~ entity.profile_image())}}" alt="{{ entity.name }}">
+        <div>{{ entity.name }}</div>
+    </div>
+    {% endfor %}
 </body>
 </html>

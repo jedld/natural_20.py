@@ -3,6 +3,17 @@
 let scale = 1;
 
 
+const switchPOV = (entity_uid) => {
+  ajaxPost('/switch_pov', { entity_uid }, (data) => {
+    console.log('Switched POV:', data);
+    Utils.refreshTileSet(callback = () => {
+      $('#main-map-area .image-container img').attr('src', data.background);
+      $('#main-map-area .image-container').css({ width: `${data.width}px`, height: `${data.height}px` });
+      $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
+    })
+  });
+};
+
 const ajaxPost = (url, data, onSuccess, isJSON = false) => {
   $.ajax({
     url,

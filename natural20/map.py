@@ -489,6 +489,9 @@ class Map():
     # @param pos_y [Integer]
     # @return [List[Object]]
     def objects_at(self, pos_x, pos_y, match=None):
+        if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
+            return []
+
         if match:
             return [obj for obj in self.objects[pos_x][pos_y] if isinstance(obj, match)]
         return self.objects[pos_x][pos_y]
@@ -842,6 +845,9 @@ class Map():
 
 
     def light_at(self, pos_x, pos_y):
+        if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
+            return 0.0
+
         if self.light_map is not None:
             return self.light_map[pos_x][pos_y] + self.light_builder.light_at(pos_x, pos_y)
         else:
