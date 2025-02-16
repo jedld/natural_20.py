@@ -24,11 +24,13 @@ class InvalidInteractionAction(Exception):
 
 @dataclass
 class Object(Entity):
-    def __init__(self, map: Any, properties: Dict[str, Any]) -> None:
+    def __init__(self, session, map: Any, properties: Dict[str, Any]) -> None:
+        Entity.__init__(self, properties.get('name'), properties.get('description', ''), properties)
         self.entity_uid = uuid.uuid4()
         self.name = properties.get('name')
         self._description = properties.get('description', self.name)
         self.map = map
+        self.session = session
         self.type = properties.get('type')
         self.concentration = None
         self.effects = {}
@@ -36,7 +38,6 @@ class Object(Entity):
         self._temp_hp = 0
         # fake attributes for dungeons and dragons objects
         self.attributes = properties.get('attributes', {
-            
         })
         self.ability_scores = properties.get('ability_scores', {
             "str": 0,
@@ -50,6 +51,8 @@ class Object(Entity):
         self.statuses = set()
         self.properties = properties
         self.resistances = properties.get('resistances', [])
+        self.is_concealed = properties.get('concealed', False)
+        self.perception_dc = properties.get('perception_dc', None)
         self.setup_other_attributes()
         if properties.get('hp_die', None):
             self.attributes["hp"] = DieRoll.roll(properties['hp_die']).result()
@@ -72,7 +75,7 @@ class Object(Entity):
         if self.name:
             return self.name
         return self.__class__.__name__
-    
+
     def __repr__(self):
         """
         Return the string representation of the object
@@ -83,15 +86,22 @@ class Object(Entity):
 
     def __hash__(self) -> int:
         return id(self)
-    
+
     def after_setup(self):
         pass
+
+    def conceal_perception_dc(self) -> int:
+        return self.perception_dc
+
+    def reveal(self):
+        self.is_concealed = False
+        self.trigger_event('reveal', None, self.session, self.map, None)
 
     def name(self) -> str:
         return self.properties.get('label') or self.name
 
     def label(self) -> str:
-        return self.properties.get('label') or self.name
+        return self.properties.get('label', "")
 
     def position(self) -> Any:
         return self.map.position_of(self)
@@ -181,7 +191,7 @@ class Object(Entity):
         return self.properties.get('wall')
 
     def concealed(self) -> bool:
-        return False
+        return self.is_concealed
 
     def describe_health(self) -> str:
         return ''
@@ -206,6 +216,9 @@ class Object(Entity):
     
     def on_enter(self, entity, map, battle):
         pass
+
+    def update_state(self, state):
+        raise NotImplementedError()
 
 
 

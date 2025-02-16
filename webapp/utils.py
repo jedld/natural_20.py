@@ -127,7 +127,7 @@ class GameManagement:
             if _entity in map_obj.entities:
                 return map_obj
         return None
-    
+
     def get_entity_by_uid(self, entity_uid):
         for _, map_obj in self.maps.items():
             entity = map_obj.entity_by_uid(entity_uid)
@@ -158,6 +158,11 @@ class GameManagement:
         self.battle_map = Map(self.game_session, self.map_location)
         self.battle = None
         self.socketio.emit('message', {'type': 'reset', 'message': {}})
+
+    def reload_map_for_user(self,  username):
+        map_name, _ = self.current_map_for_user.get(username, ('index', self.maps['index']))
+        self.current_map_for_user[username] = (map_name, self.maps[map_name])
+        self.maps[map_name] = Map(self.game_session, self.other_maps[map_name], name=map_name)
 
     def set_current_battle_map(self, battle_map):
         self.battle_map = battle_map

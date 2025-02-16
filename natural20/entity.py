@@ -48,6 +48,8 @@ class Entity(EntityStateEvaluator, Notable):
         self.event_handlers = {}
         self.event_manager = event_manager
         self.concentration = None
+        self.is_concealed = False
+        self.perception_results = {}
         self.entity_uid = uuid.uuid4()
 
         # Attach methods dynamically
@@ -72,6 +74,9 @@ class Entity(EntityStateEvaluator, Notable):
         if self.concentration:
             self.dismiss_effect(self.concentration)
         self.concentration = effect
+
+    def concealed(self):
+        return self.is_concealed
 
     def current_concentration(self):
         return self.concentration
@@ -104,7 +109,10 @@ class Entity(EntityStateEvaluator, Notable):
         return prof in self.properties.get('expertise', [])
 
     def is_two_handed_weapon(self, weapon):
-        return 'versatile' in weapon.get('properties', []) and self.used_hand_slots() <= 1.0
+        weapon_properties = weapon.get('properties', [])
+        if not weapon_properties:
+            return False
+        return 'versatile' in weapon_properties and self.used_hand_slots() <= 1.0
 
     # Returns the proficiency bonus of this entity
     # @return [Integer]

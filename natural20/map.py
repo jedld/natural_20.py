@@ -9,6 +9,7 @@ from natural20.item_library.pit_trap import PitTrap
 from natural20.item_library.chest import Chest
 from natural20.item_library.fireplace import Fireplace
 from natural20.item_library.teleporter import Teleporter
+from natural20.item_library.switch import Switch
 from natural20.player_character import PlayerCharacter
 from natural20.npc import Npc
 from natural20.weapons import compute_max_weapon_range
@@ -123,19 +124,19 @@ class Map():
                 for token in tokens:
                     if token == '#':
                         object_info = self.session.load_object('stone_wall')
-                        obj = StoneWall(self, object_info)
+                        obj = StoneWall(self.session, self, object_info)
                         self.interactable_objects[obj] = [pos_x, pos_y]
                         self.place_object(obj, pos_x, pos_y)
                     elif token == '?':
                         pass
                     elif token == '.':
                         object_info = self.session.load_object('ground')
-                        obj = Ground(self, object_info)
+                        obj = Ground(self.session, self, object_info)
                         self.place_object(obj, pos_x, pos_y)
                         self.interactable_objects[obj] = [pos_x, pos_y]
                     elif token == '-' or token == '|':
                         object_info = self.session.load_object('door')
-                        obj = DoorObject(self, object_info, token)
+                        obj = DoorObject(self.session, self, object_info, token)
                         self.interactable_objects[obj] = [pos_x, pos_y]
                         self.place_object(obj, pos_x, pos_y)
                     else:
@@ -202,7 +203,15 @@ class Map():
             if str(entity.entity_uid) == uid:
                 return entity
         return None
-    
+
+    def entity_by_name(self, name: str):
+        name_lower = name.lower()
+        for entity in list(self.entities) + list(self.interactable_objects):
+            entity_name = entity.name() if callable(entity.name) else entity.name
+            if entity_name and entity_name.lower() == name_lower:
+                return entity
+        return None
+
     def object_by_uid(self, uid):
         for obj in self.interactable_objects.keys():
             if str(obj.entity_uid) == uid:
@@ -343,13 +352,13 @@ class Map():
             object_info = object_info.copy()
             object_info.update(object_meta)
 
-            item_obj = item_klass(self, object_info)
+            item_obj = item_klass(self.session, self, object_info)
             if 'ItemLibrary.AreaTrigger' in item_klass.__module__:
                 self.area_triggers[item_obj] = {}
             obj = item_obj
         else:
             object_meta.update(object_info)
-            obj = Object(self, object_meta)
+            obj = Object(self.session, self, object_meta)
 
         self.interactable_objects[obj] = [pos_x, pos_y]
 
@@ -479,7 +488,9 @@ class Map():
     # @param pos_x [Integer]
     # @param pos_y [Integer]
     # @return [List[Object]]
-    def objects_at(self, pos_x, pos_y):
+    def objects_at(self, pos_x, pos_y, match=None):
+        if match:
+            return [obj for obj in self.objects[pos_x][pos_y] if isinstance(obj, match)]
         return self.objects[pos_x][pos_y]
     
     # Natural20::Entity to look around
@@ -581,6 +592,7 @@ class Map():
 
     def can_see(self, entity, entity2, distance=None, entity_1_pos=None, entity_2_pos=None, \
                 allow_dark_vision=True, active_perception=0, active_perception_disadvantage=0,\
+                ignore_concealment=False,
                 creature_size_min=None, heavy_cover=False):
         """
         Check if entity can see entity2
@@ -595,6 +607,14 @@ class Map():
             if entity.passive_perception() < entity2.hidden_stealth:
                 return False
             if active_perception < entity2.hidden_stealth:
+                return False
+
+        if entity2.concealed() and not ignore_concealment:
+            if entity2.conceal_perception_dc() is None:
+                return False
+            if entity.passive_perception() < entity2.conceal_perception_dc():
+                return False
+            if active_perception < entity2.conceal_perception_dc():
                 return False
 
         entity_1_squares = self.entity_squares_at_pos(entity, *entity_1_pos) if entity_1_pos else self.entity_squares(entity)
@@ -785,14 +805,14 @@ class Map():
                 for object in self.objects_at(pos_x, pos_y):
                     if object.opaque(origin):
                         return True
-            else:
-                if origin:
-                    if self.object_at(*origin):
-                        for object in self.objects_at(*origin):
-                            if object.opaque((pos_x, pos_y)):
-                                return True
 
-                return None
+            if origin:
+                if self.object_at(*origin):
+                    for object in self.objects_at(*origin):
+                        if object.opaque((pos_x, pos_y)):
+                            return True
+
+            return False
 
     def squares_in_path(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, inclusive=True):
         if [pos1_x, pos1_y] == [pos2_x, pos2_y]:

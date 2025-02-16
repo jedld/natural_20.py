@@ -1,29 +1,44 @@
 from natural20.item_library.object import Object
 from natural20.item_library.common import StoneWallDirectional
 from natural20.event_manager import EventManager
+import pdb
 
 class DoorObject(Object):
-    def __init__(self, map, properties):
-        super().__init__(map, properties)
+    def __init__(self, session, map, properties):
+        Object.__init__(self, session, map, properties)
         self.front_direction = self.properties.get("front_direction", "auto")
         self.privacy_lock = self.properties.get("privacy_lock", False)
-        self.state = "closed"
+        self.state = self.properties.get("state", "closed")
+        self.lockable = self.properties.get("lockable", 'key' in self.properties.keys())
+        self.locked = self.properties.get("locked", False)
         self.key_name = self.properties.get("key")
+        self.door_pos = self.properties.get("door_pos", None)
 
     def after_setup(self):
         if self.front_direction == "auto":
             # check for walls and auto determine the direction
             pos = self.map.position_of(self)
-            if self.map.wall(pos[0] - 1, pos[1]):
-                self.front_direction = "up"
-            elif self.map.wall(pos[0] + 1, pos[1]):
-                self.front_direction = "down"
-            elif self.map.wall(pos[0], pos[1] - 1):
-                self.front_direction = "left"
-            elif self.map.wall(pos[0], pos[1] + 1):
-                self.front_direction = "right"
+
+            if self.door_pos:
+                if self.door_pos == 0:
+                    self.front_direction = "up"
+                elif self.door_pos == 1:
+                    self.front_direction = "right"
+                elif self.door_pos == 2:
+                    self.front_direction = "down"
+                elif self.door_pos == 3:
+                    self.front_direction = "left"
             else:
-                self.front_direction = "up"
+                if self.map.wall(pos[0] - 1, pos[1]):
+                    self.front_direction = "up"
+                elif self.map.wall(pos[0] + 1, pos[1]):
+                    self.front_direction = "down"
+                elif self.map.wall(pos[0], pos[1] - 1):
+                    self.front_direction = "left"
+                elif self.map.wall(pos[0], pos[1] + 1):
+                    self.front_direction = "right"
+                else:
+                    self.front_direction = "up"
 
     def facing(self):
         return self.front_direction
@@ -116,15 +131,36 @@ class DoorObject(Object):
         return transform
 
     def available_interactions(self, entity, battle=None):
-        def inside_range():
+        if self.concealed():
+            return {}
+
+        def inside_range_for_locking():
+            offsets = {
+            "up": (0, -1),
+            "down": (0, 1),
+            "left": (-1, 0),
+            "right": (1, 0)
+            }
             ex, ey = self.map.position_of(entity)
             dx, dy = self.map.position_of(self)
-            facing = self.facing()
-            if facing == "up":    return ex == dx and ey == dy - 1
-            if facing == "down":  return ex == dx and ey == dy + 1
-            if facing == "left":  return ex == dx - 1 and ey == dy
-            if facing == "right": return ex == dx + 1 and ey == dy
-            return False
+            off = offsets.get(self.facing())
+            return off and (ex, ey) == (dx + off[0], dy + off[1])
+
+        def inside_range_for_opening():
+            ex, ey = self.map.position_of(entity)
+            dx, dy = self.map.position_of(self)
+
+            if self.map.position_of(entity) == self.map.position_of(self):
+                return True
+
+            offsets = {
+            "up": (0, -1),
+            "down": (0, 1),
+            "left": (-1, 0),
+            "right": (1, 0)
+            }
+            off = offsets.get(self.facing())
+            return (ex, ey) == (dx + off[0], dy + off[1]) if off else False
 
         actions = {}
         if entity:
@@ -145,11 +181,11 @@ class DoorObject(Object):
                     }
                 else:
                     actions["lockpick"] = {}
-            if self.privacy_lock and inside_range():
+            if self.privacy_lock and inside_range_for_locking():
                 actions["unlock"] = {}
             return actions
 
-        if self.opened():
+        if self.opened() and inside_range_for_opening():
             return {
                 "close": {
                     "disabled": self.someone_blocking_the_doorway(),
@@ -157,10 +193,12 @@ class DoorObject(Object):
                 }
             }
 
-        actions["open"] = {}
-        if self.privacy_lock and inside_range():
+        if inside_range_for_opening():
+            actions["open"] = {}
+
+        if self.privacy_lock and self.lockable and inside_range_for_locking():
             actions["lock"] = {}
-        else:
+        elif self.lockable:
             actions["lock"] = {
                 "disabled": not has_key,
                 "disabled_text": "object.door.key_required"
@@ -274,12 +312,21 @@ class DoorObject(Object):
         self.locked = self.properties.get("locked")
         self.key_name = self.properties.get("key")
 
+    def update_state(self, state):
+        if state == "opened":
+            self.open()
+        elif state == "closed":
+            self.close()
+        else:
+            raise ValueError("Invalid state for door object: %s" % state)
+
 class DoorObjectWall(DoorObject, StoneWallDirectional):
-    def __init__(self, map, properties):
-        DoorObject.__init__(self, map, properties)
-        StoneWallDirectional.__init__(self, map, properties)
+    def __init__(self, session, map, properties):
+        DoorObject.__init__(self, session, map, properties)
+        StoneWallDirectional.__init__(self, session, map, properties)
         self.door_pos = self.properties.get("door_pos", 0)
         self.window = self.properties.get("window", [0, 0, 0, 0])
+        self.secret_door = self.properties.get("secret_door", False)
 
     def token(self):
         return StoneWallDirectional.token(self)
@@ -292,9 +339,6 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
 
     def token_image_transform(self):
         return StoneWallDirectional.token_image_transform(self)
-
-    def facing(self):
-        return StoneWallDirectional.facing(self)
 
     def opaque(self, origin=None):
         pos_x, pos_y = self.map.position_of(self)
@@ -382,6 +426,8 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
         return DoorObject.close(self)
 
     def available_interactions(self, entity, battle=None):
+        if self.secret_door:
+            return {}
         return DoorObject.available_interactions(self, entity, battle)
 
     def interactable(self):

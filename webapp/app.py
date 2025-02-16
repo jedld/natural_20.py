@@ -154,11 +154,11 @@ def commit_and_update(action):
     global current_game, logger
 
     battle = current_game.get_current_battle()
-    battle_map = current_game.get_current_battle_map()
+
     pov_entity = current_game.get_pov_entity_for_user(session['username'])
 
     if not pov_entity:
-        pov_entities = entities_controlled_by(session['username'], battle_map)
+        pov_entities = entities_controlled_by(session['username'])
         pov_entity = pov_entities[0] if pov_entities else None
 
     pov_map = current_game.get_map_for_entity(pov_entity)
@@ -169,7 +169,8 @@ def commit_and_update(action):
         if battle.battle_ends():
             current_game.end_current_battle()
     else:
-        action.resolve(session, battle_map)
+        action_battle_map = current_game.get_map_for_entity(action.source)
+        action.resolve(session, action_battle_map)
 
         for item in action.result:
             for klass in Action.__subclasses__():
@@ -242,12 +243,15 @@ def filter_for(tile):
 app.add_template_global(filter_for, name='filter_for')
 
 
-def entities_controlled_by(username, map):
+def entities_controlled_by(username, battle_map=None):
     entities = set()
     for info in CONTROLLERS:
         if username in info['controllers']:
             entity_uid = info['entity_uid']
-            entity = map.entity_by_uid(entity_uid)
+            if battle_map:
+                entity = battle_map.entity_by_uid(entity_uid)
+            else:
+                entity = current_game.get_entity_by_uid(entity_uid)
             if entity:
                 entities.add(entity)
 
@@ -316,7 +320,7 @@ def entity_owners(entity):
 app.add_template_global(entity_owners, name='entity_owners')
 
 def describe_terrain(tile):
-    battle_map = current_game.get_current_battle_map()
+    battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     description = []
     if tile.get('difficult'):
@@ -427,7 +431,7 @@ def index():
     if 'dm' in user_role():
         pov_entities = None
     else:
-        pov_entities = entities_controlled_by(session['username'], battle_map)
+        pov_entities = entities_controlled_by(session['username'], battle_map=battle_map)
 
     my_2d_array = [renderer.render(entity_pov=pov_entities)]
     map_width, map_height = battle_map.size
@@ -462,6 +466,12 @@ def index():
                            available_maps=available_maps,
                            username=session['username'], role=user_role())
 
+
+@app.route('/reload_map', methods=['POST'])
+def reload_map():
+    global current_game
+    current_game.reload_map_for_user(session['username'])
+    return jsonify(status='ok')
 
 @app.route('/response', methods=['POST'])
 def response():
@@ -985,13 +995,16 @@ def manual_roll():
 @app.route('/action', methods=['POST'])
 def action():
     global current_game
-    battle_map = current_game.get_map_for_user(session['username'])
+    
     battle = current_game.get_current_battle()
     action_request = request.json
     entity_id = action_request['id']
     action_type = action_request['action']
     opts = action_request.get('opts', {})
-    entity = battle_map.entity_by_uid(entity_id)
+
+    entity = current_game.get_entity_by_uid(entity_id)
+    battle_map = current_game.get_map_for_entity(entity)
+
     action_info = {}
     action_hash = None
     target_coords = action_request.get('target', None)
@@ -1124,6 +1137,7 @@ def action():
             opts = action_request.get('opts', {})
             action = action_class(game_session, entity, opts.get('action_type'))
             action = action.build_map()
+
             while not isinstance(action, Action):
                 if len(action['param'])==1:
                     param_details = action['param'][0]

@@ -261,6 +261,7 @@ class EventManager:
             'use_item': handle_use_item,
             'interact': interact,
             'look': look,
+            'message': lambda event: self.output_logger.log(f"{self.show_name(event)}: {event['message']}"),
             # New event handlers:
             'lockpick_success': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} unlocked the door using lockpick. Roll: {event['roll']}"

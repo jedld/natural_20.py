@@ -43,11 +43,13 @@ class LookAction(Action):
 
     @staticmethod
     def apply(battle, item, session=None):
+        if session is None:
+            session = battle.session
         if item["type"] == "look":
             if battle:
                 battle.entity_state_for(item["source"])["active_perception"] = item["die_roll"].result()
                 battle.entity_state_for(item["source"])["active_perception_disadvantage"] = item["die_roll_disadvantage"].result
-                battle.session.event_manager.received_event({
+                session.event_manager.received_event({
                     "source": item["source"],
                     "perception_roll": item["die_roll"],
                     "event": "perception"
@@ -57,18 +59,36 @@ class LookAction(Action):
                 battle.consume(item['source'], 'action')
 
             current_map = item["map"]
+            perception_results = item["die_roll"].result()
+            if session:
+                session.event_manager.received_event({
+                    "source": item["source"],
+                    "die_roll": item["die_roll"],
+                    "event": "look"
+                })
             # scan all visible objects in the map with a note
             item['perception_targets'] = {}
             for entity in list(current_map.entities.keys()) + list(current_map.interactable_objects.keys()):
                 if entity != item["source"] and entity.has_notes() and current_map.can_see(item["source"], entity):
-                    if session:
-                        session.event_manager.received_event({
-                            "source": item["source"],
-                            "target": entity,
-                            "die_roll": item["die_roll"],
-                            "event": "look"
-                        })
-
                     _, new_notes = entity.list_notes(entity=item["source"], perception=item["die_roll"].result())
                     for k in new_notes.keys():
                         item['perception_targets'][k] = new_notes[k]
+
+                if entity!=item["source"] and entity.concealed() and current_map.can_see(item["source"], entity, ignore_concealment=True):
+                    if entity.conceal_perception_dc():
+                        if item["source"] not in entity.perception_results:
+
+                            if entity.conceal_perception_dc() <= item["die_roll"].result():
+                                entity.reveal()
+                                if session:
+                                    session.event_manager.received_event({
+                                        "source": item["source"],
+                                        "target": entity,
+                                        "event": "reveal"
+                                    })
+
+                            entity.perception_results[item["source"]] = {
+                                "conceal_dc": entity.conceal_perception_dc(),
+                                "perception_roll": perception_results,
+                                "revealed": perception_results >= entity.conceal_perception_dc()
+                            }

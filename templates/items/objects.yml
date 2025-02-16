@@ -77,6 +77,17 @@ stone_wall:
   token:
     - null
   wall: true
+switch:
+  color: yellow
+  interactable: true
+  item_class: Switch
+  placeable: true
+  passable: true
+  opaque: false
+  name: Switch
+  state: off
+  token:
+    - S
 tree:
   allow_hide: true
   color: green

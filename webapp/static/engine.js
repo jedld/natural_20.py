@@ -368,6 +368,15 @@ $(document).ready(() => {
     }
   });
 
+  $('#reloadModal').on('submit', '#reload-map-form', function (event) {
+    event.preventDefault();
+    ajaxPost('/reload_map', {}, (data) => {
+      console.log('Reload request successful:', data);
+      $('#reloadModal').modal('hide');
+      Utils.refreshTileSet();
+    });
+  });
+  
   $('#mapModal').on('submit', '#map-selection-form', function (event) {
     event.preventDefault();
     const map_id = $('#map-select').val();
@@ -722,6 +731,13 @@ $(document).ready(() => {
     ajaxPost('/sound', { track_id: trackId }, (data) => {
       console.log('Sound request successful:', data);
       $('#modal-1').modal('hide');
+    });
+  });
+
+  $('#reload-map').click(() => {
+    Utils.ajaxPost('/reload_map', {}, (data) => {
+      console.log('Map reloaded successfully:', data);
+      Utils.refreshTileSet();
     });
   });
 

@@ -4,19 +4,35 @@ from natural20.entity import Entity
 import pdb
 
 class Teleporter(Object):
-    def __init__(self, map, properties):
-        super().__init__(map, properties)
+    def __init__(self, session, map, properties):
+        super().__init__(session, map, properties)
         self.target_map = properties.get('target_map', None)
 
         self.target_position = properties['target_position']
 
     def on_enter(self, entity: Entity, map, battle=None):
         if self.target_map:
-            map.linked_maps[self.target_map].place(self.target_position, entity)
-            map.remove(entity)
+            target_map = map.linked_maps[self.target_map]
+            entity_placed = False
+            if target_map.placeable(entity, *self.target_position):
+                target_map.place(self.target_position, entity)
+                entity_placed = True
+            else:
+                # look for adjacent positions
+                for dx in range(-1, 2):
+                    if entity_placed:
+                        break
+                    for dy in range(-1, 2):
+                        if target_map.placeable(entity, self.target_position[0] + dx, self.target_position[1] + dy):
+                            target_map.place((self.target_position[0] + dx, self.target_position[1] + dy), entity)
+                            map.linked_maps[self.target_map]
+                            entity_placed = True
+                            break
+            if entity_placed:
+                map.remove(entity)
         else:
-            map.move_to(entity, *self.target_position, battle)
-
+            if map.placeable(entity, *self.target_position, battle):
+                map.move_to(entity, *self.target_position, battle)
 
     def placeable(self):
         return True
