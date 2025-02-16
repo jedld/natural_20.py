@@ -113,7 +113,6 @@ class GameManagement:
         self.current_map_for_user[username] = (map_name, self.maps[map_name])
 
     def get_map_for_user(self, username):
-        self.logger.info(f"Getting map for {username}")
         name, _map = self.current_map_for_user.get(username, ('index', self.maps['index']))
         return _map
 

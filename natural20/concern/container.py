@@ -17,7 +17,8 @@ class Container:
             battle.trigger_event("object_received", target, item_type=item.name)
 
     def transfer(self, battle, source, target, items):
-        for direction, (src, dst) in [('from', (source, target)), ('to', (target, source))]:
+        # {'from': {'items': ['healing_potion', 'arrows'], 'qty': ['1', '20']}, 'to': {'items': ['dagger', 'arrows', 'thieves_tools', 'healing_potion'], 'qty': ['0', '0', '0', '0']}}
+        for direction, (src, dst) in [('from', (target, source)), ('to', (source, target))]:
             for item, qty in zip(items[direction]['items'], items[direction]['qty']):
                 qty = int(qty)
                 if item in src.inventory:

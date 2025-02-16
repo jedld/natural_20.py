@@ -44,3 +44,5 @@ inventory:
   qty: 1
 - type: healing_potion
   qty: 1
+- type: letter_from_a_dead_friend
+  qty: 1

@@ -50,6 +50,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.concentration = None
         self.is_concealed = False
         self.perception_results = {}
+        self.buttons = {}
         self.entity_uid = uuid.uuid4()
 
         # Attach methods dynamically
@@ -1540,11 +1541,18 @@ class Entity(EntityStateEvaluator, Notable):
                 continue
             other.append({
                 'name': str(k),
-                'label': item_details.get('name', k),
+                'label': item_details.get('label', item_details.get('name', k)),
                 'item': item_details,
+                'type': item_details.get('type', 'other'),
                 'qty': v['qty']
             })
         return other
+    
+    def read_item(self, item_name):
+        item = self.session.load_thing(item_name)
+        if not item:
+            return None
+        return item, item.get('content', None)
 
     def has_spells(self):
         if not self.properties.get('prepared_spells', None):
