@@ -456,15 +456,40 @@ input.initiative-input.form-control {
   display: none;
   top: 0;
   left: 0;
-  width: 150px;
+  width: 300px;
   overflow: visible;
   background: rgba(255, 248, 220, 0.95);
   border: 1px solid #4a2f19;
   border-radius: 5px;
   padding: 5px;
-  z-index: 1001;
+  z-index: 1003;
 }
 
 .close-note-btn {
   background-color: transparent;
+}
+
+/* Floating Entity Portrait Styles */
+.floating-entity-portrait {
+  position: fixed;
+  bottom: 10px; /* position from the bottom as per inline style */
+  /* left is set inline dynamically */
+  cursor: pointer;
+  z-index: 1000;
+}
+
+.floating-entity-portrait img {
+  width: 64px;
+  height: 64px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  display: block;
+}
+
+.floating-entity-portrait div {
+  text-align: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 2px 4px;
+  margin-top: 4px;
 }

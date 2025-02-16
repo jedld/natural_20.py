@@ -1,9 +1,10 @@
 import numpy as np
 import pdb
 class JsonRenderer:
-    def __init__(self, map, battle=None):
+    def __init__(self, map, battle=None, padding=None):
         self.map = map
         self.battle = battle
+        self.padding = padding
 
     def render(self, entity_pov=None, path=None, select_pos=None):
         if path is None:
@@ -20,14 +21,22 @@ class JsonRenderer:
                 if entity:
                     for pos in self.map.entity_squares(entity):
                         entity_pov_locations.append(pos)
+        if self.padding:
+            width += self.padding[0]
+            height += self.padding[1]
+            x_offset = self.padding[0] // 2
+            y_offset = self.padding[1] // 2
+        else:
+            x_offset = 0
+            y_offset = 0
 
         for index_1 in range(width):
-            x = index_1
+            x = index_1 - x_offset
             result_row = []
             for index_2 in range(height):
                 has_darkvision = False
 
-                y = height - index_2 - 1
+                y = height - index_2 - 1 - y_offset
                 if entity_pov is not None:
                     if not isinstance(entity_pov, list):
                         entity_pov = [entity_pov]
@@ -40,6 +49,10 @@ class JsonRenderer:
                         has_darkvision = False
 
                     if len(entity_pov) > 0:
+                        if x < 0 or y < 0 or x >= self.map.size[0] or y >= self.map.size[1]:
+                            result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 0.0})
+                            continue
+
                         if not any([self.map.can_see_square(entity, (x, y)) for entity in entity_pov]):
                             result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 0.0})
                             continue

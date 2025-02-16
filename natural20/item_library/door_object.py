@@ -275,7 +275,7 @@ class DoorObject(Object):
                                             "roll": result["roll"],
                                             "reason":"Lockpicking failed and the theives tools are now broken"})
         elif action == "unlock":
-            if self.locked():
+            if self.locked:
                 self.unlock()
                 if session:
                     session.event_manager.received_event({
