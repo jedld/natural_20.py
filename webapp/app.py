@@ -901,7 +901,7 @@ def get_target():
             if len(action.errors)  > 0:
                 return jsonify(valid_target=False, errors=action.errors)
             return jsonify(valid_target=True, errors=action.errors)
-    elif entity and target and action_info == 'UseItemAction':
+    elif entity and target_entity and action_info == 'UseItemAction':
         action = UseItemAction(game_session, entity, 'use_item')
         valid_target = True
         return jsonify(valid_target=valid_target, adv_info=[[],[]], attack_mod=0)
@@ -1079,7 +1079,7 @@ def action():
                 else:
                     last_coords = move_path[-1]
                     if battle_map.placeable(entity, last_coords[0], last_coords[1]):
-                        battle_map.move_to(entity, *last_coords, battle)
+                        commit_and_update(action)
                         check_and_notify_map_change(battle_map, entity)
                         if battle:
                             socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1],

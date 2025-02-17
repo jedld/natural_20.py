@@ -10,6 +10,7 @@ from natural20.item_library.chest import Chest
 from natural20.item_library.fireplace import Fireplace
 from natural20.item_library.teleporter import Teleporter
 from natural20.item_library.switch import Switch
+from natural20.item_library.proximity_trigger import ProximityTrigger
 from natural20.player_character import PlayerCharacter
 from natural20.npc import Npc
 from natural20.weapons import compute_max_weapon_range
@@ -353,12 +354,14 @@ class Map():
             object_info.update(object_meta)
 
             item_obj = item_klass(self.session, self, object_info)
-            if 'ItemLibrary.AreaTrigger' in item_klass.__module__:
-                self.area_triggers[item_obj] = {}
+
             obj = item_obj
         else:
             object_meta.update(object_info)
             obj = Object(self.session, self, object_meta)
+
+        if hasattr(obj, 'area_trigger_handler'):
+            self.area_triggers[obj] = {}
 
         self.interactable_objects[obj] = [pos_x, pos_y]
 
@@ -906,9 +909,12 @@ class Map():
 
 
     def area_trigger(self, entity, position, is_flying):
-        trigger_results = [k.area_trigger_handler(entity, position, is_flying) for k, _prop in self.area_triggers.items() if not k.dead()]
+        trigger_results = []
+        for k, _prop in self.area_triggers.items():
+            if not k.dead():
+                trigger_results += k.area_trigger_handler(entity, position, is_flying)
         trigger_results = [result for result in trigger_results if result is not None]
-        trigger_results = list(set(trigger_results))
+
         return trigger_results
 
 
