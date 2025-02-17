@@ -95,6 +95,8 @@ class Object(Entity):
     def after_setup(self):
         pass
 
+
+
     def conceal_perception_dc(self) -> int:
         return self.perception_dc
 

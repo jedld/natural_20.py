@@ -326,7 +326,7 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
         StoneWallDirectional.__init__(self, session, map, properties)
         self.door_pos = self.properties.get("door_pos", 0)
         self.window = self.properties.get("window", [0, 0, 0, 0])
-        self.secret_door = self.properties.get("secret_door", False)
+        self._secret = self.properties.get("secret", False)
 
     def token(self):
         return StoneWallDirectional.token(self)
