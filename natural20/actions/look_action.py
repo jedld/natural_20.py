@@ -59,7 +59,9 @@ class LookAction(Action):
                 battle.consume(item['source'], 'action')
 
             current_map = item["map"]
-            perception_results = item["die_roll"].result()
+
+            perception_results = max(item["die_roll"].result(), entity.passive_perception())
+
             if session:
                 session.event_manager.received_event({
                     "source": item["source"],
@@ -74,11 +76,21 @@ class LookAction(Action):
                     for k in new_notes.keys():
                         item['perception_targets'][k] = new_notes[k]
 
+                if entity!=item["source"] and entity.secret() and entity.secret_perception_dc() and current_map.can_see(item["source"], entity, ignore_concealment=True):
+                    if item["source"] not in entity.perception_results:
+                        if entity.secret_perception_dc() <= perception_results:
+                            entity._secret = False
+
+                        entity.perception_results[item["source"]] = {
+                                "secret_dc": entity.secret_perception_dc(),
+                                "perception_roll": perception_results,
+                                "revealed": entity.secret_perception_dc() <= perception_results
+                            }
                 if entity!=item["source"] and entity.concealed() and current_map.can_see(item["source"], entity, ignore_concealment=True):
                     if entity.conceal_perception_dc():
                         if item["source"] not in entity.perception_results:
 
-                            if entity.conceal_perception_dc() <= item["die_roll"].result():
+                            if entity.conceal_perception_dc() <= perception_results:
                                 entity.reveal()
                                 if session:
                                     session.event_manager.received_event({

@@ -49,6 +49,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.event_manager = event_manager
         self.concentration = None
         self.is_concealed = False
+        self._secret = False
         self.perception_results = {}
         self.buttons = {}
         self.entity_uid = uuid.uuid4()
@@ -105,6 +106,12 @@ class Entity(EntityStateEvaluator, Notable):
 
     def object(self):
         return False
+    
+    def secret(self) -> bool:
+        return self._secret
+    
+    def secret_perception_dc(self) -> int:
+        return self.properties.get('secret_perception_dc', None)
 
     def expertise(self, prof):
         return prof in self.properties.get('expertise', [])
@@ -221,10 +228,10 @@ class Entity(EntityStateEvaluator, Notable):
             return 5
         else:
             raise ValueError(f"invalid size {square_size}")
-        
+
     def languages(self):
         return self.properties.get('languages', [])
-        
+
     def long_jump_distance(self):
         if not self.ability_scores.get('str'):
             return 0
@@ -235,7 +242,7 @@ class Entity(EntityStateEvaluator, Notable):
 
     def passive_insight(self):
         return self.properties.get('passive_insight', 10 + self.wis_mod())
-    
+
     def passive_investigation(self):
         return self.properties.get('passive_investigation', 10 + self.int_mod())
 
