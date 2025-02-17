@@ -79,7 +79,7 @@ class LookAction(Action):
                 if entity!=item["source"] and entity.secret() and entity.secret_perception_dc() and current_map.can_see(item["source"], entity, ignore_concealment=True):
                     if item["source"] not in entity.perception_results:
                         if entity.secret_perception_dc() <= perception_results:
-                            entity._secret = False
+                            entity.is_secret = False
 
                         entity.perception_results[item["source"]] = {
                                 "secret_dc": entity.secret_perception_dc(),

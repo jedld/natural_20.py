@@ -108,7 +108,7 @@ class Entity(EntityStateEvaluator, Notable):
         return False
     
     def secret(self) -> bool:
-        return self._secret
+        return self.is_secret
     
     def secret_perception_dc(self) -> int:
         return self.properties.get('secret_perception_dc', None)
