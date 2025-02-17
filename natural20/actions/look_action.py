@@ -60,7 +60,7 @@ class LookAction(Action):
 
             current_map = item["map"]
 
-            perception_results = max(item["die_roll"].result(), entity.passive_perception())
+            perception_results = max(item["die_roll"].result(), item['source'].passive_perception())
 
             if session:
                 session.event_manager.received_event({
