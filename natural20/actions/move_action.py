@@ -183,24 +183,29 @@ class MoveAction(Action):
 
     @staticmethod
     def apply(battle, item, session=None):
+        if session is None:
+            session = battle.session
+
         item_type = item['type']
         if item_type == 'state':
             for k, v in item['params'].items():
                 setattr(item['source'], k, v)
+            if item.get('trigger'):
+                item['source'].resolve_trigger(item['trigger'])
         elif item_type in ['acrobatics', 'athletics']:
             if item['success']:
                 print(f"{item['source'].name} {item_type} check success")
-                battle.session.event_manager.received_event(source=item['source'], event=item_type, success=True,
+                session.event_manager.received_event(source=item['source'], event=item_type, success=True,
                                                      roll=item['roll'])
             else:
                 print(f"{item['source'].name} {item_type} check failed and is now prone")
-                battle.session.event_manager.received_event(source=item['source'], event=item_type, success=False,
+                session.event_manager.received_event(source=item['source'], event=item_type, success=False,
                                                      roll=item['roll'])
                 item['source'].prone()
         elif item_type == 'drop_grapple':
             item['target'].escape_grapple_from(item['source'])
             print(f"{item['source'].name} dropped grapple on {item['target'].name}")
-            battle.session.event_manager.received_event(event='drop_grapple',
+            session.event_manager.received_event(event='drop_grapple',
                                                   target=item['target'], source=item['source'],
                                                   source_roll=item['source_roll'],
                                                   target_roll=item['target_roll'])
@@ -223,13 +228,17 @@ class MoveAction(Action):
             elif battle:
                 battle.entity_state_for(item['source'])['movement'] -= item['move_cost'] * battle.map_for(item['source']).feet_per_grid
 
-            battle.session.event_manager.received_event({
+            battle_map = item.get('map', None)
+            if battle_map is None:
+                battle_map = battle.map_for(item['source'])
+
+            session.event_manager.received_event({
                 'event': 'move',
                 'source': item['source'],
                 'position': item['position'],
                 'path': item['path'],
                 'move_cost' : item['move_cost'],
-                'feet_per_grid': battle.map_for(item['source']).feet_per_grid if battle.map_for(item['source']) else None,
+                'feet_per_grid': battle_map.feet_per_grid,
                 'as_dash': item['as_dash'],
                 'as_bonus': item['as_bonus_action']
             })

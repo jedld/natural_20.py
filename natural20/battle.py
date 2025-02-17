@@ -13,6 +13,8 @@ class Battle():
     def __init__(self, session: Session, maps: Map, standard_controller = None, animation_log_enabled=False):
         if isinstance(maps, list):
             self.maps = maps
+        elif isinstance(maps, dict):
+            self.maps = maps.values()
         elif maps:
             self.maps = [maps]
         else:

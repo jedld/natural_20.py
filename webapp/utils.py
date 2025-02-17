@@ -240,43 +240,45 @@ class GameManagement:
 
         # check all entities in the map if it would set off a battle
         entity_by_groups = {}
-
-        for entity in self.battle_map.entities:
-            if entity.group not in entity_by_groups:
-                entity_by_groups[entity.group] = set()
-            entity_by_groups[entity.group].add(entity)
-
         start_battle = False
         add_to_initiative_set = set()
-        for group1, group2 in combinations(entity_by_groups.keys(), 2):
-            if self.game_session.opposing(group1, group2):
-                for entity1 in entity_by_groups[group1]:
-                    if not entity1.conscious():
-                        continue
 
-                    for entity2 in entity_by_groups[group2]:
-                        if not entity2.conscious():
+        for battle_map in self.maps.values():
+            for entity in battle_map.entities:
+                if entity.group not in entity_by_groups:
+                    entity_by_groups[entity.group] = set()
+                entity_by_groups[entity.group].add(entity)
+
+
+            for group1, group2 in combinations(entity_by_groups.keys(), 2):
+                if self.game_session.opposing(group1, group2):
+                    for entity1 in entity_by_groups[group1]:
+                        if not entity1.conscious():
                             continue
 
-                        # Ignore if both entities already belong to an ongoing battle
-                        if self.battle and (entity1 in self.battle.entities and entity2 in self.battle.entities):
-                            continue
+                        for entity2 in entity_by_groups[group2]:
+                            if not entity2.conscious():
+                                continue
 
-                        if self.battle_map.can_see(entity1, entity2):
-                            add_to_initiative_set.add((entity1, group1))
-                            add_to_initiative_set.add((entity2, group2))
+                            # Ignore if both entities already belong to an ongoing battle
+                            if self.battle and (entity1 in self.battle.entities and entity2 in self.battle.entities):
+                                continue
 
-                            # Add allies for entity1
-                            for ally in entity_by_groups[group1]:
-                                if ally != entity1 and self.battle_map.can_see(ally, entity1):
-                                    add_to_initiative_set.add((ally, group1))
+                            if battle_map.can_see(entity1, entity2):
+                                add_to_initiative_set.add((entity1, group1))
+                                add_to_initiative_set.add((entity2, group2))
 
-                            # Add allies for entity2
-                            for ally in entity_by_groups[group2]:
-                                if ally != entity2 and self.battle_map.can_see(ally, entity2):
-                                    add_to_initiative_set.add((ally, group2))
+                                # Add allies for entity1
+                                for ally in entity_by_groups[group1]:
+                                    if ally != entity1 and battle_map.can_see(ally, entity1):
+                                        add_to_initiative_set.add((ally, group1))
 
-                            start_battle = True
+                                # Add allies for entity2
+                                for ally in entity_by_groups[group2]:
+                                    if ally != entity2 and battle_map.can_see(ally, entity2):
+                                        add_to_initiative_set.add((ally, group2))
+
+                                start_battle = True
         add_to_initiative = list(add_to_initiative_set)
 
         if start_battle and add_to_initiative:
@@ -290,7 +292,7 @@ class GameManagement:
             dm_controller = self.get_web_controller_user("dm", GenericController(self.game_session))
 
             if not self.battle:
-                self.battle = Battle(self.game_session, self.battle_map, animation_log_enabled=True)
+                self.battle = Battle(self.game_session, self.maps, animation_log_enabled=True)
                 for entity, group in add_to_initiative:
                     controller = get_controller(entity, dm_controller)
                     controller.register_handlers_on(entity)
