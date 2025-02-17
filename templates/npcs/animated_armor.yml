@@ -1,0 +1,55 @@
+---
+kind: animated_armor
+description: This suit of magically animated plate armor clamors as it moves, banging and grinding like the vengeful spirit of a fallen knight.
+size: medium
+race:
+  - construct
+alignment: unaligned
+default_ac: 18
+max_hp: 33
+hp_die: 6d8+6
+speed: 25
+passive_perception: 6
+blindsight: 60
+token:
+ - A
+color: red
+ability:
+  str: 14
+  dex: 11
+  con: 13
+  int: 1
+  wis: 3
+  cha: 1
+languages: []
+cr: 1
+xp: 200
+proficiency_bonus: 2
+attributes:
+- antimagic_susceptibility
+- false_appearance
+- multiattack
+multiattack:
+  - slam,slam2
+equipped:
+- plate
+actions:
+- name: slam
+  type: melee_attack
+  range: 5
+  targets: 1
+  attack: 4
+  damage: 5
+  damage_die: 1d6+2
+  damage_type: bludgeoning
+  multiattack_group: 1
+- name: slam2
+  type: melee_attack
+  range: 5
+  targets: 1
+  attack: 4
+  damage: 5
+  damage_die: 1d6+2
+  damage_type: bludgeoning
+  multiattack_group: 1
+equipped: []

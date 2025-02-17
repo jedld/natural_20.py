@@ -326,7 +326,7 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
         StoneWallDirectional.__init__(self, session, map, properties)
         self.door_pos = self.properties.get("door_pos", 0)
         self.window = self.properties.get("window", [0, 0, 0, 0])
-        self._secret = self.properties.get("secret", False)
+        self.is_secret = self.properties.get("secret", False)
 
     def token(self):
         return StoneWallDirectional.token(self)
@@ -426,7 +426,7 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
         return DoorObject.close(self)
 
     def available_interactions(self, entity, battle=None):
-        if self.secret_door:
+        if self._secret:
             return {}
         return DoorObject.available_interactions(self, entity, battle)
 
