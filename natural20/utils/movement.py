@@ -171,8 +171,10 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
 def retrieve_opportunity_attacks(entity, move_list, battle):
     if entity.disengage(battle):
         return []
-
-    opportunity_attacks = opportunity_attack_list(entity, move_list, battle, battle.map_for(entity))
+    battle_map = battle.map_for(entity)
+    if not battle_map:
+        raise Exception('battle map not found')
+    opportunity_attacks = opportunity_attack_list(entity, move_list, battle, battle_map)
     return [enemy_opportunity for enemy_opportunity in opportunity_attacks if enemy_opportunity['source'].has_reaction(battle) and enemy_opportunity['source'] not in entity.grappling_targets()]
 
 
@@ -182,6 +184,9 @@ def opportunity_attack_list(entity, current_moves, battle, map):
     left_melee_range = []
     for index, path in enumerate(current_moves):
         for enemy in opponents:
+            if enemy not in map.entities:
+                continue
+
             if battle:
                 if not enemy.has_reaction(battle):
                     continue

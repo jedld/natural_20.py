@@ -98,6 +98,20 @@ class GameManagement:
         self.battle = None
         self.trigger_handlers = {}
         self.callbacks = {}
+        self._setup_controllers()
+
+    def _setup_controllers(self):
+        for controller in self.controllers:
+            entity_uid =  controller['entity_uid']
+            self.logger.info(f"Setting up controller for {entity_uid}")
+            
+            entity = self.get_entity_by_uid(entity_uid)
+            if entity not in self.controllers:
+                self.web_controllers[entity] = WebController(self.game_session, None)
+                self.web_controllers[entity].add_user("dm")
+
+            for _controller in controller['controllers']:
+                self.web_controllers[entity].add_user(_controller)
 
     def get_pov_entity_for_user(self, username):
         self.logger.info(f"Getting POV entity for {username}")
@@ -270,12 +284,12 @@ class GameManagement:
 
                                 # Add allies for entity1
                                 for ally in entity_by_groups[group1]:
-                                    if ally != entity1 and battle_map.can_see(ally, entity1):
+                                    if ally != entity1 and (battle_map.can_see(ally, entity1) or ally.group=='a'):
                                         add_to_initiative_set.add((ally, group1))
 
                                 # Add allies for entity2
                                 for ally in entity_by_groups[group2]:
-                                    if ally != entity2 and battle_map.can_see(ally, entity2):
+                                    if ally != entity2 and battle_map.can_see(ally, entity2) or ally.group=='a':
                                         add_to_initiative_set.add((ally, group2))
 
                                 start_battle = True
@@ -283,18 +297,15 @@ class GameManagement:
 
         if start_battle and add_to_initiative:
             # Helper to select the correct controller for an entity
-            def get_controller(entity, default_controller):
+            def get_controller(entity):
                 if isinstance(entity, PlayerCharacter):
-                    usernames = self.entity_owners(entity)
-                    return default_controller if not usernames else self.get_web_controller_user(usernames[0], default_controller)
+                    return self.get_controller_for_entity(entity)
                 return GenericController(self.game_session)
-
-            dm_controller = self.get_web_controller_user("dm", GenericController(self.game_session))
 
             if not self.battle:
                 self.battle = Battle(self.game_session, self.maps, animation_log_enabled=True)
                 for entity, group in add_to_initiative:
-                    controller = get_controller(entity, dm_controller)
+                    controller = get_controller(entity)
                     controller.register_handlers_on(entity)
                     self.battle.add(entity, group, controller=controller)
                 self.output_logger.log("Battle started.")
@@ -302,7 +313,7 @@ class GameManagement:
                 self.execute_game_loop()
             else:
                 for entity, group in add_to_initiative:
-                    controller = get_controller(entity, dm_controller)
+                    controller = get_controller(entity)
                     controller.register_handlers_on(entity)
                     self.battle.add(entity, group, add_to_initiative=True, controller=controller)
 
@@ -310,21 +321,15 @@ class GameManagement:
             self.socketio.emit('message', { 'type': 'turn', 'message': {}})
 
 
-    def get_controllers(self, entity):
-        # [{'entity_uid': 'gomerin', 'controllers': ['gomerin', 'shorvalu', 'leandro']}, {'entity_uid': 'crysania', 'controllers': ['crysania', 'shorvalu']}, {'entity_uid': 'shorvalu', 'controllers': ['shorvalu', 'keo']}, {'entity_uid': 'rumblebelly', 'controllers': ['rumblebelly', 'gomerin', 'shorvalu', 'jm']}]
-        for entity_info in self.controllers:
-            if entity_info['entity_uid'] == entity.entity_uid:
-                for controller_name in entity_info['controllers']:
-                    if controller_name in self.controllers:
-                        return self.controllers[controller_name]
-        return self.controllers
+    def get_controller_for_entity(self, entity):
+        return self.web_controllers[entity]
 
-    def get_web_controller_user(self, username, default_controller = None):
-        if username in self.web_controllers:
-            return self.web_controllers[username]
-        else:
-            self.web_controllers[username] = default_controller
-        return self.web_controllers[username]
+    def get_web_controllers_for_user(self, username, default_controller = None):
+        controller_list = []
+        for k, _controller in self.web_controllers.items():
+            if username in _controller.get_users():
+                controller_list.append(_controller)
+        return controller_list
 
     def entity_owners(self, entity):
         if hasattr(entity, 'owner'):

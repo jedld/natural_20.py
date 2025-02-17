@@ -145,8 +145,8 @@ def check_and_notify_map_change(pov_map, pov_entity):
 
     if new_battle_map != pov_map:
         current_game.switch_map_for_user(session['username'], new_battle_map.name)
-        web_controller = current_game.get_web_controller_user(session['username'])
-        if web_controller:
+        web_controllers = current_game.get_web_controllers_for_user(session['username'])
+        for web_controller in web_controllers:
             for sid in web_controller.sids:
                 socketio.emit('message', {'type': 'switch_map', 'message': {'map': new_battle_map.name}}, to=sid)
 
@@ -198,6 +198,8 @@ def controller_of(entity_uid, username):
     for info in CONTROLLERS:
         if info['entity_uid'] == entity_uid and username in info['controllers']:
             return True
+    logger.info(f"controller_of: {entity_uid} {username} missing")
+    return False
 
 app.add_template_global(controller_of, name='controller_of')
 
@@ -470,7 +472,6 @@ def index():
                            pov_entities=entities_controlled_by(session['username']),
                            username=session['username'], role=user_role())
 
-
 @app.route('/reload_map', methods=['POST'])
 def reload_map():
     global current_game
@@ -576,21 +577,9 @@ def handle_connect(data):
     global current_game, first_connect
     username = data.get('username')
     ws = request.sid
-    web_controller_for_user = current_game.get_web_controller_user(username, WebController(game_session, username))
-    web_controller_for_user.add_sid(ws)
-    battle = current_game.get_current_battle()
-
-    for info in CONTROLLERS:
-        users = info.get('controllers', [])
-        entity_uid = info.get('entity_uid')
-        if username in users:
-            entity = current_game.get_entity_by_uid(entity_uid)
-            if entity:
-                web_controller_for_user.add_user(username)
-                current_game.set_pov_entity_for_user(username, entity)
-
-                if battle:
-                    battle.set_controller_for(entity, web_controller_for_user)
+    web_controller_for_users = current_game.get_web_controllers_for_user(username, WebController(game_session, username))
+    for web_controller_for_user in web_controller_for_users:
+        web_controller_for_user.add_sid(ws)
 
     if not first_connect:
         first_connect = True
@@ -656,11 +645,8 @@ def start_battle_with_initiative():
             if param_item['controller'] == 'ai':
                 controller = GenericController(game_session)
             else:
-                usernames = entity_owners(entity)
-                if not usernames:
-                    controller = current_game.get_web_controller_user('dm', ManualControl(game_session, 'dm'))
-                else:
-                    controller = current_game.get_web_controller_user(usernames[0], ManualControl(game_session, 'dm')) or GenericController(game_session)
+                controller = current_game.get_controller_for_entity(entity)
+
             controller.register_handlers_on(entity)
             battle.add(entity, param_item['group'], controller=controller)
         output_logger.log("Battle started.")
@@ -1298,7 +1284,7 @@ def get_turn():
     battle = current_game.get_current_battle()
     if battle:
         print(f"current turn: {battle.current_turn().entity_uid} {session['username']}")
-        if 'dm' in user_role() or controller_of(session['username'], battle.current_turn().entity_uid):
+        if 'dm' in user_role() or controller_of(battle.current_turn().entity_uid, session['username']):
             return render_template('turn.jinja', battle=battle)
         else:
             return jsonify(error="Forbidden"), 403
