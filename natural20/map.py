@@ -674,8 +674,10 @@ class Map():
     def entity_squares(self, entity, squeeze=False):
         if not entity:
             raise ValueError('invalid entity')
-
-        pos1_x, pos1_y = self.entity_or_object_pos(entity)
+        _position = self.entity_or_object_pos(entity)
+        if _position is None:
+            raise ValueError(f'entity {entity} not found')
+        pos1_x, pos1_y = _position
         entity_1_squares = []
         token_size = entity.token_size() - 1 if squeeze else entity.token_size()
         for ofs_x in range(token_size):
