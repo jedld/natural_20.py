@@ -335,7 +335,8 @@ class Map():
 
         for obj in available_objects:
             if hasattr(obj,'available_interactions') and obj.available_interactions(entity, battle):
-                objects.append(obj)
+                if isinstance(obj, DoorObject) or self.can_see(entity, obj):
+                    objects.append(obj)
 
         return objects
 
