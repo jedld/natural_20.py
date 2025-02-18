@@ -915,7 +915,9 @@ class Map():
         trigger_results = []
         for k, _prop in self.area_triggers.items():
             if not k.dead():
-                trigger_results += k.area_trigger_handler(entity, position, is_flying)
+                _area_handler_results = k.area_trigger_handler(entity, position, is_flying)
+                if _area_handler_results:
+                    trigger_results += _area_handler_results
         trigger_results = [result for result in trigger_results if result is not None]
 
         return trigger_results
