@@ -18,6 +18,8 @@ const Utils = {
         $('#main-map-area .image-container img').attr('src', data.background);
         $('#main-map-area .image-container').css({ width: `${data.width}px`, height: `${data.height}px` });
         $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
+        $('.image-container').css({height: data.height});
+        $('.image-container img').css({width: data.width});
       })
     });
   },

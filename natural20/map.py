@@ -10,6 +10,7 @@ from natural20.item_library.chest import Chest
 from natural20.item_library.fireplace import Fireplace
 from natural20.item_library.teleporter import Teleporter
 from natural20.item_library.switch import Switch
+from natural20.item_library.trap_door import TrapDoor
 from natural20.item_library.proximity_trigger import ProximityTrigger
 from natural20.player_character import PlayerCharacter
 from natural20.npc import Npc
