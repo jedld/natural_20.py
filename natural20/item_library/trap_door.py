@@ -34,6 +34,9 @@ class TrapDoor(DoorObject, Teleporter):
                 return self.properties.get('token_image') + '_closed'
 
         return None
+    
+    def token_image_transform(self):
+        return None
 
     def interactable(self):
         if self.concealed():
