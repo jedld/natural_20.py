@@ -258,7 +258,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
             for y_pos in range(-1, 2):
               if x_pos == 0 and y_pos == 0:
                 continue
-              if map.bidirectionally_passable(self, self, cur_x + x_pos, cur_y + y_pos, (cur_x, cur_y), battle, allow_squeeze=False) and map.placeable(self, cur_x + x_pos, cur_y + y_pos, battle, squeeze=False):
+              if map.bidirectionally_passable(self, cur_x + x_pos, cur_y + y_pos, (cur_x, cur_y), battle, allow_squeeze=False) and map.placeable(self, cur_x + x_pos, cur_y + y_pos, battle, squeeze=False):
                 chosen_path = [[cur_x, cur_y], [cur_x + x_pos, cur_y + y_pos]]
                 actual_movement = compute_actual_moves(self, chosen_path, map, battle, self.available_movement(battle) // 5)
                 if len(actual_movement.movement) > 1 and actual_movement.impediment is None:
