@@ -332,10 +332,10 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
         return StoneWallDirectional.token(self)
 
     def token_opened(self):
-        return StoneWallDirectional.token_opened(self)
+        return DoorObject.token_opened(self)
 
     def token_closed(self):
-        return StoneWallDirectional.token_closed(self)
+        return DoorObject.token_closed(self)
 
     def token_image_transform(self):
         return StoneWallDirectional.token_image_transform(self)

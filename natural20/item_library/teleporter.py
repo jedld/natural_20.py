@@ -48,6 +48,3 @@ class Teleporter(Object):
 
     def jump_required(self):
         return False
-
-    def setup_other_attributes(self):
-        pass
