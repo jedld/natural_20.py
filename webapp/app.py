@@ -731,13 +731,14 @@ def update():
 
     pov_entities = [current_game.get_pov_entity_for_user(session['username'])]
 
-    if enable_pov and 'dm' in user_role():
+    if enable_pov:
         entity = battle_map.entity_at(x, y)
         if entity:
-            current_game.set_pov_entity_for_user(session['username'], entity)
-            pov_entities = [entity]
-        else:
-            current_game.set_pov_entity_for_user(session['username'], None)
+            if entity in entities_controlled_by(session['username'], battle_map):
+                current_game.set_pov_entity_for_user(session['username'], entity)
+                pov_entities = [entity]
+            elif 'dm' in user_role():
+                current_game.set_pov_entity_for_user(session['username'], None)
     else:
         if 'dm' in user_role():
             pov_entities = None

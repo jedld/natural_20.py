@@ -245,7 +245,7 @@ input.initiative-text {
   width: 100%;
   height: 100%;
   background-color: black;
-  opacity: 0.98;
+  opacity: 0.99;
 }
 
 .brightness-overlay {
@@ -491,4 +491,11 @@ input.initiative-input.form-control {
   color: #fff;
   background: rgba(0, 0, 0, 0.5);
   margin-top: 4px;
+}
+
+.portrait-button {
+  position: fixed;
+  left: 120px;
+  bottom: 10px;
+  z-index: 1100;
 }

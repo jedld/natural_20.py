@@ -51,7 +51,15 @@ class Notable:
                         result = note.get("note")
                     if perception_dc > 0:
                         result = self.t("perception.passed", dc=perception_dc, note=result)
-                    result_notes.append(result)
+                    note_json = { "note": result }
+                    if note.get("image_offset_px"):
+                        note_json["image_offset_px"] = note.get("image_offset_px")
+                    result_notes.append(note_json)
             else:
-                result_notes.append(note.get("note"))
+                if note.get("image_offset_px"):
+                        note_json["image_offset_px"] = note.get("image_offset_px")
+
+                note_json = { "note": note.get("note") }
+
+                result_notes.append(note_json)
         return [result_notes, new_note_source]

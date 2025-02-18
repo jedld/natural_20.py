@@ -426,7 +426,7 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
         return DoorObject.close(self)
 
     def available_interactions(self, entity, battle=None):
-        if self._secret:
+        if self.is_secret:
             return {}
         return DoorObject.available_interactions(self, entity, battle)
 

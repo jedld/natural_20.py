@@ -21,8 +21,8 @@ const Utils = {
       })
     });
   },
-  refreshTileSet: function(is_setup = false, pov = false, x = 0, y = 0, callback = null)  {
-    Utils.ajaxGet('/update', { is_setup, pov, x, y }, (data) => {
+  refreshTileSet: function(is_setup = false, pov = false, x = 0, y = 0, entity_uid= null, callback = null)  {
+    Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) => {
       lastMovedEntityBeforeRefresh = null;
       $('.tiles-container').html(data);
       if (callback) callback();
