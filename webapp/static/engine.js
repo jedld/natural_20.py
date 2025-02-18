@@ -6,10 +6,13 @@ let scale = 1;
 const switchPOV = (entity_uid) => {
   ajaxPost('/switch_pov', { entity_uid }, (data) => {
     console.log('Switched POV:', data);
-    Utils.refreshTileSet(callback = () => {
+    Utils.refreshTileSet(is_setup = false, pov = true, x = 0, y = 0, entity_uid=entity_uid, () => {
       $('#main-map-area .image-container img').attr('src', data.background);
       $('#main-map-area .image-container').css({ width: `${data.width}px`, height: `${data.height}px` });
       $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
+
+      const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
+      centerOnTile($tile);
     })
   });
 };
@@ -128,23 +131,24 @@ function command(cmd) {
 }
 
 // Centers the viewport on a given tile and (optionally) highlights it.
-function centerOnTile($tile, highlight = false) {
+function centerOnTile(tile, highlight = false) {
   const boardWidth = $(window).width();
   const boardHeight = $(window).height();
-  const tileWidth = $tile.width();
-  const tileHeight = $tile.height();
-  const { left, top } = $tile.offset();
+  const tileWidth = tile.width();
+  const tileHeight = tile.height();
+  const offset = tile.offset();
+  const { left, top } = offset;
   const scrollLeft = left - (boardWidth / 2) + (tileWidth / 2);
   const scrollTop = top - (boardHeight / 2) + (tileHeight / 2);
 
   $('.tile .entity').removeClass('focus-highlight');
-  $tile.find('.entity').addClass('focus-highlight');
+  tile.find('.entity').addClass('focus-highlight');
 
-  $('html, body').animate({ scrollLeft, scrollTop }, 500, () => {
-    $tile.fadeOut(150).fadeIn(150).fadeOut(150).fadeIn(150).fadeOut(150).fadeIn(150);
+  $('html, body').animate({ scrollLeft, scrollTop }, 200, () => {
+    tile.fadeOut(150).fadeIn(150);
     if (highlight) {
       $('.tile').removeClass('focus-highlight-red');
-      $tile.addClass('focus-highlight-red');
+      tile.addClass('focus-highlight-red');
     }
   });
 }

@@ -95,6 +95,11 @@ class JsonRenderer:
                         }
 
                         object_info['notes'], _ = object_entity.list_notes(entity_pov=entity_pov)
+                        if object_entity.properties.get('image_offset_px'):
+                            object_info['image_offset_px'] = object_entity.properties.get('image_offset_px')
+                        else:
+                            object_info['image_offset_px'] = [0, 0]
+
                         shared_attributes['objects'].append(object_info)
 
                         if object_entity.__class__.__name__ == 'Ground':

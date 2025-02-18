@@ -29,14 +29,14 @@
                 {% endif %}
               </div>
               {% if obj['notes'] %}
-                <button class="show-note-btn" onclick="Utils.toggleNoteOverlay(this)">
+                <button class="show-note-btn" onclick="Utils.toggleNoteOverlay(this)" style="top: {{obj['image_offset_px'][0]}}px; left: {{obj['image_offset_px'][1]}}px;">
                   <i class="glyphicon glyphicon-info-sign"></i>
                 </button>
                 <div class="object-note-overlay">
                   <button class="close-note-btn" onclick="this.parentElement.style.display='none'">×</button>
                   <div class="object-note" style="display: block;">
                     {% for note in obj['notes'] %}
-                      <p>{{ note }}</p>
+                      <p>{{ note['note'] }}</p>
                     {% endfor %}
                   </div>
                 </div>

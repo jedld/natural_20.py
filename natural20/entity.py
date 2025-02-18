@@ -49,7 +49,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.event_manager = event_manager
         self.concentration = None
         self.is_concealed = False
-        self._secret = False
+        self.is_secret = False
         self.perception_results = {}
         self.buttons = {}
         self.entity_uid = uuid.uuid4()
