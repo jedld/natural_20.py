@@ -472,15 +472,15 @@ input.initiative-input.form-control {
 /* Floating Entity Portrait Styles */
 .floating-entity-portrait {
   position: fixed;
-  bottom: 10px; /* position from the bottom as per inline style */
+  bottom: 70px; /* position from the bottom as per inline style */
   /* left is set inline dynamically */
   cursor: pointer;
   z-index: 1000;
 }
 
 .floating-entity-portrait img {
-  width: 64px;
-  height: 64px;
+  width: 100px;
+  height: 100px;
   border: 2px solid #fff;
   border-radius: 50%;
   display: block;
@@ -490,6 +490,5 @@ input.initiative-input.form-control {
   text-align: center;
   color: #fff;
   background: rgba(0, 0, 0, 0.5);
-  padding: 2px 4px;
   margin-top: 4px;
 }

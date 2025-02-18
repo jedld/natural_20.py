@@ -1273,6 +1273,9 @@ class Entity(EntityStateEvaluator, Notable):
             return getattr(self, method_name)()
 
         return 0
+    
+    def health_percent(self):
+        return int((self.hp() / self.properties['max_hp']) * 100)
 
     # Returns the available spells for the current user
     # @param battle [Natural20::Battle]
