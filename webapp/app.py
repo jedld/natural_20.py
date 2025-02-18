@@ -90,7 +90,7 @@ if 'extensions' in index_data:
         EXTENSIONS.append(extension_module)
 
 sockets = []
-MAP_PADDING = [6, 6]
+MAP_PADDING = [6, 15]
 
 output_logger = SocketIOOutputLogger(socketio)
 output_logger.log("Server started")
