@@ -278,6 +278,9 @@ class GameManagement:
                             if self.battle and (entity1 in self.battle.entities and entity2 in self.battle.entities):
                                 continue
 
+                            if self.get_map_for_entity(entity1) != self.get_map_for_entity(entity2):
+                                continue
+
                             if battle_map.can_see(entity1, entity2):
                                 add_to_initiative_set.add((entity1, group1))
                                 add_to_initiative_set.add((entity2, group2))
