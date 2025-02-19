@@ -1,1 +1,2 @@
-../static/actions
+# ../static/actions
+../static/assets/objects

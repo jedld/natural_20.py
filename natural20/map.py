@@ -677,7 +677,7 @@ class Map():
             raise ValueError('invalid entity')
         _position = self.entity_or_object_pos(entity)
         if _position is None:
-            raise ValueError(f'entity {entity} not found')
+            raise ValueError(f'entity {entity} not found for map {self.name}')
         pos1_x, pos1_y = _position
         entity_1_squares = []
         token_size = entity.token_size() - 1 if squeeze else entity.token_size()

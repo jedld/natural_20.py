@@ -7,9 +7,9 @@
 #   ./optimize_images.sh [folders_file]
 #
 # The folders file should contain one path per line.
+# Lines starting with '#' are considered comments and are ignored.
 # If no file is specified, it defaults to "../static/items".
 
-# If a folders file is provided, read folder paths from it.
 if [ "$#" -ne 1 ]; then
     echo "Usage: $0 [folders_file]"
     exit 1
@@ -21,10 +21,14 @@ if [ ! -f "$FOLDER_FILE" ]; then
     exit 1
 fi
 
-# Read folders from the file (ignoring empty lines)
+# Read folders from the file (ignoring empty lines and lines starting with '#')
 FOLDERS=()
 while IFS= read -r line || [ -n "$line" ]; do
-    [ -n "$line" ] && FOLDERS+=("$line")
+    # Skip empty lines and comment lines
+    if [[ -z "$line" || "$line" =~ ^# ]]; then
+        continue
+    fi
+    FOLDERS+=("$line")
 done < "$FOLDER_FILE"
 
 # Loop through each specified folder
@@ -41,18 +45,18 @@ for ASSETS_DIR in "${FOLDERS[@]}"; do
     for img in "$ASSETS_DIR"/*.png; do
         # Skip if no PNG files are found
         [ -e "$img" ] || continue
-        
+
         echo "Optimizing image: $img"
-        
+
         # Define output file (adds a "-optimized" suffix before the extension)
         base=$(basename "$img" .png)
         out="$ASSETS_DIR/${base}-optimized.png"
-        
+
         # Resize and crop image to exactly 75x75 px:
         # -resize 75x75^ scales the image while preserving aspect ratio until the smaller side fits 75px
-        # -gravity center -extent 75x75 crops the centered area to 75x75
-        convert "$img" -resize 75x75^ -gravity center -extent 75x75 "$out"
-        
+        # -gravity center sets the focal point and -background none ensures transparency is preserved before cropping with -extent 75x75
+        convert "$img" -resize 75x75^ -gravity center -background none -extent 75x75 "$out"
+
         # Further optimize the image with optipng (level 7 optimization)
         optipng -o7 "$out"
     done
