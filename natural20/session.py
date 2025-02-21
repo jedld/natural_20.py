@@ -4,8 +4,9 @@ from collections import deque
 from natural20.npc import Npc
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
+from natural20.map import Map
 import i18n
-
+from copy import deepcopy
 
 # typed: true
 class Session:
@@ -36,11 +37,26 @@ class Session:
                 self.game_properties = yaml.safe_load(f)
         else:
             raise Exception(f'Missing game {game_file} file')
+        self._load_all_maps(self.game_properties)
 
     def reset(self):
         self.game_time = 0
         self.session_state = {}
         self.event_log = deque(maxlen=100)
+
+    def _load_all_maps(self, game_file):
+        self.maps = {}
+        map_with_key = game_file.get('maps', {})
+        for name, map_file in map_with_key.items():
+            self.maps[name] = Map(self, map_file, name=name)
+
+        # add links to the other maps
+        for _, map_obj in self.maps.items():
+            for name, linked_map in self.maps.items():
+                if map_obj!=linked_map:
+                    map_obj.add_linked_map(name, linked_map)
+
+        return self.maps
 
     def groups(self):
         return self.game_properties.get('groups', {})
@@ -235,7 +251,7 @@ class Session:
             objects = self.load_yaml_file('items', 'objects')
             self.objects[object_name] = objects.get(object_name)
             assert self.objects[object_name], f'Object {object_name} not found'
-        return self.objects[object_name]
+        return deepcopy(self.objects[object_name])
 
     def t(self, token, options=None):
         return i18n.t(token, **options)

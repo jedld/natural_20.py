@@ -5,6 +5,7 @@ from natural20.event_manager import EventManager
 from natural20.evaluator.entity_state_evaluator import EntityStateEvaluator
 from typing import List, Tuple
 from natural20.concern.notable import Notable
+from natural20.concern.generic_event_handler import GenericEventHandler
 import uuid
 import i18n
 class Entity(EntityStateEvaluator, Notable):
@@ -1557,11 +1558,16 @@ class Entity(EntityStateEvaluator, Notable):
                 'qty': v['qty']
             })
         return other
-    
+
     def read_item(self, item_name):
         item = self.session.load_thing(item_name)
         if not item:
             return None
+        if item.get('events'):
+            for event in item['events']:
+                if event['event'] == 'read':
+                    generic_handler = GenericEventHandler(self.session, None, event)
+                    generic_handler.handle(self)
         return item, item.get('content', None)
 
     def has_spells(self):
