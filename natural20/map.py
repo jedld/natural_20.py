@@ -17,6 +17,7 @@ from natural20.npc import Npc
 from natural20.weapons import compute_max_weapon_range
 from natural20.utils.list_utils import remove_duplicates, bresenham_line_of_sight
 from natural20.utils.movement import Movement, compute_actual_moves
+from copy import deepcopy
 import math
 import pdb
 import os
@@ -148,7 +149,7 @@ class Map():
                         if object_meta['type'] == 'mask':
                             continue
                         object_info = self.session.load_object(object_meta['type'])
-                        self.place_object(object_info, pos_x, pos_y, object_meta)
+                        self.place_object(object_info, pos_x, pos_y, deepcopy(object_meta))
 
     def _trigger_after_setup(self):
         for trigger_name, trigger in self.triggers.items():
@@ -500,7 +501,7 @@ class Map():
         if match:
             return [obj for obj in self.objects[pos_x][pos_y] if isinstance(obj, match)]
         return self.objects[pos_x][pos_y]
-    
+
     # Natural20::Entity to look around
     # @param entity [Natural20::Entity] The entity to look around his line of sight
     # @return [Hash] entities in line of sight

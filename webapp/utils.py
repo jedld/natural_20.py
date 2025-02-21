@@ -82,19 +82,7 @@ class GameManagement:
             self.logger.info(f"Loading map from {self.map_location}")
             self.battle_map = Map(game_session, self.map_location, name='index')
 
-        self.maps['index'] = self.battle_map
-
-        if other_maps:
-            for name, map_location in other_maps.items():
-                self.logger.info(f"Loading map {name} from {map_location}")
-                self.maps[name] = Map(game_session, map_location, name=name)
-
-        # add links to the other maps
-        for _, map_obj in self.maps.items():
-            for name, linked_map in self.maps.items():
-                if map_obj!=linked_map:
-                    map_obj.add_linked_map(name, linked_map)
-
+        self.maps = self.game_session.maps
         self.battle = None
         self.trigger_handlers = {}
         self.callbacks = {}
@@ -104,7 +92,6 @@ class GameManagement:
         for controller in self.controllers:
             entity_uid =  controller['entity_uid']
             self.logger.info(f"Setting up controller for {entity_uid}")
-            
             entity = self.get_entity_by_uid(entity_uid)
             if entity not in self.controllers:
                 self.web_controllers[entity] = WebController(self.game_session, None)

@@ -19,7 +19,7 @@ class DoorObject(Object):
             # check for walls and auto determine the direction
             pos = self.map.position_of(self)
 
-            if self.door_pos:
+            if self.door_pos is not None:
                 if self.door_pos == 0:
                     self.front_direction = "up"
                 elif self.door_pos == 1:
@@ -317,6 +317,10 @@ class DoorObject(Object):
             self.open()
         elif state == "closed":
             self.close()
+        elif state == "unconcealed":
+            self.is_concealed = False
+        elif state == "concealed":
+            self.is_concealed = True
         else:
             raise ValueError("Invalid state for door object: %s" % state)
 
