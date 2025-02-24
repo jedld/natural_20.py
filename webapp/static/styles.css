@@ -30,6 +30,7 @@
   left: 0;
   height: 6px;
   border: white 1px solid;
+  opacity: 0.8;
 }
 
 .nameplate {

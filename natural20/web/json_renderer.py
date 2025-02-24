@@ -1,7 +1,9 @@
 import numpy as np
 import pdb
+from natural20.map import Map
+from natural20.battle import Battle
 class JsonRenderer:
-    def __init__(self, map, battle=None, padding=None):
+    def __init__(self, map: Map, battle: Battle=None, padding=None):
         self.map = map
         self.battle = battle
         self.padding = padding
@@ -54,8 +56,13 @@ class JsonRenderer:
                             continue
 
                         if not any([self.map.can_see_square(entity, (x, y)) for entity in entity_pov]):
-                            result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 0.0})
+                            if any([self.map.can_see_square(entity, (x, y), force_dark_vision=True) for entity in entity_pov]):
+                                result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': True, 'light': 0.0, 'opacity': 0.95})
+                                continue
+
+                            result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 1.0})
                             continue
+
                 object_entities = self.map.objects_at(x, y)
                 entity = self.map.entity_at(x, y)
                 light = self.map.light_at(x, y)

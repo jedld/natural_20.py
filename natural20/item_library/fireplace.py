@@ -43,11 +43,11 @@ class Fireplace(Object, Lootable, Inventory, Container):
     def passable(self, origin=None):
         return True
 
-    def available_interactions(self, entity, battle=None):
+    def available_interactions(self, entity, battle=None, admin=False):
         interactions = {}
         if self.is_lit():
             interactions['put_out'] = {}
-        elif entity.has_item('torch'):
+        elif entity.has_item('torch') or admin:
             interactions['light'] = {}
         interactions['loot'] = {}
         return interactions
@@ -85,5 +85,5 @@ class Fireplace(Object, Lootable, Inventory, Container):
 
         return {'dim': dim, 'bright': bright}
 
-    def interactable(self):
+    def interactable(self, entity=None):
         return True

@@ -24,9 +24,9 @@ class SpellScroll(Object):
             return False
         return True
 
-    def available_interactions(self, entity, battle):
+    def available_interactions(self, entity, battle, admin=False):
         available_interactions = {}
-        if self.can_use(entity):
+        if self.can_use(entity) or admin:
             available_interactions['use'] = 'use'
         return available_interactions
 

@@ -25,6 +25,8 @@ class StoneWallDirectional(StoneWall):
         super().__init__(session, map, properties)
         self.wall_direction = self.properties['type']
         self.custom_border = self.properties.get('border')
+        self.window = self.properties.get('window', [0, 0, 0, 0])
+
         if self.custom_border:
             self.border = self.custom_border
         else:
@@ -83,21 +85,27 @@ class StoneWallDirectional(StoneWall):
             return False
         return True
 
-    def opaque(self, origin_pos = None):
-        if origin_pos is None:
-            return not self.dead()
-
+    def opaque(self, origin=None):
         pos_x, pos_y = self.map.position_of(self)
-        if self.border[0] and origin_pos[1] < pos_y:
-            return not self.dead()
-        if self.border[1] and origin_pos[0] > pos_x:
-            return not self.dead()
-        if self.border[2] and origin_pos[1] > pos_y:
-            return not self.dead()
-        if self.border[3] and origin_pos[0] < pos_x:
+        if origin is None:
             return not self.dead()
 
-        return False
+        window_ok = (
+            (not self.window[0] or origin[1] >= pos_y) and
+            (not self.window[1] or origin[0] <= pos_x) and
+            (not self.window[2] or origin[1] <= pos_y) and
+            (not self.window[3] or origin[0] >= pos_x)
+        )
+
+        border_toggled = any([
+            self.border[0] and origin[1] < pos_y,
+            self.border[1] and origin[0] > pos_x,
+            self.border[2] and origin[1] > pos_y,
+            self.border[3] and origin[0] < pos_x,
+        ])
+
+        opaqueness = (not self.dead()) if border_toggled else self.dead()
+        return opaqueness and window_ok
 
     def wall(self, origin_pos = None):
         return True
@@ -140,14 +148,14 @@ class Ground(Object, Container, Lootable):
                 'next': next_action
             }
 
-    def available_interactions(self, entity, battle=None):
+    def available_interactions(self, entity, battle=None, admin=False):
         interactions = {}
         if self.map.position_of(entity) == self.map.position_of(self):
             if len(self.inventory) > 0 or len(entity.inventory) > 0:
                 interactions['pickup_drop'] = {}
         return interactions
 
-    def interactable(self):
+    def interactable(self, entity=None):
         return True
 
     def resolve(self, entity, action, other_params, opts=None):

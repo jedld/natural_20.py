@@ -8,6 +8,7 @@ class DoorObject(Object):
         Object.__init__(self, session, map, properties)
         self.front_direction = self.properties.get("front_direction", "auto")
         self.privacy_lock = self.properties.get("privacy_lock", False)
+        self.door_blocking = self.properties.get("door_blocking", False)
         self.state = self.properties.get("state", "closed")
         self.lockable = self.properties.get("lockable", 'key' in self.properties.keys())
         self.locked = self.properties.get("locked", False)
@@ -130,11 +131,14 @@ class DoorObject(Object):
                 transform += " transform: rotate(180deg);"
         return transform
 
-    def available_interactions(self, entity, battle=None):
+    def available_interactions(self, entity, battle=None, admin=False):
         if self.concealed():
             return {}
 
         def inside_range_for_locking():
+            if admin:
+                return True
+
             offsets = {
             "up": (0, -1),
             "down": (0, 1),
@@ -147,6 +151,9 @@ class DoorObject(Object):
             return off and (ex, ey) == (dx + off[0], dy + off[1])
 
         def inside_range_for_opening():
+            if admin:
+                return True
+
             ex, ey = self.map.position_of(entity)
             dx, dy = self.map.position_of(self)
 
@@ -168,21 +175,22 @@ class DoorObject(Object):
         else:
             has_key = False
 
-        if self.locked:
-            actions["unlock"] = {
-                "disabled": not has_key,
-                "disabled_text": "object.door.key_required"
-            }
-            if entity.item_count("thieves_tools") > 0 and entity.proficient("thieves_tools"):
-                if battle:
-                    actions["lockpick"] = {
-                        "disabled": entity.action(battle),
-                        "disabled_text": "object.door.action_required"
-                    }
-                else:
-                    actions["lockpick"] = {}
-            if self.privacy_lock and inside_range_for_locking():
-                actions["unlock"] = {}
+        if self.locked and not admin:
+            if self.lockable:
+                actions["unlock"] = {
+                    "disabled": not has_key,
+                    "disabled_text": "object.door.key_required"
+                }
+                if entity.item_count("thieves_tools") > 0 and entity.proficient("thieves_tools"):
+                    if battle:
+                        actions["lockpick"] = {
+                            "disabled": entity.action(battle),
+                            "disabled_text": "object.door.action_required"
+                        }
+                    else:
+                        actions["lockpick"] = {}
+                if self.privacy_lock and inside_range_for_locking():
+                    actions["unlock"] = {}
             return actions
 
         if self.opened() and inside_range_for_opening():
@@ -200,12 +208,12 @@ class DoorObject(Object):
             actions["lock"] = {}
         elif self.lockable:
             actions["lock"] = {
-                "disabled": not has_key,
+                "disabled": not has_key and not admin,
                 "disabled_text": "object.door.key_required"
             }
         return actions
 
-    def interactable(self):
+    def interactable(self, entity=None):
         return True
 
     def resolve(self, entity, action, other_params, opts=None):
@@ -302,6 +310,9 @@ class DoorObject(Object):
         return self.properties.get("lockpick_dc", 10)
 
     def someone_blocking_the_doorway(self):
+        if not self.door_blocking:
+            return False
+
         return bool(self.map.entity_at(*self.position()))
 
     def on_take_damage(self, battle, damage_params):
@@ -373,7 +384,7 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
                 return False
             return True
 
-        wall_opaque = StoneWallDirectional.opaque(self, origin_pos=origin)
+        wall_opaque = StoneWallDirectional.opaque(self, origin=origin)
         pos_x, pos_y = self.map.position_of(self)
         # handle windows
         window_opaque = check_window_opaque()
@@ -429,13 +440,13 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
     def close(self):
         return DoorObject.close(self)
 
-    def available_interactions(self, entity, battle=None):
+    def available_interactions(self, entity, battle=None, admin=False):
         if self.is_secret:
             return {}
-        return DoorObject.available_interactions(self, entity, battle)
+        return DoorObject.available_interactions(self, entity, battle, admin=admin)
 
-    def interactable(self):
-        return DoorObject.interactable(self)
+    def interactable(self, entity=None):
+        return DoorObject.interactable(self, entity)
 
     def resolve(self, entity, action, other_params, opts=None):
         return DoorObject.resolve(self, entity, action, other_params, opts)

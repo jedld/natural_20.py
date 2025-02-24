@@ -36,6 +36,7 @@ class Object(Entity):
         self.effects = {}
         self.inventory = {}
         self._temp_hp = 0
+        self.interact_distance = properties.get('interact_distance', 5)
         # fake attributes for dungeons and dragons objects
         self.attributes = properties.get('attributes', {
         })
@@ -143,7 +144,7 @@ class Object(Entity):
     def can_hide(self) -> bool:
         return self.properties.get('allow_hide', False)
 
-    def interactable(self) -> bool:
+    def interactable(self, entity=None) -> bool:
         return False
     
     def max_hp(self) -> int:
@@ -174,7 +175,7 @@ class Object(Entity):
     def size(self) -> str:
         return self.properties.get('size', 'medium')
 
-    def available_interactions(self, entity: Any, battle: Any) -> List[Any]:
+    def available_interactions(self, entity: Any, battle: Any, admin: bool =False) -> List[Any]:
         return {}
 
     def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True):

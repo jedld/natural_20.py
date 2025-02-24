@@ -38,7 +38,7 @@ class TrapDoor(DoorObject, Teleporter):
     def token_image_transform(self):
         return None
 
-    def interactable(self):
+    def interactable(self, entity=None):
         if self.concealed():
             return False
         return True
@@ -46,11 +46,13 @@ class TrapDoor(DoorObject, Teleporter):
     def label(self):
         return self.properties.get('label', 'object.trap_door.label')
 
-    def available_interactions(self, entity, battle=None):
-        if self.concealed():
+    def available_interactions(self, entity, battle=None, admin=False):
+        if self.concealed() and not admin:
             return {}
 
         def inside_range():
+            if admin:
+                return True
             ex, ey = self.map.position_of(entity)
             dx, dy = self.map.position_of(self)
 
@@ -63,7 +65,7 @@ class TrapDoor(DoorObject, Teleporter):
 
         actions = {}
         if entity:
-            has_key = entity.item_count(self.key_name) > 0
+            has_key = entity.item_count(self.key_name) > 0 or admin
         else:
             has_key = False
 

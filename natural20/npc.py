@@ -171,7 +171,7 @@ class Npc(Entity, Multiattack, Lootable):
     def any_class_feature(self, features):
         return any(self.class_feature(f) for f in features)
     
-    def available_interactions(self, entity, battle):
+    def available_interactions(self, entity, battle, admin=False):
         return {}
     
     def proficient_with_equipped_armor(self):
