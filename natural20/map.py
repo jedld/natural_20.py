@@ -61,6 +61,7 @@ class Map():
         self.interactable_objects = {}
         self.legend = self.properties.get('legend', {})
         self.linked_maps = {}
+        self.image_offset_px = self.properties.get('image_offset_px', [0, 0])
 
         for _ in range(self.size[0]):
             row = []
@@ -569,7 +570,7 @@ class Map():
                 entity_1_squares.append([pos1_x + ofs_x, pos1_y + ofs_y])
         return entity_1_squares
     
-    def can_see_square(self, entity, pos2: tuple, allow_dark_vision=True):
+    def can_see_square(self, entity, pos2: tuple, allow_dark_vision=True, force_dark_vision=False):
         has_line_of_sight = False
         max_illumination = 0.0
         sighting_distance = None
@@ -595,7 +596,7 @@ class Map():
             has_line_of_sight = True
 
         if has_line_of_sight and max_illumination < 0.5:
-            return allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid)
+            return allow_dark_vision and (force_dark_vision or entity.darkvision(sighting_distance * self.feet_per_grid))
 
         return has_line_of_sight
 

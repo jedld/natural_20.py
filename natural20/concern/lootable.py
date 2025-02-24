@@ -1,5 +1,5 @@
 class Lootable:
-    def available_interactions(self, entity, battle=None):
+    def available_interactions(self, entity, battle=None, admin=False):
         interactions = {}
         if self.unconscious() or self.dead():
             interactions['loot'] = {}

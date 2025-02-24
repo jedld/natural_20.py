@@ -218,9 +218,9 @@ def transform_for(tile):
     if entity_size == 'medium':
         transforms.append('scale(0.8)')
     if entity_size =='small':
-        transforms.append('scale(0.5)')
+        transforms.append('scale(0.6)')
     elif entity_size == 'tiny':
-        transforms.append('scale(0.2)')
+        transforms.append('scale(0.3)')
 
     if tile.get('prone', False):
         transforms.append('rotate(90deg)')
@@ -439,7 +439,7 @@ def index():
 
     my_2d_array = [renderer.render(entity_pov=pov_entities)]
     map_width, map_height = battle_map.size
-
+    left_offset_px, top_offset_px = battle_map.image_offset_px
 
     tiles_dimension_height = map_height * TILE_PX
     tiles_dimension_width = map_width * TILE_PX
@@ -469,6 +469,8 @@ def index():
                            waiting_for_reaction=waiting_for_reaction,
                            soundtrack=current_soundtrack,
                            title=TITLE,
+                           top_offset_px=top_offset_px,
+                           left_offset_px=left_offset_px,
                            available_maps=available_maps,
                            pov_entities=entities_controlled_by(session['username']),
                            username=session['username'], role=user_role())

@@ -127,7 +127,7 @@ class Chest(Object, Container):
     def color(self):
         return 'white' if self.is_opened() else 'default'
 
-    def available_interactions(self, entity, battle=None):
+    def available_interactions(self, entity, battle=None, admin=False):
         interactions = {}
         if self.locked():
             interactions['unlock'] = {
@@ -217,5 +217,5 @@ class Chest(Object, Container):
     def lockpick_dc(self):
         return self.properties.get('lockpick_dc', 10)
 
-    def interactable(self):
+    def interactable(self, entity=None):
         return True

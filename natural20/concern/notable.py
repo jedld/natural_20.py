@@ -13,6 +13,9 @@ class Notable:
             if note.get("if") and not self.eval_if(note["if"]):
                 continue
 
+            if self.is_secret and note.get("secret"):
+                continue
+
             if 'perception_dc' in note:
                 perception_dc = note.get("perception_dc", 0)
                 existing_perception = None

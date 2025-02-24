@@ -32,7 +32,7 @@ class ProximityTrigger(Object):
                 })
         return result
 
-    def interactable(self):
+    def interactable(self, entity=None):
         return False
 
     def available_interactions(self, entity, battle=None, admin=False):

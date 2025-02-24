@@ -160,7 +160,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             if map:
                 nearby_objects = map.objects_near(entity)
                 for obj in nearby_objects:
-                    if obj.interactable():
+                    if obj.interactable(entity):
                         possible_objects.append(obj)
                 if match:
                     possible_objects = [obj for obj in possible_objects if obj in match]
@@ -173,7 +173,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
         # -----------------------------
         elif param_type == "interact":
             object = param["target"]
-            interaction_actions = object.available_interactions(entity, battle)
+            interaction_actions = object.available_interactions(entity, battle, admin = entity.is_admin)
             _interaction_actions = list(interaction_actions.keys())
             if match:
                 _interaction_actions = [ action for action in _interaction_actions if action in match]

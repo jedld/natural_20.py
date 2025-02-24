@@ -2,7 +2,6 @@
 
 let scale = 1;
 
-
 const switchPOV = (entity_uid) => {
   ajaxPost('/switch_pov', { entity_uid }, (data) => {
     console.log('Switched POV:', data);
@@ -500,9 +499,6 @@ $(document).ready(() => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   });
 
-
-
- 
 
   // Draws a target line from a source to a given set of coordinates.
   function drawTargetLine(ctx, source, coordsx, coordsy, valid_target = true) {

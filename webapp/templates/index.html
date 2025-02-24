@@ -120,7 +120,7 @@
     {% endif %}
     <div id="coords-box" style="position: fixed; top: 0; right: 0; background-color: white; padding: 10px; border: 1px solid black;"></div>
     <div id="main-map-area" style="background-color: {{ background_color }};">
-        <div class="image-container" style="position: absolute; top: {{tile_size_px}}px; left: {{tile_size_px}}px; height: {{ background_height }}px; ">
+        <div class="image-container" style="position: absolute; top: {{tile_size_px + top_offset_px}}px; left: {{tile_size_px + left_offset_px}}px; height: {{ background_height }}px; ">
             <img src="{{ background_path }}" style="overflow: scroll;  width: {{ background_width }}px; object-fit: cover; object-position: top;">
         </div>
         <div id="tiles-area" class="tiles-container actions-container" data-width="{{ background_width }}" data-height="{{ background_height }}" data-tile-size="{{tile_size_px}}" ></div>
