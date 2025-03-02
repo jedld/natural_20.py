@@ -64,13 +64,20 @@ legend:
     type: wooden_door
     state: closed
     buttons:
-      - action: check_medicine
-        label: Open the door
-    investigation:
-      medicine:
+      - action: investigation_check
+        label: Investigation Check
+    ability_checks:
+      investigation:
         prompt: "Inspect Door"
-        success: You verify that the door is not trapped.
         dc: 14
+        success:
+          message: (success) The door is not trapped
+          events:
+            - message: You open the door
+              update_state:
+                target: front_door
+                state: opened
+        failure: (failure) The door is not trapped
   T:
     name: pit_trap
     type: pit_trap

@@ -31,23 +31,33 @@ class TestInteractAction(unittest.TestCase):
         self.battle.start()
         self.entity.reset_turn(self.battle)
 
-    def test_button_labels(self):
+    def test_ability_checks(self):
         self.battle.add(self.entity, group='a')
         self.battle.start()
         self.entity.reset_turn(self.battle)
         print(MapRenderer(self.battle_map).render())
-        action = autobuild(self.session, InteractAction, self.entity, self.battle, match=[self.door, "check_medicine"], verbose=True)[0]
+        action = autobuild(self.session, InteractAction, self.entity, self.battle, match=[self.door, "investigation_check"], verbose=True)[0]
+
         self.assertIsInstance(action, InteractAction)
-        self.assertEqual(action.button_label(), 'Open the door')
+        self.assertEqual(action.button_label(), 'Investigation Check')
         self.assertEqual(action.button_prompt(), 'Inspect Door')
-        
+        self.assertListEqual(self.door.investigate_details(self.entity), [])
+
+        self.assertEqual(self.door.closed(), True)
+        self.battle.action(action)
+        self.battle.commit(action)
+        self.assertEqual(self.door.closed(), False)
+        print(MapRenderer(self.battle_map).render())
+        _investigate_list = self.door.investigate_details(self.entity)
+  
+        self.assertListEqual(_investigate_list, ['(success) The door is not trapped'])
 
     def test_opening_and_closing_doors(self):
         print(MapRenderer(self.battle_map).render())
         build = InteractAction.build(self.session, self.entity)
         build = build['next'](self.door)
         self.assertEqual(build['param'], [{'type': 'interact', 'target': self.door }])
-        self.assertEqual(set(self.door.available_interactions(self.entity).keys()),set(['open', 'lock']))
+        self.assertEqual(set(self.door.available_interactions(self.entity).keys()),set(['open','investigation_check']))
 
         self.assertFalse(self.door.opened())
         build = build['next']('open')
@@ -87,7 +97,7 @@ class TestInteractAction(unittest.TestCase):
     def test_player_item_transfer(self):
         self.entity2 = PlayerCharacter.load(self.session, os.path.join("dwarf_cleric.yml"))
         self.battle_map.place((0, 6), self.entity2, "G")
-        self.assertListEqual([str(s) for s in self.battle_map.objects_near(self.entity, self.battle)], ['Shor Valu', 'chest', 'Ground'])
+        self.assertListEqual([str(s) for s in self.battle_map.objects_near(self.entity, self.battle)], ['Shor Valu', 'front_door', 'chest','Ground'])
         print(MapRenderer(self.battle_map).render())
         self.assertListEqual([str(a) for a in self.entity.available_actions(self.session, self.battle)], ['Hide',
             'Dash',
@@ -108,7 +118,7 @@ class TestInteractAction(unittest.TestCase):
 
     def test_autobuild(self):
         self.assertTrue(self.door.closed())
-        self.assertEqual(set(self.door.available_interactions(self.entity).keys()), set(['open', 'lock']))
+        self.assertEqual(set(self.door.available_interactions(self.entity).keys()), set(['open', 'investigation_check']))
         action_list = autobuild(self.session, InteractAction, self.entity, self.battle)
         self.assertEqual([str(item) for item in action_list], [
             'Interact(front_door,open)',
