@@ -33,6 +33,22 @@ class Roller:
         self.battle = battle
         self.controller = controller
 
+    # support >= and <=
+    def __ge__(self, other):
+        return self.result() >= other
+
+    def __le__(self, other):
+        return self.result() <= other
+
+    def __gt__(self, other):
+        return self.result() > other
+
+    def __lt__(self, other):
+        return self.result() < other
+
+    def __eq__(self, other):
+        return self.result() == other
+
     def roll(self, lucky=False, description_override=None):
         # Default die sides is 20 until we know otherwise.
         die_sides = 20
@@ -293,6 +309,23 @@ class DieRoll(Rollable):
         if self.prev_roll:
             return f"{self.prev_roll.describe()} lucky -> {self.describe()}"
         return self.describe()
+    
+
+    # support >= and <=
+    def __ge__(self, other):
+        return self.result() >= other
+
+    def __le__(self, other):
+        return self.result() <= other
+
+    def __gt__(self, other):
+        return self.result() > other
+
+    def __lt__(self, other):
+        return self.result() < other
+
+    def __eq__(self, other):
+        return self.result() == other
 
     @staticmethod
     def numeric(c):

@@ -9,6 +9,7 @@ from natural20.entity import Entity
 from natural20.die_roll import DieRoll
 from natural20.utils.action_builder import autobuild
 from natural20.actions.interact_action import InteractAction
+from natural20.concern.generic_event_handler import GenericEventHandler
 import uuid
 import pdb
 
@@ -75,7 +76,15 @@ class Object(Entity):
                 setattr(self, f"{skill}_mod", self.make_skill_mod_function(skill, ability))
                 setattr(self, f"{skill}_check", self.make_skill_check_function(skill))
 
-
+        if 'ability_checks' in self.properties:
+            for ability, check_props in self.properties['ability_checks'].items():
+                for outcome in ('success', 'failure'):
+                    outcome_props = check_props.get(outcome)
+                    if isinstance(outcome_props, dict):
+                        events = outcome_props.get('events', [])
+                        for event in events:
+                            handler = GenericEventHandler(self.session, self.map, event)
+                            self.register_event_hook(f"{ability}_check_{outcome}", handler, 'handle')
 
     def __str__(self) -> str:
         if self.name:
@@ -143,10 +152,9 @@ class Object(Entity):
         return self.properties.get('allow_hide', False)
 
     def interactable(self):
-        if 'investigation' in self.properties:
-            for k, _ in self.properties['investigation'].items():
-                if '_check' in k:
-                    return True
+        if 'ability_check' in self.properties:
+            if len(self.properties['ability_check'].items()) > 0:
+                return True
         return False
 
     def max_hp(self) -> int:
@@ -179,37 +187,64 @@ class Object(Entity):
 
     def available_interactions(self, entity, battle=None, admin=False):
         interactions = {}
-        if 'investigation' in self.properties:
-            investigation_properties = self.properties.get('investigation')
-            if 'medicine' in investigation_properties:
-                medicine_check_properties = investigation_properties.get('medicine')
-                if entity not in self.check_results:
-                    interactions['check_medicine'] = {
-                        "prompt" : medicine_check_properties['prompt']
-                    }
+        if 'ability_checks' in self.properties:
+            ability_check_properties = self.properties.get('ability_checks')
+            for ability, ability_check_properties in ability_check_properties.items():
+                interactions[f"{ability}_check"] = {
+                    "prompt" : ability_check_properties['prompt']
+                }
         return interactions
+
+    def investigate_details(self, entity):
+        investigate_details = []
+
+        if self.properties.get('ability_checks'):
+            for investigation_type, details in self.properties.get('ability_checks').items():
+                if self.check_results.get(entity) and self.check_results.get(entity).get(f"{investigation_type}_check"):
+
+                    if self.check_results.get(entity).get(f"{investigation_type}_check") >= details.get('dc'):
+                        success_details = details.get('success')
+                        if success_details and isinstance(success_details, str):
+                            investigate_details.append(success_details)
+                        else:
+                            investigate_details.append(success_details.get('message'))
+                    else:
+                        failure_details = details.get('failure')
+                        if failure_details and isinstance(failure_details, str):
+                            investigate_details.append(failure_details)
+                        else:
+                            investigate_details.append(failure_details.get('message'))
+
+        return investigate_details
 
     def resolve(self, entity, action, other_params, opts=None):
         if opts is None:
             opts = {}
-
-        if action=='investigate':
-            return {
-                     'type': 'investigate',
-                     'result': self.properties.get('investigation')
-                    }
-
-        for check_type in ['medicine_check', 'investigation_check']:
-            check_type_roll = entity[check_type](opts.get('battle'))
-            return {
-                     "action" : "check",
-                     "check_type" : check_type,
-                     "roll" : check_type_roll,
-                     "dc" : self.properties.get(check_type).get('dc'),
-                     "success" : check_type_roll.result() >= self.properties.get(check_type).get('dc')
+        for ability, ability_checks in self.properties.get('ability_checks').items():
+            if action == f"{ability}_check":
+                if hasattr(self, f"{ability}_check"):
+                    check_type_roll = getattr(self, f"{ability}_check")(opts.get('battle'))
+                    return {
+                        'action': action,
+                        'ability': ability,
+                        'check_type': "check",
+                        'roll': check_type_roll,
+                        'dc': ability_checks.get('dc'),
+                        'success': check_type_roll.result() >= ability_checks.get('dc')
                     }
 
         return None
+
+    def use(self, entity, result, session=None):
+        action = result.get('action')
+        if action.endswith('_check'):
+            if entity not in self.check_results:
+                self.check_results[entity] = {}
+            self.check_results[entity][action] = result.get('roll')
+            if result.get('success'):
+                self.resolve_trigger(f"{result.get('ability')}_check_success")
+            else:
+                self.resolve_trigger(f"{result.get('ability')}_check_failure")
 
     def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True, **opts):
         if opts is None:

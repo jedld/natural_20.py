@@ -227,12 +227,15 @@ class DoorObject(Object):
         return True
 
     def resolve(self, entity, action, other_params, opts=None):
+        results = super().resolve(entity, action, other_params, opts)
+        if results:
+            return results
+
         if opts is None:
             opts = {}
 
         if action is None:
             return
-        
 
         if action == "open":
             if not self.locked:
@@ -260,6 +263,7 @@ class DoorObject(Object):
             return {"action": "lock"} if not self.unlocked() else {"action": "lock_failed"}
 
     def use(self, entity, result, session=None):
+        super().use(entity, result, session)
         action = result["action"]
         if action == "open":
             if self.closed():
