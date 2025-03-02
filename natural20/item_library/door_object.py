@@ -161,15 +161,25 @@ class DoorObject(Object):
                 return True
 
             offsets = {
-            "up": (0, -1),
-            "down": (0, 1),
-            "left": (-1, 0),
-            "right": (1, 0)
+                "up": (0, -1),
+                "down": (0, 1),
+                "left": (-1, 0),
+                "right": (1, 0)
             }
-            off = offsets.get(self.facing())
-            return (ex, ey) == (dx + off[0], dy + off[1]) if off else False
 
-        actions = {}
+            offset_opposite = {
+                "up": (0, 1),
+                "down": (0, -1),
+                "left": (1, 0),
+                "right": (-1, 0)
+            }
+
+            off = offsets.get(self.facing())
+            off_opposite = offset_opposite.get(self.facing())
+            is_in_range = [(ex, ey) == (dx + off[0], dy + off[1]), (ex, ey) == (dx + off_opposite[0], dy + off_opposite[1])]
+            return any(is_in_range) if off else False
+
+        actions = super().available_interactions(entity, battle, admin)
         if entity:
             has_key = entity.item_count(self.key_name) > 0
         else:

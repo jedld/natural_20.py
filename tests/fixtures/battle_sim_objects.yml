@@ -63,6 +63,14 @@ legend:
     name: front_door
     type: wooden_door
     state: closed
+    buttons:
+      - action: check_medicine
+        label: Open the door
+    investigation:
+      medicine:
+        prompt: "Inspect Door"
+        success: You verify that the door is not trapped.
+        dc: 14
   T:
     name: pit_trap
     type: pit_trap

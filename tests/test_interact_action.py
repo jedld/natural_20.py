@@ -24,12 +24,23 @@ class TestInteractAction(unittest.TestCase):
         self.entity = PlayerCharacter.load(self.session, os.path.join("high_elf_fighter.yml"))
         self.battle_map = Map(self.session, "battle_sim_objects")
         self.battle = Battle(self.session, self.battle_map)
-        self.battle_map.place((0, 5), self.entity, "G")
+        self.battle_map.place((1, 5), self.entity, "G")
         self.door = self.battle_map.object_at(1, 4)
         self.chest = self.battle_map.object_at(1, 6)
         self.battle.add(self.entity, group='a')
         self.battle.start()
         self.entity.reset_turn(self.battle)
+
+    def test_button_labels(self):
+        self.battle.add(self.entity, group='a')
+        self.battle.start()
+        self.entity.reset_turn(self.battle)
+        print(MapRenderer(self.battle_map).render())
+        action = autobuild(self.session, InteractAction, self.entity, self.battle, match=[self.door, "check_medicine"], verbose=True)[0]
+        self.assertIsInstance(action, InteractAction)
+        self.assertEqual(action.button_label(), 'Open the door')
+        self.assertEqual(action.button_prompt(), 'Inspect Door')
+        
 
     def test_opening_and_closing_doors(self):
         print(MapRenderer(self.battle_map).render())

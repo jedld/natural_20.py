@@ -16,7 +16,7 @@ title_color: red
 description: A sample hardcore dungeon crawl with a party of 3 (DnD 5th Edition rules)
 author: Joseph Emmanuel Dayo
 players: 3
-starting_map: maps/game_map
+starting_map: maps/goblin_cave.yml
 player_profiles: characters
 groups:
   a:

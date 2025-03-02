@@ -282,7 +282,7 @@ def action_flavors(action):
             return ""
     elif isinstance(action, InteractAction):
         if action.object_action:
-            return f"_{action.object_action}"
+            return f"_{action.object_action_name()}"
     return ""
 
 app.add_template_global(action_flavors, name='action_flavors')

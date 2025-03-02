@@ -114,6 +114,8 @@ class GameManagement:
         self.current_map_for_user[username] = (map_name, self.maps[map_name])
 
     def get_map_for_user(self, username):
+        if 'index' not in self.maps:
+             return self.maps.values()[0]
         name, _map = self.current_map_for_user.get(username, ('index', self.maps['index']))
         return _map
 

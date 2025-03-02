@@ -117,7 +117,11 @@ class Npc(Entity, Multiattack, Lootable):
     def armor_class(self):
         return self.properties["default_ac"]
 
-    def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True):
+    def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True, **opts):
+        if opts is None:
+            opts = {}
+        interact_only = opts.get('interact_only', False)
+        except_interact = opts.get('except_interact', False)
         if self.unconscious():
             return ["end"]
 
@@ -131,6 +135,10 @@ class Npc(Entity, Multiattack, Lootable):
         else:
             actions.extend(self.generate_npc_attack_actions(battle, auto_target=auto_target))
             for action_class in self.ACTION_LIST:
+                if interact_only and action_class != InteractAction:
+                    continue
+                if except_interact and action_class == InteractAction:
+                    continue
                 if action_class.can(self, battle):
                     if action_class == MoveAction:
                         if auto_target:
@@ -155,6 +163,17 @@ class Npc(Entity, Multiattack, Lootable):
                         actions.append(HideBonusAction(session, self, "hide_bonus"))
                     elif action_class == ShoveAction:
                         actions.append(ShoveAction(session, self, "shove"))
+                    elif action_class == InteractAction:
+                        if map:
+                            for objects in map.objects_near(self, battle):
+                                for interaction, details in objects.available_interactions(self).items():
+                                    action = InteractAction(session, self, 'interact', { "target": objects,
+                                                                                                "object_action": interaction })
+                                    if details.get('disabled'):
+                                        action.disabled = True
+                                        action.disabled_reason = self.t(details['disabled_text'])
+                                    else:
+                                        actions.append(action)
 
         return actions
 

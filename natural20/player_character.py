@@ -198,7 +198,13 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
   def c_class(self):
     return self.properties['classes']
   
-  def available_actions(self, session, battle, opportunity_attack=False, auto_target=True, map=None):
+  def available_actions(self, session, battle, opportunity_attack=False, auto_target=True, map=None, **opts):
+    if opts is None:
+      opts = {}
+
+    interact_only = opts.get('interact_only', False)
+    except_interact = opts.get('except_interact', False)
+
     if self.unconscious():
       return []
     
@@ -216,6 +222,12 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
       map = battle.map_for(self)
 
     for action_type in self.ACTION_LIST:
+      if interact_only and action_type != InteractAction:
+        continue
+
+      if except_interact and action_type == InteractAction:
+        continue
+
       if action_type.can(self, battle):
         if action_type == LookAction:
           action_list.append(LookAction(session, self, 'look'))
@@ -299,7 +311,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
             for objects in map.objects_near(self, battle):
               for interaction, details in objects.available_interactions(self).items():
                 action = InteractAction(session, self, 'interact', { "target": objects,
-                                                                              "object_action": interaction })
+                                                                              "object_action": [interaction, details] })
                 if details.get('disabled'):
                   action.disabled = True
                   action.disabled_reason = self.t(details['disabled_text'])

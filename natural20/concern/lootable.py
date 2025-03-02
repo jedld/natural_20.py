@@ -32,8 +32,6 @@ class Lootable:
         if action in ['loot','give']:
             self.transfer(result.get('battle'), result.get('target'), result.get('source'), result.get('items'))
 
-    def is_interactable(self):
-        return True
 
     def resolve(self, entity, action, other_params, opts=None):
             if opts is None:

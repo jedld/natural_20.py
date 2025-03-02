@@ -70,10 +70,17 @@ class SpiritualWeapon(Entity):
         return False
 
 
-    def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True):
+    def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True, **opts):
+        if opts is None:
+            opts = {}
+
         actions = []
 
         if opportunity_attack:
+            return []
+        interact_only = opts.get('interact_only', False)
+
+        if interact_only:
             return []
 
         if battle:
