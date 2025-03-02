@@ -266,7 +266,7 @@ python -m unittest tests.test_gym.TestGym.test_reset
 python -m unittest tests.test_map.TestMap.test_line_of_sight
 ```
 
-```
+```bash
 python -m unittest discover tests
 ```
 

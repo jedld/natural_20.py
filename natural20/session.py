@@ -46,6 +46,11 @@ class Session:
 
     def _load_all_maps(self, game_file):
         self.maps = {}
+        
+        if 'maps' not in game_file:
+            self.maps['index'] = Map(self, game_file.get('starting_map'), name = 'index')
+            return self.maps
+        
         map_with_key = game_file.get('maps', {})
         for name, map_file in map_with_key.items():
             self.maps[name] = Map(self, map_file, name=name)

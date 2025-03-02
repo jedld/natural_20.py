@@ -14,27 +14,45 @@ class InteractAction(Action):
             self.other_params = None
 
     def __str__(self):
-        return f"Interact({self.target},{self.object_action})"
-    
+        return f"Interact({self.target},{self.object_action_name()})"
+
+
     def __repr__(self):
         return self.__str__()
-    
+
     def label(self):
         if self.disabled:
             return f"{self.source} cannot {self.action_type} with [{self.target}] because of [{self.disabled_reason}]"
         else:
-            return f"{self.object_action} {self.target}"
+            return f"{self.object_action_name()} {self.target}"
+    
+    def object_action_name(self):
+        if isinstance(self.object_action, str):
+            return self.object_action
+        else:
+            return self.object_action[0]
+
+    def object_action_prompt(self):
+        if isinstance(self.object_action, str):
+            return None
+        else:
+            return self.object_action[1].get('prompt')
 
     def button_label(self):
         if self.target and self.object_action:
-            button_info = self.target.buttons.get(self.object_action)
+            button_info = self.target.buttons.get(self.object_action_name())
             if button_info:
-                return button_info.get('label', self.object_action)
+                return button_info.get('label', self.object_action_name())
+        return None
+
+    def button_prompt(self):
+        if self.target and self.object_action_prompt():
+            return self.object_action_prompt()
         return None
 
     def button_image(self):
-        if self.target and self.object_action:
-            button_info = self.target.buttons.get(self.object_action)
+        if self.target and self.object_action_name():
+            button_info = self.target.buttons.get(self.object_action_name())
             if button_info:
                 return button_info.get('image')
         return None
@@ -92,7 +110,7 @@ class InteractAction(Action):
     def resolve(self, session, map=None, opts=None):
         battle = opts.get('battle') if opts else None
 
-        result = self.target.resolve(self.source, self.object_action, self.other_params, opts)
+        result = self.target.resolve(self.source, self.object_action_name(), self.other_params, opts)
 
         if result is None:
             return []
@@ -100,7 +118,7 @@ class InteractAction(Action):
         result_payload = {
             'source': self.source,
             'target': self.target,
-            'object_action': self.object_action,
+            'object_action': self.object_action_name(),
             'map': map,
             'battle': battle,
             'type': 'interact'

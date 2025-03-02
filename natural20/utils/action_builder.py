@@ -49,7 +49,7 @@ def acquire_targets(param, entity, battle, map=None):
     return possible_targets
 
 
-def build_params(session, entity, battle, build_info, map=None, auto_target=True, match=None):
+def build_params(session, entity, battle, build_info, map=None, auto_target=True, match=None, is_verbose=False):
     """
     Build a list (parallel to build_info["param"]) containing all possible
     parameter choices for each param in build_info["param"].
@@ -159,13 +159,17 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             possible_objects = []
             if map:
                 nearby_objects = map.objects_near(entity)
-                for obj in nearby_objects:
-                    if obj.interactable(entity):
-                        possible_objects.append(obj)
+                possible_objects = [obj for obj in nearby_objects if obj.interactable(entity)]
+
                 if match:
                     possible_objects = [obj for obj in possible_objects if obj in match]
+                    if is_verbose and not possible_objects:
+                        print(f"No interactable objects matching {match} found nearby.")
+
                 params_list.append(possible_objects)
             else:
+                if is_verbose:
+                    print("No map found for object selection.")
                 return None
 
         # -----------------------------
@@ -174,9 +178,13 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
         elif param_type == "interact":
             object = param["target"]
             interaction_actions = object.available_interactions(entity, battle, admin = entity.is_admin)
-            _interaction_actions = list(interaction_actions.keys())
+            _interaction_actions = []
+            for k, v in interaction_actions.items():
+                _interaction_actions.append([k, v])
+
             if match:
-                _interaction_actions = [ action for action in _interaction_actions if action in match]
+                _interaction_actions = [ action for action in _interaction_actions if action[0] in match]
+
             params_list.append(_interaction_actions)
         elif param_type == "select_weapon":
             if hasattr(entity, 'attack_options'):
@@ -219,7 +227,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
     return params_list
 
 
-def autobuild(session, action_class, entity, battle, map=None, auto_target=True, match=None):
+def autobuild(session, action_class, entity, battle, map=None, auto_target=True, match=None, **opts):
     """
     Orchestrates the building of possible actions by repeatedly calling
     `build_info['next'](...)` with all combinations of parameters
@@ -229,7 +237,7 @@ def autobuild(session, action_class, entity, battle, map=None, auto_target=True,
     build_info = action_class.build(session, entity)
     previous_builds = [build_info]
     next_builds = []
-
+    is_verbose = opts.get("verbose", False)
     if map is None and battle:
         map = battle.map_for(entity)
 
@@ -243,9 +251,11 @@ def autobuild(session, action_class, entity, battle, map=None, auto_target=True,
                 continue
 
             # Build a list of possible parameter options
-            possible_params = build_params(session, entity, battle, current_info, map=map, auto_target=auto_target, match=match)
+            possible_params = build_params(session, entity, battle, current_info, map=map, auto_target=auto_target, match=match, is_verbose=is_verbose)
 
             if possible_params is None:
+                if is_verbose:
+                    print(f"Failed to build parameters for {current_info}")
                 # If we can't build any parameters, we append None
                 # to represent a failed/invalid build path
                 next_builds.append(None)

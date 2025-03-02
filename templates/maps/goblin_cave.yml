@@ -84,6 +84,9 @@ legend:
     name: front_door
     type: wooden_door
     state: closed
+    buttons:
+      - action: open
+        label: Open the door
   c:
     name: chest
     type: chest
@@ -92,6 +95,14 @@ legend:
       - note: A mysterious chest
       - note: This chest contains a healing potion and 20 arrows
         perception_dc: 10
+    buttons:
+      - action: interact_medicine_check
+        label: Perform a medicine check
+    investigation:
+      medicine:
+        prompt: "Inspect Chest?"
+        success: You verify that the chest is not trapped.
+        dc: 14
     inventory:
     - type: healing_potion
       qty: 1

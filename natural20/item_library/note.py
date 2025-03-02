@@ -5,26 +5,6 @@ class Note(Object):
     def __init__(self, session, map, properties):
         super().__init__(session, map, properties)
         self.properties = properties
-        self.check_results = {}
-
-    def is_interactable(self):
-        if 'investigation' in self.properties:
-            for k, _ in self.properties['investigation'].items():
-                if '_check' in k:
-                    return True
-        return False
-
-    def available_interactions(self, entity, battle=None, admin=False):
-        interactions = {}
-        if 'investigation' in self.properties:
-            investigation_properties = self.properties.get('investigation')
-            if 'medicine' in investigation_properties:
-                medicine_check_properties = investigation_properties.get('medicine')
-                if entity not in self.check_results:
-                    interactions['check_medicine'] = {
-                        "prompt" : medicine_check_properties['prompt']
-                    }
-        return interactions
 
     def investigate_details(self, entity):
         investigate_details = []

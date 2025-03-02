@@ -128,7 +128,7 @@ class Chest(Object, Container):
         return 'white' if self.is_opened() else 'default'
 
     def available_interactions(self, entity, battle=None, admin=False):
-        interactions = {}
+        interactions = super().available_interactions(entity, battle, admin)
         if self.locked():
             interactions['unlock'] = {
                     'disabled': not (entity.item_count(self.key_name) > 0),
@@ -158,8 +158,6 @@ class Chest(Object, Container):
 
             return interactions
 
-    def is_interactable(self):
-        return True
 
     def resolve(self, entity, action, other_params, opts=None):
         if opts is None:

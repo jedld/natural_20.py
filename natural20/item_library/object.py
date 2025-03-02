@@ -35,6 +35,7 @@ class Object(Entity):
         self.concentration = None
         self.effects = {}
         self.inventory = {}
+        self.check_results = {}
         self._temp_hp = 0
         self.interact_distance = properties.get('interact_distance', 5)
         # fake attributes for dungeons and dragons objects
@@ -65,7 +66,6 @@ class Object(Entity):
                 inventory['type']: {'qty': inventory['qty']} for inventory in properties['inventory']
             }
 
-
         if properties.get('buttons'):
             for button in properties['buttons']:
                 self.buttons[button['action']] = button
@@ -95,8 +95,6 @@ class Object(Entity):
 
     def after_setup(self):
         pass
-
-
 
     def conceal_perception_dc(self) -> int:
         return self.perception_dc
@@ -144,9 +142,13 @@ class Object(Entity):
     def can_hide(self) -> bool:
         return self.properties.get('allow_hide', False)
 
-    def interactable(self, entity=None) -> bool:
+    def interactable(self):
+        if 'investigation' in self.properties:
+            for k, _ in self.properties['investigation'].items():
+                if '_check' in k:
+                    return True
         return False
-    
+
     def max_hp(self) -> int:
         return self.hp
 
@@ -175,14 +177,53 @@ class Object(Entity):
     def size(self) -> str:
         return self.properties.get('size', 'medium')
 
-    def available_interactions(self, entity: Any, battle: Any, admin: bool =False) -> List[Any]:
-        return {}
+    def available_interactions(self, entity, battle=None, admin=False):
+        interactions = {}
+        if 'investigation' in self.properties:
+            investigation_properties = self.properties.get('investigation')
+            if 'medicine' in investigation_properties:
+                medicine_check_properties = investigation_properties.get('medicine')
+                if entity not in self.check_results:
+                    interactions['check_medicine'] = {
+                        "prompt" : medicine_check_properties['prompt']
+                    }
+        return interactions
 
-    def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True):
+    def resolve(self, entity, action, other_params, opts=None):
+        if opts is None:
+            opts = {}
+
+        if action=='investigate':
+            return {
+                     'type': 'investigate',
+                     'result': self.properties.get('investigation')
+                    }
+
+        for check_type in ['medicine_check', 'investigation_check']:
+            check_type_roll = entity[check_type](opts.get('battle'))
+            return {
+                     "action" : "check",
+                     "check_type" : check_type,
+                     "roll" : check_type_roll,
+                     "dc" : self.properties.get(check_type).get('dc'),
+                     "success" : check_type_roll.result() >= self.properties.get(check_type).get('dc')
+                    }
+
+        return None
+
+    def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True, **opts):
+        if opts is None:
+            opts = {}
+
         actions = []
-        for _interaction in self.available_interactions(self, battle).keys():
+        execpt_interact = opts.get('except_interact', False)
+
+        if execpt_interact:
+            return []
+
+        for k, details in self.available_interactions(self, battle).items():
             action = InteractAction(session, self, 'interact')
-            action.object_action = _interaction
+            action.object_action = [k, details]
             actions.append(action)
         return actions
 
