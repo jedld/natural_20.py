@@ -160,8 +160,14 @@ class TestClericSpellAction(unittest.TestCase):
         self.npc = self.session.npc('skeleton')
         self.battle.add(self.npc, 'b', position=[0, 6])
         auto_build_actions = autobuild(self.session, SpellAction, self.entity, self.battle)
-        self.assertEqual(len(auto_build_actions), 4)
-        self.assertEqual([str(a) for a in  auto_build_actions], ['SpellAction: sacred_flame', 'SpellAction: cure_wounds', 'SpellAction: guiding_bolt', 'SpellAction: spiritual_weapon'])
+        self.assertEqual(len(auto_build_actions), 5)
+        self.assertEqual([str(a) for a in  auto_build_actions], [
+            'SpellAction: sacred_flame',
+            'SpellAction: cure_wounds',
+            'SpellAction: guiding_bolt',
+            'SpellAction: spiritual_weapon',
+            'SpellAction: protection_from_poison'
+        ])
 
 if __name__ == '__main__':
     unittest.main()

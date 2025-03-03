@@ -64,9 +64,11 @@ class DoorObject(Object):
 
     def open(self):
         self.state = "opened"
+        self.resolve_trigger("open")
 
     def close(self):
         self.state = "closed"
+        self.resolve_trigger("close")
 
     def token(self):
         if self.dead():

@@ -193,6 +193,8 @@ class Entity(EntityStateEvaluator, Notable):
 
 
     def label(self):
+        if self.properties.get('label'):
+            return self.properties.get('label')
         return i18n.t(self.name)
 
     def token_image(self):

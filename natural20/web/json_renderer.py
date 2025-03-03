@@ -43,6 +43,7 @@ class JsonRenderer:
                     if not isinstance(entity_pov, list):
                         entity_pov = [entity_pov]
 
+                    entity_pov = [e for e in entity_pov if e]
                     distance_to_square = min([np.linalg.norm(np.array((x, y)) - np.array((pos[0], pos[1]))) for pos in entity_pov_locations]) if entity_pov_locations else None
 
                     if any([e.darkvision(distance_to_square * self.map.feet_per_grid) for e in entity_pov if e]):
@@ -128,7 +129,9 @@ class JsonRenderer:
                     })
                     if m_x == x and m_y == y:
                         attributes.update({
-                            'entity': entity.token_image(), 'name': entity.label(),
+                            'entity': entity.token_image(),
+                            'name': entity.label(),
+                            'label': entity.label(),
                             'hiding' : entity.hidden(),
                             'prone': entity.prone(),
                             'dead': entity.dead(), 'unconscious': entity.unconscious(),

@@ -86,6 +86,11 @@ class Object(Entity):
                             handler = GenericEventHandler(self.session, self.map, event)
                             self.register_event_hook(f"{ability}_check_{outcome}", handler, 'handle')
 
+        self.events = self.properties.get('events', [])
+        for event in self.events:
+            handler = GenericEventHandler(session, map, event)
+            self.register_event_hook(event['event'], handler, 'handle')
+
     def __str__(self) -> str:
         if self.name:
             return self.name
@@ -220,18 +225,19 @@ class Object(Entity):
     def resolve(self, entity, action, other_params, opts=None):
         if opts is None:
             opts = {}
-        for ability, ability_checks in self.properties.get('ability_checks').items():
-            if action == f"{ability}_check":
-                if hasattr(self, f"{ability}_check"):
-                    check_type_roll = getattr(self, f"{ability}_check")(opts.get('battle'))
-                    return {
-                        'action': action,
-                        'ability': ability,
-                        'check_type': "check",
-                        'roll': check_type_roll,
-                        'dc': ability_checks.get('dc'),
-                        'success': check_type_roll.result() >= ability_checks.get('dc')
-                    }
+        if 'ability_checks' in self.properties:
+            for ability, ability_checks in self.properties.get('ability_checks').items():
+                if action == f"{ability}_check":
+                    if hasattr(self, f"{ability}_check"):
+                        check_type_roll = getattr(self, f"{ability}_check")(opts.get('battle'))
+                        return {
+                            'action': action,
+                            'ability': ability,
+                            'check_type': "check",
+                            'roll': check_type_roll,
+                            'dc': ability_checks.get('dc'),
+                            'success': check_type_roll.result() >= ability_checks.get('dc')
+                        }
 
         return None
 
