@@ -103,14 +103,16 @@ class TestInteractAction(unittest.TestCase):
             'Dash',
             'Disengage',
             'Dodge',
+            'move to [0, 5]',
+            'move to [2, 5]',
             'Prone',
             'SecondWind',
             'Grapple',
             'Shove',
             'UseItem: healing_potion',
             'Interact(Shor Valu,give)',
+            'Interact(front_door,investigation_check)',
             'Interact(front_door,open)',
-            'Interact(front_door,lock)',
             'Interact(chest,open)',
             'Interact(Ground,pickup_drop)',
             'Look'])
@@ -120,11 +122,10 @@ class TestInteractAction(unittest.TestCase):
         self.assertTrue(self.door.closed())
         self.assertEqual(set(self.door.available_interactions(self.entity).keys()), set(['open', 'investigation_check']))
         action_list = autobuild(self.session, InteractAction, self.entity, self.battle)
-        self.assertEqual([str(item) for item in action_list], [
+        self.assertEqual([str(item) for item in action_list], ['Interact(front_door,investigation_check)',
             'Interact(front_door,open)',
-            'Interact(front_door,lock)',
-            'Interact(chest,open)'
-            ])
+            'Interact(chest,open)',
+            'Interact(Ground,pickup_drop)'])
 
     def build_door_open(self):
         build = InteractAction.build(self.session, self.entity)

@@ -160,7 +160,7 @@ class TestMap(unittest.TestCase):
                     traveled_squares.append((i, j))
         self.assertEqual(traveled_squares, [])
         self.assertEqual(seen_squares, [])
-        
+
         character = PlayerCharacter.load(session, 'characters/halfling_rogue.yml')
         map.place((1,4), character)
         print(MapRenderer(map).render())
@@ -184,7 +184,8 @@ class TestMap(unittest.TestCase):
         character = PlayerCharacter.load(session, 'characters/halfling_rogue.yml')
         map1.place((0,4), character)
         map1.move_to(character, 5, 6, None)
-        self.assertEqual(map2.entity_at(1, 1), character)
+        self.assertEqual(map1.entity_at(0, 4), None)
+        self.assertEqual(map2.entity_at(2, 1), character)
         print(MapRenderer(map1).render())
         print(MapRenderer(map2).render())
 

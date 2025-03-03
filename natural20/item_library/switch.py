@@ -12,11 +12,6 @@ class Switch(Object):
         self.on_message = self.properties.get('on_message')
         self.off_message = self.properties.get('off_message')
 
-        self.events = self.properties.get('events', [])
-        for event in self.events:
-            handler = GenericEventHandler(session, map, event)
-            self.register_event_hook(event['event'], handler, 'handle')
-
     def interactable(self, entity=None):
         return not self.is_concealed
 
