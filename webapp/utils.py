@@ -245,6 +245,8 @@ class GameManagement:
         entity_by_groups = {}
         start_battle = False
         add_to_initiative_set = set()
+        pc_groups = ['a']
+        enemy_groups = ['b']
 
         for battle_map in self.maps.values():
             for entity in battle_map.entities:
@@ -252,39 +254,43 @@ class GameManagement:
                     entity_by_groups[entity.group] = set()
                 entity_by_groups[entity.group].add(entity)
 
-
-            for group1, group2 in combinations(entity_by_groups.keys(), 2):
-                if self.game_session.opposing(group1, group2):
-                    for entity1 in entity_by_groups[group1]:
-                        if not entity1.conscious():
-                            continue
-
-                        for entity2 in entity_by_groups[group2]:
-                            if not entity2.conscious():
+            for group1 in pc_groups:
+                for group2 in enemy_groups:
+                    if self.game_session.opposing(group1, group2):
+                        for entity1 in entity_by_groups[group1]:
+                            if not entity1.conscious():
                                 continue
-
-                            # Ignore if both entities already belong to an ongoing battle
-                            if self.battle and (entity1 in self.battle.entities and entity2 in self.battle.entities):
+                            if group2 not in entity_by_groups:
                                 continue
+                            for entity2 in entity_by_groups[group2]:
+                                if not entity2.conscious():
+                                    continue
 
-                            if self.get_map_for_entity(entity1) != self.get_map_for_entity(entity2):
-                                continue
+                                # Ignore if both entities already belong to an ongoing battle
+                                if self.battle and (entity1 in self.battle.entities and entity2 in self.battle.entities):
+                                    continue
 
-                            if battle_map.can_see(entity1, entity2):
-                                add_to_initiative_set.add((entity1, group1))
-                                add_to_initiative_set.add((entity2, group2))
+                                if self.get_map_for_entity(entity1) != self.get_map_for_entity(entity2):
+                                    continue
 
-                                # Add allies for entity1
-                                for ally in entity_by_groups[group1]:
-                                    if ally != entity1 and (battle_map.can_see(ally, entity1) or ally.group=='a'):
-                                        add_to_initiative_set.add((ally, group1))
+                                if entity2.passive():
+                                    continue
 
-                                # Add allies for entity2
-                                for ally in entity_by_groups[group2]:
-                                    if ally != entity2 and battle_map.can_see(ally, entity2) or ally.group=='a':
-                                        add_to_initiative_set.add((ally, group2))
+                                if battle_map.can_see(entity2, entity1):
+                                    add_to_initiative_set.add((entity1, group1))
+                                    add_to_initiative_set.add((entity2, group2))
 
-                                start_battle = True
+                                    # Add allies for entity1
+                                    for ally in entity_by_groups[group1]:
+                                        if ally != entity1 and (battle_map.can_see(ally, entity1) or ally.group=='a'):
+                                            add_to_initiative_set.add((ally, group1))
+
+                                    # Add allies for entity2
+                                    for ally in entity_by_groups[group2]:
+                                        if ally != entity2 and battle_map.can_see(ally, entity2) or ally.group=='a':
+                                            add_to_initiative_set.add((ally, group2))
+
+                                    start_battle = True
         add_to_initiative = list(add_to_initiative_set)
 
         if start_battle and add_to_initiative:

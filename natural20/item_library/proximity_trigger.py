@@ -8,6 +8,7 @@ class ProximityTrigger(Object):
     def __init__(self, session, map, properties):
         super().__init__(session, map, properties=properties)
         self.distance = self.properties.get('distance', 1)
+        self.line_of_sight = self.properties.get('line_of_sight', False)
         self.activated = False
         self.events = self.properties.get('events', [])
 
@@ -22,6 +23,10 @@ class ProximityTrigger(Object):
 
         if not self.activated:
             if self.within_distance(object_position, entity_pos):
+                if self.line_of_sight:
+                    if not self.map.can_see_square(entity, object_position,
+                                                   force_dark_vision=True):
+                        return result
                 result.append({
                     'source': self,
                     'type': 'state',

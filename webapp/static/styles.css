@@ -45,6 +45,10 @@
   position: absolute
 }
 
+.tile .entity {
+  z-index: 2;
+}
+
 .image-container {
   z-index: 0;
 }
@@ -251,7 +255,7 @@ input.initiative-text {
 
 .brightness-overlay {
   position: absolute;
-  z-index: 999;
+  /* z-index: 999; */
   top: 0;
   left: 0;
   width: 100%;

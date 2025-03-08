@@ -629,9 +629,8 @@ class Map():
             return False
 
         if entity2.hidden():
-            if entity.passive_perception() < entity2.hidden_stealth:
-                return False
-            if active_perception < entity2.hidden_stealth:
+            _passive_perception_val = max(entity.passive_perception(), active_perception)
+            if _passive_perception_val < entity2.hidden_stealth:
                 return False
 
         if entity2.concealed() and not ignore_concealment:

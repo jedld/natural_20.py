@@ -308,7 +308,7 @@ class Object(Entity):
         pass
 
     def update_state(self, state):
-        raise NotImplementedError()
+        super().update_state(state)
 
 
 

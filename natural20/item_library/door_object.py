@@ -340,6 +340,7 @@ class DoorObject(Object):
         self.key_name = self.properties.get("key")
 
     def update_state(self, state):
+        super().update_state(state)
         if state == "opened":
             self.open()
         elif state == "closed":
