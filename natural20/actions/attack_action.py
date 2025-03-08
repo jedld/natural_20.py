@@ -193,11 +193,12 @@ class AttackAction(Action):
             elif battle.entity_state_for(item['source']):
                 battle.entity_state_for(item['source'])['two_weapon'] = None
 
-            if battle.entity_state_for(item['source']):
-                for _, attacks in battle.entity_state_for(item['source']).get('multiattack', {}).items():
+            state = battle.entity_state_for(item['source'])
+            if state:
+                for attacks in state.get('multiattack', {}).values():
                     if item['attack_name'] in attacks:
                         attacks.remove(item['attack_name'])
-                        if not attacks:
+                        if not attacks or item['multiattack_clear']:
                             item['source'].clear_multiattack(battle)
 
             battle.dismiss_help_for(item['target'])
@@ -332,7 +333,8 @@ class AttackAction(Action):
                 'as_reaction': bool(self.as_reaction),
                 'as_bonus_action': bool(self.as_bonus_action),
                 'second_hand': self.second_hand(),
-                'npc_action': self.npc_action
+                'npc_action': self.npc_action,
+                'multiattack_clear': False
             }
             self.result.append(hit_result)
 
@@ -409,7 +411,8 @@ class AttackAction(Action):
                 'target_ac': target.armor_class,
                 'cover_ac': cover_ac_adjustments,
                 'ammo': ammo_type,
-                'npc_action': self.npc_action
+                'npc_action': self.npc_action,
+                'multiattack_clear': self.npc_action and self.npc_action.get('multiattack_clear_on_miss')
             })
 
         return self

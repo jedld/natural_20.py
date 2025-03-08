@@ -538,12 +538,27 @@ class Map():
     def entity_at(self, pos_x, pos_y):
         if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
             return None
-        
+
         entity_data = self.tokens[pos_x][pos_y]
         if entity_data is None or len(entity_data) == 0:
             return None
 
         return entity_data['entity']
+
+    def find_empty_placeable_position(self, pos_x, pos_y):
+        for ofs_x in range(-1, 2):
+            for ofs_y in range(-1, 2):
+                if ofs_x == 0 and ofs_y == 0:
+                    continue
+                # make sure there is line of sight between
+                # original position and new position
+                if self.line_of_sight(pos_x, pos_y, pos_x + ofs_x, pos_y + ofs_y) is None:
+                    continue
+
+                if self.placeable(None, pos_x + ofs_x, pos_y + ofs_y):
+                    return pos_x + ofs_x, pos_y + ofs_y
+
+        return pos_x, pos_y
 
     def position_of(self, entity):
         if isinstance(entity, Object):
@@ -692,7 +707,7 @@ class Map():
         return entity_1_squares
 
     def bidirectionally_passable(self, entity, pos_x, pos_y, origin, battle=None, allow_squeeze=True, ignore_opposing=False):
-        incorporeal = entity.class_feature('incorporeal_movement')
+        incorporeal = False # entity.class_feature('incorporeal_movement')
         if self.passable(entity, pos_x, pos_y, battle, allow_squeeze, origin=origin, ignore_opposing=ignore_opposing, incorporeal=incorporeal) and \
             self.passable(entity, *origin, battle, allow_squeeze, origin=(pos_x, pos_y), ignore_opposing=ignore_opposing, incorporeal=incorporeal):
             return True

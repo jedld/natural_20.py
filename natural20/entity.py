@@ -1250,6 +1250,7 @@ class Entity(EntityStateEvaluator, Notable):
 
         if not entity_state.get("multiattack", False):
             return False
+
         if not npc_action.get("multiattack_group", False):
             return False
 

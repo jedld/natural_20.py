@@ -54,6 +54,7 @@ import uuid
 from utils import SocketIOOutputLogger, GameManagement
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
+
 app.config['SECRET_KEY'] = 'fe9707b4704da2a96d0fd3cbbb465756e124b8c391c72a27ff32a062110de589'
 app.config['SESSION_TYPE'] = 'filesystem'
 
@@ -736,14 +737,12 @@ def update():
 
     if enable_pov:
         entity = battle_map.entity_at(x, y)
-        if entity:
-            if entity in entities_controlled_by(session['username'], battle_map):
-                current_game.set_pov_entity_for_user(session['username'], entity)
-                pov_entities = [entity]
-            elif 'dm' in user_role():
-                current_game.set_pov_entity_for_user(session['username'], None)
+        if entity and ('dm' in user_role() or entity in entities_controlled_by(session['username'], battle_map)):
+            current_game.set_pov_entity_for_user(session['username'], entity)
+        pov_entities = [entity] if entity else []
     else:
         if 'dm' in user_role():
+            current_game.set_pov_entity_for_user(session['username'], None)
             pov_entities = None
         else:
             pov_entities = entities_controlled_by(session['username'], battle_map)
@@ -1395,4 +1394,4 @@ def usable_items():
     return render_template('usable_items.html', entity=entity, usable_items=available_items, action=action)
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=False, host='0.0.0.0')
