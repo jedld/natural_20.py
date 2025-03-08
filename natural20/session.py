@@ -265,3 +265,6 @@ class Session:
         file_path = os.path.join(self.root_path, category, f'{resource}.yml')
         with open(file_path, 'r') as f:
             return yaml.safe_load(f)
+
+    def update_state(self, state):
+        self.session_state.update(state)

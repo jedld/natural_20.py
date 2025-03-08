@@ -10,20 +10,17 @@ class Multiattack:
     entity_state["multiattack"] = {}
 
   def multiattack(self, battle, npc_action):
-    if not npc_action:
-      return False
-    if not self.class_feature("multiattack"):
+    if not npc_action or not self.class_feature("multiattack"):
       return False
 
-    entity_state = battle.entity_state_for(self)
-
-    if not entity_state["multiattack"]:
-      return False
-    if not npc_action.get("multiattack_group"):
+    multiattack_state = battle.entity_state_for(self).get("multiattack")
+    if not multiattack_state or not npc_action.get("multiattack_group"):
       return False
 
-    for group, attacks in entity_state["multiattack"].items():
+    for attacks in multiattack_state.values():
       if npc_action["name"] in attacks:
+        if npc_action.get("multiattack_dependent_on") in attacks:
+          return False
         return True
 
     return False

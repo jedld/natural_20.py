@@ -24,6 +24,10 @@ class GenericEventHandler:
             else:
                 pos = self.map.position_of(entity)
 
+            # check if there is already an entity at pos
+            if self.map.entity_at(*pos):
+                pos = self.map.find_empty_placeable_position(*pos)
+
             self.map.add(spawn_entity, *pos, group=npc_meta.get('group', None))
 
         if self.properties.get('update_state'):
@@ -42,7 +46,9 @@ class GenericEventHandler:
 
                 target_request = update_state_properties['target']
                 targets = []
-                if target_request == 'self':
+                if target_request == 'session':
+                    self.session.update_state(update_state_properties['state'])
+                elif target_request == 'self':
                     targets.append(entity)
                 elif isinstance(target_request, str):
                     targets.append(target_map.entity_by_uid(target_request) or target_map.entity_by_name(target_request))
