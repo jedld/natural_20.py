@@ -70,9 +70,11 @@ class Npc(Entity, Multiattack, Lootable):
 
         self.npc_actions = self.properties["actions"]
         self.battle_defaults = self.properties.get("battle_defaults", None)
+        self.hidden_stealth = self.properties.get("hidden_stealth", None)
         self.opt = opt
         self.resistances = self.properties.get("resistances", [])
         self.statuses = []
+        self.is_passive = self.properties.get("passive", False)
 
         for stat in self.properties.get("statuses", []):
             self.statuses.append(stat)

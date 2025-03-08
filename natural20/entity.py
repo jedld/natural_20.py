@@ -55,6 +55,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.perception_results = {}
         self.buttons = {}
         self.entity_uid = uuid.uuid4()
+        self.is_passive = False
 
         # Attach methods dynamically
         for ability, skills in self.SKILL_AND_ABILITY_MAP.items():
@@ -64,6 +65,9 @@ class Entity(EntityStateEvaluator, Notable):
 
     def profile_image(self):
         return self.token_image()
+    
+    def passive(self):
+        return self.is_passive
 
     def description(self):
         return self.properties.get('description', self._description)
@@ -503,6 +507,7 @@ class Entity(EntityStateEvaluator, Notable):
             return True
 
         return battle.entity_state_for(self).get('action', 0) > 0
+
     def hidden(self):
         return 'hidden' in self.statuses
     
@@ -785,6 +790,12 @@ class Entity(EntityStateEvaluator, Notable):
             active_hook = available_hooks[-1]
             if active_hook:
                 getattr(active_hook['handler'], active_hook['method'])(self, {**opts, 'effect': active_hook['effect']})
+
+    def update_state(self, state):
+        if state == 'active':
+            self.is_passive = False
+        elif state == 'passive':
+            self.is_passive = True
 
     def do_grappled_by(self, grappler):
         if 'grappled' not in self.statuses:
@@ -1329,6 +1340,11 @@ class Entity(EntityStateEvaluator, Notable):
                 session = battle.session
             else:
                 self.session
+
+        # disable passiveness
+        if self.passive():
+            self.is_passive = False
+
         if self.resistant_to(damage_type):
             total_damage = int(dmg // 2)
         elif self.vulnerable_to(damage_type):

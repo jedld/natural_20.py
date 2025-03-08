@@ -368,6 +368,12 @@ $(document).ready(() => {
   // --- Form & Slider Handlers ---
   $('#reaction-form').on('submit', (event) => {
     event.preventDefault();
+    Utils.refreshTileSet(callback = () => {
+      $('#main-map-area .image-container img').attr('src', data.background);
+      $('#main-map-area .image-container img').css({ width: `${data.width}px`, height: `${data.height}px` });
+      $('#main-map-area .image-container').css({ width: `${data.width}px`, height: `${data.height}px` });
+      $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
+    })
     const reaction = $('#reaction-form input[name="reaction"]:checked').val();
     ajaxPost('/reaction', { reaction }, (data) => {
       console.log('Reaction submitted successfully:', data);
@@ -390,19 +396,11 @@ $(document).ready(() => {
       Utils.refreshTileSet();
     });
   });
-  
+
   $('#mapModal').on('submit', '#map-selection-form', function (event) {
     event.preventDefault();
     const map_id = $('#map-select').val();
-    ajaxPost('/switch_map', { map: map_id }, (data) => {
-      console.log('Map selection successful:', data);
-      $('#mapModal').modal('hide');
-      Utils.refreshTileSet(callback = () => {
-        $('#main-map-area .image-container img').attr('src', data.background);
-        $('#main-map-area .image-container').css({ width: `${data.width}px`, height: `${data.height}px` });
-        $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
-      })
-    });
+    Utils.switchMap(map_id);
   });
 
   // --- Tile & Action Event Handlers ---
