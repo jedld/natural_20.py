@@ -313,13 +313,20 @@ class DoorObject(Object):
         elif action == "lock":
             if self.unlocked():
                 self.lock()
-                EventManager.received_event(source=self, user=entity, event="object_interaction",
-                                                      sub_type="lock", result="success", reason="object.door.lock")
+
         elif action == "door_locked":
-            EventManager.received_event(source=self, user=entity, event="object_interaction",
-                                                  sub_type="open_failed", result="failed", reason="Cannot open door since door is locked.")
+             if session:
+                    session.event_manager.received_event({
+                                                        "source": entity,
+                                                        "target": entity,
+                                                        "event": "object_interaction",
+                                                        "sub_type": "open_failed",
+                                                        "result": "failed",
+                                                        "reason":"object.door.locked"
+                                                        })
         elif action == "unlock_failed":
-            EventManager.received_event(source=self, user=entity, event="object_interaction",
+            if session:
+                session.event_manager.received_event(source=self, user=entity, event="object_interaction",
                                                   sub_type="unlock_failed", result="failed", reason="Correct Key missing.")
 
     def lockpick_dc(self):
