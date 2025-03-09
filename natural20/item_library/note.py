@@ -7,5 +7,5 @@ class Note(Object):
         self.properties = properties
 
     def build_map(self, action, action_object):
-        return action_object
+        return super().build_map(action, action_object)
 
