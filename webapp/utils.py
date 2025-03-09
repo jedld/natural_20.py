@@ -11,6 +11,7 @@ import uuid
 import pdb
 from itertools import combinations
 import logging
+from mutagen.mp3 import MP3
 
 class SocketIOOutputLogger:
     """
@@ -42,7 +43,7 @@ class SocketIOOutputLogger:
 # Defines a class for high level game management
 class GameManagement:
     def __init__(self, game_session, map_location, other_maps, socketio, output_logger, tile_px, controllers,
-                 auto_battle=True, system_logger=None):
+                 auto_battle=True, system_logger=None, soundtrack=None):
         """
         Initialize the game management
 
@@ -68,6 +69,9 @@ class GameManagement:
         self.maps = {}
         self.pov_entity_for_user = {}
         self.current_map_for_user = {}
+        self.soundtracks = soundtrack
+        self.current_soundtrack = None
+
         if not system_logger:
             self.logger = logging.getLogger(__name__)
             self.logger.setLevel(logging.INFO)
@@ -86,7 +90,22 @@ class GameManagement:
         self.battle = None
         self.trigger_handlers = {}
         self.callbacks = {}
+
+        if self.soundtracks:
+            # load each soundtrack and determine its duration
+            for track in self.soundtracks:
+                track['duration'] = 0
+                track['start_time'] = 0
+
+                # load mp3 file
+                audio_path = self.game_session.root_path + '/assets/' + track['file']
+                audio = MP3(audio_path)
+                track['duration'] = int(audio.info.length)
+                self.logger.info(f"Loaded soundtrack {track['name']} with duration {track['duration']}")
+                if 'background' in track['name']:
+                    self.current_soundtrack = track
         self._setup_controllers()
+
 
     def _setup_controllers(self):
         for controller in self.controllers:
@@ -391,6 +410,35 @@ class GameManagement:
             battle.commit(action)
             if not action or entity.unconscious() or entity.dead():
                 break
+
+    """
+    Play a soundtrack
+
+    :param track_id: the track id
+
+    :return: None
+    """
+    def play_soundtrack(self, track_id):
+        if track_id == "-1":
+            current_soundtrack = None
+            self.socketio.emit('message', {'type': 'stoptrack', 'message': {}})
+        else:
+            for soundtrack in self.soundtracks:
+                url = soundtrack['file']
+                if self.current_soundtrack:
+                    if self.current_soundtrack['name'] != soundtrack['name']:
+                        current_soundtrack = {'url': url, 'id': track_id}
+                        self.logger.info(f"Playing soundtrack {current_soundtrack}")
+                        self.socketio.emit('message', {'type': 'track', 'message': current_soundtrack})
+                        self.current_soundtrack = soundtrack
+                        pdb.set_trace()
+                        break
+                else:
+                    current_soundtrack = {'url': url, 'id': track_id}
+                    self.logger.info(f"Playing soundtrack {current_soundtrack}")
+                    self.socketio.emit('message', {'type': 'track', 'message': current_soundtrack})
+                    self.current_soundtrack = soundtrack
+                    break
 
     def end_current_battle(self):
         self.trigger_event('on_battle_end')

@@ -20,3 +20,4 @@ pillow
 tensorboard
 pyfiglet
 pytest-xdist
+mutagen

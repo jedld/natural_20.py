@@ -5,4 +5,5 @@ class DungeonMaster(Entity):
         super().__init__(name, "dm", {})
         self.session = session
         self.inventory = []
+        self.properties = {}
         self.is_admin = True

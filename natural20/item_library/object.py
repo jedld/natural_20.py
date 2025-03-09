@@ -262,7 +262,9 @@ class Object(Entity):
         if execpt_interact:
             return []
 
-        for k, details in self.available_interactions(self, battle).items():
+        admin_actions = opts.get('admin_actions', False)
+
+        for k, details in self.available_interactions(self, battle, admin = admin_actions).items():
             action = InteractAction(session, self, 'interact')
             action.object_action = [k, details]
             actions.append(action)

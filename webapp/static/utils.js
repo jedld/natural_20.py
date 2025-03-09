@@ -10,7 +10,7 @@ const Utils = {
     const overlay = btn.nextElementSibling;
     overlay.style.display = (overlay.style.display === "none" || overlay.style.display === "") ? "block" : "none";
   },
-  switchMap: function (mapId) {
+  switchMap: function (mapId, callback = null) {
     ajaxPost('/switch_map', { map: mapId }, (data) => {
       console.log('Map selection successful:', data);
       $('#mapModal').modal('hide');
@@ -21,6 +21,7 @@ const Utils = {
         $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
         $('.image-container').css({height: data.height});
         $('.image-container img').css({width: data.width});
+        if (callback) callback();
       })
     });
   },

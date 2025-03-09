@@ -14,21 +14,25 @@ class GenericEventHandler:
 
         if self.properties.get('spawn'):
             place_entity_properties = self.properties['spawn']
-            entity_name = place_entity_properties['entity']
-            npc_meta = self.map.legend.get(entity_name)
-            spawn_entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta['name'],
-                                                                    "overrides" : npc_meta.get('overrides', {}), "rand_life" : True })
+            if not isinstance(place_entity_properties, list):
+                place_entity_properties = [place_entity_properties]
 
-            if place_entity_properties.get('pos'):
-                pos = place_entity_properties['pos']
-            else:
-                pos = self.map.position_of(entity)
+            for place_entity_property in place_entity_properties:
+                entity_name = place_entity_property['entity']
+                npc_meta = self.map.legend.get(entity_name)
+                spawn_entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta['name'],
+                                                                        "overrides" : npc_meta.get('overrides', {}), "rand_life" : True })
 
-            # check if there is already an entity at pos
-            if self.map.entity_at(*pos):
-                pos = self.map.find_empty_placeable_position(*pos)
+                if place_entity_property.get('pos'):
+                    pos = place_entity_property['pos']
+                else:
+                    pos = self.map.position_of(entity)
 
-            self.map.add(spawn_entity, *pos, group=npc_meta.get('group', None))
+                # check if there is already an entity at pos
+                if self.map.entity_at(*pos):
+                    pos = self.map.find_empty_placeable_position(*pos)
+
+                self.map.add(spawn_entity, *pos, group=npc_meta.get('group', None))
 
         if self.properties.get('update_state'):
             update_state_properties = self.properties['update_state']

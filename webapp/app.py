@@ -113,7 +113,8 @@ current_game = GameManagement(game_session=game_session,
                               output_logger=output_logger,
                               tile_px=TILE_PX,
                               controllers=CONTROLLERS,
-                              system_logger=logger)
+                              system_logger=logger,
+                              soundtrack=SOUNDTRACKS)
 
 i18n.set('locale', 'en')
 
@@ -390,6 +391,14 @@ def serve_map_image(filename):
     maps_directory = os.path.join(game_session.root_path, "assets", "maps")
     return send_from_directory(maps_directory, filename)
 
+@app.route('/assets/sounds/<filename>')
+def serve_sound_file(filename):
+    secondary_path = os.path.join(game_session.root_path, "assets", "sounds", filename)
+    if os.path.exists(secondary_path):
+        return send_file(secondary_path)
+    else:
+        return jsonify(error="File not found"), 404
+
 @app.route('/assets/<asset_name>')
 def get_asset(asset_name):
     file_path = os.path.join(LEVEL, "assets", asset_name)
@@ -414,7 +423,7 @@ def login():
 
 @app.route('/')
 def index():
-    global current_game, current_soundtrack
+    global current_game
     battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     available_maps = current_game.get_available_maps()
@@ -468,7 +477,7 @@ def index():
                            width_px=width_px,
                            height_px=height_px,
                            waiting_for_reaction=waiting_for_reaction,
-                           soundtrack=current_soundtrack,
+                           soundtrack=current_game.current_soundtrack,
                            title=TITLE,
                            top_offset_px=top_offset_px,
                            left_offset_px=left_offset_px,
@@ -763,13 +772,15 @@ def get_actions():
     entity = battle_map.entity_by_uid(id)
     if entity:
         if 'dm' in user_role() or current_user in entity_owners(entity):
-            return render_template('actions.html', entity=entity, battle=battle, session=game_session, map=battle_map)
+            available_actions = entity.available_actions(session, battle, auto_target=False, map=battle_map, interact_only=True)
+            return render_template('actions.html', entity=entity, battle=battle, session=game_session, map=battle_map, available_actions=available_actions)
         else:
             return jsonify(error="Forbidden"), 403
     object_ = battle_map.object_by_uid(id)
 
     if object_:
-        return render_template('actions.html', entity=object_, battle=battle, session=game_session, map=battle_map)
+        available_actions = object_.available_actions(session, battle, auto_target=False, map=battle_map, interact_only=True, admin_actions=True)
+        return render_template('actions.html', entity=object_, battle=battle, session=game_session, map=battle_map, available_actions=available_actions)
 
     return jsonify(error="Entity not found"), 404
 
@@ -996,10 +1007,11 @@ def switch_pov():
     if battle_map != entity_battle_map:
         current_game.switch_map_for_user(session['username'], entity_battle_map.name)
         background = current_game.get_background_image_for_user(session['username'])
-        map_width, map_height = battle_map.size
+        map_width, map_height = entity_battle_map.size
         tiles_dimension_height = map_height * TILE_PX
         tiles_dimension_width = map_width * TILE_PX
         return jsonify(background=f"assets/{background}",
+                    name=entity_battle_map.name,
                     height=tiles_dimension_height,
                     width=tiles_dimension_width)
 
@@ -1315,7 +1327,7 @@ def get_tracks():
     tracks = []
     for index, track in enumerate(SOUNDTRACKS):
         track_data = {
-            'id': index,
+            'id': track['name'],
             'url': track['file'],
             'name': track['name']
         }
@@ -1324,15 +1336,10 @@ def get_tracks():
 
 @app.route('/sound', methods=['POST'])
 def sound():
-    global current_soundtrack
-    track_id = int(request.form['track_id'])
-    if track_id == -1:
-        current_soundtrack = None
-        socketio.emit('message', {'type': 'stoptrack', 'message': {}})
-    else:
-        url = SOUNDTRACKS[track_id]['file']
-        current_soundtrack = {'url': url, 'id': track_id}
-        socketio.emit('message', {'type': 'track', 'message': current_soundtrack})
+    global current_game
+    track_id = request.json.get('track_id', 'background')
+
+    current_game.play_soundtrack(track_id)
     return jsonify(status='ok')
 
 @app.route('/volume', methods=['POST'])
