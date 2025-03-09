@@ -7,9 +7,11 @@ const switchPOV = (entity_uid) => {
     console.log('Switched POV:', data);
     Utils.refreshTileSet(is_setup = false, pov = true, x = 0, y = 0, entity_uid=entity_uid, () => {
       $('#main-map-area .image-container img').attr('src', data.background);
+      $('#main-map-area .image-container img').css({ width: `${data.width}px`, height: `${data.height}px` });
       $('#main-map-area .image-container').css({ width: `${data.width}px`, height: `${data.height}px` });
       $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
-
+      $('.image-container').css({height: data.height});
+      $('.image-container img').css({width: data.width});
       const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
       centerOnTile($tile);
     })
@@ -207,7 +209,7 @@ $(document).ready(() => {
     });
   };
 
-  Utils.refreshTileSet();
+  Utils.refreshTileSet()
 
   // --- Socket Message Handler ---
   socket.on('message', (data) => {
@@ -290,6 +292,7 @@ $(document).ready(() => {
         $('#console-container').scrollTop($('#console-container')[0].scrollHeight);
         break;
       case 'track':
+        console.log('Playing track:', data.message.url);
         playSound(data.message.url, data.message.track_id);
         break;
       case 'prompt': {
@@ -356,12 +359,13 @@ $(document).ready(() => {
     }
   });
 
-  // Recover soundtrack state on first click.
-  let currentSoundtrack = $('body').data('soundtrack-url');
+  let currentSoundtrackId = $('body').data('soundtrack-id');
   $('body').on('click', () => {
-    if (currentSoundtrack) {
-      playSound(currentSoundtrack, $('body').data('soundtrack-id'));
-      currentSoundtrack = null;
+    // Recover soundtrack state on first click.
+    let currentSoundtrackUrl = $('body').data('soundtrack-url');
+    if (currentSoundtrackId) {
+      playSound(currentSoundtrackUrl, currentSoundtrackId);
+      currentSoundtrackId = null;
     }
   });
 
@@ -740,7 +744,7 @@ $(document).ready(() => {
     ajaxPost('/sound', { track_id: trackId }, (data) => {
       console.log('Sound request successful:', data);
       $('#modal-1').modal('hide');
-    });
+    }, isJSON = true);
   });
 
   $('#reload-map').click(() => {

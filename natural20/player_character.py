@@ -74,7 +74,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
       self.name = self.properties['name']
 
     self.display_name = self.properties.get('display_name', self.name)
-
+    
     race_file = self.properties['race']
     self.session = session
     self.equipped = self.properties.get('equipped', [])

@@ -23,7 +23,16 @@ class EntityStateEvaluator:
                 elif cmd == 'object_type':
                     result = str(context.get('item_type', '')).lower() == str(test_expression).lower()
                 elif cmd == 'target':
-                    result = test_expression == 'object' and context.get('target', '').object()
+                    if test_expression == 'object':
+                        result = context.get('target', '').object()
+                    elif test_expression == 'elf':
+                        result = context.get('target', '').race() == 'elf'
+                    elif test_expression == 'human':
+                        result = context.get('target', '').race() == 'human'
+                    elif test_expression == 'undead':
+                        result = context.get('target', '').race() == 'undead'
+                    else:
+                        result = False
                 elif cmd == 'entity':
                     result = (test_expression == 'pc' and self.pc()) or (test_expression == 'npc' and self.npc())
                 elif cmd == 'state':
