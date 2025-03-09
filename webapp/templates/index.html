@@ -29,7 +29,7 @@
         }
     </style>
 </head>
-<body data-soundtrack-id="{{ soundtrack.name }}" data-soundtrack-url="{{soundtrack.file}}" data-battle_in_progress="{{ 'true' if battle else 'false' }}" 
+<body data-soundtrack-id="{{ soundtrack.name }}" data-soundtrack-url="{{soundtrack.file}}" data-soundtrack-time="{{soundtrack.time}}" data-soundtrack-volume="{{ soundtrack.volume }}" data-battle_in_progress="{{ 'true' if battle else 'false' }}" 
       data-waiting-for-reaction="{{ 'true' if waiting_for_reaction else 'false' }}"
       data-username="{{ username }}" data-role="{{ role }}" data-controls="{{ entity_ids }}">
     <div id="reaction-modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">

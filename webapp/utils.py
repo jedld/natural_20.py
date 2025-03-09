@@ -95,8 +95,9 @@ class GameManagement:
             # load each soundtrack and determine its duration
             for track in self.soundtracks:
                 track['duration'] = 0
-                track['start_time'] = 0
-
+                track['start_time'] = int(time.time())
+                if track['volume'] is None:
+                    track['volume'] = 0
                 # load mp3 file
                 audio_path = self.game_session.root_path + '/assets/' + track['file']
                 audio = MP3(audio_path)
@@ -411,6 +412,10 @@ class GameManagement:
             if not action or entity.unconscious() or entity.dead():
                 break
 
+    def set_volume(self, volume):
+        self.current_soundtrack['volume'] = volume
+        self.socketio.emit('message', {'type': 'volume', 'message': { 'volume': volume } })
+        self.logger.info(f"Setting volume to {volume}")
     """
     Play a soundtrack
 
@@ -427,14 +432,21 @@ class GameManagement:
                 url = soundtrack['file']
                 if self.current_soundtrack:
                     if self.current_soundtrack['name'] != soundtrack['name']:
-                        current_soundtrack = {'url': url, 'id': track_id}
+                        current_time_in_seconds = int(time.time())
+                        current_soundtrack = {'url': url, 'id': track_id, 'start_time': current_time_in_seconds}
+                        self.current_soundtrack['time'] = 0
                         self.logger.info(f"Playing soundtrack {current_soundtrack}")
-                        self.socketio.emit('message', {'type': 'track', 'message': current_soundtrack})
+                        self.socketio.emit('message', { 'type': 'track', 'message': current_soundtrack })
                         self.current_soundtrack = soundtrack
-                        pdb.set_trace()
                         break
+                    else:
+                        time_s = (time.time() - self.current_soundtrack
+                        ['start_time']) % self.current_soundtrack['duration']
+                        self.current_soundtrack['time'] = time_s
+                        self.logger.info(f"Playing soundtrack {self.current_soundtrack}")
+                        self.socketio.emit('message', { 'type': 'track', 'message': self.current_soundtrack})
                 else:
-                    current_soundtrack = {'url': url, 'id': track_id}
+                    current_soundtrack = {'url': url, 'id': track_id, 'start_time': time.time()}
                     self.logger.info(f"Playing soundtrack {current_soundtrack}")
                     self.socketio.emit('message', {'type': 'track', 'message': current_soundtrack})
                     self.current_soundtrack = soundtrack

@@ -7,7 +7,7 @@
 <div class="modal-body">
   <div class="radio">
     <label>
-      <input type="radio" name="track_id" value="-1" {% if track_id < 0 %}checked{% endif %}>
+      <input type="radio" name="track_id" value="-1" {% if not track_id %}checked{% endif %}>
       None
     </label>
   </div>
@@ -19,10 +19,10 @@
     </label>
   </div>
   {% endfor %}
-  {% if track_id >= 0 %}
+  {% if track_id %}
   <div class="volume-controls">
     <label>Volume:</label>
-    <input type="range" min="0" max="100" value="50" class="volume-slider">
+    <input type="range" min="0" max="100" value="{{current_soundtrack.volume}}" class="volume-slider">
   </div>
   {% endif %}
 </div>

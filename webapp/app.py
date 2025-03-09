@@ -465,6 +465,10 @@ def index():
     background_color = web_extensions.get('background_color', '#FFFFFF')
     width_px = (map_width + 2) * TILE_PX
     height_px = (map_height + 2) * TILE_PX
+    if current_game.current_soundtrack:
+        time_s = (time.time() - current_game.current_soundtrack
+                        ['start_time']) % current_game.current_soundtrack['duration']
+        current_game.current_soundtrack['time'] = int(time_s)
     return render_template('index.html', tiles=my_2d_array, tile_size_px=TILE_PX,
                            background_path=f"assets/{background}",
                            background_width=tiles_dimension_width,
@@ -1324,6 +1328,8 @@ def add():
 
 @app.route('/tracks', methods=['GET'])
 def get_tracks():
+    global current_game
+    current_soundtrack = current_game.current_soundtrack
     tracks = []
     for index, track in enumerate(SOUNDTRACKS):
         track_data = {
@@ -1332,7 +1338,7 @@ def get_tracks():
             'name': track['name']
         }
         tracks.append(track_data)
-    return render_template('soundtrack.jinja', tracks=tracks, track_id=int(request.args.get('track_id', 0)))
+    return render_template('soundtrack.jinja', tracks=tracks, current_soundtrack=current_soundtrack, track_id=request.args.get('track_id', 'background'))
 
 @app.route('/sound', methods=['POST'])
 def sound():
@@ -1345,7 +1351,8 @@ def sound():
 @app.route('/volume', methods=['POST'])
 def set_volume():
     volume = int(request.json['volume'])
-    socketio.emit('message', {'type': 'volume', 'message': {'volume': volume}})
+    current_game.set_volume(volume)
+    
     return jsonify(status='ok')
 
 

@@ -172,13 +172,20 @@ $(document).ready(() => {
   let active_track_id = -1;
   const battleEntityList = [];
 
+  let backgroundSoundStartTime = $('body').data('soundtrack-time');
+  let pageRenderTime = new Date().getTime();
+
   // Plays a background sound (stopping any previous one).
-  const playSound = (url, track_id) => {
-    if (active_background_sound) {
-      active_background_sound.pause();
-    }
+  const playSound = (url, track_id, volume) => {
+    const elapsed = (Date.now() - pageRenderTime) / 1000;
+    const seekTime = backgroundSoundStartTime + elapsed;
+
+    if (active_background_sound) active_background_sound.pause();
+
     active_background_sound = new Audio(`/assets/${url}`);
     active_background_sound.loop = true;
+    active_background_sound.currentTime = seekTime;
+    active_background_sound.volume = volume ? volume / 100 : 0.5;
     active_track_id = track_id;
     active_background_sound.play();
     $('.volume-slider').val(active_background_sound.volume * 100);
@@ -293,7 +300,7 @@ $(document).ready(() => {
         break;
       case 'track':
         console.log('Playing track:', data.message.url);
-        playSound(data.message.url, data.message.track_id);
+        playSound(data.message.url, data.message.track_id, data.message.volume);
         break;
       case 'prompt': {
         alert(data.message);
@@ -363,8 +370,9 @@ $(document).ready(() => {
   $('body').on('click', () => {
     // Recover soundtrack state on first click.
     let currentSoundtrackUrl = $('body').data('soundtrack-url');
+    let currentSoundtrackVolume = $('body').data('soundtrack-volume');
     if (currentSoundtrackId) {
-      playSound(currentSoundtrackUrl, currentSoundtrackId);
+      playSound(currentSoundtrackUrl, currentSoundtrackId, currentSoundtrackVolume);
       currentSoundtrackId = null;
     }
   });
