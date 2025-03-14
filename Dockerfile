@@ -17,8 +17,8 @@ COPY . .
 
 RUN pip install --no-cache-dir -e .
 
-# Expose port as defined in start_web.sh (port 5001)
-EXPOSE 5001
+# Expose port as defined in start_web.sh (port 80)
+EXPOSE 80
 
 # Set environment variables for production if necessary
 ENV FLASK_ENV=production
@@ -28,4 +28,5 @@ ENV TEMPLATE_DIR=/app/user_levels/death_house
 WORKDIR /app/webapp
 
 # Start the Flask application.
-CMD ["python", "app.py"]
+
+CMD ["python","-m","flask","run","--host=0.0.0.0", "--port=80"]

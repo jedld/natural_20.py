@@ -1,0 +1,8 @@
+*.yml
+__pycache__
+.git
+.log
+.vscode
+samples/*
+output_*/
+webapp/flask_session/
