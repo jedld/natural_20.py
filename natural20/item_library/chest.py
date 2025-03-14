@@ -140,14 +140,13 @@ class Chest(Object, Container):
                     'disabled': not entity.has_action(battle),
                     'disabled_text': 'Action needed'
                 }
-            return interactions
         else:
             if self.opened():
-                return {
+                interactions.update({
                     'close': {},
                     'store': {},
                     'loot': {}
-                }
+                })
             else:
                 interactions['open'] = {}
                 if self.key_name:
@@ -156,7 +155,7 @@ class Chest(Object, Container):
                         'disabled_text': 'Key required'
                     }
 
-            return interactions
+        return interactions
 
 
     def resolve(self, entity, action, other_params, opts=None):

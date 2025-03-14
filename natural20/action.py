@@ -74,6 +74,9 @@ class Action:
     
     def __str__(self):
         return str(self.action_type).capitalize()
+    
+    def object_action_prompt(self):
+        return None
 
     def to_dict(self):
         return {

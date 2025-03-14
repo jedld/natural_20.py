@@ -122,8 +122,11 @@ class Npc(Entity, Multiattack, Lootable):
     def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True, **opts):
         if opts is None:
             opts = {}
+
+
         interact_only = opts.get('interact_only', False)
         except_interact = opts.get('except_interact', False)
+
         if self.unconscious():
             return ["end"]
 
@@ -135,7 +138,8 @@ class Npc(Entity, Multiattack, Lootable):
         if opportunity_attack:
             actions = [s for s in self.generate_npc_attack_actions(battle, opportunity_attack=True, auto_target=auto_target) if s.action_type == "attack" and s.npc_action["type"] == "melee_attack"]
         else:
-            actions.extend(self.generate_npc_attack_actions(battle, auto_target=auto_target))
+            if not interact_only:
+                actions.extend(self.generate_npc_attack_actions(battle, auto_target=auto_target))
             for action_class in self.ACTION_LIST:
                 if interact_only and action_class != InteractAction:
                     continue

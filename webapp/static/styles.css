@@ -504,3 +504,25 @@ input.initiative-input.form-control {
   bottom: 10px;
   z-index: 1100;
 }
+
+.current-turn-information {
+  background-color: white;
+  opacity: 0.9;
+  border: 1px solid black;
+  display: flex;
+  align-items: center;
+  padding: 10px;
+}
+
+#floating-entity-portraits .effect {
+  position: absolute;
+  top: 5px;
+  left: 0;
+}
+
+#floating-entity-portraits .effect-img {
+  width: 20px;
+  height: 20px;
+  z-index: 1000;
+  opacity: 0.8;
+}

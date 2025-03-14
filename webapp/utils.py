@@ -43,7 +43,8 @@ class SocketIOOutputLogger:
 # Defines a class for high level game management
 class GameManagement:
     def __init__(self, game_session, map_location, other_maps, socketio, output_logger, tile_px, controllers,
-                 auto_battle=True, system_logger=None, soundtrack=None):
+                 npc_controller = None,
+                 auto_battle=True, system_logger=None,  soundtrack=None):
         """
         Initialize the game management
 
@@ -64,6 +65,7 @@ class GameManagement:
         self.waiting_for_user = False
         self.waiting_for_reaction = False
         self.controllers = controllers
+        self.npc_controller = npc_controller
         self.auto_battle = auto_battle
         self.web_controllers = {}
         self.maps = {}
@@ -96,7 +98,7 @@ class GameManagement:
             for track in self.soundtracks:
                 track['duration'] = 0
                 track['start_time'] = int(time.time())
-                if track['volume'] is None:
+                if 'volumne' not in track or track['volume'] is None:
                     track['volume'] = 0
                 # load mp3 file
                 audio_path = self.game_session.root_path + '/assets/' + track['file']
@@ -318,6 +320,10 @@ class GameManagement:
             def get_controller(entity):
                 if isinstance(entity, PlayerCharacter):
                     return self.get_controller_for_entity(entity)
+                elif self.npc_controller == 'manual':
+                        web_controllers = WebController(self.game_session, None)
+                        web_controllers.add_user("dm")
+                        return web_controllers
                 return GenericController(self.game_session)
 
             if not self.battle:

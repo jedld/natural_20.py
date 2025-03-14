@@ -175,7 +175,7 @@
         </div>
     </div>
 
-    {% if battle and controller_of(battle.current_turn().entity_uid, username) %}
+    {% if battle %}
         <div class="game-turn-container" style="pointer-events: none;">
         {% include 'turn.jinja' %}
         </div>
@@ -199,6 +199,14 @@
             <div>{{ entity.name }}</div>
             <div class="health-bar-portrait" style="width: 100px; background-color: red; height: 10px;">
                 <div class="health-bar-fill-portrait" style="width: {{ entity.health_percent() }}%; background-color: green; height: 100%;"></div>
+            </div>
+            <div class="effect">
+                {% for effect in entity.effects_str() %}
+                  <img src="{{ url_for('static', filename='assets/effect/' ~ effect ~ '.png') }}"
+                       class="effect-img"
+                       alt="{{ effect }}"
+                       data-tooltip="{{ effect }}">
+                {% endfor %}
             </div>
         </div>
         {% endfor %}
