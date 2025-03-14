@@ -346,7 +346,7 @@ class GameManagement:
 
 
     def get_controller_for_entity(self, entity):
-        return self.web_controllers[entity]
+        return self.web_controllers.get(entity, None)
 
     def get_web_controllers_for_user(self, username, default_controller = None):
         controller_list = []
