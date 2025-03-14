@@ -144,6 +144,13 @@ class MoveAction(Action):
         # print(f"budget: {movement_budget}  {movement.budget}")
         movement_cost = movement_budget - movement.budget
 
+        for move in reversed(movement.movement):
+            if  map.placeable(self.source, *move, battle, squeeze=False):
+                break
+            else:
+                movement.movement.remove(move)
+                movement_cost -= 1
+
         self.result.append({
             'source': self.source,
             'map': map,
