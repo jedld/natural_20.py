@@ -139,7 +139,8 @@ def user_role():
     return login_info["role"] if login_info else []
 
 def check_and_notify_map_change(pov_map, pov_entity):
-    global logger, current_game
+    global logger, current_game, username_to_sid
+
     new_battle_map = current_game.get_map_for_entity(pov_entity)
     if pov_map is None:
         return
@@ -149,10 +150,9 @@ def check_and_notify_map_change(pov_map, pov_entity):
 
     if new_battle_map != pov_map:
         current_game.switch_map_for_user(session['username'], new_battle_map.name)
-        web_controllers = current_game.get_web_controllers_for_user(session['username'])
-        for web_controller in web_controllers:
-            for sid in web_controller.sids:
-                socketio.emit('message', {'type': 'switch_map', 'message': {'map': new_battle_map.name}}, to=sid)
+        sids = username_to_sid.get(session['username'], [])
+        for sid in sids:
+            socketio.emit('message', {'type': 'switch_map', 'message': {'map': new_battle_map.name}}, to=sid)
 
 
 def commit_and_update(action):
@@ -267,7 +267,6 @@ def entities_controlled_by(username, battle_map=None):
                 entity = current_game.get_entity_by_uid(entity_uid)
             if entity:
                 entities.add(entity)
-
 
     return list(entities)
 
@@ -595,21 +594,19 @@ def require_login():
     if not logged_in() and request.path != '/login' and not request.path.startswith('/static/assets'):
         return redirect(url_for('login'))
 
+username_to_sid = {}
+
 @socketio.on('register')
 def handle_connect(data):
-    global current_game, first_connect
+    global current_game, first_connect, username_to_sid
     username = data.get('username')
     ws = request.sid
-    web_controller_for_users = current_game.get_web_controllers_for_user(username, WebController(game_session, username))
-    for web_controller_for_user in web_controller_for_users:
-        web_controller_for_user.add_sid(ws)
-
-    if not first_connect:
-        first_connect = True
-        current_game.trigger_event('on_session_ready')
-
-    logger.info(f"open connection {ws} for {username}")
-    emit('info', {'type': 'info', 'message': ''})
+    if ws:
+        sids = username_to_sid.get(username, [])
+        sids.append(ws)
+        username_to_sid[username] = sids
+        logger.info(f"open connection {ws} for {username}")
+        emit('info', {'type': 'info', 'message': ''})
 
 @socketio.on('message')
 def handle_message(data):
@@ -644,8 +641,7 @@ def stop_battle():
     battle = current_game.get_current_battle()
 
     if battle:
-        battle = None
-        socketio.emit('message', {'type': 'stop', 'message': {}})
+        current_game.end_current_battle()
     return jsonify(status='ok')
 
 @app.route('/battle', methods=['POST'])
@@ -663,12 +659,16 @@ def start_battle_with_initiative():
 
         print(request.json['battle_turn_order'])
         for param_item in request.json['battle_turn_order']:
-            entity = battle_map.entity_by_uid(param_item['id'])
+            entity = current_game.get_entity_by_uid(param_item['id'])
 
             if param_item['controller'] == 'ai':
                 controller = GenericController(game_session)
             else:
                 controller = current_game.get_controller_for_entity(entity)
+
+            if controller is None:
+                controller = web_controllers = WebController(game_session, None)
+                web_controllers.add_user("dm")
 
             controller.register_handlers_on(entity)
             battle.add(entity, param_item['group'], controller=controller)

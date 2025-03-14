@@ -10,15 +10,20 @@ WORKDIR /app
 
 # Copy dependency definitions and install
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Gunicorn and other dependencies
+RUN pip install --no-cache-dir -r requirements.txt gunicorn eventlet
 
 # Copy all project files into the container
 COPY . .
 
 RUN pip install --no-cache-dir -e .
 
-# Expose port as defined in start_web.sh (port 80)
-EXPOSE 80
+# Set default port (can be overridden during container start)
+ENV PORT=5000
+
+# Expose port from environment variable
+EXPOSE ${PORT}
 
 # Set environment variables for production if necessary
 ENV FLASK_ENV=production
@@ -27,6 +32,5 @@ ENV TEMPLATE_DIR=/app/user_levels/death_house
 # Set working directory
 WORKDIR /app/webapp
 
-# Start the Flask application.
-
-CMD ["python","-m","flask","run","--host=0.0.0.0", "--port=80"]
+# Start using Gunicorn with eventlet worker (for socketio support)
+CMD gunicorn --worker-class eventlet --workers 4 --bind 0.0.0.0:${PORT} --timeout 120 app:app
