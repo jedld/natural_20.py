@@ -161,6 +161,9 @@ class Entity(EntityStateEvaluator, Notable):
 
     def __repr__(self):
         return f"{self.name}"
+    
+    def effects_str(self):
+        return [str(effect['effect']) for effect in self.current_effects()]
 
     def name(self):
         return self.name

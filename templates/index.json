@@ -5,6 +5,7 @@
   "title" : "The Goblin Ambush",
   "login_background" : "goblin_ambush_login.png",
   "map" : "maps/goblin_cave",
+  "npc_default_controller" : "manual",
   "soundtracks" : [
     {
       "name" : "Goblin Ambush",
@@ -56,7 +57,7 @@
   "default_controllers": [
     {
       "entity_uid" : "gomerin",
-      "controllers" : ["gomerin", "shorvalu","leandro"]
+      "controllers" : ["gomerin", "rumblebelly", "shorvalu","leandro"]
     },
     {
       "entity_uid": "crysania",

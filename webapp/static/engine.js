@@ -380,17 +380,11 @@ $(document).ready(() => {
   // --- Form & Slider Handlers ---
   $('#reaction-form').on('submit', (event) => {
     event.preventDefault();
-    Utils.refreshTileSet(callback = () => {
-      $('#main-map-area .image-container img').attr('src', data.background);
-      $('#main-map-area .image-container img').css({ width: `${data.width}px`, height: `${data.height}px` });
-      $('#main-map-area .image-container').css({ width: `${data.width}px`, height: `${data.height}px` });
-      $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
-    })
     const reaction = $('#reaction-form input[name="reaction"]:checked').val();
     ajaxPost('/reaction', { reaction }, (data) => {
       console.log('Reaction submitted successfully:', data);
       $('#reaction-modal').modal('hide');
-    });
+      });
   });
 
   $('.modal-content').on('input', '.volume-slider', function () {

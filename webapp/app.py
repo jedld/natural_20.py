@@ -77,6 +77,7 @@ BATTLEMAP = index_data["map"]
 OTHERMAPS = index_data.get("other_maps", {})
 SOUNDTRACKS = index_data["soundtracks"]
 LOGINS = index_data["logins"]
+DEFAULT_NPC_CONTROLLER = index_data.get("npc_default_controller", "ai")
 CONTROLLERS = index_data["default_controllers"]
 EXTENSIONS = []
 first_connect = False
@@ -113,6 +114,7 @@ current_game = GameManagement(game_session=game_session,
                               output_logger=output_logger,
                               tile_px=TILE_PX,
                               controllers=CONTROLLERS,
+                              npc_controller=DEFAULT_NPC_CONTROLLER,
                               system_logger=logger,
                               soundtrack=SOUNDTRACKS)
 
@@ -197,9 +199,14 @@ def controller_of(entity_uid, username):
     if username == 'dm':
         return True
 
+    entity = current_game.get_entity_by_uid(entity_uid)
+    if hasattr(entity, 'owner'):
+        entity_uid = entity.owner.entity_uid
+
     for info in CONTROLLERS:
         if info['entity_uid'] == entity_uid and username in info['controllers']:
             return True
+
     logger.info(f"controller_of: {entity_uid} {username} missing")
     return False
 
@@ -427,7 +434,6 @@ def index():
     battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     available_maps = current_game.get_available_maps()
-    waiting_for_reaction = current_game.waiting_for_reaction
 
     if not logged_in():
         print("not logged in")
@@ -480,7 +486,7 @@ def index():
                            background_color=background_color,
                            width_px=width_px,
                            height_px=height_px,
-                           waiting_for_reaction=waiting_for_reaction,
+                           waiting_for_reaction=current_game.waiting_for_reaction,
                            soundtrack=current_game.current_soundtrack,
                            title=TITLE,
                            top_offset_px=top_offset_px,
@@ -678,7 +684,7 @@ def start_battle_with_initiative():
 
 @app.route('/end_turn', methods=['POST'])
 def end_turn():
-    global waiting_for_reaction, current_game
+    global current_game
     battle = current_game.get_current_battle()
     battle.end_turn()
     battle.next_turn()
@@ -688,7 +694,7 @@ def end_turn():
     except AsyncReactionHandler as e:
         for battle, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
-            waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
+            current_game.waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
         socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
 
 
@@ -709,7 +715,7 @@ def continue_game():
 def get_turn_order():
     global current_game
     battle = current_game.get_current_battle()
-    return render_template('battle.html', battle=battle, role=user_role())
+    return render_template('battle.html', battle=battle, username=session['username'], role=user_role())
 
 @app.route('/next_turn', methods=['POST'])
 def next_turn():
@@ -742,6 +748,7 @@ def update():
     enable_pov = request.args.get('pov', 'false') == 'true'
     x = int(request.args.get('x'))
     y = int(request.args.get('y'))
+    entity_uid = request.args.get('entity_uid')
     battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     renderer = JsonRenderer(battle_map, battle, padding=MAP_PADDING)
@@ -749,7 +756,11 @@ def update():
     pov_entities = [current_game.get_pov_entity_for_user(session['username'])]
 
     if enable_pov:
-        entity = battle_map.entity_at(x, y)
+        if entity_uid:
+            entity = battle_map.entity_by_uid(entity_uid)
+        else:
+            entity = battle_map.entity_at(x, y)
+
         if entity and ('dm' in user_role() or entity in entities_controlled_by(session['username'], battle_map)):
             current_game.set_pov_entity_for_user(session['username'], entity)
         pov_entities = [entity] if entity else []
@@ -942,7 +953,7 @@ def get_reaction():
     reaction_type = current_game.waiting_for_reaction_input()[1].reaction_type
     return render_template(f"reactions/{reaction_type}.html",
                            username=session['username'],
-                           waiting_for_reaction=waiting_for_reaction,
+                           waiting_for_reaction=current_game.waiting_for_reaction,
                            battle=battle)
 
 @app.route('/reaction', methods=['POST'])
@@ -952,7 +963,7 @@ def handle_reaction():
     reaction_id = request.form.get('reaction')
     if not reaction_id:
         return jsonify(error="No reaction provided"), 400
-    if waiting_for_reaction is None:
+    if not current_game.waiting_for_reaction:
         return jsonify(error="No reaction expected"), 400
     entity, handler, generator, valid_actions_str = current_game.waiting_for_reaction_input()
 
@@ -975,7 +986,7 @@ def handle_reaction():
     except AsyncReactionHandler as e:
         for battle, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
-            waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
+            current_game.waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
         socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
     except ManualControl:
         logger.info("waiting for user to end turn.")
@@ -1220,16 +1231,20 @@ def action():
                             action_info['param'] = action['param']
                             return jsonify(action_info)
                     elif param_details['type'] == 'select_object':
+                        object_action_a = opts.get('object_action')
+                        if isinstance(object_action_a, list):
+                            object_action_a = object_action_a[0]
+
                         if entity.object() and 'dm' in user_role():
                             gm = DungeonMaster(game_session, name='dm')
                             interact = InteractAction(game_session, gm, 'interact')
-                            interact.object_action = opts.get('object_action')
+                            interact.object_action = object_action_a
                             interact.target = entity
                             return jsonify(commit_and_update(interact))
                         else:
                             interact = InteractAction(game_session, entity, 'interact')
                             object =  battle_map.entity_by_uid(opts.get('target'))
-                            interact.object_action = opts.get('object_action')
+                            interact.object_action =  object_action_a
                             interact.target = object
                             action = interact.build_custom_action(interact.object_action, object)
                             continue
@@ -1304,9 +1319,9 @@ def get_turn():
     if battle:
         print(f"current turn: {battle.current_turn().entity_uid} {session['username']}")
         if 'dm' in user_role() or controller_of(battle.current_turn().entity_uid, session['username']):
-            return render_template('turn.jinja', battle=battle)
+            return render_template('turn.jinja', battle=battle, username=session['username'])
         else:
-            return jsonify(error="Forbidden"), 403
+            return render_template('turn.jinja', battle=battle, username=session['username'], readonly=True)
     else:
         return jsonify(error="No battle in progress"), 400
 
