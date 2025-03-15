@@ -641,3 +641,29 @@ class Battle():
             self.action(action)
             self.commit(action)
         return None
+
+    def to_dict(self):
+        return {
+            'combat_order': self.combat_order,
+            'current_turn_index': self.current_turn_index,
+            'round': self.round,
+            'entities': self.entities,
+            'groups': self.groups,
+            'late_comers': self.late_comers,
+            'battle_log': self.battle_log,
+            'animation_log': self.animation_log,
+            'session': self.session,
+            'maps': self.maps
+        }
+
+    def from_dict(data):
+        battle = Battle(data['session'], data['maps'])
+        battle.combat_order = data['combat_order']
+        battle.current_turn_index = data['current_turn_index']
+        battle.round = data['round']
+        battle.entities = data['entities']
+        battle.groups = data['groups']
+        battle.late_comers = data['late_comers']
+        battle.battle_log = data['battle_log']
+        battle.animation_log = data['animation_log']
+        return battle

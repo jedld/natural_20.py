@@ -69,8 +69,10 @@ class GameManagement:
         self.auto_battle = auto_battle
         self.web_controllers = {}
         self.maps = {}
+        self.max_save_states = 10
         self.pov_entity_for_user = {}
         self.current_map_for_user = {}
+        self.save_states = []
         self.soundtracks = soundtrack
         self.current_soundtrack = None
 
@@ -368,38 +370,40 @@ class GameManagement:
         battle = self.get_current_battle()
         try:
             while True:
+                # Start turn and prepare entity
                 battle.start_turn()
-                current_turn = self.get_current_battle().current_turn()
+                current_turn = battle.current_turn()
                 current_turn.reset_turn(battle)
 
                 if battle.battle_ends():
-                    self.end_current_battle()
-                    return
+                    break
 
-                while current_turn.dead() or current_turn.unconscious():
+                # Skip turns for dead or unconscious entities
+                while (current_turn.dead() or current_turn.unconscious()) and not battle.battle_ends():
                     current_turn.resolve_trigger('end_of_turn')
                     battle.end_turn()
                     battle.next_turn()
-                    current_turn = battle.current_turn()
+
                     battle.start_turn()
+                    current_turn = battle.current_turn()
                     current_turn.reset_turn(battle)
 
-                    if battle.battle_ends():
-                        self.end_current_battle()
-                        return
+                if battle.battle_ends():
+                    break
 
-
+                # Process AI actions
                 self.ai_loop()
                 current_turn.resolve_trigger('end_of_turn')
 
                 if battle.battle_ends():
-                    self.end_current_battle()
                     break
 
+                # End turn and update environment
                 battle.end_turn()
                 self.loop_environment()
                 battle.next_turn()
 
+            self.end_current_battle()
         except ManualControl:
             self.logger.info("waiting for user to end turn.")
 
@@ -457,6 +461,27 @@ class GameManagement:
                     self.socketio.emit('message', {'type': 'track', 'message': current_soundtrack})
                     self.current_soundtrack = soundtrack
                     break
+
+    def save_game(self):
+        index = len(self.save_states) % self.max_save_states
+        file_name = f"save_{index}.yml"
+        self.game_session.save_game(self.battle, self.battle_map, filename=file_name)
+        self.save_states.append(file_name)
+
+    def load_save(self, index = None):
+        if index is None:
+            index = len(self.save_states) - 1
+            if index < 0:
+                return
+
+        save_state = self.save_states[index]
+        state = self.game_session.load_save(yaml=None, filename=save_state)
+        self.battle = state['battle']
+        if self.battle:
+            self.set_current_battle(self.battle)
+        self.battle_map = state['map']
+        self.game_session = state['session']
+
 
     def end_current_battle(self):
         self.trigger_event('on_battle_end')

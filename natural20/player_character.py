@@ -556,13 +556,22 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
     return self.proficiency_bonus() if self.perception_proficient() else 0
   
   def to_dict(self):
-    base_dict = super().to_dict()
-
-    pc_dict = {
+    base_dict = {
+      'session': self.session,
       'name': self.name,
       'classes': self.c_class(),
       'hp': self.attributes['hp'],
-      'type': 'pc'
+      'type': 'pc',
+      'properties': self.properties,
+      'inventory': self.inventory,
+      'entity_uid': self.entity_uid
     }
-    base_dict.update(pc_dict)
     return base_dict
+
+  def from_dict(data):
+    properties = data['properties']
+    player_character = PlayerCharacter(data['session'], properties=properties, name=data['name'])
+    player_character.entity_uid = data['entity_uid']
+    player_character.attributes['hp'] = data['hp']
+    player_character.inventory = data['inventory']
+    return player_character

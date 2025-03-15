@@ -270,4 +270,22 @@ class Npc(Entity, Multiattack, Lootable):
         base_dict['type'] = 'npc'
         base_dict["npc_type"] = self.npc_type
         base_dict["_max_hp"] = self.max_hp()
+        base_dict["properties"] = self.properties
+        base_dict["attributes"] = self.attributes
+        base_dict["inventory"] = self.inventory
+        base_dict["statuses"] = self.statuses
+        base_dict["entity_uid"] = self.entity_uid
+        base_dict["name"] = self.name
+        base_dict["session"] = self.session
         return base_dict
+    
+    def from_dict(data):
+        npc = Npc(data["session"], data["npc_type"], data)
+        npc.properties = data["properties"]
+        npc._max_hp = data["_max_hp"]
+        npc.attributes = data["attributes"]
+        npc.inventory = data["inventory"]
+        npc.statuses = data["statuses"]
+        npc.entity_uid = data["entity_uid"]
+        npc.name = data["name"]
+        return npc

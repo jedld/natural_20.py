@@ -10,6 +10,11 @@
     <!-- Custom CSS -->
     <style>
         /* Full page background image */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
         body {
             background-image: url("{{ url_for('static', filename='assets/' ~ background) }}");
             background-size: cover;
