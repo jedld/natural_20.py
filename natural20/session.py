@@ -8,6 +8,14 @@ from natural20.map import Map
 import i18n
 from copy import deepcopy
 
+def represent_map(dumper, data):
+    return dumper.represent_mapping('!map', data.to_dict())
+
+def represent_battle(dumper, data):
+    return dumper.represent_mapping('!battle', data.to_dict())
+
+
+
 # typed: true
 class Session:
     def __init__(self, root_path=None, event_manager=None):
@@ -46,11 +54,11 @@ class Session:
 
     def _load_all_maps(self, game_file):
         self.maps = {}
-        
+
         if 'maps' not in game_file:
             self.maps['index'] = Map(self, game_file.get('starting_map'), name = 'index')
             return self.maps
-        
+
         map_with_key = game_file.get('maps', {})
         for name, map_file in map_with_key.items():
             self.maps[name] = Map(self, map_file, name=name)
@@ -135,8 +143,12 @@ class Session:
     def has_save_game(self):
         return os.path.exists(os.path.join(self.root_path, 'savegame.yml'))
 
-    def save_game(self, battle, map, filename=None):
-        state = {'session': self, 'map': battle.map if battle else map, 'battle': battle}
+    def save_game(self, battle, maps, filename=None):
+        from natural20.battle import Battle
+
+        if maps and not isinstance(maps, list):
+            maps = [maps]
+        state = {'session': self, 'maps': battle.maps if battle else maps, 'battle': battle}
         yaml_str = yaml.safe_dump(state)
         if filename:
             with open(os.path.join(self.root_path, filename), 'w') as f:
@@ -268,3 +280,20 @@ class Session:
 
     def update_state(self, state):
         self.session_state.update(state)
+
+    def to_dict(self):
+        return {
+            'game_time': self.game_time,
+            'root_path': self.root_path,
+            'session_state': self.session_state,
+            'event_log': list(self.event_log),
+            'settings': self.settings
+        }
+
+    def from_dict(data):
+        session = Session(data['root_path'])
+        session.game_time = data['game_time']
+        session.session_state = data['session_state']
+        session.event_log = deque(data['event_log'])
+        session.settings = data['settings']
+        return session

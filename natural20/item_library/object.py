@@ -312,7 +312,32 @@ class Object(Entity):
     def update_state(self, state):
         super().update_state(state)
 
+    def to_dict(self):
+        return {
+            'session': self.session,
+            'entity_uid': self.entity_uid,
+            'type': self.type,
+            'attributes': self.attributes,
+            'ability_scores': self.ability_scores,
+            'statuses': list(self.statuses),
+            'resistances': self.resistances,
+            'is_concealed': self.is_concealed,
+            'perception_dc': self.perception_dc,
+            'inventory': [
+                {
+                    'type': k,
+                    'qty': v['qty']
+                } for k, v in self.inventory.items()
+            ],
+            'properties': self.properties
+        }
 
+    def from_dict(data):
+        object =  Object(data['session'], None, data['properties'])
+        object.entity_uid = data['entity_uid']
+        object.type = data['type']
+        object.is_concealed = data['is_concealed']
+        return object
 
 class ItemLibrary:
     class AreaTrigger:

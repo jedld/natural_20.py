@@ -19,6 +19,18 @@ class StoneWall(Object):
             return ['`']
         else:
             return ['#']
+        
+    def to_dict(self):
+        hash = super().to_dict()
+        hash['session'] = self.session
+        hash['entity_uid'] = self.entity_uid
+        return hash
+    
+    def from_dict(data):
+        session = data['session']
+        wall = StoneWall(session, None, data['properties'])
+        wall.entity_uid = data['entity_uid']
+        return wall
 
 class StoneWallDirectional(StoneWall):
     def __init__(self, session, map, properties):
@@ -183,3 +195,16 @@ class Ground(Object, Container, Lootable):
 
     def setup_other_attributes(self):
         self.inventory = {}
+
+    def to_dict(self):
+        h_dict = super().to_dict()
+        h_dict['session'] = self.session
+        h_dict['inventory'] = self.inventory
+        return h_dict
+
+
+    def from_dict(data):
+        session = data['session']
+        ground = Ground(session, None, data['properties'])
+        ground.entity_uid = data['entity_uid']
+        return ground

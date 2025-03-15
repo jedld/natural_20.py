@@ -971,71 +971,35 @@ class Map():
         return result
 
     @staticmethod
-    def from_dict(session, data):
-        entity_hash = {}
-
-        battle_map = Map(session, None, properties=data['map']['properties'])
-        battle_map.entities = {}
-        for uid, entity_and_pos in data['entities'].items():
-            entity, pos = entity_and_pos
-            if entity['type']=='pc':
-                entity['entity_uid'] = uid
-                player_character = PlayerCharacter(session, entity['properties'], name=entity['name'])
-                player_character.attributes = entity['attributes']
-                battle_map.entities[player_character] = pos
-                entity_hash[uid] = player_character
-            elif entity['type']=='npc':
-                entity['entity_uid'] = uid
-                npc = Npc(session, entity['npc_type'], { "name" : entity['name']})
-                npc.properties = entity['properties']
-                npc.attributes = entity['attributes']
-                npc.inventory = entity['inventory']
-                battle_map.entities[npc] = pos
-                entity_hash[uid] = npc
-
-        map_data = data['map']
-
-        # reset tokens
-        for x in range(battle_map.size[0]):
-            for y in range(battle_map.size[1]):
-                battle_map.tokens[x][y] = None
-
-        for token in map_data['tokens']:
-            entity = entity_hash[token['entity']]
-            battle_map.place((token['x'], token['y']), entity)
+    def from_dict(data):
+        session = data['session']
+        battle_map = Map(session, None, properties=data['properties'])
+        battle_map.entities = data['entities']
+        battle_map.interactable_objects = data['interactable_objects']
+        battle_map.base_map = data['base_map']
+        battle_map.base_map_1 = data['base_map_1']
+        battle_map.objects = data['objects']
+        battle_map.tokens = data['tokens']
+        battle_map.meta_map = data['meta_map']
 
         return battle_map
 
 
     def to_dict(self)->dict:
-        entity_hash = {}
-        for entity, pos in self.entities.items():
-            entity_hash[entity.entity_uid] = [
-                entity.to_dict(),
-                pos
-            ]
         map_hash = {
                 'name': self.name,
                 'size': self.size,
                 'feet_per_grid': self.feet_per_grid,
                 'legend': self.legend,
-                'properties': self.properties
+                'properties': self.properties,
+                'session': self.session,
+                'entities': self.entities,
+                'interactable_objects': self.interactable_objects,
+                'base_map': self.base_map,
+                'base_map_1': self.base_map_1,
+                'objects': self.objects,
+                'tokens': self.tokens,
+                'meta_map': self.meta_map,
         }
 
-        tokens = []
-        for x in range(self.size[0]):
-            for y in range(self.size[1]):
-                if self.tokens[x][y]:
-                    token = {
-                        'x': x,
-                        'y': y,
-                        'entity': self.tokens[x][y]['entity'].entity_uid,
-                        'token': self.tokens[x][y]['token']
-                    }
-                    tokens.append(token)
-        map_hash['tokens'] = tokens
-
-        return {
-            'entities' : entity_hash,
-            'map': map_hash
-        }
+        return map_hash

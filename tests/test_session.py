@@ -13,6 +13,7 @@ from pdb import set_trace
 from natural20.utils.action_builder import autobuild
 import uuid
 import yaml
+import os
 
 class TestSession(unittest.TestCase):
     def make_session(self):
@@ -44,12 +45,9 @@ class TestSession(unittest.TestCase):
         npc.reset_turn(battle)
 
         # action = autobuild(session, AttackAction, character, battle, match=[npc, 'vicious_rapier'])[0]
-        
-        random_filename = uuid.uuid4().hex
+        temp_directory = 'tests/fixtures/tmp'
+        random_filename = os.path.join(temp_directory, uuid.uuid4().hex)
 
-
-        with open(f'{random_filename}.yml', 'w') as f:
-            f.write(yaml.safe_dump(battle_map.to_dict()))
-
-        battle_map_load = Map.from_dict(session, yaml.safe_load(open(f'{random_filename}.yml', 'r')))
-        self.assertEqual(battle_map.to_dict(), battle_map_load.to_dict())
+        session.save_game(battle=battle, maps=battle_map, filename=random_filename)
+        session.load_save(filename=random_filename)
+        os.remove(random_filename)

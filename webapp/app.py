@@ -183,7 +183,7 @@ def commit_and_update(action):
 
     # did the map change for the current pov?
     check_and_notify_map_change(pov_map, pov_entity)
-
+    current_game.save_game()
     if battle:
         socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
         battle.clear_animation_logs()
@@ -411,6 +411,10 @@ def get_asset(asset_name):
     if os.path.exists(file_path):
         return send_file(file_path)
     else:
+        resolved_path = os.path.join(game_session.root_path, "assets")
+        if os.path.exists(resolved_path):
+            return send_from_directory(resolved_path, asset_name)
+
         return jsonify(error="File not found"), 404
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -589,9 +593,15 @@ def compute_path():
     }
     return jsonify(path_data)
 
+
+# Configure paths that don't require login
+ALLOWED_PATHS = ['/login', '/health']
+ALLOWED_PREFIXES = ['/favicon.ico', '/static/assets', '/assets/']
+
 @app.before_request
 def require_login():
-    if not logged_in() and request.path != '/login' and not request.path.startswith('/static/assets'):
+    path = request.path
+    if not logged_in() and (path not in ALLOWED_PATHS and not any(path.startswith(prefix) for prefix in ALLOWED_PREFIXES)):
         return redirect(url_for('login'))
 
 username_to_sid = {}
@@ -626,8 +636,20 @@ def handle_message(data):
         emit('error', {'type': 'error', 'message': 'Unknown command!'})
 
 @socketio.on('disconnect')
-def handle_disconnect():
-    pass
+def handle_disconnect(data):
+    global current_game, username_to_sid
+    ws = request.sid
+    username = session.get('username')
+    if ws:
+        sids = username_to_sid.get(username, [])
+        sids.remove(ws)
+        username_to_sid[username] = sids
+        logger.info(f"close connection {ws} for {username}")
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Simple health check endpoint for AWS load balancer."""
+    return jsonify(status='ok'), 200
 
 @app.route('/start', methods=['POST'])
 def start_battle():
@@ -677,8 +699,6 @@ def start_battle_with_initiative():
     else:
         print("skipping default battle start")
     current_game.execute_game_loop()
-    # with open('save.yml','w+') as f:
-    #     f.write(yaml.dump(battle_map.to_dict()))
     return jsonify(status='ok')
 
 
@@ -707,9 +727,7 @@ def continue_game():
     socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 'animation_log' : battle.get_animation_logs() }})
     battle.clear_animation_logs()
     socketio.emit('message', { 'type': 'turn', 'message': {}})
-    # battle.clear_animation_logs()
-    # with open('save.yml','w+') as f:
-    #     f.write(yaml.dump(battle_map.to_dict()))
+    current_game.load_save()
 
 @app.route('/turn_order', methods=['GET'])
 def get_turn_order():
