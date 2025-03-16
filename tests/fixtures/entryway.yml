@@ -1,0 +1,300 @@
+name: Death House
+description: Death House Ground Floor
+background_sound: background
+map:
+  illumination: 0.0
+  base:
+    - ........
+    - .┌┬┬┐┬┐.
+    - .├..┤^┐.
+    - .└.┴╝├┤.
+    - .#╚*.╙┘.
+    - .├...┫┐.
+    - .├...┛┤.
+    - .└...┬┤.
+    - .╒╗^┬┬┐.
+    - .├┤├..┤.
+    - .╚╝├..┤.
+    - .├.└┴┴┘.
+    - ........
+  base_1:
+    - ........
+    - ........
+    - .gD.E...
+    - ........
+    - ...B....
+    - ......T.
+    - .f..A...
+    - ........
+    - .....d..
+    - ..sc..g.
+    - .....C..
+    - ......q.
+    - ........
+  meta:
+    - ........
+    - ........
+    - ........
+    - ........
+    - ........
+    - ........
+    - ........
+    - ........
+    - ........
+    - ........
+    - ........
+    - ........
+    - ........
+  light_map:
+    - llllllll
+    - l......l
+    - l......l
+    - l......l
+    - l......l
+    - l......l
+    - l......l
+    - l......l
+    - l......l
+    - l......l
+    - l......l
+    - lll....l
+    - llllllll
+lights:
+  A:
+    bright: 5
+    dim: 5
+  B:
+    bright: 10
+    dim: 10
+legend:
+  q:
+    name: Trapdoor
+    type: trap_door
+    target_map: basement_1
+    concealed: true
+    image_token: trapdoor
+    target_position: [15, 10]
+  T:
+    name: transition_to_2nd_floor
+    type: teleporter
+    target_map: 2nd_floor
+    target_position: [6, 5]
+    notes:
+      - note: To 2nd floor
+  f:
+    name: black marble fireplace
+    label: black marble fireplace
+    type: fireplace
+    inventory:
+    - type: longsword
+      qty: 1
+  g:
+    name: fireplace
+    label: fireplace
+    type: fireplace
+  A:
+    name: Main Hall Note
+    label: Main Hall Note
+    type: note
+    image_offset_px: [10, 10]
+    notes:
+      - note: The wood-paneled walls are ornately sculpted with images of vines, flowers, nymphs, and satyrs
+        perception_dc: 1
+      - note: You also see serpents and skulls inconspicuously woven into the wall designs. The decorative paneling follows the staircase as it circles upward to the second floor.
+        perception_dc: 12
+  B:
+    name: Cloak Room
+    label: Cloak Room
+    type: note
+    image_offset_px: [30, 30]
+    notes:
+      - note: Several black cloaks hanging from hooks on the walls. A top hat sits on a high shelf.
+        perception_dc: 1
+  C:
+    name: Hunter's Den Note
+    type: note
+    notes:
+      - note: This oak-paneled room looks like a hunter’s den. Mounted above the fireplace is a stag’s head, and positioned around the outskirts of the room are three stuffed wolves.
+        perception_dc: 1
+      - note: Two padded chairs draped in animal furs face the hearth, with an oak table between them supporting a cask of wine, two carved wooden goblets, a pipe rack, and a candelabrum. A chandelier hangs above a cloth-covered table surrounded by four chairs.
+        perception_dc: 1
+  D:
+    name: Dining Room Note
+    type: note
+    notes:
+      - note: The centerpiece of this wood-paneled dining room is a carved mahogany table surrounded by eight high-backed chairs with sculpted armrests and cushioned seats. A crystal chandelier hangs above the table, which is covered with resplendent silverware and crystalware polished to a dazzling shine. Mounted above the marble fireplace is a mahogany-framed painting of an alpine vale.
+        perception_dc: 1
+  E:
+    name: Dining Room Note 2
+    type: note
+    notes:
+      - note: The wall paneling is carved with elegant images of deer among the trees.
+      - note: see twisted faces carved into the tree trunks and wolves lurking amid the carved foliage.
+        perception_dc: 12
+  c:
+    name: cabinet
+    type: cabinet
+    locked: true
+    key: hunters_den_cabinet_key
+    lockpick_dc: 15
+    inventory:
+    - type: heavy_crossbow
+      qty: 1
+    - type: bolts
+      qty: 60
+    - type: light_crossbow
+      qty: 1
+    - type: hand_crossbow
+      qty: 1
+  d:
+    name: cabinet 2
+    type: cabinet
+    locked: false
+    notes:
+      - note: Cabinet with an assortment of wine glasses and a small box.
+        perception_dc: 1
+    inventory:
+    - type: playing_cards
+      qty: 1
+  s:
+    name: Emblazoned Shield
+    type: ornamental_shield
+    image_offset_px: [10, 50]
+    notes:
+      - note: shield emblazoned with a coat-of-arms (a stylized golden windmill on a red field)
+        perception_dc: 1
+  b:
+    name: Specter
+    type: npc
+    sub_type: specter
+    group: b
+  ┌:
+    name: Stone Wall Thin_Top_Left
+    type: stone_wall_tl
+  ┬:
+    name: Stone Wall Thin_Top
+    type: stone_wall_t
+  ┐:
+    name: Stone Wall Thin_Top_Right
+    type: stone_wall_tr
+  ┤:
+    name: Stone Wall Thin_Right
+    type: stone_wall_r
+  ├:
+    name: Stone Wall Thin_Left
+    type: stone_wall_l
+  ┴:
+    name: Stone Wall Thin_Bottom
+    type: stone_wall_b
+  ┘:
+    name: Stone Wall Thin_Bottom_Right
+    type: stone_wall_br
+  └:
+    name: Stone Wall Thin_Bottom_Left
+    type: stone_wall_bl
+  ╙:
+    name: corner_door_rb
+    type: corner_door_rb
+  ╒:
+    name: corner_door_tl
+    type: corner_door_tl
+  ╗:
+    name: corner_door_tr
+    type: corner_door_tr
+  ╝:
+    name: corner_door_br
+    type: corner_door_br
+  ╚:
+    name: corner_door_bl
+    type: corner_door_bl
+  ^:
+    name: door
+    type: top_door
+  v:
+    name: door
+    type: bottom_door
+  ╙:
+    name: corner_door_rb
+    type: corner_door_rb
+  ╓:
+    name: corner_door_lt
+    type: corner_door_lt
+  ╖:
+    name: corner_door_bl
+    type: corner_door_bl
+  ┗:
+    name: corner_gate_bl
+    type: corner_gate_bl
+    notes:
+      - note: A wrought-iron gate with hinges on one side and a lock on the other
+  ┛:
+    name: br_corner_barrier
+    type: barrier
+    border:
+      - 0
+      - 1
+      - 0
+      - 1
+  ┏:
+    name: lt_corner_barrier
+    type: barrier
+    border:
+      - 1
+      - 0
+      - 0
+      - 1
+  ┣:
+    name: l_corner_barrier
+    type: barrier
+    border:
+      - 0
+      - 0
+      - 0
+      - 1
+  ┫:
+    name: r_corner_barrier
+    type: barrier
+    border:
+      - 0
+      - 1
+      - 0
+      - 0
+  ┳:
+    name: t_corner_barrier
+    type: barrier
+    border:
+      - 1
+      - 0
+      - 0
+      - 0
+  H:
+    name: stone_wall_lr
+    type: stone_wall_lr
+  '*':
+    name: bottom storage room
+    type: bottom_storage_room
+notes:
+  - position: [1, 12]
+    width: 2
+    height: 1
+    description: A wrought-iron gate with hinges on one side and a lock on the other
+player:
+  - position: [1, 12]
+    sheet: characters/halfling_rogue.yml
+    overrides:
+      entity_uid: rumblebelly
+  - position: [2, 12]
+    sheet: characters/high_elf_fighter.yml
+    overrides:
+      entity_uid: gomerin
+  - position: [3, 12]
+    sheet: characters/dwarf_cleric.yml
+    overrides:
+      entity_uid: shorvalu
+  - position: [0, 12]
+    sheet: characters/high_elf_mage.yml
+    overrides:
+      entity_uid: crysania
+extensions:
+  web:
+    background_color: '#000000'

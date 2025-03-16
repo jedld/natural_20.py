@@ -216,3 +216,22 @@ class Chest(Object, Container):
 
     def interactable(self, entity=None):
         return True
+    
+    def to_dict(self):
+        hash = super().to_dict()
+        hash.update({
+            'state': self.state,
+            'locked': self.is_locked,
+            'inventory': [{'type': item, 'qty': qty} for item, qty in self.inventory.items()]
+        })
+        return hash
+    
+    @staticmethod
+    def from_dict(data):
+        session = data['session']
+        chest = Chest(session, None, data['properties'])
+        chest.entity_uid = data['entity_uid']
+        chest.state = data['state']
+        chest.is_locked = data['locked']
+        chest.inventory = {item['type']: item['qty'] for item in data['inventory']}
+        return chest

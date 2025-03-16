@@ -17,6 +17,20 @@ bottomless_pit:
   placeable: false
   token:
     - ▓
+fireplace:
+  color: red
+  default_ac: 17
+  item_class: Fireplace
+  lit: false
+  light:
+    bright: 20
+    dim: 10
+  max_hp: 27
+  opaque: false
+  passable: true
+  placeable: true
+  token:
+    - Ý
 brazier:
   color: yellow
   default_ac: 17
@@ -41,9 +55,13 @@ briar:
   token:
     - ▓
 chest:
+  description: A standard dungeon chest that may or may not be filled with treasure.
   color: yellow
   item_class: Chest
+  default_ac: 11
+  max_hp: 25
   name: Treasure Chest
+  token_image: wood_chest
   passable: true
   placeable: false
 ground:
@@ -68,8 +86,49 @@ stone_wall:
   opaque: true
   passable: false
   token:
-    - '#'
+    - null
   wall: true
+tree:
+  allow_hide: true
+  color: green
+  cover: half
+  default_ac: 10
+  hp_die: 1d8
+  max_hp: 8
+  passable: true
+  placeable: true
+  token:
+    - '*'
+ornamental_shield:
+  color: yellow
+  default_ac: 15
+  equipment_type: shield
+  max_hp: 20
+  name: Ornamental Shield
+  passable: true
+  placeable: true
+  opaque: false
+  token:
+    - O
+water:
+  color: blue
+  movement_cost: 2
+  name: Water
+  passable: true
+  token:
+    - ^
+wooden_door:
+  description: An ominous wooden door. Standard for your typical fantasy dungeon.
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObject
+  max_hp: 18
+  name: Wooden Door
+  token_image: wooden_door
+  token:
+    - '='
 stone_wall_tl:
   color: light_magenta
   default_ac: 17
@@ -150,14 +209,36 @@ stone_wall_bl:
   passable: false
   token:
     - └
-stone_wall_door:
+stone_wall_tb:
   color: light_magenta
   default_ac: 17
-  item_class: DoorObjectWall
+  item_class: StoneWallDirectional
   max_hp: 27
-  name: Stone Wall Door
+  name: Stone Wall Thin Top Bottom
+  opaque: true
+  passable: false
+  border:
+    - 1
+    - 0
+    - 1
+    - 0
   token:
-    - ┼
+    - Z
+stone_wall_lr:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  max_hp: 27
+  name: Stone Wall Thin Left Right
+  opaque: true
+  passable: false
+  border:
+    - 0
+    - 1
+    - 0
+    - 1
+  token:
+    - H
 corner_door_tl:
   color: magenta
   default_ac: 15
@@ -166,7 +247,6 @@ corner_door_tl:
   item_class: DoorObjectWall
   max_hp: 18
   name: Corner Door Top Left
-  token_image: corner_door_tl
   door_pos: 0
   border:
     - 0
@@ -177,7 +257,25 @@ corner_door_tl:
     - ╒
   token_open:
     - │
-corner_door_tl:
+door_l:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Door Left
+  door_pos: 3
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
+  token:
+    - <
+  token_open:
+    - ─
+corner_door_lt:
   color: magenta
   default_ac: 15
   hp_die: 4d8
@@ -185,7 +283,6 @@ corner_door_tl:
   item_class: DoorObjectWall
   max_hp: 18
   name: Corner Door Top Left
-  token_image: corner_door_tl
   door_pos: 3
   border:
     - 1
@@ -204,7 +301,6 @@ corner_door_bl:
   item_class: DoorObjectWall
   max_hp: 18
   name: Corner Door Top Left
-  token_image: corner_door_tl
   door_pos: 1
   border:
     - 1
@@ -215,6 +311,24 @@ corner_door_bl:
     - ╖
   token_open:
     - ─
+corner_door_rt:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Corner Door Right Top
+  door_pos: 1
+  border:
+    - 1
+    - 0
+    - 0
+    - 0
+  token:
+    - ╗
+  token_open:
+    - ─
 corner_door_rb:
   color: magenta
   default_ac: 15
@@ -223,7 +337,6 @@ corner_door_rb:
   item_class: DoorObjectWall
   max_hp: 18
   name: Corner Door Top Left
-  token_image: corner_door_tl
   door_pos: 3
   border:
     - 0
@@ -234,46 +347,232 @@ corner_door_rb:
     - ╙
   token_open:
     - ─
-tree:
-  allow_hide: true
-  color: green
-  cover: half
-  default_ac: 10
-  hp_die: 1d8
-  max_hp: 8
-  passable: true
-  placeable: true
+corner_door_br:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Corner Door Top Left
+  door_pos: 2
+  border:
+    - 0
+    - 1
+    - 0
+    - 0
   token:
-    - '*'
-water:
-  color: blue
-  movement_cost: 2
-  name: Water
-  passable: true
+    - ╝
+  token_open:
+    - ─
+corner_gate_br:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Corner Door Top Left
+  door_pos: 2
+  window:
+    - 0
+    - 0
+    - 1
+    - 0
+  border:
+    - 0
+    - 1
+    - 0
+    - 0
+  token:
+    - ┛
+  token_open:
+    - ─
+corner_gate_bl:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Corner Bottom Gate Well Left
+  door_pos: 2
+  window:
+    - 0
+    - 0
+    - 1
+    - 0
+  border:
+    - 0
+    - 0
+    - 0
+    - 1
+  token:
+    - ┗
+  token_open:
+    - ─
+corner_door_bl:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Corner Door Bottom Left
+  door_pos: 2
+  border:
+    - 0
+    - 0
+    - 0
+    - 1
+  token:
+    - ╚
+  token_open:
+    - ─
+corner_door_tr:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Corner Door Top Left
+  door_pos: 0
+  border:
+    - 0
+    - 1
+    - 0
+    - 0
+  token:
+    - ╗
+  token_open:
+    - ─
+top_door:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Door Top
+  door_pos: 0
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
   token:
     - ^
-wooden_door:
+  token_open:
+    - ─
+bottom_door:
   color: magenta
   default_ac: 15
   hp_die: 4d8
   interactable: true
-  item_class: DoorObject
+  item_class: DoorObjectWall
   max_hp: 18
-  name: Wooden Door
-  token_image: wooden_door
+  name: Door Top
+  door_pos: 2
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
   token:
-    - '='
-door:
+    - v
+  token_open:
+    - ─
+right_door:
   color: magenta
   default_ac: 15
   hp_die: 4d8
   interactable: true
-  item_class: DoorObject
+  item_class: DoorObjectWall
   max_hp: 18
-  name: Wooden Door
-  token_image: wooden_door
+  name: Door Right
+  door_pos: 1
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
   token:
-    - '='
+    - v
+  token_open:
+    - ─
+right_storage_room:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Door Top
+  door_pos: 1
+  border:
+    - 1
+    - 0
+    - 1
+    - 1
+  token:
+    - >
+  token_open:
+    - ─
+top_storage_room:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Door Top
+  door_pos: 0
+  border:
+    - 0
+    - 1
+    - 1
+    - 1
+  token:
+    - >
+  token_open:
+    - ─
+bottom_storage_room:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: Door Top
+  door_pos: 2
+  border:
+    - 1
+    - 1
+    - 0
+    - 1
+  token:
+    - >
+  token_open:
+    - ─
+attic_secret_door:
+  color: magenta
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  max_hp: 18
+  name: attic_scret_door
+  door_pos: 2
+  border:
+    - 1
+    - 0
+    - 0
+    - 1
+  token:
+    - >
+  token_open:
+    - ─
 switch:
   color: yellow
   interactable: true
@@ -285,10 +584,77 @@ switch:
   state: off
   token:
     - S
-teleport:
+note:
+  color: yellow
+  name: Note
+  passable: true
+  placeable: true
+  opaque: false
+  wall: false
+  token:
+    - N
+cabinet:
+  description: A standard dungeon chest that may or may not be filled with treasure.
+  color: yellow
+  item_class: Chest
+teleporter:
   color: blue
   passable: true
   placeable: true
   item_class: Teleporter
   token:
     - T
+trap_door:
+  color: yellow
+  passable: true
+  placeable: true
+  item_class: TrapDoor
+  token_image: trap_door
+  token:
+    - D
+proximity_trigger:
+  color: yellow
+  passable: true
+  placeable: true
+  opaque: false
+  item_class: ProximityTrigger
+  token:
+    - A
+animated_spawner:
+  color: yellow
+  passable: true
+  placeable: false
+  opaque: false
+  item_class: ProximityTrigger
+  token:
+    - A
+portcullis_b:
+  color: light_magenta
+  default_ac: 17
+  item_class: DoorObjectWall
+  max_hp: 27
+  name: Stone Wall Directional
+  state: closed
+  locked: true
+  lockable: false
+  opaque: false
+  passable: true
+  door_pos: 2
+  window:
+    - 1
+    - 1
+    - 1
+    - 1
+barrier:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  max_hp: 27
+  name: Stone Wall Directional
+  opaque: true
+  passable: false
+  window:
+    - 1
+    - 1
+    - 1
+    - 1

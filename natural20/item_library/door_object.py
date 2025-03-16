@@ -489,3 +489,35 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
 
     def setup_other_attributes(self):
         return DoorObject.setup_other_attributes(self)
+    
+    def to_dict(self):
+        hash = super().to_dict()
+        hash["door_pos"] = self.door_pos
+        hash["window"] = self.window
+        hash["secret"] = self.is_secret
+        hash["front_direction"] = self.front_direction
+        hash["privacy_lock"] = self.privacy_lock
+        hash["door_blocking"] = self.door_blocking
+        hash["state"] = self.state
+        hash["lockable"] = self.lockable
+        hash["locked"] = self.locked
+        hash["key"] = self.key_name
+        return hash
+    
+    @staticmethod
+    def from_dict(data):
+        session = data["session"]
+        hash = data
+        door = DoorObjectWall(session, None, hash['properties'])
+        door.entity_uid = hash['entity_uid']
+        door.door_pos = hash['door_pos']
+        door.window = hash['window']
+        door.is_secret = hash['secret']
+        door.front_direction = hash['front_direction']
+        door.privacy_lock = hash['privacy_lock']
+        door.door_blocking = hash['door_blocking']
+        door.state = hash['state']
+        door.lockable = hash['lockable']
+        door.locked = hash['locked']
+        door.key_name = hash['key']
+        return door

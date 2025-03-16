@@ -105,5 +105,20 @@ class TrapDoor(DoorObject, Teleporter):
                 "disabled_text": "object.door.key_required"
             }
         return actions
+    
+    def to_dict(self):
+        hash =  super().to_dict()
+        hash['target_map'] = self.target_map
+        hash['target_position'] = self.target_position
+        return hash
+    
+    @staticmethod
+    def from_dict(hash):
+        session = hash['session']
+        trap_door = TrapDoor(session, None, hash['properties'])
+        trap_door.entity_uid = hash['entity_uid']
+        trap_door.target_map = hash['target_map']
+        trap_door.target_position = hash['target_position']
+        return trap_door
 
 

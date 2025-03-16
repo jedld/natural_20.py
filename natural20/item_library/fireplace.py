@@ -84,3 +84,17 @@ class Fireplace(Object, Lootable, Inventory, Container):
 
     def interactable(self, entity=None):
         return True
+    
+    def from_dict(hash):
+        session = hash['session']
+        fireplace = Fireplace(session, None, hash['properties'])
+        fireplace.lit = hash['lit']
+        fireplace.entity_uid = hash['entity_uid']
+        fireplace.inventory = hash['inventory']
+        return fireplace
+
+    def to_dict(self):
+        hash = super().to_dict()
+        hash['lit'] = self.lit
+        hash['inventory'] = self.inventory
+        return hash

@@ -975,13 +975,22 @@ class Map():
         session = data['session']
         battle_map = Map(session, None, properties=data['properties'])
         battle_map.entities = data['entities']
-        battle_map.interactable_objects = data['interactable_objects']
+        battle_map.tokens = data['tokens']
         battle_map.base_map = data['base_map']
         battle_map.base_map_1 = data['base_map_1']
         battle_map.objects = data['objects']
-        battle_map.tokens = data['tokens']
-        battle_map.meta_map = data['meta_map']
 
+        for row in range(battle_map.size[0]):
+            for column in range(battle_map.size[1]):
+                for obj in data['objects'][row][column]:
+                    obj.map = battle_map
+
+        interactable_objects = data['interactable_objects']
+        for obj in interactable_objects:
+            obj.map = battle_map
+        battle_map.interactable_objects = interactable_objects
+        battle_map.meta_map = data['meta_map']
+        battle_map._compute_lights()
         return battle_map
 
 
@@ -999,7 +1008,7 @@ class Map():
                 'base_map_1': self.base_map_1,
                 'objects': self.objects,
                 'tokens': self.tokens,
-                'meta_map': self.meta_map,
+                'meta_map': self.meta_map
         }
 
         return map_hash
