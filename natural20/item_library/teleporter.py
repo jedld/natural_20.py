@@ -48,3 +48,18 @@ class Teleporter(Object):
 
     def jump_required(self):
         return False
+    
+    def to_dict(self):
+        hash =  super().to_dict()
+        hash['target_map'] = self.target_map
+        hash['target_position'] = self.target_position
+        return hash
+    
+    @staticmethod
+    def from_dict(hash):
+        session = hash['session']
+        teleporter = Teleporter(session, None, hash['properties'])
+        teleporter.entity_uid = hash['entity_uid']
+        teleporter.target_map = hash['target_map']
+        teleporter.target_position = hash['target_position']
+        return teleporter

@@ -64,6 +64,23 @@ class StoneWallDirectional(StoneWall):
             elif self.wall_direction == 'stone_wall_l':
                 self.border = [0, 0, 0, 1]
 
+    def to_dict(self):
+        hash = super().to_dict()
+        hash['session'] = self.session
+        hash['wall_direction'] = self.wall_direction
+        hash['custom_border'] = self.custom_border
+        hash['window'] = self.window
+        return hash
+    
+    def from_dict(data):
+        session = data['session']
+        wall = StoneWallDirectional(session, None, data['properties'])
+        wall.entity_uid = data['entity_uid']
+        wall.wall_direction = data['wall_direction']
+        wall.custom_border = data['custom_border']
+        wall.window = data['window']
+        return wall
+        
     def token(self) -> Optional[str]:
         return self.properties.get('token')
 

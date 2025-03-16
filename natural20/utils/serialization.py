@@ -3,7 +3,12 @@ from natural20.map import Map
 from natural20.player_character import PlayerCharacter
 from natural20.npc import Npc
 from natural20.item_library.object import Object
-from natural20.item_library.common import Ground, StoneWall
+from natural20.item_library.common import Ground, StoneWall, StoneWallDirectional
+from natural20.item_library.fireplace import Fireplace
+from natural20.item_library.door_object import DoorObjectWall
+from natural20.item_library.chest import Chest
+from natural20.item_library.teleporter import Teleporter
+from natural20.item_library.trap_door import TrapDoor
 from natural20.session import Session
 from typing import Any
 import yaml
@@ -11,99 +16,64 @@ from natural20.map import Map
 from natural20.battle import Battle
 import pdb
 import uuid
-
-def represent_map(dumper, data):
-    return dumper.represent_mapping('!map', data.to_dict())
-
-def represent_battle(dumper, data):
-    return dumper.represent_mapping('!battle', data.to_dict())
-
-def represent_player_character(dumper, data):
-    return dumper.represent_mapping('!player_character', data.to_dict())
-
-def represent_npc(dumper, data):
-    return dumper.represent_mapping('!npc', data.to_dict())
-
-def represent_session(dumper, data):
-    return dumper.represent_mapping('!session', data.to_dict())
-
-def represent_object(dumper, data):
-    return dumper.represent_mapping('!object', data.to_dict())
-
-def represent_ground(dumper, data):
-    return dumper.represent_mapping('!ground', data.to_dict())
-
-def represent_stone_wall(dumper, data):
-    return dumper.represent_mapping('!stone_wall', data.to_dict())
+import numpy as np
 
 def represent_uuid(dumper, data):
     # Store the UUID value in a scalar node
     return dumper.represent_scalar('!uuid', str(data))
 
-# Attach representers to SafeDumper instead
-yaml.SafeDumper.add_representer(Map, represent_map)
-yaml.SafeDumper.add_representer(Battle, represent_battle)
-yaml.SafeDumper.add_representer(PlayerCharacter, represent_player_character)
-yaml.SafeDumper.add_representer(Npc, represent_npc)
-yaml.SafeDumper.add_representer(Session, represent_session)
-yaml.SafeDumper.add_representer(Object, represent_object)
-yaml.SafeDumper.add_representer(Ground, represent_ground)
-yaml.SafeDumper.add_representer(StoneWall, represent_stone_wall)
-
-# Attach this representer to the SafeDumper
-yaml.SafeDumper.add_representer(uuid.UUID, represent_uuid)
+def represent_ndarray(dumper, data):
+    return dumper.represent_list(data.tolist())
 
 # Create a specialized loader with constructors
 class SafeLoaderWithConstructors(yaml.FullLoader):
     pass
 
-def construct_map(loader, node):
-    print('constructing map')
-    data = loader.construct_mapping(node, deep=True)  # use deep=True to load nested mappings
-    return Map.from_dict(data)
+# Global mapping: classes are associated with their YAML tag.
+CLASS_TAG_MAPPING = {
+    Map: '!map',
+    Battle: '!battle',
+    PlayerCharacter: '!player_character',
+    Npc: '!npc',
+    Session: '!session',
+    Object: '!object',
+    Ground: '!ground',
+    StoneWall: '!stone_wall',
+    StoneWallDirectional: '!stone_wall_directional',
+    Fireplace: '!fireplace',
+    DoorObjectWall: '!door_object_wall',
+    Chest: '!chest',
+    Teleporter: '!teleporter',
+    TrapDoor: '!trap_door',
+}
 
-def construct_battle(loader, node):
-    print('constructing battle')
-    data = loader.construct_mapping(node, deep=True)
-    return Battle.from_dict(data)
+def generic_constructor(loader, node):
+    # Handle UUID specially.
+    if node.tag == '!uuid':
+        return uuid.UUID(loader.construct_scalar(node))
+    # Look up our mapping to find the class associated with this tag.
+    for cls, tag in CLASS_TAG_MAPPING.items():
+        if node.tag == tag:
+            data = loader.construct_mapping(node, deep=True)
+            return cls.from_dict(data)
+    raise yaml.constructor.ConstructorError(
+        None, None, "Unknown tag encountered: %s" % node.tag, node.start_mark
+    )
 
-def construct_player_character(loader, node):
-    data = loader.construct_mapping(node, deep=True)
-    return PlayerCharacter.from_dict(data)
+def register_yaml_handlers():
+    # Register representers with a lambda to capture the tag.
+    for cls, tag in CLASS_TAG_MAPPING.items():
+        yaml.SafeDumper.add_representer(
+            cls, lambda dumper, data, tag=tag: dumper.represent_mapping(tag, data.to_dict())
+        )
+    yaml.SafeDumper.add_representer(uuid.UUID, represent_uuid)
+    yaml.SafeDumper.add_representer(np.ndarray, represent_ndarray)
+    
+    # Register constructors for each tag in our mapping, plus the UUID.
+    for tag in list(CLASS_TAG_MAPPING.values()) + ['!uuid']:
+        SafeLoaderWithConstructors.add_constructor(tag, generic_constructor)
 
-def construct_npc(loader, node):
-    data = loader.construct_mapping(node, deep=True)
-    return Npc.from_dict(data)
-
-def construct_session(loader, node):
-    data = loader.construct_mapping(node, deep=True)
-    return Session.from_dict(data)
-
-def construct_object(loader, node):
-    data = loader.construct_mapping(node, deep=True)
-    return Object.from_dict(data)
-
-def construct_ground(loader, node):
-    data = loader.construct_mapping(node, deep=True)
-    return Ground.from_dict(data)
-
-def construct_stone_wall(loader, node):
-    data = loader.construct_mapping(node, deep=True)
-    return StoneWall.from_dict(data)
-
-def construct_uuid(loader, node):
-    return uuid.UUID(loader.construct_scalar(node))
-
-SafeLoaderWithConstructors.add_constructor('!map', construct_map)
-SafeLoaderWithConstructors.add_constructor('!battle', construct_battle)
-SafeLoaderWithConstructors.add_constructor('!player_character', construct_player_character)
-SafeLoaderWithConstructors.add_constructor('!npc', construct_npc)
-SafeLoaderWithConstructors.add_constructor('!session', construct_session)
-SafeLoaderWithConstructors.add_constructor('!object', construct_object)
-SafeLoaderWithConstructors.add_constructor('!ground', construct_ground)
-SafeLoaderWithConstructors.add_constructor('!stone_wall', construct_stone_wall)
-SafeLoaderWithConstructors.add_constructor('!uuid', construct_uuid)
-
+register_yaml_handlers()
 
 class Serialization:
     def __init__(self):
