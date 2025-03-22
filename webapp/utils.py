@@ -12,6 +12,7 @@ import pdb
 from itertools import combinations
 import logging
 from mutagen.mp3 import MP3
+from natural20.utils.serialization import Serialization
 
 class SocketIOOutputLogger:
     """
@@ -44,6 +45,7 @@ class SocketIOOutputLogger:
 class GameManagement:
     def __init__(self, game_session, map_location, other_maps, socketio, output_logger, tile_px, controllers,
                  npc_controller = None,
+                 autosave = False,
                  auto_battle=True, system_logger=None,  soundtrack=None):
         """
         Initialize the game management
@@ -75,6 +77,7 @@ class GameManagement:
         self.save_states = []
         self.soundtracks = soundtrack
         self.current_soundtrack = None
+        self.autosave = autosave
 
         if not system_logger:
             self.logger = logging.getLogger(__name__)
@@ -462,10 +465,16 @@ class GameManagement:
                     self.current_soundtrack = soundtrack
                     break
 
+    def list_states(self):
+        return self.save_states
+
     def save_game(self):
         index = len(self.save_states) % self.max_save_states
         file_name = f"save_{index}.yml"
-        self.game_session.save_game(self.battle, self.battle_map, filename=file_name)
+        serializer = Serialization()
+        yaml_str = serializer.serialize(self.game_session, self.battle, self.maps, filename=file_name)
+        with open(file_name, 'w') as f:
+            f.write(yaml_str)
         self.save_states.append(file_name)
 
     def load_save(self, index = None):
@@ -476,11 +485,13 @@ class GameManagement:
 
         save_state = self.save_states[index]
         state = self.game_session.load_save(yaml=None, filename=save_state)
-        self.battle = state['battle']
-        if self.battle:
-            self.set_current_battle(self.battle)
-        self.battle_map = state['map']
-        self.game_session = state['session']
+        serializer = Serialization()
+        new_session, new_battle, new_maps = serializer.deserialize(state)
+        self.game_session = new_session
+        self.battle = new_battle
+        self.battle_map = new_maps[0]
+        self.maps = new_maps
+        self.save_states.pop(index)
 
 
     def end_current_battle(self):

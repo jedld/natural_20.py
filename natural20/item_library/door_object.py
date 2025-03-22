@@ -358,6 +358,32 @@ class DoorObject(Object):
             self.is_concealed = True
         else:
             raise ValueError("Invalid state for door object: %s" % state)
+        
+    def to_dict(self):
+        hash = super().to_dict()
+        hash["front_direction"] = self.front_direction
+        hash["privacy_lock"] = self.privacy_lock
+        hash["door_blocking"] = self.door_blocking
+        hash["state"] = self.state
+        hash["lockable"] = self.lockable
+        hash["locked"] = self.locked
+        hash["key"] = self.key_name
+        return hash
+    
+    @staticmethod
+    def from_dict(data):
+        session = data["session"]
+        hash = data
+        door = DoorObject(session, None, hash['properties'])
+        door.entity_uid = hash['entity_uid']
+        door.front_direction = hash['front_direction']
+        door.privacy_lock = hash['privacy_lock']
+        door.door_blocking = hash['door_blocking']
+        door.state = hash['state']
+        door.lockable = hash['lockable']
+        door.locked = hash['locked']
+        door.key_name = hash['key']
+        return door
 
 class DoorObjectWall(DoorObject, StoneWallDirectional):
     def __init__(self, session, map, properties):

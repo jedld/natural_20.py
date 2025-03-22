@@ -79,6 +79,7 @@ SOUNDTRACKS = index_data["soundtracks"]
 LOGINS = index_data["logins"]
 DEFAULT_NPC_CONTROLLER = index_data.get("npc_default_controller", "ai")
 CONTROLLERS = index_data["default_controllers"]
+AUTOSAVE = index_data.get("autosave", False)
 EXTENSIONS = []
 first_connect = False
 
@@ -183,7 +184,9 @@ def commit_and_update(action):
 
     # did the map change for the current pov?
     check_and_notify_map_change(pov_map, pov_entity)
-    current_game.save_game()
+    if AUTOSAVE:
+        current_game.save_game()
+
     if battle:
         socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
         battle.clear_animation_logs()
@@ -727,7 +730,8 @@ def continue_game():
     socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 'animation_log' : battle.get_animation_logs() }})
     battle.clear_animation_logs()
     socketio.emit('message', { 'type': 'turn', 'message': {}})
-    current_game.load_save()
+    if AUTOSAVE:
+        current_game.load_save()
 
 @app.route('/turn_order', methods=['GET'])
 def get_turn_order():

@@ -19,3 +19,4 @@ user_levels/**/*
 /*.yml
 tests/fixtures/tmp/
 scripts/runs
+save_*.yml

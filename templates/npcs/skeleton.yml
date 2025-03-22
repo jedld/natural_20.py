@@ -58,9 +58,9 @@ actions:
     damage_mod: 2
     damage_type: piercing
     ammo: arrows
-  equipped:
-    - shortsword
-    - shortbow
-  default_inventory:
-  - type: arrows
-    qty: 20
+equipped:
+  - shortsword
+  - shortbow
+default_inventory:
+- type: arrows
+  qty: 20

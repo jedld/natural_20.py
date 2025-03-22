@@ -150,10 +150,10 @@ def generate_trajectory(env, model, policy='e-greedy', temperature=5.0, epsilon=
         truncateds.append(truncated)
         infos.append(info)
         if done or truncated:
-            break    
+            break
         state = next_state
         info = next_info
-        
+
     states.append(next_state)
     infos.append(next_info)
     actions.append((-1, (0, 0), (0, 0), 0, 0))
@@ -369,7 +369,7 @@ def make_env(root_path, render_mode="ansi", show_logs=True, custom_agent=None):
                 render_mode=render_mode,
                 damage_based_reward=True,
                 custom_agent=custom_agent,
-                profiles=lambda: random.choice(['high_elf_fighter', 'high_elf_mage', 'dwarf_cleric', 'halfling_rogue']),
+                profiles=lambda: random.choice(['npcs/goblin', 'high_elf_fighter', 'high_elf_mage', 'dwarf_cleric', 'halfling_rogue']),
                 enemies=lambda: random.choice(['high_elf_fighter', 'high_elf_mage', 'dwarf_cleric', 'halfling_rogue']),
                 map_file=lambda: random.choice(['maps/simple_map',
                                                 'maps/complex_map',

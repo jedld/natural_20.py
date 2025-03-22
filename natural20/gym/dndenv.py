@@ -5,6 +5,7 @@ from typing import Any, Dict
 from natural20.map import Map
 from natural20.battle import Battle
 from natural20.player_character import PlayerCharacter
+from natural20.npc import Npc
 from natural20.generic_controller import GenericController
 from natural20.session import Session
 from natural20.entity import Entity
@@ -60,7 +61,7 @@ class GymInternalController(Controller):
         info = self.env._info(available_moves, entity)
         info.update({
             'trigger': event['trigger'],
-            'entity': self.env.entity_mappings[entity.class_descriptor()],
+            'entity': self.env.entity_mappings[entity.class_descriptor().lower()],
             'reactor': entity.name
         })
         chosen_action = self.reaction_callback(observation, 0, False, False, info)
@@ -425,7 +426,10 @@ class dndenv(gym.Env):
             if isinstance(p, tuple):
                 p, name = p
 
-            pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', { "name" : name})
+            if p.startswith('npcs'):
+                pc = Npc.load(self.session, p, { "name" : name})
+            else:
+                pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', { "name" : name})
             self._describe_hero(pc)
             # set random starting positions, make sure there are no obstacles in the map
             while player_pos is None or not self.map.placeable(pc, player_pos[0], player_pos[1]):
@@ -440,7 +444,11 @@ class dndenv(gym.Env):
             if isinstance(p, tuple):
                 p, name = p
 
-            pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', {"name":  name})
+            if p.startswith('npcs'):
+                pc = Npc.load(self.session, f'npcs/{p}', { "name" : name})
+            else:
+                pc = PlayerCharacter.load(self.session, f'{character_sheet_path}/{p}', {"name":  name})
+
             self._describe_hero(pc)
             while enemy_pos is None or enemy_pos==player_pos or not self.map.placeable(pc, enemy_pos[0], enemy_pos[1]):
                 enemy_pos = [random.randint(0, self.map.size[0] - 1), random.randint(0, self.map.size[1] - 1)]
