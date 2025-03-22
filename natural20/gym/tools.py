@@ -1,6 +1,7 @@
 import numpy as np
 from natural20.entity import Entity
 from natural20.player_character import PlayerCharacter
+import pdb
 # from natural20.actions.look_action import LookAction
 # from natural20.actions.stand_action import StandAction
 
@@ -105,73 +106,87 @@ def ability_info(entity):
 
 def dndenv_action_to_nat20action(entity, battle, map, available_actions, gym_action, weapon_mappings=None, spell_mappings=None):
     """
-    Converts the simple gym vector action to a Natural20 action. This
-    basically finds the closest action in the available actions list
+    Converts a gym vector action to a Natural20 action by finding the closest match
+    in the available actions list.
+    
+    Args:
+        entity: The entity performing the action
+        battle: The current battle context
+        map: The game map
+        available_actions: List of available Natural20 actions
+        gym_action: Tuple of (action_type, param1, param2, param3, param4)
+        weapon_mappings: Dictionary mapping weapon names to indices
+        spell_mappings: Dictionary mapping spell names to indices
+   
+    Returns:
+        The matched Natural20 action or -1 for end turn
     """
     action_type, param1, param2, param3, param4 = gym_action
 
-    if len(available_actions) == 0:
-        if action_type == -1:
-            return -1
+    if action_type == -1:
+        return -1
 
-    for action in available_actions:
-        if (action.action_type == "attack" and action_type == 0) or (action.action_type == "two_weapon_attack" and action_type == 9):
-            # convert from relative position to absolute map position
-            entity_position = map.position_of(entity)
-            target_x = entity_position[0] + param2[0]
-            target_y = entity_position[1] + param2[1]
-            if weapon_mappings is not None:
-                if weapon_mappings.get(action.using) is None:
-                    raise  ValueError(f"Cannot tokenize {action.using}, make sure to generate a new weapon mapping file")
-                if weapon_mappings[action.using] == param3 and (param4 ==0 or (param4 == 1 and action.ranged_attack())):
-                    return action
-            elif param3==0 or (param4 == 1 and action.ranged_attack()):
+    if not available_actions:
+        return None
+
+    simple_actions = {
+        2: "disengage", 3: "dodge", 4: "dash", 5: "dash_bonus", 
+        6: "stand", 7: "look", 8: "second_wind", 10: "prone", 
+        11: "disengage_bonus", 13: "shove", 14: "help", 15: "hide", 
+        16: "use_item", 17: "action_surge"
+    }
+    
+    # Check for simple action matches
+    if action_type in simple_actions:
+        for action in available_actions:
+            if action.action_type == simple_actions[action_type]:
                 return action
+    
+    entity_position = map.position_of(entity)
+    
+    # Handle complex action types
+    for action in available_actions:
+        # Attack actions
+        if (action.action_type == "attack" and action_type == 0) or (action.action_type == "two_weapon_attack" and action_type == 9):
+            if weapon_mappings is not None:
+                weapon_match = False
+
+                # Determine weapon token name
+                if hasattr(action, 'using') and action.using in weapon_mappings:
+                    weapon_match = weapon_mappings[action.using] == param3
+                elif getattr(action, 'npc_action', None):
+                    token_name = f"{entity.npc_type}_{action.npc_action['name']}".lower()
+                    if token_name in weapon_mappings:
+                        weapon_match = weapon_mappings[token_name] == param3
+                    else:
+                        raise ValueError(f"Unknown weapon token {token_name}")
+
+                # Check weapon and attack type match
+                # print(f"weapon_match: {weapon_match}, param4: {param4}, ranged_attack: {action.ranged_attack()}")
+                if weapon_match and (param4 == 0 or (param4 == 1 and action.ranged_attack())):
+                    return action
+            elif param3 == 0 or (param4 == 1 and action.ranged_attack()):
+                return action
+
+        # Move action
         elif action.action_type == "move" and action_type == 1:
-            entity_position = map.position_of(entity)
             target_x = entity_position[0] + param1[0]
             target_y = entity_position[1] + param1[1]
             if action.move_path[-1] == [target_x, target_y]:
                 return action
-        elif action.action_type == "disengage" and action_type == 2:
-            return action
-        elif action.action_type == "dodge" and action_type == 3:
-            return action
-        elif action.action_type == "dash" and action_type == 4:
-            return action
-        elif action.action_type == "dash_bonus" and action_type == 5:
-            return action
-        elif action.action_type == "stand" and action_type == 6:
-            return action
-        elif action.action_type == "look" and action_type == 7:
-            return action
-        elif action.action_type == "second_wind" and action_type == 8:
-            return action
-        elif action.action_type == "two_weapon_attack" and action_type == 9:
-            return action
-        elif action.action_type == "prone" and action_type == 10:
-            return action
-        elif action.action_type == "disengage_bonus" and action_type == 11:
-            return action
+
+        # Spell action
         elif action.action_type == "spell" and action_type == 12:
             if spell_mappings is not None:
-                if spell_mappings.get(action.spell_action.short_name()) == param3 and action.at_level == param4:
+                spell_name = action.spell_action.short_name()
+                if spell_name in spell_mappings and spell_mappings[spell_name] == param3 and action.at_level == param4:
                     return action
             else:
                 return action
-        elif action.action_type == "shove" and action_type == 13:
-            return action
-        elif action.action_type == "help" and action_type == 14:
-            return action
-        elif action.action_type == "hide" and action_type == 15:
-            return action
-        elif action.action_type == "use_item" and action_type == 16:
-            return action
-        elif action.action_type == "action_surge" and action_type == 17:
-            return action
-        elif action_type == -1:
-            return -1
-    raise ValueError(f"No action match for {gym_action} {action_type}")
+    pdb.set_trace()
+    # No matching action found
+    action_name = simple_actions.get(action_type, f"action type {action_type}")
+    raise ValueError(f"No matching {action_name} action found for gym_action {gym_action}")
 
 def render_object_token(map, pos_x, pos_y):
     object_meta = map.object_at(pos_x, pos_y)
@@ -268,8 +283,17 @@ def action_to_gym_action(entity, map, available_actions, weapon_mappings=None, s
             attack_type = 0
             attack_sub_type = 1 if action.ranged_attack() else 0
 
-            if weapon_mappings is not None and weapon_mappings.get(action.using) is not None:
-                attack_type = weapon_mappings[action.using]
+            if weapon_mappings is not None:
+                if action.using and weapon_mappings.get(action.using) is not None:
+                    attack_type = weapon_mappings[action.using]
+                elif getattr(action, 'npc_action', None):
+                    token_name = f"{entity.npc_type}_{action.npc_action['name']}".lower()
+                    if token_name in weapon_mappings:
+                        attack_type = weapon_mappings[token_name]
+                    else:
+                        raise ValueError(f"Unknown weapon token {token_name}")
+                else:
+                    raise ValueError(f"Unknown weapon token {action.using}")
             action_type = 0 if action.action_type == "attack" else 9
             valid_actions.append((action_type, (0 , 0), (relative_pos[0], relative_pos[1]), attack_type, attack_sub_type))
         elif action.action_type == "move":
@@ -313,15 +337,12 @@ def action_to_gym_action(entity, map, available_actions, weapon_mappings=None, s
     valid_actions.append((-1, (0, 0), (0, 0), 0, 0)) # end turn should always be available
     for action in valid_actions:
         assert len(action) == 5, f"Invalid action {action}"
-
     return valid_actions
-
 
 def compute_available_moves(session, map, entity: Entity, battle, weapon_mappings=None, spell_mappings=None):
     available_actions = entity.available_actions(session, battle)
     return action_to_gym_action(entity, map, available_actions, weapon_mappings=weapon_mappings, spell_mappings=spell_mappings)
 
-    
 def generate_entity_token_map(session, output_filename = 'entity_token_map.csv'):
     """
     Generates an numeric index map for each entity in the session. This can
@@ -335,7 +356,7 @@ def generate_entity_token_map(session, output_filename = 'entity_token_map.csv')
 
     # load npcs
     for idx, npc in enumerate(session.load_npcs()):
-        entity_map[idx + len(session.load_characters()) + 1] = npc.name.lower()
+        entity_map[idx + len(session.load_characters()) + 1] = npc.properties['kind'].lower()
 
     with open(output_filename, "w") as f:
         for idx, entity in entity_map.items():
@@ -355,6 +376,14 @@ def generate_weapon_token_map(session, output_filename = 'weapon_token_map.csv')
 
     for idx, (name, _) in enumerate(session.load_all_equipments().items()):
         weapon_map[idx+len(session.load_weapons())+1] = name
+
+    # load all npcs and their actions
+    start_index = len(session.load_weapons()) + len(session.load_all_equipments()) + 1
+    for npc in session.load_npcs():
+        npc_kind = npc.properties['kind'].lower()
+        for action in npc.properties['actions']:
+            weapon_map[start_index] = f"{npc_kind}_{action['name'].lower()}"
+            start_index += 1
 
     with open(output_filename, "w") as f:
         for idx, weapon in weapon_map.items():

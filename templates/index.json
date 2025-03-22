@@ -6,6 +6,7 @@
   "login_background" : "goblin_ambush_login.png",
   "map" : "maps/goblin_cave",
   "npc_default_controller" : "manual",
+  "autosave" : false,
   "soundtracks" : [
     {
       "name" : "Goblin Ambush",

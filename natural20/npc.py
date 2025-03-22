@@ -92,8 +92,34 @@ class Npc(Entity, Multiattack, Lootable):
         self.entity_uid = opt.get('entity_uid', str(uuid.uuid4()))
         self.setup_attributes()
 
+    @staticmethod
+    def load(session, path, override=None):
+        if override is None:
+            override = {}
+
+        if not path.endswith(".yml"):
+            path = f"{path}.yml"
+
+        with open(os.path.join(session.root_path, path), "r") as file:
+            properties = yaml.safe_load(file)
+
+        properties.update(override)
+
+        return Npc(session, properties["kind"].lower(), properties)
+
+
     def class_and_level(self):
         return [(self.npc_type, None)]
+    
+    def spell_slots_count(self, level):
+        return 0
+    
+    def level(self):
+        # return CR level I guess
+        return self.properties.get("cr", 1)
+    
+    def c_class(self):
+        return self.properties.get("kind")
 
     def kind(self):
         return self.properties["kind"]

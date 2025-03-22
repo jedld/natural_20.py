@@ -83,8 +83,9 @@ class DndenvController(Controller):
     def select_action(self, battle, entity, available_actions = None, reaction=None) -> Action:
         if available_actions is None:
             available_actions = []
-        observation = build_observation(battle, battle.map, entity, self.entity_mappings, self.weapon_mappings)
-        available_moves = action_to_gym_action(entity, battle.map, available_actions, weapon_mappings=self.weapon_mappings, \
+        entity_map = battle.map_for(entity)
+        observation = build_observation(battle, entity_map, entity, self.entity_mappings, self.weapon_mappings)
+        available_moves = action_to_gym_action(entity, entity_map, available_actions, weapon_mappings=self.weapon_mappings, \
                                                    spell_mappings=self.spell_mappings)
         info = build_info(battle, available_moves, entity, self.weapon_mappings, self.spell_mappings, self.entity_mappings)
 
@@ -98,7 +99,7 @@ class DndenvController(Controller):
         if gym_action[0] == -1:
             return None
 
-        action = dndenv_action_to_nat20action(entity, battle, battle.map, \
+        action = dndenv_action_to_nat20action(entity, battle, entity_map, \
                                              available_actions, \
                                              gym_action, \
                                              weapon_mappings=self.weapon_mappings, \
@@ -147,7 +148,7 @@ class DndenvController(Controller):
         if enemy_positions is None:
             enemy_positions = {}
 
-        objects_around_me = battle.map.look(entity)
+        objects_around_me = battle.map_for(entity).look(entity)
 
         my_group = battle.entity_group_for(entity)
 

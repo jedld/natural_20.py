@@ -5,10 +5,13 @@ from natural20.npc import Npc
 from natural20.item_library.object import Object
 from natural20.item_library.common import Ground, StoneWall, StoneWallDirectional
 from natural20.item_library.fireplace import Fireplace
-from natural20.item_library.door_object import DoorObjectWall
+from natural20.item_library.door_object import DoorObjectWall, DoorObject
 from natural20.item_library.chest import Chest
 from natural20.item_library.teleporter import Teleporter
 from natural20.item_library.trap_door import TrapDoor
+from natural20.item_library.switch import Switch
+from natural20.item_library.spell_scroll import SpellScroll
+from natural20.item_library.healing_potion import HealingPotion
 from natural20.session import Session
 from typing import Any
 import yaml
@@ -33,6 +36,8 @@ class SafeLoaderWithConstructors(yaml.FullLoader):
 CLASS_TAG_MAPPING = {
     Map: '!map',
     Battle: '!battle',
+    HealingPotion: '!healing_potion',
+    SpellScroll: '!spell_scroll',
     PlayerCharacter: '!player_character',
     Npc: '!npc',
     Session: '!session',
@@ -42,7 +47,9 @@ CLASS_TAG_MAPPING = {
     StoneWallDirectional: '!stone_wall_directional',
     Fireplace: '!fireplace',
     DoorObjectWall: '!door_object_wall',
+    DoorObject: '!door_object',
     Chest: '!chest',
+    Switch: '!switch',
     Teleporter: '!teleporter',
     TrapDoor: '!trap_door',
 }
