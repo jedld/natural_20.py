@@ -103,7 +103,7 @@ class GameManagement:
             for track in self.soundtracks:
                 track['duration'] = 0
                 track['start_time'] = int(time.time())
-                if 'volumne' not in track or track['volume'] is None:
+                if 'volume' not in track or track['volume'] is None:
                     track['volume'] = 0
                 # load mp3 file
                 audio_path = self.game_session.root_path + '/assets/' + track['file']
