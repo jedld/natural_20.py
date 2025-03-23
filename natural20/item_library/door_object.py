@@ -21,14 +21,17 @@ class DoorObject(Object):
             pos = self.map.position_of(self)
 
             if self.door_pos is not None:
-                if self.door_pos == 0:
+                if not isinstance(self.door_pos, list):
+                    if self.door_pos == 0:
+                        self.front_direction = "up"
+                    elif self.door_pos == 1:
+                        self.front_direction = "right"
+                    elif self.door_pos == 2:
+                        self.front_direction = "down"
+                    elif self.door_pos == 3:
+                        self.front_direction = "left"
+                else:
                     self.front_direction = "up"
-                elif self.door_pos == 1:
-                    self.front_direction = "right"
-                elif self.door_pos == 2:
-                    self.front_direction = "down"
-                elif self.door_pos == 3:
-                    self.front_direction = "left"
             else:
                 if self.map.wall(pos[0] - 1, pos[1]):
                     self.front_direction = "up"
@@ -134,7 +137,7 @@ class DoorObject(Object):
         return transform
 
     def available_interactions(self, entity, battle=None, admin=False):
-        if self.concealed():
+        if self.concealed() and not admin:
             return {}
 
         def inside_range_for_locking():
@@ -412,14 +415,24 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
             if self.opened():
                 return False
 
-            if self.door_pos == 0 and origin[1] < pos_y:
-                return True
-            if self.door_pos == 1 and origin[0] > pos_x:
-                return True
-            if self.door_pos == 2 and origin[1] > pos_y:
-                return True
-            if self.door_pos == 3 and origin[0] < pos_x:
-                return True
+            if isinstance(self.door_pos, list):
+                if self.door_pos[0] and origin[1] < pos_y:
+                    return True
+                if self.door_pos[1] and origin[0] > pos_x:
+                    return True
+                if self.door_pos[2] and origin[1] > pos_y:
+                    return True
+                if self.door_pos[3] and origin[0] < pos_x:
+                    return True
+            else:
+                if self.door_pos == 0 and origin[1] < pos_y:
+                    return True
+                if self.door_pos == 1 and origin[0] > pos_x:
+                    return True
+                if self.door_pos == 2 and origin[1] > pos_y:
+                    return True
+                if self.door_pos == 3 and origin[0] < pos_x:
+                    return True
 
             return False
 
@@ -465,14 +478,24 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
                 return True
 
             pos_x, pos_y = self.map.position_of(self)
-            if self.door_pos == 0 and origin_pos[1] < pos_y:
-                return False
-            if self.door_pos == 1 and origin_pos[0] > pos_x:
-                return False
-            if self.door_pos == 2 and origin_pos[1] > pos_y:
-                return False
-            if self.door_pos == 3 and origin_pos[0] < pos_x:
-                return False
+            if isinstance(self.door_pos, list):
+                if self.door_pos[0] and origin_pos[1] < pos_y:
+                    return False
+                if self.door_pos[1] and origin_pos[0] > pos_x:
+                    return False
+                if self.door_pos[2] and origin_pos[1] > pos_y:
+                    return False
+                if self.door_pos[3] and origin_pos[0] < pos_x:
+                    return False
+            else:
+                if self.door_pos == 0 and origin_pos[1] < pos_y:
+                    return False
+                if self.door_pos == 1 and origin_pos[0] > pos_x:
+                    return False
+                if self.door_pos == 2 and origin_pos[1] > pos_y:
+                    return False
+                if self.door_pos == 3 and origin_pos[0] < pos_x:
+                    return False
 
             return True
 
@@ -485,14 +508,17 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
         return DoorObject.opened(self)
 
     def open(self):
+        if self.is_secret:
+            self.is_secret = False
         return DoorObject.open(self)
 
     def close(self):
         return DoorObject.close(self)
 
     def available_interactions(self, entity, battle=None, admin=False):
-        if self.is_secret:
+        if self.is_secret and not admin:
             return {}
+
         return DoorObject.available_interactions(self, entity, battle, admin=admin)
 
     def interactable(self, entity=None):

@@ -36,19 +36,20 @@ class Notable:
                                   for e in entity_pov] if p is not None]
                     if perceptions:
                         effective_perception = max(perceptions)
-                
+
                 effective_perception = perception if effective_perception is None else effective_perception
-                    
+
                 # Store new perception check
                 if perception is not None and entity is not None:
                     note['result']['perception'][entity] = perception
                     if perception >= perception_dc:
                         new_note_source[entity] = perception
-                
+
                 # Skip if perception check fails
-                if not effective_perception or effective_perception < perception_dc:
+                # Skip if perception check fails (unless admin)
+                if (not effective_perception or effective_perception < perception_dc) and not (entity and entity.is_admin):
                     continue
-                    
+
                 # Process note content based on language
                 if note.get("language"):
                     can_read = hasattr(entity, 'languages') and note.get("language") in entity.languages
@@ -56,15 +57,14 @@ class Notable:
                     note_json["note"] = self.t("perception.note_with_language", 
                                               note_language=note.get("language"),
                                               note=content)
-                
+
                 # Add perception DC information
                 if perception_dc > 0:
                     note_json["note"] = self.t("perception.passed", dc=perception_dc, note=note_json["note"])
-                    
+
             # Add image offset if available
             if note.get("image_offset_px"):
                 note_json["image_offset_px"] = note.get("image_offset_px")
-                
+
             result_notes.append(note_json)
-                
         return [result_notes, new_note_source]

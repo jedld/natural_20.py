@@ -10,7 +10,7 @@ const Utils = {
     const overlay = btn.nextElementSibling;
     overlay.style.display = (overlay.style.display === "none" || overlay.style.display === "") ? "block" : "none";
   },
-  switchMap: function (mapId, first_callback = null) {
+  switchMap: function (mapId, canvas, first_callback = null) {
     ajaxPost('/switch_map', { map: mapId }, (data) => {
       console.log('Map selection successful:', data);
       $('#mapModal').modal('hide');
@@ -21,7 +21,8 @@ const Utils = {
         $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
         $('.image-container').css({height: data.height});
         $('.image-container img').css({width: data.width});
-
+        canvas.width = data.width + $('.tiles-container').data('tile-size');
+        canvas.height = data.height + $('.tiles-container').data('tile-size');
         // Update the map name in the body data
         $('body').attr('data-current-map', mapId);
         if (first_callback) first_callback();

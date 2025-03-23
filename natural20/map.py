@@ -54,6 +54,7 @@ class Map():
         self.feet_per_grid = self.properties.get('grid_size', 5)
         self.base_map = []
         self.base_map_1 = []
+        self.base_map_2 = []
         self.objects = []
         self.tokens = []
         self.unaware_npcs = []
@@ -78,6 +79,12 @@ class Map():
         for _ in range(self.size[0]):
             row = []
             for _ in range(self.size[1]):
+                row.append(None)
+            self.base_map_2.append(row)
+
+        for _ in range(self.size[0]):
+            row = []
+            for _ in range(self.size[1]):
                 row.append([])
             self.objects.append(row)
 
@@ -96,6 +103,11 @@ class Map():
             for cur_x, c in enumerate(lines):
                 if not c=='.':
                     self.base_map_1[cur_x][cur_y] = c
+
+        for cur_y, lines in enumerate(self.properties.get('map', {}).get('base_2', [])):
+            for cur_x, c in enumerate(lines):
+                if not c=='.':
+                    self.base_map_2[cur_x][cur_y] = c
 
         if self.properties.get('map', {}).get('meta'):
             self.meta_map = [[None for _ in range(self.size[1])] for _ in range(self.size[0])]
@@ -119,7 +131,7 @@ class Map():
     def _setup_objects(self):
         for pos_x in range(self.size[0]):
             for pos_y in range(self.size[1]):
-                tokens = [self.base_map_1[pos_x][pos_y], self.base_map[pos_x][pos_y]]
+                tokens = [self.base_map_2[pos_x][pos_y], self.base_map_1[pos_x][pos_y], self.base_map[pos_x][pos_y]]
                 tokens = [token for token in tokens if token is not None]
 
                 if not tokens:
@@ -978,6 +990,7 @@ class Map():
         battle_map.tokens = data['tokens']
         battle_map.base_map = data['base_map']
         battle_map.base_map_1 = data['base_map_1']
+        battle_map.base_map_2 = data['base_map_2']
         battle_map.objects = data['objects']
 
         for row in range(battle_map.size[0]):
@@ -1006,6 +1019,7 @@ class Map():
                 'interactable_objects': self.interactable_objects,
                 'base_map': self.base_map,
                 'base_map_1': self.base_map_1,
+                'base_map_2': self.base_map_2,
                 'objects': self.objects,
                 'tokens': self.tokens,
                 'meta_map': self.meta_map
