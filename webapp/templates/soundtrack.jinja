@@ -5,16 +5,17 @@
   <h4 class="modal-title" id="myModalLabel">Select Soundtrack</h4>
 </div>
 <div class="modal-body">
+
   <div class="radio">
     <label>
-      <input type="radio" name="track_id" value="-1" {% if not track_id %}checked{% endif %}>
+      <input type="radio" name="track_id" value="-1" {% if not current_soundtrack %}checked="checked" {% endif %}/>
       None
     </label>
   </div>
   {% for track in tracks %}
   <div class="radio">
     <label>
-      <input type="radio" name="track_id" value="{{ track.id }}" {% if track_id == track.id %}checked{% endif %}>
+      <input type="radio" name="track_id" value="{{ track.id }}" {% if track.id == current_soundtrack_name %}checked="checked"{% endif %}/>
       {{ track.name }}
     </label>
   </div>

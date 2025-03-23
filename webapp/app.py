@@ -407,6 +407,14 @@ def serve_sound_file(filename):
         return send_file(secondary_path)
     else:
         return jsonify(error="File not found"), 404
+    
+@app.route('/assets/objects/<filename>')
+def serve_object_image(filename):
+    if os.path.exists(os.path.join("static", "assets", "objects", filename)):
+        return send_file(os.path.join("static", "assets", "objects", filename))
+    else:
+        objects_directory = os.path.join(game_session.root_path, "assets", "objects")
+        return send_from_directory(objects_directory, filename)
 
 @app.route('/assets/<asset_name>')
 def get_asset(asset_name):
@@ -500,6 +508,53 @@ def index():
                            available_maps=available_maps,
                            pov_entities=entities_controlled_by(session['username']),
                            username=session['username'], role=user_role())
+eval_context = {}
+
+@app.route('/command', methods=['POST'])
+def command():
+    global current_game, eval_context
+    battle_map = current_game.get_map_for_user(session['username'])
+    battle = current_game.get_current_battle()
+
+    command = request.form['command']
+    logger.info(f"command: {command}")
+    # execute the command using the current python session and return the
+    # the result as a string
+    try:
+        if command:
+            # Create context with map, battle, and session
+            battle_map = current_game.get_map_for_user(session['username'])
+            battle = current_game.get_current_battle()
+            eval_context.update({
+                'map': battle_map, 
+                'battle': battle, 
+                'session': game_session,
+                'game': current_game
+            })
+
+            # if command starts with "." than it is referencing the map object
+            # prefix it with map
+            if command.startswith('.'):
+                command = f"map{command}"
+
+            # if command starts with "!" than it is referencing an entity,
+            # first resolve the entity name by using map.entity_by_uid
+
+            if command.startswith('!'):
+                entity_uid = command[1:]
+                entity = current_game.get_entity_by_uid(entity_uid)
+                if entity:
+                    eval_context[entity.name] = entity
+                    return jsonify(str(entity))
+                else:
+                    return jsonify(error=f"Entity {entity_uid} not found")
+
+            output = eval(command, eval_context)
+            eval_context['__output'] = output
+            return jsonify(output)
+    except Exception as e:
+        return jsonify(error=str(e))
+    return jsonify(status='ok')
 
 @app.route('/reload_map', methods=['POST'])
 def reload_map():
@@ -1372,10 +1427,15 @@ def get_tracks():
         track_data = {
             'id': track['name'],
             'url': track['file'],
-            'name': track['name']
+            'name': track['name'],
         }
         tracks.append(track_data)
-    return render_template('soundtrack.jinja', tracks=tracks, current_soundtrack=current_soundtrack, track_id=request.args.get('track_id', 'background'))
+    if current_soundtrack:
+        current_soundtrack_name = current_soundtrack['name']
+    else:
+        current_soundtrack_name = None
+    print(f"current soundtrack {current_soundtrack_name}")
+    return render_template('soundtrack.jinja', tracks=tracks, current_soundtrack=current_soundtrack, current_soundtrack_name=current_soundtrack_name)
 
 @app.route('/sound', methods=['POST'])
 def sound():
@@ -1402,6 +1462,7 @@ def unequip():
     entity = battle_map.entity_by_uid(entity_id)
     if entity:
         entity.unequip(item_id)
+        socketio.emit('message', {'type': 'map', 'map': battle_map.name })
         return jsonify(status='ok')
     return jsonify(error="Entity not found"), 404
 
@@ -1414,6 +1475,7 @@ def equip():
     entity = battle_map.entity_by_uid(entity_id)
     if entity:
         entity.equip(item_id)
+        socketio.emit('message', {'type': 'map', 'map': battle_map.name })
         return jsonify(status='ok')
 
     return jsonify(error="Entity not found"), 404

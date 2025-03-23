@@ -21,6 +21,9 @@ const Utils = {
         $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
         $('.image-container').css({height: data.height});
         $('.image-container img').css({width: data.width});
+
+        // Update the map name in the body data
+        $('body').attr('data-current-map', mapId);
         if (first_callback) first_callback();
       })
     });

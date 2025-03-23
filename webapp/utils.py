@@ -102,11 +102,16 @@ class GameManagement:
             # load each soundtrack and determine its duration
             for track in self.soundtracks:
                 track['duration'] = 0
+                # strip leading and trailing spaces
+                track['name'] = track['name'].strip()
                 track['start_time'] = int(time.time())
-                if 'volumne' not in track or track['volume'] is None:
+                if 'volume' not in track or track['volume'] is None:
                     track['volume'] = 0
                 # load mp3 file
                 audio_path = self.game_session.root_path + '/assets/' + track['file']
+                if not os.path.exists(audio_path):
+                    self.logger.error(f"Soundtrack {track['name']} not found at {audio_path}")
+                    continue
                 audio = MP3(audio_path)
                 track['duration'] = int(audio.info.length)
                 self.logger.info(f"Loaded soundtrack {track['name']} with duration {track['duration']}")
@@ -194,7 +199,8 @@ class GameManagement:
         self.maps[map_name] = Map(self.game_session, self.other_maps[map_name], name=map_name)
 
     def set_current_battle_map(self, battle_map):
-        self.battle_map = battle_map
+        for k,v in self.current_map_for_user.items():
+            self.current_map_for_user[k] = (battle_map.name, battle_map)
 
     def set_current_battle(self, battle):
         self.battle = battle

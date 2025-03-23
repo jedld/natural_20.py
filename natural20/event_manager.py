@@ -222,6 +222,7 @@ class EventManager:
 
             
         event_handlers = {
+            'console': lambda event: self.output_logger.log(event['message']),
             'multiattack' : lambda event: self.output_logger.log(f"{self.show_name(event)} uses multiattack."),
             'action_surge': lambda event: self.output_logger.log(f"{self.show_name(event)} uses action surge."),
             'death_fail' : death_fail,

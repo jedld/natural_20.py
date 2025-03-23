@@ -29,7 +29,8 @@
         }
     </style>
 </head>
-<body data-soundtrack-id="{{ soundtrack.name }}" data-soundtrack-url="{{soundtrack.file}}" data-soundtrack-time="{{soundtrack.time}}" data-soundtrack-volume="{{ soundtrack.volume }}" data-battle_in_progress="{{ 'true' if battle else 'false' }}" 
+<body data-soundtrack-id="{{ soundtrack.name }}" data-soundtrack-url="{{soundtrack.file}}" data-soundtrack-time="{{soundtrack.time}}" data-soundtrack-volume="{{ soundtrack.volume }}" data-battle_in_progress="{{ 'true' if battle else 'false' }}"
+      data-current-map="{{ current_map }}"
       data-waiting-for-reaction="{{ 'true' if waiting_for_reaction else 'false' }}"
       data-username="{{ username }}" data-role="{{ role }}" data-controls="{{ entity_ids }}">
     <div id="reaction-modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
@@ -64,6 +65,7 @@
                     <li id="end-battle" style="{{ 'display: none;' if not battle}}">End Battle</li>
                     <li id="switch-map" data-toggle="modal" data-target="#mapModal">Switch Map</li>
                     <li id="reload-map" data-toggle="modal" data-target="#reloadModal">Reload Map</li>
+                    <li id="send-command" data-toggle="modal" data-target="#commandModal">Send Command</li>
                 {% endif %}
                 <li id="open-console">Open Console</li>
                 <li>
@@ -111,12 +113,12 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <button type="submit" class="btn btn-primary">Set Map</button>
                     </form>
                 </div>
             </div>
         </div>
     </div>
+
     {% endif %}
     <div id="coords-box" style="position: fixed; top: 0; right: 0; background-color: white; padding: 10px; border: 1px solid black;"></div>
     <div id="main-map-area" style="background-color: {{ background_color }};">
@@ -224,5 +226,30 @@
         });
       })();
     </script>
+    <div id="commandModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="commandModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form id="command-form">
+            <div class="modal-header">
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                 <span aria-hidden="true">&times;</span>
+              </button>
+              <h4 class="modal-title" id="commandModalLabel">DM Command Console</h4>
+            </div>
+            <div class="modal-body">
+              <div class="form-group">
+                <label for="command-input">Command</label>
+                <input type="text" class="form-control" id="command-input" placeholder="Type your command here">
+              </div>
+              <div id="command-output" style="white-space: pre-wrap; background: #eee; padding: 10px; height: 150px; overflow-y: auto;"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="submit" class="btn btn-primary">Send Command</button>
+              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
 </body>
 </html>

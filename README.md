@@ -216,7 +216,7 @@ Note that it is recommended to use [VLLM](https://github.com/vllm-project/vllm) 
 
 The recommended route to run and setup VLLM is via Docker, below is a sample on how to get started with LLama 3:
 
-```bash        self.assertEqual(self.entity.armor_class(), 12)
+```bash
 docker run --runtime=nvidia --gpus all -p 8000:8000 -v ~/.cache/huggingface:/root/.cache/huggingface \
        -it vllm --model NousResearch/Meta-Llama-3-8B-Instruct --dtype=auto --api-key token1234
 ```

@@ -36,6 +36,9 @@
                   <button class="close-note-btn" onclick="this.parentElement.style.display='none'">×</button>
                   <div class="object-note" style="display: block;">
                     {% for note in obj['notes'] %}
+                      {% if note['image'] %}
+                        <img class="note-image" src="{{ url_for('static', filename='assets/objects/' ~ note['image']) ~ '.png' }}" >
+                      {% endif %}
                       <p>{{ note['note'] }}</p>
                     {% endfor %}
                   </div>

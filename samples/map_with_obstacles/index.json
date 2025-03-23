@@ -3,6 +3,12 @@
   "title" : "The Point of Conflict",
   "login_background" : "goblin_ambush_login.png",
   "map" : "maps/game_map",
+  "other_maps" : {
+    "complex_map" : "maps/complex_map",
+    "game_map" : "maps/game_map",
+    "simple_map" : "maps/simple_map",
+    "walled_map" : "maps/walled_map"
+  },
   "soundtracks" : [
     {
       "name" : "The Point of Conflict",

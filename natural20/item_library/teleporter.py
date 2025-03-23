@@ -30,6 +30,12 @@ class Teleporter(Object):
                             break
             if entity_placed:
                 map.remove(entity)
+            else:
+                map.session.event_manager.received_event({
+                                                        "event" : 'console', "target" : target_map, "source": entity,
+                                                        "message": f"{entity.name} could not move to the target square as it is already occupied"
+                                                        })
+
         else:
             if map.placeable(entity, *self.target_position, battle):
                 map.move_to(entity, *self.target_position, battle)

@@ -403,7 +403,7 @@ $(document).ready(() => {
     });
   });
 
-  $('#mapModal').on('submit', '#map-selection-form', function (event) {
+  $('#mapModal').on('change', '#map-select', function (event) {
     event.preventDefault();
     const map_id = $('#map-select').val();
     Utils.switchMap(map_id);
@@ -966,4 +966,37 @@ $(document).ready(() => {
   if ($('body').data('battle-in-progress')) {
     $('#start-initiative').hide();
   }
+
+  // Handle command form submission
+  $('#command-form').on('submit', (e) => {
+    e.preventDefault();
+    const cmd = $('#command-input').val().trim();
+    if (cmd === "") return;
+    
+    // send the command via WebSocket using the existing command function
+    $.ajax({
+      type: 'POST',
+      url: '/command',
+      data: { command: cmd },
+      success: (data) => {
+        $('#command-output').append("> " + cmd + "\n");
+        $('#command-input').val("");
+        if (data.error) {
+          console.log('Command request failed:', data);
+          $('#command-output').append(data.error + "\n");
+        } else {
+          console.log('Command request successful:', data);
+          $('#command-output').append(data + "\n");
+        }
+      }
+    });
+    
+
+  });
+
+  // Append server responses tagged with type 'command_response' to the command output
+  socket.on('command_response', (data) => {
+    $('#command-output').append(data.message + "\n");
+  });
+
 });

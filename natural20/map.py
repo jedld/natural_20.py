@@ -262,7 +262,7 @@ class Map():
         budget = entity.available_movement(battle) / self.feet_per_grid
         return compute_actual_moves(entity, path, self, battle, budget, test_placement=False, manual_jump=manual_jump)
 
-    def move_to(self, entity: Entity, pos_x, pos_y, battle):
+    def move_to(self, entity: Entity, pos_x, pos_y, battle=None):
         cur_x, cur_y = self.entities[entity]
 
         entity_data = self.tokens[cur_x][cur_y]
