@@ -864,7 +864,7 @@ def get_actions():
     entity = battle_map.entity_by_uid(id)
     if entity:
         if 'dm' in user_role() or current_user in entity_owners(entity):
-            available_actions = entity.available_actions(session, battle, auto_target=False, map=battle_map, interact_only=True)
+            available_actions = entity.available_actions(session, battle, auto_target=False, map=battle_map, interact_only=True, admin_actions='dm' in user_role())
             return render_template('actions.html', entity=entity, battle=battle, session=game_session, map=battle_map, available_actions=available_actions)
         else:
             return jsonify(error="Forbidden"), 403

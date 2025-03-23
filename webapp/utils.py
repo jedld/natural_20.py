@@ -344,6 +344,12 @@ class GameManagement:
                     controller.register_handlers_on(entity)
                     self.battle.add(entity, group, controller=controller)
                 self.output_logger.log("Battle started.")
+
+                # if battle sound is present, start playing it
+                for soundtrack in self.soundtracks:
+                    if 'battle' in soundtrack['name']:
+                        self.play_soundtrack(soundtrack['name'])
+
                 self.battle.start()
                 self.execute_game_loop()
             else:
@@ -453,7 +459,7 @@ class GameManagement:
                     if self.current_soundtrack['name'] != soundtrack['name']:
                         current_time_in_seconds = int(time.time())
                         current_soundtrack = {'url': url, 'id': track_id, 'start_time': current_time_in_seconds}
-                        self.current_soundtrack['time'] = 0
+                        soundtrack['time'] = 0
                         self.logger.info(f"Playing soundtrack {current_soundtrack}")
                         self.socketio.emit('message', { 'type': 'track', 'message': current_soundtrack })
                         self.current_soundtrack = soundtrack
@@ -503,5 +509,9 @@ class GameManagement:
     def end_current_battle(self):
         self.trigger_event('on_battle_end')
         self.set_current_battle(None)
+        # revert to background musing if present
+        for soundtrack in self.soundtracks:
+            if 'background' in soundtrack['name']:
+                self.play_soundtrack(soundtrack['name'])
         self.socketio.emit('message', {'type': 'console', 'message': 'Battle has ended.'})
         self.socketio.emit('message', {'type': 'stop', 'message': {}})

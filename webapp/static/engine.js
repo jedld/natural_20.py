@@ -176,9 +176,14 @@ $(document).ready(() => {
   let pageRenderTime = new Date().getTime();
 
   // Plays a background sound (stopping any previous one).
-  const playSound = (url, track_id, volume) => {
+  const playSound = (url, track_id, volume, time_override=null) => {
     const elapsed = (Date.now() - pageRenderTime) / 1000;
-    const seekTime = backgroundSoundStartTime + elapsed;
+    var seekTime;
+    if (time_override!==null) {
+      seekTime = time_override;
+    } else {
+      seekTime = backgroundSoundStartTime + elapsed;
+    }
 
     if (active_background_sound) active_background_sound.pause();
 
@@ -299,8 +304,8 @@ $(document).ready(() => {
         $('#console-container').scrollTop($('#console-container')[0].scrollHeight);
         break;
       case 'track':
-        console.log('Playing track:', data.message.url);
-        playSound(data.message.url, data.message.track_id, data.message.volume);
+        console.log('Playing track:', data.message);
+        playSound(data.message.url, data.message.track_id, data.message.volume, 0);
         break;
       case 'prompt': {
         alert(data.message);
@@ -359,7 +364,7 @@ $(document).ready(() => {
         break;
       case 'switch_map':
         var map_id = data.message.map
-        Utils.switchMap(map_id);
+        Utils.switchMap(map_id, canvas);
         break;
       default:
         console.log('Unknown message type:', data.type);
@@ -406,7 +411,7 @@ $(document).ready(() => {
   $('#mapModal').on('change', '#map-select', function (event) {
     event.preventDefault();
     const map_id = $('#map-select').val();
-    Utils.switchMap(map_id);
+    Utils.switchMap(map_id, canvas);
   });
 
   // --- Tile & Action Event Handlers ---
@@ -482,14 +487,14 @@ $(document).ready(() => {
 
   // --- Canvas Setup ---
   const tile_size = $('.tiles-container').data('tile-size');
-  const canvas = document.createElement('canvas');
+  var canvas = document.createElement('canvas');
   canvas.width = $('.tiles-container').data('width') + tile_size;
   canvas.height = $('.tiles-container').data('height') + tile_size;
   canvas.style.position = "absolute";
   canvas.style.zIndex = 999;
   canvas.style.pointerEvents = "none";
   document.body.appendChild(canvas);
-  const ctx = canvas.getContext('2d');
+  var ctx = canvas.getContext('2d');
 
   $('.zoom-in').on('click', () => {
     scale += 0.1;
