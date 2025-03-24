@@ -6,7 +6,7 @@
           {% if action.object_action_prompt() %}
             {% set prompt_message = action.object_action_prompt() %}
             <p>{{prompt_message}}</p>
-            <button class="action-button" data-action-type="{{ action.__class__.__name__ }}" data-action-opts='{{ action.to_h() | tojson }}' title="{{ action.label() }}" style="position: relative;">
+            <button class="action-button" data-action-type="{{ action.__class__.__name__ }}" data-action-opts='{{ action.to_h() | tojson }}' title="{{ action.label() }}" style="position: relative;" {{'disabled' if action.disabled else ''}}>
               {{ action.button_label() }}
             </button>
           {% else %}

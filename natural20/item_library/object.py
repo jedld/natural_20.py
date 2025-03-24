@@ -195,8 +195,13 @@ class Object(Entity):
         if 'ability_checks' in self.properties:
             ability_check_properties = self.properties.get('ability_checks')
             for ability, ability_check_properties in ability_check_properties.items():
+                disabled = False
+                if entity in self.check_results and f"{ability}_check" in self.check_results[entity]:
+                    disabled = True
                 interactions[f"{ability}_check"] = {
-                    "prompt" : ability_check_properties['prompt']
+                    "prompt" : ability_check_properties['prompt'],
+                    "disabled": disabled,
+                    "disabled_text": "Already checked"
                 }
         return interactions
 
@@ -243,14 +248,36 @@ class Object(Entity):
 
     def use(self, entity, result, session=None):
         action = result.get('action')
+
         if action.endswith('_check'):
             if entity not in self.check_results:
                 self.check_results[entity] = {}
             self.check_results[entity][action] = result.get('roll')
+
             if result.get('success'):
+                self.session.event_manager.received_event({
+                    "event": f"ability_check",
+                    "ability": result.get('ability'),
+                    "roll": result.get('roll'),
+                    "dc": result.get('dc'),
+                    "success": True,
+                    "source": entity,
+                    "target": self
+                })
                 self.resolve_trigger(f"{result.get('ability')}_check_success")
             else:
+                self.session.event_manager.received_event({
+                    "event": f"ability_check",
+                    "ability": result.get('ability'),
+                    "roll": result.get('roll'),
+                    "dc": result.get('dc'),
+                    "success": False,
+                    "source": entity,
+                    "target": self
+                })
                 self.resolve_trigger(f"{result.get('ability')}_check_failure")
+            return True
+        return False
 
     def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True, **opts):
         if opts is None:

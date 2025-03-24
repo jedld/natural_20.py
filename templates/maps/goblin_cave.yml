@@ -94,15 +94,18 @@ legend:
     notes:
       - note: A mysterious chest
       - note: This chest contains a healing potion and 20 arrows
-        perception_dc: 10
+        investigation_dc: 10
     buttons:
-      - action: interact_medicine_check
-        label: Perform a medicine check
-    investigation:
-      medicine:
+      - action: investigation_check
+        label: Investigate Chest (Investigation Check DC 14)
+    ability_checks:
+      investigation:
         prompt: "Inspect Chest?"
         success: You verify that the chest is not trapped.
-        dc: 14
+        dc: 10
+    events:
+      - event: 'investigation_check_success'
+        message: 'Investigation: You find a healing potion and 20 arrows in the chest.'
     inventory:
     - type: healing_potion
       qty: 1

@@ -322,10 +322,13 @@ class Map():
             raise ValueError(f"Invalid position: {pos_x},{pos_y} should not exceed (0 - {self.size[0]- 1 }),(0 - {self.size[1] - 1})")
 
         entity_data = {'entity': entity, 'token': token or entity.name}
-        self.tokens[pos_x][pos_y] = entity_data
+
+
+
         self.entities[entity] = [pos_x, pos_y]
 
         source_token_size = entity.token_size()
+        self.tokens[pos_x][pos_y] = entity_data
 
         for ofs_x in range(source_token_size):
             for ofs_y in range(source_token_size):

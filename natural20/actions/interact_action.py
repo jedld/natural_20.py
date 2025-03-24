@@ -43,6 +43,8 @@ class InteractAction(Action):
             button_info = self.target.buttons.get(self.object_action_name())
             if button_info:
                 return button_info.get('label', self.object_action_name())
+            else:
+                print("No button info for", self.object_action_name())
         return None
 
     def button_prompt(self):

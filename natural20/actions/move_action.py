@@ -22,6 +22,23 @@ class MoveAction(Action):
         self.as_dash = False
         self.as_bonus_action = False
 
+    def to_dict(self):
+        hash = super().to_dict()
+        hash['move_path'] = self.move_path
+        hash['jump_index'] = self.jump_index
+        hash['as_dash'] = self.as_dash
+        hash['as_bonus_action'] = self.as_bonus_action
+        return hash
+    
+    @staticmethod
+    def from_dict(hash):
+        action = MoveAction(hash['session'], hash['source'], hash['action_type'])
+        action.move_path = hash['move_path']
+        action.jump_index = hash['jump_index']
+        action.as_dash = hash['as_dash']
+        action.as_bonus_action = hash['as_bonus_action']
+        return action
+
     def __str__(self):
         if len(self.move_path) > 0:
             return f"move to {self.move_path[-1]}"
@@ -198,7 +215,7 @@ class MoveAction(Action):
             for k, v in item['params'].items():
                 setattr(item['source'], k, v)
             if item.get('trigger'):
-                item['source'].resolve_trigger(item['trigger'])
+                item['source'].resolve_trigger(item['trigger'], { "target": item.get('target', None) })
         elif item_type in ['acrobatics', 'athletics']:
             if item['success']:
                 print(f"{item['source'].name} {item_type} check success")

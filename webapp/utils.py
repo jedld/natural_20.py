@@ -359,7 +359,8 @@ class GameManagement:
                 self.battle = Battle(self.game_session, self.maps, animation_log_enabled=True)
                 for entity, group in add_to_initiative:
                     controller = get_controller(entity)
-                    controller.register_handlers_on(entity)
+                    if not controller:
+                        raise ValueError(f"Controller not found for {entity}")
                     self.battle.add(entity, group, controller=controller)
                 self.output_logger.log("Battle started.")
 

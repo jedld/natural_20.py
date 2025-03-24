@@ -23,6 +23,31 @@ class AttackAction(Action):
     def second_hand(self):
         return False
 
+    def to_dict(self):
+        return {
+            'action_type': self.action_type,
+            'target': self.target.entity_uid if self.target else None,
+            'using': self.using,
+            'npc_action': (
+                self.npc_action.to_dict() 
+                if self.npc_action and hasattr(self.npc_action, 'to_dict') 
+                else self.npc_action
+            ),
+            'as_reaction': self.as_reaction,
+            'thrown': self.thrown,
+            'second_hand': self.second_hand()
+        }
+
+    @staticmethod
+    def from_dict(hash):
+        action = AttackAction(hash['source'], hash['action_type'], hash['opts'])
+        action.target = hash['target']
+        action.using = hash['using']
+        action.npc_action = hash['npc_action']
+        action.as_reaction = hash['as_reaction']
+        action.thrown = hash['thrown']
+        return action
+
     @staticmethod
     def can(entity: Entity, battle, options=None):
         if options is None:
@@ -157,10 +182,10 @@ class AttackAction(Action):
                                                  'source': item['source'], 'target': item['target'], 'event': 'miss'})
 
     def consume_resource(battle, item):
-        if item['ammo']:
+        if item.get('ammo'):
             item['source'].deduct_item(item['ammo'], 1)
 
-        if item['thrown']:
+        if item.get('thrown'):
             if item['source'].item_count(item['weapon']) > 0:
                 item['source'].deduct_item(item['weapon'], 1)
             else:
@@ -304,7 +329,7 @@ class AttackAction(Action):
 
         if damage is None:
             raise Exception('damage should is required')
-        
+
         if hit:
             if self.source.class_feature('martial_advantage') and battle:
                 for entity in battle.allies_of(self.source):

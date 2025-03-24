@@ -57,6 +57,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.entity_uid = uuid.uuid4()
         self.is_passive = False
         self.group = None
+        self.dialogue = []
 
         # Attach methods dynamically
         for ability, skills in self.SKILL_AND_ABILITY_MAP.items():
@@ -86,6 +87,9 @@ class Entity(EntityStateEvaluator, Notable):
 
     def concealed(self):
         return self.is_concealed
+    
+    def conceal_perception_dc(self) -> int:
+        return None
 
     def current_concentration(self):
         return self.concentration

@@ -326,6 +326,8 @@ en:
     dice_roll: Toggle Manual Dice Roll ...
     roll_dice_manually: Prompt for each player die roll (Make sure you have a dice set on hand)
     title: Game Options
+  investigation:
+    passed: (Investigation Passed DC %{dc}) %{note}
   perception:
     dark: Dark and hard to make out
     hide_success: (You are hidden from %{label})
