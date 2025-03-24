@@ -5,7 +5,7 @@ import yaml
 from natural20.map import Map
 from natural20.battle import Battle
 from natural20.generic_controller import GenericController
-from webapp.controller.web_controller import WebController, ManualControl
+from natural20.web.web_controller import WebController, ManualControl
 from natural20.player_character import PlayerCharacter
 import uuid
 import pdb
@@ -301,6 +301,7 @@ class GameManagement:
                     entity_by_groups[entity.group] = set()
                 entity_by_groups[entity.group].add(entity)
 
+        for battle_map in self.maps.values():
             for group1 in pc_groups:
                 for group2 in enemy_groups:
                     if self.game_session.opposing(group1, group2):

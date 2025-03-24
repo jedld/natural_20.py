@@ -24,6 +24,19 @@ class GenericController(Controller):
         self.battle_data = {}
         self.valid_moves_types = valid_move_types or self.VALID_AI_MOVE_TYPES
 
+    def to_dict(self):
+        return {
+            "session": self.session,
+            "state": self.state,
+            "battle_data": self.battle_data
+        }
+    
+    @staticmethod
+    def from_dict(data):
+        controller = GenericController(data['session'])
+        controller.battle_data = data['battle_data']
+        return controller
+
     # @param entity [Natural20::Entity]
     def register_handlers_on(self, entity):
         entity.attach_handler("opportunity_attack", self.opportunity_attack_listener)

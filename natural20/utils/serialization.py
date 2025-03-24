@@ -16,8 +16,11 @@ from natural20.item_library.proximity_trigger import ProximityTrigger
 from natural20.spell.mage_armor_spell import MageArmorSpell
 from natural20.actions.spell_action import SpellAction
 from natural20.actions.move_action import MoveAction
+from natural20.actions.attack_action import AttackAction
 from natural20.spell.bless_spell import BlessSpell
 from natural20.item_library.pit_trap import PitTrap
+from natural20.generic_controller import GenericController
+from natural20.web.web_controller import WebController
 from natural20.session import Session
 from typing import Any
 import yaml
@@ -71,7 +74,10 @@ CLASS_TAG_MAPPING = {
     SpellAction: '!spell_action',
     BlessSpell: '!bless_spell',
     MoveAction: '!move_action',
-    PitTrap: '!pit_trap'
+    PitTrap: '!pit_trap',
+    GenericController: '!generic_controller',
+    WebController: '!web_controller',
+    AttackAction: '!attack_action'
 }
 
 def generic_constructor(loader, node):
@@ -99,7 +105,7 @@ def register_yaml_handlers():
     # Register representers with a lambda to capture the tag.
     for cls, tag in CLASS_TAG_MAPPING.items():
         yaml.SafeDumper.add_representer(
-            cls, lambda dumper, data, tag=tag: dumper.represent_mapping(tag, data.to_dict())
+            cls, lambda dumper, data, tag=tag: dumper.represent_mapping(tag, dict(data.to_dict()))
         )
     yaml.SafeDumper.add_representer(uuid.UUID, represent_uuid)
     yaml.SafeDumper.add_representer(np.ndarray, represent_ndarray)

@@ -35,7 +35,7 @@ class Object(Entity):
         self.type = properties.get('type')
         self.concentration = None
         self.effects = {}
-        self.inventory = {}
+        self.inventory = None
         self.check_results = {}
         self._temp_hp = 0
         self.interact_distance = properties.get('interact_distance', 5)
@@ -192,6 +192,10 @@ class Object(Entity):
 
     def available_interactions(self, entity, battle=None, admin=False):
         interactions = {}
+        if self.inventory:
+            interactions['loot'] = {
+                "prompt": "Loot"
+            }
         if 'ability_checks' in self.properties:
             ability_check_properties = self.properties.get('ability_checks')
             for ability, ability_check_properties in ability_check_properties.items():
@@ -248,8 +252,9 @@ class Object(Entity):
 
     def use(self, entity, result, session=None):
         action = result.get('action')
-
-        if action.endswith('_check'):
+        if action == 'loot':
+            self.transfer(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
+        elif action.endswith('_check'):
             if entity not in self.check_results:
                 self.check_results[entity] = {}
             self.check_results[entity][action] = result.get('roll')
@@ -331,6 +336,19 @@ class Object(Entity):
         pass
 
     def build_map(self, selected_interaction, action):
+        if action == 'loot':
+            def next_action(items):
+                action.other_params = items
+                return action
+            return {
+                'action': action,
+                'param': [{
+                    'type': 'select_items',
+                    'label': self.items_label(),
+                    'items': self.inventory
+                }],
+                'next': next_action
+            }
         return None
     
     def on_enter(self, entity, map, battle):
@@ -340,6 +358,14 @@ class Object(Entity):
         super().update_state(state)
 
     def to_dict(self):
+        _inventory = None
+        if self.inventory:
+            _inventory = [
+                {
+                    'type': k,
+                    'qty': v['qty']
+                } for k, v in self.inventory.items()
+            ]
         return {
             'session': self.session,
             'entity_uid': self.entity_uid,
@@ -350,12 +376,7 @@ class Object(Entity):
             'resistances': self.resistances,
             'is_concealed': self.is_concealed,
             'perception_dc': self.perception_dc,
-            'inventory': [
-                {
-                    'type': k,
-                    'qty': v['qty']
-                } for k, v in self.inventory.items()
-            ],
+            'inventory': _inventory,
             'properties': self.properties
         }
 
