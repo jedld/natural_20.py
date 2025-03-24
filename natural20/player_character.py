@@ -556,6 +556,24 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
     return self.proficiency_bonus() if self.perception_proficient() else 0
   
   def to_dict(self):
+    _serialized_casted_effects = []
+    _serialized_effects = {}
+    for casted_effect in self.casted_effects:
+      _copy = copy.copy(casted_effect)
+      if 'target' in casted_effect:
+        _copy['target'] = casted_effect['target'].entity_uid
+      _serialized_casted_effects.append(_copy)
+
+    for k, descriptors in self.effects.items():
+      _descriptor_arr = []
+      for descriptor in descriptors:
+        _descriptor = copy.copy(descriptor)
+        if 'source' in _descriptor:
+          _descriptor['source'] = _descriptor['source'].entity_uid
+        _descriptor_arr.append(_descriptor)
+      _serialized_effects[k] = _descriptor_arr
+
+
     base_dict = {
       'session': self.session,
       'name': self.name,
@@ -564,7 +582,18 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
       'type': 'pc',
       'properties': self.properties,
       'inventory': self.inventory,
-      'entity_uid': self.entity_uid
+      'entity_uid': self.entity_uid,
+      'group': self.group,
+      'effects': _serialized_effects,
+      'casted_effects': _serialized_casted_effects,
+      'statuses': self.statuses,
+      'perception_results': self.perception_results,
+      # 'entity_event_hooks': self.entity_event_hooks,
+      'concentration': self.concentration,
+      'death_fails': self.death_fails,
+      'death_saves': self.death_saves,
+      'hidden_stealth': self.hidden_stealth,
+      '_temp_hp': self._temp_hp
     }
     return base_dict
 
@@ -574,4 +603,15 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
     player_character.entity_uid = data['entity_uid']
     player_character.attributes['hp'] = data['hp']
     player_character.inventory = data['inventory']
+    player_character.effects = data['effects']
+    player_character.casted_effects = data['casted_effects']
+    player_character.statuses = data['statuses']
+    player_character.perception_results = data['perception_results']
+    player_character.group = properties.get('group', 'a')
+    # player_character.entity_event_hooks = data['entity_event_hooks']
+    player_character.death_fails = data.get('death_fails', 0)
+    player_character.death_saves = data.get('death_saves', 0)
+    player_character.concentration = data['concentration']
+    player_character.hidden_stealth = data['hidden_stealth']
+    player_character._temp_hp = data['_temp_hp']
     return player_character

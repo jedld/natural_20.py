@@ -56,6 +56,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.buttons = {}
         self.entity_uid = uuid.uuid4()
         self.is_passive = False
+        self.group = None
 
         # Attach methods dynamically
         for ability, skills in self.SKILL_AND_ABILITY_MAP.items():
@@ -1698,7 +1699,8 @@ class Entity(EntityStateEvaluator, Notable):
             'concentration': self.concentration,
             'casted_effects': self.casted_effects,
             'grapples': self.grapples,
-            'temp_hp' : self._temp_hp
+            'temp_hp' : self._temp_hp,
+            'group' : self.group
         }
 
     def long_rest(self):

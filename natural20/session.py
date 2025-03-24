@@ -287,7 +287,8 @@ class Session:
             'root_path': self.root_path,
             'session_state': self.session_state,
             'event_log': list(self.event_log),
-            'settings': self.settings
+            'settings': self.settings,
+            'render_for_text': self.render_for_text
         }
 
     def from_dict(data):
@@ -296,4 +297,5 @@ class Session:
         session.session_state = data['session_state']
         session.event_log = deque(data['event_log'])
         session.settings = data['settings']
+        session.render_for_text = data['render_for_text']
         return session

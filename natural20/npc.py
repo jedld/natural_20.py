@@ -303,6 +303,7 @@ class Npc(Entity, Multiattack, Lootable):
         base_dict["entity_uid"] = self.entity_uid
         base_dict["name"] = self.name
         base_dict["session"] = self.session
+        base_dict["group"] = self.group
         return base_dict
     
     def from_dict(data):
@@ -314,4 +315,5 @@ class Npc(Entity, Multiattack, Lootable):
         npc.statuses = data["statuses"]
         npc.entity_uid = data["entity_uid"]
         npc.name = data["name"]
+        npc.group = data.get("group", "b")
         return npc

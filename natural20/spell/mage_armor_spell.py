@@ -21,8 +21,29 @@ class MageArmorSpell(Spell):
             'next': set_target
         }
 
+    def to_dict(self):
+        return {
+            'name': self.name,
+            'session': self.session,
+            'properties': self.properties,
+            'source': self.source.entity_uid,
+            'target': self.target.entity_uid if self.target else None,
+            # 'action': self.action
+        }
+
+    @staticmethod
+    def from_dict(data):
+        mage_armor_spell = MageArmorSpell(data['session'], data['source'], data['name'], data['properties'])
+        mage_armor_spell.target = data['target']
+        return mage_armor_spell
+
     def validate(self, battle_map, target=None):
         self.errors.clear()
+        if isinstance(target, list):
+            target = battle_map.entity_at(*target)
+        if target is None:
+            self.errors.append('no_target')
+            return
         if target.wearing_armor():
             self.errors.append('wearing_armor')
 

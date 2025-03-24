@@ -36,6 +36,22 @@ class ProximityTrigger(Object):
                     'trigger': 'activate'
                 })
         return result
+    
+    def to_dict(self):
+        hash = super().to_dict()
+        hash['distance'] = self.distance
+        hash['line_of_sight'] = self.line_of_sight
+        hash['activated'] = self.activated
+        return hash
+    
+    @staticmethod
+    def from_dict(hash):
+        session = hash['session']
+        proximity_trigger = ProximityTrigger(session, None, hash['properties'])
+        proximity_trigger.distance = hash['distance']
+        proximity_trigger.line_of_sight = hash['line_of_sight']
+        proximity_trigger.activated = hash['activated']
+        return proximity_trigger
 
     def interactable(self, entity=None):
         return False

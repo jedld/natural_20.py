@@ -545,6 +545,7 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
     def to_dict(self):
         hash = super().to_dict()
         hash["door_pos"] = self.door_pos
+        hash["border"] = self.border
         hash["window"] = self.window
         hash["secret"] = self.is_secret
         hash["front_direction"] = self.front_direction
@@ -554,8 +555,10 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
         hash["lockable"] = self.lockable
         hash["locked"] = self.locked
         hash["key"] = self.key_name
+        hash["wall_direction"] = self.wall_direction
+        hash["custom_border"] = self.custom_border
         return hash
-    
+
     @staticmethod
     def from_dict(data):
         session = data["session"]
@@ -572,4 +575,7 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
         door.lockable = hash['lockable']
         door.locked = hash['locked']
         door.key_name = hash['key']
+        door.border = hash['border']
+        door.wall_direction = hash['wall_direction']
+        door.custom_border = hash['custom_border']
         return door

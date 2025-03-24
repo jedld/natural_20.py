@@ -36,7 +36,7 @@ def dirt():
     return Terrain("dirt", True, 1.0)
 
 class Map():
-    def __init__(self, session, map_file_path, name=None, properties=None):
+    def __init__(self, session, map_file_path, name=None, properties=None, skip_setup=False):
         self.name = name
         self.session = session
         self.terrain = {}
@@ -121,9 +121,11 @@ class Map():
         self.light_builder = StaticLightBuilder(self)
         self.triggers = self.properties.get('triggers', {})
         self._compute_lights()
-        self._setup_objects()
-        self._setup_npcs()
-        self._trigger_after_setup()
+
+        if not skip_setup:
+            self._setup_objects()
+            self._setup_npcs()
+            self._trigger_after_setup()
 
     def _compute_lights(self):
         self.light_map = self.light_builder.build_map()
@@ -985,13 +987,16 @@ class Map():
     @staticmethod
     def from_dict(data):
         session = data['session']
-        battle_map = Map(session, None, properties=data['properties'])
+        battle_map = Map(session, None, properties=data['properties'], skip_setup=True)
         battle_map.entities = data['entities']
         battle_map.tokens = data['tokens']
         battle_map.base_map = data['base_map']
         battle_map.base_map_1 = data['base_map_1']
         battle_map.base_map_2 = data['base_map_2']
         battle_map.objects = data['objects']
+        battle_map.legend = data['legend']
+        battle_map.name = data['name']
+        battle_map.area_triggers = data['area_triggers']
 
         for row in range(battle_map.size[0]):
             for column in range(battle_map.size[1]):
@@ -1004,25 +1009,42 @@ class Map():
         battle_map.interactable_objects = interactable_objects
         battle_map.meta_map = data['meta_map']
         battle_map._compute_lights()
+
+        # lazy resolve
+        for entity in battle_map.entities:
+            for casted_effects in entity.casted_effects:
+                if 'target' in casted_effects:
+                    casted_effects['target'] = battle_map.entity_by_uid(casted_effects['target'])
+                    if 'effect' in casted_effects:
+                        effect = casted_effects['effect']
+                        if effect.source:
+                            effect.source = battle_map.entity_by_uid(effect.source)
+                        if effect.target:
+                            if isinstance(effect.target, list):
+                                effect.target = [battle_map.entity_by_uid(target) for target in effect.target]
+                            else:
+                                effect.target = battle_map.entity_by_uid(effect.target)
+
         return battle_map
 
 
     def to_dict(self)->dict:
         map_hash = {
-                'name': self.name,
-                'size': self.size,
-                'feet_per_grid': self.feet_per_grid,
-                'legend': self.legend,
-                'properties': self.properties,
-                'session': self.session,
-                'entities': self.entities,
-                'interactable_objects': self.interactable_objects,
-                'base_map': self.base_map,
-                'base_map_1': self.base_map_1,
-                'base_map_2': self.base_map_2,
-                'objects': self.objects,
-                'tokens': self.tokens,
-                'meta_map': self.meta_map
+            'name': self.name,
+            'size': self.size,
+            'feet_per_grid': self.feet_per_grid,
+            'legend': self.legend,
+            'properties': self.properties,
+            'session': self.session,
+            'entities': self.entities,
+            'interactable_objects': self.interactable_objects,
+            'base_map': self.base_map,
+            'base_map_1': self.base_map_1,
+            'base_map_2': self.base_map_2,
+            'objects': self.objects,
+            'tokens': self.tokens,
+            'meta_map': self.meta_map,
+            'area_triggers': self.area_triggers
         }
 
         return map_hash
