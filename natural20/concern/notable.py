@@ -9,25 +9,45 @@ class Notable:
         notes = self.properties.get("notes", [])
         result_notes = []
         new_note_source = {}
-        
+
         for note in notes:
             # Skip notes that don't meet conditions
             if note.get("if") and not self.eval_if(note["if"]):
                 continue
             if self.is_secret and note.get("secret"):
                 continue
-                
+
             note_json = {"note": note.get("note"), "image": note.get("image")}
-            
+
+            # Handle skill-based notes (investigation, medicine)
+            for skill in ['investigation', 'medicine']:
+                dc_key = f"{skill}_dc"
+                if dc_key in note:
+                    dc_value = note.get(dc_key, 0)
+                    success = False
+                    if entity_pov:
+                        for entity in entity_pov:
+                            if entity in self.check_results:
+                                check_value = self.check_results[entity].get(f"{skill}_check")
+                                if check_value is not None and check_value >= dc_value:
+                                    new_note_source[entity] = check_value
+                                    note_json["note"] = self.t(f"{skill}.passed", dc=dc_value, note=note_json["note"])
+                                    success = True
+                    else:
+                        continue
+
+                    if not success:
+                        continue
+
             # Handle perception-based notes
             if 'perception_dc' in note:
                 perception_dc = note.get("perception_dc", 0)
                 effective_perception = None
-                
+
                 # Initialize perception results if needed
                 if 'result' not in note:
                     note['result'] = {'perception': {}}
-                
+
                 # Get existing perception value
                 if entity_pov is None:
                     effective_perception = note['result'].get('perception', {}).get(entity)

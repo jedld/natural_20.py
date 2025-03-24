@@ -15,7 +15,9 @@ from natural20.item_library.healing_potion import HealingPotion
 from natural20.item_library.proximity_trigger import ProximityTrigger
 from natural20.spell.mage_armor_spell import MageArmorSpell
 from natural20.actions.spell_action import SpellAction
+from natural20.actions.move_action import MoveAction
 from natural20.spell.bless_spell import BlessSpell
+from natural20.item_library.pit_trap import PitTrap
 from natural20.session import Session
 from typing import Any
 import yaml
@@ -67,7 +69,9 @@ CLASS_TAG_MAPPING = {
     ProximityTrigger: '!proximity_trigger',
     MageArmorSpell: '!mage_armor_spell',
     SpellAction: '!spell_action',
-    BlessSpell: '!bless_spell'
+    BlessSpell: '!bless_spell',
+    MoveAction: '!move_action',
+    PitTrap: '!pit_trap'
 }
 
 def generic_constructor(loader, node):

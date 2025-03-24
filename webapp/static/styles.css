@@ -46,6 +46,7 @@
 }
 
 .tile .entity {
+  /* position: absolute; */
   z-index: 2;
 }
 
@@ -420,6 +421,11 @@ input.initiative-input.form-control {
 
 .spell-action-button {
   padding: 5px;
+}
+
+.action-button {
+  color: black;
+  margin-bottom: 5px;
 }
 
 .object-container {

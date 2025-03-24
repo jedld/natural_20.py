@@ -20,3 +20,4 @@ user_levels/**/*
 tests/fixtures/tmp/
 scripts/runs
 save_*.yml
+last_save.txt

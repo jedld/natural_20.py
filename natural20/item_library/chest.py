@@ -162,6 +162,10 @@ class Chest(Object, Container):
         if opts is None:
             opts = {}
 
+        result = super().resolve(entity, action, other_params, opts)
+        if result:
+            return result
+
         if action == 'open':
             return {'action': action } if not self.locked() else {'action': 'door_locked'}
         elif action in ['loot', 'store']:
@@ -187,29 +191,32 @@ class Chest(Object, Container):
         return None
 
     def use(self, entity, result, session=None):
-        action = result.get('action')
-        if action == 'store':
-            self.store(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
-        elif action == 'loot':
-            self.transfer(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
-        elif action == 'open':
-            if self.closed():
-                self.open()
-        elif action == 'close':
-            if self.opened():
-                self.close()
-        elif action == 'lockpick_success':
-            if self.is_locked:
-                self.unlock()
-        elif action == 'lockpick_fail':
-            if self.is_locked:
-                entity.deduct_item('thieves_tools')
-        elif action == 'unlock':
-            if self.is_locked:
-                self.unlock()
-        elif action == 'lock':
-            if not self.is_locked:
-                self.lock()
+        result = super().use(entity, result, session)
+        if not result:
+            action = result.get('action')
+
+            if action == 'store':
+                self.store(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
+            elif action == 'loot':
+                self.transfer(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
+            elif action == 'open':
+                if self.closed():
+                    self.open()
+            elif action == 'close':
+                if self.opened():
+                    self.close()
+            elif action == 'lockpick_success':
+                if self.is_locked:
+                    self.unlock()
+            elif action == 'lockpick_fail':
+                if self.is_locked:
+                    entity.deduct_item('thieves_tools')
+            elif action == 'unlock':
+                if self.is_locked:
+                    self.unlock()
+            elif action == 'lock':
+                if not self.is_locked:
+                    self.lock()
 
     def lockpick_dc(self):
         return self.properties.get('lockpick_dc', 10)

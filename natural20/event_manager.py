@@ -220,8 +220,14 @@ class EventManager:
         def look(event):
             self.output_logger.log(f"{self.show_name(event)} looked around and rolled {event['die_roll']} = {event['die_roll'].result()} perception check.")
 
-            
+        def ability_check(event):
+            if event["success"]:
+                self.output_logger.log(f"{self.show_target_name(event)}: {self.show_name(event)} makes a successfull {event['ability']} check and rolls {event['roll']} = {event['roll'].result()} >= DC {event['dc']}")
+            else:
+                self.output_logger.log(f"{self.show_target_name(event)}: {self.show_name(event)} makes a failed {event['ability']} check and rolls {event['roll']} = {event['roll'].result()} < DC {event['dc']}")
+
         event_handlers = {
+            'ability_check': ability_check,
             'console': lambda event: self.output_logger.log(event['message']),
             'multiattack' : lambda event: self.output_logger.log(f"{self.show_name(event)} uses multiattack."),
             'action_surge': lambda event: self.output_logger.log(f"{self.show_name(event)} uses action surge."),

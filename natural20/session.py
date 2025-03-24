@@ -7,6 +7,7 @@ from natural20.player_character import PlayerCharacter
 from natural20.map import Map
 import i18n
 from copy import deepcopy
+import pdb
 
 def represent_map(dumper, data):
     return dumper.represent_mapping('!map', data.to_dict())
@@ -51,6 +52,27 @@ class Session:
         self.game_time = 0
         self.session_state = {}
         self.event_log = deque(maxlen=100)
+
+    def map_for_entity(self, entity):
+        for _, map_obj in self.maps.items():
+            if isinstance(entity, str):
+                _entity = map_obj.get_entity_by_uid(entity)
+            else:
+                _entity = entity
+
+            if _entity in map_obj.entities:
+                return map_obj
+
+            if _entity in map_obj.interactable_objects.keys():
+                return map_obj
+        return None
+
+    def entity_by_uid(self, entity_uid):
+        for _, map_obj in self.maps.items():
+            entity = map_obj.entity_by_uid(entity_uid)
+            if entity:
+                return entity
+        return None        
 
     def _load_all_maps(self, game_file):
         self.maps = {}

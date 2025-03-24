@@ -75,6 +75,8 @@ class Npc(Entity, Multiattack, Lootable):
         self.resistances = self.properties.get("resistances", [])
         self.statuses = []
         self.is_passive = self.properties.get("passive", False)
+        self.is_concealed = self.properties.get("concealed", False)
+        self.dialogue = self.properties.get("dialogue", [])
 
         for stat in self.properties.get("statuses", []):
             self.statuses.append(stat)
@@ -89,7 +91,7 @@ class Npc(Entity, Multiattack, Lootable):
 
         self.name = auto_name if opt.get("name") == "_auto_" else opt.get("name", auto_name)
 
-        self.entity_uid = opt.get('entity_uid', str(uuid.uuid4()))
+        self.entity_uid = self.properties.get('entity_uid', opt.get('entity_uid', str(uuid.uuid4())))
         self.setup_attributes()
 
     @staticmethod
@@ -126,29 +128,31 @@ class Npc(Entity, Multiattack, Lootable):
 
     def size(self):
         return self.properties["size"]
-    
+
     def token(self):
         return self.properties["token"]
-    
+
     def max_hp(self):
         return self._max_hp
-    
+
     def name(self):
         return self._name
-    
+
     def set_name(self, value):
         self._name = value
-    
+
     def npc(self):
         return True
-    
+
     def armor_class(self):
         return self.properties["default_ac"]
+
+    def set_dialogue(self, dialogue, addressed_to=None):
+        self.dialogue.append([addressed_to, dialogue])
 
     def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True, **opts):
         if opts is None:
             opts = {}
-
 
         interact_only = opts.get('interact_only', False)
         except_interact = opts.get('except_interact', False)

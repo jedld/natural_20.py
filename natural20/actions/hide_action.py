@@ -28,8 +28,7 @@ class HideAction(Action):
             opts = {}
         stealth_roll = self.source.stealth_check(opts.get('battle', None))
 
-        if map is None:
-            map = opts.get('battle').map_for(self.source)
+        source_map = self.session.map_for_entity(self.source)
 
         if opts['battle']:
             opponents = [opp for opp in opts['battle'].opponents_of(self.source) if opp.conscious()]
@@ -37,16 +36,18 @@ class HideAction(Action):
             opponents = []
 
         hide_failed_reasons = []
-        if map:
-            heavily_obscured = map.is_heavily_obscured(self.source)
+        if source_map:
+            heavily_obscured = source_map.is_heavily_obscured(self.source)
         else:
             heavily_obscured = False
-
 
         opponent_passive_perception = 0
 
         for opp in opponents:
-            if map and map.can_see(opp, self.source):
+            opponent_map = self.session.map_for_entity(opp)
+            if source_map != opponent_map:
+                continue
+            if source_map and source_map.can_see(opp, self.source):
                 opponent_passive_perception = opp.passive_perception()
                 if heavily_obscured:
                     opponent_passive_perception -= 5

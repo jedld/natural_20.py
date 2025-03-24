@@ -455,11 +455,6 @@ def index():
     
 
     background = current_game.get_background_image_for_user(session['username'])
-
-    file_path = os.path.join(LEVEL, "assets", background)
-    image = Image.open(file_path)
-    width, height = image.size
-
     renderer = JsonRenderer(battle_map, battle, padding=MAP_PADDING)
 
     if 'dm' in user_role():
@@ -877,12 +872,13 @@ def get_actions():
 @app.route("/hide", methods=['GET'])
 def get_hiding_spots():
     global current_game
-    battle_map = current_game.get_map_for_user(session['username'])
+    
     battle = current_game.get_current_battle()
     entity_id = request.args.get('id')
-    entity = battle_map.entity_by_uid(entity_id)
+    entity = current_game.get_entity_by_uid(entity_id)
     if entity is None:
         return jsonify(error="Entity not found"), 404
+    battle_map = current_game.get_map_for_entity(entity)
     hiding_spots = battle_map.hiding_spots_for(entity, battle)
     return jsonify(hiding_spots=hiding_spots)
 
