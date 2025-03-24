@@ -116,6 +116,7 @@ current_game = GameManagement(game_session=game_session,
                               tile_px=TILE_PX,
                               controllers=CONTROLLERS,
                               npc_controller=DEFAULT_NPC_CONTROLLER,
+                              autosave=AUTOSAVE,
                               system_logger=logger,
                               soundtrack=SOUNDTRACKS)
 
@@ -184,8 +185,6 @@ def commit_and_update(action):
 
     # did the map change for the current pov?
     check_and_notify_map_change(pov_map, pov_entity)
-    if AUTOSAVE:
-        current_game.save_game()
 
     if battle:
         socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
@@ -195,8 +194,9 @@ def commit_and_update(action):
         socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
     socketio.emit('message', {'type': 'turn', 'message': {}})
 
-
-
+    if AUTOSAVE:
+        print("autosave")
+        current_game.save_game()
 
 def controller_of(entity_uid, username):
     if username == 'dm':
@@ -785,8 +785,6 @@ def continue_game():
     socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 'animation_log' : battle.get_animation_logs() }})
     battle.clear_animation_logs()
     socketio.emit('message', { 'type': 'turn', 'message': {}})
-    if AUTOSAVE:
-        current_game.load_save()
 
 @app.route('/turn_order', methods=['GET'])
 def get_turn_order():
@@ -941,7 +939,7 @@ def action_type_to_class(action_type):
 @app.route('/target', methods=['GET'])
 def get_target():
     global current_game
-    battle_map = current_game.get_map_for_user(session['username'])
+    
     battle = current_game.get_current_battle()
     payload = json.loads(request.args.get('payload'))
     
@@ -950,7 +948,8 @@ def get_target():
     y = int(payload.get('y'))
     action_info = payload.get('action_info')
     opts = payload.get('opts', {})
-    entity = battle_map.entity_by_uid(entity_id)
+    entity = current_game.get_entity_by_uid(entity_id)
+    battle_map = current_game.get_map_for_entity(entity)
     target_entity = battle_map.entity_at(x, y)
     if not target_entity:
         target_position = [x, y]
@@ -1173,7 +1172,6 @@ def action():
                     last_coords = move_path[-1]
                     if battle_map.placeable(entity, last_coords[0], last_coords[1]):
                         commit_and_update(action)
-                        check_and_notify_map_change(battle_map, entity)
                         if battle:
                             socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1],
                                                                                 'animation_log': battle.get_animation_logs()}})

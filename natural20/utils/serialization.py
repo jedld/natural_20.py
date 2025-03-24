@@ -12,6 +12,10 @@ from natural20.item_library.trap_door import TrapDoor
 from natural20.item_library.switch import Switch
 from natural20.item_library.spell_scroll import SpellScroll
 from natural20.item_library.healing_potion import HealingPotion
+from natural20.item_library.proximity_trigger import ProximityTrigger
+from natural20.spell.mage_armor_spell import MageArmorSpell
+from natural20.actions.spell_action import SpellAction
+from natural20.spell.bless_spell import BlessSpell
 from natural20.session import Session
 from typing import Any
 import yaml
@@ -20,6 +24,7 @@ from natural20.battle import Battle
 import pdb
 import uuid
 import numpy as np
+import importlib
 
 def represent_uuid(dumper, data):
     # Store the UUID value in a scalar node
@@ -27,6 +32,13 @@ def represent_uuid(dumper, data):
 
 def represent_ndarray(dumper, data):
     return dumper.represent_list(data.tolist())
+
+def represent_class(dumper, data):
+    # Represent a class by its fully qualified name.
+    class_path = data.__module__ + "." + data.__qualname__
+    return dumper.represent_scalar('!class', class_path)
+
+yaml.SafeDumper.add_representer(type, represent_class)
 
 # Create a specialized loader with constructors
 class SafeLoaderWithConstructors(yaml.FullLoader):
@@ -52,6 +64,10 @@ CLASS_TAG_MAPPING = {
     Switch: '!switch',
     Teleporter: '!teleporter',
     TrapDoor: '!trap_door',
+    ProximityTrigger: '!proximity_trigger',
+    MageArmorSpell: '!mage_armor_spell',
+    SpellAction: '!spell_action',
+    BlessSpell: '!bless_spell'
 }
 
 def generic_constructor(loader, node):
@@ -66,6 +82,14 @@ def generic_constructor(loader, node):
     raise yaml.constructor.ConstructorError(
         None, None, "Unknown tag encountered: %s" % node.tag, node.start_mark
     )
+
+def class_constructor(loader, node):
+    class_path = loader.construct_scalar(node)
+    module_name, class_name = class_path.rsplit('.', 1)
+    module = importlib.import_module(module_name)
+    return getattr(module, class_name)
+
+SafeLoaderWithConstructors.add_constructor('!class', class_constructor)
 
 def register_yaml_handlers():
     # Register representers with a lambda to capture the tag.
@@ -84,7 +108,7 @@ register_yaml_handlers()
 
 class Serialization:
     def __init__(self):
-        pass
+        self.dict_cache = {}
 
     def serialize(self, session: Session, battle: Battle, maps: Map, filename: str = None):
         state = {

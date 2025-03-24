@@ -36,6 +36,34 @@ class SpellAction(Action):
 
     def __repr__(self):
         return self.__str__()
+    
+    def to_dict(self):
+        hash = {
+            'session': self.session,
+            'source': self.source.entity_uid,
+            'action_type': self.action_type,
+            'spell_class': self.spell_class,
+            'level': self.level,
+            'at_level': self.at_level,
+            'casting_time': self.casting_time
+        }
+        if self.target:
+            if isinstance(self.target, list):
+                hash['target'] = [t.entity_uid for t in self.target]
+            else:
+                hash['target'] = self.target.entity_uid
+        return hash
+
+    
+    @staticmethod
+    def from_dict(data):
+        action = SpellAction(data['session'], data['source'], data['action_type'])
+        action.level = data['level']
+        action.spell_class = data['spell_class']
+        action.at_level = data['at_level']
+        action.casting_time = data['casting_time']
+        action.target = data['target']
+        return action
 
     def short_name(self):
         if self.spell_action:

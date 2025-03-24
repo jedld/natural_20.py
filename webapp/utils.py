@@ -13,6 +13,7 @@ from itertools import combinations
 import logging
 from mutagen.mp3 import MP3
 from natural20.utils.serialization import Serialization
+import gzip
 
 class SocketIOOutputLogger:
     """
@@ -78,6 +79,7 @@ class GameManagement:
         self.soundtracks = soundtrack
         self.current_soundtrack = None
         self.autosave = autosave
+        self.gzip = False
 
         if not system_logger:
             self.logger = logging.getLogger(__name__)
@@ -85,18 +87,15 @@ class GameManagement:
         else:
             self.logger = system_logger
 
-        if os.path.exists('save.yml'):
-            with open('save.yml','r') as f:
-                map_dict = yaml.safe_load(f)
-                self.battle_map = Map.from_dict(game_session, map_dict)
-        else:
-            self.logger.info(f"Loading map from {self.map_location}")
-            self.battle_map = Map(game_session, self.map_location, name='index')
+
+        self.logger.info(f"Loading map from {self.map_location}")
+        self.battle_map = Map(game_session, self.map_location, name='index')
 
         self.maps = self.game_session.maps
         self.battle = None
         self.trigger_handlers = {}
         self.callbacks = {}
+        self.current_save_index = 0
 
         if self.soundtracks:
             # load each soundtrack and determine its duration
@@ -118,7 +117,22 @@ class GameManagement:
                 if 'background' in track['name']:
                     self.current_soundtrack = track
         self._setup_controllers()
+        if autosave:
+           available_files = []
+           for file in os.listdir('.'):
+               if file.startswith('save_'):
+                   index = file.split('_')[1].split('.')[0]
+                   available_files.append((int(index), file))
 
+           self.save_states = [file for index, file in sorted(available_files, key=lambda x: x[0])]
+           if os.path.exists('last_save.txt'):
+               with open('last_save.txt', 'r') as f:
+                   last_save = f.read().strip()
+                   if last_save:
+                       save_file, index = last_save.split(',')
+                       print(f"Loading save {save_file} {index}")
+                       self.current_save_index = int(index)
+                       self.load_save(int(index))
 
     def _setup_controllers(self):
         for controller in self.controllers:
@@ -290,6 +304,10 @@ class GameManagement:
             for group1 in pc_groups:
                 for group2 in enemy_groups:
                     if self.game_session.opposing(group1, group2):
+
+                        if group1 not in entity_by_groups:
+                            continue
+
                         for entity1 in entity_by_groups[group1]:
                             if not entity1.conscious():
                                 continue
@@ -481,27 +499,41 @@ class GameManagement:
         return self.save_states
 
     def save_game(self):
-        index = len(self.save_states) % self.max_save_states
+        index = self.current_save_index % self.max_save_states
         file_name = f"save_{index}.yml"
         serializer = Serialization()
-        yaml_str = serializer.serialize(self.game_session, self.battle, self.maps, filename=file_name)
-        with open(file_name, 'w') as f:
-            f.write(yaml_str)
-        self.save_states.append(file_name)
+        yaml_str = serializer.serialize(self.game_session, self.battle, self.maps)
+        if self.gzip:
+            with gzip.open(f"{file_name}.gz", 'wb') as f:
+                f.write(yaml_str.encode('utf-8'))
+        else:
+            with open(file_name, 'w') as f:
+                f.write(yaml_str)
 
-    def load_save(self, index = None):
+        self.save_states.append(file_name)
+        with open('last_save.txt', 'w') as f:
+            f.write(f"{file_name},{index}")
+        self.current_save_index += 1
+
+    def load_save(self, index=None):
         if index is None:
             index = len(self.save_states) - 1
             if index < 0:
                 return
 
         save_state = self.save_states[index]
-        state = self.game_session.load_save(yaml=None, filename=save_state)
+        if self.gzip:
+            with gzip.open(f"{save_state}.gz", 'rb') as f:
+                state = f.read().decode('utf-8')
+        else:
+            with open(save_state, 'r') as f:
+                state = f.read()
         serializer = Serialization()
         new_session, new_battle, new_maps = serializer.deserialize(state)
         self.game_session = new_session
         self.battle = new_battle
-        self.battle_map = new_maps[0]
+
+        self.battle_map = new_maps['index']
         self.maps = new_maps
         self.save_states.pop(index)
 

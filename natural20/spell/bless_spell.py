@@ -3,6 +3,21 @@ class BlessSpell(Spell):
     def __init__(self, session, source, spell_name, details):
             super().__init__(session, source, spell_name, details)
 
+    def to_dict(self):
+        return {
+            'name': self.name,
+            'action': self.action,
+            'session': self.session,
+            'properties': self.properties,
+            'source': self.source.entity_uid,
+        }
+
+    @staticmethod
+    def from_dict(data):
+        bless_spell = BlessSpell(data['session'], data['source'], data['name'], data['properties'])
+        bless_spell.action = data['action']
+        return bless_spell
+
     def build_map(self, orig_action):
         additional_targets = 0
         if orig_action.at_level > 1:

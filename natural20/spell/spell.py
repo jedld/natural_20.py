@@ -86,3 +86,17 @@ class Spell:
 
     def avg_damage(self, battle, opts=None):
         return 0
+    
+    def to_dict(self):
+        return {
+            'name': self.name,
+            'session': self.session,
+            'properties': self.properties,
+            # 'source': self.source,
+            # 'target': self.target,
+            # 'action': self.action
+        }
+    
+    @staticmethod
+    def from_dict(data):
+        return Spell(data['session'], None, data['name'], data['properties'])

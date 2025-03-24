@@ -69,6 +69,7 @@ class StoneWallDirectional(StoneWall):
         hash['session'] = self.session
         hash['wall_direction'] = self.wall_direction
         hash['custom_border'] = self.custom_border
+        hash['border'] = self.border
         hash['window'] = self.window
         return hash
     
@@ -78,6 +79,7 @@ class StoneWallDirectional(StoneWall):
         wall.entity_uid = data['entity_uid']
         wall.wall_direction = data['wall_direction']
         wall.custom_border = data['custom_border']
+        wall.border = data['border']
         wall.window = data['window']
         return wall
         
