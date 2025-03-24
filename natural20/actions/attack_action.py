@@ -83,20 +83,7 @@ class AttackAction(Action):
     def __repr__(self):
         return f"AttackAction({self.source}, {self.action_type}, {self.opts})"
 
-    def to_dict(self):
-        return {
-            'action_type': self.action_type,
-            'target': self.target.entity_uid if self.target else None,
-            'using': self.using,
-            'npc_action': (
-                self.npc_action.to_dict() 
-                if self.npc_action and hasattr(self.npc_action, 'to_dict') 
-                else self.npc_action
-            ),
-            'as_reaction': self.as_reaction,
-            'thrown': self.thrown,
-            'second_hand': self.second_hand()
-        }
+
 
     def label(self):
         if self.npc_action:

@@ -10,7 +10,7 @@ import logging
 import importlib
 from natural20.ai.path_compute import PathCompute
 from natural20.web.json_renderer import JsonRenderer
-from webapp.controller.web_controller import WebController, ManualControl
+from natural20.web.web_controller import WebController, ManualControl
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction, LinkedAttackAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.second_wind_action import SecondWindAction

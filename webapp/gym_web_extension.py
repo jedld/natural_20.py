@@ -11,7 +11,7 @@ from samples.llm_interface import GPT4Interfacer
 from natural20.map import Map
 from natural20.battle import Battle
 from natural20.gym.dndenv_controller import DndenvController
-from webapp.controller.web_controller import WebController, ManualControl
+from natural20.web.web_controller import WebController, ManualControl
 import torch
 import random
 import numpy as np
