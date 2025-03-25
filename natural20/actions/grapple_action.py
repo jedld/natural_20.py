@@ -75,6 +75,12 @@ class GrappleAction(Action):
     def apply(battle, item, session=None):
         if item['type'] == 'grapple':
             if item['success']:
+                if item['target'].immune_to_condition('grappled'):
+                    battle.event_manager.received_event({ "event" : 'grapple_immune',
+                                                      "target" : item['target'],
+                                                      "source" : item['source']})
+                    return
+
                 item['target'].do_grappled_by(item['source'])
                 battle.event_manager.received_event(  { "event" : 'grapple_success',
                                                       "target" : item['target'],

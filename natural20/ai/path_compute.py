@@ -10,7 +10,7 @@ class PathCompute:
         self.battle = battle
         self.ignore_opposing = ignore_opposing
         self.max_x, self.max_y = self.map.size
-
+   
     def compute_path(self, source_x, source_y, destination_x, destination_y, available_movement_cost=None):
         """
         A* search from (source_x, source_y) to (destination_x, destination_y).

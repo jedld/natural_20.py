@@ -59,6 +59,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.group = None
         self.activated = False
         self.dialogue = []
+        self.condition_immunities = []
 
         # Attach methods dynamically
         for ability, skills in self.SKILL_AND_ABILITY_MAP.items():
@@ -66,9 +67,12 @@ class Entity(EntityStateEvaluator, Notable):
                 setattr(self, f"{skill}_mod", self.make_skill_mod_function(skill, ability))
                 setattr(self, f"{skill}_check", self.make_skill_check_function(skill))
 
+    def immune_to_condition(self, condition):
+        return condition in self.condition_immunities
+
     def profile_image(self):
         return self.token_image()
-    
+
     def passive(self):
         return self.is_passive
 
@@ -452,9 +456,10 @@ class Entity(EntityStateEvaluator, Notable):
 
     def grappled(self):
         return 'grappled' in self.statuses
-    
+
     def do_grapple(self, target):
-        self.grappling.append(target)
+        if not target.immune_to_condition('grappled'):
+            self.grappling.append(target)
 
     def is_grappling(self):
         return len(self.grappling) > 0
@@ -812,11 +817,12 @@ class Entity(EntityStateEvaluator, Notable):
             self.is_passive = True
 
     def do_grappled_by(self, grappler):
-        if 'grappled' not in self.statuses:
-            self.statuses.append('grappled')
-        if grappler not in self.grapples:
-            self.grapples.append(grappler)
-        return grappler.do_grapple(self)
+        if not self.immune_to_condition('grappled'):
+            if 'grappled' not in self.statuses:
+                self.statuses.append('grappled')
+            if grappler not in self.grapples:
+                self.grapples.append(grappler)
+            return grappler.do_grapple(self)
 
     def grappled_by(self, grappler) -> bool:
         if self.grappled():
@@ -906,8 +912,9 @@ class Entity(EntityStateEvaluator, Notable):
         return 'prone' in self.statuses
     
     def do_prone(self):
-        if 'prone' not in self.statuses:
-            self.statuses.append('prone')
+        if not self.immune_to_condition('prone'):
+            if 'prone' not in self.statuses:
+                self.statuses.append('prone')
 
     # Hides the entity in battle with a specified stealth value
     # @param battle [Natural20::Battle]
@@ -1054,6 +1061,9 @@ class Entity(EntityStateEvaluator, Notable):
     # @param inventory_type [str]
     # @return [int]
     def item_count(self, inventory_type):
+        if self.inventory is None:
+            return 0
+
         if inventory_type not in self.inventory:
             return 0
         return self.inventory[inventory_type]['qty']
