@@ -1,8 +1,8 @@
 from natural20.item_library.object import Object
-from natural20.concern.container import Container
+
 import pdb
 
-class Chest(Object, Container):
+class Chest(Object):
     def __init__(self, session, map, properties=None):
         super().__init__(session, map, properties)
         self.front_direction = self.properties.get('front_direction', 'auto')

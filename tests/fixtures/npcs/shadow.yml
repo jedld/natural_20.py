@@ -1,0 +1,62 @@
+---
+kind: Shadow
+description: Shadows are undead that resemble dark exaggerations of humanoid shadows.
+size: medium
+race:
+  - undead
+alignment: chaotic_evil
+default_ac: 12
+max_hp: 16
+hp_die: 3d8 + 3
+speed: 40
+passive_perception: 10
+darkvision: 60
+token:
+ - h
+color: green
+ability:
+  str: 6
+  dex: 14
+  con: 13
+  int: 6
+  wis: 10
+  cha: 8
+skills:
+  stealth: 4
+languages:
+- common
+cr: 0.50
+xp: 200
+proficiency_bonus: 2
+damage_vulnerabilities:
+  - radiant
+resistances:
+  - acid
+  - cold
+  - fire
+  - lightning
+  - thunder
+  - bludgeoning
+  - piercing
+  - slashing
+immunities:
+  - necrotic
+  - poison
+attributes:
+- incorporeal_movement
+- shadow_stealth
+- sunlight_weakness
+actions:
+- name: Strength Drain
+  type: melee_attack
+  range: 5
+  targets: 1
+  attack: 4
+  damage: 10
+  damage_die: 2d6+2
+  damage_type: necrotic
+  on_hit:
+    - description: The target's Strength score is reduced by 1d4. The target dies if this reduces its Strength to 0. Otherwise, the reduction lasts until the target finishes a short or long rest.
+      if: "target:!object"
+      flavor_fail: shadow.strength_drain
+      fail: effect:strength_drain

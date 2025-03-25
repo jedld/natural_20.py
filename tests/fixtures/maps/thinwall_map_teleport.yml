@@ -21,12 +21,12 @@ map:
 legend:
   T:
     name: Teleport
-    type: teleport
+    type: teleporter
     target_map: map2
     target_position: [2, 1]
   U:
     name: Teleport2
-    type: teleport
+    type: teleporter
     target_position: [0, 0]
   ┌:
     name: Stone Wall Thin_Top_Left

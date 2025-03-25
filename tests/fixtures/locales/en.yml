@@ -222,6 +222,8 @@ en:
     flavor:
       wolf:
         lunge: The wolf lunges forward and %{target} is now prone
+      shadow:
+        strength_drain: The shadow drains the strength from %{source} and as a result, %{source} feels significantly weaker.
       specter:
         life_drain: The specter drains the life from %{source} and as a result, %{source} feels significantly weaker.
     grapple_failure: '%{source} failed to grapple %{target}. %{source_roll} = %{source_roll_value} vs %{target_roll} = %{target_roll_value}'

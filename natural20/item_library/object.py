@@ -10,6 +10,7 @@ from natural20.die_roll import DieRoll
 from natural20.utils.action_builder import autobuild
 from natural20.actions.interact_action import InteractAction
 from natural20.concern.generic_event_handler import GenericEventHandler
+from natural20.concern.container import Container
 import uuid
 import pdb
 
@@ -24,7 +25,7 @@ class InvalidInteractionAction(Exception):
 
 
 @dataclass
-class Object(Entity):
+class Object(Entity, Container):
     def __init__(self, session, map: Any, properties: Dict[str, Any]) -> None:
         Entity.__init__(self, properties.get('name'), properties.get('description', ''), properties)
         self.entity_uid = uuid.uuid4()
@@ -248,12 +249,21 @@ class Object(Entity):
                             'success': check_type_roll.result() >= ability_checks.get('dc')
                         }
 
+        if action in ['loot', 'store']:
+            return {
+                'action': action,
+                'items': other_params,
+                'source': entity,
+                'target': self,
+                'battle': opts.get('battle')
+            }
         return None
 
     def use(self, entity, result, session=None):
         action = result.get('action')
         if action == 'loot':
             self.transfer(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
+            return True
         elif action.endswith('_check'):
             if entity not in self.check_results:
                 self.check_results[entity] = {}
@@ -335,13 +345,13 @@ class Object(Entity):
     def setup_other_attributes(self):
         pass
 
-    def build_map(self, selected_interaction, action):
+    def build_map(self, action, action_object):
         if action == 'loot':
             def next_action(items):
-                action.other_params = items
-                return action
+                action_object.other_params = items
+                return action_object
             return {
-                'action': action,
+                'action': action_object,
                 'param': [{
                     'type': 'select_items',
                     'label': self.items_label(),
@@ -356,6 +366,10 @@ class Object(Entity):
 
     def update_state(self, state):
         super().update_state(state)
+        if state == 'activated':
+            self.activated = True
+        if state == 'deactivated':
+            self.activated = False
 
     def to_dict(self):
         _inventory = None

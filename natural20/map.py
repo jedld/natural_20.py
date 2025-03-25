@@ -562,7 +562,7 @@ class Map():
 
         return entity_data['entity']
 
-    def find_empty_placeable_position(self, pos_x, pos_y):
+    def find_empty_placeable_position(self, entity, pos_x, pos_y):
         for ofs_x in range(-1, 2):
             for ofs_y in range(-1, 2):
                 if ofs_x == 0 and ofs_y == 0:
@@ -572,7 +572,7 @@ class Map():
                 if self.line_of_sight(pos_x, pos_y, pos_x + ofs_x, pos_y + ofs_y) is None:
                     continue
 
-                if self.placeable(None, pos_x + ofs_x, pos_y + ofs_y):
+                if self.placeable(entity, pos_x + ofs_x, pos_y + ofs_y, squeeze=False):
                     return pos_x + ofs_x, pos_y + ofs_y
 
         return pos_x, pos_y

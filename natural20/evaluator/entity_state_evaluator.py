@@ -44,6 +44,10 @@ class EntityStateEvaluator:
                         result = self.dead()
                     elif test_expression == 'conscious':
                         result = self.conscious()
+                    elif test_expression == 'prone':
+                        result = self.prone()
+                    elif test_expression == 'activated':
+                        result = self.activated
                 else:
                     raise ValueError(f"Invalid expression {cmd} {test_expression}")
 
