@@ -6,6 +6,10 @@ class GenericEventHandler:
         self.map = map
 
     def handle(self, entity, opts=None):
+        if self.properties.get('if'):
+            conditions = self.properties['if']
+            if not entity.eval_if(conditions, context={'entity': entity, 'opts': opts}):
+                return
         if self.properties.get('message'):
             self.session.event_manager.received_event({
                 'event': 'message',
@@ -42,7 +46,7 @@ class GenericEventHandler:
                 target_pos =  self.map.position_of(entity)
             # check if there is already an entity at pos
             if target_map.entity_at(*target_pos):
-                target_pos = target_map.find_empty_placeable_position(*target_pos)
+                target_pos = target_map.find_empty_placeable_position(target_entity, *target_pos)
 
             target_map.add(target_entity, *target_pos)
             source_map.remove(target_entity)
@@ -64,8 +68,8 @@ class GenericEventHandler:
                     pos = self.map.position_of(entity)
 
                 # check if there is already an entity at pos
-                if self.map.entity_at(*pos):
-                    pos = self.map.find_empty_placeable_position(*pos)
+                if not self.map.placeable(spawn_entity, *pos, squeeze=False):
+                    pos = self.map.find_empty_placeable_position(spawn_entity, *pos)
 
                 self.map.add(spawn_entity, *pos, group=npc_meta.get('group', None))
 

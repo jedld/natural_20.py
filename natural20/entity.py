@@ -57,6 +57,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.entity_uid = uuid.uuid4()
         self.is_passive = False
         self.group = None
+        self.activated = False
         self.dialogue = []
 
         # Attach methods dynamically
@@ -251,7 +252,7 @@ class Entity(EntityStateEvaluator, Notable):
     def long_jump_distance(self):
         if not self.ability_scores.get('str'):
             return 0
-        return self.ability_scores.get('str')
+        return self.strength()
 
     def passive_perception(self):
         return self.properties.get('passive_perception', 10 + self.wis_mod())
@@ -488,7 +489,7 @@ class Entity(EntityStateEvaluator, Notable):
     def standing_jump_distance(self):
         if not self.ability_scores.get('str'):
             return 0
-        return int(self.ability_scores.get('str') / 2)
+        return int(self.strength() / 2)
 
     def resistant_to(self, damage_type):
         _resistances = self.resistances
@@ -613,8 +614,14 @@ class Entity(EntityStateEvaluator, Notable):
                                         "value" : value})
         return value
 
+    def strength(self):
+        _str = self.ability_scores.get('str')
+        if self.has_effect('strength_override'):
+          _str = self.eval_effect('strength_override', { "strength" : _str})
+        return _str
+
     def str_mod(self):
-        return self.modifier_table(self.ability_scores.get('str'))
+        return self.modifier_table(self.strength())
 
     def con_mod(self):
         return self.modifier_table(self.ability_scores.get('con'))
@@ -635,7 +642,7 @@ class Entity(EntityStateEvaluator, Notable):
         return self.ability_scores.get('dex')
     
     def ability_score_str(self):
-        return self.ability_scores.get('str')
+        return self.strength()
 
     def ability_score_con(self):
         return self.ability_scores.get('con')
@@ -795,8 +802,7 @@ class Entity(EntityStateEvaluator, Notable):
             if len(available_hooks) == 0:
                 return
 
-            active_hook = available_hooks[-1]
-            if active_hook:
+            for active_hook in available_hooks:
                 getattr(active_hook['handler'], active_hook['method'])(self, {**opts, 'effect': active_hook['effect']})
 
     def update_state(self, state):
@@ -1704,7 +1710,8 @@ class Entity(EntityStateEvaluator, Notable):
             'casted_effects': self.casted_effects,
             'grapples': self.grapples,
             'temp_hp' : self._temp_hp,
-            'group' : self.group
+            'group' : self.group,
+            'activated' : self.activated,
         }
 
     def long_rest(self):

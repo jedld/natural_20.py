@@ -37,7 +37,7 @@ import uuid
 import pdb
 
 
-class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootable, Inventory):
+class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventory):
   ACTION_LIST = [
     SpellAction,
     AttackAction,
@@ -385,6 +385,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Container, Lootabl
     else:
       final_attack_list = weapon_attacks
     return final_attack_list
+
+  def placeable(self):
+    if not self.dead():
+      return False
+    return True
 
   def prepared_spells(self):
     return self.properties.get('cantrips', []) + self.properties.get('prepared_spells', [])

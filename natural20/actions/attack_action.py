@@ -6,6 +6,7 @@ from natural20.weapons import damage_modifier, target_advantage_condition
 from natural20.utils.attack_util import after_attack_roll_hook, damage_event
 from natural20.utils.ac_utils import effective_ac
 from natural20.spell.effects.life_drain_effect import LifeDrainEffect
+from natural20.spell.effects.strength_drain_effect import StrengthDrainEffect
 import pdb
 
 class AttackAction(Action):
@@ -157,6 +158,15 @@ class AttackAction(Action):
                 effect = LifeDrainEffect(battle, item['source'], item['context']['damage'].result())
                 item['source'].register_effect('hit_point_max_override', effect, effect=effect)
                 item['source'].register_event_hook('long_rest', effect)
+            elif item['effect'] == 'strength_drain':
+                reduction_value = DieRoll.roll("1d4").result()
+                if item['source'].strength() - reduction_value < 1:
+                    item['source'].make_dead()
+                else:
+                    effect = StrengthDrainEffect(battle, item['source'], reduction_value)
+                    item['source'].register_effect('strength_override', effect, effect=effect)
+                    item['source'].register_event_hook('long_rest', effect)
+                    item['source'].register_event_hook('short_rest', effect)
         elif item['type'] == 'damage':
             damage_event(item, battle)
             AttackAction.consume_resource(battle, item)
@@ -403,7 +413,12 @@ class AttackAction(Action):
                                                                     "flavor": effect['flavor_fail'],
                                                                     "info" : hit_result}))
                     else:
-                        target.apply_effect(effect['effect'], {"info": hit_result, "battle": battle})
+                        self.result.append(target.apply_effect(effect['fail'], {
+                                                                    "battle" : battle,
+                                                                    "target": target,
+                                                                    "damage": damage,
+                                                                    "flavor": effect['flavor_fail'],
+                                                                    "info" : hit_result}))
         else:
             self.result.append({
                 'attack_name': attack_name,
