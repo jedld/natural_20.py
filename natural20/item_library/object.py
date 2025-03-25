@@ -9,7 +9,7 @@ from natural20.entity import Entity
 from natural20.die_roll import DieRoll
 from natural20.utils.action_builder import autobuild
 from natural20.actions.interact_action import InteractAction
-from natural20.concern.generic_event_handler import GenericEventHandler
+from natural20.concern.event_loader import EventLoader
 from natural20.concern.container import Container
 import uuid
 import pdb
@@ -25,10 +25,10 @@ class InvalidInteractionAction(Exception):
 
 
 @dataclass
-class Object(Entity, Container):
+class Object(Entity, Container, EventLoader):
     def __init__(self, session, map: Any, properties: Dict[str, Any]) -> None:
         Entity.__init__(self, properties.get('name'), properties.get('description', ''), properties)
-        self.entity_uid = uuid.uuid4()
+        self.entity_uid = properties.get('entity_uid', str(uuid.uuid4()))
         self._name = properties.get('name')
         self._description = properties.get('description', self.name)
         self.map = map
@@ -77,20 +77,7 @@ class Object(Entity, Container):
                 setattr(self, f"{skill}_mod", self.make_skill_mod_function(skill, ability))
                 setattr(self, f"{skill}_check", self.make_skill_check_function(skill))
 
-        if 'ability_checks' in self.properties:
-            for ability, check_props in self.properties['ability_checks'].items():
-                for outcome in ('success', 'failure'):
-                    outcome_props = check_props.get(outcome)
-                    if isinstance(outcome_props, dict):
-                        events = outcome_props.get('events', [])
-                        for event in events:
-                            handler = GenericEventHandler(self.session, self.map, event)
-                            self.register_event_hook(f"{ability}_check_{outcome}", handler, 'handle')
-
-        self.events = self.properties.get('events', [])
-        for event in self.events:
-            handler = GenericEventHandler(session, map, event)
-            self.register_event_hook(event['event'], handler, 'handle')
+        self.events = self.register_event_handlers(session, map, properties)
 
     def __str__(self) -> str:
         if self.name:

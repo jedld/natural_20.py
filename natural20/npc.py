@@ -77,6 +77,7 @@ class Npc(Entity, Multiattack, Lootable):
         self.is_passive = self.properties.get("passive", False)
         self.is_concealed = self.properties.get("concealed", False)
         self.dialogue = self.properties.get("dialogue", [])
+        self.condition_immunities = self.properties.get("condition_immunities", [])
 
         for stat in self.properties.get("statuses", []):
             self.statuses.append(stat)

@@ -175,6 +175,18 @@ $(document).ready(() => {
   let backgroundSoundStartTime = $('body').data('soundtrack-time');
   let pageRenderTime = new Date().getTime();
 
+  // --- Canvas Setup ---
+  const tile_size = $('.tiles-container').data('tile-size');
+  var canvas = document.createElement('canvas');
+  canvas.width = $('.tiles-container').data('width') + tile_size;
+  canvas.height = $('.tiles-container').data('height') + tile_size;
+  canvas.style.position = "absolute";
+  canvas.style.zIndex = 999;
+  canvas.style.pointerEvents = "none";
+  document.body.appendChild(canvas);
+  var ctx = canvas.getContext('2d');
+  
+
   // Plays a background sound (stopping any previous one).
   const playSound = (url, track_id, volume, time_override=null) => {
     const elapsed = (Date.now() - pageRenderTime) / 1000;
@@ -485,16 +497,6 @@ $(document).ready(() => {
     e.stopPropagation();
   });
 
-  // --- Canvas Setup ---
-  const tile_size = $('.tiles-container').data('tile-size');
-  var canvas = document.createElement('canvas');
-  canvas.width = $('.tiles-container').data('width') + tile_size;
-  canvas.height = $('.tiles-container').data('height') + tile_size;
-  canvas.style.position = "absolute";
-  canvas.style.zIndex = 999;
-  canvas.style.pointerEvents = "none";
-  document.body.appendChild(canvas);
-  var ctx = canvas.getContext('2d');
 
   $('.zoom-in').on('click', () => {
     scale += 0.1;

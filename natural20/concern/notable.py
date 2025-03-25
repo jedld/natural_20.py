@@ -20,24 +20,34 @@ class Notable:
             note_json = {"note": note.get("note"), "image": note.get("image")}
 
             # Handle skill-based notes (investigation, medicine)
+            # Check if any required skill checks fail
+            skill_check_failed = False
             for skill in ['investigation', 'medicine']:
                 dc_key = f"{skill}_dc"
                 if dc_key in note:
                     dc_value = note.get(dc_key, 0)
                     success = False
+
+                    # Check if any entity passes this skill check
                     if entity_pov:
-                        for entity in entity_pov:
-                            if entity in self.check_results:
-                                check_value = self.check_results[entity].get(f"{skill}_check")
+                        for e in entity_pov:
+                            if e in self.check_results:
+                                check_value = self.check_results[e].get(f"{skill}_check")
                                 if check_value is not None and check_value >= dc_value:
-                                    new_note_source[entity] = check_value
-                                    note_json["note"] = self.t(f"{skill}.passed", dc=dc_value, note=note_json["note"])
+                                    new_note_source[e] = check_value
+                                    note_json["note"] = self.t(f"{skill}.passed", 
+                                                              dc=dc_value, 
+                                                              note=note_json["note"])
                                     success = True
                     else:
-                        continue
+                        skill_check_failed = True
 
                     if not success:
-                        continue
+                        skill_check_failed = True
+
+            # Skip note if any skill check failed
+            if skill_check_failed:
+                continue
 
             # Handle perception-based notes
             if 'perception_dc' in note:

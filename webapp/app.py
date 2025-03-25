@@ -615,6 +615,7 @@ def get_combat_log():
 def compute_path():
     global current_game
     battle_map = current_game.get_map_for_user(session['username'])
+    print(battle_map.name)
     battle = current_game.get_current_battle()
 
     source = {
