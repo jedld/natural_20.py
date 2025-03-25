@@ -644,6 +644,9 @@ class Map():
 
         if entity not in self.entities and entity not in self.interactable_objects:
             return False
+        
+        if entity2 not in self.entities and entity2 not in self.interactable_objects:
+            return False
 
         if entity2.hidden():
             _passive_perception_val = max(entity.passive_perception(), active_perception)

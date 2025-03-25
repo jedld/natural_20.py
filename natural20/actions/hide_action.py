@@ -109,5 +109,14 @@ class HideBonusAction(HideAction):
 
     @staticmethod
     def can(entity, battle):
-        return battle and entity.any_class_feature(['cunning_action', 'nimble_escape']) \
-            and entity.total_bonus_actions(battle) > 0
+        if not battle or entity.total_bonus_actions(battle) <= 0:
+            return False
+
+        if entity.any_class_feature(['cunning_action', 'nimble_escape']):
+            return True
+
+        if entity.any_class_feature(["shadow_stealth"]):
+            map_entity = battle.map_for(entity)
+            return map_entity.light_at(map_entity.position_of(entity)) <= 0.5
+
+        return False

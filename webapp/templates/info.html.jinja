@@ -137,6 +137,19 @@
                 <td>{{ entity.temp_hp() }}</td>
             </tr>
         </table>
+        {% if entity.death_saves > 0 or entity.death_fails > 0 %}
+        <h2>Death Saves</h2>
+        <div class="death-saves">
+            <div class="death-save success">
+                <span class="label">Successes:</span>
+                <span class="value">{{ entity.death_saves }}</span>
+            </div>
+            <div class="death-save fail">
+                <span class="label">Failures:</span>
+                <span class="value">{{ entity.death_fails }}</span>
+            </div>
+        </div>
+        {% endif %}
         {% endif %}
         {% if not entity.object() and entity.ability_scores %}
         <h2>Ability Scores</h2>

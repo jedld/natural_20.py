@@ -447,3 +447,26 @@ th, td {
     white-space: nowrap;
     margin-bottom: 10px; /* space between multiple toasts */
 }
+
+.death-saves {
+    display: flex;
+    justify-content: center;
+    margin: 10px 0;
+    gap: 10px;
+}
+
+.death-saves .death-save {
+    background: rgba(255,248,220,0.8);
+    border: 1px solid #4a2f19;
+    border-radius: 3px;
+    padding: 5px 10px;
+    font-family: 'Cinzel', serif;
+    font-size: 14px;
+    text-align: center;
+    min-width: 100px;
+}
+
+.death-saves .death-save .label {
+    font-weight: bold;
+    margin-right: 5px;
+}
