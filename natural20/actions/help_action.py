@@ -14,6 +14,9 @@ class HelpAction(Action):
         return True
 
     def build_map(self):
+        def set_target(target):
+            self.target = target
+            return self
         return {
             'action': self,
             'param': [
@@ -24,7 +27,7 @@ class HelpAction(Action):
                     'num': 1
                 }
             ],
-            'next': lambda target: self
+            'next': set_target
         }
 
     @staticmethod
