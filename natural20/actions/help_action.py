@@ -9,7 +9,9 @@ class HelpAction(Action):
 
     @staticmethod
     def can(entity, battle):
-        return battle and entity.total_actions(battle) > 0
+        if battle:
+            return entity.total_actions(battle) > 0
+        return True
 
     def build_map(self):
         return {
@@ -35,7 +37,7 @@ class HelpAction(Action):
             'source': self.source,
             'target': self.target,
             'type': 'help',
-            'battle': opts['battle']
+            'battle': opts.get('battle')
         }]
         return self
 

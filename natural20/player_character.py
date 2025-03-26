@@ -256,6 +256,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
         elif action_type == DashAction:
           action = DashAction(session, self, 'dash')
           action_list.append(action)
+        elif action_type == HelpAction:
+          action_list.append(HelpAction(session, self, 'help'))
         elif action_type == MoveAction:
           if not battle or not auto_target:
             action_list.append(MoveAction(session, self, 'move'))

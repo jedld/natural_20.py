@@ -21,6 +21,7 @@ from natural20.actions.prone_action import ProneAction
 from natural20.actions.spell_action import SpellAction
 from natural20.actions.stand_action import StandAction
 from natural20.actions.look_action import LookAction
+from natural20.actions.help_action import HelpAction
 from natural20.actions.drop_concentration_action import DropConcentrationAction
 from natural20.actions.action_surge_action import ActionSurgeAction
 from natural20.actions.shove_action import ShoveAction
@@ -933,6 +934,8 @@ def action_type_to_class(action_type):
         return LookAction
     elif action_type == 'LinkedAttackAction':
         return LinkedAttackAction
+    elif action_type == 'HelpAction':
+        return HelpAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
 
