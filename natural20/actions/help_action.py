@@ -1,5 +1,5 @@
 from natural20.action import Action
-
+import pdb
 class HelpAction(Action):
     target: any
 
@@ -47,9 +47,16 @@ class HelpAction(Action):
     @staticmethod
     def apply(battle, item, session=None):
         if item['type'] == 'help':
+            
             if battle:
                 battle.consume(item['source'], 'action')
                 battle.event_manager.received_event({
+                    'source': item['source'],
+                    'target': item['target'],
+                    'event': 'help'
+                })
+            else:
+                session.event_manager.received_event({
                     'source': item['source'],
                     'target': item['target'],
                     'event': 'help'

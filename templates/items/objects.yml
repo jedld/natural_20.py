@@ -65,10 +65,22 @@ ground:
   token: inherit
   profile_image: ground
 pit_trap:
-  damage_die: 1d10
-  damage_type: piercing
+  damages:
+    - attack_name: Fall Damage
+      damage_die: 1d6
+      damage_type: bludgeoning
+    - attack_name: Spike Damage
+      damage_die: 2d10
+      damage_type: piercing
+  events:
+    - event: activate
+      message: You fall into a pit trap! and fall prone.
+      update_state:
+        - target: target
+          state: prone
   item_class: PitTrap
   name: Pit Trap
+  token_image: spike_pit
   notes:
     - highlight: true
       note: Pit Trap

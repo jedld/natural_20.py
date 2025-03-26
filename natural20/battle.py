@@ -395,7 +395,7 @@ class Battle():
         # check_action_serialization(action)
         for item in action.result:
             for klass in Action.__subclasses__():
-                klass.apply(self, item)
+                klass.apply(self, item, self.session)
                 if self.animation_log_enabled:
                     if item.get('perception_targets'):
                         perception_targets = item['perception_targets']

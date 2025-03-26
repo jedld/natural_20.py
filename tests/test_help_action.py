@@ -6,9 +6,10 @@ from natural20.map import Map
 from natural20.battle import Battle
 from natural20.player_character import PlayerCharacter
 from natural20.map_renderer import MapRenderer
+from natural20.die_roll import DieRoll
 from natural20.utils.action_builder import autobuild
 import random
-
+import pdb
 class TestHelpAction(unittest.TestCase):
     def setUp(self):
         event_manager = EventManager()
@@ -21,6 +22,7 @@ class TestHelpAction(unittest.TestCase):
         self.rogue = PlayerCharacter.load(self.session, 'halfling_rogue.yml')
         self.battle.add(self.fighter, 'a', position='spawn_point_1', token='G')
         self.battle.add(self.rogue, 'b', position='spawn_point_2', token='g')
+        self.battle.start()
         self.rogue.reset_turn(self.battle)
         self.fighter.reset_turn(self.battle)
         self.map.move_to(self.fighter, 1, 2, self.battle)
@@ -33,7 +35,7 @@ class TestHelpAction(unittest.TestCase):
     def test_help_action(self):
         print(MapRenderer(self.map).render())
         # Create and resolve help action
-        action = autobuild(self.session, HelpAction, self.fighter, self.battle, auto_target=[self.rogue])[0]
+        action = autobuild(self.session, HelpAction, self.fighter, self.battle, match=[self.rogue])[0]
         self.battle.action(action)
         self.battle.commit(action)
         self.assertTrue(self.rogue.has_help())
@@ -41,13 +43,24 @@ class TestHelpAction(unittest.TestCase):
 
     def test_help_available_actions(self):
         print(MapRenderer(self.map).render())
+        self.battle.set_current_turn(self.fighter)
         available_actions = [str(a) for a in self.fighter.available_actions(self.session, self.battle)]
+
         self.assertIn('Help', available_actions)
 
     def test_advantage_on_ability_check(self):
         print(MapRenderer(self.map).render())
-        action = autobuild(self.session, HelpAction, self.fighter, self.battle, auto_target=[self.rogue])[0]
-        self.rogue.make_skill_check_function('stealth')
+        action = autobuild(self.session, HelpAction, self.fighter, self.battle, match=[self.rogue])[0]
+        self.rogue.stealth_check(self.battle)
+        print(DieRoll.last_roll())
+        self.assertEqual(DieRoll.last_roll().advantage, False)
         self.battle.action(action)
         self.battle.commit(action)
         self.assertTrue(self.rogue.has_help())
+        self.rogue.stealth_check(self.battle)
+        print(DieRoll.last_roll())
+        self.assertEqual(DieRoll.last_roll().advantage, True)
+        self.rogue.stealth_check(self.battle)
+        print(DieRoll.last_roll())
+        self.assertEqual(DieRoll.last_roll().advantage, False)
+        
