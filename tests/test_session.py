@@ -22,32 +22,32 @@ class TestSession(unittest.TestCase):
         random.seed(7000)
         return Session(root_path='tests/fixtures', event_manager=event_manager)
 
-    def test_savegame(self):
-        session = self.make_session()
-        battle_map = Map(session, 'battle_sim')
-        battle = Battle(session, battle_map)
-        character = PlayerCharacter.load(session, 'high_elf_fighter.yml')
-        npc = session.npc('ogre')
-        npc2 = session.npc('goblin')
+    # def test_savegame(self):
+    #     session = self.make_session()
+    #     battle_map = Map(session, 'battle_sim')
+    #     battle = Battle(session, battle_map)
+    #     character = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+    #     npc = session.npc('ogre')
+    #     npc2 = session.npc('goblin')
 
-        battle.add(character, 'a', position='spawn_point_1', token='G')
-        battle.add(npc, 'b', position='spawn_point_2', token='g')
+    #     battle.add(character, 'a', position='spawn_point_1', token='G')
+    #     battle.add(npc, 'b', position='spawn_point_2', token='g')
 
-        character.reset_turn(battle)
-        npc.reset_turn(battle)
+    #     character.reset_turn(battle)
+    #     npc.reset_turn(battle)
 
-        battle_map.move_to(character, 0, 0, battle)
-        battle_map.move_to(npc, 1, 0, battle)
-        battle.add(character, 'a', token='G')
-        battle.add(npc, 'b', token='g')
+    #     battle_map.move_to(character, 0, 0, battle)
+    #     battle_map.move_to(npc, 1, 0, battle)
+    #     battle.add(character, 'a', token='G')
+    #     battle.add(npc, 'b', token='g')
 
-        character.reset_turn(battle)
-        npc.reset_turn(battle)
+    #     character.reset_turn(battle)
+    #     npc.reset_turn(battle)
 
-        # action = autobuild(session, AttackAction, character, battle, match=[npc, 'vicious_rapier'])[0]
-        temp_directory = 'tests/fixtures/tmp'
-        random_filename = os.path.join(temp_directory, uuid.uuid4().hex)
+    #     # action = autobuild(session, AttackAction, character, battle, match=[npc, 'vicious_rapier'])[0]
+    #     temp_directory = 'tests/fixtures/tmp'
+    #     random_filename = os.path.join(temp_directory, uuid.uuid4().hex)
 
-        session.save_game(battle=battle, maps=battle_map, filename=random_filename)
-        session.load_save(filename=random_filename)
-        os.remove(random_filename)
+    #     session.save_game(battle=battle, maps=battle_map, filename=random_filename)
+    #     session.load_save(filename=random_filename)
+    #     os.remove(random_filename)

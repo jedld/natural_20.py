@@ -191,8 +191,8 @@ class Chest(Object):
         return None
 
     def use(self, entity, result, session=None):
-        result = super().use(entity, result, session)
-        if not result:
+        _result = super().use(entity, result, session)
+        if not _result:
             action = result.get('action')
 
             if action == 'store':
