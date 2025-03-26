@@ -60,6 +60,8 @@ class Entity(EntityStateEvaluator, Notable):
         self.activated = False
         self.dialogue = []
         self.condition_immunities = []
+        self.help_actions = {}
+        self.helping_with = set()
 
         # Attach methods dynamically
         for ability, skills in self.SKILL_AND_ABILITY_MAP.items():
@@ -158,12 +160,29 @@ class Entity(EntityStateEvaluator, Notable):
 
     def make_skill_check_function(self, skill):
         def skill_check(battle=None, **opts):
+            advantage_modifiers = []
+            disavantage_modifiers = []
             modifiers = getattr(self, f"{skill}_mod")()
             description = opts.get('description', f"dice roll for {skill}")
-            disavantage = False
+
             if self.poisoned():
-                disavantage = True
-            return DieRoll.roll_with_lucky(self, f"1d20+{modifiers}", description=description, battle=battle, disadvantage=disavantage)
+                disavantage_modifiers.append('poisoned')
+            for k, v in self.help_actions.items():
+                advantage_modifiers.append('helped')
+            self.help_actions.clear()
+
+            advantage = len(advantage_modifiers) > 0
+            disadvantage = len(disavantage_modifiers) > 0
+
+            # If both advantage and disadvantage are active, they cancel out
+            if advantage and disadvantage:
+                advantage = disadvantage = False
+
+            return DieRoll.roll_with_lucky(self, f"1d20+{modifiers}",
+                                            description=description,
+                                            battle=battle,
+                                            advantage=advantage,
+                                            disadvantage=disadvantage)
         return skill_check
 
     def __str__(self):
@@ -341,12 +360,19 @@ class Entity(EntityStateEvaluator, Notable):
         else:
             return None
 
+    def do_help(self, battle, target):
+        target.help_actions[target] = self
+        # drop other help actions
+        for other_targets in self.helping_with:
+            del(other_targets.help_actions[self])
+        self.helping_with.add(target)
+
     # Checks if an item is equipped
     # @param item_name [String,Symbol]
     # @return [Boolean]
     def equipped(self, item_name):
         return item_name in [item['name'] for item in self.equipped_items()]
-    
+
     # Equips an item
     # @param item_name [String,Symbol]
     def equip(self, item_name, ignore_inventory=False):

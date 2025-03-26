@@ -22,10 +22,7 @@ class HelpAction(Action):
                     'num': 1
                 }
             ],
-            'next': lambda target: {
-                'param': None,
-                'next': lambda: self
-            }
+            'next': lambda target: self
         }
 
     @staticmethod
@@ -45,10 +42,12 @@ class HelpAction(Action):
     @staticmethod
     def apply(battle, item, session=None):
         if item['type'] == 'help':
-            battle.event_manager.received_event({
-                'source': item['source'],
-                'target': item['target'],
-                'event': 'help'
-            })
-            item['source'].help(item['battle'], item['target'])
-            battle.consume(item['source'], 'action')
+            if battle:
+                battle.consume(item['source'], 'action')
+                battle.event_manager.received_event({
+                    'source': item['source'],
+                    'target': item['target'],
+                    'event': 'help'
+                })
+
+            item['source'].do_help(item['battle'], item['target'])
