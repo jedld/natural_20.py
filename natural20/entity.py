@@ -167,9 +167,11 @@ class Entity(EntityStateEvaluator, Notable):
 
             if self.poisoned():
                 disavantage_modifiers.append('poisoned')
+
             for _, v in self.help_actions.items():
                 v.helping_with.remove(self)
                 advantage_modifiers.append('helped')
+
             self.help_actions.clear()
 
             advantage = len(advantage_modifiers) > 0
@@ -181,9 +183,9 @@ class Entity(EntityStateEvaluator, Notable):
 
             return DieRoll.roll_with_lucky(self, f"1d20+{modifiers}",
                                             description=description,
-                                            battle=battle,
                                             advantage=advantage,
-                                            disadvantage=disadvantage)
+                                            disadvantage=disadvantage,
+                                            battle=battle)
         return skill_check
 
     def __str__(self):
@@ -845,6 +847,14 @@ class Entity(EntityStateEvaluator, Notable):
             self.is_passive = False
         elif state == 'passive':
             self.is_passive = True
+        elif state == 'prone':
+            self.do_prone()
+        elif state == 'unconscious':
+            self.make_unconscious()
+        elif state == 'conscious':
+            self.make_conscious()
+        elif state == 'dead':
+            self.make_dead()
 
     def do_grappled_by(self, grappler):
         if not self.immune_to_condition('grappled'):

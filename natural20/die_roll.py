@@ -6,7 +6,7 @@ import re
 
 # Global dictionary used for “fudged” rolls.
 FUDGE_HASH = {}
-
+DIE_ROLL = {}
 
 class DieRollDetail:
     def __init__(self):
@@ -457,8 +457,13 @@ class DieRoll(Rollable):
                         description=description, entity=entity, battle=battle)
         result = roller.roll()
         if result.rolled_a_1() and entity.class_feature('lucky'):
-            return result.reroll(lucky=True)
+            result = result.reroll(lucky=True)
+        DIE_ROLL['last_roll'] = result
         return result
+
+    @staticmethod
+    def last_roll():
+        return DIE_ROLL['last_roll']
 
     @staticmethod
     def t(key, options=None):

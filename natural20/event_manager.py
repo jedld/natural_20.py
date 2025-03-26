@@ -245,6 +245,7 @@ class EventManager:
             'unconscious': lambda event: self.output_logger.log(f"{self.show_name(event)} unconscious."),
             'first_aid': first_aid,
             'shove': shove,
+            'help': lambda event: self.output_logger.log(f"{self.show_name(event)} helps {self.show_target_name(event)}."),
             'attacked': attack_roll,
             'damage': damage,
             'spell_damage': spell_damage,
