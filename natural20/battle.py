@@ -316,12 +316,6 @@ class Battle():
             return self.entities.get(_entity, None)
         return entity_state
 
-    def dismiss_help_actions_for(self, source):
-        for entity in self.entities.values():
-            if entity.get('target_effect') and source in entity['target_effect']:
-                if entity['target_effect'][source] in ['help', 'help_ability_check']:
-                    del entity['target_effect'][source]
-
     def has_controller_for(self, entity):
         if entity not in self.entities:
             raise Exception('unknown entity in battle')
@@ -339,12 +333,6 @@ class Battle():
             raise Exception(f"no controller for entity {entity}")
 
         return self.entities[entity]['controller'].move_for(entity, self)
-
-    def help_with(self, target):
-        if target in self.entities:
-            return 'help' in self.entities[target]['target_effect'].values()
-
-        return False
 
     # Returns opponents of entity
     # @param entity [Natural20::Entity] target entity
@@ -462,11 +450,6 @@ class Battle():
     def two_weapon_attack(self, entity):
         return bool(self.entity_state_for(entity)['two_weapon'])
     
-
-    def dismiss_help_for(self, target):
-        if target in self.entities:
-            self.entities[target]['target_effect'] = {k: v for k, v in self.entities[target]['target_effect'].items() if v != 'help'}
-
     def active_perception_for(self, entity):
         return self.entities[entity].get('active_perception', 0)
     

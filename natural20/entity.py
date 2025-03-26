@@ -167,7 +167,7 @@ class Entity(EntityStateEvaluator, Notable):
 
             if self.poisoned():
                 disavantage_modifiers.append('poisoned')
-            for k, v in self.help_actions.items():
+            for _, v in self.help_actions.items():
                 v.helping_with.remove(self)
                 advantage_modifiers.append('helped')
             self.help_actions.clear()
@@ -362,10 +362,14 @@ class Entity(EntityStateEvaluator, Notable):
             return None
 
     def do_help(self, battle, target):
-        target.help_actions[target] = self
+        if not target:
+            raise ValueError("Target is required")
+
         # drop other help actions
         for other_targets in self.helping_with:
-            del(other_targets.help_actions[self])
+            other_targets.help_actions.remove(self)
+
+        target.help_actions[target] = self
         self.helping_with.add(target)
 
     # Checks if an item is equipped
@@ -808,7 +812,6 @@ class Entity(EntityStateEvaluator, Notable):
         if 'disengage' in entity_state['statuses']:
             entity_state['statuses'].remove('disengage')
 
-        battle.dismiss_help_actions_for(self)
         battle.event_manager.received_event({'source': self, 'event': 'start_of_turn'})
         self.resolve_trigger('start_of_turn')
         self._cleanup_effects()
@@ -1749,6 +1752,8 @@ class Entity(EntityStateEvaluator, Notable):
             'temp_hp' : self._temp_hp,
             'group' : self.group,
             'activated' : self.activated,
+            'help_actions': self.help_actions,
+            'helping_with': list(self.helping_with)
         }
 
     def long_rest(self):
@@ -1764,3 +1769,7 @@ class Entity(EntityStateEvaluator, Notable):
 
     def t(self, key, **kwargs):
         return self.session.t(key, kwargs)
+
+    def has_help(self):
+        """Check if the entity has any help actions available"""
+        return len(self.help_actions) > 0
