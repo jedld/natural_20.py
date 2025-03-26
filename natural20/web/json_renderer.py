@@ -108,6 +108,11 @@ class JsonRenderer:
                         else:
                             object_info['image_offset_px'] = [0, 0]
 
+                        if object_entity.properties.get('token_offset_px'):
+                            object_info['token_offset_px'] = object_entity.properties.get('token_offset_px')
+                        else:
+                            object_info['token_offset_px'] = [0, 0]
+
                         shared_attributes['objects'].append(object_info)
 
                         if object_entity.__class__.__name__ == 'Ground':

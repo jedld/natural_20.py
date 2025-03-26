@@ -64,6 +64,7 @@ class Map():
         self.linked_maps = {}
         self.image_offset_px = self.properties.get('image_offset_px', [0, 0])
 
+
         for _ in range(self.size[0]):
             row = []
             for _ in range(self.size[1]):

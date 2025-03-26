@@ -243,10 +243,7 @@ class DoorObject(Object):
             return
 
         if action == "open":
-            if not self.locked:
-                return {"action": action}
-            else:
-                return {"action": "door_locked"}
+            return {"action": action}
         elif action == "close":
             return {"action": action}
         elif action == "lockpick":
@@ -361,7 +358,7 @@ class DoorObject(Object):
             self.is_concealed = True
         else:
             raise ValueError("Invalid state for door object: %s" % state)
-        
+
     def to_dict(self):
         hash = super().to_dict()
         hash["front_direction"] = self.front_direction

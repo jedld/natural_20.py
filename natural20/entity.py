@@ -127,7 +127,7 @@ class Entity(EntityStateEvaluator, Notable):
         return self.is_secret
     
     def secret_perception_dc(self) -> int:
-        return self.properties.get('secret_perception_dc', None)
+        return self.properties.get('secret_perception_dc', self.properties.get('secret_dc', None))
 
     def expertise(self, prof):
         return prof in self.properties.get('expertise', [])
