@@ -168,6 +168,7 @@ class Entity(EntityStateEvaluator, Notable):
             if self.poisoned():
                 disavantage_modifiers.append('poisoned')
             for k, v in self.help_actions.items():
+                v.helping_with.remove(self)
                 advantage_modifiers.append('helped')
             self.help_actions.clear()
 
