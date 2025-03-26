@@ -46,7 +46,7 @@
 }
 
 .tile .entity {
-  /* position: absolute; */
+  position: absolute;
   z-index: 2;
 }
 
@@ -252,11 +252,12 @@ input.initiative-text {
   height: 100%;
   background-color: black;
   opacity: 0.99;
+  z-index: 999;
 }
 
 .brightness-overlay {
   position: absolute;
-  /* z-index: 999; */
+  z-index: 999;
   top: 0;
   left: 0;
   width: 100%;
@@ -435,7 +436,10 @@ input.initiative-input.form-control {
   z-index: 1;
 }
 
+
+
 .object-container img {
+  position: relative;
   display: block;
   max-width: 100%;
 }
@@ -455,6 +459,7 @@ input.initiative-input.form-control {
   font-size: 10px;
   padding: 2px 4px;
   border: none;
+  opacity: 0.6;
   background-color: #4a2f19;
   color: #f9f1e7;
   border-radius: 3px;

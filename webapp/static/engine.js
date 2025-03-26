@@ -181,11 +181,10 @@ $(document).ready(() => {
   canvas.width = $('.tiles-container').data('width') + tile_size;
   canvas.height = $('.tiles-container').data('height') + tile_size;
   canvas.style.position = "absolute";
-  canvas.style.zIndex = 999;
+  canvas.style.zIndex = 1000;
   canvas.style.pointerEvents = "none";
   document.body.appendChild(canvas);
   var ctx = canvas.getContext('2d');
-  
 
   // Plays a background sound (stopping any previous one).
   const playSound = (url, track_id, volume, time_override=null) => {
@@ -467,6 +466,7 @@ $(document).ready(() => {
           $menu.html(data).toggle();
           const tileRightEdge = $menu.offset().left + $menu.outerWidth();
           const windowRightEdge = $(window).width();
+          $menu.css('top', `${tile_size}px`);
           if (windowRightEdge < tileRightEdge) {
             $menu.css('left', `-=${tileRightEdge - windowRightEdge}`);
           }

@@ -43,6 +43,9 @@ class TrapDoor(DoorObject, Teleporter):
             return False
         return True
     
+    def concealed(self):
+        return self.is_concealed
+    
     def label(self):
         return self.properties.get('label', 'object.trap_door.label')
 

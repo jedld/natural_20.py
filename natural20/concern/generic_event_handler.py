@@ -117,6 +117,9 @@ class GenericEventHandler:
                 elif target_request.startswith('pos:'):
                     pos = target_request.split(':')
                     targets.append(target_map.entity_at(int(pos[1]), int(pos[2])))
+                # strip None values from targets
+                targets = [target for target in targets if target]
+
                 if len(targets) > 0:
                     for target in targets:
                         if target is None:

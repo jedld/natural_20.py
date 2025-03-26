@@ -12,7 +12,9 @@
              data-darkvision="{{ tile['has_darkvision'] }}"
              data-darkvision-color="{{ tile.darkvision_color }}"
              style="top: {{ tile['y'] * tile_size_px + tile_size_px }}px;
-                    left: {{ tile['x'] * tile_size_px + tile_size_px }}px;">
+                    left: {{ tile['x'] * tile_size_px + tile_size_px }}px;
+                    width: {{ tile_size_px }}px;
+                    height: {{ tile_size_px }}px;">
           
           {# --- Render objects on the tile --- #}
           {% if tile['objects'] %}
@@ -24,8 +26,8 @@
                 {% if obj['image'] %}
                   <img class="object-image"
                        src="{{ url_for('static', filename='assets/objects/' ~ obj['image']) ~ '.png' }}"
-                       style="{{ obj['transforms'] }}"
-                       data-tooltip="{{ tile['label'] }}" />
+                       data-tooltip="{{ tile['label'] }}" 
+                       style="{{ obj['transforms'] }}; top: {{obj['token_offset_px'][0]}}px; left: {{obj['token_offset_px'][1]}}px;"/>
                 {% endif %}
               </div>
               {% if obj['notes'] %}
@@ -91,6 +93,26 @@
           
           {# --- Render entity on the tile --- #}
           {% else %}
+          <div class="popover-menu" style="display: none;">
+            <ul>
+              <li>Info</li>
+              <li data-item="move">Move</li>
+            </ul>
+          </div>
+
+          <div class="popover-menu-2 execute-multi-target" style="display: none;">
+            <ul>
+              <li>
+                <button class="execute-action"
+                        data-action-type="SpellAction"
+                        data-coords-x="{{ tile['x'] }}"
+                        data-coords-y="{{ tile['y'] }}"
+                        data-coords-id="{{ tile['id'] }}">
+                  <img src="" style="width: 50px; height: 50px;">
+                </button>
+              </li>
+            </ul>
+          </div>
             <div class="entity" data-id="{{ tile.id }}">
               {% set entity_size = tile.entity_size %}
               {% set multiplier = 1 %}
@@ -132,26 +154,7 @@
                 <i class="glyphicon glyphicon-plus"></i>
               </button>
 
-              <div class="popover-menu" style="display: none;">
-                <ul>
-                  <li>Info</li>
-                  <li data-item="move">Move</li>
-                </ul>
-              </div>
 
-              <div class="popover-menu-2 execute-multi-target" style="display: none;">
-                <ul>
-                  <li>
-                    <button class="execute-action"
-                            data-action-type="SpellAction"
-                            data-coords-x="{{ tile['x'] }}"
-                            data-coords-y="{{ tile['y'] }}"
-                            data-coords-id="{{ tile['id'] }}">
-                      <img src="" style="width: 50px; height: 50px;">
-                    </button>
-                  </li>
-                </ul>
-              </div>
               
               {% if tile['hp'] is defined and tile['hp'] is not none %}
                 {% set health_width = (tile['hp'] / tile['max_hp']) * image_size_px %}

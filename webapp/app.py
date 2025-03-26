@@ -524,7 +524,8 @@ def command():
                 'map': battle_map, 
                 'battle': battle, 
                 'session': game_session,
-                'game': current_game
+                'game': current_game,
+                'json': json
             })
 
             # if command starts with "." than it is referencing the map object
@@ -540,6 +541,8 @@ def command():
                 entity = current_game.get_entity_by_uid(entity_uid)
                 if entity:
                     eval_context[entity.name] = entity
+                    eval_context['entity'] = entity
+                    eval_context['entity_uid'] = entity_uid
                     return jsonify(str(entity))
                 else:
                     return jsonify(error=f"Entity {entity_uid} not found")

@@ -7,13 +7,12 @@ class Teleporter(Object):
     def __init__(self, session, map, properties):
         super().__init__(session, map, properties)
         self.target_map = properties.get('target_map', None)
-
         self.target_position = properties['target_position']
 
     def on_enter(self, entity: Entity, map, battle=None):
+        entity_placed = False
         if self.target_map:
             target_map = map.linked_maps[self.target_map]
-            entity_placed = False
             if target_map.placeable(entity, *self.target_position):
                 target_map.place(self.target_position, entity)
                 entity_placed = True
@@ -23,7 +22,7 @@ class Teleporter(Object):
                     if entity_placed:
                         break
                     for dy in range(-1, 2):
-                        if target_map.placeable(entity, self.target_position[0] + dx, self.target_position[1] + dy):
+                        if target_map.placeable(entity, self.target_position[0] + dx, self.target_position[1] + dy, squeeze=False):
                             target_map.place((self.target_position[0] + dx, self.target_position[1] + dy), entity)
                             map.linked_maps[self.target_map]
                             entity_placed = True
@@ -37,8 +36,11 @@ class Teleporter(Object):
                                                         })
 
         else:
-            if map.placeable(entity, *self.target_position, battle):
+            if map.placeable(entity, *self.target_position, battle, squeeze=False):
                 map.move_to(entity, *self.target_position, battle)
+                entity_placed = True
+        if entity_placed:
+            self.resolve_trigger('activate', { "target": entity })
 
     def placeable(self):
         return True
