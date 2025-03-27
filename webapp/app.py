@@ -261,7 +261,7 @@ app.add_template_global(filter_for, name='filter_for')
 
 
 def entities_controlled_by(username, battle_map=None):
-    entities = set()
+    entities = []
     for info in CONTROLLERS:
         if username in info['controllers']:
             entity_uid = info['entity_uid']
@@ -270,11 +270,11 @@ def entities_controlled_by(username, battle_map=None):
             else:
                 entity = current_game.get_entity_by_uid(entity_uid)
 
-            if entity:
-                entities.add(entity)
-                entities.update(current_game.entities_owned_by(entity))
+            if entity and entity not in entities:
+                entities.append(entity)
+                entities.extend(current_game.entities_owned_by(entity))
 
-    return list(entities)
+    return entities
 
 def interact_flavors(action):
     if isinstance(action, InteractAction):
@@ -710,6 +710,16 @@ def handle_disconnect(data):
 def health_check():
     """Simple health check endpoint for AWS load balancer."""
     return jsonify(status='ok'), 200
+
+@app.route('/refresh-portraits', methods=['GET'])
+def refresh_portraits():
+    """Endpoint to refresh the floating entity portraits."""
+    global current_game
+    username = session.get('username')
+    if not username:
+        return "", 200
+    pov_entities = entities_controlled_by(username)
+    return render_template('floating_portraits.html', pov_entities=pov_entities)
 
 @app.route('/start', methods=['POST'])
 def start_battle():
