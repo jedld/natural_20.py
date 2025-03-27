@@ -27,7 +27,7 @@ EXPOSE ${PORT}
 
 # Set environment variables for production if necessary
 ENV FLASK_ENV=production
-ENV TEMPLATE_DIR=/app/user_levels/death_house
+ENV TEMPLATE_DIR=/app/templates
 
 # Set working directory
 WORKDIR /app/webapp
