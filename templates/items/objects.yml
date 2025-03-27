@@ -64,6 +64,29 @@ ground:
   placeable: true
   token: inherit
   profile_image: ground
+campfire:
+  color: yellow
+  default_ac: 17
+  light:
+    bright: 20
+    dim: 10
+  item_class: ProximityTrigger
+  distance: 0
+  multi_trigger: true
+  name: Campfire
+  token_image:
+  events:
+    - event: activate
+      message: The campfire suddenly bursts into flames!
+      damages:
+        - attack_name: Fire Damage
+          if: target:!prone
+          damage_die: 1
+          damage_type: fire
+        - attack_name: Fire Damage
+          if: target:prone
+          damage_die: 1d6
+          damage_type: fire
 pit_trap:
   damages:
     - attack_name: Fall Damage

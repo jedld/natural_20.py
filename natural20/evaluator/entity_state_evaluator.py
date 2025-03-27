@@ -31,6 +31,8 @@ class EntityStateEvaluator:
                         result = context.get('target', '').race() == 'human'
                     elif test_expression == 'undead':
                         result = context.get('target', '').race() == 'undead'
+                    elif test_expression == 'prone':
+                        result = context.get('target', '').prone()
                     else:
                         result = False
                 elif cmd == 'entity':
