@@ -10,6 +10,11 @@ const Utils = {
     const overlay = btn.nextElementSibling;
     overlay.style.display = (overlay.style.display === "none" || overlay.style.display === "") ? "block" : "none";
   },
+  refreshPortraits: function() {
+    Utils.ajaxGet('/refresh-portraits', {}, (data) => {
+      $('#floating-entity-portraits').html(data);
+    });
+  },
   switchMap: function (mapId, canvas, first_callback = null) {
     ajaxPost('/switch_map', { map: mapId }, (data) => {
       console.log('Map selection successful:', data);
@@ -25,6 +30,8 @@ const Utils = {
         canvas.height = data.height + $('.tiles-container').data('tile-size');
         // Update the map name in the body data
         $('body').attr('data-current-map', mapId);
+        // Refresh portraits when map is switched
+        Utils.refreshPortraits();
         if (first_callback) first_callback();
       })
     });
@@ -33,6 +40,8 @@ const Utils = {
     Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) => {
       lastMovedEntityBeforeRefresh = null;
       $('.tiles-container').html(data);
+      // Refresh portraits when tiles are refreshed
+      Utils.refreshPortraits();
       if (callback) callback();
     });
   },

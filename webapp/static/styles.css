@@ -540,6 +540,6 @@ input.initiative-input.form-control {
 #floating-entity-portraits .effect-img {
   width: 20px;
   height: 20px;
-  z-index: 1000;
+  z-index: 1001;
   opacity: 0.8;
 }
