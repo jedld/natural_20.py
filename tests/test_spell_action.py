@@ -287,7 +287,25 @@ class TestSpellAction(unittest.TestCase):
         # mage armor should take effect
         self.assertEqual(self.entity.armor_class(), 15)
 
-    
+    def test_find_familiar(self):
+        # Cast find familiar spell
+        print(MapRenderer(self.battle_map).render())
+        action = autobuild(self.session, SpellAction, self.entity, None, map=self.battle_map, match=['find_familiar', 'bat', [0, 6]], verbose=True)[0]
+        self.battle.action(action)
+        self.battle.commit(action)
+        entity = self.battle_map.entity_at(0, 6)
+        self.assertEqual(entity.name, 'Bat')
+        self.assertEqual(entity.owner, self.entity)
+        print(MapRenderer(self.battle_map).render())
+
+        self.assertEqual(len(self.entity.casted_effects), 1)
+        # test dismiss
+
+        for effect in self.entity.casted_effects:
+            self.entity.remove_effect(effect['effect'])
+
+        entity = self.battle_map.entity_at(0, 6)
+        self.assertIsNone(entity)
 
 if __name__ == '__main__':
     unittest.main()

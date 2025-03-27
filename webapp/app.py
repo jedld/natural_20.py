@@ -269,8 +269,10 @@ def entities_controlled_by(username, battle_map=None):
                 entity = battle_map.entity_by_uid(entity_uid)
             else:
                 entity = current_game.get_entity_by_uid(entity_uid)
+
             if entity:
                 entities.add(entity)
+                entities.update(current_game.entities_owned_by(entity))
 
     return list(entities)
 
@@ -323,7 +325,7 @@ app.add_template_filter(casting_time, name='casting_time')
 
 def entity_owners(entity):
     if isinstance(entity, Entity):
-        if hasattr(entity, 'owner'):
+        if hasattr(entity, 'owner') and entity.owner:
             entity_uid = entity.owner.entity_uid
         else:
             entity_uid = entity.entity_uid
@@ -951,6 +953,7 @@ def get_target():
     y = int(payload.get('y'))
     action_info = payload.get('action_info')
     opts = payload.get('opts', {})
+    choice = opts.get('choice')
     entity = current_game.get_entity_by_uid(entity_id)
     battle_map = current_game.get_map_for_entity(entity)
     target_entity = battle_map.entity_at(x, y)
@@ -980,7 +983,17 @@ def get_target():
         else:
             target = target_position
 
-        action = build_map['next'](target)
+        while not isinstance(build_map, Action):
+            if build_map['param'][0]['type'] == 'select_choice':
+                build_map = build_map['next'](choice)
+            elif build_map['param'][0]['type'] == 'select_empty_space':
+                build_map = build_map['next'](target)
+            elif build_map['param'][0]['type'] == 'select_target':
+                build_map = build_map['next'](target)
+            else:
+                raise ValueError(f"Unknown action type {build_map['param'][0]['type']}")
+
+        action = build_map
 
         if isinstance(action, AttackSpell):
             adv_mod, adv_info, attack_mod = action.compute_advantage_info(battle)
@@ -1012,7 +1025,10 @@ def get_spell():
 
     entity_id = request.args.get('id')
     entity = battle_map.entity_by_uid(entity_id)
-    entity_class_level = entity.class_and_level()
+    if entity.familiar():
+        entity_class_level = entity.owner.class_and_level()
+    else:
+        entity_class_level = entity.class_and_level()
     spells_by_level = {}
     for spell_name in entity.available_spells(battle):
         # get spell available levels
@@ -1143,6 +1159,9 @@ def action():
     action_type = action_request['action']
     opts = action_request.get('opts', {})
 
+    selected_spell = opts.get('spell')
+    at_level = opts.get('at_level')
+    choice = action_request.get('choice', opts.get('choice'))
     entity = current_game.get_entity_by_uid(entity_id)
     battle_map = current_game.get_map_for_entity(entity)
 
@@ -1191,46 +1210,46 @@ def action():
                 build_map = action.build_map()
                 action_info['param'] = build_map['param']
                 return jsonify(action_info)
-        elif action_type == 'SpellAction':
-            action = SpellAction(game_session, entity, 'spell')
-            selected_spell = opts.get('spell')
-            at_level = opts.get('at_level')
-            target = opts.get('target', target)
+        # elif action_type == 'SpellAction':
+        #     action = SpellAction(game_session, entity, 'spell')
+        #     selected_spell = opts.get('spell')
+        #     at_level = opts.get('at_level')
+        #     target = opts.get('target', target)
 
-            if selected_spell:
-                action.spell = game_session.load_spell(selected_spell)
-                current_map = action.build_map()
-                current_map = current_map['next']((selected_spell, at_level))
-                if isinstance(current_map, Action):
-                    return jsonify(commit_and_update(current_map))
-                else:
-                    if target:
-                        current_map = current_map['next'](target)
+        #     if selected_spell:
+        #         action.spell = game_session.load_spell(selected_spell)
+        #         current_map = action.build_map()
+        #         current_map = current_map['next']((selected_spell, at_level))
+        #         if isinstance(current_map, Action):
+        #             return jsonify(commit_and_update(current_map))
+        #         else:
+        #             if target:
+        #                 current_map = current_map['next'](target)
 
-                        if isinstance(current_map, Action):
-                            validate_targets(current_map, entity, target, battle_map, battle)
-                            return jsonify(commit_and_update(current_map))
-                        else:
-                            raise ValueError(f"Invalid action map {current_map}")
+        #                 if isinstance(current_map, Action):
+        #                     validate_targets(current_map, entity, target, battle_map, battle)
+        #                     return jsonify(commit_and_update(current_map))
+        #                 else:
+        #                     raise ValueError(f"Invalid action map {current_map}")
 
-                    action_info["action"] = "spell"
-                    action_info["type"] = "select_target"
-                    action_info["param"] = current_map["param"]
-                    param_details = current_map["param"][0]
-                    action_info['total_targets'] = param_details.get('num', 1)
-                    action_info['target_types'] = param_details.get('target_types', ['enemies'])
-                    action_info['range'] = param_details.get('range', 5)
-                    action_info['range_max'] = param_details.get('range', 5)
-                    action_info['spell'] = selected_spell
-                    if param_details.get('num', 1) > 1:
-                        target_hints = [ t.entity_uid for t in acquire_targets(param_details, entity, battle, battle_map)]
-                        action_info['target_hints'] = target_hints
-                        action_info['unique_targets'] = param_details.get('unique_targets', False)
-            else:
-                action_info["action"] = "spell"
-                action_info["type"] = "select_spell"
-                current_map = action.build_map()
-                action_info["param"] = current_map["param"]
+        #             action_info["action"] = "spell"
+        #             action_info["type"] = "select_target"
+        #             action_info["param"] = current_map["param"]
+        #             param_details = current_map["param"][0]
+        #             action_info['total_targets'] = param_details.get('num', 1)
+        #             action_info['target_types'] = param_details.get('target_types', ['enemies'])
+        #             action_info['range'] = param_details.get('range', 5)
+        #             action_info['range_max'] = param_details.get('range', 5)
+        #             action_info['spell'] = selected_spell
+        #             if param_details.get('num', 1) > 1:
+        #                 target_hints = [ t.entity_uid for t in acquire_targets(param_details, entity, battle, battle_map)]
+        #                 action_info['target_hints'] = target_hints
+        #                 action_info['unique_targets'] = param_details.get('unique_targets', False)
+        #     else:
+        #         action_info["action"] = "spell"
+        #         action_info["type"] = "select_spell"
+        #         current_map = action.build_map()
+        #         action_info["param"] = current_map["param"]
         elif action_type in ['LinkedAttackAction', 'AttackAction', 'TwoWeaponAttackAction']:
             if action_type == 'AttackAction':
                 action = AttackAction(game_session, entity, 'attack')
@@ -1281,7 +1300,36 @@ def action():
             while not isinstance(action, Action):
                 if len(action['param'])==1:
                     param_details = action['param'][0]
-                    if param_details['type'] == 'select_target':
+                    if param_details['type'] == 'select_spell':
+                        if selected_spell:
+                            action = action['next']((selected_spell, at_level))
+                            continue
+                        else:
+                            action_info['action'] = action_type
+                            action_info['type'] = 'select_spell'
+                            action_info['param'] = action['param']
+                            return jsonify(action_info)
+                    elif param_details['type'] == 'select_choice':
+                        if choice:
+                            action = action['next'](choice)
+                            continue
+                        else:
+                            action_info['action'] = action_type
+                            action_info['type'] = 'select_choice'
+                            action_info['param'] = action['param']
+                            return jsonify(action_info)
+                    elif param_details['type'] == 'select_empty_space':
+                        
+                        if target:
+                            action = action['next'](target)
+                            continue
+                        else:
+                            action_info['action'] = action_type
+                            action_info['type'] = 'select_empty_space'
+                            action_info['param'] = action['param']
+                            return jsonify(action_info)
+
+                    elif param_details['type'] == 'select_target':
                         valid_targets = battle_map.valid_targets_for(entity, param_details)
                         valid_targets = {target.entity_uid: battle_map.entity_or_object_pos(target) for target in valid_targets}
                         if target:
@@ -1295,6 +1343,10 @@ def action():
                             action_info['param'] = action['param']
                             action_info['range'] = param_details.get('range', 5)
                             action_info['range_max'] = param_details.get('max_range', param_details.get('range', 5))
+                            if param_details.get('num', 1) > 1:
+                                target_hints = [ t.entity_uid for t in acquire_targets(param_details, entity, battle, battle_map)]
+                                action_info['target_hints'] = target_hints
+                                action_info['unique_targets'] = param_details.get('unique_targets', False)
                             return jsonify(action_info)
                     elif param_details['type'] == 'select_item':
                         target_item = opts.get('name', None)

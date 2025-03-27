@@ -8,7 +8,7 @@
         <tr>
             {% if level==0 %}
                 <td class="level-slot-container">Cantrips</td>
-            {% else %}
+            {% elif entity.max_spell_slots(level, klass) > 0 %}
                 <td class="level-slot-container">
                     Level {{ level }}
                     <div class="spell-slot-progress">

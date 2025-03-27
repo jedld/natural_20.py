@@ -23,10 +23,12 @@ prepared_spells:
 - mage_armor
 - magic_missile
 - shield
+- find_familiar
 spellbook:
 - mage_armor
 - magic_missile
 - shield
+- find_familiar
 equipped:
 - dagger
 inventory:

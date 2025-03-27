@@ -293,7 +293,7 @@ corner_door_lt:
     - ╓
   token_open:
     - ─
-corner_door_bl_alt:
+corner_door_bl:
   color: magenta
   default_ac: 15
   hp_die: 4d8

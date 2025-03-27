@@ -401,6 +401,14 @@ class GameManagement:
         ctrl_info = next((controller for controller in self.controllers if controller['entity_uid'] == entity_uid), None)
         return [] if not ctrl_info else ctrl_info['controllers']
 
+    def entities_owned_by(self, entity):
+        entities = []
+        for _, map_obj in self.maps.items():
+            for e in map_obj.entities:
+                if e.owner == entity:
+                    entities.append(e)
+        return entities
+
     def game_loop(self):
         battle = self.get_current_battle()
         try:

@@ -523,8 +523,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
 
     return 0
   
-  def available_spells(self, battle):
-    spell_list = self.spell_list(battle)
+  def available_spells(self, battle, touch=False):
+    spell_list = self.spell_list(battle, touch)
     return [k for k, v in spell_list.items() if not v['disabled']]
   
   def available_spells_per_level(self, battle):

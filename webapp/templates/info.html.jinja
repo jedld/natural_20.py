@@ -84,10 +84,14 @@
         <!-- Tab content -->
         <div id="BasicInfo" class="tabcontent">
             <h2>Basic Information</h2>
+            {% if entity.familiar() %}
+            <h4>{{entity.owner.label()}}'s Familiar</h4>
+            {% endif %}
             <div class="basic-info-container">
                 <div class="profile-image">
                     <img src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}" alt="Profile Image">
                 </div>
+
                 <div class="description">
                     <p>{{ entity.description() }}</p>
                 </div>

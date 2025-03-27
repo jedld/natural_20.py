@@ -26,10 +26,12 @@ prepared_spells:
 - shocking_grasp
 - shield
 - ice_knife
+- find_familiar
 spellbook:
 - mage_armor
 - magic_missile
 - shield
+- find_familiar
 equipped:
 - dagger
 inventory:

@@ -8,7 +8,7 @@ alignment: unaligned
 default_ac: 12
 max_hp: 1
 hp_die: 1d4-1
-speed: 5
+speed: 30
 speed_fly: 30
 passive_perception: 11
 blindsight: 60

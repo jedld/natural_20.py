@@ -197,7 +197,9 @@
         {% for entity in pov_entities %}
         {% set index = loop.index0 %}
         <div class="floating-entity-portrait {{ 'dead' if entity.dead() else '' }}" onclick="switchPOV('{{ entity.entity_uid }}');" style="position: fixed; left: {{ 10 + index * 110 }}px; cursor: pointer; z-index: 1000;">
-            <img src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}" alt="{{ entity.name }}">
+            <img src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}" 
+                 alt="{{ entity.name }}"
+                 style="{{ 'transform: scale(0.7);' if entity.familiar() else '' }}">
             <div>{{ entity.name }}</div>
             <div class="health-bar-portrait" style="width: 100px; background-color: red; height: 10px;">
                 <div class="health-bar-fill-portrait" style="width: {{ entity.health_percent() }}%; background-color: green; height: 100%;"></div>

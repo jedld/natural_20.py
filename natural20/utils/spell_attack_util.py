@@ -18,7 +18,11 @@ def evaluate_spell_attack(battle, entity, target, spell_properties, opts=None):
 
     if attack_roll is None:
         if spell_properties.get('type') == 'melee_attack':
-            attack_roll = entity.melee_spell_attack(battle, spell_properties, advantage=advantage_mod > 0,
+            if entity.familiar():
+                attack_roll = entity.owner.melee_spell_attack(battle, spell_properties, advantage=advantage_mod > 0,
+                                                disadvantage=advantage_mod < 0)
+            else:
+                attack_roll = entity.melee_spell_attack(battle, spell_properties, advantage=advantage_mod > 0,
                                                 disadvantage=advantage_mod < 0)
         else:
             attack_roll = entity.ranged_spell_attack(battle, spell_properties, advantage=advantage_mod > 0,

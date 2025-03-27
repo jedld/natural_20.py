@@ -200,11 +200,18 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                 usable_weapons = [weapon for weapon in usable_weapons if weapon in match]
 
             params_list.append(usable_weapons)
+        elif param_type == "select_choice":
+            for choice in param["choices"]:
+                if match and choice not in match:
+                    continue
+                params_list.append([choice])
         elif param_type == "select_items":
             return None
         elif param_type == 'select_empty_space':
             # select adjacent empty space
             if not map:
+                if is_verbose:
+                    print(f"No map found for {entity.name}")
                 return None
             cur_x, cur_y = map.position_of(entity)
             selected_movement_options = []
@@ -221,9 +228,14 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                     if (map.passable(entity, new_x, new_y, battle, allow_squeeze=False)
                         and map.can_see_square(entity, (new_x, new_y))
                             and map.placeable(entity, new_x, new_y, battle, squeeze=False)):
+                        if match and [new_x, new_y] not in match:
+                            continue
+
                         position_choices.append([new_x, new_y])
             params_list.append(position_choices)
             if len(position_choices)==0:
+                if is_verbose:
+                    print(f"No valid empty space found for {entity.name}")
                 return None
         else:
             raise ValueError(f"Unknown param type: {param_type}")

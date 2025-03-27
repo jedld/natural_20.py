@@ -72,11 +72,17 @@ class SpellAction(Action):
 
     @staticmethod
     def can(entity, battle, opt = None):
-        if not entity.has_spells():
+        if not entity.has_spells() and not entity.familiar():
+            return False
+
+        if entity.familiar() and not entity.owner.has_spells():
             return False
 
         if battle is None or not battle.ongoing():
             return True
+
+        if entity.familiar() and not entity.has_reaction(battle):
+            return False
 
         if opt is None:
             opt = {}
