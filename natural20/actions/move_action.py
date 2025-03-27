@@ -125,15 +125,19 @@ class MoveAction(Action):
         # cutoff = False
 
         safe_moves = []
-        for move in actual_moves:
+        for index, move in enumerate(actual_moves):
             is_flying_or_jumping = self.source.flying or move in movement.jump_locations
-            trigger_results = map.area_trigger(self.source, move, is_flying_or_jumping)
-            if not trigger_results:
-                safe_moves.append(move)
+            if index > 0:
+                trigger_results = map.area_trigger(self.source, move, is_flying_or_jumping)
+                if not trigger_results:
+                    safe_moves.append(move)
+                else:
+                    safe_moves.append(move)
+                    additional_effects += trigger_results
+                    if any(result['type'] == 'cancel_move' for result in trigger_results):
+                        break
             else:
                 safe_moves.append(move)
-                additional_effects += trigger_results
-                break
 
         movement = compute_actual_moves(self.source, safe_moves, map, battle, movement_budget, manual_jump=jumps)
 

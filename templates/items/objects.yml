@@ -74,10 +74,13 @@ campfire:
   distance: 0
   multi_trigger: true
   name: Campfire
+  label: Campfire
   token_image:
+  placeable: true
+  passable: true
   events:
     - event: activate
-      message: The campfire suddenly bursts into flames!
+      message: event.campfire.flames
       damages:
         - attack_name: Fire Damage
           if: target:!prone
