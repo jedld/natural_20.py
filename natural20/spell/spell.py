@@ -10,6 +10,11 @@ def consume_resource(battle, source, item, as_scroll=False):
     spell_level = item["level"]
 
     if battle:
+        if source.familiar():
+            # consume bonus action from familiar
+            battle.consume(source, "reaction")
+            source = source.owner
+
         if resource == "action":
             battle.consume(source, "action")
         elif resource == "reaction":
@@ -20,10 +25,13 @@ def consume_resource(battle, source, item, as_scroll=False):
         # track spell casted
         if spell_level > 0 and resource in ["action", "bonus_action"]:
             battle.entity_state_for(source)['casted_level_spells'].append(item)
-    
+
     # scrolls do not consume spell slots
     if not as_scroll:
-        source.consume_spell_slot(spell_level) if spell_level > 0 else None
+        if source.familiar():
+            source.owner.consume_spell_slot(spell_level) if spell_level > 0 else None
+        else:
+            source.consume_spell_slot(spell_level) if spell_level > 0 else None
 
 class AttackHook:
     def after_attack_roll(battle, entity, attacker, attack_roll, effective_ac, opts=None):

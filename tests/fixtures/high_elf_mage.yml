@@ -20,12 +20,13 @@ spellbook:
   - shield
   - mage_armor
   - magic_missile
+  - find_familiar
 prepared_spells:
   - firebolt
   - mage_armor
   - magic_missile
   - shield
-  - magic_missile
+  - find_familiar
 inventory:
 - type: scroll_of_magic_missile
   qty: 1

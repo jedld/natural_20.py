@@ -16,9 +16,9 @@ class GenericEventHandler:
             conditions = self.properties['if']
             if not entity.eval_if(conditions, context={'entity': entity, 'opts': opts}):
                 return
-            
+
         if self.properties.get('message'):
-            message = self.session.t(self.properties['message'], options={ "name": entity.label(), "target": opts['target'].label() if opts['target'] else None })
+            message = self.session.t(self.properties['message'], options={ "name": entity.label(), "target": opts['target'].label() if opts.get('target') else None })
             self.session.event_manager.received_event({
                 'event': 'message',
                 'source': entity,

@@ -203,8 +203,9 @@ class Session:
                 npc_name = os.path.splitext(file)[0]
                 npcs.append(Npc(self, npc_name, { "rand_life" : True}))
         return npcs
+    
 
-    def npc_info(self):
+    def npc_info(self, familiar=False):
         files = os.listdir(os.path.join(self.root_path, 'npcs'))
         npc_info = {}
         for file in files:
@@ -212,6 +213,10 @@ class Session:
                 npc_name = os.path.splitext(file)[0]
                 with open(os.path.join(self.root_path, 'npcs', file), 'r') as f:
                     npc_details = yaml.safe_load(f)
+                    if familiar:
+                        if not npc_details.get('familiar', False):
+                            continue
+
                     npc_info[npc_name] = {**npc_details, 'id': npc_name}
         return npc_info
 

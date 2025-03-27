@@ -14,6 +14,7 @@ class DoorObject(Object):
         self.locked = self.properties.get("locked", False)
         self.key_name = self.properties.get("key")
         self.door_pos = self.properties.get("door_pos", None)
+        self.passable_threshold = self.properties.get("passable_threshold", None)
 
     def after_setup(self):
         if self.front_direction == "auto":

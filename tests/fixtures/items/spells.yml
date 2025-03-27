@@ -149,6 +149,7 @@ find_familiar:
   name: Find Familiar
   range: 10
   school: conjuration
+  spell_class: Natural20::FindFamiliar
   type: summoning
   spell_list_classes:
     - Sorcerer

@@ -763,6 +763,169 @@ $(document).ready(() => {
     });
   });
 
+  function handleAction(entity_uid, action, opts, coordsx, coordsy, data) {
+    switch (data.param[0].type) {
+      case 'movement':
+        moveModeCallback = (path) => {
+          ajaxPost('/action', { id: entity_uid, action, opts, path },
+            (data) => {
+              console.log('Action request successful:', data);
+              refreshTurn();
+            }, true);
+        };
+        $('.popover-menu').hide();
+        moveMode = true;
+        source = { x: coordsx, y: coordsy };
+        break;
+      case 'select_spell':
+        Utils.ajaxGet('/spells', { id: entity_uid, action, opts }, (data) => {
+          $('.modal-content').html(data);
+          $('#modal-1').modal('show');
+        });
+        break;
+      case 'select_item': {
+        const $entity_tile = $(`.tile[data-coords-id="${entity_uid}"]`);
+        Utils.ajaxGet('/usable_items', { id: entity_uid, action, opts }, (data) => {
+          $entity_tile.find('.popover-menu').html(data);
+        });
+        break;
+      }
+      case 'select_choice': {
+        const choices = data.param[0].choices;
+        // create a modal with a list of choices
+        const $modal = $('<div class="modal fade" id="select-choice-modal" tabindex="-1" role="dialog" aria-labelledby="select-choice-modal-label" aria-hidden="true">');
+        $modal.html(`
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="select-choice-modal-label">Select an option</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
+              <div class="modal-body">
+                <ul class="list-group">
+                  ${choices.map(choice => `<li class="list-group-item choice-item" data-choice="${choice}">${choice}</li>`).join('')}
+                </ul>
+              </div>
+            </div>
+          </div>
+        `);
+        $('body').append($modal);
+        $modal.modal('show');
+
+        // Add click handler directly to the modal
+        $modal.on('click', '.choice-item', function() {
+          const choice = $(this).data('choice');
+          $modal.modal('hide');
+          ajaxPost('/action', { id: entity_uid, action, opts, choice }, (data) => {
+            $('#modal-1').modal('hide');
+            opts['choice'] = choice;
+            handleAction(entity_uid, action, opts, coordsx, coordsy, data);
+          }, true);
+        });
+        break;
+      }
+      case 'select_target':
+        $('.popover-menu').hide();
+        $('#modal-1').modal('hide');
+        source = { x: coordsx, y: coordsy, entity_uid };
+        targetModeMaxRange = data.range_max !== undefined ? data.range_max : data.range;
+        if (data.target_hints) {
+          data.target_hints.forEach(value => {
+            $(`.tile[data-coords-id="${value}"] .add-to-target`).show();
+          });
+          multiTargetMode = true;
+          max_targets = data.total_targets;
+          multiTargetModeUnique = data.unique_targets === true;
+          $(`.tile[data-coords-id="${entity_uid}"] .execute-action img`).attr('src', `/spells/spell_${data.spell}.png`);
+          targetMode = false;
+        } else {
+          targetMode = true;
+          globalActionInfo = action;
+          globalOpts = opts;
+          globalSourceEntity = entity_uid;
+        }
+        targetModeCallback = (target) => {
+          ajaxPost('/action', { id: entity_uid, action, opts, target },
+            (data) => {
+              console.log('Action request successful:', data);
+              refreshTurn();
+            }, true);
+        };
+        break;
+      case 'select_empty_space':
+        $('.popover-menu').hide();
+        $('#modal-1').modal('hide');
+        
+        source = { x: coordsx, y: coordsy, entity_uid };
+        targetModeMaxRange = data.range_max !== undefined ? data.range_max : data.range;
+        targetMode = true;
+        globalActionInfo = action;
+        globalOpts = opts;
+        globalSourceEntity = entity_uid;
+        targetModeCallback = (target) => {
+          ajaxPost('/action', { id: entity_uid, action, opts, target },
+            (data) => {
+              console.log('Action request successful:', data);
+              refreshTurn();
+            }, true);
+        };
+        break;
+      case 'select_items':
+        function initiateTransfer() {
+          Utils.ajaxGet('/items', { id: entity_uid, action, opts }, (data) => {
+            $('.modal-content').html(data);
+            $('#modal-1').modal('show');
+            $('.loot-items-form').on('submit', function (e) {
+              e.preventDefault();
+              fromItems = [];
+              fromItemsQty = [];
+              $(this).find('input[name="selected_items_target"]').each(function () {
+                fromItems.push($(this).val());
+              });
+
+              $(this).find('input.transfer-qty').each(function () {
+                fromItemsQty.push($(this).val());
+              });
+              toItems = []
+              toItemsQty = []     
+              $(this).find('input[name="selected_items_source"]').each(function () {
+                toItems.push($(this).val());
+              });
+
+              $(this).find('input.transfer-qty-source').each(function () {
+                toItemsQty.push($(this).val());
+              });
+
+              const itemsToTransfer = {
+                from: {
+                  items: fromItems,
+                  qty: fromItemsQty
+                },
+                to: {
+                  items: toItems,
+                  qty: toItemsQty
+                }
+              }
+              opts['items'] = itemsToTransfer;
+
+              ajaxPost('/action', { id: entity_uid, action, opts },
+                (data) => {
+                  initiateTransfer();
+                }, true);
+            });
+          });
+        }
+        initiateTransfer();
+        break;
+      default:
+        console.log('Unknown action type:', data.param[0].type);
+    }
+    console.log('Action request successful:', data);
+
+  }
+
   // --- Action Button Handler ---
   $('.actions-container').on('click', '.action-button', function (e) {
     e.stopPropagation();
@@ -783,130 +946,7 @@ $(document).ready(() => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
     const dataPayload = { id: entity_uid, action, opts };
-    ajaxPost('/action', dataPayload, (data) => {
-      switch (data.param[0].type) {
-        case 'movement':
-          moveModeCallback = (path) => {
-            ajaxPost('/action', { id: entity_uid, action, opts, path },
-              (data) => {
-                console.log('Action request successful:', data);
-                refreshTurn();
-              }, true);
-          };
-          $('.popover-menu').hide();
-          moveMode = true;
-          source = { x: coordsx, y: coordsy };
-          break;
-        case 'select_spell':
-          Utils.ajaxGet('/spells', { id: entity_uid, action, opts }, (data) => {
-            $('.modal-content').html(data);
-            $('#modal-1').modal('show');
-          });
-          break;
-        case 'select_item': {
-          const $entity_tile = $(`.tile[data-coords-id="${entity_uid}"]`);
-          Utils.ajaxGet('/usable_items', { id: entity_uid, action, opts }, (data) => {
-            $entity_tile.find('.popover-menu').html(data);
-          });
-          break;
-        }
-        case 'select_target':
-          $('.popover-menu').hide();
-          $('#modal-1').modal('hide');
-          source = { x: coordsx, y: coordsy, entity_uid };
-          targetModeMaxRange = data.range_max !== undefined ? data.range_max : data.range;
-          if (data.target_hints) {
-            data.target_hints.forEach(value => {
-              $(`.tile[data-coords-id="${value}"] .add-to-target`).show();
-            });
-            multiTargetMode = true;
-            max_targets = data.total_targets;
-            multiTargetModeUnique = data.unique_targets === true;
-            $(`.tile[data-coords-id="${entity_uid}"] .execute-action img`).attr('src', `/spells/spell_${data.spell}.png`);
-            targetMode = false;
-          } else {
-            targetMode = true;
-            globalActionInfo = action;
-            globalOpts = opts;
-            globalSourceEntity = entity_uid;
-          }
-          targetModeCallback = (target) => {
-            ajaxPost('/action', { id: entity_uid, action, opts, target },
-              (data) => {
-                console.log('Action request successful:', data);
-                refreshTurn();
-              }, true);
-          };
-          break;
-        case 'select_empty_space':
-          $('.popover-menu').hide();
-          $('#modal-1').modal('hide');
-          source = { x: coordsx, y: coordsy, entity_uid };
-          targetModeMaxRange = data.range_max !== undefined ? data.range_max : data.range;
-          targetMode = true;
-          globalActionInfo = action;
-          globalOpts = opts;
-          globalSourceEntity = entity_uid;
-          targetModeCallback = (target) => {
-            ajaxPost('/action', { id: entity_uid, action, opts, target },
-              (data) => {
-                console.log('Action request successful:', data);
-                refreshTurn();
-              }, true);
-          };
-          break;
-        case 'select_items':
-          function initiateTransfer() {
-            Utils.ajaxGet('/items', { id: entity_uid, action, opts }, (data) => {
-              $('.modal-content').html(data);
-              $('#modal-1').modal('show');
-              $('.loot-items-form').on('submit', function (e) {
-                e.preventDefault();
-                fromItems = [];
-                fromItemsQty = [];
-                $(this).find('input[name="selected_items_target"]').each(function () {
-                  fromItems.push($(this).val());
-                });
-
-                $(this).find('input.transfer-qty').each(function () {
-                  fromItemsQty.push($(this).val());
-                });
-                toItems = []
-                toItemsQty = []     
-                $(this).find('input[name="selected_items_source"]').each(function () {
-                  toItems.push($(this).val());
-                });
-
-                $(this).find('input.transfer-qty-source').each(function () {
-                  toItemsQty.push($(this).val());
-                });
-
-                const itemsToTransfer = {
-                  from: {
-                    items: fromItems,
-                    qty: fromItemsQty
-                  },
-                  to: {
-                    items: toItems,
-                    qty: toItemsQty
-                  }
-                }
-                opts['items'] = itemsToTransfer;
-
-                ajaxPost('/action', { id: entity_uid, action, opts },
-                  (data) => {
-                    initiateTransfer();
-                  }, true);
-              });
-            });
-          }
-          initiateTransfer();
-          break;
-        default:
-          console.log('Unknown action type:', data.param[0].type);
-      }
-      console.log('Action request successful:', data);
-    }, true);
+    ajaxPost('/action', dataPayload, (data) => handleAction(entity_uid, action, opts, coordsx, coordsy, data), true);
   });
 
   $('#turn-order').on('click', '#add-more', function () {

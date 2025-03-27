@@ -58,7 +58,6 @@ class Npc(Entity, Multiattack, Lootable):
         self.session = session
         self.npc_type = type
         self.group = opt.get("group", "b")
-        self.properties["familiar"] = opt.get("familiar", False)
         self.inventory = {}
 
         default_inventory = self.properties.get("default_inventory", [])
@@ -114,9 +113,17 @@ class Npc(Entity, Multiattack, Lootable):
     def class_and_level(self):
         return [(self.npc_type, None)]
     
-    def spell_slots_count(self, level):
-        return 0
+    def spell_slots_count(self, level, character_class=None):
+        if self.familiar():
+            return self.owner.spell_slots_count(level, character_class)
+        else:
+            return 0
     
+    def max_spell_slots(self, level, character_class=None):
+        if self.familiar():
+            return self.owner.max_spell_slots(level, character_class)
+        return 0
+
     def level(self):
         # return CR level I guess
         return self.properties.get("cr", 1)
@@ -164,18 +171,23 @@ class Npc(Entity, Multiattack, Lootable):
         actions = []
 
         if battle and battle.current_turn() != self and not opportunity_attack:
-            return []
+            if not self.familiar():
+                return []
+            elif battle and battle.current_turn() == self.owner:
+                actions.append(SpellAction(session, self, "spell"))
+                return actions
 
-        if opportunity_attack:
+        if opportunity_attack and not self.familiar():
             actions = [s for s in self.generate_npc_attack_actions(battle, opportunity_attack=True, auto_target=auto_target) if s.action_type == "attack" and s.npc_action["type"] == "melee_attack"]
         else:
-            if not interact_only:
+            if not interact_only and not self.familiar():
                 actions.extend(self.generate_npc_attack_actions(battle, auto_target=auto_target))
             for action_class in self.ACTION_LIST:
                 if interact_only and action_class != InteractAction:
                     continue
                 if except_interact and action_class == InteractAction:
                     continue
+
                 if action_class.can(self, battle):
                     if action_class == MoveAction:
                         if auto_target:
@@ -188,6 +200,8 @@ class Npc(Entity, Multiattack, Lootable):
                         actions.append(DisengageAction(session, self, "disengage"))
                     elif action_class == StandAction:
                         actions.append(StandAction(session, self, "stand"))
+                    elif action_class == HelpAction:
+                        actions.append(HelpAction(session, self, "help"))
                     elif action_class == HideAction:
                         actions.append(HideAction(session, self, "hide"))
                     elif action_class == DisengageBonusAction:
@@ -241,7 +255,19 @@ class Npc(Entity, Multiattack, Lootable):
     def prepared_spells(self):
         return self.properties.get("prepared_spells", [])
     
+    def available_spells(self, battle, touch=False):
+        if self.familiar():
+            return self.owner.available_spells(battle, touch=True)
+        else:
+            spell_list = self.spell_list(battle)
+            return [k for k, v in spell_list.items() if not v['disabled']]
+    
+  
+    
     def available_spells_per_level(self, battle):
+        if self.familiar():
+            return self.owner.available_spells_per_level(battle)
+        
         spell_list = self.spell_list(battle)
         spell_per_level = [[],[],[],[],[],[],[],[],[]]
         for spell, details in spell_list.items():

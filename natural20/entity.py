@@ -62,7 +62,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.condition_immunities = []
         self.help_actions = {}
         self.helping_with = set()
-
+        self.owner = None
         # Attach methods dynamically
         for ability, skills in self.SKILL_AND_ABILITY_MAP.items():
             for skill in skills:
@@ -948,11 +948,11 @@ class Entity(EntityStateEvaluator, Notable):
 
         return battle.entity_state_for(self).get('movement')
 
-    def available_spells(self):
+    def available_spells(self, battle, touch=False):
         return []
     
     def familiar(self):
-      return self.properties.get('familiar')
+      return self.properties.get('familiar', False)
     
     def speed(self):
         c_speed = self.properties.get('speed_fly',0) if self.is_flying() else self.properties['speed']
@@ -1378,13 +1378,17 @@ class Entity(EntityStateEvaluator, Notable):
     # Returns the available spells for the current user
     # @param battle [Natural20::Battle]
     # @return [Dict]
-    def spell_list(self, battle):
+    def spell_list(self, battle, touch=False):
         prepared_spells = self.prepared_spells()
         spell_list = {}
         for spell in prepared_spells:
             details = self.session.load_spell(spell)
             if not details:
                 continue
+
+            if touch:
+                if not details.get('range', None) == 5:
+                    continue
 
             qty, resource = details['casting_time'].split(':')
 
@@ -1396,7 +1400,7 @@ class Entity(EntityStateEvaluator, Notable):
 
             if resource == 'bonus_action' and battle and battle.ongoing() and self.total_bonus_actions(battle) == 0:
                 disable_reason.append('no_bonus_action')
-            elif resource == 'hour' and battle.ongoing():
+            elif resource == 'hour' and battle and battle.ongoing():
                 disable_reason.append('in_battle')
             if details['level'] > 0:
                 slot_count = 0
