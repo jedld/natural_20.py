@@ -158,15 +158,15 @@ corner_door_tl:
     - ╒
   token_open:
     - │
-corner_door_tl:
+corner_door_tr:
   color: magenta
   default_ac: 15
   hp_die: 4d8
   interactable: true
   item_class: DoorObjectWall
   max_hp: 18
-  name: Corner Door Top Left
-  token_image: corner_door_tl
+  name: Corner Door Top Right
+  token_image: corner_door_tr
   door_pos: 3
   border:
     - 1
@@ -184,8 +184,8 @@ corner_door_bl:
   interactable: true
   item_class: DoorObjectWall
   max_hp: 18
-  name: Corner Door Top Left
-  token_image: corner_door_tl
+  name: Corner Door Bottom Left
+  token_image: corner_door_bl
   door_pos: 1
   border:
     - 1
@@ -196,15 +196,15 @@ corner_door_bl:
     - ╖
   token_open:
     - ─
-corner_door_rb:
+corner_door_br:
   color: magenta
   default_ac: 15
   hp_die: 4d8
   interactable: true
   item_class: DoorObjectWall
   max_hp: 18
-  name: Corner Door Top Left
-  token_image: corner_door_tl
+  name: Corner Door Bottom Right
+  token_image: corner_door_br
   door_pos: 3
   border:
     - 0
