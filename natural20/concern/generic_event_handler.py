@@ -1,4 +1,6 @@
 import pdb
+from natural20.die_roll import DieRoll
+
 class GenericEventHandler:
     def __init__(self, session, map, properties):
         self.properties = properties
@@ -6,10 +8,15 @@ class GenericEventHandler:
         self.map = map
 
     def handle(self, entity, opts=None):
+        if opts is None:
+            opts = {}
+
+        result = []
         if self.properties.get('if'):
             conditions = self.properties['if']
             if not entity.eval_if(conditions, context={'entity': entity, 'opts': opts}):
                 return
+            
         if self.properties.get('message'):
             self.session.event_manager.received_event({
                 'event': 'message',
@@ -87,6 +94,21 @@ class GenericEventHandler:
 
                 self.map.add(spawn_entity, *pos, group=npc_meta.get('group', None))
 
+        if self.properties.get('damages'):
+            for damage in self.properties['damages']:
+                eval_if = damage.get('if', None)
+                if eval_if:
+                    if not entity.eval_if(eval_if, context={'entity': entity, 'opts': opts}):
+                        continue
+
+                result.append({
+                    'source': self,
+                    'target': opts['target'],
+                    'type': 'damage',
+                    'attack_name': damage.get('attack_name', 'pit trap'),
+                    'damage_type': damage.get('damage_type', 'piercing'),
+                    'damage': DieRoll.roll(damage['damage_die'])
+                })
         if self.properties.get('update_state'):
             update_state_properties = self.properties['update_state']
 
@@ -131,7 +153,8 @@ class GenericEventHandler:
                 else:
                     print(f"Could not find target {target_request}")
             if isinstance(update_state_properties, list):
-                for update_state_properties in update_state_properties:
-                    update_state(entity, update_state_properties)
+                for state_prop in update_state_properties:
+                    update_state(entity, state_prop)
             else:
                 update_state(entity, update_state_properties)
+        return result

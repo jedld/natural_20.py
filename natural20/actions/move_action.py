@@ -214,7 +214,12 @@ class MoveAction(Action):
         if item_type == 'state':
             for k, v in item['params'].items():
                 setattr(item['source'], k, v)
+
             if item.get('trigger'):
+                if item['trigger'] == 'activate':
+                    if not item.get('multi_trigger'):
+                        item['source'].activate = True
+
                 item['source'].resolve_trigger(item['trigger'], { "target": item.get('target', None) })
         elif item_type in ['acrobatics', 'athletics']:
             if item['success']:

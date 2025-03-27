@@ -11,6 +11,7 @@ class ProximityTrigger(Object):
         self.line_of_sight = self.properties.get('line_of_sight', False)
         self.activated = False
         self.events = self.properties.get('events', [])
+        self.multi_trigger = self.properties.get('multi_trigger', False)
 
         for event in self.events:
             handler = GenericEventHandler(session, map, event)
@@ -33,6 +34,7 @@ class ProximityTrigger(Object):
                     'params': {
                         'activated': True
                     },
+                    'multi_trigger': self.multi_trigger,
                     'trigger': 'activate'
                 })
         return result
@@ -42,6 +44,7 @@ class ProximityTrigger(Object):
         hash['distance'] = self.distance
         hash['line_of_sight'] = self.line_of_sight
         hash['activated'] = self.activated
+        hash['multi_trigger'] = self.multi_trigger
         return hash
     
     @staticmethod
@@ -51,6 +54,7 @@ class ProximityTrigger(Object):
         proximity_trigger.distance = hash['distance']
         proximity_trigger.line_of_sight = hash['line_of_sight']
         proximity_trigger.activated = hash['activated']
+        proximity_trigger.multi_trigger = hash['multi_trigger']
         return proximity_trigger
 
     def interactable(self, entity=None):
