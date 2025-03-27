@@ -12,10 +12,6 @@ class PitTrap(Object):
         self.damages = properties.get('damages', [])
         self.events = properties.get('events', [])
 
-        for event in self.events:
-            handler = GenericEventHandler(session, map, event)
-            self.register_event_hook(event['event'], handler, 'handle')
-
     def to_dict(self):
         hash = super().to_dict()
         hash['activated'] = self.activated
@@ -70,6 +66,11 @@ class PitTrap(Object):
                     'activated': True
                 },
                 'trigger': 'activate'
+            })
+            result.append({
+                'source': self,
+                'target': entity,
+                'type': 'cancel_move'
             })
 
         return result

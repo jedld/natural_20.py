@@ -209,6 +209,7 @@ en:
     attack_no_roll: '%{opportunity}%{source} attacked %{target} with %{attack_name} to Hit for %{damage} damage.'
     combat_end: Combat has ended
     combat_start: Combat has started!
+    campfire.flames: '%{target} is engulfed in flames!'
     death_fail: 'Death Saving Throw: %{name} rolls a %{roll} = %{value} (fail). Saves: %{saves} Fails: %{fails}'
     death_fail_hit: 'Death Saving Throw Failure. Saves: %{saves} Fails: %{fails}'
     death_save: 'Death Saving Throw: %{name} rolls a %{roll} = %{value} (success). Saves: %{saves} Fails: %{fails}'
