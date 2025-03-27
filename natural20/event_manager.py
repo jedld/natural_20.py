@@ -147,7 +147,7 @@ class EventManager:
         def shove(event):
             rolls_description = f"Contested role for shove: {event['source_roll']} vs {event['target_roll']}"
             if event.get('success'):
-                self.output_logger.log(f"{self.show_name(event)} shoves {self.show_target_name(event)} and succeeds. {rolls_description}")
+                self.output_logger.log(f"{self.show_name(event)} shoves {self.show_target_name(event)} and succeeds. {rolls_description}. {self.show_target_name(event)} is now at {event['shove_loc']}")
             else:
                 self.output_logger.log(f"{self.show_name(event)} shoves {self.show_target_name(event)} and fails. {rolls_description}")
 
@@ -245,7 +245,8 @@ class EventManager:
             'unconscious': lambda event: self.output_logger.log(f"{self.show_name(event)} unconscious."),
             'first_aid': first_aid,
             'shove': shove,
-            'help': lambda event: self.output_logger.log(f"{self.show_name(event)} helps {self.show_target_name(event)}."),
+            'help_distract': lambda event: self.output_logger.log(f"{self.show_name(event)} distracts {self.show_target_name(event)}."),
+            'help': lambda event: self.output_logger.log(f"{self.show_name(event)} has decided to help {self.show_target_name(event)} for his next task."),
             'attacked': attack_roll,
             'damage': damage,
             'spell_damage': spell_damage,

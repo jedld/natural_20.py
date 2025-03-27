@@ -203,6 +203,13 @@ class Entity(EntityStateEvaluator, Notable):
     def hp(self):
         return self.attributes["hp"]
 
+    def set_hp(self, hp, override_max=False):
+        if override_max:
+            self.attributes["hp"] = hp
+            self.attributes["max_hp"] = hp
+        else:
+            self.attributes["hp"] = min(hp, self.max_hp())
+
     def temp_hp(self):
         return self._temp_hp
 
@@ -807,6 +814,13 @@ class Entity(EntityStateEvaluator, Notable):
             'casted_level_spells': [],
             'positions_entered': {}
         })
+
+        # clear help actions
+        for _, v in self.help_actions.items():
+            v.helping_with.remove(self)
+        self.help_actions.clear()
+
+        battle.dismiss_distract(self)
 
         if 'dodge' in entity_state['statuses']:
             entity_state['statuses'].remove('dodge')

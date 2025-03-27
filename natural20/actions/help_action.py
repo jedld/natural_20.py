@@ -1,5 +1,5 @@
 from natural20.action import Action
-import pdb
+
 class HelpAction(Action):
     target: any
 
@@ -36,30 +36,39 @@ class HelpAction(Action):
         return action.build_map()
 
     def resolve(self, session, map, opts=None):
+        if not opts:
+            opts = {}
+
+        current_battle = opts.get('battle')
         self.result = [{
             'source': self.source,
             'target': self.target,
             'type': 'help',
-            'battle': opts.get('battle')
+            'battle': current_battle
         }]
         return self
 
     @staticmethod
     def apply(battle, item, session=None):
-        if item['type'] == 'help':
-            
-            if battle:
-                battle.consume(item['source'], 'action')
-                battle.event_manager.received_event({
-                    'source': item['source'],
-                    'target': item['target'],
-                    'event': 'help'
-                })
-            else:
-                session.event_manager.received_event({
-                    'source': item['source'],
-                    'target': item['target'],
-                    'event': 'help'
-                })
+        if item['type'] != 'help':
+            return
 
-            item['source'].do_help(item['battle'], item['target'])
+        source = item['source']
+        target = item['target']
+        event_manager = battle.event_manager if battle else session.event_manager
+
+        if battle:
+            battle.consume(source, 'action')
+            event_type = 'help_distract' if battle.opposing(source, target) else 'help'
+            if event_type == 'help_distract':
+                battle.do_distract(source, target)
+            else:
+                source.do_help(battle, target)
+        else:
+            source.do_help(None, target)
+
+        event_manager.received_event({
+            'source': source,
+            'target': target,
+            'event': event_type if battle else 'help'
+        })

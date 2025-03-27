@@ -88,6 +88,7 @@ class Battle():
             'two_weapon': None,
             'positions_entered': {},
             'controller': controller,
+            'help_with': {}
         }
 
         self.entities[entity] = state
@@ -333,6 +334,21 @@ class Battle():
             raise Exception(f"no controller for entity {entity}")
 
         return self.entities[entity]['controller'].move_for(entity, self)
+
+    def do_distract(self, source, target):
+        self.entities[target]['help_with'][source] = 'distract'
+
+    # dismiss all distractions for a source
+    def dismiss_distract(self, source):
+        for _, entity_state in self.entities.items():
+            if source in entity_state['help_with']:
+                entity_state['help_with'].pop(source)
+
+    def help_with(self, entity):
+        return self.entities[entity]['help_with']
+    
+    def dismiss_help_for(self, entity):
+        self.entities[entity]['help_with'] = {}
 
     # Returns opponents of entity
     # @param entity [Natural20::Entity] target entity
