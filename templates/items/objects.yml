@@ -64,6 +64,15 @@ ground:
   placeable: true
   token: inherit
   profile_image: ground
+note:
+  color: yellow
+  name: Note
+  passable: true
+  placeable: true
+  opaque: false
+  wall: false
+  token:
+    - N  
 campfire:
   color: yellow
   default_ac: 17
