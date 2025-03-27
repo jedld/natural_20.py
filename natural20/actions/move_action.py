@@ -215,12 +215,13 @@ class MoveAction(Action):
             for k, v in item['params'].items():
                 setattr(item['source'], k, v)
 
-            if item.get('trigger'):
-                if item['trigger'] == 'activate':
-                    if not item.get('multi_trigger'):
-                        item['source'].activate = True
+            results = item['source'].resolve_trigger(item['trigger'], { "target": item.get('target', None) })
 
-                item['source'].resolve_trigger(item['trigger'], { "target": item.get('target', None) })
+            if results:
+                for sub_item in results:
+                    for klass in Action.__subclasses__():
+                        klass.apply(battle, sub_item, session)
+
         elif item_type in ['acrobatics', 'athletics']:
             if item['success']:
                 print(f"{item['source'].name} {item_type} check success")

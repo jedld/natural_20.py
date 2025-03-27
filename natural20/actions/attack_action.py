@@ -197,18 +197,18 @@ class AttackAction(Action):
                     ground_object.add_item(item['weapon'])
 
         if battle:
-            if item['as_reaction']:
+            if item.get('as_reaction'):
                 battle.consume(item['source'], 'reaction')
-            elif item['as_bonus_action']:
+            elif item.get('as_bonus_action'):
                 battle.consume(item['source'], 'bonus_action')
-            elif item['second_hand']:
+            elif item.get('second_hand'):
                 battle.consume(item['source'], 'bonus_action')
             else:
                 battle.consume(item['source'], 'action')
 
             item['source'].break_stealth()
 
-            weapon = battle.session.load_weapon(item['weapon']) if item['weapon'] else None
+            weapon = battle.session.load_weapon(item['weapon']) if item.get('weapon') else None
 
             if weapon and 'light' in weapon.get('properties', []) and not battle.two_weapon_attack(item['source']) and not item['second_hand']:
                 battle.entity_state_for(item['source'])['two_weapon'] = item['weapon']

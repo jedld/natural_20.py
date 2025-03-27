@@ -13,10 +13,6 @@ class ProximityTrigger(Object):
         self.events = self.properties.get('events', [])
         self.multi_trigger = self.properties.get('multi_trigger', False)
 
-        for event in self.events:
-            handler = GenericEventHandler(session, map, event)
-            self.register_event_hook(event['event'], handler, 'handle')
-
     def area_trigger_handler(self, entity, entity_pos, is_flying):
         result = []
 
@@ -32,9 +28,9 @@ class ProximityTrigger(Object):
                     'source': self,
                     'type': 'state',
                     'params': {
-                        'activated': True
+                        'activated': not self.multi_trigger,
                     },
-                    'multi_trigger': self.multi_trigger,
+                    'target': entity,
                     'trigger': 'activate'
                 })
         return result

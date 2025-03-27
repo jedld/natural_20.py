@@ -293,22 +293,22 @@ corner_door_lt:
     - ╓
   token_open:
     - ─
-corner_door_bl:
+corner_door_bl_alt:
   color: magenta
   default_ac: 15
   hp_die: 4d8
   interactable: true
   item_class: DoorObjectWall
   max_hp: 18
-  name: Corner Door Top Left
-  door_pos: 1
+  name: Corner Door Bottom Left
+  door_pos: 2
   border:
+    - 0
+    - 0
+    - 0
     - 1
-    - 0
-    - 0
-    - 0
   token:
-    - ╖
+    - ╚
   token_open:
     - ─
 corner_door_rt:
@@ -429,24 +429,6 @@ stone_wall_door:
     - '='
   token_open:
     - ─
-corner_door_bl:
-  color: magenta
-  default_ac: 15
-  hp_die: 4d8
-  interactable: true
-  item_class: DoorObjectWall
-  max_hp: 18
-  name: Corner Door Bottom Left
-  door_pos: 2
-  border:
-    - 0
-    - 0
-    - 0
-    - 1
-  token:
-    - ╚
-  token_open:
-    - ─
 corner_door_tr:
   color: magenta
   default_ac: 15
@@ -483,6 +465,33 @@ top_door:
     - ^
   token_open:
     - ─
+campfire:
+  color: yellow
+  default_ac: 17
+  light:
+    bright: 20
+    dim: 10
+  item_class: ProximityTrigger
+  distance: 0
+  multi_trigger: true
+  placeable: true
+  passable: true
+  name: Campfire
+  token:
+    - f
+  token_image:
+  events:
+    - event: activate
+      message: event.campfire.flames
+      damages:
+        - attack_name: Fire Damage
+          if: target:!prone
+          damage_die: 1
+          damage_type: fire
+        - attack_name: Fire Damage
+          if: target:prone
+          damage_die: 1d6
+          damage_type: fire
 bottom_door:
   color: magenta
   default_ac: 15

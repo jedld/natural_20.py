@@ -361,7 +361,7 @@ class DieRoll(Rollable):
         Expected format: "[number]d[sides][+/-modifier]"
         For example: "2d6+3" or "d20" or just "5" (a fixed modifier).
         """
-        roll_str = roll_str.strip()
+        roll_str = str(roll_str).strip()
         # Try to parse with a regular expression.
         pattern = r'^(?:(\d+)?d(\d+))?(?:\s*([+-])\s*(\d+))?$'
         match = re.match(pattern, roll_str)

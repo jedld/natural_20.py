@@ -18,10 +18,11 @@ class GenericEventHandler:
                 return
             
         if self.properties.get('message'):
+            message = self.session.t(self.properties['message'], options={ "name": entity.label(), "target": opts['target'].label() if opts['target'] else None })
             self.session.event_manager.received_event({
                 'event': 'message',
                 'source': entity,
-                'message': self.properties['message']
+                'message': message
             })
 
         if self.properties.get('teleport'):
@@ -98,17 +99,18 @@ class GenericEventHandler:
             for damage in self.properties['damages']:
                 eval_if = damage.get('if', None)
                 if eval_if:
-                    if not entity.eval_if(eval_if, context={'entity': entity, 'opts': opts}):
+                    if not entity.eval_if(eval_if, context=opts):
                         continue
 
                 result.append({
-                    'source': self,
+                    'source': entity,
                     'target': opts['target'],
                     'type': 'damage',
                     'attack_name': damage.get('attack_name', 'pit trap'),
                     'damage_type': damage.get('damage_type', 'piercing'),
                     'damage': DieRoll.roll(damage['damage_die'])
                 })
+
         if self.properties.get('update_state'):
             update_state_properties = self.properties['update_state']
 

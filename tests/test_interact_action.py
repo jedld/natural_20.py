@@ -107,6 +107,7 @@ class TestInteractAction(unittest.TestCase):
             'move to [2, 5]',
             'Prone',
             'SecondWind',
+            'Help',
             'Grapple',
             'Shove',
             'UseItem: healing_potion',

@@ -345,8 +345,10 @@ class Battle():
                 entity_state['help_with'].pop(source)
 
     def help_with(self, entity):
-        return self.entities[entity]['help_with']
-    
+        if entity in self.entities:
+            return self.entities[entity]['help_with']
+        return {}
+
     def dismiss_help_for(self, entity):
         self.entities[entity]['help_with'] = {}
 
@@ -412,6 +414,7 @@ class Battle():
         for item in action.result:
             for klass in Action.__subclasses__():
                 klass.apply(self, item, self.session)
+
                 if self.animation_log_enabled:
                     if item.get('perception_targets'):
                         perception_targets = item['perception_targets']

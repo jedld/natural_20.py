@@ -293,6 +293,8 @@ class Session:
         return deepcopy(self.objects[object_name])
 
     def t(self, token, options=None):
+        if options is None:
+            options = {}
         return i18n.t(token, **options)
 
     def load_yaml_file(self, category, resource):

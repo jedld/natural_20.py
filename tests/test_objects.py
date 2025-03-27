@@ -1,5 +1,6 @@
 import unittest
 from natural20.actions.use_item_action import UseItemAction
+from natural20.actions.move_action import MoveAction
 from natural20.session import Session
 from natural20.battle import Battle
 from natural20.map import Map
@@ -52,3 +53,12 @@ class TestObjects(unittest.TestCase):
         self.assertEqual(self.switch.state, 'on')
         self.assertTrue(self.door.opened())
 
+    def test_proximity_trigger(self):
+        self.map.move_to(self.entity, 1, 5)
+        print(MapRenderer(self.map).render(self.battle))
+        action = autobuild(self.session, MoveAction, self.entity, self.battle, match=[[2, 5]])[0]
+        self.assertEqual(self.entity.hp(), 67)
+        self.battle.action(action)
+        self.battle.commit(action)
+        print(MapRenderer(self.map).render(self.battle))
+        self.assertEqual(self.entity.hp(), 66)
