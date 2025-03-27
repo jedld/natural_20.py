@@ -138,6 +138,10 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                     new_y = cur_y + dy
                     if (map.bidirectionally_passable(entity, new_x, new_y, (cur_x, cur_y), battle, allow_squeeze=False)
                             and map.placeable(entity, new_x, new_y, battle, squeeze=False)):
+
+                        if match and [new_x, new_y] not in match:
+                            continue
+
                         chosen_path = [[cur_x, cur_y], [new_x, new_y]]
                         max_moves = entity.available_movement(battle) // 5
                         movement_result = compute_actual_moves(

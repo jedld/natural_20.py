@@ -846,6 +846,7 @@ class Entity(EntityStateEvaluator, Notable):
         return entity_state
 
     def resolve_trigger(self, event_type, opts=None):
+        results = []
         if opts is None:
             opts = {}
         if event_type in self.entity_event_hooks:
@@ -854,7 +855,10 @@ class Entity(EntityStateEvaluator, Notable):
                 return
 
             for active_hook in available_hooks:
-                getattr(active_hook['handler'], active_hook['method'])(self, {**opts, 'effect': active_hook['effect']})
+                _temp_results = getattr(active_hook['handler'], active_hook['method'])(self, {**opts, 'effect': active_hook['effect']})
+                if _temp_results:
+                    results.extend(_temp_results)
+        return results
 
     def update_state(self, state):
         if state == 'active':
