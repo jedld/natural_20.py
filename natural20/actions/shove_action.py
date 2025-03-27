@@ -52,6 +52,9 @@ class ShoveAction(Action):
         return action.build_map()
 
     def resolve(self, session, map, opts=None):
+        if not opts:
+            opts = {}
+
         target = opts.get("target") or self.target
         battle = opts.get("battle")
         if target is None:
@@ -88,6 +91,7 @@ class ShoveAction(Action):
                 "type": "shove",
                 "success": True,
                 "battle": battle,
+                "map": map,
                 "shove_loc": shove_loc,
                 "knock_prone": self.knock_prone,
                 "source_roll": strength_roll,
@@ -108,33 +112,39 @@ class ShoveAction(Action):
 
     @staticmethod
     def apply(battle, item, session=None):
+        event_manager = battle.event_manager if battle else session.event_manager
         if item["type"] == "shove":
+            # if target entity is passive it is now active
+            if item["target"].passive():
+                item["target"].make_active()
+
             if item["success"]:
                 if item["knock_prone"]:
                     item["target"].prone()
                 elif item["shove_loc"]:
-                    if battle.map.entity_at(*item["shove_loc"]):
+                    if item["map"].entity_at(*item["shove_loc"]):
                         item["target"].prone()
                     else:
-                        item["battle"].map.move_to(item["target"], *item["shove_loc"], battle)
+                        item["map"].move_to(item["target"], *item["shove_loc"], battle)
                 else:
                     raise Exception(f"Invalid shove action {item}")
-                battle.event_manager.received_event(
+                event_manager.received_event(
                     {
                         "event": "shove", "success": True, "target": item["target"], "source": item["source"],
+                        "shove_loc": item["shove_loc"],
                         "source_roll": item["source_roll"], "target_roll": item["target_roll"]
                     }
                 )
             else:
-                battle.event_manager.received_event(
+                event_manager.received_event(
                     {
-                        "event": "shove", "success": True,
+                        "event": "shove", "success": False,
                         "target": item["target"], "source": item["source"],
                         "source_roll": item["source_roll"], "target_roll": item["target_roll"]
                     }
                 )
-
-            battle.entity_state_for(item["source"])["action"] -= 1
+            if battle:
+                battle.consume(item["source"], 'action')
 
 
 class PushAction(ShoveAction):
