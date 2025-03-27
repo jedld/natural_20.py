@@ -70,6 +70,7 @@ class LookAction(Action):
                 })
             # scan all visible objects in the map with a note
             item['perception_targets'] = {}
+
             for entity in list(current_map.entities.keys()) + list(current_map.interactable_objects.keys()):
                 if entity != item["source"] and entity.has_notes() and current_map.can_see(item["source"], entity):
                     _, new_notes = entity.list_notes(entity=item["source"], perception=item["die_roll"].result())
