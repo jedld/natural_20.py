@@ -31,6 +31,8 @@ from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.interact_action import InteractAction
+from natural20.actions.summon_familiar_action import SummonFamiliarAction
+from natural20.actions.find_familiar_action import FindFamiliarAction
 from natural20.spell.extensions.hit_computations import AttackSpell
 from natural20.entity import Entity
 from natural20.action import Action, AsyncReactionHandler
@@ -88,10 +90,7 @@ if 'extensions' in index_data:
     for extension in index_data['extensions']:
         # load extension and import extension from the extensions folder
         extension_name = extension['name']
-        # import extension
-        print(f"loading {extension_name}")
-        extension_module = importlib.import_module(f"{extension_name}")
-        EXTENSIONS.append(extension_module)
+        # import extensionfrom natural20.actions.dismiss_familiar_action import DismissFamiliarAction
 
 sockets = []
 MAP_PADDING = [6, 15]
@@ -948,6 +947,10 @@ def action_type_to_class(action_type):
         return LinkedAttackAction
     elif action_type == 'HelpAction':
         return HelpAction
+    elif action_type == 'FindFamiliarAction':
+        return FindFamiliarAction
+    elif action_type == 'SummonFamiliarAction':
+        return SummonFamiliarAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
 
@@ -1337,6 +1340,8 @@ def action():
                             action_info['action'] = action_type
                             action_info['type'] = 'select_empty_space'
                             action_info['param'] = action['param']
+                            action_info['range'] = param_details.get('range', 5)
+                            action_info['range_max'] = param_details.get('max_range', param_details.get('range', 5))
                             return jsonify(action_info)
 
                     elif param_details['type'] == 'select_target':

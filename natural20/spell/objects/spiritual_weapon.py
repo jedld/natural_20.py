@@ -1,6 +1,5 @@
 from natural20.entity import Entity
 from natural20.actions.move_action import MoveAction
-from natural20.actions.attack_action import AttackAction
 from natural20.actions.attack_action import LinkedAttackAction
 from natural20.session import Session
 import uuid

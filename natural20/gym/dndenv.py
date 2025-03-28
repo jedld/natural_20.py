@@ -111,6 +111,7 @@ ACTION_TYPE_MAP = {
     "hide": 15,
     "use_item": 16,
     "action_surge": 17,
+    "dismiss_familiar": 18,
     -1: -1,
 }
 

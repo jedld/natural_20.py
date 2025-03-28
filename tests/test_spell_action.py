@@ -1,5 +1,7 @@
 import unittest
 from natural20.actions.spell_action import SpellAction
+from natural20.actions.find_familiar_action import FindFamiliarAction
+from natural20.actions.summon_familiar_action import SummonFamiliarAction
 from natural20.actions.attack_action import AttackAction
 from natural20.spell.shield_spell import ShieldSpell
 from natural20.session import Session
@@ -306,6 +308,29 @@ class TestSpellAction(unittest.TestCase):
 
         entity = self.battle_map.entity_at(0, 6)
         self.assertIsNone(entity)
+
+        action = autobuild(self.session, SpellAction, self.entity, None, map=self.battle_map, match=['find_familiar', 'bat', [0, 6]], verbose=True)[0]
+        self.battle.action(action)
+        self.battle.commit(action)
+
+        # test send to pocket dimension
+        action = autobuild(self.session, FindFamiliarAction, self.entity, None, map=self.battle_map, match=['dismiss_temporary'], verbose=True)[0]
+
+        self.battle.action(action)
+        self.battle.commit(action)
+        entity = self.battle_map.entity_at(0, 6)
+        self.assertIsNone(entity)
+
+        self.assertEqual(len(self.entity.pocket_dimension), 1)
+
+        # resummon
+        action = autobuild(self.session, SummonFamiliarAction, self.entity, self.battle, map=self.battle_map, match=[[0, 6]], verbose=True)[0]
+        self.battle.action(action)
+        self.battle.commit(action)
+        entity = self.battle_map.entity_at(0, 6)
+        self.assertIsNotNone(entity)
+        self.assertEqual(entity.name, 'Bat')
+        self.assertEqual(entity.owner, self.entity)
 
 if __name__ == '__main__':
     unittest.main()

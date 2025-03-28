@@ -60,6 +60,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.activated = False
         self.dialogue = []
         self.condition_immunities = []
+        self.pocket_dimension = []
         self.help_actions = {}
         self.helping_with = set()
         self.owner = None
@@ -417,6 +418,8 @@ class Entity(EntityStateEvaluator, Notable):
             # dismiss all effects
             for effect in self.casted_effects:
                 self.dismiss_effect(effect['effect'])
+
+
 
     def make_unconscious(self):
         if not self.unconscious() and not self.dead():
