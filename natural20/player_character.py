@@ -25,6 +25,8 @@ from natural20.actions.ground_interact_action import GroundInteractAction
 from natural20.actions.spell_action import SpellAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.interact_action import InteractAction
+from natural20.actions.find_familiar_action import FindFamiliarAction
+from natural20.actions.summon_familiar_action import SummonFamiliarAction
 from natural20.utils.action_builder import autobuild
 from natural20.concern.container import Container
 from natural20.utils.movement import compute_actual_moves
@@ -63,7 +65,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
     FirstAidAction,
     UseItemAction,
     InteractAction,
-    LookAction
+    LookAction,
+    FindFamiliarAction,
+    SummonFamiliarAction
   ]
 
   def __init__(self, session, properties, name=None):
@@ -258,6 +262,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
           action_list.append(action)
         elif action_type == HelpAction:
           action_list.append(HelpAction(session, self, 'help'))
+        elif action_type == FindFamiliarAction:
+          action_list.append(FindFamiliarAction(session, self, 'dismiss_familiar'))
+        elif action_type == SummonFamiliarAction:
+          action_list.append(SummonFamiliarAction(session, self, 'summon_familiar'))
         elif action_type == MoveAction:
           if not battle or not auto_target:
             action_list.append(MoveAction(session, self, 'move'))
@@ -319,6 +327,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
                   action.disabled_reason = self.t(details['disabled_text'])
 
                 action_list.append(action)
+        elif action_type == FindFamiliarAction:
+          action_list.append(FindFamiliarAction(session, self, 'dismiss_familiar'))
     return action_list
 
   def equipped_weapons(self, session, valid_weapon_types=['ranged_attack', 'melee_attack']):

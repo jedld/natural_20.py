@@ -1,6 +1,4 @@
-from natural20.spell.spell import Spell, consume_resource
-from natural20.spell.objects.spiritual_weapon import SpiritualWeapon
-from natural20.map import Map
+from natural20.spell.spell import Spell
 import pdb
 
 class FindFamiliarEffect:
@@ -41,7 +39,7 @@ class FindFamiliarSpell(Spell):
                     {
                         'type': 'select_empty_space',
                         'num': 1,
-                        'range': 60
+                        'range': 10
                     }
                 ],
                 'next': set_target
@@ -59,7 +57,7 @@ class FindFamiliarSpell(Spell):
             'next': set_familiar
         }
 
-    def validate(self, battle_map: Map, target=None):
+    def validate(self, battle_map, target=None):
         super().validate(target)
         if target is None:
             target = self.target
@@ -102,6 +100,10 @@ class FindFamiliarSpell(Spell):
             familiar_npc.group = item['source'].group
 
             battle_map = item['map']
+
+            if not battle_map.placeable(familiar_npc, *item['target']):
+                return
+
             battle_map.place(item['target'], familiar_npc)
 
             item['source'].add_casted_effect({
@@ -110,6 +112,7 @@ class FindFamiliarSpell(Spell):
             })
 
             session.event_manager.received_event({"event" : 'find_familiar',
+                                                  "familiar" : familiar_npc,
                                                   "spell" : item['effect'],
                                                   "source": item['source'],
                                                   "target" : item['target'] })

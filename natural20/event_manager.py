@@ -270,6 +270,9 @@ class EventManager:
             'start_of_combat': start_of_combat,
             'use_item': handle_use_item,
             'interact': interact,
+            'resummon_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} summons {event['familiar'].name}"),
+            'dismiss_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} dismisses {event['familiar'].name}"),
+            'find_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} creates a familiar {event['familiar'].name}"),
             'look': look,
             'message': lambda event: self.output_logger.log(f"{self.show_name(event)}: {event['message']}"),
             # New event handlers:
