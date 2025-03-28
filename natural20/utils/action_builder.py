@@ -218,8 +218,10 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
 
             # Check all 8 directions (3x3 grid minus the center)
             position_choices = []
-            for dx in range(-2, 3):
-                for dy in range(-2, 3):
+            _range = param.get("range", 5) // 5
+
+            for dx in range(-_range, _range + 1):
+                for dy in range(-_range, _range + 1):
                     if dx == 0 and dy == 0:
                         continue
 

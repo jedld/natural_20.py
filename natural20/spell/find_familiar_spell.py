@@ -106,6 +106,11 @@ class FindFamiliarSpell(Spell):
 
             battle_map.place(item['target'], familiar_npc)
 
+
+            for effect in item['source'].casted_effects:
+                if effect['effect'].id == 'familiar':
+                    item['source'].remove_effect(effect['effect'])
+
             item['source'].add_casted_effect({
                 'target': item['target'],
                 'effect': FindFamiliarEffect(item['source'], familiar_npc, battle_map)

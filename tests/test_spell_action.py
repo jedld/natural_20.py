@@ -324,13 +324,15 @@ class TestSpellAction(unittest.TestCase):
         self.assertEqual(len(self.entity.pocket_dimension), 1)
 
         # resummon
-        action = autobuild(self.session, SummonFamiliarAction, self.entity, self.battle, map=self.battle_map, match=[[0, 6]], verbose=True)[0]
+        action = autobuild(self.session, SummonFamiliarAction, self.entity, self.battle, map=self.battle_map, match=[[3, 5]], verbose=True)[0]
         self.battle.action(action)
         self.battle.commit(action)
-        entity = self.battle_map.entity_at(0, 6)
+        entity = self.battle_map.entity_at(3, 5)
         self.assertIsNotNone(entity)
         self.assertEqual(entity.name, 'Bat')
         self.assertEqual(entity.owner, self.entity)
+
+
 
 if __name__ == '__main__':
     unittest.main()
