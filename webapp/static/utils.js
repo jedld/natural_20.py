@@ -183,6 +183,56 @@ const Utils = {
         Utils.rollable(entityId, rollStr, advantage, disadvantage, description);
       });
     });
+  },
+  drawMovementPath: function(ctx, movePath, available_cost, data) {
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.beginPath();
+    ctx.strokeStyle = "green";
+    ctx.lineWidth = 5;
+    let prevX, prevY;
+    movePath.forEach((coords, index) => {
+      const [x, y] = coords;
+      const rect = $(`.tile[data-coords-x="${x}"][data-coords-y="${y}"]`)[0].getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2 + scrollLeft;
+      const centerY = rect.top + rect.height / 2 + scrollTop;
+      if (index === 0) {
+        ctx.moveTo(centerX, centerY);
+      } else {
+        ctx.lineTo(centerX, centerY);
+      }
+      if (index === data.path.length - 1) {
+        const arrowSize = 10;
+        const angle = Math.atan2(centerY - prevY, centerX - prevX);
+        if (data.placeable) {
+          ctx.moveTo(
+            centerX - arrowSize * Math.cos(angle - Math.PI / 6),
+            centerY - arrowSize * Math.sin(angle - Math.PI / 6),
+          );
+          ctx.lineTo(centerX, centerY);
+          ctx.lineTo(
+            centerX - arrowSize * Math.cos(angle + Math.PI / 6),
+            centerY - arrowSize * Math.sin(angle + Math.PI / 6),
+          );
+        } else {
+          ctx.moveTo(centerX - arrowSize, centerY - arrowSize);
+          ctx.lineTo(centerX + arrowSize, centerY + arrowSize);
+          ctx.moveTo(centerX + arrowSize, centerY - arrowSize);
+          ctx.lineTo(centerX - arrowSize, centerY + arrowSize);
+        }
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "green";
+        ctx.fillText(
+          `${available_cost}ft`,
+          centerX,
+          centerY + $(".tile").height() / 2,
+        );
+      }
+      prevX = centerX;
+      prevY = centerY;
+    });
+    ctx.stroke();
   }
 };
 

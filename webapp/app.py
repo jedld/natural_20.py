@@ -1217,6 +1217,8 @@ def action():
                             socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1], 'animation_log': animation_log}})
                         current_game.loop_environment()
                         return jsonify({'status': 'ok'})
+                    else:
+                        return jsonify({'status': 'error', 'message': 'Entity not placeable at target location'})
             else:
                 action_info['action'] = 'movement'
                 action_info['type'] = 'select_path'
