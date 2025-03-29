@@ -548,6 +548,9 @@ $(document).ready(() => {
   // Mode & State Variables
   let valid_target_cache = {};
   let move_path_cache = {};
+  let currentPosition = null;
+  let accumulatedPath = [];
+  let pivotPoints = [];
   let moveMode = false,
     targetMode = false,
     multiTargetMode = false,
@@ -636,6 +639,8 @@ $(document).ready(() => {
     ctx.stroke();
   }
   
+  
+
   // Highlight tile info or draw movement data on hover.
   $(".tiles-container").on("mouseover", ".tile", function () {
     const coordsx = $(this).data("coords-x");
@@ -684,29 +689,59 @@ $(document).ready(() => {
         `<p>X: ${coordsx}</p><p>Y: ${coordsy}</p>${tooltip}`,
       );
       if (moveMode && (source.x !== coordsx || source.y !== coordsy)) {
-        if (move_path_cache[`${coordsx}-${coordsy}`]) {
-          let data = move_path_cache[`${coordsx}-${coordsy}`];
-          const available_cost =
-                (data.cost.original_budget - data.cost.budget) * 5;
-          movePath = data.path;
-          Utils.drawMovementPath(ctx, data.path, available_cost, data);
+        const cacheKey = `${source.x}-${source.y}-${coordsx}-${coordsy}-${pivotPoints.join("-")}`;
+
+        // Function to process and draw movement path
+        const processMovementData = (data) => {
+          if (data.cost.budget < 0) return;
+
+          const available_cost = (data.cost.original_budget - data.cost.budget) * 5;
+          if (data.path) {
+            // Create a new movement path starting with accumulated path
+            movePath = [...accumulatedPath];
+            if (accumulatedPath.length > 0) {
+              movePath.pop();
+            }
+
+            // Store current position for potential pivot points
+            currentPosition = {
+              x: coordsx,
+              y: coordsy,
+              cost: available_cost,
+              path: data.path
+            };
+
+
+            // Add the new path segment to the movement path
+            movePath = [...movePath, ...data.path];
+            // Draw the complete path
+            Utils.drawMovementPath(ctx, movePath, available_cost, data.placeable);
+          }
+        };
+
+        // Check if we have cached data for this path
+        if (move_path_cache[cacheKey]) {
+          processMovementData(move_path_cache[cacheKey]);
         } else {
+          // Fetch path data from server
           Utils.ajaxGet(
             "/path",
-            { from: source, to: { x: coordsx, y: coordsy } },
-            (data) => {
-              if (data.cost.budget < 0) return;
-              const available_cost =
-                (data.cost.original_budget - data.cost.budget) * 5;
-              move_path_cache[`${coordsx}-${coordsy}`] = data;
-              movePath = data.path;
-              Utils.drawMovementPath(ctx, data.path, available_cost, data);
+            {
+              from: source,
+              to: { x: coordsx, y: coordsy },
+              accumulatedPath: accumulatedPath.length > 0 ? JSON.stringify(accumulatedPath) : null
             },
+            (data) => {
+              // Cache the result
+              move_path_cache[cacheKey] = data;
+              processMovementData(data);
+            }
           );
         }
       }
     }
   });
+
 
   // Example: add all entities to initiative.
   $("#add-all-entities").on("click", function (event) {
@@ -724,12 +759,27 @@ $(document).ready(() => {
     if (event.keyCode === 27) {
       if (moveMode || targetMode || multiTargetMode) {
         moveMode = targetMode = multiTargetMode = false;
+        accumulatedPath = [];
+        pivotPoints = [];
         valid_target_cache = {};
         move_path_cache = {};
         multiTargetList = [];
         $(".add-to-target, .popover-menu-2, .popover-menu").hide();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         globalActionInfo = globalOpts = null;
+      }
+    }
+    // if 'q' is pressed, toggle move path
+    if (event.keyCode === 81) {
+      // get current mouse tile coords
+      if (currentPosition) {
+      const coordsx = currentPosition.x;
+      const coordsy = currentPosition.y;
+      if (source.x !== coordsx || source.y !== coordsy) {
+          pivotPoints.push([source.x, source.y]);
+          accumulatedPath = accumulatedPath.concat(currentPosition.path);
+          source = { x: coordsx, y: coordsy };
+        }
       }
     }
   });
@@ -739,6 +789,8 @@ $(document).ready(() => {
     if (targetMode || multiTargetMode || moveMode) {
       e.preventDefault();
       targetMode = multiTargetMode = moveMode = false;
+      accumulatedPath = [];
+      pivotPoints = [];
       valid_target_cache = {};
       move_path_cache = {};
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -893,6 +945,8 @@ $(document).ready(() => {
         $(".popover-menu").hide();
         moveMode = true;
         source = { x: coordsx, y: coordsy };
+        accumulatedPath = [];
+        pivotPoints = [];
         break;
       case "select_spell":
         Utils.ajaxGet("/spells", { id: entity_uid, action, opts }, (data) => {
@@ -1099,7 +1153,9 @@ $(document).ready(() => {
 
     if (moveMode) {
       moveMode = false;
+      accumulatedPath = [];
       move_path_cache = {};
+      pivotPoints = [];
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
     const dataPayload = { id: entity_uid, action, opts };

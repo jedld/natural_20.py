@@ -632,7 +632,25 @@ def compute_path():
         'y': request.args.get('to[y]')
     }
 
-    entity = battle_map.entity_at(int(source['x']), int(source['y']))
+    entity_x = int(source['x'])
+    entity_y = int(source['y'])
+
+    accumulated_path = request.args.get('accumulatedPath')
+    if accumulated_path:
+        accumulated_path = json.loads(accumulated_path)
+        # remove duplicates but preserve order
+        # Convert each coordinate pair to a tuple so it can be used as a dict key
+        accumulated_path = [tuple(coord) for coord in accumulated_path]
+        accumulated_path = list(dict.fromkeys(accumulated_path))
+        if len(accumulated_path) > 0:
+            entity_x, entity_y = accumulated_path[0]
+            entity_x = int(entity_x)
+            entity_y = int(entity_y)
+    else:
+        accumulated_path = []
+
+
+    entity = battle_map.entity_at(entity_x, entity_y)
     if battle:
         available_movement = entity.available_movement(battle)
     else:
@@ -641,8 +659,14 @@ def compute_path():
                                                                 int(source['y']),
                                                                 int(destination['x']),
                                                                 int(destination['y']),
+                                                                accumulated_path=accumulated_path,
                                                                 available_movement_cost=available_movement)
-    cost = battle_map.movement_cost(entity, path)
+    if accumulated_path:
+        accumulated_path.extend(path[1:])
+    else:
+        accumulated_path = path
+
+    cost = battle_map.movement_cost(entity, accumulated_path)
     placeable = battle_map.placeable(entity, int(destination['x']), int(destination['y']), battle, False)
 
     path_data = {

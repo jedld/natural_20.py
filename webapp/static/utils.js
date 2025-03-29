@@ -184,7 +184,7 @@ const Utils = {
       });
     });
   },
-  drawMovementPath: function(ctx, movePath, available_cost, data) {
+  drawMovementPath: function(ctx, movePath, available_cost, placeable) {
     const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -202,10 +202,10 @@ const Utils = {
       } else {
         ctx.lineTo(centerX, centerY);
       }
-      if (index === data.path.length - 1) {
+      if (index === movePath.length - 1) {
         const arrowSize = 10;
         const angle = Math.atan2(centerY - prevY, centerX - prevX);
-        if (data.placeable) {
+        if (placeable) {
           ctx.moveTo(
             centerX - arrowSize * Math.cos(angle - Math.PI / 6),
             centerY - arrowSize * Math.sin(angle - Math.PI / 6),
