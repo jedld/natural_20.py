@@ -67,6 +67,65 @@
             border: 1px solid #ccc;
             border-top: none;
         }
+
+        /* Features & Traits Styling */
+        .features-container {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        .feature-section {
+            margin-bottom: 20px;
+        }
+        .feature-section h3 {
+            color: #8b0000;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .feature-item {
+            background: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            cursor: help;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        .feature-item:hover {
+            background: #f0f0f0;
+            border-color: #8b0000;
+        }
+        .feature-item::before {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 4px;
+            font-size: 0.9em;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+            z-index: 1000;
+        }
+        .feature-item:hover::before {
+            opacity: 1;
+            visibility: visible;
+            bottom: 120%;
+        }
     </style>
 
 </head>
@@ -114,6 +173,45 @@
             </tr>
             {% endif %}
         </table>
+
+        {% if not entity.object() %}
+        <h2>Features & Traits</h2>
+        <div class="features-container">
+            {% if entity.properties.get('class_features') %}
+            <div class="feature-section">
+                <h3>Class Features</h3>
+                <ul class="feature-list">
+                {% for feature in entity.properties.get('class_features', []) %}
+                    <li class="feature-item" data-tooltip="{{ feature }}">{{ feature | replace('_', ' ') | title }}</li>
+                {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if entity.properties.get('race_features') %}
+            <div class="feature-section">
+                <h3>Race Features</h3>
+                <ul class="feature-list">
+                {% for feature in entity.properties.get('race_features', []) %}
+                    <li class="feature-item" data-tooltip="{{ feature }}">{{ feature | replace('_', ' ') | title }}</li>
+                {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if entity.properties.get('attributes') %}
+            <div class="feature-section">
+                <h3>Other Traits</h3>
+                <ul class="feature-list">
+                {% for feature in entity.properties.get('attributes', []) %}
+                    <li class="feature-item" data-tooltip="{{ feature }}">{{ feature | replace('_', ' ') | title }}</li>
+                {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <h2>Armor Class</h2>
         <table>
             <tr>
@@ -175,6 +273,37 @@
             <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.cha_mod() | mod_str }}" data-description="Charisma Check">{{ entity.ability_score_cha() }} ({{entity.cha_mod() | mod_str }} )</td>
             </tr>
         </table>
+
+        {% if entity.resistances or entity.damage_immunities or entity.damage_vulnerabilities or entity.condition_immunities %}
+        <h2>Damage Resistances & Immunities</h2>
+        <table>
+            {% if entity.resistances %}
+            <tr>
+                <th>Resistances</th>
+                <td>{{ entity.resistances() | join(', ') }}</td>
+            </tr>
+            {% endif %}
+            {% if entity.damage_immunities %}
+            <tr>
+                <th>Damage Immunities</th>
+                <td>{{ entity.damage_immunities | join(', ') }}</td>
+            </tr>
+            {% endif %}
+            {% if entity.damage_vulnerabilities %}
+            <tr>
+                <th>Damage Vulnerabilities</th>
+                <td>{{ entity.damage_vulnerabilities | join(', ') }}</td>
+            </tr>
+            {% endif %}
+            {% if entity.condition_immunities %}
+            <tr>
+                <th>Condition Immunities</th>
+                <td>{{ entity.condition_immunities | join(', ') }}</td>
+            </tr>
+            {% endif %}
+        </table>
+        {% endif %}
+
         <h2>Saving Throws</h2>
         <table>
             <tr>
