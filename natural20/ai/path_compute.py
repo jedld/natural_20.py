@@ -1,6 +1,6 @@
 import heapq
 import math
-
+import copy
 MAX_DISTANCE = 4_000_000
 
 class PathCompute:
@@ -11,15 +11,20 @@ class PathCompute:
         self.ignore_opposing = ignore_opposing
         self.max_x, self.max_y = self.map.size
    
-    def compute_path(self, source_x, source_y, destination_x, destination_y, available_movement_cost=None):
+    def compute_path(self, source_x, source_y, destination_x, destination_y, available_movement_cost=None, accumulated_path=None):
         """
         A* search from (source_x, source_y) to (destination_x, destination_y).
+
+        Args:
+            source_x, source_y: Starting coordinates
+            destination_x, destination_y: Target coordinates
+            available_movement_cost: Optional movement cost budget in feet
+            accumulated_path: Optional list of (x,y) coordinates representing previous path segments
 
         Returns:
             A list of (x, y) for the path or None if no path exists.
             If available_movement_cost is given, trims path that exceeds the cost in feet.
         """
-
         # Initialize arrays
         distances = [[MAX_DISTANCE] * self.max_y for _ in range(self.max_x)]  # g-cost
         parents   = [[None]         * self.max_y for _ in range(self.max_x)]  # store parents to reconstruct path
@@ -29,7 +34,19 @@ class PathCompute:
         #  - g_cost = actual distance from source
         pq = []
 
-        # Initialize start
+        # Calculate initial cost from accumulated path if provided
+        initial_cost = 0
+        if accumulated_path:
+            for i in range(0, len(accumulated_path) - 1):
+                x1, y1 = accumulated_path[i]
+                initial_cost += self.base_move_cost(x1, y1) * self.map.feet_per_grid
+                
+        print(f"initial_cost: {initial_cost}")
+        if available_movement_cost is not None:
+            available_movement_cost -= initial_cost
+        
+        print(f"available_movement_cost: {available_movement_cost}")
+        # Initialize start node
         distances[source_x][source_y] = 0
         start_heuristic = self.heuristic(source_x, source_y, destination_x, destination_y)
         heapq.heappush(pq, (start_heuristic, 0, (source_x, source_y)))
