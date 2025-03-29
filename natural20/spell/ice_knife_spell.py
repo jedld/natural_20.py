@@ -85,8 +85,10 @@ class IceKnifeSpell(AttackSpell):
     @staticmethod
     def apply(battle, item, session=None):
         if item['type'] == 'ice_knife':
+            map = battle.map_for(item['source'])
+
             # On hit, the target and all creatures within 5 feet of the target must make a Dexterity saving throw.
-            affected_entities = [item['target']] + battle.map.entities_in_range(item['target'], 5)
+            affected_entities = [item['target']] + map.entities_in_range(item['target'], 5)
             attack_roll = item['attack_roll']
             for entity in affected_entities:
                 saving_throw = entity.saving_throw('dexterity', battle)

@@ -113,6 +113,12 @@
               </li>
             </ul>
           </div>
+          <button class="btn add-to-target button text-center"
+            style="top: 7px; right: 0; display: none"
+            data-id="{{ tile.id }}"
+            data-name="{{ tile.name }}">
+                <i class="glyphicon glyphicon-plus"></i>
+          </button>
             <div class="entity" data-id="{{ tile.id }}">
               {% set entity_size = tile.entity_size %}
               {% set multiplier = 1 %}
@@ -147,12 +153,7 @@
                 {% endfor %}
               </div>
 
-              <button class="btn add-to-target button text-center"
-                      style="top: 7px; right: 0; display: none"
-                      data-id="{{ tile.id }}"
-                      data-name="{{ tile.name }}">
-                <i class="glyphicon glyphicon-plus"></i>
-              </button>
+
 
 
               

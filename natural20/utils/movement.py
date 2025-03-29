@@ -171,9 +171,14 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
 def retrieve_opportunity_attacks(entity, move_list, battle):
     if entity.disengage(battle):
         return []
+
+    if entity.any_class_feature(['flyby']):
+        return []
+
     battle_map = battle.map_for(entity)
     if not battle_map:
         raise Exception('battle map not found')
+    
     opportunity_attacks = opportunity_attack_list(entity, move_list, battle, battle_map)
     return [enemy_opportunity for enemy_opportunity in opportunity_attacks if enemy_opportunity['source'].has_reaction(battle) and enemy_opportunity['source'] not in entity.grappling_targets()]
 

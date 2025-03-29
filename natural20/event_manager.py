@@ -210,9 +210,9 @@ class EventManager:
 
         def ice_knife(event):
             if event['success']:
-                self.output_logger.log(f"{self.show_target_name(event)} failed the dexterity saving throw for ice knife. {event['roll']} < {event['source'].spell_save_dc()}")
+                self.output_logger.log(f"{self.show_target_name(event)} passed the dexterity saving throw for ice knife. {event['roll']} >= {event['source'].spell_save_dc()}")
             else:
-                self.output_logger.log(f"{self.show_target_name(event)} succeeded the dexterity saving throw for ice knife. {event['roll']} >= {event['source'].spell_save_dc()}")
+                self.output_logger.log(f"{self.show_target_name(event)} failed the dexterity saving throw for ice knife. {event['roll']} < {event['source'].spell_save_dc()}")
 
         def interact(event):
             self.output_logger.log(f"{self.show_name(event)} interacted with {self.show_target_name(event)} action [{event['object_action']}]")
