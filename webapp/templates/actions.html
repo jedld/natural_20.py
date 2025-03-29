@@ -44,18 +44,22 @@
     {% set spell = entity.current_concentration().__str__() %}
     <tr>
       <td>
-        <button class="action-button" data-action-type="DropConcentrationAction" title="Concentration" style="position: relative; display: inline-block; width: 50px; height: 50px;">
+        <button class="action-button concentration-effect" data-action-type="DropConcentrationAction" title="Concentration" style="position: relative; display: inline-block; width: 50px; height: 50px; border: 3px solid #8b0000; border-radius: 10px; background: rgba(139, 0, 0, 0.15); box-shadow: 0 0 5px rgba(139, 0, 0, 0.3); transition: all 0.2s ease;">
           <img src="{{ url_for('static', filename='spells/spell_' + spell + '.png') }}" alt="{{ spell }}" style="width: 50px; height: 50px; position: absolute; top: 0; left: 0;">
-          <img src="{{ url_for('static', filename='red_x.png') }}" alt="X" class="overlay" style="position: absolute; top: 0; left: 0; width: 50px; height: 50px;">
+          <img src="{{ url_for('static', filename='red_x.png') }}" alt="X" class="overlay" style="position: absolute; top: 40; left: 40; width: 30px; height: 30px;">
+          <div style="position: absolute; top: -5px; right: -5px; width: 12px; height: 12px; background: #8b0000; border-radius: 50%; border: 2px solid white;"></div>
         </button>
       </td>
       {% for effect in entity.casted_effects %}
+      {% if effect.allow_force_dismiss %}
       <td>
-        <button class="action-button" data-action-type="DismissEffect" style="position: relative; display: inline-block; width: 50px; height: 50px;">
+        <button class="action-button active-effect" data-action-type="DismissEffect" style="position: relative; display: inline-block; width: 50px; height: 50px; border: 2px solid #666; border-radius: 6px; background: rgba(102, 102, 102, 0.1); box-shadow: 0 0 3px rgba(102, 102, 102, 0.2); transition: all 0.2s ease;">
           <img src="{{ url_for('static', filename='spells/spell_' + spell + '.png') }}" alt="{{ spell }}" style="width: 50px; height: 50px; position: absolute; top: 0; left: 0;">
           <img src="{{ url_for('static', filename='red_x.png') }}" alt="X" class="overlay" style="position: absolute; top: 0; left: 0; width: 50px; height: 50px;">
+          <div style="position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; background: #666; border-radius: 50%; border: 1px solid white;"></div>
         </button>
       </td>
+      {% endif %}
       {% endfor %}
     </tr>
   {% endif %}

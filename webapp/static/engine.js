@@ -929,6 +929,13 @@ $(document).ready(() => {
   });
 
   function handleAction(entity_uid, action, opts, coordsx, coordsy, data) {
+    if (data.status === 'ok') {
+      refreshTurn();
+      // hide the popover menu
+      $(".popover-menu").hide();
+      return;
+    }
+
     switch (data.param[0].type) {
       case "movement":
         moveModeCallback = (path) => {
