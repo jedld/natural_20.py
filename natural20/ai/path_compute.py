@@ -130,7 +130,7 @@ class PathCompute:
         """
         If the terrain is difficult or the entity is prone, adjust cost accordingly.
         """
-        cost = 2 if self.map.difficult_terrain(self.entity, x, y, self.battle) else 1
+        cost = 2 if self.map.difficult_terrain(self.entity, x, y, self.battle) and not self.entity.is_flying() else 1
         if self.entity.prone():
             cost += 1
         return cost

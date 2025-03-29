@@ -3,12 +3,21 @@
 <div class="floating-entity-portrait {{ 'dead' if entity.dead() else '' }}" onclick="switchPOV('{{ entity.entity_uid }}');" style="position: fixed; left: {{ 10 + index * 110 }}px; cursor: pointer; z-index: 9999;">
     <img src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}" 
          alt="{{ entity.name }}"
+         class="portrait-image"
          style="{{ 'transform: scale(0.7);' if entity.familiar() else '' }}">
     <div>{{ entity.name }}</div>
     <div class="health-bar-portrait" style="width: 100px; background-color: red; height: 15px; position: relative;">
         <div class="health-bar-fill-portrait" style="width: {{ entity.health_percent() }}%; background-color: green; height: 100%;"></div>
         <div class="hit-points" style="font-size: 10px; text-align: center; position: absolute; width: 100%; top: 50%; transform: translateY(-50%); color: white; text-shadow: 1px 1px 1px black;">{{ entity.hp() }}/{{ entity.max_hp() }}</div>
     </div>
+    {% if entity.current_concentration() %}
+    <div class="concentration-indicator">
+        <div class="concentration-aura"></div>
+        <img src="{{ url_for('static', filename='spells/spell_' + entity.current_concentration().__str__() + '.png') }}" 
+             alt="Concentration" 
+             class="concentration-spell-icon">
+    </div>
+    {% endif %}
     <div class="effect">
         {% for effect in entity.effects_str() %}
           <img src="{{ url_for('static', filename='assets/effect/' ~ effect ~ '.png') }}"
