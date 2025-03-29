@@ -197,6 +197,7 @@ def commit_and_update(action):
     if AUTOSAVE:
         print("autosave")
         current_game.save_game()
+    return True
 
 def controller_of(entity_uid, username):
     if username == 'dm':
@@ -1446,7 +1447,8 @@ def action():
                 else:
                     raise ValueError(f"Invalid action map {action}")
 
-            return jsonify(commit_and_update(action))
+            commit_and_update(action)
+            return jsonify(status='ok')
         return jsonify(action_info)
     except AsyncReactionHandler as e:
         for battle, entity, valid_actions in e.resolve():
