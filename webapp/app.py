@@ -203,7 +203,7 @@ def controller_of(entity_uid, username):
         return True
 
     entity = current_game.get_entity_by_uid(entity_uid)
-    if hasattr(entity, 'owner'):
+    if hasattr(entity, 'owner') and entity.owner:
         entity_uid = entity.owner.entity_uid
 
     for info in CONTROLLERS:
@@ -1384,6 +1384,7 @@ def action():
                             action_info['param'] = action['param']
                             action_info['range'] = param_details.get('range', 5)
                             action_info['range_max'] = param_details.get('max_range', param_details.get('range', 5))
+                            # action_info['spell'] = param_details.get('spell', None)
                             if param_details.get('num', 1) > 1:
                                 target_hints = [ t.entity_uid for t in acquire_targets(param_details, entity, battle, battle_map)]
                                 action_info['target_hints'] = target_hints

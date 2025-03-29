@@ -13,6 +13,7 @@ speed_fly: 60
 passive_perception: 11
 darkvision: 120
 familiar: true
+profile_image: owl.png
 token:
  - ^
 color: brown
