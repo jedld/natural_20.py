@@ -630,14 +630,9 @@ class Entity(EntityStateEvaluator, Notable):
 
         return hand_slots
     
-    @property
-    def damage_vulnerabilities(self):
-        return self.properties.get('damage_vulnerabilities', [])
-
     def vulnerable_to(self, damage_type):
         return damage_type in self.damage_vulnerabilities
 
-    
     def initiative_bonus(self):
         return self.dex_mod()
 

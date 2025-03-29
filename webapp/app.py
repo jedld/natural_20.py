@@ -319,6 +319,14 @@ def casting_time(casting_time):
         r_str = "R"
     elif resource=="bonus_action":
         r_str = "B"
+    elif resource=="hour":
+        r_str = "H"
+    elif resource=="minute":
+        r_str = "M"
+    elif resource=="round":
+        r_str = "R"
+    else:
+        raise ValueError(f"Invalid casting time: {casting_time}")
     return f"{qty}{r_str}"
 app.add_template_filter(casting_time, name='casting_time')
 
