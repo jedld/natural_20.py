@@ -280,7 +280,7 @@
             {% if entity.resistances %}
             <tr>
                 <th>Resistances</th>
-                <td>{{ entity.resistances() | join(', ') }}</td>
+                <td>{{ entity.effective_resistances() | join(', ') }}</td>
             </tr>
             {% endif %}
             {% if entity.damage_immunities %}
@@ -325,11 +325,22 @@
                 <th>Proficiency Bonus</th>
                 <th>Initiative</th>
                 <th>Speed</th>
+                {% if 'speed_fly' in entity.properties %}
+                <th>Fly Speed</th>
+                {% endif %}
             </tr>
             <tr>
                 <td>+{{ entity.proficiency_bonus() }}</td>
                 <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.initiative_bonus() | mod_str }}" data-description="Initiative">+{{ entity.initiative_bonus() }}</td>
-                <td>{{ entity.speed() }} ft.</td>
+                {% if entity.speed() != entity.properties.get('speed', 0) %}
+                <td>{{ entity.speed() }} + {{ entity.speed() - entity.properties.get('speed', 0) }}) ft.</td>
+                {% else %}
+                <td>{{ entity.properties.get('speed', 0) }} ft.</td>
+                {% endif %}
+
+                {% if 'speed_fly' in entity.properties %}
+                    <td>{{ entity.properties.get('speed_fly', 0) }} ft.</td>
+                {% endif %}
             </tr>
         </table>
         <h2>Passive Scores</h2>

@@ -540,11 +540,12 @@ class Entity(EntityStateEvaluator, Notable):
         return int(self.strength() / 2)
 
     def resistant_to(self, damage_type):
-        _resistances = self.resistances
-        if self.has_effect('resistance_override'):
-            _resistances = self.eval_effect('resistance_override', { "stacked": True, "value" : _resistances})
+        return damage_type in self.effective_resistances()
 
-        return damage_type in _resistances
+    def effective_resistances(self):
+        if self.has_effect('resistance_override'):
+            return self.eval_effect('resistance_override', { "stacked": True, "value" : self.resistances})
+        return self.resistances
 
     def disengage(self, battle):
         entity_state = battle.entity_state_for(self)
@@ -948,10 +949,10 @@ class Entity(EntityStateEvaluator, Notable):
 
     def available_spells(self, battle, touch=False):
         return []
-    
+
     def familiar(self):
       return self.properties.get('familiar', False)
-    
+
     def speed(self):
         c_speed = self.properties.get('speed_fly',0) if self.is_flying() else self.properties['speed']
 

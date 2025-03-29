@@ -333,6 +333,14 @@ class TestSpellAction(unittest.TestCase):
         self.assertEqual(entity.owner, self.entity)
 
 
+    def test_protection_from_poison(self):
+        random.seed(1003)
+        print(MapRenderer(self.battle_map).render())
 
+        action = SpellAction.build(self.session, self.entity)['next'](['protection_from_poison', 0])['next'](self.entity)
+        action.resolve(self.session, self.battle_map, { "battle": self.battle})
+        self.battle.commit(action)
+        self.assertEqual(self.entity.effective_resistances(), ['poison'])
+        
 if __name__ == '__main__':
     unittest.main()
