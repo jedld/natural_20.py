@@ -296,9 +296,11 @@ class TestSpellAction(unittest.TestCase):
         self.battle.add(self.npc, 'b', position=[0, 6])
         auto_build_actions = autobuild(self.session, SpellAction, self.entity, self.battle)
         self.assertEqual(len(auto_build_actions), 3)
-        self.assertEqual([str(a) for a in  auto_build_actions], ['SpellAction: firebolt',
-                                              'SpellAction: mage_armor',
-                                              'SpellAction: magic_missile'])
+        action_list = [str(a) for a in  auto_build_actions]
+        
+        self.assertEqual(action_list, ['SpellAction: firebolt to Skeleton',
+                                       'SpellAction: mage_armor to Crysania',
+                                       'SpellAction: magic_missile to (Skeleton, Skeleton, Skeleton)'])
 
         self.assertEqual(self.entity.armor_class(), 12)
         # must be a valid action
