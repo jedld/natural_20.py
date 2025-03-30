@@ -410,7 +410,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
   def consume_spell_slot(self, level, character_class=None, qty=1):
     if character_class is None:
       character_class = list(self.spell_slots.keys())[0]
-    if self.spell_slots[character_class][level]:
+
+    if self.spell_slots[character_class].get(level):
       self.spell_slots[character_class][level] = max(self.spell_slots[character_class][level] - qty, 0)
 
   def class_feature(self, feature):

@@ -24,7 +24,7 @@ class GuidingBoltSpell(AttackSpell):
             'next': set_target,
         }
 
-    def _damage(self, battle, opts=None):
+    def _damage(self, battle, crit=False, opts=None):
         if opts is None:
             opts = {}
         entity = self.source
@@ -32,7 +32,7 @@ class GuidingBoltSpell(AttackSpell):
         at_level = opts.get("at_level", 1)
         if at_level > 1:
             dmg_level += at_level - 1
-        return DieRoll.roll(f"{dmg_level}d6", battle=battle, entity=entity, description="dice_roll.spells.guiding_bolt")
+        return DieRoll.roll(f"{dmg_level}d6", crit=crit, battle=battle, entity=entity, description="dice_roll.spells.guiding_bolt")
 
     def avg_damage(self, battle, opts=None):
         return self._damage(battle, opts).expected()
@@ -43,7 +43,7 @@ class GuidingBoltSpell(AttackSpell):
         hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})
 
         if hit:
-            damage_roll = self._damage(battle, opts={"at_level": spell_action.at_level})
+            damage_roll = self._damage(battle, crit=attack_roll.nat_20(), opts={"at_level": spell_action.at_level})
             return [{
                 'source': entity,
                 'target': target,

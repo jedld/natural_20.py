@@ -167,6 +167,15 @@ input.initiative-text {
   color: red;
 }
 
+.execute-action {
+  width: 100%;
+  background-color: white;
+  border: none;
+  color: black;
+  padding: 5px;
+  border-radius: 5px;
+}
+
 .menu-button{
   float: right;
   width: 100%;

@@ -2,6 +2,7 @@ from natural20.die_roll import DieRoll
 from natural20.utils.spell_attack_util import evaluate_spell_attack
 from natural20.spell.extensions.hit_computations import AttackSpell
 from natural20.utils.ac_utils import effective_ac
+import pdb
 
 class ShockingGraspSpell(AttackSpell):
 
@@ -40,7 +41,7 @@ class ShockingGraspSpell(AttackSpell):
             "action": spell_action
         }
 
-        if any(armor["metallic"] for armor in target.equipped_armor()):
+        if target.equipped_metallic_armor():
             advantage_override['advantage'] = ['shocking_grasp_metallic']
 
         hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties, advantage_override)

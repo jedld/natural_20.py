@@ -28,7 +28,7 @@ class TollTheDeadSpell(Spell):
             'next': set_target
         }
 
-    def _damage(self, battle, opts=None):
+    def _damage(self, battle, crit=False, opts=None):
         entity = self.source
         level = 1
         if entity.level() >= 5:
@@ -39,9 +39,9 @@ class TollTheDeadSpell(Spell):
             level += 1
         target = self.action.target
         if target.hp() < target.max_hp():
-            return DieRoll.roll(f"{level}d12", battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.toll_the_dead')))
+            return DieRoll.roll(f"{level}d12", crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.toll_the_dead')))
 
-        return DieRoll.roll(f"{level}d8", battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.firebolt')))
+        return DieRoll.roll(f"{level}d8", crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.firebolt')))
 
     def avg_damage(self, battle, opts=None):
         return self._damage(battle, opts).expected()

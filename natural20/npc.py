@@ -77,6 +77,7 @@ class Npc(Entity, Multiattack, Lootable):
         self.is_concealed = self.properties.get("concealed", False)
         self.dialogue = self.properties.get("dialogue", [])
         self.condition_immunities = self.properties.get("condition_immunities", [])
+        self.damage_vulnerabilities = self.properties.get("damage_vulnerabilities", [])
         if self.properties.get("speed_fly"):
             self.flying = True
 

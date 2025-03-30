@@ -95,6 +95,37 @@ class TestDieRoll(unittest.TestCase):
     self.assertEqual(str(roll), 'd20(1* | 13) lucky -> d20(12* | 13)')
     self.assertEqual(roll.description, '(lucky) None [(1, 13)] -> [(12, 13)]')
 
+  def test_nat_1_only_on_d20(self):
+    # Test that a 1 on a d6 is not considered a natural 1
+    DieRoll.fudge(1, 6)
+    d6_roll = DieRoll.roll('1d6')
+    self.assertFalse(d6_roll.nat_1())
+
+    # Test that a 1 on a d20 is considered a natural 1
+    DieRoll.fudge(1, 20)
+    d20_roll = DieRoll.roll('1d20')
+    self.assertTrue(d20_roll.nat_1())
+
+    # Test that a 1 on a d8 is not considered a natural 1
+    DieRoll.fudge(1, 8)
+    d8_roll = DieRoll.roll('1d8')
+    self.assertFalse(d8_roll.nat_1())
+
+  def test_nat_20_only_on_d20(self):
+    # Test that a 20 on a d6 is not considered a natural 20
+    DieRoll.fudge(20, 6)
+    d6_roll = DieRoll.roll('1d6')
+    self.assertFalse(d6_roll.nat_20())
+
+    # Test that a 20 on a d20 is considered a natural 20
+    DieRoll.fudge(20, 20)
+    d20_roll = DieRoll.roll('1d20')
+    self.assertTrue(d20_roll.nat_20())
+
+    # Test that a 20 on a d8 is not considered a natural 20
+    DieRoll.fudge(20, 8)
+    d8_roll = DieRoll.roll('1d8')
+    self.assertFalse(d8_roll.nat_20())
 
 if __name__ == '__main__':
   unittest.main()

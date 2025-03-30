@@ -21,7 +21,7 @@ class SacredFlameSpell(Spell):
         }
     
 
-    def _damage(self, battle, opts=None):
+    def _damage(self, battle, crit=False, opts=None):
         entity = self.source
         level = 1
         if entity.level() >= 5:
@@ -30,7 +30,7 @@ class SacredFlameSpell(Spell):
             level += 1
         if entity.level() >= 17:
             level += 1
-        return DieRoll.roll(f"{level}d8", battle=battle, entity=entity, description=self.t('dice_roll.spells.sacred_flame'))
+        return DieRoll.roll(f"{level}d8", crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.sacred_flame'))
 
     def avg_damage(self, battle, opts=None):
         return self._damage(battle, opts).expected()

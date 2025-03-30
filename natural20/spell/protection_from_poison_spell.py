@@ -43,8 +43,8 @@ class ProtectionFromPoisonSpell(Spell):
             opt = {}
 
         resistances = opt.get('value')
-        if 'poison' in resistances:
-            resistances.add('poison')
+        if 'poison' not in resistances:
+            resistances.append('poison')
 
         return resistances
 
@@ -59,10 +59,10 @@ class ProtectionFromPoisonSpell(Spell):
                 'expiration': session.game_time + 10
             })
 
-            if item['target'].has_effect('protection_from_poison'):
-                item['target'].remove_effect('protection_from_poison')
+            if item['target'].has_effect('resistance_override'):
+                item['target'].remove_effect('resistance_override')
 
-            item['target'].register_effect('protection_from_poison', ProtectionFromPoisonSpell, effect=item['effect'],
+            item['target'].register_effect('resistance_override', ProtectionFromPoisonSpell, effect=item['effect'],
                                        source=item['source'],
                                        duration=10)
 

@@ -3,10 +3,11 @@ import i18n
 import copy
 import pdb
 import re
-
-# Global dictionary used for “fudged” rolls.
+from collections import deque
+# Global dictionary used for "fudged" rolls.
 FUDGE_HASH = {}
 DIE_ROLL = {}
+DIE_ROLLS = deque(maxlen=100)
 
 class DieRollDetail:
     def __init__(self):
@@ -14,7 +15,6 @@ class DieRollDetail:
         self.die_type = None    # String: e.g. "20" for a d20; empty if not a dice roll
         self.modifier = None    # String: digits for the modifier (if any)
         self.modifier_op = None  # String: '+' or '-' (if any)
-
 
 class Rollable:
     def result(self):
@@ -78,7 +78,7 @@ class Roller:
         elif self.disadvantage:
             roll_desc = '\033[31m(with disadvantage)\033[0m' + roll_desc
 
-        # Roll using the battle’s context if available.
+        # Roll using the battle's context if available.
         if self.advantage or self.disadvantage:
             if self.battle:
                 rolls = self.battle.roll_for(self.entity, die_sides, number_of_die, roll_desc,
@@ -96,8 +96,10 @@ class Roller:
             rolls = [DieRoll.generate_number(die_sides) for _ in range(number_of_die)]
 
         mod_value = 0 if not modifier_str else int(f"{modifier_op}{modifier_str}")
-        return DieRoll(rolls, mod_value, die_sides,
+        result = DieRoll(rolls, mod_value, die_sides,
                        advantage=self.advantage, disadvantage=self.disadvantage, roller=self)
+        DIE_ROLLS.append(result)
+        return result
 
     def t(self, key, options=None):
         return i18n.t(key, **(options or {}))
@@ -177,6 +179,8 @@ class DieRoll(Rollable):
         self.prev_roll = prev_roll
 
     def nat_20(self):
+        if self.die_sides != 20:
+            return False
         if self.advantage:
             # When rolling with advantage, each element is expected to be a tuple.
             return any(max(roll) == 20 for roll in self.rolls if isinstance(roll, (tuple, list)))
@@ -186,6 +190,8 @@ class DieRoll(Rollable):
             return 20 in self.rolls
 
     def nat_1(self):
+        if self.die_sides != 20:
+            return False
         if self.advantage:
             return any(max(roll) == 1 for roll in self.rolls if isinstance(roll, (tuple, list)))
         elif self.disadvantage:
@@ -459,11 +465,16 @@ class DieRoll(Rollable):
         if result.rolled_a_1() and entity.class_feature('lucky'):
             result = result.reroll(lucky=True)
         DIE_ROLL['last_roll'] = result
+        DIE_ROLLS.append(result)
         return result
 
     @staticmethod
     def last_roll():
         return DIE_ROLL['last_roll']
+
+    @staticmethod
+    def die_rolls():
+        return DIE_ROLLS
 
     @staticmethod
     def t(key, options=None):

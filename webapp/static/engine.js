@@ -1028,10 +1028,6 @@ $(document).ready(() => {
           multiTargetMode = true;
           max_targets = data.total_targets;
           multiTargetModeUnique = data.unique_targets === true;
-          $(`.tile[data-coords-id="${entity_uid}"] .execute-action img`).attr(
-            "src",
-            `/spells/spell_${data.spell}.png`,
-          );
           targetMode = false;
           valid_target_cache = {};
         } else {
