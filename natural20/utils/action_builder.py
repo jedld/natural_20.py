@@ -237,7 +237,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             params_list.append(position_choices)
             if len(position_choices)==0:
                 if is_verbose:
-                    print(f"No valid empty space found for {entity.name}")
+                    print(f"No valid empty space found for {entity.name} from {params_list}")
                 return None
         else:
             raise ValueError(f"Unknown param type: {param_type}")

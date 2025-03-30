@@ -36,6 +36,7 @@ class TestSpellAction(unittest.TestCase):
         self.battle.add(self.entity, 'a', position=[0, 5])
         self.battle.start()
         self.entity.reset_turn(self.battle)
+        DieRoll.die_rolls().clear()
 
     def test_firebolt(self):
         random.seed(7002)
@@ -64,12 +65,30 @@ class TestSpellAction(unittest.TestCase):
         print(MapRenderer(self.battle_map).render())
         build = SpellAction.build(self.session, self.entity)['next'](['shocking_grasp', 0])
         action = build['next'](self.npc)
-        action.resolve(self.session, self.battle_map, { "battle" : self.battle})
+        DieRoll.die_rolls().clear()
+        self.battle.action(action)
+        self.assertEqual(list(DieRoll.die_rolls())[0].advantage, False)
         self.assertEqual([s['type'] for s in action.result], ['spell_damage', 'shocking_grasp'])
         self.assertTrue(self.npc.has_reaction(self.battle))
         self.battle.commit(action)
         self.assertFalse(self.npc.has_reaction(self.battle))
         self.assertEqual(self.npc.hp(), 12)
+
+    def test_shocking_grasp_metallic(self):
+        self.npc = self.session.npc('hobgoblin')
+        self.assertTrue(self.npc.equipped_metallic_armor())
+        self.battle.add(self.npc, 'b', position=[0, 6])
+        self.npc.reset_turn(self.battle)
+        random.seed(7002)
+        print(MapRenderer(self.battle_map).render())
+
+        action = SpellAction.build(self.session, self.entity)['next'](['shocking_grasp', 0])['next'](self.npc)
+        DieRoll.die_rolls().clear()
+        self.battle.action(action)
+        self.assertEqual(list(DieRoll.die_rolls())[0].advantage, True)
+        self.battle.commit(action)
+        self.assertEqual(self.npc.hp(), 10)
+
 
     def setupMageArmor(self):
         action = SpellAction.build(self.session, self.entity)['next'](['mage_armor', 0])['next'](self.entity)

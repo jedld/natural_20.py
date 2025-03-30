@@ -28,7 +28,7 @@ class FireboltSpell(AttackSpell):
             'next': set_target
         }
 
-    def _damage(self, battle, opts=None):
+    def _damage(self, battle, crit=False, opts=None):
         entity = self.source
         level = 1
         if entity.level() >= 5:
@@ -37,7 +37,7 @@ class FireboltSpell(AttackSpell):
             level += 1
         if entity.level() >= 17:
             level += 1
-        return DieRoll.roll(f"{level}d10", battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.firebolt')))
+        return DieRoll.roll(f"{level}d10", crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.firebolt')))
 
     def avg_damage(self, battle, opts=None):
         return self._damage(battle, opts).expected()
@@ -48,7 +48,7 @@ class FireboltSpell(AttackSpell):
         hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})
 
         if hit:
-            damage_roll = self._damage(battle)
+            damage_roll = self._damage(battle, crit=attack_roll.nat_20())
 
             return [{
                 "source": entity,

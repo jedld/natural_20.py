@@ -22,7 +22,7 @@ class InflictWoundsSpell(AttackSpell):
             'next': set_target
         }
     
-    def _damage(self, battle, opts=None):
+    def _damage(self, battle, crit=False, opts=None):
         if opts is None:
             opts = {}
         entity = self.source
@@ -30,7 +30,7 @@ class InflictWoundsSpell(AttackSpell):
         at_level = opts.get("at_level", 1)
         if at_level > 1:
             dmg_level += at_level - 1
-        return DieRoll.roll(f"{dmg_level}d10", battle=battle, entity=entity, description="dice_roll.spells.inflict_wounds")
+        return DieRoll.roll(f"{dmg_level}d10", crit=crit, battle=battle, entity=entity, description="dice_roll.spells.inflict_wounds")
 
     def compute_hit_probability(self, battle, opts = None):
         if opts is None:
@@ -49,7 +49,7 @@ class InflictWoundsSpell(AttackSpell):
         hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})
 
         if hit:
-            damage_roll = self._damage(battle)
+            damage_roll = self._damage(battle, crit=attack_roll.nat_20())
 
             return [
                 {

@@ -60,6 +60,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.activated = False
         self.dialogue = []
         self.condition_immunities = []
+        self.damage_vulnerabilities = []
         self.pocket_dimension = []
         self.help_actions = {}
         self.helping_with = set()
@@ -590,7 +591,10 @@ class Entity(EntityStateEvaluator, Notable):
     
     def fly(self):
         if self.properties.get('speed_fly'):
-            self.flying = True 
+            self.flying = True
+
+    def land(self):
+        self.flying = False
     
     def can_fly(self):
         return self.properties.get('speed_fly')
@@ -1424,7 +1428,7 @@ class Entity(EntityStateEvaluator, Notable):
             if battle and battle.session:
                 session = battle.session
             else:
-                self.session
+                session = self.session
 
         # disable passiveness
         if self.passive():

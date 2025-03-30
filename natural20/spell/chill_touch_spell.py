@@ -42,7 +42,7 @@ class ChillTouchSpell(AttackSpell):
             'next': set_target,
         }
 
-    def _damage(self, battle, opts=None):
+    def _damage(self, battle, crit=False, opts=None):
         entity = self.source
         level = 1
         if entity.level() >= 5:
@@ -51,7 +51,7 @@ class ChillTouchSpell(AttackSpell):
             level += 1
         if entity.level() >= 17:
             level += 1
-        return DieRoll.roll(f"{level}d8", battle=battle, entity=entity, description="dice_roll.spells.chill_touch")
+        return DieRoll.roll(f"{level}d8", crit=crit, battle=battle, entity=entity, description="dice_roll.spells.chill_touch")
 
     def avg_damage(self, battle, opts=None):
         return self._damage(battle, opts).expected()
@@ -62,7 +62,7 @@ class ChillTouchSpell(AttackSpell):
         hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})
 
         if hit:
-            damage_roll = self._damage(battle)
+            damage_roll = self._damage(battle, crit=attack_roll.nat_20())
             return [{
                 'source': entity,
                 'target': target,

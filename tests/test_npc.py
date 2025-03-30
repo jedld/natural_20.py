@@ -31,7 +31,7 @@ class TestNpc(unittest.TestCase):
         npc = session.npc('bat', { "name" : 'Screech', "familiar" : True })
         battle = Battle(session, battle_map)
         battle.add(npc, 'b', position=[1, 1])
-
+        npc.land()
         assert npc.speed() == 5
 
         npc.fly()

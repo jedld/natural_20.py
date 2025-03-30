@@ -32,6 +32,8 @@ class SpellAction(Action):
             name = f"SpellAction: {self.spell_action.short_name()}"
             if self.at_level != self.level:
                 name += f" upcasted at level {self.at_level}"
+            if self.target:
+                name += f" to {self.target}"
         return name
 
     def __repr__(self):
