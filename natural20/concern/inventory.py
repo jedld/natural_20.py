@@ -1,5 +1,4 @@
 class Inventory:
-        
     def load_inventory(self):
         self.inventory = {}
         for inventory in self.properties.get('inventory', []):

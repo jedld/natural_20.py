@@ -370,6 +370,8 @@ class Map():
 
         if isinstance(object_info, Object):
             obj = object_info
+        elif isinstance(object_info, Npc) or isinstance(object_info, PlayerCharacter):
+            obj = object_info
         elif object_info.get('item_class'):
             item_klass = globals()[object_info['item_class']]
             object_info = object_info.copy()

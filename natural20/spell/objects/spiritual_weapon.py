@@ -14,6 +14,7 @@ class SpiritualWeapon(Entity):
         self.damage = kwargs.get('damage', '1d8')
         self.group = owner.group
         self.properties = {
+            'spiritual': True,
             'speed': 20,
             'speed_fly': 20,
             'name' : f"{owner.name}'s Spiritual Weapon",

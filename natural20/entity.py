@@ -419,8 +419,11 @@ class Entity(EntityStateEvaluator, Notable):
             # dismiss all effects
             for effect in self.casted_effects:
                 self.dismiss_effect(effect['effect'])
+            
+            self.after_death()
 
-
+    def after_death(self):
+        pass
 
     def make_unconscious(self):
         if not self.unconscious() and not self.dead():
@@ -430,6 +433,10 @@ class Entity(EntityStateEvaluator, Notable):
 
             self.do_prone()
             self.statuses.append('unconscious')
+
+            # dismiss all effects
+            for effect in self.casted_effects:
+                self.dismiss_effect(effect['effect'])
 
 
     def lockpick(self, battle=None):
@@ -531,6 +538,12 @@ class Entity(EntityStateEvaluator, Notable):
 
     def invisible(self):
         return 'invisible' in self.statuses
+    
+    def opaque(self, _origin):
+        return False
+    
+    def token_image_transform(self):
+        return None
 
     def stand(self):
         self.statuses.remove('prone')
@@ -730,7 +743,7 @@ class Entity(EntityStateEvaluator, Notable):
 
         for low, high, mod in mod_table:
             if value is None:
-                raise ValueError(f"invalid value {value}")
+                return None
             if low <= value <= high:
                 return mod
         return None

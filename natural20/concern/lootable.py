@@ -1,4 +1,6 @@
-class Lootable:
+from natural20.concern.container import Container
+
+class Lootable(Container):
     def available_interactions(self, entity, battle=None, admin=False):
         interactions = {}
         if self.unconscious() or self.dead():

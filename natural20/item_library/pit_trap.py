@@ -27,7 +27,7 @@ class PitTrap(Object):
     def token_image(self):
         if self.properties.get('token_image'):
             if self.activated:
-                return self.properties.get('token_image')
+                return f"objects/{self.properties.get('token_image')}"
 
         return None
 

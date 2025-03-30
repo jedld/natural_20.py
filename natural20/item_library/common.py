@@ -141,7 +141,7 @@ class StoneWallDirectional(StoneWall):
     def wall(self, origin_pos = None):
         return True
 
-class Ground(Object, Container, Lootable):
+class Ground(Object, Lootable):
     def __init__(self, session, map, properties):
         super().__init__(session, map, properties)
         self.state = self.properties.get('state', 'open')

@@ -72,6 +72,9 @@ class Battle():
 
         if entity is None:
             raise ValueError('entity cannot be nil')
+        
+        if entity.properties.get('spiritual'):
+            return
 
         state = {
             'group': group,

@@ -53,6 +53,9 @@ class Session:
         self.session_state = {}
         self.event_log = deque(maxlen=100)
 
+    def map_for(self, entity):
+        return self.map_for_entity(entity)
+
     def map_for_entity(self, entity):
         for _, map_obj in self.maps.items():
             if isinstance(entity, str):

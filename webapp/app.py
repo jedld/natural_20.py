@@ -421,6 +421,9 @@ def serve_sound_file(filename):
     
 @app.route('/assets/objects/<filename>')
 def serve_object_image(filename):
+    if not filename.endswith('.png'):
+        filename = f"{filename}.png"
+
     if os.path.exists(os.path.join("static", "assets", "objects", filename)):
         return send_file(os.path.join("static", "assets", "objects", filename))
     else:
