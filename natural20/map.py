@@ -303,7 +303,8 @@ class Map():
 
         for obj in self.objects_at(pos_x, pos_y):
             if obj != entity:
-                obj.on_enter(entity, self, battle)
+                if hasattr(obj, 'on_enter'):
+                    obj.on_enter(entity, self, battle)
 
     def place_at_spawn_point(self, position, entity, token=None, battle=None):
         if str(position) not in self.spawn_points:

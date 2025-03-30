@@ -399,11 +399,15 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
     return final_attack_list
 
   def after_death(self):
-      # for npcs send them to the object layer when dead
       entity_map = self.session.map_for(self)
-      entity_map.remove(self)
       pos = entity_map.position_of(self)
+      entity_map.remove(self)
       entity_map.place_object(self, *pos)
+
+  def token_image_transform(self):
+      if self.dead():
+          return "transform: rotate(180deg) scale(0.5); filter: brightness(50%) sepia(100%) hue-rotate(180deg); opacity: 0.5; "
+      return None
 
   def placeable(self):
     if not self.dead():
