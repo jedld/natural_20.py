@@ -35,6 +35,7 @@ class ShieldSpell(Spell):
 
         spell = battle.session.load_spell('shield')
         original_action = opts.get('original_action', None)
+
         if attack_roll is None or attack_roll.result() in range(effective_ac, effective_ac + 5):
             entity_controller = battle.controller_for(entity)
             if entity_controller is None:
