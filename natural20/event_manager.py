@@ -124,6 +124,10 @@ class EventManager:
                 msg += f" with attack roll {event['attack_roll']} = {event['attack_roll'].result()}"
             if event['attack_roll'] and event['attack_roll'].nat_20():
                 msg += " (critical hit)."
+            if event['spell_save'] and event['spell_save'].result() < event['dc']:
+                msg += f" the target failed the save with {event['spell_save']} = {event['spell_save'].result()} < DC: {event['dc']}."
+            elif event['spell_save'] and event['spell_save'].result() >= event['dc']:
+                msg += f" the target saved with {event['spell_save']} = {event['spell_save'].result()} > DC: {event['dc']}."
             self.output_logger.log(f"{msg}.")
 
         def miss(event):
@@ -226,13 +230,19 @@ class EventManager:
             else:
                 self.output_logger.log(f"{self.show_target_name(event)}: {self.show_name(event)} makes a failed {event['ability']} check and rolls {event['roll']} = {event['roll'].result()} < DC {event['dc']}")
 
+        def death_save(event):
+            if event['roll'].nat_20():
+                self.output_logger.log(f"{self.show_name(event)} makes a death saving throw and succeeds with a critical success: {event['roll']} = {event['roll'].result()}. {event['source'].label()} is now at {event['source'].hit_points} hit points."),
+            else:
+                self.output_logger.log(f"{self.show_name(event)} makes a death saving throw and succeeds: {event['roll']} = {event['roll'].result()}"),
+
         event_handlers = {
             'ability_check': ability_check,
             'console': lambda event: self.output_logger.log(event['message']),
             'multiattack' : lambda event: self.output_logger.log(f"{self.show_name(event)} uses multiattack."),
             'action_surge': lambda event: self.output_logger.log(f"{self.show_name(event)} uses action surge."),
             'death_fail' : death_fail,
-            'death_save': lambda event: self.output_logger.log(f"{self.show_name(event)} makes a death saving throw and succeeds: {event['roll']} = {event['roll'].result()}"),
+            'death_save': death_save,
             'drop_concentration': lambda event: self.output_logger.log(f"{self.show_name(event)} drops concentration."),
             'concentration_check': concentration_check,
             'second_wind': lambda event: self.output_logger.log(f"{self.show_name(event)} uses second wind to recover {event['value']}={event['value'].result()} hit points."),    

@@ -330,7 +330,8 @@ class AttackAction(Action):
         if hit:
             if self.source.class_feature('martial_advantage') and battle:
                 for entity in battle.allies_of(self.source):
-                    if entity != target and battle.map.distance(entity, target) <= 5:
+                    entity_map = battle.map_for(entity)
+                    if entity != target and entity_map.distance(entity, target) <= 5:
                         damage += DieRoll.roll("2d6", description='dice_roll.martial_advantage', entity=self.source, battle=battle)
                         break
             hit_result = {

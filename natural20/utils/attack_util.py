@@ -73,7 +73,7 @@ def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, op
             spell_details = battle.session.load_spell(spell)
             qty, resource = spell_details['casting_time'].split(':')
 
-            if target.has_reaction(battle) and resource == 'reaction':
+            if target.has_reaction(battle) and target.conscious() and resource == 'reaction':
                 spell_name = spell_details['spell_class'].replace("Natural20::", "")
 
                 if spell_name == 'Shield':
