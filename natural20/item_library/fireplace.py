@@ -5,7 +5,7 @@ from natural20.concern.lootable import Lootable
 from natural20.concern.inventory import Inventory
 import pdb
 
-class Fireplace(Object, Lootable, Inventory, Container):
+class Fireplace(Object, Lootable, Inventory):
     def __init__(self, session, map, properties=None):
         super().__init__(session, map, properties)
         self.session = session

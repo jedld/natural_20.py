@@ -96,9 +96,9 @@ class Chest(Object):
     def token_image(self):
         if self.properties.get('token_image'):
             if self.opened():
-                return self.properties.get('token_image') + '_opened'
+                return f"objects/{self.properties.get('token_image')}" + '_opened'
             else:
-                return self.properties.get('token_image') + '_closed'
+                return f"objects/{self.properties.get('token_image')}" + '_closed'
 
         return None
     

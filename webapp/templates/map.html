@@ -25,7 +25,7 @@
                    style="width: {{ tile_size_px }}px; height: {{ tile_size_px }}px;">
                 {% if obj['image'] %}
                   <img class="object-image"
-                       src="{{ url_for('static', filename='assets/objects/' ~ obj['image']) ~ '.png' }}"
+                       src="{{ url_for('static', filename='assets/' ~ obj['image']) }}"
                        data-tooltip="{{ tile['label'] }}" 
                        style="{{ obj['transforms'] }}; top: {{obj['token_offset_px'][0]}}px; left: {{obj['token_offset_px'][1]}}px;"/>
                 {% endif %}
@@ -39,7 +39,7 @@
                   <div class="object-note" style="display: block;">
                     {% for note in obj['notes'] %}
                       {% if note['image'] %}
-                        <img class="note-image" src="{{ url_for('static', filename='assets/objects/' ~ note['image']) ~ '.png' }}" >
+                        <img class="note-image" src="{{ url_for('static', filename='assets/objects/' ~ note['image']) }}" >
                       {% endif %}
                       <p>{{ note['note'] }}</p>
                     {% endfor %}

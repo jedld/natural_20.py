@@ -11,7 +11,10 @@ class StandAction(Action):
 
     @staticmethod
     def can(entity, battle):
-        return battle and entity.prone() and entity.speed() > 0 and entity.available_movement(battle) >= StandAction.required_movement(entity)
+        if battle:
+            return battle and entity.prone() and entity.speed() > 0 and entity.available_movement(battle) >= StandAction.required_movement(entity)
+        else:
+            return entity.prone()
 
     def build_map(self):
         return self

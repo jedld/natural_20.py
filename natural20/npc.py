@@ -265,8 +265,18 @@ class Npc(Entity, Multiattack, Lootable):
             spell_list = self.spell_list(battle)
             return [k for k, v in spell_list.items() if not v['disabled']]
     
-  
-    
+    def after_death(self):
+        # for npcs send them to the object layer when dead
+        entity_map = self.session.map_for(self)
+        pos = entity_map.position_of(self)
+        entity_map.remove(self)
+        entity_map.place_object(self, *pos)
+
+    def token_image_transform(self):
+        if self.dead():
+            return "transform: rotate(180deg) scale(0.5); opacity: 0.5;"
+        return None
+
     def available_spells_per_level(self, battle):
         if self.familiar():
             return self.owner.available_spells_per_level(battle)
