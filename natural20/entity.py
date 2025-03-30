@@ -542,6 +542,9 @@ class Entity(EntityStateEvaluator, Notable):
     def opaque(self, _origin):
         return False
     
+    def passable(self, _origin):
+        return True
+    
     def token_image_transform(self):
         return None
 

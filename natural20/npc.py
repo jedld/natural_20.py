@@ -245,26 +245,26 @@ class Npc(Entity, Multiattack, Lootable):
     
     def class_descriptor(self):
         return self.properties.get("kind")
-    
+
     def any_class_feature(self, features):
         return any(self.class_feature(f) for f in features)
-    
+
     def available_interactions(self, entity, battle, admin=False):
         return {}
-    
+
     def proficient_with_equipped_armor(self):
         return True
-    
+
     def prepared_spells(self):
         return self.properties.get("prepared_spells", [])
-    
+
     def available_spells(self, battle, touch=False):
         if self.familiar():
             return self.owner.available_spells(battle, touch=True)
         else:
             spell_list = self.spell_list(battle)
             return [k for k, v in spell_list.items() if not v['disabled']]
-    
+
     def after_death(self):
         # for npcs send them to the object layer when dead
         entity_map = self.session.map_for(self)
@@ -274,7 +274,7 @@ class Npc(Entity, Multiattack, Lootable):
 
     def token_image_transform(self):
         if self.dead():
-            return "transform: rotate(180deg) scale(0.5); opacity: 0.5;"
+            return "transform: rotate(180deg) scale(0.5); filter: brightness(50%) sepia(100%) hue-rotate(180deg); opacity: 0.5; "
         return None
 
     def available_spells_per_level(self, battle):
@@ -323,6 +323,7 @@ class Npc(Entity, Multiattack, Lootable):
             return final_attack_list
         else:
             return actions
+        
 
     def setup_attributes(self):
         hp_die_roll = DieRoll.roll(self.properties.get("hp_die", "1d6"))
