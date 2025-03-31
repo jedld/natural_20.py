@@ -142,332 +142,412 @@
 
         <!-- Tab content -->
         <div id="BasicInfo" class="tabcontent">
-            <h2>Basic Information</h2>
-            {% if entity.familiar() %}
-            <h4>{{entity.owner.label()}}'s Familiar</h4>
-            {% endif %}
-            <div class="basic-info-container">
-                <div class="profile-image">
-                    <img src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}" alt="Profile Image">
+            <div class="section">
+                <div class="section-header">
+                    <h2>Basic Information</h2>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
                 </div>
-
-                <div class="description">
-                    <p>{{ entity.description() }}</p>
-                </div>
-            </div>
-        <table>
-            {% if not entity.object() and entity.class_and_level() %}
-            <tr>
-                <th>Class & Level</th>
-                {% for class, level in entity.class_and_level() %}
-                {% if level %}
-                <td>Level {{level}} {{ class }}</td>
-                {% else %}
-                <td>{{ class }}</td>
-                {% endif %}
-                {% endfor %}
-            </tr>
-            <tr>
-                <th>Race</th>
-                <td>{{ entity.race() }}</td>
-            </tr>
-            {% endif %}
-        </table>
-
-        {% if not entity.object() %}
-        <h2>Features & Traits</h2>
-        <div class="features-container">
-            {% if entity.properties.get('class_features') %}
-            <div class="feature-section">
-                <h3>Class Features</h3>
-                <ul class="feature-list">
-                {% for feature in entity.properties.get('class_features', []) %}
-                    <li class="feature-item" data-tooltip="{{ feature }}">{{ feature | replace('_', ' ') | title }}</li>
-                {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-
-            {% if entity.properties.get('race_features') %}
-            <div class="feature-section">
-                <h3>Race Features</h3>
-                <ul class="feature-list">
-                {% for feature in entity.properties.get('race_features', []) %}
-                    <li class="feature-item" data-tooltip="{{ feature }}">{{ feature | replace('_', ' ') | title }}</li>
-                {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-
-            {% if entity.properties.get('attributes') %}
-            <div class="feature-section">
-                <h3>Other Traits</h3>
-                <ul class="feature-list">
-                {% for feature in entity.properties.get('attributes', []) %}
-                    <li class="feature-item" data-tooltip="{{ feature }}">{{ feature | replace('_', ' ') | title }}</li>
-                {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        <h2>Armor Class</h2>
-        <table>
-            <tr>
-                <th>AC</th>
-                {% if entity.equipped_ac()!=entity.armor_class()%}
-                <td>{{ entity.equipped_ac() }} ({{ entity.armor_class() }})</td>
-                {% else %}
-                <td>{{ entity.armor_class() }}</td>
-                {% endif %}
-            </tr>
-        </table>
-        {% if entity.hp() %}
-        <h2>Hit Points</h2>
-        <table>
-            <tr>
-                <th>Max HP</th>
-                <td>{{ entity.max_hp() }}</td>
-            </tr>
-            <tr>
-                <th>Current HP</th>
-                <td>{{ entity.hp() }}</td>
-            </tr>
-            <tr>
-                <th>Temporary HP</th>
-                <td>{{ entity.temp_hp() }}</td>
-            </tr>
-        </table>
-        {% if entity.death_saves > 0 or entity.death_fails > 0 %}
-        <h2>Death Saves</h2>
-        <div class="death-saves">
-            <div class="death-save success">
-                <span class="label">Successes:</span>
-                <span class="value">{{ entity.death_saves }}</span>
-            </div>
-            <div class="death-save fail">
-                <span class="label">Failures:</span>
-                <span class="value">{{ entity.death_fails }}</span>
-            </div>
-        </div>
-        {% endif %}
-        {% endif %}
-        {% if not entity.object() and entity.ability_scores %}
-        <h2>Ability Scores</h2>
-        <table>
-            <tr>
-            <th>Strength</th>
-            <th>Dexterity</th>
-            <th>Constitution</th>
-            <th>Intelligence</th>
-            <th>Wisdom</th>
-            <th>Charisma</th>
-            </tr>
-            <tr>
-            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.str_mod() | mod_str }}" data-description="Strength Check">{{ entity.ability_score_str() }} ({{entity.str_mod() | mod_str}})</td>
-            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.dex_mod() | mod_str }}" data-description="Dexterity Check">{{ entity.ability_score_dex()}} ({{entity.dex_mod() | mod_str }} )</td>
-            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.con_mod() | mod_str }}" data-description="Constitution Check">{{ entity.ability_score_con()}} ({{entity.con_mod() | mod_str }} )</td>
-            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.int_mod() | mod_str }}" data-description="Intelligence Check">{{ entity.ability_score_int() }} ({{entity.int_mod() | mod_str }} )</td>
-            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.wis_mod() | mod_str }}" data-description="Wisdom Check">{{ entity.ability_score_wis() }} ({{entity.wis_mod() | mod_str }} )</td>
-            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.cha_mod() | mod_str }}" data-description="Charisma Check">{{ entity.ability_score_cha() }} ({{entity.cha_mod() | mod_str }} )</td>
-            </tr>
-        </table>
-
-        {% if entity.resistances or entity.damage_immunities or entity.damage_vulnerabilities or entity.condition_immunities %}
-        <h2>Damage Resistances & Immunities</h2>
-        <table>
-            {% if entity.resistances %}
-            <tr>
-                <th>Resistances</th>
-                <td>{{ entity.effective_resistances() | join(', ') }}</td>
-            </tr>
-            {% endif %}
-            {% if entity.damage_immunities %}
-            <tr>
-                <th>Damage Immunities</th>
-                <td>{{ entity.damage_immunities | join(', ') }}</td>
-            </tr>
-            {% endif %}
-            {% if entity.damage_vulnerabilities %}
-            <tr>
-                <th>Damage Vulnerabilities</th>
-                <td>{{ entity.damage_vulnerabilities | join(', ') }}</td>
-            </tr>
-            {% endif %}
-            {% if entity.condition_immunities %}
-            <tr>
-                <th>Condition Immunities</th>
-                <td>{{ entity.condition_immunities | join(', ') }}</td>
-            </tr>
-            {% endif %}
-        </table>
-        {% endif %}
-
-        <h2>Saving Throws</h2>
-        <table>
-            <tr>
-                <th>Ability</th>
-                <th>Modifier</th>
-                <th>Proficient</th>
-            </tr>
-            {% for ability in entity.ATTRIBUTE_TYPES %}
-            <tr>
-                <td>{{ ability }}</td>
-                <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.saving_throw_mod(ability) | mod_str }}" data-description="{{ability}} save">{{ entity.saving_throw_mod(ability) | mod_str }}</td>
-                <td{% if entity.proficient(ability + "_save") %} style="border: 2px solid black;"{% endif %}>{{ "Yes" if entity.proficient(ability+ "_save") else ""}}</td>
-            </tr>
-            {% endfor %}
-        </table>
-        <h3>Proficiency, Speed and Initiative Bonus</h3>
-        <table>
-            <tr>
-                <th>Proficiency Bonus</th>
-                <th>Initiative</th>
-                <th>Speed</th>
-                {% if 'speed_fly' in entity.properties %}
-                <th>Fly Speed</th>
-                {% endif %}
-            </tr>
-            <tr>
-                <td>+{{ entity.proficiency_bonus() }}</td>
-                <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.initiative_bonus() | mod_str }}" data-description="Initiative">+{{ entity.initiative_bonus() }}</td>
-                {% if entity.speed() != entity.properties.get('speed', 0) %}
-                <td>{{ entity.speed() }} + {{ entity.speed() - entity.properties.get('speed', 0) }}) ft.</td>
-                {% else %}
-                <td>{{ entity.properties.get('speed', 0) }} ft.</td>
-                {% endif %}
-
-                {% if 'speed_fly' in entity.properties %}
-                    <td>{{ entity.properties.get('speed_fly', 0) }} ft.</td>
-                {% endif %}
-            </tr>
-        </table>
-        <h2>Passive Scores</h2>
-        <table>
-            <tr>
-                <th>Passive Perception</th>
-                <th>Passive Investigation</th>
-                <th>Passive Insight</th>
-            </tr>
-            <tr>
-                <td>{{ entity.passive_perception() }}</td>
-                <td>{{ entity.passive_investigation() }}</td>
-                <td>{{ entity.passive_insight() }}</td>
-            </tr>
-        </table>
-        <h2>Skills</h2>
-        <table>
-            <tr>
-                <th>Skill</th>
-                <th>Modifier</th>
-                <th>Proficient</th>
-            </tr>
-            {% for ability, skills in entity.SKILL_AND_ABILITY_MAP.items() %}
-            {% for skill in skills %}
-            <tr>
-                <td>{{ skill }}</td>
-                <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity[skill + '_mod']() | mod_str }}" data-description="{{skill}} check">{{ entity[skill + "_mod"]() | mod_str }}</td>
-                <td{% if entity.proficient(skill) %} style="border: 2px solid black;"{% endif %}>{{ "Yes" if entity.proficient(skill) else ""}}</td>
-            </tr>
-            {% endfor %}
-            {% endfor %}
-        </table>
-        {% endif %}
-    </div>
-    {% if not entity.object() %}
- <div id="Spells" class="tabcontent">
-    <h2>Spells</h2>
-    <!-- Spells section -->
-    {% for klass, level in entity.class_and_level() %}
-    <h3>{{ klass }} Spells</h3>
-    {% set spells_per_level = entity.available_spells_per_level(battle) %}
-    
-    {% for level, level_spells in spells_per_level %}
-    {% if level_spells %}
-    <div class="spell-level">
-        {% if level == 0 %}
-        <div class="spell-level-header">Cantrips</div>
-        {% else %}
-        <div class="spell-level-header">
-            Level {{ level }} - {{ entity.spell_slots_count(level, klass) }}/{{ entity.max_spell_slots(level, klass)}} Slots
-        </div>
-        {% endif %}
-        <div class="spells-container-sheet">
-            {% for name, details in level_spells %}
-             <div class="spell" role="button" aria-pressed="false">
-                <div class="spell-inner">
-                    <div class="spell-front">
-                        <img src="{{ url_for('static', filename='spells/spell_' + name + '.png') }}" alt="{{ name }}" class="spell-icon-sheet">
-                        <div class="spell-label">{{ details['label'] }}</div>
-                        <!-- add details like action, casting time, range, components, duration, and concentration -->
-                        <table class="spell-details-table">
-                            <tr>
-                                <td class="spell-details-name"><i class="fas fa-hourglass-start"></i> <strong>Casting Time</strong></td>
-                                <td>{{ details['casting_time'] | casting_time }}</td>
-                            </tr>
-                            <tr>
-                                <td class="spell-details-name"><i class="fas fa-bullseye"></i> <strong>Range</strong></td>
-                                <td>{{ details['range'] }}</td>
-                            </tr>
-                        </table>
-                    </div>
-                    <div class="spell-back">
-                        <div class="spell-description">
-                            {{ details['description'] }}
+                <div class="section-content">
+                    {% if entity.familiar() %}
+                    <h4>{{entity.owner.label()}}'s Familiar</h4>
+                    {% endif %}
+                    <div class="basic-info-container">
+                        <div class="profile-image">
+                            <img src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}" alt="Profile Image">
+                        </div>
+                        <div class="description">
+                            <p>{{ entity.description() }}</p>
                         </div>
                     </div>
+                    <table>
+                        {% if not entity.object() and entity.class_and_level() %}
+                        <tr>
+                            <th>Class & Level</th>
+                            {% for class, level in entity.class_and_level() %}
+                            {% if level %}
+                            <td>Level {{level}} {{ class }}</td>
+                            {% else %}
+                            <td>{{ class }}</td>
+                            {% endif %}
+                            {% endfor %}
+                        </tr>
+                        <tr>
+                            <th>Race</th>
+                            <td>{{ entity.race() }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+
+            {% if not entity.object() %}
+            <div class="section">
+                <div class="section-header">
+                    <h2>Features & Traits</h2>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content">
+                    <div class="features-container">
+                        {% if entity.properties.get('class_features') %}
+                        <div class="feature-section">
+                            <h3>Class Features</h3>
+                            <ul class="feature-list">
+                            {% for feature in entity.properties.get('class_features', []) %}
+                                <li class="feature-item" data-tooltip="{{ feature }}">{{ feature | replace('_', ' ') | title }}</li>
+                            {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {% if entity.race_properties %}
+                        <div class="feature-section">
+                            <h3>Race Features</h3>
+                            <ul class="feature-list">
+                            {% for feature in entity.race_properties.get('race_features', []) %}
+                                <li class="feature-item" data-tooltip="{{ feature }}">{{ feature | replace('_', ' ') | title }}</li>
+                            {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {% if entity.properties.get('attributes') %}
+                        <div class="feature-section">
+                            <h3>Other Traits</h3>
+                            <ul class="feature-list">
+                            {% for feature in entity.properties.get('attributes', []) %}
+                                <li class="feature-item" data-tooltip="{{ feature }}">{{ feature | replace('_', ' ') | title }}</li>
+                            {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="section">
+                <div class="section-header">
+                    <h2>Combat Stats</h2>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content">
+                    <h3>Armor Class</h3>
+                    <table>
+                        <tr>
+                            <th>AC</th>
+                            {% if entity.equipped_ac()!=entity.armor_class()%}
+                            <td>{{ entity.equipped_ac() }} ({{ entity.armor_class() }})</td>
+                            {% else %}
+                            <td>{{ entity.armor_class() }}</td>
+                            {% endif %}
+                        </tr>
+                    </table>
+
+                    {% if entity.hp() %}
+                    <h3>Hit Points</h3>
+                    <table>
+                        <tr>
+                            <th>Max HP</th>
+                            <td>{{ entity.max_hp() }}</td>
+                        </tr>
+                        <tr>
+                            <th>Current HP</th>
+                            <td>{{ entity.hp() }}</td>
+                        </tr>
+                        <tr>
+                            <th>Temporary HP</th>
+                            <td>{{ entity.temp_hp() }}</td>
+                        </tr>
+                    </table>
+                    {% if entity.death_saves > 0 or entity.death_fails > 0 %}
+                    <h3>Death Saves</h3>
+                    <div class="death-saves">
+                        <div class="death-save success">
+                            <span class="label">Successes:</span>
+                            <span class="value">{{ entity.death_saves }}</span>
+                        </div>
+                        <div class="death-save fail">
+                            <span class="label">Failures:</span>
+                            <span class="value">{{ entity.death_fails }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if not entity.object() and entity.ability_scores %}
+            <div class="section">
+                <div class="section-header">
+                    <h2>Ability Scores</h2>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content">
+                    <table>
+                        <tr>
+                        <th>Strength</th>
+                        <th>Dexterity</th>
+                        <th>Constitution</th>
+                        <th>Intelligence</th>
+                        <th>Wisdom</th>
+                        <th>Charisma</th>
+                        </tr>
+                        <tr>
+                        <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.str_mod() | mod_str }}" data-description="Strength Check">{{ entity.ability_score_str() }} ({{entity.str_mod() | mod_str}})</td>
+                        <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.dex_mod() | mod_str }}" data-description="Dexterity Check">{{ entity.ability_score_dex()}} ({{entity.dex_mod() | mod_str }} )</td>
+                        <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.con_mod() | mod_str }}" data-description="Constitution Check">{{ entity.ability_score_con()}} ({{entity.con_mod() | mod_str }} )</td>
+                        <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.int_mod() | mod_str }}" data-description="Intelligence Check">{{ entity.ability_score_int() }} ({{entity.int_mod() | mod_str }} )</td>
+                        <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.wis_mod() | mod_str }}" data-description="Wisdom Check">{{ entity.ability_score_wis() }} ({{entity.wis_mod() | mod_str }} )</td>
+                        <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.cha_mod() | mod_str }}" data-description="Charisma Check">{{ entity.ability_score_cha() }} ({{entity.cha_mod() | mod_str }} )</td>
+                        </tr>
+                    </table>
+
+                    {% if entity.resistances or entity.damage_immunities or entity.damage_vulnerabilities or entity.condition_immunities %}
+                    <h3>Damage Resistances & Immunities</h3>
+                    <table>
+                        {% if entity.resistances %}
+                        <tr>
+                            <th>Resistances</th>
+                            <td>{{ entity.effective_resistances() | join(', ') }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if entity.damage_immunities %}
+                        <tr>
+                            <th>Damage Immunities</th>
+                            <td>{{ entity.damage_immunities | join(', ') }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if entity.damage_vulnerabilities %}
+                        <tr>
+                            <th>Damage Vulnerabilities</th>
+                            <td>{{ entity.damage_vulnerabilities | join(', ') }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if entity.condition_immunities %}
+                        <tr>
+                            <th>Condition Immunities</th>
+                            <td>{{ entity.condition_immunities | join(', ') }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                    {% endif %}
+
+                    <h3>Saving Throws</h3>
+                    <table>
+                        <tr>
+                            <th>Ability</th>
+                            <th>Modifier</th>
+                            <th>Proficient</th>
+                        </tr>
+                        {% for ability in entity.ATTRIBUTE_TYPES %}
+                        <tr>
+                            <td>{{ ability }}</td>
+                            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.saving_throw_mod(ability) | mod_str }}" data-description="{{ability}} save">{{ entity.saving_throw_mod(ability) | mod_str }}</td>
+                            <td{% if entity.proficient(ability + "_save") %} style="border: 2px solid black;"{% endif %}>{{ "Yes" if entity.proficient(ability+ "_save") else ""}}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+
+                    <h3>Proficiency, Speed and Initiative Bonus</h3>
+                    <table>
+                        <tr>
+                            <th>Proficiency Bonus</th>
+                            <th>Initiative</th>
+                            <th>Speed</th>
+                            {% if 'speed_fly' in entity.properties %}
+                            <th>Fly Speed</th>
+                            {% endif %}
+                        </tr>
+                        <tr>
+                            <td>+{{ entity.proficiency_bonus() }}</td>
+                            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity.initiative_bonus() | mod_str }}" data-description="Initiative">+{{ entity.initiative_bonus() }}</td>
+                            {% if entity.speed() != entity.properties.get('speed', 0) %}
+                            <td>{{ entity.speed() }} + {{ entity.speed() - entity.properties.get('speed', 0) }}) ft.</td>
+                            {% else %}
+                            <td>{{ entity.properties.get('speed', 0) }} ft.</td>
+                            {% endif %}
+
+                            {% if 'speed_fly' in entity.properties %}
+                                <td>{{ entity.properties.get('speed_fly', 0) }} ft.</td>
+                            {% endif %}
+                        </tr>
+                    </table>
+
+                    <h3>Passive Scores</h3>
+                    <table>
+                        <tr>
+                            <th>Passive Perception</th>
+                            <th>Passive Investigation</th>
+                            <th>Passive Insight</th>
+                        </tr>
+                        <tr>
+                            <td>{{ entity.passive_perception() }}</td>
+                            <td>{{ entity.passive_investigation() }}</td>
+                            <td>{{ entity.passive_insight() }}</td>
+                        </tr>
+                    </table>
+
+                    <h3>Skills</h3>
+                    <table>
+                        <tr>
+                            <th>Skill</th>
+                            <th>Modifier</th>
+                            <th>Proficient</th>
+                        </tr>
+                        {% for ability, skills in entity.SKILL_AND_ABILITY_MAP.items() %}
+                        {% for skill in skills %}
+                        <tr>
+                            <td>{{ skill }}</td>
+                            <td class="auto-die-roll" data-entity="{{entity.entity_uid}}" data-compact=true data-roll="1d20{{ entity[skill + '_mod']() | mod_str }}" data-description="{{skill}} check">{{ entity[skill + "_mod"]() | mod_str }}</td>
+                            <td{% if entity.proficient(skill) %} style="border: 2px solid black;"{% endif %}>{{ "Yes" if entity.proficient(skill) else ""}}</td>
+                        </tr>
+                        {% endfor %}
+                        {% endfor %}
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if not entity.object() %}
+        <div id="Spells" class="tabcontent">
+            <h2>Spells</h2>
+            <!-- Spells section -->
+            {% for klass, level in entity.class_and_level() %}
+            <div class="section">
+                <div class="section-header">
+                    <h3>{{ klass }} Spells</h3>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content">
+                    {% set spells_per_level = entity.available_spells_per_level(battle) %}
+                    
+                    {% for level, level_spells in spells_per_level %}
+                    {% if level_spells %}
+                    <div class="spell-level">
+                        {% if level == 0 %}
+                        <div class="spell-level-header">Cantrips</div>
+                        {% else %}
+                        <div class="spell-level-header">
+                            Level {{ level }} - {{ entity.spell_slots_count(level, klass) }}/{{ entity.max_spell_slots(level, klass)}} Slots
+                        </div>
+                        {% endif %}
+                        <div class="spells-container-sheet">
+                            {% for name, details in level_spells %}
+                             <div class="spell" role="button" aria-pressed="false">
+                                <div class="spell-inner">
+                                    <div class="spell-front">
+                                        <img src="{{ url_for('static', filename='spells/spell_' + name + '.png') }}" alt="{{ name }}" class="spell-icon-sheet">
+                                        <div class="spell-label">{{ details['label'] }}</div>
+                                        <table class="spell-details-table">
+                                            <tr>
+                                                <td class="spell-details-name"><i class="fas fa-hourglass-start"></i> <strong>Casting Time</strong></td>
+                                                <td>{{ details['casting_time'] | casting_time }}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="spell-details-name"><i class="fas fa-bullseye"></i> <strong>Range</strong></td>
+                                                <td>{{ details['range'] }}</td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                    <div class="spell-back">
+                                        <div class="spell-description">
+                                            {{ details['description'] }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
                 </div>
             </div>
             {% endfor %}
         </div>
-    </div>
-    {% endif %}
-    {% endfor %}
-    {% endfor %}
-</div>
+
         {% if entity.inventory %}
         <div id="Equipment" class="tabcontent">
-            <h2>Equipment</h2>
-            <div class="equipment-container">
+            <div class="section">
+                <div class="section-header">
+                    <h2>Equipment</h2>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content">
+                    {% include 'equipment.html' %}
+                </div>
+            </div>
 
-                {% include 'equipment.html' %}
+            <div class="section">
+                <div class="section-header">
+                    <h2>Potions/Consumables</h2>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content">
+                    <ul class="consumables-list tile-inventory">
+                    {% for item in entity.usable_items() %}
+                    <li class="tile-item" data-tooltip="{{ item['label'] }}">
+                    <div class="item-icon-container">
+                        <img class="item-icon" src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
+                        <div class="item-quantity">{{ 'x ' ~ item.get('qty', 1) }}</div>
+                    </div>
+                    </li>
+                    {% endfor %}
+                    </ul>
+                </div>
+            </div>
 
+            <div class="section">
+                <div class="section-header">
+                    <h2>Other Items</h2>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content">
+                    <ul class="consumables-list tile-inventory">
+                    {% for item in entity.other_items() %}
+                    <li class="tile-item" data-tooltip="{{ item['label'] }}">
+                    <div class="item-icon-container">
+                        <img class="item-icon" src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
+                        <div class="item-quantity">{{ 'x ' ~ item.get('qty', 1) }}</div>
+                        {% if item['type'] == 'letter' %}
+                        <form method="post" action="/read_letter" target="_blank">
+                            <input type="hidden" name="id" value="{{ entity.entity_uid }}">
+                            <input type="hidden" name="item_id" value="{{ item['name'] }}">
+                            <button>Read</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    </li>
+                    {% endfor %}
+                    </ul>
+                </div>
             </div>
-            <h2>Potions/Consumables</h2>
-            <ul class="consumables-list tile-inventory">
-            {% for item in entity.usable_items() %}
-            <li class="tile-item" data-tooltip="{{ item['label'] }}">
-            <div class="item-icon-container">
-                <img class="item-icon" src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
-                <div class="item-quantity">{{ 'x ' ~ item.get('qty', 1) }}</div>
-            </div>
-            </li>
-            {% endfor %}
-            </ul>
-            <h3>Other Items</h3>
-            <ul class="consumables-list tile-inventory">
-            {% for item in entity.other_items() %}
-            <li class="tile-item" data-tooltip="{{ item['label'] }}">
-            <div class="item-icon-container">
-                <img class="item-icon" src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
-                <div class="item-quantity">{{ 'x ' ~ item.get('qty', 1) }}</div>
-                {% if item['type'] == 'letter' %}
-                <form method="post" action="/read_letter" target="_blank">
-                    <input type="hidden" name="id" value="{{ entity.entity_uid }}">
-                    <input type="hidden" name="item_id" value="{{ item['name'] }}">
-                    <button>Read</button>
-                </form>
-                {% endif %}
-            </div>
-            </li>
-            {% endfor %}
-            </ul>
         </div>
         {% endif %}
+        {% endif %}
     </div>
-    {% endif %}
     <script src="/sheet.js?salt={{ salt }}"></script>
     <script src="/utils.js?salt={{ salt }}"></script>
+    <script>
+        // Add collapsible section functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const sections = document.querySelectorAll('.section');
+            
+            sections.forEach(section => {
+                const header = section.querySelector('.section-header');
+                const content = section.querySelector('.section-content');
+                
+                // Set initial state
+                content.classList.remove('collapsed');
+                header.classList.remove('collapsed');
+                
+                header.addEventListener('click', () => {
+                    content.classList.toggle('collapsed');
+                    header.classList.toggle('collapsed');
+                });
+            });
+        });
+    </script>
 </body>
 </html>

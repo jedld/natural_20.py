@@ -82,6 +82,16 @@ class SpiritualWeaponSpell(Spell):
 
             battle_map = item['map']
             battle_map.place(item['target'], spiritual_weapon)
+            if battle:
+                battle.entities[spiritual_weapon] = {
+                    'movement': 20,
+                    'action': 0,
+                    'bonus_action': 0,
+                    'reaction': 0,
+                    'free_object_interaction': 0,
+                    'active_perception': 0,
+                    'active_perception_disadvantage': 0,
+                }
 
             item['source'].add_casted_effect({
                 'target': item['target'],

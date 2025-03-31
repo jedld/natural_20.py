@@ -90,6 +90,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
     with open(f"{self.session.root_path}/races/{race_file}.yml") as file:
       self.race_properties = yaml.safe_load(file)
 
+    # Merge subrace features with base race features
+    if self.subrace() and self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('race_features'):
+      self.race_properties['race_features'] = self.race_properties.get('race_features', []) + self.race_properties['subrace'][self.subrace()]['race_features']
 
     self.ability_scores = self.properties.get('ability', {})
     self.load_inventory()
@@ -400,9 +403,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
 
   def after_death(self):
       entity_map = self.session.map_for(self)
-      pos = entity_map.position_of(self)
-      entity_map.remove(self)
-      entity_map.place_object(self, *pos)
+      if entity_map:
+        entity_map.remove(self, move_to_object_layer=True)
 
   def token_image_transform(self):
       if self.dead():

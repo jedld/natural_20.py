@@ -470,3 +470,45 @@ th, td {
     font-weight: bold;
     margin-right: 5px;
 }
+
+/* Collapsible Section Styles */
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    padding: 10px;
+    background-color: rgba(74, 47, 25, 0.1);
+    border-radius: 5px;
+    margin-bottom: 10px;
+    transition: background-color 0.3s ease;
+}
+
+.section-header:hover {
+    background-color: rgba(74, 47, 25, 0.2);
+}
+
+.section-header h2 {
+    margin: 0;
+    border-bottom: none;
+}
+
+.section-header .toggle-icon {
+    font-size: 20px;
+    color: #4a2f19;
+    transition: transform 0.3s ease;
+}
+
+.section-header.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.section-content {
+    max-height: 2000px;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+.section-content.collapsed {
+    max-height: 0;
+}
