@@ -301,12 +301,12 @@ class Entity(EntityStateEvaluator, Notable):
     def passive_investigation(self):
         return self.properties.get('passive_investigation', 10 + self.int_mod())
 
-    def perception_check(self, battle):
+    def perception_check(self, battle, advantage=False, disadvantage=False):
         entity_state = battle.entity_state_for(self)
         if not entity_state:
             return 0
 
-        return DieRoll.roll(f"1d20+{self.wis_mod()}", description="perception check", entity=self, battle=battle)
+        return DieRoll.roll(f"1d20+{self.wis_mod()}", description="perception check", entity=self, battle=battle, advantage=advantage)
 
     def drop_grapple(self):
         for target in self.grappling:
@@ -853,6 +853,8 @@ class Entity(EntityStateEvaluator, Notable):
             'positions_entered': {}
         })
 
+        self._reset_spiritual_weapon(battle)
+
         # clear help actions
         for _, v in self.help_actions.items():
             v.helping_with.remove(self)
@@ -881,19 +883,22 @@ class Entity(EntityStateEvaluator, Notable):
 
         entity_state["multiattack"] = multiattack_groups
 
+        return entity_state
+    
+    def _reset_spiritual_weapon(self, battle):
         if self.has_casted_effect('spiritual_weapon'):
+          weapon_effect = None
           for effect in self.casted_effects:
             if effect.get('effect').id == 'spiritual_weapon':
               spiritual_weapon = effect['effect'].spiritual_weapon
+              weapon_effect = effect
               break
 
           assert spiritual_weapon, "spiritual_weapon not found"
           assert isinstance(spiritual_weapon, Entity), "spiritual_weapon is not an Entity"
 
-          if spiritual_weapon.get('expiration') and spiritual_weapon['expiration'] > self.session.game_time:
+          if weapon_effect.get('expiration') and weapon_effect['expiration'] > self.session.game_time:
             spiritual_weapon.reset_turn(battle)
-
-        return entity_state
 
     def resolve_trigger(self, event_type, opts=None):
         results = []

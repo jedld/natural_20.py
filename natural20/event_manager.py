@@ -222,7 +222,10 @@ class EventManager:
             self.output_logger.log(f"{self.show_name(event)} interacted with {self.show_target_name(event)} action [{event['object_action']}]")
 
         def look(event):
-            self.output_logger.log(f"{self.show_name(event)} looked around and rolled {event['die_roll']} = {event['die_roll'].result()} perception check.")
+            if event['advantage']:
+                self.output_logger.log(f"{self.show_name(event)} looked around and rolled {event['die_roll']} = {event['die_roll'].result()} perception check with advantage [{', '.join(event['advantage'])}].")
+            else:
+                self.output_logger.log(f"{self.show_name(event)} looked around and rolled {event['die_roll']} = {event['die_roll'].result()} perception check.")
 
         def ability_check(event):
             if event["success"]:

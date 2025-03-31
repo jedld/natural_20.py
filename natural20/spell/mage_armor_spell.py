@@ -39,11 +39,13 @@ class MageArmorSpell(Spell):
 
     def validate(self, battle_map, target=None):
         self.errors.clear()
-        if isinstance(target, list):
-            target = battle_map.entity_at(*target)
         if target is None:
             self.errors.append('no_target')
             return
+
+        if isinstance(target, list):
+            target = battle_map.entity_at(*target)
+
         if target.wearing_armor():
             self.errors.append('wearing_armor')
 

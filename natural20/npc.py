@@ -217,7 +217,10 @@ class Npc(Entity, Multiattack, Lootable):
                     elif action_class == HideBonusAction:
                         actions.append(HideBonusAction(session, self, "hide_bonus"))
                     elif action_class == ShoveAction:
-                        actions.append(ShoveAction(session, self, "shove"))
+                        if not self.familiar():
+                            actions.append(ShoveAction(session, self, "shove"))
+                    elif action_class == LookAction:
+                        actions.append(LookAction(session, self, "look"))
                     elif action_class == InteractAction:
                         if map:
                             for objects in map.objects_near(self, battle):

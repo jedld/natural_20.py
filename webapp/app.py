@@ -1371,7 +1371,6 @@ def action():
                             action_info['param'] = action['param']
                             return jsonify(action_info)
                     elif param_details['type'] == 'select_empty_space':
-                        
                         if target:
                             action = action['next'](target)
                             continue
@@ -1450,6 +1449,11 @@ def action():
                         raise ValueError(f"Unknown action type {action_type} {param_details['type']}")
                 else:
                     raise ValueError(f"Invalid action map {action}")
+
+            action.validate(battle_map, target=target)
+            
+            if len(action.errors) > 0:
+                return jsonify(status='error', errors=action.errors)
 
             commit_and_update(action)
             return jsonify(status='ok')
