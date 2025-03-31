@@ -6,13 +6,22 @@ class FindFamiliarEffect:
         self.source = source
         self.familiar = familiar
         self.battle_map = battle_map
+        self.action = None
 
     @property
     def id(self):
         return 'familiar'
 
-    def dismiss(self, entity, effect):
-        self.battle_map.remove(self.familiar)
+    def dismiss(self, entity, effect, opts=None):
+        if opts is None:
+            opts = {}
+        if 'event' in opts:
+            event = opts['event']
+        else:
+            event = 'death'
+
+        if event == 'dismiss_familiar':
+            self.battle_map.remove(self.familiar)
 
 class FindFamiliarSpell(Spell):
     def __init__(self, session, source, spell_name, details):

@@ -76,9 +76,9 @@ class FindFamiliarAction(Action):
 
         if item['type'] == 'dismiss_familiar_temporary':
             item['source'].pocket_dimension.append(item['familiar'])
-            item['source'].remove_effect(item['effect'])
+            item['source'].remove_effect(item['effect'], opts={'event': 'dismiss_familiar'})
         elif item['type'] == 'dismiss_familiar_permanent':
-            item['source'].remove_effect(item['effect'])
+            item['source'].remove_effect(item['effect'], opts={'event': 'dismiss_familiar'})
 
     def __str__(self):
         return f"DismissFamiliar({self.source})"

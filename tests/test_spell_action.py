@@ -325,7 +325,7 @@ class TestSpellAction(unittest.TestCase):
         # test dismiss
 
         for effect in self.entity.casted_effects:
-            self.entity.remove_effect(effect['effect'])
+            self.entity.remove_effect(effect['effect'], opts={'event': 'dismiss_familiar'})
 
         entity = self.battle_map.entity_at(0, 6)
         self.assertIsNone(entity)

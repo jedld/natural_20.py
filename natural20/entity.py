@@ -766,22 +766,26 @@ class Entity(EntityStateEvaluator, Notable):
                 return mod
         return None
 
-    def dismiss_effect(self, effect):
+    def dismiss_effect(self, effect, opts={}):
+        if opts is None:
+            opts = {}
+
         if self.concentration == effect:
             self.concentration = None
 
         dismiss_count = 0
-        if effect.action.target:
+        if hasattr(effect, 'action') and effect.action and \
+            hasattr(effect.action, 'target') and effect.action.target:
             if isinstance(effect.action.target,list):
                 for target in effect.action.target:
-                    dismiss_count += target.remove_effect(effect)
+                    dismiss_count += target.remove_effect(effect, opts)
             else:
-                dismiss_count = effect.action.target.remove_effect(effect)
+                dismiss_count = effect.action.target.remove_effect(effect, opts)
 
-        dismiss_count += self.remove_effect(effect)
+        dismiss_count += self.remove_effect(effect, opts)
         return dismiss_count
 
-    def remove_effect(self, effect):
+    def remove_effect(self, effect, opts={}):
         def resolve_effect(effect_id):
             for f in self.casted_effects:
                 if f['effect'].id == effect_id:
@@ -824,7 +828,7 @@ class Entity(EntityStateEvaluator, Notable):
         # call the dismiss hooks
         for f in removed_effects.values():
             if f['effect'] and hasattr(f['effect'], 'dismiss'):
-                getattr(f['effect'], 'dismiss')(self, f)
+                getattr(f['effect'], 'dismiss')(self, f, opts)
         return dismiss_count
     
     def wearing_armor(self):
