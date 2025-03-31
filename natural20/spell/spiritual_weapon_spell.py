@@ -91,6 +91,11 @@ class SpiritualWeaponSpell(Spell):
                     'free_object_interaction': 0,
                     'active_perception': 0,
                     'active_perception_disadvantage': 0,
+                    'two_weapon': None,
+                    'action_surge': None,
+                    'casted_level_spells': [],
+                    'positions_entered': {},
+                    'group': battle.group_for(item['source'])
                 }
 
             item['source'].add_casted_effect({

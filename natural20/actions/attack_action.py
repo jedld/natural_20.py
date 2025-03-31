@@ -53,6 +53,10 @@ class AttackAction(Action):
     def can(entity: Entity, battle, options=None):
         if options is None:
             options = {}
+
+        if battle and options.get('as_bonus_action'):
+            return entity.total_bonus_actions(battle) > 0
+
         if battle and options.get('opportunity_attack'):
             return entity.total_reactions(battle) > 0
 
@@ -568,6 +572,11 @@ class TwoWeaponAttackAction(AttackAction):
 class LinkedAttackAction(AttackAction):
     def __init__(self, session, source, action_type, opts=None):
         super().__init__(session, source, action_type, opts)
+
+    def clone(self):
+        linked_attack = LinkedAttackAction(self.session, self.source, self.action_type, self.opts)
+        linked_attack.npc_action = self.npc_action
+        return linked_attack
 
     @staticmethod
     def can(entity, battle, options=None):

@@ -334,19 +334,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
           action_list.append(FindFamiliarAction(session, self, 'dismiss_familiar'))
     return action_list
 
-  def equipped_weapons(self, session, valid_weapon_types=['ranged_attack', 'melee_attack']):
-    weapon_attacks = []
-    for item in self.properties.get('equipped', []):
-      weapon_detail = session.load_weapon(item)
-      if weapon_detail is None:
-        continue
-      if weapon_detail['type'] not in valid_weapon_types:
-        continue
-      if 'ammo' in weapon_detail and not self.item_count(weapon_detail['ammo']) > 0:
-        continue
-      weapon_attacks.append(item)
 
-    return weapon_attacks
 
   def _player_character_attack_actions(self, session, battle, opportunity_attack=False, second_weapon=False, auto_target=True):
     # check all equipped and create attack for each

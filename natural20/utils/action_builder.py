@@ -94,9 +94,16 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             possible_targets = acquire_targets(param, entity, battle, map)
             if not possible_targets:
                 # No valid targets => entire build fails
+                if is_verbose:
+                    print("Unable to select target, no possible targets.")
                 return None
+
             if match:
                 possible_targets = [target for target in possible_targets if target in match]
+
+            if is_verbose and len(possible_targets) == 0:
+                print(f"Unable to select target, possible targets: {possible_targets}")
+
             selected_target_combinations = []
             total_targets = param.get("num", 1)
             min_targets = param.get("min", total_targets)
@@ -115,6 +122,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                         selected_target_combinations.append(combo[0])
                     else:
                         selected_target_combinations.append(combo)
+
             params_list.append(selected_target_combinations)
 
         # -----------------------------
@@ -138,12 +146,13 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                     new_y = cur_y + dy
                     if (map.bidirectionally_passable(entity, new_x, new_y, (cur_x, cur_y), battle, allow_squeeze=False)
                             and map.placeable(entity, new_x, new_y, battle, squeeze=False)):
-
+                        
                         if match and [new_x, new_y] not in match:
                             continue
 
                         chosen_path = [[cur_x, cur_y], [new_x, new_y]]
                         max_moves = entity.available_movement(battle) // 5
+                        
                         movement_result = compute_actual_moves(
                             entity, chosen_path, map, battle, max_moves
                         )
@@ -192,12 +201,20 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             params_list.append(_interaction_actions)
         elif param_type == "select_weapon":
             if hasattr(entity, 'attack_options'):
-                usable_weapons = entity.attack_options(battle, session)
+                _usable_weapons = entity.attack_options(battle)
+                if match:
+                    usable_weapons = [ weapon for weapon in _usable_weapons if weapon['name'].lower() in match]
+                else:
+                    usable_weapons = _usable_weapons
             else:
-                usable_weapons = entity.equipped_weapons(session)
+                _usable_weapons = entity.equipped_weapons(session)
+                if match:
+                    usable_weapons = [weapon for weapon in _usable_weapons if weapon in match]
+                else:
+                    usable_weapons = _usable_weapons
 
-            if match:
-                usable_weapons = [weapon for weapon in usable_weapons if weapon in match]
+            if is_verbose and not usable_weapons:
+                print(f"Unable to select weapons {_usable_weapons}")
 
             params_list.append(usable_weapons)
         elif param_type == "select_choice":
