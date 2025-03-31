@@ -250,8 +250,12 @@ class Map():
         self.entities[entity] = [pos_x, pos_y]
         self.place((pos_x, pos_y), entity, None)
 
-    def remove(self, entity, battle=None):
-        pos_x, pos_y = self.entities.pop(entity)
+    def remove(self, entity, battle=None, move_to_object_layer=False):
+        pos_x, pos_y = self.position_of(entity)
+        self.entities.pop(entity)
+        if move_to_object_layer:
+            self.interactable_objects[entity] = [pos_x, pos_y]
+            self.objects[pos_x][pos_y].append(entity)
 
         source_token_size = entity.token_size() - 1 if requires_squeeze(entity, pos_x, pos_y, self, battle) else entity.token_size()
 

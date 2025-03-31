@@ -350,6 +350,8 @@ class GameManagement:
             def get_controller(entity):
                 if isinstance(entity, PlayerCharacter):
                     return self.get_controller_for_entity(entity)
+                if entity.familiar():
+                    return self.get_controller_for_entity(entity.owner)
                 elif self.npc_controller == 'manual':
                         web_controllers = WebController(self.game_session, None)
                         web_controllers.add_user("dm")

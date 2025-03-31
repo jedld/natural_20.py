@@ -130,7 +130,8 @@ class Npc(Entity, Multiattack, Lootable):
     def level(self):
         # return CR level I guess
         return self.properties.get("cr", 1)
-    
+
+
     def c_class(self):
         return self.properties.get("kind")
 
@@ -268,9 +269,10 @@ class Npc(Entity, Multiattack, Lootable):
     def after_death(self):
         # for npcs send them to the object layer when dead
         entity_map = self.session.map_for(self)
-        pos = entity_map.position_of(self)
-        entity_map.remove(self)
-        entity_map.place_object(self, *pos)
+
+        if entity_map:
+            move_to_object_layer = not self.familiar()
+            entity_map.remove(self, move_to_object_layer=move_to_object_layer)
 
     def token_image_transform(self):
         if self.dead():

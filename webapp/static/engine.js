@@ -764,10 +764,10 @@ $(document).ready(() => {
         valid_target_cache = {};
         move_path_cache = {};
         multiTargetList = [];
-        $(".add-to-target, .popover-menu-2, .popover-menu").hide();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         globalActionInfo = globalOpts = null;
       }
+      $(".add-to-target, .popover-menu-2, .popover-menu").hide();
     }
     // if 'q' is pressed, toggle move path
     if (event.keyCode === 81) {

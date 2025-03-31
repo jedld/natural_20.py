@@ -202,6 +202,9 @@ class Entity(EntityStateEvaluator, Notable):
     def name(self):
         return self.name
 
+    def hit_points(self):
+        return self.hp()
+
     def hp(self):
         return self.attributes["hp"]
 
@@ -424,6 +427,12 @@ class Entity(EntityStateEvaluator, Notable):
 
     def after_death(self):
         pass
+
+    def can_hide(self):
+        return self.properties.get("can_hide", False)
+
+    def cover_ac(self):
+        return self.properties.get("cover_ac", 0)
 
     def make_unconscious(self):
         if not self.unconscious() and not self.dead():
@@ -862,6 +871,30 @@ class Entity(EntityStateEvaluator, Notable):
 
         entity_state["multiattack"] = multiattack_groups
 
+        if self.has_casted_effect('spiritual_weapon'):
+          for effect in self.casted_effects:
+            if effect.get('effect').id == 'spiritual_weapon':
+              spiritual_weapon = effect['effect'].spiritual_weapon
+              break
+
+          assert spiritual_weapon, "spiritual_weapon not found"
+          assert isinstance(spiritual_weapon, Entity), "spiritual_weapon is not an Entity"
+
+          if spiritual_weapon.get('expiration') and spiritual_weapon['expiration'] > self.session.game_time:
+            self.battle.entities[spiritual_weapon] = {
+                'movement': 20,
+                'action': 0,
+                'bonus_action': 0,
+                'reaction': 0,
+                'free_object_interaction': 0,
+                'active_perception': 0,
+                'active_perception_disadvantage': 0,
+                'two_weapon': None,
+                'action_surge': None,
+                'casted_level_spells': [],
+                'positions_entered': {}
+            }
+
         return entity_state
 
     def resolve_trigger(self, event_type, opts=None):
@@ -965,7 +998,10 @@ class Entity(EntityStateEvaluator, Notable):
         if self.grappled() or self.unconscious():
             return 0
 
-        return battle.entity_state_for(self).get('movement')
+        if battle.entity_state_for(self):
+            return battle.entity_state_for(self).get('movement')
+        else:
+            return 0
 
     def available_spells(self, battle, touch=False):
         return []
@@ -1477,16 +1513,13 @@ class Entity(EntityStateEvaluator, Notable):
         if self.hp() < 0 and abs(self.hp()) >= self.properties['max_hp']:
             instant_death = True
             self.make_dead()
-            if battle and self.familiar():
-                battle.remove(self)
+
         elif self.hp() <= 0:
             self.make_dead() if self.npc() else self.make_unconscious()
             # drop concentration spells
             if self.concentration:
                 self.dismiss_effect(self.concentration)
 
-            if battle and self.familiar():
-                battle.remove(self)
         elif self.hp() > 0:
             if self.concentration:
                 # make a concentration check

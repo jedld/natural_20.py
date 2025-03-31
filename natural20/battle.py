@@ -121,12 +121,17 @@ class Battle():
 
     # remove an entity from the battle and from the map
     def remove(self, entity):
+        if self.current_turn_index == len(self.combat_order) - 1:
+            self.current_turn_index = 0
+
         del self.entities[entity]
         if entity in self.late_comers:
             self.late_comers.remove(entity)
         if entity in self.combat_order:
             self.combat_order.remove(entity)
-        self.map_for(entity).remove(entity, battle=self)
+
+        if self.map_for(entity):
+            self.map_for(entity).remove(entity, battle=self)
 
     def start(self, combat_order=None, custom_initiative=None):
         """
@@ -473,6 +478,9 @@ class Battle():
         return bool(self.entity_state_for(entity)['two_weapon'])
     
     def active_perception_for(self, entity):
+        if entity not in self.entities:
+            return 0
+
         return self.entities[entity].get('active_perception', 0)
     
     # Consumes an action resource
