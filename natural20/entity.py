@@ -799,7 +799,7 @@ class Entity(EntityStateEvaluator, Notable):
                 return 0
 
         removed_effects = {}
-        if effect.source:
+        if hasattr(effect, 'source') and effect.source:
             for f in effect.source.casted_effects:
                 if f['effect'].id == effect.id:
                     removed_effects[f['effect'].id] = f

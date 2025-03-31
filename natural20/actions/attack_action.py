@@ -54,6 +54,9 @@ class AttackAction(Action):
         if options is None:
             options = {}
 
+        if entity.properties.get('spiritual'):
+           entity = entity.owner
+
         if battle and options.get('as_bonus_action'):
             return entity.total_bonus_actions(battle) > 0
 
@@ -587,7 +590,3 @@ class LinkedAttackAction(AttackAction):
         linked_attack.attack_roll = self.attack_roll
         linked_attack.result = self.result
         return linked_attack
-
-    @staticmethod
-    def can(entity, battle, options=None):
-        return AttackAction.can(entity.owner, battle, options)

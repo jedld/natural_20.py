@@ -13,7 +13,6 @@ class SpiritualWeapon(Entity):
         self.owner = owner
         self.damage = kwargs.get('damage', '1d8')
         self.group = owner.group
-
         
         self.properties = {
             'spiritual': True,
