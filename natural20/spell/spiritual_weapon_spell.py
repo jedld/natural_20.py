@@ -12,7 +12,10 @@ class SpiritualWeaponEffect:
     def id(self):
         return 'spiritual_weapon'
     
-    def dismiss(self, entity, effect):
+    def dismiss(self, entity, effect, opts={}):
+        if opts is None:
+            opts = {}
+
         self.battle_map.remove(self.spiritual_weapon)
 class SpiritualWeaponSpell(Spell):
     def __init__(self, session, source, spell_name, details):

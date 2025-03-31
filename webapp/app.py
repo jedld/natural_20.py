@@ -817,10 +817,11 @@ def end_turn():
         continue_game()
         return jsonify(status='ok')
     except AsyncReactionHandler as e:
-        for battle, entity, valid_actions in e.resolve():
+        for _, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
             current_game.waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
         socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
+        return jsonify(status='ok')
 
 
 def continue_game():
