@@ -169,6 +169,14 @@ class TestClericSpellAction(unittest.TestCase):
             [str(a) for a in available_spiritual_weapon_actions],
             ["move", "spiritual_weapon uses spiritual_weapon on None"],
         )
+        self.battle.entity_state_for(self.entity)['action'] = 0
+        available_spiritual_weapon_actions = spiritual_weapon.available_actions(
+            self.session, self.battle
+        )
+        self.assertEqual(
+            [str(a) for a in available_spiritual_weapon_actions],
+            ["move", "spiritual_weapon uses spiritual_weapon on None"],
+        )
         self.assertEqual(self.entity.has_casted_effect("spiritual_weapon"), True)
 
         # move weapon
