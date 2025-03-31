@@ -2,7 +2,7 @@ import pdb
 import random
 import unittest
 
-from natural20.actions.attack_action import AttackAction
+from natural20.actions.attack_action import AttackAction, LinkedAttackAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.spell_action import SpellAction
 from natural20.battle import Battle
@@ -160,6 +160,7 @@ class TestClericSpellAction(unittest.TestCase):
         print(MapRenderer(self.battle_map).render())
         spiritual_weapon = self.battle_map.entity_at(3, 6)
         self.assertEqual(str(spiritual_weapon.damage), "1d8+3")
+        self.entity.reset_turn(self.battle)
         available_spiritual_weapon_actions = spiritual_weapon.available_actions(
             self.session, self.battle
         )
@@ -192,16 +193,18 @@ class TestClericSpellAction(unittest.TestCase):
         # attack with it
         action = autobuild(
             self.session,
-            AttackAction,
+            LinkedAttackAction,
             spiritual_weapon,
             self.battle,
             self.battle_map,
             match=[entity_target, "spiritual_weapon"],
             verbose=True
         )[0]
+        action.as_bonus_action = True
         DieRoll.fudge(20)
         self.battle.action(action)
         self.battle.commit(action)
+        self.assertFalse(self.entity.has_bonus_action(self.battle))
         print(MapRenderer(self.battle_map).render())
         self.assertEqual(self.npc.hp(), 0)
         self.entity.reset_turn(self.battle)

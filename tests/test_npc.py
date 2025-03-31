@@ -86,7 +86,7 @@ class TestNpc(unittest.TestCase):
         npc.reset_turn(battle)
         battle.set_current_turn(npc)
         available_actions = [action.name() for action in npc.available_actions(session, battle, map=battle_map)]
-        assert len(available_actions) == 15, len(available_actions)
+        assert len(available_actions) == 16, len(available_actions)
 
         self.assertListEqual(available_actions, [
             'dash',
@@ -95,6 +95,7 @@ class TestNpc(unittest.TestCase):
             'hide',
             'hide_bonus',
             'dodge',
+            'look',
             'move',
             'move',
             'move',
@@ -139,9 +140,9 @@ class TestNpc(unittest.TestCase):
 
         self.assertTrue(npc.darkvision(60))
 
-        self.assertEqual(len(npc.available_actions(session, None, map=battle_map)), 5)
+        self.assertEqual(len(npc.available_actions(session, None, map=battle_map)), 6)
         available_actions = [action.name() for action in npc.available_actions(session, None, map=battle_map)]
-        self.assertEqual(available_actions, ['attack', 'attack', 'move', 'shove', 'help'])
+        self.assertEqual(available_actions, ['attack', 'attack', 'look', 'move', 'shove', 'help'])
         battle.set_current_turn(npc)
         first_attack = [a for a in npc.available_actions(session, battle, map=battle_map) if a.name() == 'attack'][0]
         first_attack.target = fighter

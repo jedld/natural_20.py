@@ -68,6 +68,7 @@ class FindFamiliarSpell(Spell):
 
     def validate(self, battle_map, target=None):
         super().validate(target)
+
         if target is None:
             target = self.target
 
@@ -88,7 +89,7 @@ class FindFamiliarSpell(Spell):
         if target and not battle_map.placeable(familiar_npc, *target):
             self.errors.append("Target must be empty space")
 
-        if target and not battle_map.distance_to_square(self.source, *target) < 60:
+        if target and battle_map.distance_to_square(self.source, *target) > 2:
             self.errors.append("Target is out of range")
 
         if target and not battle_map.can_see_square(self.source, target):

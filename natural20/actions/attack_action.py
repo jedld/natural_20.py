@@ -173,9 +173,9 @@ class AttackAction(Action):
                     item['source'].register_event_hook('short_rest', effect)
         elif item['type'] == 'damage':
             damage_event(item, battle)
-            AttackAction.consume_resource(battle, item)
+            __class__.consume_resource(battle, item)
         elif item['type'] == 'miss':
-            AttackAction.consume_resource(battle, item)
+            __class__.consume_resource(battle, item)
             session.event_manager.received_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], \
                                                  'attack_thrown': item['thrown'], 'advantage_mod': item['advantage_mod'], \
                                                  'as_reaction': bool(item['as_reaction']), 'adv_info': item['adv_info'], \
@@ -183,6 +183,10 @@ class AttackAction(Action):
                                                  'source': item['source'], 'target': item['target'], 'event': 'miss'})
 
     def consume_resource(battle, item):
+        if item.get('source'):
+            if item['source'].properties.get('spiritual'):
+                item['source'] = item['source'].owner
+
         if item.get('ammo'):
             item['source'].deduct_item(item['ammo'], 1)
 
@@ -483,7 +487,7 @@ class AttackAction(Action):
 
         if self.source.npc() and using:
             npc_action = next((a for a in self.source.npc_actions if a['name'].lower() == using.lower()), None)
-
+        
         if self.source.npc():
             if npc_action is None:
                 npc_action = next((action for action in self.source.properties['actions'] if action['name'].lower() == using.lower()), None)
@@ -576,14 +580,14 @@ class LinkedAttackAction(AttackAction):
     def clone(self):
         linked_attack = LinkedAttackAction(self.session, self.source, self.action_type, self.opts)
         linked_attack.npc_action = self.npc_action
+        linked_attack.as_bonus_action = self.as_bonus_action
+        linked_attack.as_reaction = self.as_reaction
+        linked_attack.using = self.using
+        linked_attack.target = self.target
+        linked_attack.attack_roll = self.attack_roll
+        linked_attack.result = self.result
         return linked_attack
 
     @staticmethod
     def can(entity, battle, options=None):
-        if hasattr(entity, 'owner') and entity.owner:
-            return AttackAction.can(entity.owner, battle, options)
-
-    def consume_resource(battle, item):
-        if item.get('source'):
-            item['source'] = item['source'].owner
-        super().consume_resource(battle, item)
+        return AttackAction.can(entity.owner, battle, options)

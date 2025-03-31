@@ -1,7 +1,7 @@
 import random
 from natural20.generic_controller import GenericController
 from natural20.action import Action
-from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
+from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction, LinkedAttackAction
 from natural20.weapons import compute_max_weapon_range
 from natural20.utils.ac_utils import cover_calculation
 from natural20.map import Map
@@ -283,7 +283,7 @@ class Battle():
         if self.current_turn_index >= len(self.combat_order):
             self.current_turn_index = 0
             self.round += 1
-
+            self.session.increment_game_time()
             self.session.event_manager.received_event({ "source" : self,
                                           "event" : 'top_of_the_round',
                                           "round" : self.round,

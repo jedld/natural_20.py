@@ -13,12 +13,14 @@ class SpiritualWeapon(Entity):
         self.owner = owner
         self.damage = kwargs.get('damage', '1d8')
         self.group = owner.group
+
+        
         self.properties = {
             'spiritual': True,
             'speed': 20,
             'speed_fly': 20,
             'name' : f"{owner.name}'s Spiritual Weapon",
-            'description': f"A floating, spectral weapon created by {owner.label()}'s spell"
+            'description': f"A floating, spectral weapon created by {owner.label()}'s spell",
         }
         spell = kwargs.get('spell', {})
         spell_classes = spell.get('spell_list_classes', [])
@@ -26,7 +28,7 @@ class SpiritualWeapon(Entity):
 
         attack_modifiers = [self.owner.spell_attack_modifier(class_type=class_type.lower()) for class_type in class_types]
 
-        self.npc_actions = [{
+        spiritual_weapon_actions = [{
             "name": 'spiritual_weapon',
             "type": "melee_attack",
             "range": 5,
@@ -36,6 +38,9 @@ class SpiritualWeapon(Entity):
             "damage_die": self.damage,
             "damage_type": "force"
         }]
+
+        self.properties['actions'] = spiritual_weapon_actions
+        self.npc_actions = spiritual_weapon_actions
         self.entity_uid = str(uuid.uuid4())
         self.flying = True
 
@@ -81,7 +86,8 @@ class SpiritualWeapon(Entity):
                 'two_weapon': None,
                 'action_surge': None,
                 'casted_level_spells': [],
-                'positions_entered': {}
+                'positions_entered': {},
+                'group': self.group
             }
 
     def attack_options(self, battle, opportunity_attack=False):
@@ -90,8 +96,9 @@ class SpiritualWeapon(Entity):
             return []
 
         for npc_action in self.npc_actions:
-            if not LinkedAttackAction.can(self, battle, { "npc_action" : npc_action, "as_bonus_action" : True}):
+            if not LinkedAttackAction.can(self, battle,  options={ "npc_action" : npc_action, "as_bonus_action" : True}):
                 continue
+
             actions.append(npc_action)
         return actions
 
@@ -111,15 +118,16 @@ class SpiritualWeapon(Entity):
         if battle:
             if battle.current_turn() == self.owner:
                 actions.append(MoveAction(session, self, 'move'))
-                attack = LinkedAttackAction(session, self, 'attack')
-                attack.npc_action = self.npc_actions[0]
-                attack.as_bonus_action = True
-                actions.append(attack)
+                if LinkedAttackAction.can(self, battle, options={ "npc_action" : self.npc_actions[0], "as_bonus_action" : True}):
+                    attack = LinkedAttackAction(session, self, 'attack')
+                    attack.npc_action = self.npc_actions[0]
+                    attack.as_bonus_action = True
+                    actions.append(attack)
                 return actions
         else:
             actions.append(MoveAction(session, self, 'move'))
             attack = LinkedAttackAction(session, self, 'attack')
-            attack.npc_action = self.npc_action
+            attack.npc_action = self.npc_actions[0]
             attack.as_bonus_action = True
             actions.append(attack)
             return actions

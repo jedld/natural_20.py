@@ -41,6 +41,29 @@ class SummonFamiliarAction(Action):
         # Can only summon if the entity has a familiar in their pocket dimension
         return len(entity.pocket_dimension) > 0
 
+    def validate(self, battle_map, target=None):
+        super().validate(battle_map, target)
+
+        if target and not battle_map.can_see_square(self.source, target):
+            self.errors.append("Target is not visible")
+
+        if target and battle_map.distance_to_square(self.source, target) > 6:
+            self.errors.append("Target is out of range")
+
+        if target and not battle_map.placeable(self.source, *target):
+            self.errors.append("Target is not empty")
+
+        if not self.source.pocket_dimension:
+            self.errors.append("No familiar to resummon")
+
+        familiar_npc = self.source.pocket_dimension[0]
+        
+        # target must be empty space
+        if target and not battle_map.placeable(familiar_npc, *target):
+            self.errors.append("Target must be empty space")
+
+        return len(self.errors) == 0
+
     def resolve(self, session, map, opts=None):
         if opts is None:
             opts = {}

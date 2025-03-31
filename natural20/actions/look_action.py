@@ -27,12 +27,18 @@ class LookAction(Action):
 
     def resolve(self, session, map, opts={}):
         perception_check = self.source.perception_check(opts.get("battle"))
-        perception_check_2 = self.source.perception_check(opts.get("battle"))
+        perception_check_disadvantage = self.source.perception_check(opts.get("battle"), disadvantage=True)
+        advantage = []
 
-        perception_check_disadvantage = min(perception_check, perception_check_2)
+        if self.source.class_feature("keen_hearing_and_sight"):
+            perception_check = self.source.perception_check(opts.get("battle"), advantage=True)
+            perception_check_disadvantage = self.source.perception_check(opts.get("battle"))
+            advantage.append("keen_hearing_and_sight")
+
         self.result = [{
             "source": self.source,
             "type": "look",
+            "advantage": advantage,
             "die_roll": perception_check,
             "die_roll_disadvantage": perception_check_disadvantage,
             "map": map,
@@ -66,6 +72,7 @@ class LookAction(Action):
                 session.event_manager.received_event({
                     "source": item["source"],
                     "die_roll": item["die_roll"],
+                    "advantage": item["advantage"],
                     "event": "look"
                 })
             # scan all visible objects in the map with a note
