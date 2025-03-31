@@ -26,8 +26,8 @@ class SpiritualWeapon(Entity):
 
         attack_modifiers = [self.owner.spell_attack_modifier(class_type=class_type.lower()) for class_type in class_types]
 
-        self.npc_action = {
-            "name": 'Spiritual Weapon',
+        self.npc_actions = [{
+            "name": 'spiritual_weapon',
             "type": "melee_attack",
             "range": 5,
             "targets": 1,
@@ -35,7 +35,7 @@ class SpiritualWeapon(Entity):
             "damage": 5,
             "damage_die": self.damage,
             "damage_type": "force"
-        }
+        }]
         self.entity_uid = str(uuid.uuid4())
         self.flying = True
 
@@ -69,6 +69,31 @@ class SpiritualWeapon(Entity):
     def opaque(self, origin=None):
         return False
 
+    def reset_turn(self, battle):
+        battle.entities[self] = {
+                'movement': 20,
+                'action': 0,
+                'bonus_action': 0,
+                'reaction': 0,
+                'free_object_interaction': 0,
+                'active_perception': 0,
+                'active_perception_disadvantage': 0,
+                'two_weapon': None,
+                'action_surge': None,
+                'casted_level_spells': [],
+                'positions_entered': {}
+            }
+
+    def attack_options(self, battle, opportunity_attack=False):
+        actions = []
+        if opportunity_attack:
+            return []
+
+        for npc_action in self.npc_actions:
+            if not LinkedAttackAction.can(self, battle, { "npc_action" : npc_action, "as_bonus_action" : True}):
+                continue
+            actions.append(npc_action)
+        return actions
 
     def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True, **opts):
         if opts is None:
@@ -87,7 +112,7 @@ class SpiritualWeapon(Entity):
             if battle.current_turn() == self.owner:
                 actions.append(MoveAction(session, self, 'move'))
                 attack = LinkedAttackAction(session, self, 'attack')
-                attack.npc_action = self.npc_action
+                attack.npc_action = self.npc_actions[0]
                 attack.as_bonus_action = True
                 actions.append(attack)
                 return actions

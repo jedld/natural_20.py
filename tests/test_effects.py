@@ -118,7 +118,7 @@ class TestEffects(unittest.TestCase):
         battle.action(actions[0])
         battle.commit(actions[0])
         self.assertEqual(character.strength(), 9)
-
+        npc.reset_turn(battle)
         actions = autobuild(session, AttackAction, npc, battle, battle_map)
 
         DieRoll.fudge(20)

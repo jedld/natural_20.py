@@ -171,7 +171,8 @@ class Battle():
     def controller_for(self, entity):
         if entity not in self.entities:
             return None
-
+        if 'controller' not in self.entities[entity]:
+            return self.entities[entity.owner]['controller']
         return self.entities[entity]['controller']
 
 
@@ -349,7 +350,7 @@ class Battle():
     # dismiss all distractions for a source
     def dismiss_distract(self, source):
         for _, entity_state in self.entities.items():
-            if source in entity_state['help_with']:
+            if source in entity_state.get('help_with', {}):
                 entity_state['help_with'].pop(source)
 
     def help_with(self, entity):
@@ -457,6 +458,9 @@ class Battle():
         entity_pos = self.entity_or_object_pos(entity)
         self.animation_log.append([entity.entity_uid, [entity_pos], None])
 
+    def group_for(self, entity):
+        return self.entity_group_for(entity)
+
     def entity_group_for(self, entity):
         if entity not in self.entities:
             _entity = self.entity_by_uid(entity.entity_uid)
@@ -494,8 +498,6 @@ class Battle():
         if self.entity_state_for(entity):
             entity_state = self.entity_state_for(entity)
             entity_state[resource] = max(0, entity_state[resource] - qty)
-
-
 
     def opposing(self, entity1, entity2):
         source_state1 = self.entity_state_for(entity1)

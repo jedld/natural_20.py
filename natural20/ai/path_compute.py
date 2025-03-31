@@ -40,12 +40,10 @@ class PathCompute:
             for i in range(0, len(accumulated_path) - 1):
                 x1, y1 = accumulated_path[i]
                 initial_cost += self.base_move_cost(x1, y1) * self.map.feet_per_grid
-                
-        print(f"initial_cost: {initial_cost}")
+
         if available_movement_cost is not None:
             available_movement_cost -= initial_cost
-        
-        print(f"available_movement_cost: {available_movement_cost}")
+
         # Initialize start node
         distances[source_x][source_y] = 0
         start_heuristic = self.heuristic(source_x, source_y, destination_x, destination_y)

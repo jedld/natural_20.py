@@ -3,6 +3,7 @@ import random
 import unittest
 
 from natural20.actions.attack_action import AttackAction
+from natural20.actions.move_action import MoveAction
 from natural20.actions.spell_action import SpellAction
 from natural20.battle import Battle
 from natural20.event_manager import EventManager
@@ -13,7 +14,7 @@ from natural20.session import Session
 from natural20.utils.action_builder import autobuild
 from natural20.utils.spell_attack_util import evaluate_spell_attack
 from natural20.weapons import target_advantage_condition
-
+from natural20.die_roll import DieRoll
 
 class TestClericSpellAction(unittest.TestCase):
     def make_session(self):
@@ -165,9 +166,44 @@ class TestClericSpellAction(unittest.TestCase):
         self.assertEqual(spiritual_weapon.hp(), None)
         self.assertEqual(
             [str(a) for a in available_spiritual_weapon_actions],
-            ["move", "spiritual_weapon uses Spiritual Weapon on None"],
+            ["move", "spiritual_weapon uses spiritual_weapon on None"],
         )
         self.assertEqual(self.entity.has_casted_effect("spiritual_weapon"), True)
+
+        # move weapon
+        
+        action = autobuild(
+            self.session,
+            MoveAction,
+            spiritual_weapon,
+            self.battle,
+            self.battle_map,
+            match=[[4, 6]]
+        )[0]
+        self.battle.action(action)
+        self.battle.commit(action)
+        print(MapRenderer(self.battle_map).render())
+
+        entity_target = self.battle_map.entity_at(5, 5)
+        self.battle.add(entity_target, "b")
+        self.assertIsNotNone(entity_target)
+        self.entity.reset_turn(self.battle)
+        self.assertTrue(self.entity.has_bonus_action(self.battle))
+        # attack with it
+        action = autobuild(
+            self.session,
+            AttackAction,
+            spiritual_weapon,
+            self.battle,
+            self.battle_map,
+            match=[entity_target, "spiritual_weapon"],
+            verbose=True
+        )[0]
+        DieRoll.fudge(20)
+        self.battle.action(action)
+        self.battle.commit(action)
+        print(MapRenderer(self.battle_map).render())
+        self.assertEqual(self.npc.hp(), 0)
         self.entity.reset_turn(self.battle)
         # player casts it again, should dismiss the previous ome
         action = autobuild(
@@ -176,12 +212,12 @@ class TestClericSpellAction(unittest.TestCase):
             self.entity,
             self.battle,
             self.battle_map,
-            match=["spiritual_weapon", [4, 6]],
+            match=["spiritual_weapon", [3, 6]],
         )[0]
         self.battle.action(action)
         self.battle.commit(action)
         print(MapRenderer(self.battle_map).render())
-        spiritual_weapon = self.battle_map.entity_at(3, 6)
+        spiritual_weapon = self.battle_map.entity_at(4, 6)
         self.assertEqual(spiritual_weapon, None)
 
     def test_compute_hit_probability(self):

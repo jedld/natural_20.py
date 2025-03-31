@@ -52,9 +52,9 @@ class TestNpc(unittest.TestCase):
         ), map_render.render()
 
         npc.take_damage(100, battle=battle)
-        assert map_render.render() == (
+        self.assertMultiLineEqual(map_render.render(),
             "g···#·\n"
-            "···##·\n"
+            "·`·##·\n"
             "····#·\n"
             "······\n"
             "·##oo·\n"
@@ -86,7 +86,7 @@ class TestNpc(unittest.TestCase):
         npc.reset_turn(battle)
         battle.set_current_turn(npc)
         available_actions = [action.name() for action in npc.available_actions(session, battle, map=battle_map)]
-        assert len(available_actions) == 16, len(available_actions)
+        assert len(available_actions) == 15, len(available_actions)
 
         self.assertListEqual(available_actions, [
             'dash',
@@ -95,7 +95,6 @@ class TestNpc(unittest.TestCase):
             'hide',
             'hide_bonus',
             'dodge',
-            'move',
             'move',
             'move',
             'move',

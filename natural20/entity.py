@@ -592,6 +592,12 @@ class Entity(EntityStateEvaluator, Notable):
 
         return battle.entity_state_for(self).get('action', 0) > 0
 
+    def has_bonus_action(self, battle):
+        if not battle:
+            return True
+
+        return battle.entity_state_for(self).get('bonus_action', 0) > 0
+
     def hidden(self):
         return 'hidden' in self.statuses
     
@@ -881,19 +887,7 @@ class Entity(EntityStateEvaluator, Notable):
           assert isinstance(spiritual_weapon, Entity), "spiritual_weapon is not an Entity"
 
           if spiritual_weapon.get('expiration') and spiritual_weapon['expiration'] > self.session.game_time:
-            self.battle.entities[spiritual_weapon] = {
-                'movement': 20,
-                'action': 0,
-                'bonus_action': 0,
-                'reaction': 0,
-                'free_object_interaction': 0,
-                'active_perception': 0,
-                'active_perception_disadvantage': 0,
-                'two_weapon': None,
-                'action_surge': None,
-                'casted_level_spells': [],
-                'positions_entered': {}
-            }
+            spiritual_weapon.reset_turn(battle)
 
         return entity_state
 
@@ -1222,6 +1216,20 @@ class Entity(EntityStateEvaluator, Notable):
                 return True
 
         return False
+
+    def equipped_weapons(self, session, valid_weapon_types=['ranged_attack', 'melee_attack']):
+        weapon_attacks = []
+        for item in self.properties.get('equipped', []):
+            weapon_detail = session.load_weapon(item)
+            if weapon_detail is None:
+                continue
+            if weapon_detail['type'] not in valid_weapon_types:
+                continue
+            if 'ammo' in weapon_detail and not self.item_count(weapon_detail['ammo']) > 0:
+                continue
+            weapon_attacks.append(item)
+
+        return weapon_attacks
 
     def equipped_items(self):
         equipped_arr = self.properties.get('equipped', [])
