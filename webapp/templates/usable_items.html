@@ -10,7 +10,7 @@
                     data-action-opts='{{ item|tojson }}'
                     data-tooltip="{{ item.label }}"
                     data-action-type="{{ action.__class__.__name__ }}">
-                <img src="{{ url_for('static', filename='items/' + item.name + '.png') }}"
+                <img src="{{ url_for('static', filename='assets/items/' + item.name + '.png') }}"
                      style="width: 50px; height: 50px;">
             </button>
         </td>

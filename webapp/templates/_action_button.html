@@ -7,7 +7,7 @@
         {{'disabled' if action.disabled else ''}}
         data-tooltips="{{ action.disabled_reason }}">
       {% if action.using %}
-         <img src="{{ url_for('static', filename='items/' + action.using + '.png') }}" style="width: 50px; height: 50px;">
+         <img src="{{ url_for('static', filename='assets/items/' + action.using + '.png') }}" style="width: 50px; height: 50px;">
       {% else %}
         {% if action.button_image()  %}
           <img src="{{ url_for('static', filename='actions/' + action.button_image() + '.png') }}" style="width: 50px; height: 50px;">

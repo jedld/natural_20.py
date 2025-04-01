@@ -17,6 +17,14 @@ chain_mail:
   type: armor
   metallic: true
   weight: 55
+cloak_of_protection:
+  cost: 100
+  name: Cloak of Protection
+  type: cloak
+  equippable: true
+  weight: 1
+  effect:
+    - protection
 ring_mail:
   ac: 14
   cost: 30

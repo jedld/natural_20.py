@@ -2,7 +2,7 @@
 
 let scale = 1;
 
-const switchPOV = (entity_uid) => {
+const switchPOV = (entity_uid, canvas) => {
   ajaxPost("/switch_pov", { entity_uid }, (data) => {
     console.log("Switched POV:", data);
     Utils.refreshTileSet(
@@ -27,6 +27,9 @@ const switchPOV = (entity_uid) => {
         });
         $(".image-container").css({ height: data.height });
         $(".image-container img").css({ width: data.width });
+        canvas.width = data.width + $('.tiles-container').data('tile-size');
+        canvas.height = data.height + $('.tiles-container').data('tile-size');
+        $('body').attr('data-current-map', data.name);
         const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
         centerOnTile($tile);
       },
@@ -640,6 +643,11 @@ $(document).ready(() => {
   }
   
   
+  // Character switcher
+  $('#floating-entity-portraits').on('click', '.floating-entity-portrait', function() {
+    const entity_uid = $(this).data('id');
+    switchPOV(entity_uid, canvas);
+  });
 
   // Highlight tile info or draw movement data on hover.
   $(".tiles-container").on("mouseover", ".tile", function () {

@@ -6,6 +6,7 @@ from natural20.evaluator.entity_state_evaluator import EntityStateEvaluator
 from typing import List, Tuple
 from natural20.concern.notable import Notable
 from natural20.concern.generic_event_handler import GenericEventHandler
+from natural20.spell.effects.protection_effect import ProtectionEffect
 import uuid
 import i18n
 class Entity(EntityStateEvaluator, Notable):
@@ -62,6 +63,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.condition_immunities = []
         self.damage_vulnerabilities = []
         self.pocket_dimension = []
+        self.equipped_effects = {}
         self.help_actions = {}
         self.helping_with = set()
         self.owner = None
@@ -404,6 +406,17 @@ class Entity(EntityStateEvaluator, Notable):
         if item:
             self.properties['equipped'].append(str(item_name))
             self.resolve_trigger('equip')
+            loaded_item = self.session.load_equipment(item_name)
+            if loaded_item and loaded_item.get('effect'):
+                for effect in loaded_item['effect']:
+                    self.add_equiped_effect(item_name, effect)
+
+    def add_equiped_effect(self, item_name, effect):
+        loaded_item = self.session.load_equipment(item_name)
+        if loaded_item.get('effect'):
+            for effect in loaded_item['effect']:
+                if effect == 'protection':
+                    self.equipped_effects[item_name] = ProtectionEffect(self)
 
     def make_dead(self):
         if not self.dead():
@@ -1115,8 +1128,16 @@ class Entity(EntityStateEvaluator, Notable):
         return False
 
     def has_effect(self, effect_type):
+        for item in self.equipped_items():
+            for effect in item.get('effect', []):
+                if effect == 'protection':
+                    effect_obj = ProtectionEffect(self)
+                if hasattr(effect_obj, effect_type):
+                    return True
+
         if effect_type not in self.effects:
             return False
+
         if not self.effects[effect_type]:
             return False
 
@@ -1305,6 +1326,9 @@ class Entity(EntityStateEvaluator, Notable):
         save_roll = DieRoll.roll(f"d20{op}{modifier}", disadvantage=disadvantage, battle=battle, entity=self,
                             description=f"dice_roll.{save_type}_saving_throw")
 
+        if self.has_effect('saving_throw_override'):
+            save_roll = self.eval_effect('saving_throw_override', { 'save_roll' : save_roll })
+
         if self.has_effect('bless'):
             save_roll += DieRoll.roll("1d4", description="bless", entity=self, battle=battle)
         return save_roll
@@ -1353,6 +1377,7 @@ class Entity(EntityStateEvaluator, Notable):
             'proficiency_type': item.get('proficiency_type'),
             'metallic': bool(item.get('metallic')),
             'properties': item.get('properties'),
+            'effect': item.get('effect', []),
             'qty': 1,
             'equipped': True,
             'weight': item.get('weight')
@@ -1588,19 +1613,29 @@ class Entity(EntityStateEvaluator, Notable):
         if not self.has_effect(effect_type):
             return None
 
-        active_effects = [effect for effect in self.effects[effect_type] if not effect.get('expiration') or effect['expiration'] > self.session.game_time]
+        if effect_type in self.effects:
+            active_effects = [effect for effect in self.effects[effect_type] if not effect.get('expiration') or effect['expiration'] > self.session.game_time]
+        else:
+            active_effects = []
 
         if not opts.get('stacked'):
             active_effects = [active_effects[-1]] if active_effects else []
 
+        result = None
         if active_effects:
             result = opts.get('value')
             for active_effect in active_effects:
                 opts.update( { "effect": active_effect['effect'], "value" : result })
                 result = getattr(active_effect['handler'], active_effect['method'])(self, opts)
-            return result
 
-        return None
+        for item in self.equipped_items():
+            for effect in item.get('effect', []):
+                if effect == 'protection':
+                    effect_obj = ProtectionEffect(self)
+                if hasattr(effect_obj, effect_type):
+                    result = getattr(effect_obj, effect_type)(self, opts)
+
+        return result
     
     def make_stable(self):
         if 'stable' not in self.statuses:
@@ -1820,7 +1855,7 @@ class Entity(EntityStateEvaluator, Notable):
     # @return [str]
     def check_equip(self, item_name):
         weapon = self.session.load_thing(item_name)
-        if weapon and weapon.get('subtype') == 'weapon' or weapon['type'] in ['shield', 'armor']:
+        if weapon and weapon.get('subtype') == 'weapon' or weapon['type'] in ['shield', 'armor'] or weapon.get('equippable', False):
             hand_slots = self.used_hand_slots() + self.hand_slots_required(self._to_item(item_name, weapon))
             armor_slots = len([item for item in self.equipped_items() if item['type'] == 'armor'])
             if hand_slots > 2.0:
