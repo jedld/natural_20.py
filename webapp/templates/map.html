@@ -63,7 +63,7 @@
                             height: {{ tile_size_px // 5 }}px;
                             top: {{ random_x }}px;
                             left: {{ random_y }}px;"
-                     src="{{ url_for('static', filename='items/' ~ item) ~ '.png' }}"
+                     src="{{ url_for('static', filename='assets/items/' ~ item) ~ '.png' }}"
                      data-tooltip="{{ tile['label'] }}" />
               </div>
             {% endfor %}

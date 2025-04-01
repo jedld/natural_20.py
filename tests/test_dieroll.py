@@ -73,6 +73,11 @@ class TestDieRoll(unittest.TestCase):
     self.assertEqual(roll.__str__(), 'd20(14) - 5')
     self.assertEqual(roll.result(), 9)
 
+  def test_roll_with_addition(self):
+    roll = DieRoll.roll('1d20+5') + 1
+    self.assertEqual(roll.__str__(), 'd20(14) + 5 + 1')
+    self.assertEqual(roll.result(), 20)
+
   def test_roll_with_luck(self):
     session = Session(root_path='tests/fixtures')
     random.seed(1000)

@@ -15,7 +15,7 @@
             <td>
                 <div class="tile-item">
                 <img class="item-icon"
-                         src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}"
+                         src="{{ item.get('icon', '/assets/items/' ~ item['name'] ~ '.png') }}"
                          alt="{{ item['label'] }}">
                 </div>
             </td>
@@ -38,9 +38,7 @@
         </tr>
     </tbody>
 </table>
-{% endif %}
-
-{% if item['ac'] or item['bonus_ac'] %}
+{% elif item['ac'] or item['bonus_ac'] %}
 <table>
     <tr>
         <th style="width: 60px;">{{ item['label'] }}</th>
@@ -51,12 +49,39 @@
         <td>
             <div class="tile-item">
             <img class="item-icon"
-                     src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}"
+                     src="{{ item.get('icon', '/assets/items/' ~ item['name'] ~ '.png') }}"
                      alt="{{ item['label'] }}">
             </div>
         </td>
         <td>{{ item['ac'] or item['bonus_ac'] }}</td>
         <td>{{ "Yes" if item['stealth_disadvantage'] else "" }}</td>
+    </tr>
+</table>
+{% else %} <!-- Cloak -->
+<table>
+    <tr>
+        <th style="width: 60px;">{{ item['label'] }}</th>
+        <th>Effect</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td>
+            <div class="tile-item">
+                <img class="item-icon" src="{{ item.get('icon', '/assets/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
+            </div>
+        </td>
+        <td>
+            {% if item['effect'] is iterable and item['effect'] is not string %}
+                <ul class="effect-list">
+                    {% for effect in item['effect'] %}
+                        <li>{{ effect }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                {{ item['effect'] }}
+            {% endif %}
+        </td>
+        <td>{{ item['description'] }}</td>
     </tr>
 </table>
 {% endif %}
@@ -71,7 +96,7 @@
 {% for item in entity.unequipped_items() %}
     <li class="tile-item" data-tooltip="{{ item['label'] }}">
         <div class="item-icon-container">
-            <img class="item-icon" src="{{ item.get('icon', '/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
+            <img class="item-icon" src="{{ item.get('icon', '/assets/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
             <div class="item-quantity">{{ 'x ' ~ item.get('qty', 1) }}</div>
         </div>
         {% if entity.check_equip(item['name']) %}

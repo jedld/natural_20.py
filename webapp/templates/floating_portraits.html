@@ -1,6 +1,6 @@
 {% for entity in pov_entities %}
 {% set index = loop.index0 %}
-<div class="floating-entity-portrait {{ 'dead' if entity.dead() else '' }}" onclick="switchPOV('{{ entity.entity_uid }}');" style="position: fixed; left: {{ 10 + index * 110 }}px; cursor: pointer; z-index: 9999;">
+<div class="floating-entity-portrait {{ 'dead' if entity.dead() else '' }}" data-id="{{ entity.entity_uid }}" style="position: fixed; left: {{ 10 + index * 110 }}px; cursor: pointer; z-index: 9999;">
     <img src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}" 
          alt="{{ entity.name }}"
          class="portrait-image"

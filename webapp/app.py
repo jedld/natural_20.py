@@ -429,6 +429,17 @@ def serve_object_image(filename):
     else:
         objects_directory = os.path.join(game_session.root_path, "assets", "objects")
         return send_from_directory(objects_directory, filename)
+    
+@app.route('/assets/items/<filename>')
+def serve_item_image(filename):
+    if not filename.endswith('.png'):
+        filename = f"{filename}.png"
+
+    if os.path.exists(os.path.join("static", "assets", "items", filename)):
+        return send_file(os.path.join("static", "assets", "items", filename))
+    else:
+        items_directory = os.path.join(game_session.root_path, "assets", "items")
+        return send_from_directory(items_directory, filename)
 
 @app.route('/assets/<asset_name>')
 def get_asset(asset_name):

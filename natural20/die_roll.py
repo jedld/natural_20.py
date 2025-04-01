@@ -123,10 +123,10 @@ class DieRolls(Rollable):
         return self
 
     def result(self):
-        return sum(roll.result() for roll in self.rolls)
+        return sum(roll if isinstance(roll, int) else roll.result() for roll in self.rolls)
 
     def expected(self):
-        return sum(roll.expected() for roll in self.rolls)
+        return sum(roll.expected() if isinstance(roll, DieRoll) else roll for roll in self.rolls)
 
     def nat_20(self):
         return any(roll.nat_20() for roll in self.rolls)
@@ -155,7 +155,10 @@ class DieRolls(Rollable):
         parts = []
         for roll in self.rolls:
             if parts:
-                if roll.result() >= 0:
+                if isinstance(roll, int):
+                    parts.append(' + ')
+                    parts.append(str(roll))
+                elif roll.result() >= 0:
                     parts.append(' + ')
                     parts.append(str(roll))
                 else:

@@ -16,7 +16,7 @@
         <div class="col-md-6">
           <div class="media">
             <div class="media-left">
-              <img class="media-object img-thumbnail" src="{{ url_for('static', filename='assets/' ~ target_object.profile_image())}}" alt="{{ target_object.label() }}" style="width:64px;height:64px;border:0px">
+              <img class="media-object img-thumbnail" src="{{ url_for('static', filename='/assets/' ~ target_object.profile_image())}}" alt="{{ target_object.label() }}" style="width:64px;height:64px;border:0px">
             </div>
             <div class="media-body">
               <h4 class="media-heading">{{ target_object.label() }}'s Items</h4>

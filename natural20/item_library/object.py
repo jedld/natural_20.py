@@ -172,7 +172,8 @@ class Object(Entity, Container, EventLoader):
             return self.properties.get('profile_image') + ".png"
         if self.properties.get('token_image'):
             return self.properties.get('token_image') + ".png"
-        return None
+        return self.properties.get('name') + ".png"
+        
     
     def token_image_transform(self):
         return None
