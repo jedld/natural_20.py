@@ -166,7 +166,11 @@ class Entity(EntityStateEvaluator, Notable):
         def skill_check(battle=None, **opts):
             advantage_modifiers = []
             disavantage_modifiers = []
-            modifiers = getattr(self, f"{skill}_mod")()
+            if self.is_npc() and self.properties.get('skills', {}).get(skill):
+                modifiers = self.properties['skills'][skill]
+            else:
+                modifiers = getattr(self, f"{skill}_mod")()
+
             description = opts.get('description', f"dice roll for {skill}")
 
             if self.poisoned():
@@ -303,12 +307,12 @@ class Entity(EntityStateEvaluator, Notable):
     def passive_investigation(self):
         return self.properties.get('passive_investigation', 10 + self.int_mod())
 
-    def perception_check(self, battle, advantage=False, disadvantage=False):
-        entity_state = battle.entity_state_for(self)
-        if not entity_state:
-            return 0
-
-        return DieRoll.roll(f"1d20+{self.wis_mod()}", description="perception check", entity=self, battle=battle, advantage=advantage)
+    # def perception_check(self, battle, advantage=False, disadvantage=False):
+    #     entity_state = battle.entity_state_for(self)
+    #     if not entity_state:
+    #         return 0
+    #     self.make_skill_check('perception', battle, advantage, disadvantage)
+    #     return DieRoll.roll(f"1d20+{self.wis_mod()}", description="perception check", entity=self, battle=battle, advantage=advantage)
 
     def drop_grapple(self):
         for target in self.grappling:
