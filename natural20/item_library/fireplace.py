@@ -5,14 +5,14 @@ from natural20.concern.lootable import Lootable
 from natural20.concern.inventory import Inventory
 import pdb
 
-class Fireplace(Object, Lootable, Inventory):
+class Fireplace(Object):
     def __init__(self, session, map, properties=None):
         super().__init__(session, map, properties)
         self.session = session
         self.lit = properties.get('lit', False)
         self.bright = properties.get('light', {}).get('bright', 20)
         self.dim = properties.get('light', {}).get('dim', 10)
-        self.load_inventory()
+
 
     def build_map(self, action, action_object):
         if action == 'light':
@@ -65,12 +65,14 @@ class Fireplace(Object, Lootable, Inventory):
         return None
 
     def use(self, entity, result, session=None):
-        action = result.get('action')
-        if action == 'light':
-            self.lit = True
-        elif action == 'put_out':
-            self.lit = False
-        Lootable.use(self, entity, result, session)
+        _result = super().use(entity, result, session)
+        if not _result:
+            action = result.get('action')
+            if action == 'light':
+                self.lit = True
+            elif action == 'put_out':
+                self.lit = False
+        return _result
 
     def light_properties(self):
         if self.lit:

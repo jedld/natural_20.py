@@ -7,11 +7,15 @@ class MultiSwitch(Object):
         super().__init__(session, map, properties)
         self.switch_id = self.properties.get('id')
         self.states = self.properties.get('states', ['on', 'off'])
-        self.state = self.properties.get('state', 'off')
+        if not self.states:
+            raise ValueError('states is required')
+        if not isinstance(self.states, list):
+            raise ValueError('states must be a list')
+        self.state = self.properties.get('state', self.states[0])
         self.enabled = self.properties.get('enabled', True)
 
     def interactable(self, entity=None):
-        return not self.is_concealed
+        return not self.is_concealed and self.enabled
 
     def available_interactions(self, entity, battle=None, admin=False):
         interactions = super().available_interactions(entity, battle, admin=admin)

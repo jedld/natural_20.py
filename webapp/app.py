@@ -879,7 +879,7 @@ def next_turn():
 @app.route('/update')
 def update():
     global current_game
-    enable_pov = request.args.get('pov', 'false') == 'true'
+
     x = int(request.args.get('x'))
     y = int(request.args.get('y'))
     entity_uid = request.args.get('entity_uid')
@@ -889,21 +889,15 @@ def update():
 
     pov_entities = [current_game.get_pov_entity_for_user(session['username'])]
 
-    if enable_pov:
-        if entity_uid:
-            entity = battle_map.entity_by_uid(entity_uid)
-        else:
-            entity = battle_map.entity_at(x, y)
-
-        if entity and ('dm' in user_role() or entity in entities_controlled_by(session['username'], battle_map)):
-            current_game.set_pov_entity_for_user(session['username'], entity)
-        pov_entities = [entity] if entity else []
+    if entity_uid:
+        entity = battle_map.entity_by_uid(entity_uid)
     else:
-        if 'dm' in user_role():
-            current_game.set_pov_entity_for_user(session['username'], None)
-            pov_entities = None
-        else:
-            pov_entities = entities_controlled_by(session['username'], battle_map)
+        entity = battle_map.entity_at(x, y)
+
+    if entity and ('dm' in user_role() or entity in entities_controlled_by(session['username'], battle_map)):
+        current_game.set_pov_entity_for_user(session['username'], entity)
+        pov_entities = [entity] if entity else []
+
     my_2d_array = [renderer.render(entity_pov=pov_entities)]
     return render_template('map.html', tiles=my_2d_array, tile_size_px=TILE_PX, random=random, is_setup=(request.args.get('is_setup') == 'true'))
 
