@@ -10,6 +10,7 @@ from natural20.item_library.chest import Chest
 from natural20.item_library.teleporter import Teleporter
 from natural20.item_library.trap_door import TrapDoor
 from natural20.item_library.switch import Switch
+from natural20.item_library.multi_switch import MultiSwitch
 from natural20.item_library.spell_scroll import SpellScroll
 from natural20.item_library.healing_potion import HealingPotion
 from natural20.item_library.proximity_trigger import ProximityTrigger
@@ -77,7 +78,8 @@ CLASS_TAG_MAPPING = {
     PitTrap: '!pit_trap',
     GenericController: '!generic_controller',
     WebController: '!web_controller',
-    AttackAction: '!attack_action'
+    AttackAction: '!attack_action',
+    MultiSwitch: '!multi_switch'
 }
 
 def generic_constructor(loader, node):
