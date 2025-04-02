@@ -33,6 +33,12 @@ class EntityStateEvaluator:
                         result = context.get('target', '').race() == 'undead'
                     elif test_expression == 'prone':
                         result = context.get('target', '').prone()
+                    elif test_expression == 'small_creature':
+                        result = context.get('target', '').size() == 'small'
+                    elif test_expression == 'medium_creature':
+                        result = context.get('target', '').size() == 'medium'
+                    elif test_expression == 'large_creature':
+                        result = context.get('target', '').size() == 'large'
                     else:
                         result = False
                 elif cmd == 'entity':

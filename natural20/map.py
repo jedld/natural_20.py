@@ -12,6 +12,7 @@ from natural20.item_library.teleporter import Teleporter
 from natural20.item_library.switch import Switch
 from natural20.item_library.trap_door import TrapDoor
 from natural20.item_library.proximity_trigger import ProximityTrigger
+from natural20.item_library.multi_switch import MultiSwitch
 from natural20.player_character import PlayerCharacter
 from natural20.npc import Npc
 from natural20.weapons import compute_max_weapon_range
