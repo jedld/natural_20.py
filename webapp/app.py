@@ -883,6 +883,7 @@ def update():
     x = int(request.args.get('x'))
     y = int(request.args.get('y'))
     entity_uid = request.args.get('entity_uid')
+    is_pov = request.args.get('pov', 'false') == 'true'
     battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     renderer = JsonRenderer(battle_map, battle, padding=MAP_PADDING)
@@ -897,6 +898,9 @@ def update():
     if entity and ('dm' in user_role() or entity in entities_controlled_by(session['username'], battle_map)):
         current_game.set_pov_entity_for_user(session['username'], entity)
         pov_entities = [entity] if entity else []
+    elif is_pov and not entity and 'dm' in user_role():
+        current_game.set_pov_entity_for_user(session['username'], None)
+        pov_entities = None
 
     my_2d_array = [renderer.render(entity_pov=pov_entities)]
     return render_template('map.html', tiles=my_2d_array, tile_size_px=TILE_PX, random=random, is_setup=(request.args.get('is_setup') == 'true'))
