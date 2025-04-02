@@ -46,7 +46,7 @@ class JsonRenderer:
                     entity_pov = [e for e in entity_pov if e]
                     distance_to_square = min([np.linalg.norm(np.array((x, y)) - np.array((pos[0], pos[1]))) for pos in entity_pov_locations]) if entity_pov_locations else None
 
-                    if any([e.darkvision(distance_to_square * self.map.feet_per_grid) for e in entity_pov if e]):
+                    if not distance_to_square is None and any([e.darkvision(distance_to_square * self.map.feet_per_grid) for e in entity_pov if e]):
                         has_darkvision = True
                     else:
                         has_darkvision = False

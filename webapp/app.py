@@ -208,7 +208,7 @@ def controller_of(entity_uid, username):
         entity_uid = entity.owner.entity_uid
 
     for info in CONTROLLERS:
-        if info['entity_uid'] == entity_uid and username in info['controllers']:
+        if info['entity_uid'].lower() == entity_uid.lower() and username in info['controllers']:
             return True
 
     logger.info(f"controller_of: {entity_uid} {username} missing")
@@ -485,7 +485,7 @@ def index():
     if 'dm' in user_role():
         pov_entities = None
     else:
-        pov_entities = entities_controlled_by(session['username'], battle_map=battle_map)
+        pov_entities = entities_controlled_by(session['username'])
 
     my_2d_array = [renderer.render(entity_pov=pov_entities)]
     map_width, map_height = battle_map.size

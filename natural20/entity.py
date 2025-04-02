@@ -560,6 +560,8 @@ class Entity(EntityStateEvaluator, Notable):
         return not self.dead() and not self.unconscious()
 
     def poisoned(self):
+        if self.eval_effect('poisoned', opts={'value': self.statuses}):
+            return True
         return 'poisoned' in self.statuses
 
     def invisible(self):

@@ -1,6 +1,5 @@
 import pdb
 from natural20.die_roll import DieRoll
-
 class GenericEventHandler:
     def __init__(self, session, map, properties):
         self.properties = properties
@@ -133,14 +132,18 @@ class GenericEventHandler:
                     targets.append(entity)
                 elif target_request == 'target':
                     targets.append(opts['target'])
-                elif isinstance(target_request, str):
-                    targets.append(target_map.entity_by_uid(target_request) or target_map.entity_by_name(target_request))
                 elif isinstance(target_request, list) or isinstance(target_request, tuple):
                     for target in target_request:
                         targets.append(target_map.entity_by_uid(target) or target_map.entity_by_name(target))
                 elif target_request.startswith('pos:'):
                     pos = target_request.split(':')
                     targets.append(target_map.entity_at(int(pos[1]), int(pos[2])))
+                elif target_request.startswith('objs:'):
+                    from natural20.item_library.common import StoneWall, StoneWallDirectional
+                    pos = target_request.split(':')
+                    targets.extend(target_map.objects_at(int(pos[1]), int(pos[2]), match=[StoneWall, StoneWallDirectional]))
+                elif isinstance(target_request, str):
+                    targets.append(target_map.entity_by_uid(target_request) or target_map.entity_by_name(target_request))
                 # strip None values from targets
                 targets = [target for target in targets if target]
 
@@ -151,7 +154,11 @@ class GenericEventHandler:
                             continue
                         states = update_state_properties['state'].split(',')
                         for state in states:
-                            target.update_state(state.strip().lower())
+                            if state.strip().lower() == 'delete':
+                                for target in targets:
+                                    target_map.remove(target)
+                            else:
+                                target.update_state(state.strip().lower())
                 else:
                     print(f"Could not find target {target_request}")
             if isinstance(update_state_properties, list):
