@@ -12,24 +12,26 @@ const switchPOV = (entity_uid, canvas) => {
       (y = 0),
       (entity_uid = entity_uid),
       () => {
-        $("#main-map-area .image-container img").attr("src", data.background);
-        $("#main-map-area .image-container img").css({
-          width: `${data.width}px`,
-          height: `${data.height}px`,
-        });
-        $("#main-map-area .image-container").css({
-          width: `${data.width}px`,
-          height: `${data.height}px`,
-        });
-        $("#main-map-area .tiles-container").data({
-          width: data.width,
-          height: data.height,
-        });
-        $(".image-container").css({ height: data.height });
-        $(".image-container img").css({ width: data.width });
-        canvas.width = data.width + $('.tiles-container').data('tile-size');
-        canvas.height = data.height + $('.tiles-container').data('tile-size');
-        $('body').attr('data-current-map', data.name);
+        if (data.background) {
+          $("#main-map-area .image-container img").attr("src", data.background);
+          $("#main-map-area .image-container img").css({
+            width: `${data.width}px`,
+            height: `${data.height}px`,
+          });
+          $("#main-map-area .image-container").css({
+            width: `${data.width}px`,
+            height: `${data.height}px`,
+          });
+          $("#main-map-area .tiles-container").data({
+            width: data.width,
+            height: data.height,
+          });
+          $(".image-container").css({ height: data.height });
+          $(".image-container img").css({ width: data.width });
+          canvas.width = data.width + $('.tiles-container').data('tile-size');
+          canvas.height = data.height + $('.tiles-container').data('tile-size');
+          $('body').attr('data-current-map', data.name);
+        }
         const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
         centerOnTile($tile);
       },

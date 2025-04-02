@@ -30,10 +30,7 @@ class Lootable(Container):
             }
 
     def use(self, entity, result, session=None):
-        action = result.get('action')
-        if action in ['loot','give']:
-            self.transfer(result.get('battle'), result.get('target'), result.get('source'), result.get('items'))
-
+        return super().use(entity, result, session)
 
     def resolve(self, entity, action, other_params, opts=None):
             if opts is None:
