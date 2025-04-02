@@ -32,5 +32,6 @@ class Container:
                     dst.add_item(item, qty)
 
                     src.resolve_trigger(f"{item}_taken", { "target": target })
+                    src.resolve_trigger("items_taken", { "target": target })
                     if battle:
                         battle.trigger_event("object_received", dst, item_type=item)

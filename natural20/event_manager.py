@@ -246,6 +246,8 @@ class EventManager:
             'action_surge': lambda event: self.output_logger.log(f"{self.show_name(event)} uses action surge."),
             'death_fail' : death_fail,
             'death_save': death_save,
+            'generic_failed_save': lambda event: self.output_logger.log(f"[{event['effect_description']}]: {self.show_name(event)} failed a {event['save_type']} saving throw against DC {event['dc']} with {event['roll']} = {event['roll'].result()}. {event['outcome']}"),
+            'generic_success_save': lambda event: self.output_logger.log(f"[{event['effect_description']}]: {self.show_name(event)} succeeded on a {event['save_type']} saving throw against DC {event['dc']} with {event['roll']} = {event['roll'].result()}. {event.get('outcome')}"),
             'drop_concentration': lambda event: self.output_logger.log(f"{self.show_name(event)} drops concentration."),
             'concentration_check': concentration_check,
             'second_wind': lambda event: self.output_logger.log(f"{self.show_name(event)} uses second wind to recover {event['value']}={event['value'].result()} hit points."),    

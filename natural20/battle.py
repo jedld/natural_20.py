@@ -8,6 +8,7 @@ from natural20.map import Map
 from natural20.session import Session
 from natural20.entity import Entity
 from natural20.die_roll import DieRoll
+from natural20.spell.effects.stench_effect import StenchEffect
 import pdb
 class Battle():
     def __init__(self, session: Session, maps: Map, standard_controller = None, animation_log_enabled=False):
@@ -223,6 +224,11 @@ class Battle():
         if entity.unconscious() and not entity.stable():
             entity.death_saving_throw(self)
         self.trigger_event('start_of_turn', self, { "target" : entity })
+        
+        # check for the stench feature
+        effects_list = [StenchEffect(self, entity)]
+        for effect in effects_list:
+            effect.start_of_turn(entity)
 
     def end_turn(self):
         self.current_turn().resolve_trigger('end_of_turn')

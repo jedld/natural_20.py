@@ -1,0 +1,63 @@
+---
+kind: Ghast
+description: |
+  This foul medium creature appears more or less humanoid; but has mottled, decaying flesh drawn tight across clearly visible bones. It is mostly hairless, has a carnivore’s sharp teeth and jagged claws. Its eyes burn like hot coals in their sunken sockets.
+size: medium
+race:
+  - undead
+alignment: chaotic_evil
+default_ac: 13
+max_hp: 36
+hp_die: 8d8
+speed: 30
+passive_perception: 9
+darkvision: 60
+token:
+ - $
+color: light_magenta
+ability:
+  str: 16
+  dex: 17
+  con: 10
+  int: 11
+  wis: 10
+  cha: 8
+languages:
+- common
+attributes:
+- stench
+- turning_defiance
+cr: 1
+xp: 200
+proficiency_bonus: 2
+damage_immunities:
+  - poison
+damage_resistances:
+  - necrotic
+condition_immunities:
+  - charmed
+  - exhaustion
+  - poisoned
+actions:
+  - name: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 3
+    damage: 12
+    damage_die: 2d8+3
+    damage_type: piercing
+  - name: Claws
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 10
+    damage_die: 2d6+3
+    damage_type: slashing
+    on_hit:
+      - description: If the target is a creature other than an undead, it must succeed on a DC 10 Constitution saving throw or be paralyzed for 1 minute. The target can repeat the saving throw at the end of each of its turns, ending the effect on itself on a success.
+        save_dc: constitution:10
+        if: "target:!undead"
+        flavor_fail: ghoul.paralysis
+        fail: status:paralyzed

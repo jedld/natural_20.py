@@ -252,16 +252,21 @@ class Map():
 
     def remove(self, entity, battle=None, move_to_object_layer=False):
         pos_x, pos_y = self.position_of(entity)
-        self.entities.pop(entity)
-        if move_to_object_layer:
-            self.interactable_objects[entity] = [pos_x, pos_y]
-            self.objects[pos_x][pos_y].append(entity)
+        if entity in self.entities:
+            self.entities.pop(entity)
+            if move_to_object_layer:
+                self.interactable_objects[entity] = [pos_x, pos_y]
+                self.objects[pos_x][pos_y].append(entity)
 
-        source_token_size = entity.token_size() - 1 if requires_squeeze(entity, pos_x, pos_y, self, battle) else entity.token_size()
+            source_token_size = entity.token_size() - 1 if requires_squeeze(entity, pos_x, pos_y, self, battle) else entity.token_size()
 
-        for ofs_x in range(source_token_size):
-            for ofs_y in range(source_token_size):
-                self.tokens[pos_x + ofs_x][pos_y + ofs_y] = None
+            for ofs_x in range(source_token_size):
+                for ofs_y in range(source_token_size):
+                    self.tokens[pos_x + ofs_x][pos_y + ofs_y] = None
+        elif entity in self.interactable_objects:
+            self.interactable_objects.pop(entity)
+            self.objects[pos_x][pos_y].remove(entity)
+        
 
     def load(self, map_file_path):
         # Add .yml extension if not present
@@ -525,7 +530,12 @@ class Map():
             return []
 
         if match:
-            return [obj for obj in self.objects[pos_x][pos_y] if isinstance(obj, match)]
+            if not isinstance(match, list):
+                match = [match]
+            objects = set()
+            for klass in match:
+                objects.update([obj for obj in self.objects[pos_x][pos_y] if isinstance(obj, klass)])
+            return list(objects)
         return self.objects[pos_x][pos_y]
 
     # Natural20::Entity to look around
@@ -721,7 +731,7 @@ class Map():
             raise ValueError('invalid entity')
         _position = self.entity_or_object_pos(entity)
         if _position is None:
-            raise ValueError(f'entity {entity} not found for map {self.name}')
+            return []
         pos1_x, pos1_y = _position
         entity_1_squares = []
         token_size = entity.token_size() - 1 if squeeze else entity.token_size()

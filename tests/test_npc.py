@@ -6,19 +6,43 @@ from natural20.map_renderer import MapRenderer
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
 from natural20.entity import Entity
-import pdb
-
-
+from natural20.die_roll import DieRoll
 import random
-
+import pdb
 class TestNpc(unittest.TestCase):
     def make_session(self):
         event_manager = EventManager()
-        event_manager.register_event_listener(['died'], lambda event: print(f"{event['source'].name} died."))
-        event_manager.register_event_listener(['unconscious'], lambda event: print(f"{event['source'].name} unconscious."))
-        event_manager.register_event_listener(['initiative'], lambda event: print(f"{event['source'].name} rolled a {event['roll']} = ({event['value']}) with dex tie break for initiative."))
+        event_manager.standard_cli()
         return Session(root_path='tests/fixtures', event_manager=event_manager)
     
+    def setUp(self) -> None:
+        self.session = self.make_session()
+        self.map = Map(self.session, 'tests/fixtures/battle_sim.yml')
+        random.seed(7003)
+        return super().setUp()
+
+    def test_stench_effect(self):
+        battle = Battle(self.session, self.map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position=[1, 1], token='G')
+        fighter.reset_turn(battle)
+        npc = self.session.npc('ghast')
+        battle.add(npc, 'b', position=[2, 2])
+        battle.start()
+        print(MapRenderer(battle.map_for(npc), battle).render())
+        self.assertFalse(fighter.poisoned())
+        battle.set_current_turn(fighter)
+        DieRoll.fudge(1)
+        battle.start_turn()
+        print(MapRenderer(battle.map_for(npc), battle).render())
+        self.assertTrue(fighter.poisoned())
+        self.map.move_to(fighter, 0, 1, battle=battle)
+        fighter.reset_turn(battle)
+        battle.start_turn()
+        print(MapRenderer(battle.map_for(npc), battle).render())
+        self.assertFalse(fighter.poisoned())
+
+
     def test_npc(self):
         session = self.make_session()
 
