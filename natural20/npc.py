@@ -73,6 +73,7 @@ class Npc(Entity, Multiattack, Lootable):
         self.opt = opt
         self.resistances = self.properties.get("resistances", [])
         self.statuses = []
+        self.conversation_buffer = self.properties.get("conversation_buffer", [])
         self.is_passive = self.properties.get("passive", False)
         self.is_concealed = self.properties.get("concealed", False)
         self.dialogue = self.properties.get("dialogue", [])

@@ -65,6 +65,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.pocket_dimension = []
         self.equipped_effects = {}
         self.help_actions = {}
+        self.conversation_buffer = []
         self.helping_with = set()
         self.owner = None
         # Attach methods dynamically
@@ -113,6 +114,18 @@ class Entity(EntityStateEvaluator, Notable):
 
     def class_and_level(self):
         return []
+    
+    def conversation(self):
+        return self.conversation_buffer
+    
+    def receive_conversation(self, source, message):
+        self.conversation_buffer.append({ 'source': source, 'message': message, 'target': self })
+
+    def send_conversation(self, message, target):
+        self.conversation_buffer.append({ 'source': self, 'message': message, 'target': target })
+
+    def clear_conversation_buffer(self):
+        self.conversation_buffer = []
 
     def armor_class(self):
         return 0
