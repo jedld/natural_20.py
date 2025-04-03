@@ -130,7 +130,11 @@ class JsonRenderer:
                     render_objects(entity_pov=entity_pov)
                     attributes = shared_attributes.copy()
                     attributes.update({
-                    'id': entity.entity_uid, 'hp': entity.hp(), 'max_hp': entity.max_hp(), 'entity_size': entity.size()
+                    'id': entity.entity_uid,
+                    'hp': entity.hp(),
+                    'max_hp': entity.max_hp(),
+                    'entity_size': entity.size(),
+                    'conversation_buffer': entity.conversation_buffer
                     })
                     if m_x == x and m_y == y:
                         attributes.update({

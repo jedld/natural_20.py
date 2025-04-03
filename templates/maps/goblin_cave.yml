@@ -92,9 +92,15 @@ legend:
     sub_type: wolf
     group: b
   B:
-    name: _auto_
+    name: klarg
     type: npc
     sub_type: bugbear
+    overrides:
+      entity_uid: klarg
+      conversation_buffer:
+        - source: self
+          message: "Hello, I am Klarg."
+          target: all
     group: b
   w:
     name: Pool of water

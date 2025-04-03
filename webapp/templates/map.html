@@ -93,6 +93,17 @@
           
           {# --- Render entity on the tile --- #}
           {% else %}
+          {% if tile.conversation_buffer and tile.conversation_buffer|length > 0 %}
+          <div class="conversation-bubble" onclick="Utils.toggleBubble(this)">
+            <div class="bubble-content">
+              {{ tile.conversation_buffer[-1] }}
+            </div>
+            <div class="bubble-minimized" style="display: none;">
+              <i class="glyphicon glyphicon-comment"></i>
+            </div>
+            <button class="close-bubble" onclick="Utils.dismissBubble(this.parentElement); event.stopPropagation();">×</button>
+          </div>
+        {% endif %}
           <div class="popover-menu" style="display: none;">
             <ul>
               <li>Info</li>
@@ -119,6 +130,7 @@
             data-name="{{ tile.name }}">
                 <i class="glyphicon glyphicon-plus"></i>
           </button>
+
             <div class="entity" data-id="{{ tile.id }}">
               {% set entity_size = tile.entity_size %}
               {% set multiplier = 1 %}
@@ -126,6 +138,8 @@
                 {% set multiplier = 2 %}
               {% endif %}
               {% set image_size_px = tile_size_px * multiplier %}
+              
+
               
               <img class="npc"
                    src="{{ url_for('static', filename='assets/' ~ tile['entity']) }}"
@@ -153,10 +167,6 @@
                 {% endfor %}
               </div>
 
-
-
-
-              
               {% if tile['hp'] is defined and tile['hp'] is not none %}
                 {% set health_width = (tile['hp'] / tile['max_hp']) * image_size_px %}
                 {% set color = 'red' if (tile['hp'] / tile['max_hp']) < 0.2 else 'green' %}

@@ -233,6 +233,12 @@ const Utils = {
       prevY = centerY;
     });
     ctx.stroke();
+  },
+  toggleBubble: function(bubble) {
+    bubble.classList.toggle('minimized');
+  },
+  dismissBubble: function(bubble) {
+    bubble.style.display = 'none';
   }
 };
 
