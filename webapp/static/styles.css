@@ -509,6 +509,10 @@ input.initiative-input.form-control {
   z-index: 1000;
 }
 
+.floating-entity-portrait.current-pov {
+  border: 2px solid #fff;
+}
+
 .floating-entity-portrait .portrait-image {
   width: 100px;
   height: 100px;

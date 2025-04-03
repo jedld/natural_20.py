@@ -613,6 +613,7 @@ def switch_map():
     tiles_dimension_height = map_height * TILE_PX
     tiles_dimension_width = map_width * TILE_PX
     return jsonify(background=f"assets/{background}",
+                   name=map_name,
                    height=tiles_dimension_height,
                    width=tiles_dimension_width)
 
@@ -765,7 +766,8 @@ def refresh_portraits():
     if not username:
         return "", 200
     pov_entities = entities_controlled_by(username)
-    return render_template('floating_portraits.html', pov_entities=pov_entities)
+    current_pov_entity = current_game.get_pov_entity_for_user(username)
+    return render_template('floating_portraits.html', pov_entities=pov_entities, current_pov_entity=current_pov_entity)
 
 @app.route('/start', methods=['POST'])
 def start_battle():
@@ -888,19 +890,29 @@ def update():
     battle = current_game.get_current_battle()
     renderer = JsonRenderer(battle_map, battle, padding=MAP_PADDING)
 
-    pov_entities = [current_game.get_pov_entity_for_user(session['username'])]
+    # Get entity from coordinates or UID
+    entity = battle_map.entity_by_uid(entity_uid) if entity_uid else battle_map.entity_at(x, y)
 
-    if entity_uid:
-        entity = battle_map.entity_by_uid(entity_uid)
-    else:
-        entity = battle_map.entity_at(x, y)
+    # Get current POV entity
+    pov_entity = current_game.get_pov_entity_for_user(session['username'])
 
+    # Handle POV changes
     if entity and ('dm' in user_role() or entity in entities_controlled_by(session['username'], battle_map)):
+        # Set new POV to selected entity
         current_game.set_pov_entity_for_user(session['username'], entity)
-        pov_entities = [entity] if entity else []
-    elif is_pov and not entity and 'dm' in user_role():
+        pov_entities = [entity]
+    elif is_pov and not entity:
         current_game.set_pov_entity_for_user(session['username'], None)
+        pov_entity = None
         pov_entities = None
+
+    if not pov_entity and 'dm' not in user_role():
+        # Default to entities controlled by the user
+        pov_entities = entities_controlled_by(session['username'], battle_map)
+    else:
+        # Use existing POV
+        pov_entities = [pov_entity] if pov_entity else None
+
 
     my_2d_array = [renderer.render(entity_pov=pov_entities)]
     return render_template('map.html', tiles=my_2d_array, tile_size_px=TILE_PX, random=random, is_setup=(request.args.get('is_setup') == 'true'))
@@ -1584,7 +1596,7 @@ def unequip():
     entity = battle_map.entity_by_uid(entity_id)
     if entity:
         entity.unequip(item_id)
-        socketio.emit('message', {'type': 'map', 'map': battle_map.name })
+        socketio.emit('message', {'type': 'refresh_map'})
         return jsonify(status='ok')
     return jsonify(error="Entity not found"), 404
 
@@ -1597,7 +1609,7 @@ def equip():
     entity = battle_map.entity_by_uid(entity_id)
     if entity:
         entity.equip(item_id)
-        socketio.emit('message', {'type': 'map', 'map': battle_map.name })
+        socketio.emit('message', {'type': 'refresh_map'})
         return jsonify(status='ok')
 
     return jsonify(error="Entity not found"), 404

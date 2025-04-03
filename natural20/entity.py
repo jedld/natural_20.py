@@ -1792,7 +1792,7 @@ class Entity(EntityStateEvaluator, Notable):
         return len(self.properties['prepared_spells']) > 0
 
     def has_item(self, item_name):
-        if item_name in self.inventory:
+        if self.inventory and item_name in self.inventory:
             return True
         if item_name in self.equipped_items():
             return True
