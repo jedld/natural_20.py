@@ -13,7 +13,7 @@ class Teleporter(Object):
         entity_placed = False
         if self.target_map:
             target_map = map.linked_maps[self.target_map]
-            if target_map.placeable(entity, *self.target_position):
+            if target_map.placeable(entity, *self.target_position, squeeze=False):
                 target_map.place(self.target_position, entity)
                 entity_placed = True
             else:
@@ -22,11 +22,12 @@ class Teleporter(Object):
                     if entity_placed:
                         break
                     for dy in range(-1, 2):
-                        if target_map.placeable(entity, self.target_position[0] + dx, self.target_position[1] + dy, squeeze=False):
-                            target_map.place((self.target_position[0] + dx, self.target_position[1] + dy), entity)
-                            map.linked_maps[self.target_map]
-                            entity_placed = True
-                            break
+                        if target_map.bidirectionally_passable(entity, self.target_position[0] + dx, self.target_position[1] + dy, self.target_position, allow_squeeze=False):
+                            if target_map.placeable(entity, self.target_position[0] + dx, self.target_position[1] + dy, squeeze=False):
+                                target_map.place((self.target_position[0] + dx, self.target_position[1] + dy), entity)
+                                map.linked_maps[self.target_map]
+                                entity_placed = True
+                                break
             if entity_placed:
                 map.remove(entity)
             else:

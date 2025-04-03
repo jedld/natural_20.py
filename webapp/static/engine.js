@@ -277,6 +277,10 @@ $(document).ready(() => {
   socket.on("message", (data) => {
     console.log("Message received:", data);
     switch (data.type) {
+      case "refresh_map": {
+        Utils.refreshTileSet();
+        break;
+      }
       case "map": {
         const { message: map_url, width, height } = data;
         $(".tiles-container").data({ width, height });
