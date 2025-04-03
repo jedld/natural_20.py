@@ -82,7 +82,7 @@ class GenericEventHandler:
                 npc_meta = self.map.legend.get(entity_name)
                 spawn_entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta['name'],
                                                                         "overrides" : npc_meta.get('overrides', {}), "rand_life" : True })
-
+                pdb.set_trace()
                 if place_entity_property.get('pos'):
                     pos = place_entity_property['pos']
                 else:

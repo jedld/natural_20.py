@@ -588,7 +588,7 @@ class Map():
                     continue
                 # make sure there is line of sight between
                 # original position and new position
-                if self.line_of_sight(pos_x, pos_y, pos_x + ofs_x, pos_y + ofs_y) is None:
+                if self.bidirectionally_passable(entity, pos_x, pos_y, (pos_x + ofs_x, pos_y + ofs_y)) is None:
                     continue
 
                 if self.placeable(entity, pos_x + ofs_x, pos_y + ofs_y, squeeze=False):
