@@ -32,6 +32,13 @@
         <img src="{{ url_for('static', filename='info.png') }}" style="width: 50px; height: 50px;">
       </button>
     </td>
+    <td>
+      <button class="talk-action button text-center">
+        <i class="glyphicon glyphicon-comment">Talk</i>
+      </button>
+    </td>
+    
+  </td>
   {% if battle and battle.current_turn() == entity %}
     <td>
       <button class="action-end-turn" title="End Turn">

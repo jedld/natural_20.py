@@ -46,7 +46,7 @@ class JsonRenderer:
                     entity_pov = [e for e in entity_pov if e]
                     distance_to_square = min([np.linalg.norm(np.array((x, y)) - np.array((pos[0], pos[1]))) for pos in entity_pov_locations]) if entity_pov_locations else None
 
-                    if not distance_to_square is None and any([e.darkvision(distance_to_square * self.map.feet_per_grid) for e in entity_pov if e]):
+                    if distance_to_square is not None and any([e.darkvision(distance_to_square * self.map.feet_per_grid) for e in entity_pov if e]):
                         has_darkvision = True
                     else:
                         has_darkvision = False
@@ -87,10 +87,10 @@ class JsonRenderer:
                     'darkvision_color': darkvision_color
                 }
 
-                def render_objects(entity_pov=None):
-                    shared_attributes['objects'] = []
-                    for object_entity in object_entities:
-                        if entity_pov and entity_pov != entity:
+                def render_objects(entity_pov=None, shared_attrs=None, objects=None, current_entity=None):
+                    shared_attrs['objects'] = []
+                    for object_entity in objects:
+                        if entity_pov and entity_pov != current_entity:
                             visible_to_pov = any([self.map.can_see(entity_p, object_entity, allow_dark_vision=True) for entity_p in entity_pov])
                             if not visible_to_pov:
                                 continue
@@ -113,10 +113,10 @@ class JsonRenderer:
                         else:
                             object_info['token_offset_px'] = [0, 0]
 
-                        shared_attributes['objects'].append(object_info)
+                        shared_attrs['objects'].append(object_info)
 
                         if object_entity.__class__.__name__ == 'Ground':
-                            shared_attributes['ground_items'] = object_entity.inventory.keys()
+                            shared_attrs['ground_items'] = object_entity.inventory.keys()
 
                 if entity:
                     if entity_pov and len(entity_pov) > 0:
@@ -127,14 +127,14 @@ class JsonRenderer:
 
                     shared_attributes['in_battle'] = self.battle and entity in self.battle.combat_order
                     m_x, m_y = self.map.entities[entity]
-                    render_objects(entity_pov=entity_pov)
+                    render_objects(entity_pov=entity_pov, shared_attrs=shared_attributes, objects=object_entities, current_entity=entity)
                     attributes = shared_attributes.copy()
                     attributes.update({
                     'id': entity.entity_uid,
                     'hp': entity.hp(),
                     'max_hp': entity.max_hp(),
                     'entity_size': entity.size(),
-                    'conversation_buffer': entity.conversation_buffer
+                    'conversation_buffer': entity.conversation()
                     })
                     if m_x == x and m_y == y:
                         attributes.update({
@@ -149,7 +149,7 @@ class JsonRenderer:
                     result_row.append(attributes)
 
                 else:
-                    render_objects(entity_pov=entity_pov)
+                    render_objects(entity_pov=entity_pov, shared_attrs=shared_attributes, objects=object_entities, current_entity=entity)
                     result_row.append(shared_attributes)
             result.append(result_row)
         return result
