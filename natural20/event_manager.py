@@ -240,7 +240,7 @@ class EventManager:
                 self.output_logger.log(f"{self.show_name(event)} makes a death saving throw and succeeds: {event['roll']} = {event['roll'].result()}"),
 
         def conversation(event):
-            if event['target']:
+            if event['targets']:
                 self.output_logger.log(f"{self.show_name(event)} to {self.show_target_name(event)}: {event['message']}")
             else:
                 self.output_logger.log(f"{self.show_name(event)}: {event['message']}")
@@ -316,6 +316,9 @@ class EventManager:
         return self.decorate_name(event['source'])
 
     def show_target_name(self, event):
+        if 'targets' in event:
+            return ", ".join([self.decorate_name(target) for target in event['targets']])
+
         if 'source' in event:
             if event['source'] == event['target']:
                 return "themselves"

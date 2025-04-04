@@ -355,6 +355,7 @@ class Map():
                 return obj
         return None
 
+
     def objects_near(self, entity, battle=None):
         target_squares = entity.melee_squares(self)
         target_squares += self.entity_squares(entity)
@@ -931,6 +932,12 @@ class Map():
 
 
     def entities_in_range(self, entity, range):
+        """
+        Get all entities within a certain range of the entity
+        @param entity: The entity to check the range of
+        @param range: The range to check in feet
+        @return: A list of entities within the range
+        """
         entities = []
         for entity2, _position in self.entities.items():
             if entity == entity2:

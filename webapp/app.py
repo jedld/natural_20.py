@@ -55,6 +55,7 @@ import yaml
 import time
 import uuid
 from utils import SocketIOOutputLogger, GameManagement
+from datetime import datetime
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 
@@ -1644,33 +1645,65 @@ def usable_items():
 
 @app.route('/talk', methods=['POST'])
 def talk():
-    if not logged_in():
-        return jsonify({'success': False, 'message': 'Not logged in'})
-
     data = request.get_json()
     entity_id = data.get('entity_id')
     message = data.get('message')
+    targets = data.get('targets', [])
 
     if not entity_id or not message:
-        return jsonify({'success': False, 'message': 'Missing entity_id or message'})
+        return jsonify({'error': 'Entity ID and message are required'}), 400
 
     entity = current_game.get_entity_by_uid(entity_id)
     if not entity:
-        return jsonify({'success': False, 'message': 'Entity not found'})
+        return jsonify({'error': 'Entity not found'}), 404
+    # Create conversation message
+    # Add message to entity's conversation history
+    entity_targets = []
+    if len(targets) > 0:
+        for _entity_uid in targets:
+            entity_targets.append(game_session.entity_by_uid(_entity_uid))
+    entity.send_conversation(message, targets=entity_targets)
 
-    # Create a conversation bubble for the entity
-    entity.send_conversation(message)
-
-    # Emit a WebSocket message to all clients to update the conversation bubble in real-time
-    socketio.emit('message', {
-        'type': 'conversation',
-        'message': {
-            'entity_id': entity_id,
-            'message': message
-        }
-    })
+    # Emit WebSocket event for real-time updates
+    socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': entity_id, 'message': message}})
 
     return jsonify({'success': True})
+
+@app.route('/nearby_entities')
+def nearby_entities():
+    entity_id = request.args.get('entity_id')
+    range_ft = int(request.args.get('range', 30))  # Default 30ft earshot range
+
+    if not entity_id:
+        return jsonify({'error': 'Entity ID is required'}), 400
+
+    entity = current_game.get_entity_by_uid(entity_id)
+    if not entity:
+        return jsonify({'error': 'Entity not found'}), 404
+
+    entity_map = current_game.get_map_for_entity(entity)    # Get all entities on the same map
+    map_entities = entity_map.entities_in_range(entity, range_ft)
+    nearby = []
+
+    for other_entity in map_entities:
+        if other_entity == entity:
+            continue
+        if not other_entity.conversable():
+            continue
+
+        line_of_sight = entity_map.can_see(entity, other_entity)
+        if not line_of_sight:
+            continue
+
+        nearby.append({
+            'id': other_entity.entity_uid,
+            'name': other_entity.label(),
+            'distance': entity_map.distance(entity, other_entity) * entity_map.feet_per_grid
+        })
+
+    return jsonify({
+        'entities': nearby
+    })
 
 if __name__ == '__main__':
     socketio.run(app, debug=False, host='0.0.0.0' , port=80, allow_unsafe_werkzeug=True)
