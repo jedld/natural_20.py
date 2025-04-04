@@ -509,12 +509,13 @@ def index():
         time_s = (time.time() - current_game.current_soundtrack
                         ['start_time']) % current_game.current_soundtrack['duration']
         current_game.current_soundtrack['time'] = int(time_s)
+
     return render_template('index.html', tiles=my_2d_array, tile_size_px=TILE_PX,
                            background_path=f"assets/{background}",
                            background_width=tiles_dimension_width,
                            messages=messages,
                            current_map=battle_map.name,
-                           background_height=tiles_dimension_height,
+                        background_height=tiles_dimension_height,
                            battle=battle,
                            entity_ids=entity_ids,
                            background_color=background_color,
@@ -526,6 +527,7 @@ def index():
                            top_offset_px=top_offset_px,
                            left_offset_px=left_offset_px,
                            available_maps=available_maps,
+                           user_entity_ids=[e.entity_uid for e in entities_controlled_by(session['username'])],
                            pov_entities=entities_controlled_by(session['username']),
                            username=session['username'], role=user_role())
 eval_context = {}
@@ -1639,6 +1641,27 @@ def usable_items():
     available_items.sort(key=lambda item: item['name'])
     action = UseItemAction(game_session, entity, 'use_item')
     return render_template('usable_items.html', entity=entity, usable_items=available_items, action=action)
+
+@app.route('/talk', methods=['POST'])
+def talk():
+    if not logged_in():
+        return jsonify({'success': False, 'message': 'Not logged in'})
+    
+    data = request.get_json()
+    entity_id = data.get('entity_id')
+    message = data.get('message')
+    
+    if not entity_id or not message:
+        return jsonify({'success': False, 'message': 'Missing entity_id or message'})
+    
+    entity = current_game.get_entity_by_uid(entity_id)
+    if not entity:
+        return jsonify({'success': False, 'message': 'Entity not found'})
+    
+    # Create a conversation bubble for the entity
+    entity.send_conversation(message)
+    
+    return jsonify({'success': True})
 
 if __name__ == '__main__':
     socketio.run(app, debug=False, host='0.0.0.0' , port=80, allow_unsafe_werkzeug=True)

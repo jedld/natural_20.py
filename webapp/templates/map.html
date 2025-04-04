@@ -15,7 +15,7 @@
                     left: {{ tile['x'] * tile_size_px + tile_size_px }}px;
                     width: {{ tile_size_px }}px;
                     height: {{ tile_size_px }}px;">
-          
+
           {# --- Render objects on the tile --- #}
           {% if tile['objects'] %}
             {% for obj in tile['objects'] %}
@@ -94,7 +94,7 @@
           {# --- Render entity on the tile --- #}
           {% else %}
           {% if tile.conversation_buffer and tile.conversation_buffer|length > 0 %}
-          <div class="conversation-bubble" onclick="Utils.toggleBubble(this)">
+          <div class="conversation-bubble">
             <div class="bubble-content">
               {{ tile.conversation_buffer[-1] }}
             </div>

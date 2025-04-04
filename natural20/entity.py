@@ -115,13 +115,16 @@ class Entity(EntityStateEvaluator, Notable):
     def class_and_level(self):
         return []
     
-    def conversation(self):
-        return self.conversation_buffer
+    def conversation(self, outgoing=True):
+        if outgoing:
+            return [message['message'] for message in self.conversation_buffer if message['source'] == self]
+        else:
+            return [message['message'] for message in self.conversation_buffer if message['target'] == self]
     
     def receive_conversation(self, source, message):
         self.conversation_buffer.append({ 'source': source, 'message': message, 'target': self })
 
-    def send_conversation(self, message, target):
+    def send_conversation(self, message, target='all'):
         self.conversation_buffer.append({ 'source': self, 'message': message, 'target': target })
 
     def clear_conversation_buffer(self):

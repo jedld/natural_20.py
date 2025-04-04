@@ -1288,4 +1288,47 @@ $(document).ready(() => {
   socket.on("command_response", (data) => {
     $("#command-output").append(data.message + "\n");
   });
+
+  // Handle talk action
+  function handleTalk(entityId) {
+    $('#talkModal').modal('show');
+    $('#submitTalk').off('click').on('click', function() {
+      const message = $('#talkMessage').val().trim();
+      if (message) {
+        $.ajax({
+          url: '/talk',
+          type: 'POST',
+          contentType: 'application/json',
+          data: JSON.stringify({
+            entity_id: entityId,
+            message: message
+          }),
+          success: (data) => {
+            if (data.success) {
+              // Refresh the tile set to show the new conversation bubble
+              Utils.refreshTileSet();
+              $('#talkModal').modal('hide');
+              $('#talkMessage').val('');
+            }
+          }
+        });
+      }
+    });
+  }
+
+  // Update the popover menu click handler
+  $(document).on('click', '.talk-action', function(event) {
+    event.stopPropagation();
+    const $menu = $(this).closest('.popover-menu');
+    const $tile =$(this).closest('.tile');
+    const entityId = $tile.data('coords-id');
+    handleTalk(entityId);
+
+    $menu.hide();
+  });
+
+  $(document).on('click', '.conversation-bubble', function(event) {
+    event.stopPropagation();
+    Utils.toggleBubble(this);
+  });
 });
