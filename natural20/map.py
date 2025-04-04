@@ -294,6 +294,8 @@ class Map():
 
         source_token_size = entity.token_size() - 1 if requires_squeeze(entity, cur_x, cur_y, self, battle) else entity.token_size()
 
+        entity.clear_conversation_buffer()
+
         if requires_squeeze(entity, pos_x, pos_y, self, battle):
             entity.squeezed()
             destination_token_size = entity.token_size() - 1

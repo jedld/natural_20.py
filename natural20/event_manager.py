@@ -239,9 +239,16 @@ class EventManager:
             else:
                 self.output_logger.log(f"{self.show_name(event)} makes a death saving throw and succeeds: {event['roll']} = {event['roll'].result()}"),
 
+        def conversation(event):
+            if event['target']:
+                self.output_logger.log(f"{self.show_name(event)} to {self.show_target_name(event)}: {event['message']}")
+            else:
+                self.output_logger.log(f"{self.show_name(event)}: {event['message']}")
+
         event_handlers = {
             'ability_check': ability_check,
             'console': lambda event: self.output_logger.log(event['message']),
+            'conversation': conversation,
             'multiattack' : lambda event: self.output_logger.log(f"{self.show_name(event)} uses multiattack."),
             'action_surge': lambda event: self.output_logger.log(f"{self.show_name(event)} uses action surge."),
             'death_fail' : death_fail,

@@ -304,7 +304,7 @@ app.add_template_global(action_flavors, name='action_flavors')
 def ability_mod_str(ability_mod):
     if ability_mod is None:
         return ""
-    
+   
     if ability_mod >= 0:
         return f"+{ability_mod}"
     else:
@@ -418,7 +418,7 @@ def serve_sound_file(filename):
         return send_file(secondary_path)
     else:
         return jsonify(error="File not found"), 404
-    
+   
 @app.route('/assets/objects/<filename>')
 def serve_object_image(filename):
     if not filename.endswith('.png'):
@@ -429,7 +429,7 @@ def serve_object_image(filename):
     else:
         objects_directory = os.path.join(game_session.root_path, "assets", "objects")
         return send_from_directory(objects_directory, filename)
-    
+   
 @app.route('/assets/items/<filename>')
 def serve_item_image(filename):
     if not filename.endswith('.png'):
@@ -477,7 +477,7 @@ def index():
     if not logged_in():
         print("not logged in")
         return redirect(url_for('login'))
-    
+   
 
     background = current_game.get_background_image_for_user(session['username'])
     renderer = JsonRenderer(battle_map, battle, padding=MAP_PADDING)
@@ -548,8 +548,8 @@ def command():
             battle_map = current_game.get_map_for_user(session['username'])
             battle = current_game.get_current_battle()
             eval_context.update({
-                'map': battle_map, 
-                'battle': battle, 
+                'map': battle_map,
+                'battle': battle,
                 'session': game_session,
                 'game': current_game,
                 'json': json
@@ -871,7 +871,7 @@ def next_turn():
 
         current_game.game_loop()
         socketio.emit('message', { 'type': 'initiative','message': {'index': battle.current_turn_index}})
-        socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 
+        socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid,
                                                                'animation_log' : battle.get_animation_logs() }})
         socketio.emit('message', { 'type': 'turn', 'message': {}})
         battle.clear_animation_logs()
@@ -948,7 +948,7 @@ def get_actions():
 @app.route("/hide", methods=['GET'])
 def get_hiding_spots():
     global current_game
-    
+   
     battle = current_game.get_current_battle()
     entity_id = request.args.get('id')
     entity = current_game.get_entity_by_uid(entity_id)
@@ -1017,10 +1017,10 @@ def action_type_to_class(action_type):
 @app.route('/target', methods=['GET'])
 def get_target():
     global current_game
-    
+   
     battle = current_game.get_current_battle()
     payload = json.loads(request.args.get('payload'))
-    
+   
     entity_id = payload.get('id')
     x = int(payload.get('x'))
     y = int(payload.get('y'))
@@ -1176,7 +1176,7 @@ def manual_roll():
     roll_result = DieRoll.roll(roll, disadvantage=disadvantage, advantage=advantage,
                 entity=entity, battle=battle, description=description)
     output_logger.log(f"{entity.name} rolled a {roll_result}={roll_result.result()} for {description}")
-   
+  
     return jsonify(roll_result=roll_result.result(), roll_explaination=str(roll_result))
 
 @app.route('/switch_pov', methods=['POST'])
@@ -1225,7 +1225,7 @@ def read_letter():
 @app.route('/action', methods=['POST'])
 def action():
     global current_game
-    
+   
     battle = current_game.get_current_battle()
     action_request = request.json
     entity_id = action_request['id']
@@ -1474,7 +1474,7 @@ def action():
                     raise ValueError(f"Invalid action map {action}")
 
             action.validate(battle_map, target=target)
-            
+           
             if len(action.errors) > 0:
                 return jsonify(status='error', errors=action.errors)
 
@@ -1585,7 +1585,7 @@ def sound():
 def set_volume():
     volume = int(request.json['volume'])
     current_game.set_volume(volume)
-    
+   
     return jsonify(status='ok')
 
 
@@ -1646,21 +1646,30 @@ def usable_items():
 def talk():
     if not logged_in():
         return jsonify({'success': False, 'message': 'Not logged in'})
-    
+
     data = request.get_json()
     entity_id = data.get('entity_id')
     message = data.get('message')
-    
+
     if not entity_id or not message:
         return jsonify({'success': False, 'message': 'Missing entity_id or message'})
-    
+
     entity = current_game.get_entity_by_uid(entity_id)
     if not entity:
         return jsonify({'success': False, 'message': 'Entity not found'})
-    
+
     # Create a conversation bubble for the entity
     entity.send_conversation(message)
-    
+
+    # Emit a WebSocket message to all clients to update the conversation bubble in real-time
+    socketio.emit('message', {
+        'type': 'conversation',
+        'message': {
+            'entity_id': entity_id,
+            'message': message
+        }
+    })
+
     return jsonify({'success': True})
 
 if __name__ == '__main__':

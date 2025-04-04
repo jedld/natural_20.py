@@ -297,6 +297,38 @@ $(document).ready(() => {
         Utils.refreshTileSet();
         break;
       }
+      case "conversation": {
+        // Handle real-time conversation updates
+        const { entity_id, message } = data.message;
+       
+        // Find the tile with the entity
+        const $tile = $(`.tile[data-coords-id="${entity_id}"]`);
+        if ($tile.length) {
+          // Check if conversation bubble already exists
+          let $bubble = $tile.find('.conversation-bubble');
+         
+          if ($bubble.length) {
+            // Update existing bubble
+            $bubble.find('.bubble-content').text(message);
+            $bubble.removeClass('minimized');
+            $bubble.find('.bubble-content').show();
+            $bubble.find('.bubble-minimized').hide();
+          } else {
+            // Create new bubble
+            $bubble = $(`
+              <div class="conversation-bubble">
+                <div class="bubble-content">${message}</div>
+                <div class="bubble-minimized" style="display: none;">
+                  <i class="glyphicon glyphicon-comment"></i>
+                </div>
+                <button class="close-bubble" onclick="Utils.dismissBubble(this.parentElement); event.stopPropagation();">×</button>
+              </div>
+            `);
+            $tile.append($bubble);
+          }
+        }
+        break;
+      }
       case "move": {
         const animationBuffer = data.message.animation_log;
         const animateFunction = (animationLog, idx) => {
@@ -647,8 +679,8 @@ $(document).ready(() => {
     );
     ctx.stroke();
   }
-  
-  
+ 
+ 
   // Character switcher
   $('#floating-entity-portraits').on('click', '.floating-entity-portrait', function() {
     const entity_uid = $(this).data('id');
@@ -680,7 +712,7 @@ $(document).ready(() => {
           // cache the valid_target value based on the x, y coords
           valid_target_cache[`${coordsx}-${coordsy}`] = valid_target;
 
-          
+         
             drawTargetLine(ctx, source, coordsx, coordsy, valid_target);
             if (adv_info) {
               adv_info[0].forEach(
@@ -692,7 +724,7 @@ $(document).ready(() => {
                   (tooltip += `<p><span style="color: red;">-${value}</span></p>`),
               );
             }
-          
+         
           $("#coords-box").html(
             `<p>X: ${coordsx}</p><p>Y: ${coordsy}</p>${tooltip}`,
           );
@@ -1305,8 +1337,7 @@ $(document).ready(() => {
           }),
           success: (data) => {
             if (data.success) {
-              // Refresh the tile set to show the new conversation bubble
-              Utils.refreshTileSet();
+              // No need to refresh the tile set as the WebSocket will handle the update
               $('#talkModal').modal('hide');
               $('#talkMessage').val('');
             }
