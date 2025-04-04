@@ -75,7 +75,7 @@ class Npc(Entity, Multiattack, Lootable):
         self.statuses = []
         _conversation_buffer = self.properties.get("conversation_buffer", [])
         for _conversion in _conversation_buffer:
-            self.conversation_buffer.append({ 'source': self, 'message': _conversion['message'], 'target': _conversion.get('target','all') })
+            self.conversation_buffer.append({ 'source': self, 'message': _conversion['message'], 'language': _conversion.get('language', 'common'), 'target': _conversion.get('target','all') })
         self.is_passive = self.properties.get("passive", False)
         self.is_concealed = self.properties.get("concealed", False)
         self.dialogue = self.properties.get("dialogue", [])
@@ -86,6 +86,11 @@ class Npc(Entity, Multiattack, Lootable):
 
         for stat in self.properties.get("statuses", []):
             self.statuses.append(stat)
+
+        if self.properties.get('conversation_handler'):
+            self.conversation_controller = self.session.conversation_controller(self, self.properties.get('conversation_handler'), self.properties.get('conversation_prompt'))
+        else:
+            self.conversation_controller = None
 
         auto_name = ""
         if 'goblinoid' in self.properties.get('race',[]):

@@ -57,6 +57,7 @@ import time
 import uuid
 from utils import SocketIOOutputLogger, GameManagement
 from datetime import datetime
+from webapp.llm_conversation_handler import LLMConversationHandler
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 
@@ -81,10 +82,15 @@ CORS(app, resources={r"/*": {"origins": allowed_origins, "supports_credentials":
 app.config['SECRET_KEY'] = 'fe9707b4704da2a96d0fd3cbbb465756e124b8c391c72a27ff32a062110de589'
 app.config['SESSION_TYPE'] = 'filesystem'
 
+if is_aws or is_production:
+    async_mode = 'eventlet'
+else:
+    async_mode = 'threading'
+
 # Configure Socket.IO with proper settings
 socketio = SocketIO(app, 
     cors_allowed_origins=allowed_origins,  # Use the same origins as CORS
-    async_mode='eventlet',  # Use eventlet for WebSocket support
+    async_mode=async_mode,  # Use eventlet for WebSocket support
     ping_timeout=120,  # Increased timeout
     ping_interval=30,  # Increased interval
     max_http_buffer_size=1e8,
@@ -133,9 +139,8 @@ output_logger.log("Server started")
 
 event_manager = EventManager(output_logger=output_logger, movement_consolidation=True)
 event_manager.standard_cli()
-game_session = GameSession.Session(LEVEL, event_manager=event_manager)
+game_session = GameSession.Session(LEVEL, event_manager=event_manager, conversation_handlers={'llm': LLMConversationHandler})
 game_session.render_for_text = False # render for text is disabled since we are using a web renderer
-
 current_soundtrack = None
 
 logger = logging.getLogger('werkzeug')
@@ -159,12 +164,16 @@ i18n.set('locale', 'en')
 for extension in EXTENSIONS:
     extension.init(app, current_game, game_session)
 
-
-
-
-# Assuming Natural20 and other dependencies are available in Python, they should be implemented or imported accordingly.
-# This is a placeholder import
-# from natural20 import EventManager, Session as GameSession, BattleMap, WebJsonRenderer, AiController, WebController, MoveAction, AttackAction
+# Initialize the LLM conversation handler
+# Initialize the LLM with API key from environment variable
+# @app.before_first_request
+# def initialize_llm():
+#     api_key = os.environ.get('OPENAI_API_KEY')
+#     if api_key:
+#         llm_conversation_handler.initialize(api_key=api_key)
+#         print("LLM conversation handler initialized successfully")
+#     else:
+#         print("OPENAI_API_KEY not found in environment variables. LLM conversations will not be available.")
 
 def logged_in():
     return session.get('username') is not None
@@ -1672,6 +1681,10 @@ def talk():
         socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': entity_id, 'message': message}}, to=sid)
 
     for target, message in processed_conversations:
+        # # Trigger LLM response for NPCs if LLM is initialized
+        # if llm_conversation_handler.initialized and target.npc():
+        #     llm_conversation_handler.handle_conversation(target, entity, message, language)
+            
         owners = entity_owners(target)
         for owner in owners:
             sids = username_to_sid.get(owner, [])
