@@ -241,9 +241,9 @@ class EventManager:
 
         def conversation(event):
             if event['targets']:
-                self.output_logger.log(f"{self.show_name(event)} to {self.show_target_name(event)}: {event['message']}")
+                self.output_logger.log(f"{self.show_name(event)} to {self.show_target_name(event)}[{event['language']}]: {event['message']}")
             else:
-                self.output_logger.log(f"{self.show_name(event)}: {event['message']}")
+                self.output_logger.log(f"{self.show_name(event)} [in {event['language']}]: {event['message']}")
 
         event_handlers = {
             'ability_check': ability_check,

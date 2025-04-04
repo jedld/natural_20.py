@@ -84,7 +84,8 @@ class JsonRenderer:
                     'light': light,
                     'opacity': opacity,
                     'has_darkvision': has_darkvision,
-                    'darkvision_color': darkvision_color
+                    'darkvision_color': darkvision_color,
+                    'conversation_languages': []
                 }
 
                 def render_objects(entity_pov=None, shared_attrs=None, objects=None, current_entity=None):
@@ -129,13 +130,22 @@ class JsonRenderer:
                     m_x, m_y = self.map.entities[entity]
                     render_objects(entity_pov=entity_pov, shared_attrs=shared_attributes, objects=object_entities, current_entity=entity)
                     attributes = shared_attributes.copy()
+                    listener_languages = []
+
+                    for _entity in entity_pov:
+                        for language in _entity.languages():
+                            if language not in listener_languages:
+                                listener_languages.append(language)
+
                     attributes.update({
                     'id': entity.entity_uid,
                     'hp': entity.hp(),
                     'max_hp': entity.max_hp(),
                     'entity_size': entity.size(),
-                    'conversation_buffer': entity.conversation()
+                    'conversation_buffer': entity.conversation(listener_languages=listener_languages),
+                    'conversation_languages': ",".join(entity.languages())
                     })
+                    assert entity.languages() is not None
                     if m_x == x and m_y == y:
                         attributes.update({
                             'entity': entity.token_image(),

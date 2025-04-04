@@ -57,19 +57,19 @@
   "default_controllers": [
     {
       "entity_uid" : "gomerin",
-      "controllers" : ["gomerin", "rumblebelly", "shorvalu","leandro"]
+      "controllers" : ["gomerin"]
     },
     {
       "entity_uid": "crysania",
-      "controllers": ["crysania", "shorvalu"]
+      "controllers": ["crysania"]
     },
     {
       "entity_uid": "shorvalu",
-      "controllers": ["shorvalu", "keo"]
+      "controllers": ["shorvalu"]
     },
     {
       "entity_uid": "rumblebelly",
-      "controllers": ["rumblebelly","gomerin","shorvalu", "jm"]
+      "controllers": ["rumblebelly"]
     }
   ]
 }
