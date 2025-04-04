@@ -66,6 +66,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.equipped_effects = {}
         self.help_actions = {}
         self.conversation_buffer = []
+        self.memory_buffer = []
         self.helping_with = set()
         self.owner = None
         # Attach methods dynamically
@@ -99,7 +100,7 @@ class Entity(EntityStateEvaluator, Notable):
 
     def concealed(self):
         return self.is_concealed
-    
+
     def conceal_perception_dc(self) -> int:
         return None
 
@@ -108,34 +109,40 @@ class Entity(EntityStateEvaluator, Notable):
 
     def class_descriptor(self):
         return self.name.lower()
-    
+
     def class_feature(self, feature):
         return False
 
     def class_and_level(self):
         return []
-    
+
     def conversation(self, outgoing=True):
         if outgoing:
             return [message['message'] for message in self.conversation_buffer if message['source'] == self]
         else:
             return [message['message'] for message in self.conversation_buffer if message['target'] == self]
-    
+
     def receive_conversation(self, source, message):
         self.conversation_buffer.append({ 'source': source, 'message': message, 'target': self })
 
-    def send_conversation(self, message, target='all'):
+    def send_conversation(self, message, target=None):
         self.conversation_buffer.append({ 'source': self, 'message': message, 'target': target })
+        self.session.event_manager.received_event({"source": self,
+                                                   "event" : 'conversation',
+                                                   "message" : message,
+                                                   "target" : target})
 
     def clear_conversation_buffer(self):
+        for message in self.conversation_buffer:
+            self.memory_buffer.append(message)
         self.conversation_buffer = []
 
     def armor_class(self):
         return 0
-    
+
     def equipped_ac(self):
         return self.armor_class()
-    
+
     def any_class_feature(self, features):
         return False
 
