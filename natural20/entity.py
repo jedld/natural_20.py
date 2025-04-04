@@ -8,6 +8,7 @@ from natural20.concern.notable import Notable
 from natural20.concern.generic_event_handler import GenericEventHandler
 from natural20.spell.effects.protection_effect import ProtectionEffect
 import uuid
+from natural20.utils.gibberish import gibberish
 import i18n
 class Entity(EntityStateEvaluator, Notable):
 
@@ -119,21 +120,68 @@ class Entity(EntityStateEvaluator, Notable):
     def conversable(self):
         return False
 
-    def conversation(self, outgoing=True):
+    def conversation(self, outgoing=True, listener_languages=None):
+        if listener_languages is None:
+            listener_languages = ["common"]
+
+        if not isinstance(listener_languages, list):
+            listener_languages = [listener_languages]
+
         if outgoing:
-            return [message['message'] for message in self.conversation_buffer if message['source'] == self]
+            outgoing_messages = []
+            for message in self.conversation_buffer:
+                if message['source'] == self:
+                    if  message['language'] in listener_languages:
+                        outgoing_messages.append(message['message'])
+                    else:
+                        outgoing_messages.append(gibberish(message['message'], language=message['language']))
+            return outgoing_messages
         else:
-            return [message['message'] for message in self.conversation_buffer if message['target'] == self]
+            incoming_messages = []
+            for message in self.conversation_buffer:
+                if message['target'] == self:
+                    if message['language'] in listener_languages:
+                        incoming_messages.append(message['message'])
+                    else:
+                        incoming_messages.append(gibberish(message['message'], language=message['language']))
+            return incoming_messages
 
-    def receive_conversation(self, source, message):
-        self.conversation_buffer.append({ 'source': source, 'message': message, 'target': self })
+    def receive_conversation(self, source, message, language=None):
+        if language is None:
+            language = "common"
+        self.conversation_buffer.append({ 'source': source, 'message': message, 'target': self, 'language': language })
 
-    def send_conversation(self, message, targets=None):
-        self.conversation_buffer.append({ 'source': self, 'message': message, 'targets': targets })
+    def send_conversation(self, message, distance_ft=30, targets=None, language=None):
+        if language is None:
+            language = "common"
+
+        self.conversation_buffer.append({ 'source': self, 'message': message, 'targets': targets, 'language': language })
         self.session.event_manager.received_event({"source": self,
                                                    "event" : 'conversation',
                                                    "message" : message,
+                                                   "language" : language,
                                                    "targets" : targets})
+        entity_map = self.session.map_for_entity(self)
+        map_entities = entity_map.entities_in_range(self, distance_ft)
+        nearby = []
+
+        for other_entity in map_entities:
+            if other_entity == self:
+                continue
+            if not other_entity.conversable():
+                continue
+
+            line_of_sight = entity_map.can_see(self, other_entity)
+            if not line_of_sight:
+                continue
+            if language not in other_entity.languages():
+                nearby.append([other_entity, gibberish(message, language)])
+            else:
+                nearby.append([other_entity, message])
+                other_entity.receive_conversation(self, message, language)
+
+        return nearby
+
 
     def clear_conversation_buffer(self):
         for message in self.conversation_buffer:

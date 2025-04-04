@@ -300,13 +300,13 @@ $(document).ready(() => {
       case "conversation": {
         // Handle real-time conversation updates
         const { entity_id, message } = data.message;
-       
+      
         // Find the tile with the entity
         const $tile = $(`.tile[data-coords-id="${entity_id}"]`);
         if ($tile.length) {
           // Check if conversation bubble already exists
           let $bubble = $tile.find('.conversation-bubble');
-         
+        
           if ($bubble.length) {
             // Update existing bubble
             $bubble.find('.bubble-content').text(message);
@@ -482,7 +482,7 @@ $(document).ready(() => {
         var map_id = data.message.map;
         Utils.switchMap(map_id, canvas);
         break;
- 
+
       default:
         console.log("Unknown message type:", data.type);
     }
@@ -686,8 +686,8 @@ $(document).ready(() => {
     );
     ctx.stroke();
   }
- 
- 
+
+
   // Character switcher
   $('#floating-entity-portraits').on('click', '.floating-entity-portrait', function() {
     const entity_uid = $(this).data('id');
@@ -719,7 +719,7 @@ $(document).ready(() => {
           // cache the valid_target value based on the x, y coords
           valid_target_cache[`${coordsx}-${coordsy}`] = valid_target;
 
-         
+        
             drawTargetLine(ctx, source, coordsx, coordsy, valid_target);
             if (adv_info) {
               adv_info[0].forEach(
@@ -731,7 +731,7 @@ $(document).ready(() => {
                   (tooltip += `<p><span style="color: red;">-${value}</span></p>`),
               );
             }
-         
+        
           $("#coords-box").html(
             `<p>X: ${coordsx}</p><p>Y: ${coordsy}</p>${tooltip}`,
           );
@@ -1331,24 +1331,45 @@ $(document).ready(() => {
   // Handle talk action
   function handleTalk(entityId) {
     $('#talkModal').modal('show');
-    
+   
+    // Get the tile data to access conversation languages
+    const $tile = $(`.tile[data-coords-id="${entityId}"]`);
+    const languages = $tile.data('conversation-languages');
+
+    const languagesArray = languages.split(',');
+   
+    // Populate language dropdown
+    const $languageSelect = $('#languageSelect');
+    $languageSelect.empty();
+   
+    // Add available languages to dropdown
+    if (languages && languages.length > 0) {
+      languagesArray.forEach(language => {
+        if (language.trim() !== 'common') {
+          $languageSelect.append(`<option value="${language}">${language}</option>`);
+        } else {
+          $languageSelect.append(`<option value="Common" selected>Common</option>`);
+        }
+      });
+    }
+   
     // Get nearby entities within earshot range (30ft)
     $.ajax({
       url: '/nearby_entities',
       type: 'GET',
-      data: { 
+      data: {
         entity_id: entityId,
         range: 30 // 30ft earshot range
       },
       success: (data) => {
         const $nearbyEntities = $('#nearbyEntities');
         $nearbyEntities.empty();
-        
+       
         if (data.entities && data.entities.length > 0) {
           data.entities.forEach(entity => {
             $nearbyEntities.append(`
               <label class="list-group-item">
-                <input type="checkbox" name="targets" value="${entity.id}"> 
+                <input type="checkbox" name="targets" value="${entity.id}">
                 ${entity.name} (${entity.distance}ft away)
               </label>
             `);
@@ -1366,9 +1387,12 @@ $(document).ready(() => {
         $('input[name="targets"]:checked').each(function() {
           selectedTargets.push($(this).val());
         });
-        
+       
         const noSpecificTarget = $('#noSpecificTarget').is(':checked');
-        
+        const selectedLanguage = $('#languageSelect').val();
+        const selectedVolume = $('input[name="speechVolume"]:checked');
+        const distance_ft = parseInt(selectedVolume.data('distance'));
+       
         $.ajax({
           url: '/talk',
           type: 'POST',
@@ -1377,7 +1401,9 @@ $(document).ready(() => {
             entity_id: entityId,
             message: message,
             targets: selectedTargets,
-            no_specific_target: noSpecificTarget
+            no_specific_target: noSpecificTarget,
+            language: selectedLanguage,
+            distance_ft: distance_ft
           }),
           success: (data) => {
             if (data.success) {

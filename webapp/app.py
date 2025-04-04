@@ -1648,8 +1648,9 @@ def talk():
     data = request.get_json()
     entity_id = data.get('entity_id')
     message = data.get('message')
+    language = data.get('language')
     targets = data.get('targets', [])
-
+    distance_ft = data.get('distance_ft', 30)
     if not entity_id or not message:
         return jsonify({'error': 'Entity ID and message are required'}), 400
 
@@ -1662,10 +1663,17 @@ def talk():
     if len(targets) > 0:
         for _entity_uid in targets:
             entity_targets.append(game_session.entity_by_uid(_entity_uid))
-    entity.send_conversation(message, targets=entity_targets)
+    processed_conversations = entity.send_conversation(message, distance_ft=distance_ft, targets=entity_targets, language=language)
+    current_sids = username_to_sid.get(session['username'], [])
+    for sid in current_sids:
+        socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': entity_id, 'message': message}}, to=sid)
 
-    # Emit WebSocket event for real-time updates
-    socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': entity_id, 'message': message}})
+    for target, message in processed_conversations:
+        owners = entity_owners(target)
+        for owner in owners:
+            sids = username_to_sid.get(owner, [])
+            for sid in sids:
+                socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': entity_id, 'message': message}}, to=sid)
 
     return jsonify({'success': True})
 

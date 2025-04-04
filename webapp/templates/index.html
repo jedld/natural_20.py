@@ -251,6 +251,30 @@
             <textarea class="form-control" id="talkMessage" rows="3" required></textarea>
           </div>
           <div class="form-group">
+            <label for="languageSelect">Language:</label>
+            <select class="form-control" id="languageSelect" required>
+              <!-- Languages will be populated here -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Speech Volume:</label>
+            <div class="radio">
+              <label>
+                <input type="radio" name="speechVolume" value="whisper" data-distance="5"> Whisper (5ft)
+              </label>
+            </div>
+            <div class="radio">
+              <label>
+                <input type="radio" name="speechVolume" value="normal" data-distance="30" checked> Normal (30ft)
+              </label>
+            </div>
+            <div class="radio">
+              <label>
+                <input type="radio" name="speechVolume" value="shout" data-distance="60"> Shout (60ft)
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
             <label>Directed to:</label>
             <div id="nearbyEntities" class="list-group">
               <!-- Nearby entities will be populated here -->

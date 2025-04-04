@@ -27,6 +27,10 @@ prepared_spells:
 - shield
 - ice_knife
 - find_familiar
+languages:
+- common
+- elvish
+- goblin
 spellbook:
 - mage_armor
 - magic_missile
