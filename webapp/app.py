@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, session, redirect, url_for, render_te
 from flask_socketio import SocketIO, emit
 from flask_session import Session
 from flask import send_from_directory
+from flask_cors import CORS  # Add CORS support
 import json
 import os
 import click
@@ -59,10 +60,41 @@ from datetime import datetime
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 
+# Determine if we're running in AWS or locally
+is_aws = os.environ.get('AWS_ENVIRONMENT', 'false').lower() == 'true'
+is_production = os.environ.get('FLASK_ENV', 'development') == 'production'
+
+# Configure CORS for the Flask app based on environment
+if is_aws or is_production:
+    # In AWS/production, allow the ALB domain and any subdomains
+    allowed_origins = [
+        "http://natural20-alb-1402295348.us-east-1.elb.amazonaws.com",
+        "https://natural20-alb-1402295348.us-east-1.elb.amazonaws.com",
+        "*"  # Fallback to allow all origins in production
+    ]
+else:
+    # In local development, allow localhost origins
+    allowed_origins = ["http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:5001", "http://127.0.0.1:5001"]
+
+CORS(app, resources={r"/*": {"origins": allowed_origins, "supports_credentials": True}})
+
 app.config['SECRET_KEY'] = 'fe9707b4704da2a96d0fd3cbbb465756e124b8c391c72a27ff32a062110de589'
 app.config['SESSION_TYPE'] = 'filesystem'
 
-socketio = SocketIO(app)
+# Configure Socket.IO with proper settings
+socketio = SocketIO(app, 
+    cors_allowed_origins=allowed_origins,  # Use the same origins as CORS
+    async_mode='eventlet',  # Use eventlet for WebSocket support
+    ping_timeout=120,  # Increased timeout
+    ping_interval=30,  # Increased interval
+    max_http_buffer_size=1e8,
+    logger=True,
+    engineio_logger=True,
+    manage_session=True,
+    cookie=True,
+    always_connect=True,
+    message_queue=None  # Disable message queue since we're using a single worker
+)
 Session(app)
 
 LEVEL = os.getenv('TEMPLATE_DIR', "../templates")
@@ -742,19 +774,31 @@ def handle_message(data):
                 emit('move', {'type': 'move', 'message': {'from': data['message']['from'], 'to': data['message']['to']}})
         else:
             emit('error', {'type': 'error', 'message': 'Unknown command!'})
+    elif data['type'] == 'command':
+        logger.info(f"command {data['message']}")
+        command = data['message']['command']
+        # Process the command
+        try:
+            # Execute the command
+            result = current_game.execute_command(command)
+            emit('command_response', {'type': 'command_response', 'message': result})
+        except Exception as e:
+            logger.error(f"Error executing command: {e}")
+            emit('command_response', {'type': 'command_response', 'message': f"Error: {str(e)}"})
     else:
         emit('error', {'type': 'error', 'message': 'Unknown command!'})
 
 @socketio.on('disconnect')
-def handle_disconnect(data):
+def handle_disconnect():
     global current_game, username_to_sid
     ws = request.sid
     username = session.get('username')
-    if ws:
+    if ws and username:
         sids = username_to_sid.get(username, [])
-        sids.remove(ws)
-        username_to_sid[username] = sids
-        logger.info(f"close connection {ws} for {username}")
+        if ws in sids:  # Only remove if the sid exists in the list
+            sids.remove(ws)
+            username_to_sid[username] = sids
+            logger.info(f"close connection {ws} for {username}")
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -1286,46 +1330,6 @@ def action():
                 build_map = action.build_map()
                 action_info['param'] = build_map['param']
                 return jsonify(action_info)
-        # elif action_type == 'SpellAction':
-        #     action = SpellAction(game_session, entity, 'spell')
-        #     selected_spell = opts.get('spell')
-        #     at_level = opts.get('at_level')
-        #     target = opts.get('target', target)
-
-        #     if selected_spell:
-        #         action.spell = game_session.load_spell(selected_spell)
-        #         current_map = action.build_map()
-        #         current_map = current_map['next']((selected_spell, at_level))
-        #         if isinstance(current_map, Action):
-        #             return jsonify(commit_and_update(current_map))
-        #         else:
-        #             if target:
-        #                 current_map = current_map['next'](target)
-
-        #                 if isinstance(current_map, Action):
-        #                     validate_targets(current_map, entity, target, battle_map, battle)
-        #                     return jsonify(commit_and_update(current_map))
-        #                 else:
-        #                     raise ValueError(f"Invalid action map {current_map}")
-
-        #             action_info["action"] = "spell"
-        #             action_info["type"] = "select_target"
-        #             action_info["param"] = current_map["param"]
-        #             param_details = current_map["param"][0]
-        #             action_info['total_targets'] = param_details.get('num', 1)
-        #             action_info['target_types'] = param_details.get('target_types', ['enemies'])
-        #             action_info['range'] = param_details.get('range', 5)
-        #             action_info['range_max'] = param_details.get('range', 5)
-        #             action_info['spell'] = selected_spell
-        #             if param_details.get('num', 1) > 1:
-        #                 target_hints = [ t.entity_uid for t in acquire_targets(param_details, entity, battle, battle_map)]
-        #                 action_info['target_hints'] = target_hints
-        #                 action_info['unique_targets'] = param_details.get('unique_targets', False)
-        #     else:
-        #         action_info["action"] = "spell"
-        #         action_info["type"] = "select_spell"
-        #         current_map = action.build_map()
-        #         action_info["param"] = current_map["param"]
         elif action_type in ['LinkedAttackAction', 'AttackAction', 'TwoWeaponAttackAction']:
             if action_type == 'AttackAction':
                 action = AttackAction(game_session, entity, 'attack')
@@ -1420,7 +1424,6 @@ def action():
                             action_info['param'] = action['param']
                             action_info['range'] = param_details.get('range', 5)
                             action_info['range_max'] = param_details.get('max_range', param_details.get('range', 5))
-                            # action_info['spell'] = param_details.get('spell', None)
                             if param_details.get('num', 1) > 1:
                                 target_hints = [ t.entity_uid for t in acquire_targets(param_details, entity, battle, battle_map)]
                                 action_info['target_hints'] = target_hints
@@ -1714,4 +1717,4 @@ def nearby_entities():
     })
 
 if __name__ == '__main__':
-    socketio.run(app, debug=False, host='0.0.0.0' , port=80, allow_unsafe_werkzeug=True)
+    socketio.run(app, debug=False, host='0.0.0.0', port=5001, allow_unsafe_werkzeug=True)

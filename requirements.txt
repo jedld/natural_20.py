@@ -16,6 +16,7 @@ ipywidgets
 flask
 flask-session
 flask-socketio
+flask-cors
 pillow
 tensorboard
 pyfiglet
