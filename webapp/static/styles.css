@@ -619,10 +619,31 @@ input.initiative-input.form-control {
   text-align: center;
   font-size: 14px;
   z-index: 1000;
-  white-space: normal;
+}
+
+.conversation-bubble .sender {
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.conversation-bubble .targets {
+  font-size: 0.9em;
+  color: #666;
+  margin-bottom: 4px;
+  font-style: italic;
+}
+
+.conversation-bubble .message {
+  color: #444;
   word-wrap: break-word;
-  cursor: pointer;
-  transition: all 0.3s ease;
+}
+
+.conversation-bubble .timestamp {
+  font-size: 0.8em;
+  color: #888;
+  text-align: right;
+  margin-top: 4px;
 }
 
 .talk-action {

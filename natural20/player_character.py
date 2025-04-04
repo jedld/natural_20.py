@@ -191,6 +191,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
 
     return max_range
 
+  def conversable(self):
+    return True
 
   def armor_class(self):
     current_ac = self.equipped_ac()

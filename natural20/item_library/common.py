@@ -162,6 +162,7 @@ class Ground(Object, Lootable):
 
     def color(self):
         return 'cyan'
+    
 
     def build_map(self, action, action_object):
         if action == 'pickup_drop':

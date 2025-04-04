@@ -114,7 +114,12 @@ class Npc(Entity, Multiattack, Lootable):
         properties.update(override)
 
         return Npc(session, properties["kind"].lower(), properties)
-
+    
+    def conversable(self):
+        languages_known = self.properties.get('languages', [])
+        if len(languages_known) > 0:
+            return True
+        return False
 
     def class_and_level(self):
         return [(self.npc_type, None)]

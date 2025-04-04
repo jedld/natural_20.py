@@ -326,6 +326,12 @@ $(document).ready(() => {
             `);
             $tile.append($bubble);
           }
+
+          setTimeout(() => {
+            $tile.find('.conversation-bubble').fadeOut(500, function() {
+              $(this).remove();
+            });
+          }, 10000);
         }
         break;
       }
@@ -476,6 +482,7 @@ $(document).ready(() => {
         var map_id = data.message.map;
         Utils.switchMap(map_id, canvas);
         break;
+ 
       default:
         console.log("Unknown message type:", data.type);
     }
@@ -1324,22 +1331,60 @@ $(document).ready(() => {
   // Handle talk action
   function handleTalk(entityId) {
     $('#talkModal').modal('show');
+    
+    // Get nearby entities within earshot range (30ft)
+    $.ajax({
+      url: '/nearby_entities',
+      type: 'GET',
+      data: { 
+        entity_id: entityId,
+        range: 30 // 30ft earshot range
+      },
+      success: (data) => {
+        const $nearbyEntities = $('#nearbyEntities');
+        $nearbyEntities.empty();
+        
+        if (data.entities && data.entities.length > 0) {
+          data.entities.forEach(entity => {
+            $nearbyEntities.append(`
+              <label class="list-group-item">
+                <input type="checkbox" name="targets" value="${entity.id}"> 
+                ${entity.name} (${entity.distance}ft away)
+              </label>
+            `);
+          });
+        } else {
+          $nearbyEntities.append('<div class="list-group-item">No entities within earshot range</div>');
+        }
+      }
+    });
+
     $('#submitTalk').off('click').on('click', function() {
       const message = $('#talkMessage').val().trim();
       if (message) {
+        const selectedTargets = [];
+        $('input[name="targets"]:checked').each(function() {
+          selectedTargets.push($(this).val());
+        });
+        
+        const noSpecificTarget = $('#noSpecificTarget').is(':checked');
+        
         $.ajax({
           url: '/talk',
           type: 'POST',
           contentType: 'application/json',
           data: JSON.stringify({
             entity_id: entityId,
-            message: message
+            message: message,
+            targets: selectedTargets,
+            no_specific_target: noSpecificTarget
           }),
           success: (data) => {
             if (data.success) {
-              // No need to refresh the tile set as the WebSocket will handle the update
               $('#talkModal').modal('hide');
               $('#talkMessage').val('');
+              $('input[name="targets"]').prop('checked', false);
+              $('#noSpecificTarget').prop('checked', false);
             }
           }
         });
@@ -1351,10 +1396,9 @@ $(document).ready(() => {
   $(document).on('click', '.talk-action', function(event) {
     event.stopPropagation();
     const $menu = $(this).closest('.popover-menu');
-    const $tile =$(this).closest('.tile');
+    const $tile = $(this).closest('.tile');
     const entityId = $tile.data('coords-id');
     handleTalk(entityId);
-
     $menu.hide();
   });
 
