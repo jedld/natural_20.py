@@ -70,6 +70,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.memory_buffer = []
         self.helping_with = set()
         self.owner = None
+        self.conversation_controller = None
         # Attach methods dynamically
         for ability, skills in self.SKILL_AND_ABILITY_MAP.items():
             for skill in skills:
@@ -146,16 +147,24 @@ class Entity(EntityStateEvaluator, Notable):
                         incoming_messages.append(gibberish(message['message'], language=message.get('language', 'common')))
             return incoming_messages
 
-    def receive_conversation(self, source, message, language=None):
+    def receive_conversation(self, source, message, language=None,  directed_to=None):
         if language is None:
             language = "common"
-        self.conversation_buffer.append({ 'source': source, 'message': message, 'target': self, 'language': language })
+        if directed_to is None:
+            directed_to = []
+        self.conversation_buffer.append({ 'source': source, 'directed_to': directed_to, 'message': message, 'target': self, 'language': language })
+        self.memory_buffer.append({ 'source': source, 'directed_to': directed_to, 'message': message, 'target': self, 'language': language })
+        self.resolve_trigger('conversation', { 'source': source, 'message': message, 'memory_buffer': self.memory_buffer,
+                                              'target': self, 'language': language })
+        if self.conversation_controller:
+            self.conversation_controller.process_message(self, source, message, language, self.memory_buffer, directed_to)
 
     def send_conversation(self, message, distance_ft=30, targets=None, language=None):
         if language is None:
             language = "common"
-
-        self.conversation_buffer.append({ 'source': self, 'message': message, 'targets': targets, 'language': language })
+        language = language.lower()
+        self.conversation_buffer.append({ 'source': self, 'message': message, 'directed_to': targets, 'targets': targets, 'language': language })
+        self.memory_buffer.append({ 'source': self, 'message': message, 'directed_to': targets, 'targets': targets, 'language': language })
         self.session.event_manager.received_event({"source": self,
                                                    "event" : 'conversation',
                                                    "message" : message,
@@ -171,21 +180,22 @@ class Entity(EntityStateEvaluator, Notable):
             if not other_entity.conversable():
                 continue
 
-            line_of_sight = entity_map.can_see(self, other_entity)
+            line_of_sight = entity_map.can_see(other_entity, self)
             if not line_of_sight:
                 continue
+            
             if language not in other_entity.languages():
+                print(f'{other_entity.name} does not speak {language}')
                 nearby.append([other_entity, gibberish(message, language)])
             else:
                 nearby.append([other_entity, message])
-                other_entity.receive_conversation(self, message, language)
+                print(f'{other_entity.name} speaks {language} and receives message {message}')
+                other_entity.receive_conversation(self, message, language=language, directed_to=targets)
 
         return nearby
 
 
     def clear_conversation_buffer(self):
-        for message in self.conversation_buffer:
-            self.memory_buffer.append(message)
         self.conversation_buffer = []
 
     def armor_class(self):

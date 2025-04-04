@@ -49,7 +49,7 @@ map:
   meta:
     - ..........
     - ..........
-    - ..........
+    - ...Q......
     - .........g
     - .........x
     - ..........
@@ -81,6 +81,19 @@ legend:
     type: npc
     sub_type: hobgoblin
     group: b
+  Q:
+    name: gabba
+    type: npc
+    sub_type: goblin
+    group: b
+    overrides:
+      entity_uid: gabba
+      passive: true
+      conversation_prompt: "You are a goblin. You are a bit mean and will tell people to stop touching things."
+      conversation_handler: llm
+      conversation_buffer:
+        - message: "If you are here to die, you've come to the right place!"
+          target: all
   g:
     name: _auto_
     type: npc

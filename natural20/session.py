@@ -19,7 +19,7 @@ def represent_battle(dumper, data):
 
 # typed: true
 class Session:
-    def __init__(self, root_path=None, event_manager=None):
+    def __init__(self, root_path=None, event_manager=None, conversation_handlers=None):
         if not event_manager:
             event_manager = EventManager()
         self.root_path = root_path or '.'
@@ -38,6 +38,7 @@ class Session:
         self.event_log = deque(maxlen=100)
         self.default_locale = 'en'
         self.event_manager = event_manager
+        self.conversation_handlers = conversation_handlers or {}
         i18n.load_path.append(os.path.join(self.root_path, 'locales'))
         i18n.set('filename_format', '{locale}.{format}')
         game_file = os.path.join(self.root_path, 'game.yml')
@@ -47,6 +48,15 @@ class Session:
         else:
             raise Exception(f'Missing game {game_file} file')
         self._load_all_maps(self.game_properties)
+
+    def register_conversation_handler(self, type, handler):
+        print(f'Registering conversation handler {type} {handler}')
+        self.conversation_handlers[type] = handler
+
+    def conversation_controller(self, entity, handler, prompt):
+        if handler not in self.conversation_handlers:
+            raise Exception(f'Unknown conversation handler: {handler}')
+        return self.conversation_handlers[handler](entity, prompt)
 
     def reset(self):
         self.game_time = 0

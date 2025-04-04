@@ -24,6 +24,10 @@ class GenericEventHandler:
                 'message': message
             })
 
+        if self.properties.get('conversation'):
+            conversation_properties = self.properties['conversation']
+            entity.send_conversation(conversation_properties['message'], conversation_properties.get('distance_ft', 30), conversation_properties.get('targets', []), conversation_properties.get('language', 'common'))
+
         if self.properties.get('teleport'):
             def handle_teleport(teleport_properties):
                 only_alive = teleport_properties.get('only_alive', False)
