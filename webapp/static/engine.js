@@ -161,15 +161,13 @@ function drawLine(ctx, source, targetSelector, options = {}) {
   }
 }
 
-// Sends a simple command via WebSocket.
+// Sends a simple command via Socket.IO.
 function command(cmd) {
-  ws.send(
-    JSON.stringify({
-      type: "command",
-      user: "username",
-      message: { action: "command", command: cmd },
-    }),
-  );
+  socket.emit('message', {
+    type: "command",
+    user: username,
+    message: { action: "command", command: cmd }
+  });
 }
 
 // Centers the viewport on a given tile and (optionally) highlights it.
@@ -248,7 +246,31 @@ $(document).ready(() => {
   };
 
   const username = $("body").data("username");
-  const socket = io();
+  
+  // Determine if we're running in AWS or locally
+  const isAWS = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+  
+  // Configure Socket.IO client with proper settings
+  const socket = io({
+    transports: ['websocket'],  // Prefer WebSocket only since we're using eventlet
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
+    autoConnect: true,
+    path: '/socket.io',
+    forceNew: false,
+    multiplex: true,
+    withCredentials: true,
+    // In AWS, use the current hostname and protocol
+    // In local development, use localhost
+    host: isAWS ? window.location.hostname : 'localhost',
+    port: isAWS ? window.location.port : '5001',
+    // Add secure option for HTTPS
+    secure: isAWS && window.location.protocol === 'https:'
+  });
+  
   if ($("body").data("waiting-for-reaction")) {
     $("#reaction-modal").modal("show");
   }
@@ -256,6 +278,28 @@ $(document).ready(() => {
   socket.on("connect", () => {
     console.log("Connected to the server");
     socket.emit("register", { username });
+  });
+  
+  socket.on('connect_error', (error) => {
+    console.log('Connection error:', error);
+  });
+
+  socket.on('reconnect_attempt', (attemptNumber) => {
+    console.log('Reconnection attempt:', attemptNumber);
+  });
+
+  socket.on('reconnect', () => {
+    console.log('Reconnected successfully');
+    // Re-register after reconnection
+    socket.emit("register", { username });
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log('Disconnected:', reason);
+  });
+
+  socket.on('error', (error) => {
+    console.error('Socket error:', error);
   });
 
   const refreshTurnOrder = () => {

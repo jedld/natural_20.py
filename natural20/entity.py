@@ -131,10 +131,10 @@ class Entity(EntityStateEvaluator, Notable):
             outgoing_messages = []
             for message in self.conversation_buffer:
                 if message['source'] == self:
-                    if  message['language'] in listener_languages:
+                    if  message.get('language') and message['language'] in listener_languages:
                         outgoing_messages.append(message['message'])
                     else:
-                        outgoing_messages.append(gibberish(message['message'], language=message['language']))
+                        outgoing_messages.append(gibberish(message['message'], language=message.get('language', 'common')))
             return outgoing_messages
         else:
             incoming_messages = []
@@ -143,7 +143,7 @@ class Entity(EntityStateEvaluator, Notable):
                     if message['language'] in listener_languages:
                         incoming_messages.append(message['message'])
                     else:
-                        incoming_messages.append(gibberish(message['message'], language=message['language']))
+                        incoming_messages.append(gibberish(message['message'], language=message.get('language', 'common')))
             return incoming_messages
 
     def receive_conversation(self, source, message, language=None):

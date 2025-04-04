@@ -132,10 +132,11 @@ class JsonRenderer:
                     attributes = shared_attributes.copy()
                     listener_languages = []
 
-                    for _entity in entity_pov:
-                        for language in _entity.languages():
-                            if language not in listener_languages:
-                                listener_languages.append(language)
+                    if entity_pov:
+                        for _entity in entity_pov:
+                            for language in _entity.languages():
+                                if language not in listener_languages:
+                                    listener_languages.append(language)
 
                     attributes.update({
                     'id': entity.entity_uid,

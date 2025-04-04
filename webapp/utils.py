@@ -559,3 +559,30 @@ class GameManagement:
                 self.play_soundtrack(soundtrack['name'])
         self.socketio.emit('message', {'type': 'console', 'message': 'Battle has ended.'})
         self.socketio.emit('message', {'type': 'stop', 'message': {}})
+
+    def execute_command(self, command):
+        """Execute a command string and return the result."""
+        try:
+            # Split the command into parts
+            parts = command.strip().split()
+            if not parts:
+                return "Empty command"
+                
+            cmd = parts[0].lower()
+            args = parts[1:]
+            
+            # Process different commands
+            if cmd == "help":
+                return "Available commands: help, status, list, move, attack, cast, use, give, take, say, whisper, shout"
+            elif cmd == "status":
+                return f"Current map: {self.current_map.name}, Battle in progress: {self.battle is not None}"
+            elif cmd == "list":
+                if len(args) > 0 and args[0] == "entities":
+                    entities = self.current_map.get_entities()
+                    return "\n".join([f"{e.name} ({e.entity_uid})" for e in entities])
+                else:
+                    return "Usage: list entities"
+            else:
+                return f"Unknown command: {cmd}. Type 'help' for available commands."
+        except Exception as e:
+            return f"Error executing command: {str(e)}"
