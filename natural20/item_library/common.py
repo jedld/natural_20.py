@@ -206,7 +206,7 @@ class Ground(Object, Lootable):
                 'battle': opts.get('battle')
             }
 
-    def use(self, entity, result):
+    def use(self, entity, result, session=None):
          if result['action'] == 'pickup_drop':
             self.transfer(result['battle'], result['source'], result['target'], result['items'])
 

@@ -14,13 +14,14 @@ class Container:
 
             source_item = source.deduct_item(item.name, qty)
             target.add_item(item.name, qty, source_item)
-            battle.trigger_event("object_received", target, item_type=item.name)
+            battle.trigger_event("object_received", target, { "item_type" : item.name, "qty" : qty })
 
     def transfer(self, battle, source, target, items):
         # {'from': {'items': ['healing_potion', 'arrows'], 'qty': ['1', '20']}, 'to': {'items': ['dagger', 'arrows', 'thieves_tools', 'healing_potion'], 'qty': ['0', '0', '0', '0']}}
         for direction, (src, dst) in [('from', (target, source)), ('to', (source, target))]:
-            for item, qty in zip(items[direction]['items'], items[direction]['qty']):
+            for item, qty in zip(items[direction].get('items',[]), items[direction].get('qty',[])):
                 qty = int(qty)
+                print(f"transferring {item} -> {dst.label()} {qty} times")
                 if item in src.inventory:
                     if qty==0:
                         continue
@@ -30,8 +31,8 @@ class Container:
 
                     src.deduct_item(item, qty)
                     dst.add_item(item, qty)
-
+                    print(f"triggering {item} -> {dst.label()} {qty} times")
                     src.resolve_trigger(f"{item}_taken", { "target": target })
                     src.resolve_trigger("items_taken", { "target": target })
                     if battle:
-                        battle.trigger_event("object_received", dst, item_type=item)
+                        battle.trigger_event("object_received", dst, { "item_type" :item, "qty" : qty })

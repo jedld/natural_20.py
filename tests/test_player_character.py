@@ -289,6 +289,43 @@ class TestPlayerCharacter(unittest.TestCase):
         self.player = self.load_elf_rogue_lvl2_character()
         self.assertTrue(self.player.class_feature('cunning_action'))
 
+    def test_transfer(self):
+        # Create two player characters
+        self.player1 = self.load_fighter_character()
+        self.player2 = self.load_rogue_character()
+        
+        # Add some items to player1's inventory
+        self.player1.add_item('healing_potion', 2)
+        
+        
+
+        self.player2.add_item('dagger', 1)
+        
+        # Verify initial inventories
+        self.assertEqual(self.player1.item_count('healing_potion'), 3)
+        self.assertEqual(self.player1.item_count('arrows'), 20)
+        self.assertEqual(self.player2.item_count('dagger'), 1)
+        self.assertEqual(self.player2.item_count('thieves_tools'), 1)
+        
+        # Transfer items from player1 to player2
+        transfer_items = {
+            'to': {
+                'items': ['healing_potion', 'arrows'],
+                'qty': ['1', '10']
+            },
+            'from': {
+                'items': [],
+                'qty': []
+            }
+        }
+        self.player1.transfer(self.battle, self.player1, self.player2, transfer_items)
+        # Verify inventories after transfer
+        self.assertEqual(self.player1.item_count('healing_potion'), 2)
+        self.assertEqual(self.player1.item_count('arrows'), 10)
+        self.assertEqual(self.player2.item_count('healing_potion'), 1)
+        self.assertEqual(self.player2.item_count('arrows'), 30)
+
+
     def test_equip(self):
         self.player = self.load_rogue_character()
         self.assertEqual([item['name'] for item in self.player.equipped_items()], ['dagger', 'dagger', 'torch', 'studded_leather'])

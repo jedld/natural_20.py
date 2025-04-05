@@ -969,7 +969,6 @@ def update():
         # Use existing POV
         pov_entities = [pov_entity] if pov_entity else None
 
-
     my_2d_array = [renderer.render(entity_pov=pov_entities)]
     return render_template('map.html', tiles=my_2d_array, tile_size_px=TILE_PX, random=random, is_setup=(request.args.get('is_setup') == 'true'))
 
@@ -1511,7 +1510,7 @@ def get_items():
     entity = battle_map.entity_by_uid(entity_id)
     if entity is None:
         return jsonify(error="Entity not found"), 404
-    action_type = request.args.get('opts[object_action]')
+    action_type = request.args.get('opts[object_action][]')
     target_object = battle_map.entity_by_uid(request.args.get("opts[target]"))
     if action_type == 'give':
         inventory = entity.inventory_items(game_session) or []
