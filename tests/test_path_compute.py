@@ -1,6 +1,4 @@
 import unittest
-from unittest.mock import Mock
-from collections import namedtuple
 from natural20.ai.path_compute import PathCompute
 from natural20.session import Session
 from natural20.player_character import PlayerCharacter
@@ -29,7 +27,6 @@ class TestPathCompute(unittest.TestCase):
         )
         expected_path = [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 4), (6, 4), (7, 5), (6, 6)]
         self.assertEqual(self.path_compute.compute_path(0, 0, 6, 6), expected_path)
-        # print(self.map_renderer.render(path=self.path_compute.compute_path(0, 0, 6, 6), path_char='+'))
         self.assertEqual(
             self.map_renderer.render(path=self.path_compute.compute_path(0, 0, 6, 6), path_char='+'),
             "········\n" +
@@ -41,12 +38,52 @@ class TestPathCompute(unittest.TestCase):
             "······+·\n"
         )
 
-
         # 2nd case
         expected_path2 = [(1, 3), (2, 4), (3, 4), (4, 4), (5, 4), (6, 4), (7, 4)]
         self.assertEqual(self.path_compute.compute_path(1, 3, 7, 4), expected_path2)
 
         print(self.map_renderer.render(path=self.path_compute.compute_path(1, 1, 7, 4), path_char='+'))
+
+    def test_compute_paths_to_multiple_destinations(self):
+        """Test the new method that computes paths to multiple destinations in a single pass."""
+        print(MapRenderer(self.map).render())
+        # Define multiple destinations
+        destinations = [(6, 6), (7, 4), (3, 3)]
+
+        # Compute paths to all destinations in a single pass
+        paths = self.path_compute.compute_paths_to_multiple_destinations(0, 0, destinations)
+
+        # Verify we got paths for all destinations
+        self.assertEqual(len(paths), len(destinations))
+
+        # Verify each path is correct
+        expected_path1 = [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 4), (6, 4), (7, 5), (6, 6)]
+        expected_path2 = [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 4), (6, 4), (7, 4)]
+        expected_path3 = [(0, 0), (1, 1), (2, 2), (3, 3)]
+
+        self.assertEqual(paths[(6, 6)], expected_path1)
+        self.assertEqual(paths[(7, 4)], expected_path2)
+        self.assertEqual(paths[(3, 3)], expected_path3)
+
+        # Test with a destination that's unreachable
+        destinations_with_unreachable = [(6, 6), (4, 5), (3, 3)]  # (4, 5) is unreachable due to being surrounded by walls
+        paths_with_unreachable = self.path_compute.compute_paths_to_multiple_destinations(0, 0, destinations_with_unreachable)
+
+        # Verify we got paths for all destinations, with None for unreachable ones
+        self.assertEqual(len(paths_with_unreachable), len(destinations_with_unreachable))
+        self.assertIsNone(paths_with_unreachable[(4, 5)])
+        self.assertEqual(paths_with_unreachable[(6, 6)], expected_path1)
+        self.assertEqual(paths_with_unreachable[(3, 3)], expected_path3)
+
+        # Test with movement cost limit
+        paths_with_cost_limit = self.path_compute.compute_paths_to_multiple_destinations(
+            0, 0, destinations, available_movement_cost=20
+        )
+
+        # Verify paths are trimmed to respect the movement cost limit
+        self.assertTrue(len(paths_with_cost_limit[(6, 6)]) < len(paths[(6, 6)]))
+        self.assertTrue(len(paths_with_cost_limit[(7, 4)]) < len(paths[(7, 4)]))
+        self.assertEqual(paths_with_cost_limit[(3, 3)], paths[(3, 3)])  # This path should be unchanged as it's short
 
     def test_difficult_terrain(self):
         map = Map(self.session, 'path_finding_test_2')
@@ -65,89 +102,6 @@ class TestPathCompute(unittest.TestCase):
             "········\n"
         )
 
-    # def test_large_creatures(self):
-    #     self.map.size = (8, 7)  # Update size if necessary
-    #     self.npc = Mock()  # Assuming npc is mocked or created
-    #     self.map.place = Mock()
-    #     self.path_compute = PathCompute(self.session, self.map, self.npc)
-    #     self.map_renderer.render().return_value = (
-    #         "#######\n" +
-    #         "O┐····#\n" +
-    #         "└┘····#\n" +
-    #         "####··#\n" +
-    #         "······#\n" +
-    #         "······#\n" +
-    #         "·······\n"
-    #     )
-    #     self.assertEqual(
-    #         self.map_renderer.render(),
-    #         "#######\n" +
-    #         "O┐····#\n" +
-    #         "└┘····#\n" +
-    #         "####··#\n" +
-    #         "······#\n" +
-    #         "······#\n" +
-    #         "·······\n"
-    #     )
-    #     self.npc.melee_squares.return_value = [(0, 0), (0, 3), (1, 0), (1, 3), (2, 0), (2, 1), (2, 2), (2, 3)]
-    #     self.assertEqual(
-    #         sorted(self.npc.melee_squares(self.map, adjacent_only=True)),
-    #         [(0, 0), (0, 3), (1, 0), (1, 3), (2, 0), (2, 1), (2, 2), (2, 3)]
-    #     )
-    #     expected_path = [(0, 1), (1, 1), (2, 1), (3, 2), (4, 3), (3, 4), (2, 4), (1, 4), (0, 4)]
-    #     self.assertEqual(self.path_compute.compute_path(0, 1, 0, 4), expected_path)
-    #     self.map_renderer.render.return_value = (
-    #         "#######\n" +
-    #         "O++···#\n" +
-    #         "└┘·+··#\n" +
-    #         "####+·#\n" +
-    #         "++++··#\n" +
-    #         "······#\n" +
-    #         "·······\n"
-    #     )
-    #     self.assertEqual(
-    #         self.map_renderer.render(path=self.path_compute.compute_path(0, 1, 0, 4), path_char='+'),
-    #         "#######\n" +
-    #         "O++···#\n" +
-    #         "└┘·+··#\n" +
-    #         "####+·#\n" +
-    #         "++++··#\n" +
-    #         "······#\n" +
-    #         "·······\n"
-    #     )
-    #     self.assertEqual(self.path_compute.compute_path(3, 4, 4, 5), [(3, 4), (4, 5)])
-
-    # def test_tight_spaces(self):
-    #     self.map.size = (8, 7)  # Update size if necessary
-    #     self.npc = Mock()  # Assuming npc is mocked or created
-    #     self.map.place = Mock()
-    #     self.path_compute = PathCompute(self.session, self.map, self.npc)
-    #     self.assertEqual(
-    #         self.map_renderer.render(),
-    #         "#######\n" +
-    #         "O┐····#\n" +
-    #         "└┘··#·#\n" +
-    #         "#####·#\n" +
-    #         "····#·#\n" +
-    #         "······#\n" +
-    #         "·······\n"
-    #     )
-    #     expected_path = [(0, 1), (1, 1), (2, 1), (3, 2), (4, 1), (5, 2), (5, 3), (5, 4), (4, 5), (3, 5), (2, 4), (1, 4), (0, 4)]
-    #     self.assertEqual(self.path_compute.compute_path(0, 1, 0, 4), expected_path)
-    #     self.assertEqual(
-    #         self.map_renderer.render(path=self.path_compute.compute_path(0, 1, 0, 4), path_char='+'),
-    #         "#######\n" +
-    #         "O++·+·#\n" +
-    #         "└┘·+#+#\n" +
-    #         "#####+#\n" +
-    #         "+++·#+#\n" +
-    #         "···++·#\n" +
-    #         "·······\n"
-    #     )
-    #     self.assertEqual(self.path_compute.compute_path(3, 4, 4, 5), [(3, 4), (4, 5)])
-    #     path_back = [(0, 4), (1, 4), (2, 4), (3, 5), (4, 5), (5, 4), (5, 3), (5, 2), (4, 1), (3, 1), (2, 1), (1, 1), (0, 1)]
-    #     self.assertEqual(self.path_compute.compute_path(0, 4, 0, 1), path_back)
-
     def test_no_path(self):
         self.map = Map(self.session, 'battle_sim_4')
         self.npc = self.session.npc('ogre')
@@ -165,7 +119,6 @@ class TestPathCompute(unittest.TestCase):
             "#######\n"
         )
         self.assertIsNone(self.path_compute.compute_path(0, 1, 0, 4))
-
 
 if __name__ == '__main__':
     unittest.main()
