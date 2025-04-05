@@ -658,6 +658,8 @@ $(document).ready(() => {
   let globalActionInfo = null,
     globalOpts = null,
     globalSourceEntity = null;
+  // Add debounce timer variable
+  let pathDebounceTimer = null;
 
   $(".tiles-container").on(
     "click",
@@ -820,25 +822,40 @@ $(document).ready(() => {
         if (move_path_cache[cacheKey]) {
           processMovementData(move_path_cache[cacheKey]);
         } else {
-          // Fetch path data from server
-          Utils.ajaxGet(
-            "/path",
-            {
-              from: source,
-              to: { x: coordsx, y: coordsy },
-              accumulatedPath: accumulatedPath.length > 0 ? JSON.stringify(accumulatedPath) : null
-            },
-            (data) => {
-              // Cache the result
-              move_path_cache[cacheKey] = data;
-              processMovementData(data);
-            }
-          );
+          // Clear any existing timer
+          if (pathDebounceTimer) {
+            clearTimeout(pathDebounceTimer);
+          }
+          
+          // Set a new timer to delay the path request
+          pathDebounceTimer = setTimeout(() => {
+            // Fetch path data from server
+            Utils.ajaxGet(
+              "/path",
+              {
+                from: source,
+                to: { x: coordsx, y: coordsy },
+                accumulatedPath: accumulatedPath.length > 0 ? JSON.stringify(accumulatedPath) : null
+              },
+              (data) => {
+                // Cache the result
+                move_path_cache[cacheKey] = data;
+                processMovementData(data);
+              }
+            );
+          }, 200); // 0.2 seconds delay
         }
       }
     }
   });
 
+  // Add mouseout handler to clear the debounce timer
+  $(".tiles-container").on("mouseout", ".tile", function() {
+    if (pathDebounceTimer) {
+      clearTimeout(pathDebounceTimer);
+      pathDebounceTimer = null;
+    }
+  });
 
   // Example: add all entities to initiative.
   $("#add-all-entities").on("click", function (event) {
