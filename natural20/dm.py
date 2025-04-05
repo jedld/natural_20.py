@@ -7,3 +7,6 @@ class DungeonMaster(Entity):
         self.inventory = []
         self.properties = {}
         self.is_admin = True
+
+    def launguages(self):
+        return ['all']

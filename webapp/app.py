@@ -58,6 +58,7 @@ import uuid
 from utils import SocketIOOutputLogger, GameManagement
 from datetime import datetime
 from webapp.llm_conversation_handler import LLMConversationHandler
+import threading
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 
@@ -182,64 +183,70 @@ def user_role():
     login_info = next((login for login in LOGINS if login["name"].lower() == session['username']), None)
     return login_info["role"] if login_info else []
 
+# Add a global lock for game state operations
+game_state_lock = threading.Lock()
+
 def check_and_notify_map_change(pov_map, pov_entity):
     global logger, current_game, username_to_sid
 
-    new_battle_map = current_game.get_map_for_entity(pov_entity)
-    if pov_map is None:
-        return
-    if new_battle_map is None:
-        return
-    logger.info(f"pov_map: {pov_map.name} new_battle_map: {new_battle_map.name}")
+    # Use the lock to make the operation atomic
+    with game_state_lock:
+        new_battle_map = current_game.get_map_for_entity(pov_entity)
+        if pov_map is None:
+            return
+        if new_battle_map is None:
+            return
+        logger.info(f"pov_map: {pov_map.name} new_battle_map: {new_battle_map.name}")
 
-    if new_battle_map != pov_map:
-        current_game.switch_map_for_user(session['username'], new_battle_map.name)
-        sids = username_to_sid.get(session['username'], [])
-        for sid in sids:
-            socketio.emit('message', {'type': 'switch_map', 'message': {'map': new_battle_map.name}}, to=sid)
-
+        if new_battle_map != pov_map:
+            current_game.switch_map_for_user(session['username'], new_battle_map.name)
+            sids = username_to_sid.get(session['username'], [])
+            for sid in sids:
+                socketio.emit('message', {'type': 'switch_map', 'message': {'map': new_battle_map.name}}, to=sid)
 
 def commit_and_update(action):
     global current_game, logger
 
-    battle = current_game.get_current_battle()
+    # Use the lock to make the operation atomic
+    with game_state_lock:
+        battle = current_game.get_current_battle()
 
-    pov_entity = current_game.get_pov_entity_for_user(session['username'])
+        pov_entity = current_game.get_pov_entity_for_user(session['username'])
 
-    if not pov_entity:
-        pov_entities = entities_controlled_by(session['username'])
-        pov_entity = pov_entities[0] if pov_entities else None
+        if not pov_entity:
+            pov_entities = entities_controlled_by(session['username'])
+            pov_entity = pov_entities[0] if pov_entities else None
 
-    pov_map = current_game.get_map_for_entity(pov_entity)
+        pov_map = current_game.get_map_for_entity(pov_entity)
 
-    if battle:
-        battle.action(action)
-        battle.commit(action)
-        if battle.battle_ends():
-            current_game.end_current_battle()
-    else:
-        action_battle_map = current_game.get_map_for_entity(action.source)
-        action.resolve(session, action_battle_map)
+        if battle:
+            battle.action(action)
+            battle.commit(action)
+            if battle.battle_ends():
+                current_game.end_current_battle()
+        else:
+            action_battle_map = current_game.get_map_for_entity(action.source)
+            action.resolve(session, action_battle_map)
 
-        for item in action.result:
-            for klass in Action.__subclasses__():
-                klass.apply(None, item, session=game_session)
+            for item in action.result:
+                for klass in Action.__subclasses__():
+                    klass.apply(None, item, session=game_session)
 
-    # did the map change for the current pov?
-    check_and_notify_map_change(pov_map, pov_entity)
+        # did the map change for the current pov?
+        check_and_notify_map_change(pov_map, pov_entity)
 
-    if battle:
-        socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
-        battle.clear_animation_logs()
-    else:
-        current_game.loop_environment()
-        socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
-    socketio.emit('message', {'type': 'turn', 'message': {}})
+        if battle:
+            socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
+            battle.clear_animation_logs()
+        else:
+            current_game.loop_environment()
+            socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
+        socketio.emit('message', {'type': 'turn', 'message': {}})
 
-    if AUTOSAVE:
-        print("autosave")
-        current_game.save_game()
-    return True
+        if AUTOSAVE:
+            print("autosave")
+            current_game.save_game()
+        return True
 
 def controller_of(entity_uid, username):
     if username == 'dm':
@@ -880,28 +887,32 @@ def start_battle_with_initiative():
 def end_turn():
     global current_game
     battle = current_game.get_current_battle()
-    battle.end_turn()
-    battle.next_turn()
-    try:
-        continue_game()
-        return jsonify(status='ok')
-    except AsyncReactionHandler as e:
-        for _, entity, valid_actions in e.resolve():
-            valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
-            current_game.waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
-        socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
-        return jsonify(status='ok')
+    # Use the lock to make the operation atomic
+    with game_state_lock:
+        battle.end_turn()
+        battle.next_turn()
+        try:
+            continue_game()
+            return jsonify(status='ok')
+        except AsyncReactionHandler as e:
+            for _, entity, valid_actions in e.resolve():
+                valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
+                current_game.waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
+            socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
+            return jsonify(status='ok')
 
 
 def continue_game():
-    battle = current_game.get_current_battle()
-    current_game.game_loop()
+    # Use the lock to make the operation atomic
+    with game_state_lock:
+        battle = current_game.get_current_battle()
+        current_game.game_loop()
 
-    current_turn = battle.current_turn()
-    socketio.emit('message', { 'type': 'initiative', 'message': { 'index': battle.current_turn_index} })
-    socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 'animation_log' : battle.get_animation_logs() }})
-    battle.clear_animation_logs()
-    socketio.emit('message', { 'type': 'turn', 'message': {}})
+        current_turn = battle.current_turn()
+        socketio.emit('message', { 'type': 'initiative', 'message': { 'index': battle.current_turn_index} })
+        socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 'animation_log' : battle.get_animation_logs() }})
+        battle.clear_animation_logs()
+        socketio.emit('message', { 'type': 'turn', 'message': {}})
 
 @app.route('/turn_order', methods=['GET'])
 def get_turn_order():
@@ -914,21 +925,23 @@ def next_turn():
     global current_game
     battle = current_game.get_current_battle()
     if battle:
-        current_turn = battle.current_turn()
-        if current_game.waiting_for_user_input():
-            current_game.set_waiting_for_user_input(False)
-            current_turn.resolve_trigger('end_of_turn')
-            battle.end_turn()
-            battle.next_turn()
-            if battle.battle_ends():
-                current_game.end_current_battle()
+        # Use the lock to make the operation atomic
+        with game_state_lock:
+            current_turn = battle.current_turn()
+            if current_game.waiting_for_user_input():
+                current_game.set_waiting_for_user_input(False)
+                current_turn.resolve_trigger('end_of_turn')
+                battle.end_turn()
+                battle.next_turn()
+                if battle.battle_ends():
+                    current_game.end_current_battle()
 
-        current_game.game_loop()
-        socketio.emit('message', { 'type': 'initiative','message': {'index': battle.current_turn_index}})
-        socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid,
-                                                               'animation_log' : battle.get_animation_logs() }})
-        socketio.emit('message', { 'type': 'turn', 'message': {}})
-        battle.clear_animation_logs()
+            current_game.game_loop()
+            socketio.emit('message', { 'type': 'initiative','message': {'index': battle.current_turn_index}})
+            socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid,
+                                                                'animation_log' : battle.get_animation_logs() }})
+            socketio.emit('message', { 'type': 'turn', 'message': {}})
+            battle.clear_animation_logs()
 
     # with open('save.yml','w+') as f:
     #     f.write(yaml.dump(battle_map.to_dict()))
@@ -1199,11 +1212,13 @@ def handle_reaction():
                 break
     current_game.clear_reaction_input()
     try:
-        battle.action(handler.action)
-        battle.commit(handler.action)
-        socketio.emit('message', {'type': 'dismiss_reaction', 'message': {}})
-        current_game.ai_loop()
-        continue_game()
+        # Use the lock to make the operation atomic
+        with game_state_lock:
+            battle.action(handler.action)
+            battle.commit(handler.action)
+            socketio.emit('message', {'type': 'dismiss_reaction', 'message': {}})
+            current_game.ai_loop()
+            continue_game()
     except AsyncReactionHandler as e:
         for battle, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
