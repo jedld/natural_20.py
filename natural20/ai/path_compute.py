@@ -92,6 +92,104 @@ class PathCompute:
         
         return path
 
+    def compute_paths_to_multiple_destinations(self, source_x, source_y, destinations, available_movement_cost=None, accumulated_path=None):
+        """
+        Compute paths to multiple destinations in a single pass using a modified A* algorithm.
+
+        Args:
+            source_x, source_y: Starting coordinates
+            destinations: List of (x, y) tuples representing target coordinates
+            available_movement_cost: Optional movement cost budget in feet
+            accumulated_path: Optional list of (x,y) coordinates representing previous path segments
+
+        Returns:
+            A dictionary mapping each destination to its path: {(dest_x, dest_y): path, ...}
+            If a destination is unreachable, its path will be None.
+            If available_movement_cost is given, paths are trimmed to not exceed the cost in feet.
+        """
+        # Initialize arrays
+        distances = [[MAX_DISTANCE] * self.max_y for _ in range(self.max_x)]  # g-cost
+        parents   = [[None]         * self.max_y for _ in range(self.max_x)]  # store parents to reconstruct path
+
+        # Track which destinations we've found paths for
+        destinations_set = set(destinations)
+        found_destinations = set()
+
+        # Priority queue items: (f_cost, g_cost, (x, y))
+        pq = []
+
+        # Calculate initial cost from accumulated path if provided
+        initial_cost = 0
+        if accumulated_path:
+            for i in range(0, len(accumulated_path) - 1):
+                x1, y1 = accumulated_path[i]
+                initial_cost += self.base_move_cost(x1, y1) * self.map.feet_per_grid
+
+        if available_movement_cost is not None:
+            available_movement_cost -= initial_cost
+
+        # Initialize start node
+        distances[source_x][source_y] = 0
+
+        # For multiple destinations, we need a heuristic that considers all destinations
+        # We'll use the minimum heuristic to any destination
+        min_heuristic = min(self.heuristic(source_x, source_y, dx, dy) for dx, dy in destinations)
+        heapq.heappush(pq, (min_heuristic, 0, (source_x, source_y)))
+
+        # A* main loop
+        while pq and len(found_destinations) < len(destinations):
+            current_f, current_g, (cx, cy) = heapq.heappop(pq)
+
+            # If this is stale data (we already found a better route), skip
+            if current_g > distances[cx][cy]:
+                continue
+
+            # Check if we've reached a destination
+            if (cx, cy) in destinations_set and (cx, cy) not in found_destinations:
+                found_destinations.add((cx, cy))
+
+            # Explore neighbors
+            for (nx, ny), move_cost in self.get_neighbors(cx, cy):
+                new_g = current_g + move_cost
+                if new_g < distances[nx][ny]:
+                    distances[nx][ny] = new_g
+                    parents[nx][ny] = (cx, cy)
+
+                    # For multiple destinations, use the minimum heuristic to any remaining destination
+                    remaining_destinations = destinations_set - found_destinations
+                    if remaining_destinations:
+                        min_h = min(self.heuristic(nx, ny, dx, dy) for dx, dy in remaining_destinations)
+                        f = new_g + min_h
+                        heapq.heappush(pq, (f, new_g, (nx, ny)))
+                    else:
+                        # If all destinations have been found, we can stop
+                        break
+
+        # Reconstruct paths for all destinations
+        result = {}
+        for dest_x, dest_y in destinations:
+            # If destination is unreachable
+            if distances[dest_x][dest_y] == MAX_DISTANCE:
+                result[(dest_x, dest_y)] = None
+                continue
+
+            # Reconstruct path
+            path = []
+            node = (dest_x, dest_y)
+            while node is not None:
+                path.append(node)
+                node = parents[node[0]][node[1]]
+
+            path.reverse()  # get source -> destination
+
+            # If we have a movement budget, trim
+            if available_movement_cost is not None:
+                path = self.trim_path_by_movement(path, distances, available_movement_cost)
+
+            result[(dest_x, dest_y)] = path
+
+        return result
+
     def get_neighbors(self, x, y):
         """
         Return a list of tuples: [((nx, ny), move_cost), ...].
