@@ -232,21 +232,21 @@ def commit_and_update(action):
                 for klass in Action.__subclasses__():
                     klass.apply(None, item, session=game_session)
 
-        # did the map change for the current pov?
-        check_and_notify_map_change(pov_map, pov_entity)
+    # did the map change for the current pov?
+    check_and_notify_map_change(pov_map, pov_entity)
 
-        if battle:
-            socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
-            battle.clear_animation_logs()
-        else:
-            current_game.loop_environment()
-            socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
-        socketio.emit('message', {'type': 'turn', 'message': {}})
+    if battle:
+        socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
+        battle.clear_animation_logs()
+    else:
+        current_game.loop_environment()
+        socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
+    socketio.emit('message', {'type': 'turn', 'message': {}})
 
-        if AUTOSAVE:
-            print("autosave")
-            current_game.save_game()
-        return True
+    if AUTOSAVE:
+        print("autosave")
+        current_game.save_game()
+    return True
 
 def controller_of(entity_uid, username):
     if username == 'dm':
