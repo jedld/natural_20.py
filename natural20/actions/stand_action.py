@@ -25,6 +25,8 @@ class StandAction(Action):
         return action.build_map()
 
     def resolve(self, session, map_, opts=None):
+        if not opts:
+            opts = {}
         self.result = [{
             "source": self.source,
             "type": "stand",
@@ -35,9 +37,12 @@ class StandAction(Action):
     @staticmethod
     def apply(battle, item, session=None):
         if item["type"] == "stand":
-            battle.event_manager.received_event({'event': 'stand', 'source': item['source']})
-            item["source"].stand()
-            battle.consume(item["source"], "movement", (item["source"].speed() // 2))
+            if battle:
+                battle.event_manager.received_event({'event': 'stand', 'source': item['source']})
+                item["source"].stand()
+                battle.consume(item["source"], "movement", (item["source"].speed() // 2))
+            else:
+                item["source"].stand()
 
     @staticmethod
     def required_movement(entity: Entity):

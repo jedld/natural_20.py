@@ -235,7 +235,7 @@ class EventManager:
 
         def death_save(event):
             if event['roll'].nat_20():
-                self.output_logger.log(f"{self.show_name(event)} makes a death saving throw and succeeds with a critical success: {event['roll']} = {event['roll'].result()}. {event['source'].label()} is now at {event['source'].hit_points} hit points."),
+                self.output_logger.log(f"{self.show_name(event)} makes a death saving throw and succeeds with a critical success: {event['roll']} = {event['roll'].result()}. {event['source'].label()} is now at {event['source'].hit_points()} hit points."),
             else:
                 self.output_logger.log(f"{self.show_name(event)} makes a death saving throw and succeeds: {event['roll']} = {event['roll'].result()}"),
 

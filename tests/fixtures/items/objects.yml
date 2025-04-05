@@ -650,7 +650,7 @@ proximity_trigger:
 animated_spawner:
   color: yellow
   passable: true
-  placeable: false
+  placeable: true
   opaque: false
   item_class: ProximityTrigger
   token:

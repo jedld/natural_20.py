@@ -405,6 +405,12 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
     if not self.dead():
       return False
     return True
+  
+  def use(self, entity, result, session=None):
+    if result['action'] == 'give':
+      self.transfer(result['battle'], result['target'], result['source'], result['items'])
+    else:
+      raise NotImplementedError(f"unknown action {result['action']}")
 
   def prepared_spells(self):
     return self.properties.get('cantrips', []) + self.properties.get('prepared_spells', [])

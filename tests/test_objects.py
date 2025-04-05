@@ -62,3 +62,20 @@ class TestObjects(unittest.TestCase):
         self.battle.commit(action)
         print(MapRenderer(self.map).render(self.battle))
         self.assertEqual(self.entity.hp(), 66)
+
+    def test_proximity_spawner(self):
+        self.map = Map(self.session, 'battle_sim')
+        self.battle = Battle(self.session, self.map)
+        self.entity = PlayerCharacter.load(self.session, "high_elf_fighter.yml")
+        self.battle.add(self.entity, 'a', position=[3, 6], token='G')
+        self.assertIsNotNone(self.map.entity_at(3, 6))
+        self.entity.reset_turn(self.battle)
+        print(MapRenderer(self.map).render(self.battle))
+        action = autobuild(self.session, MoveAction, self.entity, self.battle, match=[[4, 6]], verbose=True)[0]
+        self.battle.action(action)
+        self.battle.commit(action)
+        print(MapRenderer(self.map).render(self.battle))
+        self.assertEqual(self.entity.hp(), 67)
+        spawned_entity = self.map.entity_at(5, 6)
+        self.assertIsNotNone(spawned_entity)
+        self.assertEqual(spawned_entity.name, 'Krizzit')

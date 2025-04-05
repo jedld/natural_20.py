@@ -29,9 +29,6 @@ class Lootable(Container):
                 'next': next_action
             }
 
-    def use(self, entity, result, session=None):
-        return super().use(entity, result, session)
-
     def resolve(self, entity, action, other_params, opts=None):
             if opts is None:
                 opts = {}

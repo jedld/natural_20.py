@@ -42,7 +42,7 @@ class GenericEventHandler:
                     target_map = self.session.map_for_entity(entity)
 
                 if target_map is None:
-                    print(f"Could not find map")
+                    print("Could not find map")
                     return
 
                 if source_map_name:

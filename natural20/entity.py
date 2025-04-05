@@ -769,6 +769,15 @@ class Entity(EntityStateEvaluator, Notable):
 
         return hand_slots
     
+    def make_prone(self):
+        self.do_prone()
+
+    def make_standing(self):
+        self.stand()
+
+    def use(self, entity, result, session=None):
+        raise NotImplementedError("Entity.use must be implemented by subclasses")
+    
     def vulnerable_to(self, damage_type):
         return damage_type in self.damage_vulnerabilities
 
