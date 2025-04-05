@@ -72,7 +72,7 @@ class TestNpc(unittest.TestCase):
             "······\n"
             "·##oo·\n"
             "·····Î\n"
-            "······\n"
+            "·····A\n"
         ), map_render.render()
 
         npc.take_damage(100, battle=battle)
