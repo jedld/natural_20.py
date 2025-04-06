@@ -156,7 +156,9 @@ tree:
 water:
   color: blue
   movement_cost: 2
+  movement_cost_swim: 1
   name: Water
+  swimmable: true
   passable: true
   token:
     - ^

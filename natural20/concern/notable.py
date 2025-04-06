@@ -22,7 +22,7 @@ class Notable:
             # Handle skill-based notes (investigation, medicine)
             # Check if any required skill checks fail
             skill_check_failed = False
-            for skill in ['investigation', 'medicine']:
+            for skill in ['investigation', 'medicine', 'nature']:
                 dc_key = f"{skill}_dc"
                 if dc_key in note:
                     dc_value = note.get(dc_key, 0)

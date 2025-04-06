@@ -26,12 +26,13 @@ from natural20.actions.shove_action import ShoveAction
 from natural20.utils.multiattack import Multiattack
 from natural20.utils.npc_random_name_generator import generate_goblinoid_name, generate_ogre_name
 from natural20.concern.lootable import Lootable
+from natural20.concern.event_loader import EventLoader
 import pdb
 
 
 import copy
 
-class Npc(Entity, Multiattack, Lootable):
+class Npc(Entity, Multiattack, Lootable, EventLoader):
     ACTION_LIST = [
         AttackAction, DashAction, DashBonusAction, DisengageAction,
         DisengageBonusAction, HideAction, HideBonusAction,
@@ -59,6 +60,7 @@ class Npc(Entity, Multiattack, Lootable):
         self.npc_type = type
         self.group = opt.get("group", "b")
         self.inventory = {}
+        self.battle_music = self.properties.get("battle_music", None)
 
         default_inventory = self.properties.get("default_inventory", [])
         for inventory in default_inventory:
@@ -81,6 +83,7 @@ class Npc(Entity, Multiattack, Lootable):
         self.dialogue = self.properties.get("dialogue", [])
         self.condition_immunities = self.properties.get("condition_immunities", [])
         self.damage_vulnerabilities = self.properties.get("damage_vulnerabilities", [])
+        self.damage_immunities = self.properties.get("damage_immunities", [])
         if self.properties.get("speed_fly"):
             self.flying = True
 
@@ -104,6 +107,12 @@ class Npc(Entity, Multiattack, Lootable):
 
         self.entity_uid = self.properties.get('entity_uid', opt.get('entity_uid', str(uuid.uuid4())))
         self.setup_attributes()
+
+        if self.properties.get('buttons'):
+            for button in self.properties['buttons']:
+                self.buttons[button['action']] = button
+
+        self.events = self.register_event_handlers(session, map, self.properties)
 
     @staticmethod
     def load(session, path, override=None):
@@ -266,9 +275,6 @@ class Npc(Entity, Multiattack, Lootable):
     def any_class_feature(self, features):
         return any(self.class_feature(f) for f in features)
 
-    def available_interactions(self, entity, battle, admin=False):
-        return {}
-
     def proficient_with_equipped_armor(self):
         return True
 
@@ -374,6 +380,12 @@ class Npc(Entity, Multiattack, Lootable):
         base_dict["group"] = self.group
         return base_dict
     
+    def interactable(self):
+        if 'ability_check' in self.properties:
+            if len(self.properties['ability_check'].items()) > 0:
+                return True
+        return False
+
     def from_dict(data):
         npc = Npc(data["session"], data["npc_type"], data)
         npc.properties = data["properties"]

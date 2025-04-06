@@ -64,13 +64,13 @@ class BlessSpell(Spell):
             item['source'].add_casted_effect({
                 'target': item['target'],
                 'effect': item['effect'],
-                'expiration': session.game_time + 10
+                'expiration': session.game_time + 60
             })
 
             if not item['source'].current_concentration()==item['effect']:
                 item['source'].concentration_on(item['effect'])
 
-            item['target'].register_effect('bless', BlessSpell, effect=item['effect'], source=item['source'], duration=10)
+            item['target'].register_effect('bless', BlessSpell, effect=item['effect'], source=item['source'], duration=60)
             session.event_manager.received_event({ "event" : 'spell_buf',
                                                   "spell" : item['effect'],
                                                   "source": item['source'],

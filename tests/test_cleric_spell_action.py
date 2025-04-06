@@ -120,6 +120,31 @@ class TestClericSpellAction(unittest.TestCase):
         result = self.entity2.save_throw("wisdom", self.battle)
         self.assertEqual(str(result), "d20(19) + 1")
 
+    def test_bless_multiple_targets(self):
+        random.seed(7003)
+        self.entity2 = PlayerCharacter.load(self.session, "high_elf_fighter.yml")
+        self.battle.add(self.entity2, "a", position=[0, 6], token="E")
+        self.battle.start()
+        self.entity2.reset_turn(self.battle)
+
+        self.entity3 = PlayerCharacter.load(self.session, "high_elf_fighter.yml")
+        self.battle.add(self.entity3, "b", position=[0, 7], token="E")
+        self.battle.start()
+        self.entity3.reset_turn(self.battle)
+
+        bless_action = SpellAction.build(self.session, self.entity)["next"](
+            ["bless", 0]
+        )["next"]([self.entity2, self.entity3])
+        bless_action.resolve(self.session, self.battle_map, {"battle": self.battle})
+        self.assertEqual([s["type"] for s in bless_action.result], ["bless", "bless"])
+        self.battle.commit(bless_action)
+
+        self.assertTrue(self.entity2.has_effect("bless"))
+        self.assertTrue(self.entity3.has_effect("bless"))
+        self.entity3.make_dead()
+        self.assertTrue(self.entity2.has_effect("bless"))
+        self.assertTrue(self.entity.has_casted_effect('bless'))
+
     def test_protection_from_poison(self):
         random.seed(7003)
         self.entity2 = PlayerCharacter.load(self.session, "high_elf_fighter.yml")

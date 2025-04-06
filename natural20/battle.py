@@ -317,7 +317,7 @@ class Battle():
                 return 'tpk'
             if result:
                 return result
-            
+
     def entity_by_uid(self, entity_uid):
         for map in self.maps:
             entity = map.entity_by_uid(entity_uid)

@@ -324,7 +324,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
         elif action_type == InteractAction:
           if map:
             for objects in map.objects_near(self, battle):
-              for interaction, details in objects.available_interactions(self).items():
+              for interaction, details in objects.available_interactions(self, battle).items():
                 action = InteractAction(session, self, 'interact', { "target": objects,
                                                                               "object_action": [interaction, details] })
                 if details.get('disabled'):
@@ -392,9 +392,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
     return final_attack_list
 
   def after_death(self):
-      entity_map = self.session.map_for(self)
-      if entity_map:
-        entity_map.remove(self, move_to_object_layer=True)
+      pass
 
   def token_image_transform(self):
       if self.dead():

@@ -63,12 +63,16 @@ class Entity(EntityStateEvaluator, Notable):
         self.dialogue = []
         self.condition_immunities = []
         self.damage_vulnerabilities = []
+        self.damage_resistances = []
+        self.damage_immunities = []
         self.pocket_dimension = []
         self.equipped_effects = {}
         self.help_actions = {}
         self.conversation_buffer = []
         self.memory_buffer = []
+        self.battle_music = None
         self.helping_with = set()
+        self.check_results = {}
         self.owner = None
         self.conversation_controller = None
         # Attach methods dynamically
@@ -76,6 +80,7 @@ class Entity(EntityStateEvaluator, Notable):
             for skill in skills:
                 setattr(self, f"{skill}_mod", self.make_skill_mod_function(skill, ability))
                 setattr(self, f"{skill}_check", self.make_skill_check_function(skill))
+
 
     def immune_to_condition(self, condition):
         return condition in self.condition_immunities
@@ -426,6 +431,8 @@ class Entity(EntityStateEvaluator, Notable):
 
 
     def register_effect(self, effect_type, handler, method_name=None, effect=None, source=None, duration=None):
+        if effect and isinstance(effect, dict):
+            raise Exception(f"Effect {effect} is a dict")
         if effect_type not in self.effects:
             self.effects[effect_type] = []
         effect_descriptor = {
@@ -670,6 +677,14 @@ class Entity(EntityStateEvaluator, Notable):
 
     def resistant_to(self, damage_type):
         return damage_type in self.effective_resistances()
+    
+    def immune_to(self, damage_type):
+        return damage_type in self.effective_immunities()
+
+    def effective_immunities(self):
+        if self.has_effect('immunity_override'):
+            return self.eval_effect('immunity_override', { "stacked": True, "value" : self.damage_immunities})
+        return self.damage_immunities
 
     def effective_resistances(self):
         if self.has_effect('resistance_override'):
@@ -877,13 +892,20 @@ class Entity(EntityStateEvaluator, Notable):
             if low <= value <= high:
                 return mod
         return None
+    
+    def drop_concentration(self):
+        if self.concentration:
+            self.session.event_manager.received_event({
+                    'source': self, 'event': 'concentration_end',
+                    'effect': self.concentration})
+            self.concentration = None
 
     def dismiss_effect(self, effect, opts={}):
         if opts is None:
             opts = {}
 
         if self.concentration == effect:
-            self.concentration = None
+            self.drop_concentration()
 
         dismiss_count = 0
         if hasattr(effect, 'action') and effect.action and \
@@ -929,7 +951,7 @@ class Entity(EntityStateEvaluator, Notable):
 
             new_effects[key] = [f for f in value if f['effect'].id not in removed_effects]
         self.effects = new_effects
-        
+
         new_entity_event_hooks = {}
         for key, value in self.entity_event_hooks.items():
             delete_hooks = [f for f in value if f['effect'] == effect]
@@ -940,12 +962,17 @@ class Entity(EntityStateEvaluator, Notable):
         # call the dismiss hooks
         for f in removed_effects.values():
             if f['effect'] and hasattr(f['effect'], 'dismiss'):
-                getattr(f['effect'], 'dismiss')(self, f, opts)
+                f['effect'].dismiss(self, f, opts)
+        if hasattr(effect, 'dismiss'):
+            effect.dismiss(self, opts)
         return dismiss_count
-    
+
     def wearing_armor(self):
         return any(item['type'] in ['armor', 'shield'] for item in self.equipped_items())
-    
+
+    def has_multiattack(self):
+        return self.properties.get('multiattack', None) is not None
+
     def reset_turn(self, battle):
         entity_state = battle.entity_state_for(self)
         if not entity_state:
@@ -984,7 +1011,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.resolve_trigger('start_of_turn')
         self._cleanup_effects()
 
-        if not self.class_feature("multiattack"):
+        if not self.has_multiattack():
             return entity_state
 
         multiattack_groups = {}
@@ -994,9 +1021,14 @@ class Entity(EntityStateEvaluator, Notable):
                 multiattack_groups.setdefault(group, []).append(a["name"])
 
         entity_state["multiattack"] = multiattack_groups
+        entity_state["multiattack_hits"] = {}
+        for a in self.properties["actions"]:
+            if a.get("multiattack_group"):
+                group = a["multiattack_group"]
+                entity_state["multiattack_hits"][group] = {}
 
         return entity_state
-    
+
     def _reset_spiritual_weapon(self, battle):
         if self.has_casted_effect('spiritual_weapon'):
           weapon_effect = None
@@ -1011,6 +1043,12 @@ class Entity(EntityStateEvaluator, Notable):
 
           if weapon_effect.get('expiration') and weapon_effect['expiration'] > self.session.game_time:
             spiritual_weapon.reset_turn(battle)
+
+    def restrained(self):
+        c_restrained = self.eval_effect('restrained_override', { "stacked": True, "value" : False})
+        if c_restrained:
+            return c_restrained
+        return 'restrained' in self.statuses
 
     def resolve_trigger(self, event_type, opts=None):
         results = []
@@ -1132,7 +1170,9 @@ class Entity(EntityStateEvaluator, Notable):
 
         return c_speed
     
-
+    def swim_speed(self):
+        return self.properties.get('speed_swim', 0)
+    
     def stable(self):
         return 'stable' in self.statuses
     
@@ -1532,7 +1572,7 @@ class Entity(EntityStateEvaluator, Notable):
     def multiattack(self, battle, npc_action):
         if not npc_action:
             return False
-        if not self.class_feature("multiattack"):
+        if not self.has_multiattack():
             return False
 
         entity_state = battle.entity_state_for(self)
@@ -1623,9 +1663,19 @@ class Entity(EntityStateEvaluator, Notable):
             else:
                 session = self.session
 
-        # disable passiveness
-        if self.passive():
-            self.is_passive = False
+        if self.class_feature("lightning_absorption") and damage_type == 'lightning':
+            self.session.event_manager.received_event({
+                'source': self, 'event': 'damage_absorption',
+                'damage': dmg,
+                'damage_type': damage_type})
+            self.heal(dmg)
+            return
+
+        if self.immune_to(damage_type):
+            self.session.event_manager.received_event({
+                'source': self, 'event': 'damage_immunity',
+                'damage_type': damage_type})
+            return
 
         if self.resistant_to(damage_type):
             total_damage = int(dmg // 2)
@@ -1998,7 +2048,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.statuses.clear()
         self.casted_effects.clear()
         self.grapples.clear()
-        self.concentration = None
+        self.drop_concentration()
         self._temp_hp = 0
         self.resolve_trigger('long_rest')
 
