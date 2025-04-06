@@ -23,7 +23,7 @@ def acquire_targets(param, entity, battle, map=None):
         return {
             t
             for t in targets
-            if map.can_see(entity, t) and map.distance(entity, t) <= spell_range
+            if map.can_see(entity, t) and t.allow_targeting() and map.distance(entity, t) <= spell_range
         }
 
     target_types = param.get("target_types", ['enemies'])

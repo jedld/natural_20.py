@@ -43,8 +43,14 @@ class SpiritualWeapon(Entity):
         self.entity_uid = str(uuid.uuid4())
         self.flying = True
 
+    def allow_targeting(self):
+        return False
+
     def size(self):
         return 'medium'
+    
+    def health_percent(self):
+        return 1.0
 
     def label(self):
         return self.properties['name']

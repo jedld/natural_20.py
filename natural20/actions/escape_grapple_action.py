@@ -11,18 +11,19 @@ class EscapeGrappleAction(Action):
         return entity.grappled() and (battle is None or entity.total_actions(battle) > 0)
 
     def build_map(self):
-        def set_target(target):
-            self.target = target
+        def set_target(target_uid):
+            self.target = self.session.entity_by_uid(target_uid)
             return self
 
+        choices = [[e.name, e.entity_uid] for e in self.source.grapples()]
         return {
             "action": self,
             "param": [
                 {
-                    'type': 'select_target',
+                    'type': 'select_choice',
                     'range': 5,
-                    'target_types': ['custom'],
-                    'num': None
+                    'num': 1,
+                    'choices': choices
                 }
             ],
             "next": set_target

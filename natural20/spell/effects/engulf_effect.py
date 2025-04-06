@@ -39,6 +39,14 @@ class EngulfEffect:
         heart.link_hp(self.engulfing_entity)
         self.engulf_map.add(heart, 1, 0)
         self.entity.do_grappled_by(self.engulfing_entity)
+        self.engulfing_entity.add_casted_effect({
+            'target': entity,
+            'effect': self
+        })
+        entity.register_effect('engulf', self, effect=self)
+        entity.register_event_hook('start_of_turn', self)
+        entity.register_event_hook('escape_grapple_from', self)
+
 
     def dismiss(self, opt=None):
         target_map = self.session.map_for(self.engulfing_entity)

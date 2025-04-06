@@ -1665,6 +1665,12 @@ class Entity(EntityStateEvaluator, Notable):
             spell_list[spell]['disabled'] = disable_reason
 
         return spell_list
+    
+    def allow_targeting(self):
+        return not self.properties.get('spiritual', False)
+    
+    def allow_talk(self):
+        return len(self.languages()) > 0
 
     def equipped_npc_weapons(self, session=None):
         return [item['name'] for item in self.equipped_items() if item["subtype"] == 'weapon']

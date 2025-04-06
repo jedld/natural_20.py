@@ -1106,7 +1106,7 @@ def get_target():
         action.target = target_entity
 
         adv_mod, adv_info, attack_mod = action.compute_advantage_info(battle)
-        valid_target = True
+        valid_target = target_entity.allow_targeting()
         if battle:
             valid_targets = battle.valid_targets_for(entity, action)
             valid_target = target_entity in valid_targets
@@ -1135,7 +1135,7 @@ def get_target():
 
         if isinstance(action, AttackSpell):
             adv_mod, adv_info, attack_mod = action.compute_advantage_info(battle)
-            valid_target = True
+            valid_target = target.allow_targeting()
 
             if battle:
                 valid_targets = battle.valid_targets_for(entity, action)
@@ -1215,9 +1215,9 @@ def handle_reaction():
         with game_state_lock:
             battle.action(handler.action)
             battle.commit(handler.action)
-            socketio.emit('message', {'type': 'dismiss_reaction', 'message': {}})
-            current_game.ai_loop()
-            continue_game()
+        socketio.emit('message', {'type': 'dismiss_reaction', 'message': {}})
+        current_game.ai_loop()
+        continue_game()
     except AsyncReactionHandler as e:
         for battle, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]

@@ -1,0 +1,85 @@
+---
+kind: Shamblingmound
+description: A shambling mound, sometimes called a shambler, trudges ponderously through bleak swamps, dismal marshes, and rain forests, consuming any organic matter in its path. This rotting heap of animated vegetation looms up half again as tall as a human, tapering into a faceless “head” at its top.
+size: large
+race:
+- large_plant
+alignment: unaligned
+default_ac: 15
+max_hp: 136
+hp_die: 6d10 + 48
+speed: 20
+speed_swim: 20
+passive_perception: 9
+blindsight: 60
+token:
+  - O┐
+  - └┘
+color: green
+ability:
+  str: 18
+  dex: 8
+  con: 16
+  int: 5
+  wis: 10
+  cha: 5
+cr: 4
+xp: 250
+proficiency_bonus: 2
+resistances:
+  - cold
+  - fire
+immunities:
+  - lightning
+condition_immunities:
+  - exhaustion
+  - blinded
+  - deafened
+  - grappled
+  - prone
+attributes:
+- lightning_absorption
+multiattack:
+  - slam,slam2,engulf
+actions:
+  - name: slam
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 7
+    damage: 13
+    damage_die: 1d8+4
+    damage_type: bludgeoning
+    multiattack_group: 1
+  - name: slam2
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 7
+    damage: 13
+    damage_die: 1d8+4
+    damage_type: bludgeoning
+    multiattack_group: 1
+  - name: engulf
+    type: melee_attack
+    range: 5
+    targets: 1
+    force_hit: true
+    multiattack_group: 1
+    multiattack_dependent_on_hit:
+    - slam
+    - slam2
+    on_hit:
+      - description: The shambling mound engulfs a Medium or smaller creature grappled by it. The engulfed target is blinded, restrained, and unable to breathe, and it must succeed on a DC 14 Constitution saving throw at the start of each of the mound’s turns or take 13 (2d8 + 4) bludgeoning damage. If the mound moves, the engulfed target moves with it. The mound can have only one creature engulfed at a time.
+        if: target:medium_creature|target:small_creature
+        flavor_fail: shambling_mound.engulf
+        fail: effect:engulf
+  - name: bone_splinter
+    type: ranged_attack
+    range: 20
+    range_max: 60
+    targets: 1
+    attack: 5
+    damage: 5
+    damage_die: 1d4+3
+    damage_type: piercing
