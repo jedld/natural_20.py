@@ -512,6 +512,8 @@ class Map():
             if self.tokens[r_x][r_y] and not self.tokens[r_x][r_y]['entity'].dead():
                 return True
             if self.object_at(r_x, r_y) and self.object_at(r_x, r_y).movement_cost() > 1:
+                if entity.swim_speed() > 0 and self.object_at(r_x, r_y).swimmable() and self.object_at(r_x, r_y).swim_movement_cost() <= 1:
+                    return False
                 return True
 
         return False

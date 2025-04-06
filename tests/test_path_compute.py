@@ -65,6 +65,10 @@ class TestPathCompute(unittest.TestCase):
         self.assertEqual(paths[(7, 4)], expected_path2)
         self.assertEqual(paths[(3, 3)], expected_path3)
 
+        print(MapRenderer(self.map).render(path=paths[(6, 6)], path_char='+'))
+        print(MapRenderer(self.map).render(path=paths[(7, 4)], path_char='+'))
+        print(MapRenderer(self.map).render(path=paths[(3, 3)], path_char='+'))
+
         # Test with a destination that's unreachable
         destinations_with_unreachable = [(6, 6), (4, 5), (3, 3)]  # (4, 5) is unreachable due to being surrounded by walls
         paths_with_unreachable = self.path_compute.compute_paths_to_multiple_destinations(0, 0, destinations_with_unreachable)

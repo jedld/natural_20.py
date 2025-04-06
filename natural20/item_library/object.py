@@ -37,7 +37,6 @@ class Object(Entity, Container, EventLoader):
         self.concentration = None
         self.effects = {}
         self.inventory = None
-        self.check_results = {}
         self._temp_hp = 0
         self.interact_distance = properties.get('interact_distance', 5)
         # fake attributes for dungeons and dragons objects
@@ -149,6 +148,15 @@ class Object(Entity, Container, EventLoader):
             if len(self.properties['ability_check'].items()) > 0:
                 return True
         return False
+    
+    def swimmable(self) -> bool:
+        return self.properties.get('swimmable', False)
+    
+
+    def swim_movement_cost(self) -> int:
+        if not self.swimmable():
+            return self.movement_cost()
+        return self.properties.get('movement_cost_swim', self.properties.get('movement_cost', 1))
 
     def max_hp(self) -> int:
         return self.hp
@@ -158,6 +166,9 @@ class Object(Entity, Container, EventLoader):
 
     def movement_cost(self) -> int:
         return self.properties.get('movement_cost', 1)
+    
+    def swim_movement_cost(self) -> int:
+        return self.properties.get('movement_cost_swim', self.properties.get('movement_cost', 1))
 
     def token(self) -> Optional[str]:
         return self.properties.get('token')

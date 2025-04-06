@@ -110,7 +110,8 @@ class GameManagement:
                 audio_path = self.game_session.root_path + '/assets/' + track['file']
                 if not os.path.exists(audio_path):
                     self.logger.error(f"Soundtrack {track['name']} not found at {audio_path}")
-                    continue
+                    raise Exception(f"Soundtrack {track['name']} not found at {audio_path}")
+                    
                 audio = MP3(audio_path)
                 track['duration'] = int(audio.info.length)
                 self.logger.info(f"Loaded soundtrack {track['name']} with duration {track['duration']}")
@@ -357,20 +358,29 @@ class GameManagement:
                         web_controllers.add_user("dm")
                         return web_controllers
                 return GenericController(self.game_session)
-
+            battle_music = 'battle'
             if not self.battle:
                 self.battle = Battle(self.game_session, self.maps, animation_log_enabled=True)
                 for entity, group in add_to_initiative:
+
+                    # For bosses, use their battle music
+                    if entity.battle_music:
+                        battle_music = entity.battle_music
+                        self.logger.info(f"Using battle music {battle_music} for {entity.name}")
                     controller = get_controller(entity)
                     if not controller:
-                        raise ValueError(f"Controller not found for {entity}")
+                        self.logger.error(f"Controller not found for {entity}")
+                        controller = GenericController(self.game_session)
+
+                    controller.register_handlers_on(entity)
                     self.battle.add(entity, group, controller=controller)
                 self.output_logger.log("Battle started.")
 
                 # if battle sound is present, start playing it
                 for soundtrack in self.soundtracks:
-                    if 'battle' in soundtrack['name']:
+                    if battle_music.lower()==soundtrack['name'].lower():
                         self.play_soundtrack(soundtrack['name'])
+                        break
 
                 self.battle.start()
                 self.execute_game_loop()
@@ -485,6 +495,10 @@ class GameManagement:
         else:
             for soundtrack in self.soundtracks:
                 url = soundtrack['file']
+
+                if track_id != soundtrack['name']:
+                    continue
+
                 if self.current_soundtrack:
                     if self.current_soundtrack['name'] != soundtrack['name']:
                         current_time_in_seconds = int(time.time())

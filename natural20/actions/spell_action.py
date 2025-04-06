@@ -229,8 +229,12 @@ class SpellAction(Action):
             klass.apply(battle, item, session)
 
         if item['type'] == 'spell_damage':
+            if item['target'].passive():
+                item['target'].is_passive = False
             damage_event(item, battle)
         elif item['type'] == 'spell_miss':
+            if item['target'].passive():
+                item['target'].is_passive = False
             session.event_manager.received_event({
                 'attack_roll': item.get('attack_roll', None),
                 'attack_name': item['attack_name'],

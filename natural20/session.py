@@ -106,6 +106,10 @@ class Session:
 
         return self.maps
 
+    def register_map(self, name, map_file):
+        self.maps[name] = Map(self, map_file, name=name)
+        return self.maps[name]
+
     def groups(self):
         return self.game_properties.get('groups', {})
 

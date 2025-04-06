@@ -887,19 +887,18 @@ def start_battle_with_initiative():
 def end_turn():
     global current_game
     battle = current_game.get_current_battle()
-    # Use the lock to make the operation atomic
-    with game_state_lock:
-        battle.end_turn()
-        battle.next_turn()
-        try:
-            continue_game()
-            return jsonify(status='ok')
-        except AsyncReactionHandler as e:
-            for _, entity, valid_actions in e.resolve():
-                valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
-                current_game.waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
-            socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
-            return jsonify(status='ok')
+
+    battle.end_turn()
+    battle.next_turn()
+    try:
+        continue_game()
+        return jsonify(status='ok')
+    except AsyncReactionHandler as e:
+        for _, entity, valid_actions in e.resolve():
+            valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
+            current_game.waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
+        socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
+        return jsonify(status='ok')
 
 
 def continue_game():
@@ -909,10 +908,10 @@ def continue_game():
         current_game.game_loop()
 
         current_turn = battle.current_turn()
-        socketio.emit('message', { 'type': 'initiative', 'message': { 'index': battle.current_turn_index} })
-        socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 'animation_log' : battle.get_animation_logs() }})
-        battle.clear_animation_logs()
-        socketio.emit('message', { 'type': 'turn', 'message': {}})
+    socketio.emit('message', { 'type': 'initiative', 'message': { 'index': battle.current_turn_index} })
+    socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 'animation_log' : battle.get_animation_logs() }})
+    battle.clear_animation_logs()
+    socketio.emit('message', { 'type': 'turn', 'message': {}})
 
 @app.route('/turn_order', methods=['GET'])
 def get_turn_order():

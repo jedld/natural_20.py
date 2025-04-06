@@ -6,7 +6,7 @@ class MultiattackAction(Action):
 
     @staticmethod
     def can(entity, battle):
-        return battle is None or (entity.class_feature('multiattack') and entity.total_actions(battle) > 0)
+        return battle is None or (entity.has_multiattack() and entity.total_actions(battle) > 0)
 
     def build_map(self):
         return self

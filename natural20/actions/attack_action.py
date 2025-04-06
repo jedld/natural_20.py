@@ -7,6 +7,7 @@ from natural20.utils.attack_util import after_attack_roll_hook, damage_event
 from natural20.utils.ac_utils import effective_ac
 from natural20.spell.effects.life_drain_effect import LifeDrainEffect
 from natural20.spell.effects.strength_drain_effect import StrengthDrainEffect
+from natural20.spell.effects.engulf_effect import EngulfEffect
 import pdb
 
 class AttackAction(Action):
@@ -165,6 +166,17 @@ class AttackAction(Action):
                 effect = LifeDrainEffect(battle, item['source'], item['context']['damage'].result())
                 item['source'].register_effect('hit_point_max_override', effect, effect=effect)
                 item['source'].register_event_hook('long_rest', effect)
+            elif item['effect'] == 'engulf':
+                if not item['context'].get('source').has_casted_effect('engulf'):
+                    effect = EngulfEffect(session, battle, item['context']['source'], item['source'], 15, '2d8+4')
+                    effect.engulf(item['source'])
+                    engulfing_entity = item['context']['source']
+                    engulfing_entity.add_casted_effect({
+                        'target': item['source'],
+                        'effect': effect
+                    })
+                    item['source'].register_effect('engulf', effect, effect=effect)
+                    item['source'].register_event_hook('start_of_turn', effect)
             elif item['effect'] == 'strength_drain':
                 reduction_value = DieRoll.roll("1d4").result()
                 if item['source'].strength() - reduction_value < 1:
@@ -175,9 +187,14 @@ class AttackAction(Action):
                     item['source'].register_event_hook('long_rest', effect)
                     item['source'].register_event_hook('short_rest', effect)
         elif item['type'] == 'damage':
+            if item['target'].passive():
+                item['target'].is_passive = False
+
             damage_event(item, battle)
             __class__.consume_resource(battle, item)
         elif item['type'] == 'miss':
+            if item['target'].passive():
+                item['target'].is_passive = False
             __class__.consume_resource(battle, item)
             session.event_manager.received_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], \
                                                  'attack_thrown': item['thrown'], 'advantage_mod': item['advantage_mod'], \
@@ -234,6 +251,10 @@ class AttackAction(Action):
                         if not attacks or item['multiattack_clear']:
                             item['source'].clear_multiattack(battle)
 
+                for attacks in state.get('multiattack_hits', {}).values():
+                    if item['attack_name'] not in attacks:
+                        attacks[item['attack_name']] = item['attack_name']
+
             battle.dismiss_help_for(item['target'])
 
     def with_advantage(self):
@@ -275,65 +296,77 @@ class AttackAction(Action):
 
         weapon, attack_name, attack_mod, damage_roll, ammo_type = self.get_weapon_info(opts)
 
-        self.advantage_mod, adv_info = target_advantage_condition(battle, self.source, target, weapon, thrown=self.thrown)
+        if self.npc_action and self.npc_action.get('force_hit'):
+            self.attack_roll = None
+            adv_info = [[],[]]
+            self.advantage_mod = 0
+        else:
+            self.advantage_mod, adv_info = target_advantage_condition(battle, self.source, target, weapon, thrown=self.thrown)
 
-        if map:
-            self.evaluate_feature_protection(battle, map, target, adv_info)
+            if map:
+                self.evaluate_feature_protection(battle, map, target, adv_info)
 
-        if self.attack_roll is None:
-            self.attack_roll = DieRoll.roll_with_lucky(self.source, f"1d20+{attack_mod}", disadvantage=self.with_disadvantage(),
-                                        advantage=self.with_advantage(), description='dice_roll.attack', battle=battle)
+            if self.attack_roll is None:
+                self.attack_roll = DieRoll.roll_with_lucky(self.source, f"1d20+{attack_mod}", disadvantage=self.with_disadvantage(),
+                                            advantage=self.with_advantage(), description='dice_roll.attack', battle=battle)
 
-            if self.source.has_effect('bless'):
-                bless_roll = DieRoll.roll("1d4", description='dice_roll.bless', entity=self.source, battle=battle)
-                self.attack_roll += bless_roll
+                if self.source.has_effect('bless'):
+                    bless_roll = DieRoll.roll("1d4", description='dice_roll.bless', entity=self.source, battle=battle)
+                    self.attack_roll += bless_roll
 
-        # print(f"{self.source.name} rolls a {attack_roll} to attack {target.name}")
-        self.source.resolve_trigger('attack_resolved', {'target': target})
+            # print(f"{self.source.name} rolls a {attack_roll} to attack {target.name}")
+            self.source.resolve_trigger('attack_resolved', {'target': target})
 
-        if self.source.class_feature('lucky') and self.attack_roll.nat_1():
-            self.session.log_event({'event': 'lucky_reroll', 'source': self.source, 'roll': self.attack_roll})
-            prev_roll = self.attack_roll
-            self.attack_roll = self.attack_roll.reroll(lucky=True)
-            self.session.event_manager.received_event({'event': 'lucky_reroll', 'source': self.source, 'old_roll': prev_roll, 'roll': self.attack_roll})
-            # print(f"{self.source.name} uses lucky to reroll the attack roll to {attack_roll}")
+            if self.source.class_feature('lucky') and self.attack_roll.nat_1():
+                self.session.log_event({'event': 'lucky_reroll', 'source': self.source, 'roll': self.attack_roll})
+                prev_roll = self.attack_roll
+                self.attack_roll = self.attack_roll.reroll(lucky=True)
+                self.session.event_manager.received_event({'event': 'lucky_reroll', 'source': self.source, 'old_roll': prev_roll, 'roll': self.attack_roll})
+                # print(f"{self.source.name} uses lucky to reroll the attack roll to {attack_roll}")
 
-        target_ac, _cover_ac = effective_ac(battle, self.source, target)
+            target_ac, _cover_ac = effective_ac(battle, self.source, target)
 
-        after_attack_roll_hook(battle, target, self.source, self.attack_roll, target_ac, {'original_action': self })
+            after_attack_roll_hook(battle, target, self.source, self.attack_roll, target_ac, {'original_action': self })
 
         return self._resolve_hit(battle, target, weapon, self.attack_roll, damage_roll, attack_name, ammo_type, adv_info)
 
     def _resolve_hit(self, battle, target, weapon, attack_roll, damage_roll, attack_name, ammo_type, adv_info):
         sneak_attack_roll = None
-        if self.source.class_feature('sneak_attack') and (weapon.get('properties') and 'finesse' in weapon['properties'] or weapon['type'] == 'ranged_attack') and (self.with_advantage() or (battle and battle.enemy_in_melee_range(target, [self.source]))):
-            sneak_attack_roll = DieRoll.roll(self.source.sneak_attack_level(), crit=attack_roll.nat_20(),
-                                                description='dice_roll.sneak_attack', entity=self.source, battle=battle)
-            #  print(f"{self.source.name} rolls a {sneak_attack_roll} for sneak attack")
+        hit = False
+        if attack_roll is not None:
+            if self.source.class_feature('sneak_attack') and (weapon.get('properties') and 'finesse' in weapon['properties'] or weapon['type'] == 'ranged_attack') and (self.with_advantage() or (battle and battle.enemy_in_melee_range(target, [self.source]))):
+                sneak_attack_roll = DieRoll.roll(self.source.sneak_attack_level(), crit=attack_roll.nat_20(),
+                                                    description='dice_roll.sneak_attack', entity=self.source, battle=battle)
+        else:
+            hit = True
 
-        damage = DieRoll.roll(damage_roll, crit=attack_roll.nat_20(), description='dice_roll.damage',
-                                entity=self.source, battle=battle)
+        if damage_roll is not None:
+            damage = DieRoll.roll(damage_roll, crit=attack_roll.nat_20(), description='dice_roll.damage',
+                                    entity=self.source, battle=battle)
 
-        if self.source.class_feature('great_weapon_fighting') and (weapon.get('properties') and 'two_handed' in weapon['properties'] or (weapon.get('properties') and 'versatile' in weapon['properties'] and self.source.used_hand_slots <= 1.0)):
-            for i, roll in enumerate(damage.rolls):
-                if roll in [1, 2]:
-                    r = DieRoll.roll(f"1d{damage.die_sides}", description='dice_roll.great_weapon_fighting_reroll',
-                                        entity=self.source, battle=battle)
-                    battle.session.log_event({'roll': r, 'prev_roll': roll,
-                                               'source': self.source, 'event': 'great_weapon_fighting_roll'})
-                    damage.rolls[i] = r.result
+            if self.source.class_feature('great_weapon_fighting') and (weapon.get('properties') and 'two_handed' in weapon['properties'] or (weapon.get('properties') and 'versatile' in weapon['properties'] and self.source.used_hand_slots <= 1.0)):
+                for i, roll in enumerate(damage.rolls):
+                    if roll in [1, 2]:
+                        r = DieRoll.roll(f"1d{damage.die_sides}", description='dice_roll.great_weapon_fighting_reroll',
+                                            entity=self.source, battle=battle)
+                        battle.session.log_event({'roll': r, 'prev_roll': roll,
+                                                'source': self.source, 'event': 'great_weapon_fighting_roll'})
+                        damage.rolls[i] = r.result
 
-        damage = self.check_weapon_bonuses(battle, weapon, damage, attack_roll)
+            damage = self.check_weapon_bonuses(battle, weapon, damage, attack_roll)
+        else:
+            damage = DieRoll.roll("0")
 
         cover_ac_adjustments = 0
-        hit = False
-        if attack_roll.nat_20():
-            hit = True
-        elif attack_roll.nat_1():
-            hit = False
-        else:
-            target_ac, cover_ac_adjustments = effective_ac(battle, self.source, target)
-            hit = attack_roll.result() >= target_ac
+
+        if attack_roll:
+            if attack_roll.nat_20():
+                hit = True
+            elif attack_roll.nat_1():
+                hit = False
+            else:
+                target_ac, cover_ac_adjustments = effective_ac(battle, self.source, target)
+                hit = attack_roll.result() >= target_ac
 
         if damage is None:
             raise Exception('damage should is required')
@@ -361,14 +394,15 @@ class AttackAction(Action):
                 'cover_ac': cover_ac_adjustments,
                 'adv_info': adv_info,
                 'hit?': hit,
-                'damage_type': weapon['damage_type'],
+                'damage_type': weapon.get('damage_type', None),
                 'damage': damage,
                 'ammo': ammo_type,
                 'as_reaction': bool(self.as_reaction),
                 'as_bonus_action': bool(self.as_bonus_action),
                 'second_hand': self.second_hand(),
                 'npc_action': self.npc_action,
-                'multiattack_clear': False
+                'multiattack_clear': False,
+                'multiattack_hits': True
             }
             self.result.append(hit_result)
 
@@ -422,6 +456,7 @@ class AttackAction(Action):
                             self.result.append(target.apply_effect(effect['fail'], { "battle" : battle,
                                                                     "target": target,
                                                                     "damage": damage,
+                                                                    "source": self.source,
                                                                     "flavor": effect['flavor_fail'],
                                                                     "info" : hit_result}))
                     else:
@@ -429,6 +464,7 @@ class AttackAction(Action):
                                                                     "battle" : battle,
                                                                     "target": target,
                                                                     "damage": damage,
+                                                                    "source": self.source,
                                                                     "flavor": effect['flavor_fail'],
                                                                     "info" : hit_result}))
         else:
@@ -451,7 +487,8 @@ class AttackAction(Action):
                 'cover_ac': cover_ac_adjustments,
                 'ammo': ammo_type,
                 'npc_action': self.npc_action,
-                'multiattack_clear': self.npc_action and self.npc_action.get('multiattack_clear_on_miss')
+                'multiattack_clear': self.npc_action and self.npc_action.get('multiattack_clear_on_miss'),
+                'multiattack_hits': False
             })
 
         return self
@@ -497,8 +534,8 @@ class AttackAction(Action):
 
             weapon = npc_action
             attack_name = npc_action["name"]
-            attack_mod = npc_action["attack"]
-            damage_roll = npc_action["damage_die"]
+            attack_mod = npc_action.get("attack", None)
+            damage_roll = npc_action.get("damage_die", None)
             ammo_type = npc_action.get("ammo", None)
         else:
             weapon = self.session.load_weapon(using)

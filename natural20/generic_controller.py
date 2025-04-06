@@ -50,7 +50,7 @@ class GenericController(Controller):
 
     def opportunity_attack_listener(self, battle, session, entity, map, event):
         actions = [s for s in entity.available_actions(session, battle, opportunity_attack=True)]
-
+        print(f"Opportunity attack: {actions}")
         valid_actions = []
         for action in actions:
             valid_targets = battle.valid_targets_for(entity, action)
