@@ -288,35 +288,38 @@ class Map():
         return compute_actual_moves(entity, path, self, battle, budget, test_placement=False, manual_jump=manual_jump)
 
     def move_to(self, entity: Entity, pos_x, pos_y, battle=None):
-        cur_x, cur_y = self.entities[entity]
+        if entity in self.entities:
+            cur_x, cur_y = self.entities[entity]
 
-        entity_data = self.tokens[cur_x][cur_y]
+            entity_data = self.tokens[cur_x][cur_y]
 
-        source_token_size = entity.token_size() - 1 if requires_squeeze(entity, cur_x, cur_y, self, battle) else entity.token_size()
+            source_token_size = entity.token_size() - 1 if requires_squeeze(entity, cur_x, cur_y, self, battle) else entity.token_size()
 
-        entity.clear_conversation_buffer()
+            entity.clear_conversation_buffer()
 
-        if requires_squeeze(entity, pos_x, pos_y, self, battle):
-            entity.squeezed()
-            destination_token_size = entity.token_size() - 1
-        else:
-            entity.unsqueeze()
-            destination_token_size = entity.token_size()
+            if requires_squeeze(entity, pos_x, pos_y, self, battle):
+                entity.squeezed()
+                destination_token_size = entity.token_size() - 1
+            else:
+                entity.unsqueeze()
+                destination_token_size = entity.token_size()
 
-        for ofs_x in range(source_token_size):
-            for ofs_y in range(source_token_size):
-                self.tokens[cur_x + ofs_x][cur_y + ofs_y] = None
+            for ofs_x in range(source_token_size):
+                for ofs_y in range(source_token_size):
+                    self.tokens[cur_x + ofs_x][cur_y + ofs_y] = None
 
-        for ofs_x in range(destination_token_size):
-            for ofs_y in range(destination_token_size):
-                self.tokens[pos_x + ofs_x][pos_y + ofs_y] = entity_data
+            for ofs_x in range(destination_token_size):
+                for ofs_y in range(destination_token_size):
+                    self.tokens[pos_x + ofs_x][pos_y + ofs_y] = entity_data
 
-        self.entities[entity] = [pos_x, pos_y]
+            self.entities[entity] = [pos_x, pos_y]
 
-        for obj in self.objects_at(pos_x, pos_y):
-            if obj != entity:
-                if hasattr(obj, 'on_enter'):
-                    obj.on_enter(entity, self, battle)
+            for obj in self.objects_at(pos_x, pos_y):
+                if obj != entity:
+                    if hasattr(obj, 'on_enter'):
+                        obj.on_enter(entity, self, battle)
+            return True
+        return False
 
     def place_at_spawn_point(self, position, entity, token=None, battle=None):
         if str(position) not in self.spawn_points:

@@ -79,6 +79,10 @@ def compute_advantages_and_disadvantages(battle, source, target, weapon, source_
         disadvantage.append('prone')
     if source.squeezed():
         disadvantage.append('squeezed')
+    if source.restrained():
+        disadvantage.append('restrained')
+    if target.restrained():
+        advantage.append('restrained')
     if target.dodge(battle):
         disadvantage.append('target_dodge')
     if target.poisoned():

@@ -324,6 +324,16 @@ class Battle():
             if entity:
                 return entity
         return None
+    
+    def register_map(self, map):
+        if map not in self.maps:
+            self.maps.append(map)
+
+    def unregister_map(self, map):
+        if map in self.maps:
+            for entity in map.entities.keys():
+                self.remove(entity)
+            self.maps.remove(map)
 
     def entity_state_for(self, entity):
         entity_state = self.entities.get(entity, None)

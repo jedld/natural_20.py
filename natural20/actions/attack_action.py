@@ -168,15 +168,17 @@ class AttackAction(Action):
                 item['source'].register_event_hook('long_rest', effect)
             elif item['effect'] == 'engulf':
                 if not item['context'].get('source').has_casted_effect('engulf'):
-                    effect = EngulfEffect(session, battle, item['context']['source'], item['source'], 15, '2d8+4')
-                    effect.engulf(item['source'])
-                    engulfing_entity = item['context']['source']
-                    engulfing_entity.add_casted_effect({
-                        'target': item['source'],
-                        'effect': effect
-                    })
-                    item['source'].register_effect('engulf', effect, effect=effect)
-                    item['source'].register_event_hook('start_of_turn', effect)
+                    if not item['source'].immune_to_condition('grappled'):
+                        effect = EngulfEffect(session, battle, item['context']['source'], item['source'], 15, '1d8+4')
+                        effect.engulf(item['source'])
+                        engulfing_entity = item['context']['source']
+                        engulfing_entity.add_casted_effect({
+                            'target': item['source'],
+                            'effect': effect
+                        })
+                        item['source'].register_effect('engulf', effect, effect=effect)
+                        item['source'].register_event_hook('start_of_turn', effect)
+                        item['source'].register_event_hook('escape_grapple_from', effect)
             elif item['effect'] == 'strength_drain':
                 reduction_value = DieRoll.roll("1d4").result()
                 if item['source'].strength() - reduction_value < 1:
