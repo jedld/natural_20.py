@@ -360,7 +360,7 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
     def available_spells_per_level(self, battle):
         if self.familiar():
             return self.owner.available_spells_per_level(battle)
-        
+
         spell_list = self.spell_list(battle)
         spell_per_level = [[],[],[],[],[],[],[],[],[]]
         for spell, details in spell_list.items():

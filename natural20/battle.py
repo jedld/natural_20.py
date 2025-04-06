@@ -371,7 +371,7 @@ class Battle():
 
     def help_with(self, entity):
         if entity in self.entities:
-            return self.entities[entity]['help_with']
+            return self.entities[entity].get('help_with', {})
         return {}
 
     def dismiss_help_for(self, entity):
@@ -589,6 +589,8 @@ class Battle():
 
         targets = []
         for k, prop in self.entities.items():
+            if not k.allow_targeting():
+                continue
             if 'self' not in target_types and k == entity:
                 continue
             if 'allies' not in target_types and prop['group'] == entity_group and k != entity:

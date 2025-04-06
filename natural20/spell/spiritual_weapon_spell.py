@@ -12,7 +12,7 @@ class SpiritualWeaponEffect:
     def id(self):
         return 'spiritual_weapon'
     
-    def dismiss(self, entity, effect, opts={}):
+    def dismiss(self, entity, effect, opts=None):
         if opts is None:
             opts = {}
 
