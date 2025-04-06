@@ -74,6 +74,7 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         self.hidden_stealth = self.properties.get("hidden_stealth", None)
         self.opt = opt
         self.resistances = self.properties.get("resistances", [])
+        self.linked_hp = self.properties.get("linked_hp", None)
         self.statuses = []
         _conversation_buffer = self.properties.get("conversation_buffer", [])
         for _conversion in _conversation_buffer:
@@ -134,6 +135,9 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         if len(languages_known) > 0:
             return True
         return False
+    
+    def link_hp(self, entity):
+        self.linked_hp = entity
 
     def class_and_level(self):
         return [(self.npc_type, None)]
@@ -143,7 +147,59 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
             return self.owner.spell_slots_count(level, character_class)
         else:
             return 0
-    
+        
+    def hp(self):
+        if self.linked_hp:
+            return self.linked_hp.hp()
+        else:
+            return super().hp()
+
+    def max_hp(self):
+        if self.linked_hp:
+            return self.linked_hp.max_hp()
+        else:
+            return super().max_hp()
+        
+    def set_hp(self, hp, override_max=False):
+        if self.linked_hp:
+            self.linked_hp.set_hp(hp, override_max)
+        else:
+            super().set_hp(hp, override_max)
+
+    def temp_hp(self):
+        if self.linked_hp:
+            return self.linked_hp.temp_hp()
+        else:
+            return super().temp_hp()
+        
+    def take_damage(self, dmg: int, battle=None, damage_type='piercing', \
+                    session=None, item=None,
+                    critical=False, roll_info=None, sneak_attack=None):
+        if self.linked_hp:
+            self.linked_hp.take_damage(dmg, battle, damage_type, session, item, critical, roll_info, sneak_attack)
+        else:
+            super().take_damage(dmg, battle, damage_type, session, item, critical, roll_info, sneak_attack)
+
+    def heal(self, amt):
+        if self.linked_hp:
+            self.linked_hp.heal(amt)
+        else:
+            super().heal(amt)
+
+    def make_unconscious(self):
+        if self.linked_hp:
+            self.linked_hp.make_unconscious()
+            self.make_unconscious()
+        else:
+            super().make_unconscious()
+
+    def make_dead(self):
+        if self.linked_hp:
+            self.linked_hp.make_dead()
+            super().make_dead()
+        else:
+            super().make_dead()
+
     def max_spell_slots(self, level, character_class=None):
         if self.familiar():
             return self.owner.max_spell_slots(level, character_class)
@@ -290,11 +346,11 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
 
     def after_death(self):
         # for npcs send them to the object layer when dead
-        entity_map = self.session.map_for(self)
-
-        if entity_map:
-            move_to_object_layer = not self.familiar()
-            entity_map.remove(self, move_to_object_layer=move_to_object_layer)
+        # entity_map = self.session.map_for(self)
+        pass
+        # if entity_map:
+        #     move_to_object_layer = not self.familiar()
+        #     entity_map.remove(self, move_to_object_layer=move_to_object_layer)
 
     def token_image_transform(self):
         if self.dead():

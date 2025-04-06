@@ -317,7 +317,7 @@ class Entity(EntityStateEvaluator, Notable):
     # @return [dict]
     def hit_die(self):
         return self._current_hit_die
-    
+
     def darkvision(self, distance):
         if not self.properties.get('darkvision'):
             return False
@@ -325,7 +325,14 @@ class Entity(EntityStateEvaluator, Notable):
         if adjusted_darkvision_distance < distance:
             return False
         return True
-    
+
+    def blinded(self):
+        _result = self.eval_effect('blinded_override', opts={'value': self.statuses})
+        if _result:
+            return True
+        else:
+            return 'blinded' in self.statuses
+
     def blindsight(self, distance):
         if not self.properties.get('blindsight'):
             return False
@@ -963,8 +970,7 @@ class Entity(EntityStateEvaluator, Notable):
         for f in removed_effects.values():
             if f['effect'] and hasattr(f['effect'], 'dismiss'):
                 f['effect'].dismiss(self, f, opts)
-        if hasattr(effect, 'dismiss'):
-            effect.dismiss(self, opts)
+
         return dismiss_count
 
     def wearing_armor(self):
@@ -1098,6 +1104,7 @@ class Entity(EntityStateEvaluator, Notable):
         if len(self.grapples) == 0:
             self.statuses.remove('grappled')
         grappler.ungrapple(self)
+        self.resolve_trigger('escape_grapple_from', {'grappler': grappler})
 
     def _cleanup_effects(self):
         for _, value in self.effects.items():
@@ -1163,6 +1170,9 @@ class Entity(EntityStateEvaluator, Notable):
       return self.properties.get('familiar', False)
 
     def speed(self):
+        if self.restrained():
+            return 0
+
         c_speed = self.properties.get('speed_fly',0) if self.is_flying() else self.properties['speed']
 
         if self.has_effect('speed_override'):
@@ -1462,6 +1472,10 @@ class Entity(EntityStateEvaluator, Notable):
         modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
         op = '+' if modifier >= 0 else ''
         disadvantage = True if save_type in ['dex', 'str'] and not self.proficient_with_equipped_armor() else False
+
+        if self.restrained():
+            disadvantage = True
+
         save_roll = DieRoll.roll(f"d20{op}{modifier}", disadvantage=disadvantage, battle=battle, entity=self,
                             description=f"dice_roll.{save_type}_saving_throw")
 
@@ -1470,6 +1484,7 @@ class Entity(EntityStateEvaluator, Notable):
 
         if self.has_effect('bless'):
             save_roll += DieRoll.roll("1d4", description="bless", entity=self, battle=battle)
+
         return save_roll
 
     def skills(self):

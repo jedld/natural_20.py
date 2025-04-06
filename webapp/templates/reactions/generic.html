@@ -1,7 +1,7 @@
 
 {% set entity = waiting_for_reaction[0] %}
 <img class="current-turn-img" src="/assets/{{ entity.token_image() }}" style="max-width: 75px;">
-{% if controller_of(entity, username) %}
+{% if controller_of(entity.entity_uid, username) %}
 <h4>{{waiting_for_reaction[1]}}</h4>
 
 {% for reaction_id, label, _ in waiting_for_reaction[3] %}

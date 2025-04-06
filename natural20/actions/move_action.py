@@ -244,38 +244,38 @@ class MoveAction(Action):
                                                   source_roll=item['source_roll'],
                                                   target_roll=item['target_roll'])
         elif item_type == 'move':
-            item['map'].move_to(item['source'], *item['position'], battle)
+            if item['map'].move_to(item['source'], *item['position'], battle):
 
-            # mark path
-            if battle:
-                path_taken = item['path']
-                positions_entered = battle.entity_state_for(item['source'])['positions_entered']
-                for p in path_taken:
-                    p_key = tuple(p)
-                    visit_count = positions_entered.get(p_key, 0)
-                    positions_entered[p_key] = visit_count + 1
+                # mark path
+                if battle:
+                    path_taken = item['path']
+                    positions_entered = battle.entity_state_for(item['source'])['positions_entered']
+                    for p in path_taken:
+                        p_key = tuple(p)
+                        visit_count = positions_entered.get(p_key, 0)
+                        positions_entered[p_key] = visit_count + 1
 
-            if item['as_dash'] and item['as_bonus_action']:
-                battle.entity_state_for(item['source'])['bonus_action'] -= 1
-            elif item['as_dash']:
-                battle.entity_state_for(item['source'])['action'] -= 1
-            elif battle:
-                battle.entity_state_for(item['source'])['movement'] -= item['move_cost'] * battle.map_for(item['source']).feet_per_grid
+                if item['as_dash'] and item['as_bonus_action']:
+                    battle.entity_state_for(item['source'])['bonus_action'] -= 1
+                elif item['as_dash']:
+                    battle.entity_state_for(item['source'])['action'] -= 1
+                elif battle:
+                    battle.entity_state_for(item['source'])['movement'] -= item['move_cost'] * battle.map_for(item['source']).feet_per_grid
 
-            battle_map = item.get('map', None)
-            if battle_map is None:
-                battle_map = battle.map_for(item['source'])
+                battle_map = item.get('map', None)
+                if battle_map is None:
+                    battle_map = battle.map_for(item['source'])
 
-            session.event_manager.received_event({
-                'event': 'move',
-                'source': item['source'],
-                'position': item['position'],
-                'path': item['path'],
-                'move_cost' : item['move_cost'],
-                'feet_per_grid': battle_map.feet_per_grid,
-                'as_dash': item['as_dash'],
-                'as_bonus': item['as_bonus_action']
-            })
+                session.event_manager.received_event({
+                    'event': 'move',
+                    'source': item['source'],
+                    'position': item['position'],
+                    'path': item['path'],
+                    'move_cost' : item['move_cost'],
+                    'feet_per_grid': battle_map.feet_per_grid,
+                    'as_dash': item['as_dash'],
+                    'as_bonus': item['as_bonus_action']
+                })
 
     def check_movement_acrobatics(self, actual_moves, dexterity_checks, battle):
         cutoff = len(actual_moves) - 1
