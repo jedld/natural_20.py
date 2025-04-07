@@ -1,5 +1,6 @@
 ---
 kind: Bat
+label: Bat
 description: It's a bat
 size: tiny
 race:

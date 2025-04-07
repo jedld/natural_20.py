@@ -57,7 +57,7 @@ def requires_squeeze(entity: Entity, pos_x, pos_y, map, battle=None):
     return not map.passable(entity, pos_x, pos_y, battle, False) and map.passable(entity, pos_x, pos_y, battle, True)
 
 
-def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_budget, fixed_movement=False, test_placement=True, manual_jump=None):
+def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_budget, fixed_movement=False, test_placement=True, manual_jump=None, phb_2024_rules=False):
     actual_moves = []
     provisional_moves = []
     jump_budget = int(entity.standing_jump_distance() / map.feet_per_grid)
@@ -99,9 +99,16 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
             if requires_squeeze(entity, *m, map, battle):
                 movement_budget -= 1
             if entity.prone():
-                movement_budget -= 1 
-            if entity.is_grappling():
                 movement_budget -= 1
+
+            # phb grappling rules
+            if entity.is_grappling():
+                if phb_2024_rules:
+                    grapple_target_sizes = [_entity.size_identifier() - entity.size_identifier() for _entity in entity.grappling_targets()]
+                    if any(size >= -1 for size in grapple_target_sizes):
+                        movement_budget -= 1
+                else:
+                    movement_budget -= 1
 
         if movement_budget < 0:
             impediment = 'movement_budget'

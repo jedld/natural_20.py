@@ -27,6 +27,11 @@ class TestGrappleAction(unittest.TestCase):
         self.map.move_to(self.fighter, 1, 2, self.battle)
         self.map.move_to(self.npc, 1, 1, self.battle)
 
+    def test_vallidate(self):
+        action = GrappleAction.build(self.session, self.fighter)['next'](self.npc)
+        action.validate(self.map)
+        self.assertEqual(action.errors, [])
+
 
     def test_grappling(self):
         print(MapRenderer(self.map).render())

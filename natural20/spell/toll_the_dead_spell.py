@@ -53,7 +53,7 @@ class TollTheDeadSpell(Spell):
         """
         target = self.action.target
         entity = self.source
-        result = target.save_throw('wisdom', battle)
+        result = target.save_throw('wisdom', battle, { "is_magical": True })
 
         return 1.0 - result.prob(entity.spell_save_dc("wisdom"))
 

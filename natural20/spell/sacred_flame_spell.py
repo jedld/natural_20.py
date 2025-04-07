@@ -42,14 +42,14 @@ class SacredFlameSpell(Spell):
         """
         target = self.action.target
         entity = self.source
-        result = target.save_throw('dexterity', battle)
+        result = target.save_throw('dexterity', battle, { "is_magical": True })
 
         return 1.0 - result.prob(entity.spell_save_dc("wisdom"))
 
     def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target
 
-        result = target.save_throw('dexterity', battle)
+        result = target.save_throw('dexterity', battle, { "is_magical": True })
         spell_dc = entity.spell_save_dc("wisdom")
         if result < spell_dc:
             save_failed = True

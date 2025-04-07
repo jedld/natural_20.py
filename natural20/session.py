@@ -234,7 +234,7 @@ class Session:
                         if not npc_details.get('familiar', False):
                             continue
 
-                    npc_info[npc_name] = {**npc_details, 'id': npc_name}
+                    npc_info[npc_name] = {**npc_details, 'id': npc_name, 'label': npc_details.get('label', npc_name)}
         return npc_info
 
     def load_races(self):

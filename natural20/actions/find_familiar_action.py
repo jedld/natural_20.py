@@ -23,13 +23,16 @@ class FindFamiliarAction(Action):
         def set_choice(choice):
             orig_action = self.clone()
             action = orig_action.clone()
-            action.choice = choice
+            if isinstance(choice, list):
+                action.choice = choice[1]
+            else:
+                action.choice = choice
             return action
         return {
             'param': [
                 {
                     'type': 'select_choice',
-                    'choices': ['dismiss_temporary', 'dismiss_permanent']
+                    'choices': [['Dismiss Temporarily', 'dismiss_temporary'], ['Dismiss Permanently', 'dismiss_permanent']]
                 }
             ],
             'next': set_choice

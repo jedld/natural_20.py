@@ -23,7 +23,7 @@ class Rollable:
 
 class Roller:
     def __init__(self, roll_str, crit=False, disadvantage=False, advantage=False,
-                 description=None, entity=None, battle=None, controller=None):
+                 description=None, entity=None, battle=None, controller=None, advantage_str=None, disadvantage_str=None):
         self.roll_str = roll_str
         self.crit = crit
         self.advantage = advantage
@@ -32,6 +32,8 @@ class Roller:
         self.entity = entity
         self.battle = battle
         self.controller = controller
+        self.advantage_str = advantage_str
+        self.disadvantage_str = disadvantage_str
 
     # support >= and <=
     def __ge__(self, other):
@@ -70,7 +72,7 @@ class Roller:
             number_of_die *= 2
 
         # Build a description string.
-        roll_desc = f"dice_roll.description, description={description_override or self.description}, roll_str={self.roll_str}"
+        roll_desc = f"dice_roll.description, description={description_override or self.description}, roll_str={self.roll_str}, advantage_str={self.advantage_str}, disadvantage_str={self.disadvantage_str}"
         if lucky:
             roll_desc = f"(lucky) {roll_desc}"
         if self.advantage:
@@ -424,9 +426,9 @@ class DieRoll(Rollable):
 
     @staticmethod
     def roll(roll_str, crit=False, disadvantage=False, advantage=False,
-             description=None, entity=None, battle=None, controller=None):
+             description=None, entity=None, battle=None, controller=None, advantage_str=None, disadvantage_str=None):
         roller = Roller(roll_str, crit=crit, disadvantage=disadvantage, advantage=advantage,
-                        description=description, entity=entity, battle=battle, controller=controller)
+                        description=description, entity=entity, battle=battle, controller=controller, advantage_str=advantage_str, disadvantage_str=disadvantage_str)
         return roller.roll()
 
     @staticmethod
@@ -440,7 +442,7 @@ class DieRoll(Rollable):
         FUDGE_HASH.pop(die_sides, None)
 
     @staticmethod
-    def roll_for(die_type, number_of_times, advantage=False, disadvantage=False):
+    def roll_for(die_type, number_of_times, advantage=False, disadvantage=False, advantage_str=None, disadvantage_str=None):
         if advantage or disadvantage:
             return [DieRoll.generate_number(die_type, advantage=advantage, disadvantage=disadvantage)
                     for _ in range(number_of_times)]

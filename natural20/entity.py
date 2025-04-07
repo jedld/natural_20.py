@@ -581,17 +581,6 @@ class Entity(EntityStateEvaluator, Notable):
         modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
         return modifier
 
-    def saving_throw(self, save_type, battle=None):
-        modifier = self.saving_throw_mod(save_type)
-        op = '+' if modifier >= 0 else ''
-        disadvantage = True if save_type in ['dex', 'str'] and not self.proficient_with_equipped_armor() else False
-
-        if self.unconscious():
-            return DieRoll.roll("1", description=f"dice_roll.{save_type}_saving_throw")
-
-        return DieRoll.roll(f"d20{op}{modifier}", disadvantage=disadvantage, battle=battle, entity=self,
-                            description=f"dice_roll.{save_type}_saving_throw")
-
     def short_rest(self, battle, prompt=False):
         controller = battle.controller_for(self)
 
@@ -1458,7 +1447,7 @@ class Entity(EntityStateEvaluator, Notable):
 
         return True
 
-    def save_throw(self, save_type, battle, opts=None):
+    def save_throw(self, save_type, battle=None, opts=None):
         """
         Perform a saving throw for the entity
         """
@@ -1471,13 +1460,26 @@ class Entity(EntityStateEvaluator, Notable):
 
         modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
         op = '+' if modifier >= 0 else ''
-        disadvantage = True if save_type in ['dex', 'str'] and not self.proficient_with_equipped_armor() else False
 
-        if self.restrained():
-            disadvantage = True
+        advantages = []
+        disadvantages = []
 
-        save_roll = DieRoll.roll(f"d20{op}{modifier}", disadvantage=disadvantage, battle=battle, entity=self,
-                            description=f"dice_roll.{save_type}_saving_throw")
+        if save_type in ['dexterity', 'strength'] and not self.proficient_with_equipped_armor():
+            disadvantages.append('armor_proficiency_missing')
+
+        if self.restrained() and save_type == 'dexterity':
+            disadvantages.append('restrained')
+
+        if opts.get('is_magical', False):
+            if save_type in ['intelligence', 'wisdom', 'charisma'] and self.class_feature('gnome_cunning'):
+                advantages.append('gnome_cunning')
+
+        has_advantage = len(advantages) > 0
+        has_disadvantage = len(disadvantages) > 0
+        advantage_str = ",".join(advantages) if len(advantages) > 0 else ""
+        disadvantage_str = ",".join(disadvantages) if len(disadvantages) > 0 else ""
+        save_roll = DieRoll.roll(f"d20{op}{modifier}", advantage=has_advantage, disadvantage=has_disadvantage, battle=battle, entity=self,
+                            description=f"dice_roll.{save_type}_saving_throw", advantage_str=advantage_str, disadvantage_str=disadvantage_str)
 
         if self.has_effect('saving_throw_override'):
             save_roll = self.eval_effect('saving_throw_override', { 'save_roll' : save_roll })

@@ -1103,7 +1103,7 @@ $(document).ready(() => {
               </div>
               <div class="modal-body">
                 <ul class="list-group">
-                  ${choices.map((choice) => `<li class="list-group-item choice-item" data-choice="${choice}">${choice}</li>`).join("")}
+                  ${choices.map((choice) => `<li class="list-group-item choice-item" data-choice="${choice[1]}">${choice[0]}</li>`).join("")}
                 </ul>
               </div>
             </div>

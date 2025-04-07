@@ -219,7 +219,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             params_list.append(usable_weapons)
         elif param_type == "select_choice":
             for choice in param["choices"]:
-                if match and choice not in match:
+                if match and choice[1] not in match:
                     continue
                 params_list.append([choice])
         elif param_type == "select_items":

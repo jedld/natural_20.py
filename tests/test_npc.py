@@ -83,7 +83,7 @@ class TestNpc(unittest.TestCase):
             "······\n"
             "·##oo·\n"
             "·····Î\n"
-            "······\n"
+            "·····A\n"
         )
 
         # goblin npc
@@ -109,27 +109,27 @@ class TestNpc(unittest.TestCase):
         assert npc.equipped('scimitar')
         npc.reset_turn(battle)
         battle.set_current_turn(npc)
-        available_actions = [action.name() for action in npc.available_actions(session, battle, map=battle_map)]
-        assert len(available_actions) == 16, len(available_actions)
+        available_actions = [str(action) for action in npc.available_actions(session, battle, map=battle_map)]
+        assert len(available_actions) == 17, len(available_actions)
 
-        self.assertListEqual(available_actions, [
-            'dash',
-            'disengage',
-            'disengage_bonus',
-            'hide',
-            'hide_bonus',
-            'dodge',
-            'look',
-            'move',
-            'move',
-            'move',
-            'move',
-            'move',
-            'move',
-            'shove',
-            'help',
-            'interact']
-        )
+        self.assertListEqual(available_actions, ["Dash",
+                                                 "Disengage",
+                                                 "Disengage_bonus",
+                                                 "Hide",
+                                                 "Hide_bonus",
+                                                 "Dodge",
+                                                 "Look",
+                                                 "move to [1, 2]",
+                                                 "move to [1, 3]",
+                                                 "move to [2, 1]",
+                                                 "move to [2, 3]",
+                                                 "move to [3, 2]",
+                                                 "move to [3, 3]",
+                                                 "Shove",
+                                                 "Help",
+                                                 "Interact(Screech,loot)",
+                                                 "Interact(Ground,pickup_drop)"
+                                                 ])
 
         assert npc.hit_die() == {6: 2}, npc.hit_die()
 
@@ -140,7 +140,7 @@ class TestNpc(unittest.TestCase):
         assert npc.hp() == 6, npc.hp()
         assert npc.hit_die() == {6: 1}
 
-        result = [npc.saving_throw(attribute) for attribute in Entity.ATTRIBUTE_TYPES]
+        result = [npc.save_throw(attribute) for attribute in Entity.ATTRIBUTE_TYPES]
         assert [dr.roller.roll_str for dr in result] == ['d20-1', 'd20+2', 'd20+0', 'd20+0', 'd20-1', 'd20-1']
 
         roll = npc.stealth_check(battle)

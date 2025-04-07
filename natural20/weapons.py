@@ -75,6 +75,11 @@ def compute_advantages_and_disadvantages(battle, source, target, weapon, source_
         advantage += advantage_mod
         disadvantage += disadvantage_mod
 
+    if source.is_grappling() and target not in source.grappling_targets():
+        disadvantage.append('grappling')
+    elif source.grappled() and  not source.grappled_by(target):
+        disadvantage.append('grappling')
+
     if source.prone():
         disadvantage.append('prone')
     if source.squeezed():

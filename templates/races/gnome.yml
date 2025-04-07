@@ -1,0 +1,23 @@
+base_speed: 25
+size: small
+darkvision: 60
+attribute_bonus:
+  int: 2
+languages:
+  - common
+  - gnomish
+race_features:
+  - gnome_cunning
+subrace:
+  forest_gnome:
+    attribute_bonus:
+      dex: 1
+    race_features:
+      - natural_illusionist
+      - speak_with_small_beasts
+  rock_gnome:
+    attribute_bonus:
+      con: 1
+    race_features:
+      - artificers_lore
+      - tinker

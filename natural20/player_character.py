@@ -113,7 +113,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
       self._current_hit_die[int(hit_die_details.die_type)] = level
       self.class_properties[klass] = character_class_properties
 
-    self.attributes["hp"] = copy.deepcopy(self.max_hp())
+    self.attributes["hp"] = self.properties.get('hp', copy.deepcopy(self.max_hp()))
 
   def description(self):
     return super().description()
@@ -307,6 +307,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
           action_list.append(action)
         elif action_type == GrappleAction:
           action = GrappleAction(session, self, 'grapple')
+          action_list.append(action)
+        elif action_type == DropGrappleAction:
+          action = DropGrappleAction(session, self, 'drop_grapple')
           action_list.append(action)
         elif action_type == EscapeGrappleAction:
           action = EscapeGrappleAction(session, self, 'escape_grapple')
