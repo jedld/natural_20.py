@@ -36,7 +36,10 @@ class FindFamiliarSpell(Spell):
     def build_map(self, orig_action):
         def set_familiar(familiar):
             action = orig_action.clone()
-            action.spell_action.familiar = familiar
+            if isinstance(familiar, list):
+                action.spell_action.familiar = familiar[1]
+            else:
+                action.spell_action.familiar = familiar
 
             def set_target(target):
                 action2 = action.clone()
@@ -54,8 +57,8 @@ class FindFamiliarSpell(Spell):
                 'next': set_target
             }
 
-        list_of_familiars = list(self.session.npc_info(familiar=True).keys())
-        list_of_familiars.sort()
+        list_of_familiars = [[e['label'], k] for k, e in self.session.npc_info(familiar=True).items()]
+        list_of_familiars.sort(key=lambda x: x[0])
         return {
             'param': [
                 {

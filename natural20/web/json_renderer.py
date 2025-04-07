@@ -85,6 +85,7 @@ class JsonRenderer:
                     'opacity': opacity,
                     'has_darkvision': has_darkvision,
                     'darkvision_color': darkvision_color,
+                    'is_flying': entity.is_flying() if entity else False,
                     'conversation_languages': []
                 }
 

@@ -1,4 +1,4 @@
-pyyaml
+pyyaml>=6.0.1
 dndice
 python-i18n[YAML]
 gymnasium
@@ -6,7 +6,7 @@ inflect
 collections-extended
 openai
 pandas
-requests
+requests>=2.31.0
 openpyxl
 pytest
 termcolor

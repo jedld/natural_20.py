@@ -380,6 +380,16 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
             actions.append(npc_action)
         return actions
 
+
+    def use(self, entity, result, session=None):
+        if result['action'] == 'give':
+            self.transfer(result['battle'], result['target'], result['source'], result['items'])
+        elif result['action'] == 'loot':
+            self.transfer(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
+            return True
+        else:
+            raise NotImplementedError(f"unknown action {result['action']}")
+
     def generate_npc_attack_actions(self, battle, opportunity_attack=False, auto_target=True):
         if self.familiar():
             return []

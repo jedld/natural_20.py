@@ -237,12 +237,15 @@ class MoveAction(Action):
                                                      roll=item['roll'])
                 item['source'].prone()
         elif item_type == 'drop_grapple':
-            item['target'].escape_grapple_from(item['source'])
-            print(f"{item['source'].name} dropped grapple on {item['target'].name}")
-            session.event_manager.received_event(event='drop_grapple',
-                                                  target=item['target'], source=item['source'],
-                                                  source_roll=item['source_roll'],
-                                                  target_roll=item['target_roll'])
+            if item.get('target'):
+                target = item['target']
+            else:
+                target = item['source'].grappling_targets()[0]
+            target.escape_grapple_from(item['source'])
+            print(f"{item['source'].name} dropped grapple on {target.label()}")
+            session.event_manager.received_event({"event": 'drop_grapple',
+                                                  "target": target,
+                                                  "source":item['source']})
         elif item_type == 'move':
             if item['map'].move_to(item['source'], *item['position'], battle):
 

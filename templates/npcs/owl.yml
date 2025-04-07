@@ -1,5 +1,6 @@
 ---
 kind: Owl
+label: Owl
 description: It's an owl
 size: tiny
 race:

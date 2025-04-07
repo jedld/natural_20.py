@@ -12,12 +12,20 @@ class EscapeGrappleAction(Action):
 
     def build_map(self):
         def set_target(target_uid):
-            self.target = self.session.entity_by_uid(target_uid)
+            if not target_uid:
+                raise Exception("No target selected")
+
+            if isinstance(target_uid, list):
+                target_uid = target_uid[1]
+
+            if isinstance(target_uid, str):
+                self.target = self.session.entity_by_uid(target_uid)
+            else:
+                self.target = target_uid
             return self
 
-        choices = [[e.name, e.entity_uid] for e in self.source.grapples()]
+        choices = [[e.name, e.entity_uid] for e in self.source.grapples]
         return {
-            "action": self,
             "param": [
                 {
                     'type': 'select_choice',
@@ -31,7 +39,7 @@ class EscapeGrappleAction(Action):
 
     @classmethod
     def build(cls, session, source):
-        action = cls(session, source, "escape_grapple")
+        action = EscapeGrappleAction(session, source, "escape_grapple")
         return action.build_map()
 
     def resolve(self, session, map, opts=None):

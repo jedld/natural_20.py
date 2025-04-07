@@ -729,3 +729,30 @@ input.initiative-input.form-control {
   bottom: -8px;
   border-width: 8px 8px 0;
 }
+
+/* Flying Entity Animation */
+@keyframes floating {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.flying-entity {
+  animation: floating 3s ease-in-out infinite;
+  /* Use a separate transform for the animation to avoid conflicts with existing transforms */
+  transform-origin: center center;
+  will-change: transform;
+}
+
+/* For flying entities, we need to handle the transform differently */
+.flying-entity-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}

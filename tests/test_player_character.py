@@ -248,7 +248,7 @@ class TestPlayerCharacter(unittest.TestCase):
 
     def test_fighter_saving_throw(self):
         self.player = self.load_fighter_character()
-        result = [self.player.saving_throw(attribute) for attribute in self.player.ATTRIBUTE_TYPES]
+        result = [self.player.save_throw(attribute) for attribute in self.player.ATTRIBUTE_TYPES]
         expected_results = ['d20+4', 'd20+5', 'd20+6', 'd20+3', 'd20+1', 'd20+0']
         self.assertEqual([str(dr.roller.roll_str) for dr in result], expected_results)
 

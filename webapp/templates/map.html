@@ -140,8 +140,16 @@
               {% endif %}
               {% set image_size_px = tile_size_px * multiplier %}
               
-
-              
+              {% if tile['is_flying'] %}
+              <div class="flying-entity-wrapper" style="transform: {{ transform_for(tile) }};">
+                <img class="npc flying-entity"
+                     src="{{ url_for('static', filename='assets/' ~ tile['entity']) }}"
+                     style="width: {{ image_size_px }}px;
+                            height: {{ image_size_px }}px;
+                            opacity: {{ opacity_for(tile) }};
+                            filter: {{ filter_for(tile) }};" />
+              </div>
+              {% else %}
               <img class="npc"
                    src="{{ url_for('static', filename='assets/' ~ tile['entity']) }}"
                    style="width: {{ image_size_px }}px;
@@ -149,6 +157,7 @@
                           opacity: {{ opacity_for(tile) }};
                           filter: {{ filter_for(tile) }};
                           transform: {{ transform_for(tile) }};" />
+              {% endif %}
               
               {% if is_setup and not tile.in_battle %}
                 <button class="btn add-to-turn-order button text-center"

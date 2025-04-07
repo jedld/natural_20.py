@@ -91,7 +91,7 @@ class IceKnifeSpell(AttackSpell):
             affected_entities = [item['target']] + map.entities_in_range(item['target'], 5)
             attack_roll = item['attack_roll']
             for entity in affected_entities:
-                saving_throw = entity.saving_throw('dexterity', battle)
+                saving_throw = entity.save_throw('dexterity', battle, { "is_magical": True })
                 level = item['at_level'] + 1
                 if saving_throw.result() < item['source'].spell_save_dc():
                     session.event_manager.received_event({

@@ -61,7 +61,7 @@ class EngulfEffect:
         self.battle.unregister_map(self.engulf_map)
 
     def start_of_turn(self, entity: Entity, opt=None):
-        con_save = entity.saving_throw('constitution', self.battle)
+        con_save = entity.save_throw('constitution', self.battle)
         if con_save.result() < self.save_dc:
             self.session.event_manager.received_event({'event': 'generic_failed_save', 'effect_description': 'engulf', 'source': self.entity, 'target':  self.engulfing_entity, 'save_type': 'constitution', 'dc': self.save_dc, 'roll': con_save, 'outcome': f"and takes {self.damage} bludgeoning damage."})
             damage = DieRoll.roll_with_lucky(entity, self.damage)

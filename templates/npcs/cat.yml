@@ -1,5 +1,6 @@
 ---
 kind: Cat
+label: Cat
 description: A small, agile feline companion that can serve as a familiar to spellcasters.
 size: tiny
 race:

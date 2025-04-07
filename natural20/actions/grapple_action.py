@@ -17,7 +17,7 @@ class GrappleAction(Action):
             target = self.target
         if target is None:
             self.errors.append('target is a required option for :attack')
-        if (target.size_identifier - self.source.size_identifier) > 1:
+        if (target.size_identifier() - self.source.size_identifier()) > 1:
             self.errors.append('validation.shove.invalid_target_size')
 
     def build_map(self):
@@ -43,6 +43,9 @@ class GrappleAction(Action):
         return action.build_map()
 
     def resolve(self, session, map, opts=None):
+        if not opts:
+            opts = {}
+
         target = opts.get('target') or self.target
         battle = opts.get('battle')
         if target is None:
@@ -55,7 +58,7 @@ class GrappleAction(Action):
         acrobatics_stats = (self.target.acrobatics_proficient() * self.target.proficiency_bonus()) + self.target.dex_mod()
 
         grapple_success = False
-        if self.target.incapacitated() or not battle.opposing(self.source, target):
+        if self.target.incapacitated() or (battle and not battle.opposing(self.source, target)):
             grapple_success = True
         else:
             contested_roll = self.target.athletics_check(battle, description='die_roll.contest') if athletics_stats > acrobatics_stats else self.target.acrobatics_check(battle, description='die_roll.contest')
@@ -73,28 +76,31 @@ class GrappleAction(Action):
 
     @staticmethod
     def apply(battle, item, session=None):
+        if not session:
+            session = battle.session
+
         if item['type'] == 'grapple':
             if item['success']:
                 if item['target'].immune_to_condition('grappled'):
-                    battle.event_manager.received_event({ "event" : 'grapple_immune',
+                    session.event_manager.received_event({ "event" : 'grapple_immune',
                                                       "target" : item['target'],
                                                       "source" : item['source']})
                     return
 
                 item['target'].do_grappled_by(item['source'])
-                battle.event_manager.received_event(  { "event" : 'grapple_success',
+                session.event_manager.received_event(  { "event" : 'grapple_success',
                                                       "target" : item['target'],
                                                       "source" : item['source'],
                                                       "source_roll" : item['source_roll'],
                                                       "target_roll" : item['target_roll'] })
             else:
-                battle.event_manager.received_event(  { "event" : 'grapple_failure',
+                session.event_manager.received_event(  { "event" : 'grapple_failure',
                                                         "target" : item['target'],
                                                         "source" : item['source'],
                                                         "source_roll" : item['source_roll'],
                                                         "target_roll" : item['target_roll'] })
-
-            battle.consume(item['source'], 'action')
+            if battle:
+                battle.consume(item['source'], 'action')
 
 
 class DropGrappleAction(Action):

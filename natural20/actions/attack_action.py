@@ -423,7 +423,7 @@ class AttackAction(Action):
                             'description': description
                         })
 
-                        save_roll = target.saving_throw(save_type, battle=battle)
+                        save_roll = target.save_throw(save_type, battle=battle)
                         if save_roll.result() >= int(dc):
                             self.result.append({
                                 'type': 'save_success',
