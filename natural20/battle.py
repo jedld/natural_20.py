@@ -121,17 +121,17 @@ class Battle():
             self.maps[index].place_at_spawn_point(position, entity, token)
 
     # remove an entity from the battle and from the map
-    def remove(self, entity):
+    def remove(self, entity, from_map=False):
         if self.current_turn_index == len(self.combat_order) - 1:
             self.current_turn_index = 0
-
-        del self.entities[entity]
+        if entity in self.entities:
+            del self.entities[entity]
         if entity in self.late_comers:
             self.late_comers.remove(entity)
         if entity in self.combat_order:
             self.combat_order.remove(entity)
 
-        if self.map_for(entity):
+        if from_map:
             self.map_for(entity).remove(entity, battle=self)
 
     def start(self, combat_order=None, custom_initiative=None):
@@ -332,7 +332,7 @@ class Battle():
     def unregister_map(self, map):
         if map in self.maps:
             for entity in map.entities.keys():
-                self.remove(entity)
+                self.remove(entity, from_map=False)
             self.maps.remove(map)
 
     def entity_state_for(self, entity):

@@ -1,6 +1,8 @@
 import unittest
 from natural20.map import Map
 from natural20.battle import Battle
+from natural20.actions.attack_action import AttackAction
+from natural20.utils.action_builder import autobuild
 from natural20.session import Session
 from natural20.map_renderer import MapRenderer
 from natural20.event_manager import EventManager
@@ -18,6 +20,7 @@ class TestNpc(unittest.TestCase):
     def setUp(self) -> None:
         self.session = self.make_session()
         self.map = Map(self.session, 'tests/fixtures/battle_sim.yml')
+        self.session.register_map('test_map', self.map)
         random.seed(7003)
         return super().setUp()
 
@@ -41,6 +44,26 @@ class TestNpc(unittest.TestCase):
         battle.start_turn()
         print(MapRenderer(battle.map_for(npc), battle).render())
         self.assertFalse(fighter.poisoned())
+
+    def test_engulf_effect(self):
+        battle = Battle(self.session, self.map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position=[0, 1], token='G')
+        fighter.reset_turn(battle)
+        npc = self.session.npc('shamblingmound')
+        self.map.add(npc, 1, 0)
+        battle.add(npc, 'b')
+        npc.reset_turn(battle)
+        print(MapRenderer(battle.map_for(npc), battle).render())
+        action = autobuild(self.session, AttackAction, npc, battle, map=battle.map_for(npc), match=['engulf', fighter])[0]
+        battle.action(action)
+        battle.commit(action)
+        self.assertTrue(fighter.grappled())
+        print(MapRenderer(battle.map_for(npc), battle).render())
+        print(MapRenderer(battle.map_for(fighter), battle).render())
+        npc.make_dead()
+        print(MapRenderer(battle.map_for(npc), battle).render())
+        print(MapRenderer(battle.map_for(fighter), battle).render())
 
 
     def test_npc(self):

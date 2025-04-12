@@ -129,6 +129,13 @@ class Map():
             self._setup_npcs()
             self._trigger_after_setup()
 
+    def __iter__(self):
+        """
+        Make the Map class iterable.
+        By default, it iterates over the entities property.
+        """
+        return iter(self.entities.keys())
+
     def _compute_lights(self):
         self.light_map = self.light_builder.build_map()
 

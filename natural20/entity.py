@@ -633,8 +633,9 @@ class Entity(EntityStateEvaluator, Notable):
 
     # @param target [Natural20::Entity]
     def ungrapple(self, target):
-        self.grappling.remove(target)
-        if self in target.grapples:
+        if target in self.grappling:
+            self.grappling.remove(target)
+        if target in target.grapples:
             target.grapples.remove(self)
         if len(target.grapples)==0 and 'grappled' in target.statuses:
             target.statuses.remove('grappled')
@@ -922,7 +923,7 @@ class Entity(EntityStateEvaluator, Notable):
                     effect = f['effect']
                     return effect
             return None
-        
+
         if isinstance(effect, str):
             effect = resolve_effect(effect)
             if not effect:
@@ -1090,7 +1091,7 @@ class Entity(EntityStateEvaluator, Notable):
     def escape_grapple_from(self, grappler):
         if grappler in self.grapples:
             self.grapples.remove(grappler)
-        if len(self.grapples) == 0:
+        if len(self.grapples) == 0 and 'grappled' in self.statuses:
             self.statuses.remove('grappled')
         grappler.ungrapple(self)
         self.resolve_trigger('escape_grapple_from', {'grappler': grappler})

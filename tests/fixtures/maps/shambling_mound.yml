@@ -1,0 +1,11 @@
+name: Shambling Mound
+description: Inside the Shambling Mound
+map:
+  illumination: 0.0
+  base:
+    - ...
+    - ...
+    - ...
+extensions:
+  web:
+    background_color: '#000000'
