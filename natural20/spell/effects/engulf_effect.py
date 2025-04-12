@@ -48,17 +48,18 @@ class EngulfEffect:
         entity.register_event_hook('escape_grapple_from', self)
 
 
-    def dismiss(self, opt=None):
-        target_map = self.session.map_for(self.engulfing_entity)
-        target_pos = target_map.entity_or_object_pos(self.engulfing_entity)
+    def dismiss(self, entity, effect, opts=None):
+        if self.entity in self.engulf_map:
+            target_map = self.session.map_for(self.engulfing_entity)
+            target_pos = target_map.entity_or_object_pos(self.engulfing_entity)
 
-        if not target_map.placeable(self.entity, target_pos[0], target_pos[1]):
-            target_pos = target_map.find_empty_placeable_position(self.entity, target_pos[0], target_pos[1])
+            if not target_map.placeable(self.entity, target_pos[0], target_pos[1]):
+                target_pos = target_map.find_empty_placeable_position(self.entity, target_pos[0], target_pos[1])
 
-        target_map.add(self.entity, target_pos[0], target_pos[1])
-        self.engulf_map.remove(self.entity)
-        self.entity.escape_grapple_from(self.engulfing_entity)
-        self.battle.unregister_map(self.engulf_map)
+            target_map.add(self.entity, target_pos[0], target_pos[1])
+            self.engulf_map.remove(self.entity)
+            self.entity.escape_grapple_from(self.engulfing_entity)
+            self.battle.unregister_map(self.engulf_map)
 
     def start_of_turn(self, entity: Entity, opt=None):
         con_save = entity.save_throw('constitution', self.battle)
@@ -70,7 +71,7 @@ class EngulfEffect:
             self.session.event_manager.received_event({'event': 'generic_success_save', 'effect_description': 'engulf', 'source': self.entity, 'target':  self.engulfing_entity, 'save_type': 'constitution', 'dc': self.save_dc, 'roll': con_save, 'outcome': 'and is not affected by the engulf effect.'})
 
     def escape_grapple_from(self, entity, opt=None):
-        self.dismiss()
+        self.dismiss(entity, self)
 
     def restrained_override(self, entity, opt=None):
         return True

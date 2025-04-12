@@ -170,6 +170,7 @@ class AttackAction(Action):
                 if not item['context'].get('source').has_casted_effect('engulf'):
                     if not item['source'].immune_to_condition('grappled'):
                         effect = EngulfEffect(session, battle, item['context']['source'], item['source'], 15, '1d8+4')
+                        effect.source = item['context']['source']
                         effect.engulf(item['source'])
             elif item['effect'] == 'strength_drain':
                 reduction_value = DieRoll.roll("1d4").result()

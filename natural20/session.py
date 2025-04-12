@@ -106,8 +106,11 @@ class Session:
 
         return self.maps
 
-    def register_map(self, name, map_file):
-        self.maps[name] = Map(self, map_file, name=name)
+    def register_map(self, name, map_or_map_file):
+        if isinstance(map_or_map_file, str):
+            self.maps[name] = Map(self, map_or_map_file, name=name)
+        else:
+            self.maps[name] = map_or_map_file
         return self.maps[name]
 
     def groups(self):
