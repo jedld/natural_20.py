@@ -39,6 +39,8 @@ class JsonRenderer:
                 has_darkvision = False
 
                 y = height - index_2 - 1 - y_offset
+                soft_shadow_direction = [0,0,0,0,0,0,0,0]
+
                 if entity_pov is not None:
                     if not isinstance(entity_pov, list):
                         entity_pov = [entity_pov]
@@ -53,15 +55,15 @@ class JsonRenderer:
 
                     if len(entity_pov) > 0:
                         if x < 0 or y < 0 or x >= self.map.size[0] or y >= self.map.size[1]:
-                            result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 0.0})
+                            result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 0.0, 'soft_shadow_direction': soft_shadow_direction})
                             continue
 
                         if not any([self.map.can_see_square(entity, (x, y)) for entity in entity_pov]):
                             if any([self.map.can_see_square(entity, (x, y), force_dark_vision=True) for entity in entity_pov]):
-                                result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': True, 'light': 0.0, 'opacity': 0.95})
+                                result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': True, 'light': 0.0, 'opacity': 0.95, 'soft_shadow_direction': soft_shadow_direction})
                                 continue
 
-                            result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 1.0})
+                            result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 1.0, 'soft_shadow_direction': soft_shadow_direction})
                             continue
 
                 object_entities = self.map.objects_at(x, y)
@@ -76,12 +78,27 @@ class JsonRenderer:
 
                 opacity = 1.0 - max(min(1.0, light), 0.2)
 
+
+                soft_shadow_index = 0
+                for offset_x in [-1, 0, 1]:
+                    for offset_y in [-1, 0, 1]:
+                        if offset_x == 0 and offset_y == 0:
+                            continue
+                        if x + offset_x < 0 or y + offset_y < 0 or x + offset_x >= self.map.size[0] or y + offset_y >= self.map.size[1]:
+                            soft_shadow_direction[soft_shadow_index] = 0
+                        elif self.map.light_at(x + offset_x, y + offset_y) > light:
+                            soft_shadow_direction[soft_shadow_index] = 1
+                        else:
+                            soft_shadow_direction[soft_shadow_index] = 0
+                        soft_shadow_index += 1
+
                 shared_attributes = {
                     'x': x,
                     'y': y,
                     'difficult': self.map.difficult_terrain(entity, x, y),
                     'line_of_sight': True,
                     'light': light,
+                    'soft_shadow_direction': soft_shadow_direction,
                     'opacity': opacity,
                     'has_darkvision': has_darkvision,
                     'darkvision_color': darkvision_color,
