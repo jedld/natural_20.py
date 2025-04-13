@@ -10,12 +10,14 @@
 # Lines starting with '#' are considered comments and are ignored.
 # If no file is specified, it defaults to "../static/items".
 
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 [folders_file]"
-    exit 1
+# Set default folder file if none is provided
+if [ "$#" -eq 0 ]; then
+    FOLDER_FILE="folders.txt"
+else
+    FOLDER_FILE="$1"
 fi
 
-FOLDER_FILE="$1"
+# Check if the folder file exists
 if [ ! -f "$FOLDER_FILE" ]; then
     echo "Error: File not found at $FOLDER_FILE"
     exit 1
