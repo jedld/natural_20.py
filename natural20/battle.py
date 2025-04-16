@@ -15,7 +15,7 @@ class Battle():
         if isinstance(maps, list):
             self.maps = maps
         elif isinstance(maps, dict):
-            self.maps = maps.values()
+            self.maps = list(maps.values())
         elif maps:
             self.maps = [maps]
         else:
@@ -88,6 +88,7 @@ class Battle():
             'active_perception': 0,
             'active_perception_disadvantage': 0,
             'free_object_interaction': 0,
+            'legendary_actions': 0,
             'target_effect': {},
             'two_weapon': None,
             'positions_entered': {},
@@ -233,6 +234,16 @@ class Battle():
     def end_turn(self):
         self.current_turn().resolve_trigger('end_of_turn')
         self.trigger_event('end_of_turn', self,  { "target" : self.current_turn()})
+
+        # reset legendary actions
+        for entity in self.combat_order:
+            if entity.npc() and len(entity.legendary_actions) > 0:
+                controller = self.controller_for(entity)
+                if controller:
+                    action = controller.legendary_action_listener(self, self.session, entity, self.map_for(entity), { "target" : self.current_turn() })
+                    if action:
+                        self.resolve_action(entity, action)
+                        self.commit(action)
 
     def battle_ends(self):
         """
@@ -507,7 +518,7 @@ class Battle():
     # @param entity [Natural20::Entity]
     # @param resource [str]
     def consume(self, entity, resource, qty=1):
-        valid_resources = ['action', 'reaction', 'bonus_action', 'movement', 'free_object_interaction']
+        valid_resources = ['action', 'reaction', 'bonus_action', 'movement', 'free_object_interaction', 'legendary_action']
         if resource not in valid_resources:
             raise Exception('invalid resource')
 

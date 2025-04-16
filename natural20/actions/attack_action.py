@@ -64,6 +64,9 @@ class AttackAction(Action):
         if battle and options.get('opportunity_attack'):
             return entity.total_reactions(battle) > 0
 
+        if battle and options.get('legendary_action'):
+            return entity.total_legendary_actions(battle) > 0
+
         return battle is None or entity.total_actions(battle) > 0 or entity.multiattack(battle, options.get('npc_action'))
 
     def clone(self):
@@ -191,11 +194,17 @@ class AttackAction(Action):
             if item['target'].passive():
                 item['target'].is_passive = False
             __class__.consume_resource(battle, item)
-            session.event_manager.received_event({'attack_roll': item['attack_roll'], 'attack_name': item['attack_name'], \
-                                                 'attack_thrown': item['thrown'], 'advantage_mod': item['advantage_mod'], \
-                                                 'as_reaction': bool(item['as_reaction']), 'adv_info': item['adv_info'], \
-                                                 'thrown': item['thrown'], \
-                                                 'source': item['source'], 'target': item['target'], 'event': 'miss'})
+            session.event_manager.received_event({'attack_roll': item['attack_roll'],
+                                                  'attack_name': item['attack_name'],
+                                                  'attack_thrown': item['thrown'],
+                                                  'advantage_mod': item['advantage_mod'],
+                                                  'as_reaction': bool(item['as_reaction']),
+                                                  'adv_info': item['adv_info'],
+                                                  'thrown': item['thrown'],
+                                                  'source': item['source'],
+                                                  'target': item['target'],
+                                                  'as_legendary_action': bool(item['as_legendary_action']),
+                                                  'event': 'miss'})
 
     def consume_resource(battle, item):
         if item.get('source'):
@@ -224,6 +233,8 @@ class AttackAction(Action):
                 battle.consume(item['source'], 'reaction')
             elif item.get('as_bonus_action'):
                 battle.consume(item['source'], 'bonus_action')
+            elif item.get('as_legendary_action'):
+                battle.consume(item['source'], 'legendary_action')
             elif item.get('second_hand'):
                 battle.consume(item['source'], 'bonus_action')
             else:
@@ -321,7 +332,9 @@ class AttackAction(Action):
 
             target_ac, _cover_ac = effective_ac(battle, self.source, target)
 
-            after_attack_roll_hook(battle, target, self.source, self.attack_roll, target_ac, {'original_action': self })
+            _, events = after_attack_roll_hook(battle, target, self.source, self.attack_roll, target_ac, {'original_action': self })
+            for event in events:
+                self.result.append(event)
 
         return self._resolve_hit(battle, target, weapon, self.attack_roll, damage_roll, attack_name, ammo_type, adv_info)
 
@@ -394,6 +407,7 @@ class AttackAction(Action):
                 'ammo': ammo_type,
                 'as_reaction': bool(self.as_reaction),
                 'as_bonus_action': bool(self.as_bonus_action),
+                'as_legendary_action': bool(self.legendary_action),
                 'second_hand': self.second_hand(),
                 'npc_action': self.npc_action,
                 'multiattack_clear': False,
@@ -478,6 +492,7 @@ class AttackAction(Action):
                 'attack_roll': attack_roll,
                 'as_reaction': bool(self.as_reaction),
                 'as_bonus_action': bool(self.as_bonus_action),
+                'as_legendary_action': bool(self.legendary_action),
                 'target_ac': target.armor_class,
                 'cover_ac': cover_ac_adjustments,
                 'ammo': ammo_type,

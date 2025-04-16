@@ -70,6 +70,7 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
             self.inventory[inventory["type"]] = { "qty": inventory["qty"]}
 
         self.npc_actions = self.properties["actions"]
+        self.legendary_actions = self.properties.get("legendary_actions", [])
         self.battle_defaults = self.properties.get("battle_defaults", None)
         self.hidden_stealth = self.properties.get("hidden_stealth", None)
         self.opt = opt
@@ -240,13 +241,13 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
     def set_dialogue(self, dialogue, addressed_to=None):
         self.dialogue.append([addressed_to, dialogue])
 
-    def available_actions(self, session, battle, opportunity_attack=False, map=None, auto_target=True, **opts):
+    def available_actions(self, session, battle, opportunity_attack=False, legendary_actions=False, map=None, auto_target=True, **opts):
         if opts is None:
             opts = {}
 
         interact_only = opts.get('interact_only', False)
         except_interact = opts.get('except_interact', False)
-
+        legendary_actions = opts.get('legendary_actions', False)
         if self.unconscious():
             return ["end"]
 
@@ -260,10 +261,10 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
                 return actions
 
         if opportunity_attack and not self.familiar():
-            actions = [s for s in self.generate_npc_attack_actions(battle, opportunity_attack=True, auto_target=auto_target) if s.action_type == "attack" and s.npc_action["type"] == "melee_attack"]
+            actions = [s for s in self.generate_npc_attack_actions(battle, opportunity_attack=True, legendary_actions=legendary_actions, auto_target=auto_target) if s.action_type == "attack" and s.npc_action["type"] == "melee_attack"]
         else:
             if not interact_only and not self.familiar():
-                actions.extend(self.generate_npc_attack_actions(battle, auto_target=auto_target))
+                actions.extend(self.generate_npc_attack_actions(battle, legendary_actions=legendary_actions, auto_target=auto_target))
             for action_class in self.ACTION_LIST:
                 if interact_only and action_class != InteractAction:
                     continue
@@ -368,14 +369,19 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
 
         return enumerate(spell_per_level)
 
-    def attack_options(self, battle, opportunity_attack=False):
+    def attack_options(self, battle, opportunity_attack=False, legendary_actions=False):
         actions = []
-        for npc_action in self.npc_actions:
+        if legendary_actions:
+            available_actions = self.legendary_actions
+        else:
+            available_actions = self.npc_actions
+
+        for npc_action in available_actions:
             if npc_action.get("ammo") and self.item_count(npc_action["ammo"]) <= 0:
                 continue
             if npc_action.get("if") and not self.eval_if(npc_action["if"]):
                 continue
-            if not AttackAction.can(self, battle, { "npc_action" : npc_action, "opportunity_attack" : opportunity_attack}):
+            if not AttackAction.can(self, battle, { "npc_action" : npc_action, "opportunity_attack" : opportunity_attack, "legendary_action" : legendary_actions }):
                 continue
             actions.append(npc_action)
         return actions
@@ -390,15 +396,16 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         else:
             raise NotImplementedError(f"unknown action {result['action']}")
 
-    def generate_npc_attack_actions(self, battle, opportunity_attack=False, auto_target=True):
+    def generate_npc_attack_actions(self, battle, opportunity_attack=False, auto_target=True, legendary_actions=False):
         if self.familiar():
             return []
         actions = []
 
-        npc_actions = self.attack_options(battle, opportunity_attack=opportunity_attack)
+        npc_actions = self.attack_options(battle, opportunity_attack=opportunity_attack, legendary_actions=legendary_actions)
         for npc_action in npc_actions:
             action = AttackAction(self.session, self, "attack")
             action.npc_action = npc_action
+            action.legendary_action = legendary_actions
             actions.append(action)
 
         # assign possible attack targets

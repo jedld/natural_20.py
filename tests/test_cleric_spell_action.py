@@ -30,7 +30,9 @@ class TestClericSpellAction(unittest.TestCase):
         self.battle = Battle(self.session, self.battle_map)
         self.npc = self.battle_map.entity_at(5, 5)
         self.battle.add(self.entity, "a", position=[0, 5])
+        self.battle.add(self.npc, "b")
         self.entity.reset_turn(self.battle)
+
 
     def test_sacred_flame(self):
         random.seed(7003)
@@ -70,6 +72,7 @@ class TestClericSpellAction(unittest.TestCase):
         )
         self.assertEqual(adv_mod, 1)
         self.assertEqual(adv_info, [["guiding_bolt_advantage"], []])
+        self.assertEqual(self.npc.light_properties(), {'dim': 1, 'bright': 0})
         self.entity.resolve_trigger("start_of_turn")
         self.entity.resolve_trigger("end_of_turn")
         adv_mod, adv_info = target_advantage_condition(
@@ -77,6 +80,52 @@ class TestClericSpellAction(unittest.TestCase):
         )
         self.assertEqual(adv_mod, 0)
         self.assertEqual(adv_info, [[], []])
+
+    def test_guiding_bolt_with_next_attack_action(self):
+        self.entity2 = PlayerCharacter.load(self.session, "high_elf_fighter.yml")
+        self.assertTrue(self.entity2.darkvision(30))
+        self.battle.add(self.entity2, "a", position=[3, 6], token='*')
+        self.battle.start()
+        self.entity2.reset_turn(self.battle)
+        random.seed(7009)
+        self.npc.attributes["hp"] = 21
+        self.assertEqual(self.npc.hp(), 21)
+        print(MapRenderer(self.battle_map).render())
+        action = SpellAction.build(self.session, self.entity)["next"](
+            ["guiding_bolt", 0]
+        )["next"](self.npc)
+        action.resolve(self.session, self.battle_map, {"battle": self.battle})
+        self.assertEqual(
+            [s["type"] for s in action.result], ["spell_damage", "guiding_bolt"]
+        )
+        self.battle.commit(action)
+
+        adv_mod, adv_info = target_advantage_condition(
+            self.battle, self.entity, self.npc, action.spell_action.properties
+        )
+        self.assertEqual(adv_info, [["guiding_bolt_advantage"], []])
+        self.assertEqual(adv_mod, 1)
+        self.assertEqual(self.npc.hp(), 1)
+
+        action = autobuild(
+            self.session,
+            AttackAction,
+            self.entity2,
+            self.battle,
+            self.battle_map,
+            match=[self.npc, "longbow"],
+            verbose=True
+        )[0]
+
+        self.assertIsNotNone(action)
+        adv_mod, adv_info = target_advantage_condition(
+            self.battle, self.entity, self.npc, action.using
+        )
+        self.assertEqual(adv_info, [["guiding_bolt_advantage"], []])
+        self.assertEqual(adv_mod, 1)
+        action.resolve(self.session, self.battle_map, {"battle": self.battle})
+        self.battle.commit(action)
+
 
     def test_cure_wounds(self):
         random.seed(7003)
@@ -113,12 +162,12 @@ class TestClericSpellAction(unittest.TestCase):
         ](self.npc)
         action = action.resolve(self.session, self.battle_map, {"battle": self.battle})
         result = action.result[0]
-        self.assertEqual(str(result["attack_roll"]), "d20(3) + 8 + d4(3)")
+        self.assertEqual(str(result["attack_roll"]), "d20(9) + 8 + d4(4)")
         result = self.entity2.save_throw("wisdom", self.battle)
-        self.assertEqual(str(result), "d20(10) + 1 + d4(2)")
+        self.assertEqual(str(result), "d20(5) + 1 + d4(2)")
         self.entity2.dismiss_effect(bless_action.spell_action)
         result = self.entity2.save_throw("wisdom", self.battle)
-        self.assertEqual(str(result), "d20(19) + 1")
+        self.assertEqual(str(result), "d20(11) + 1")
 
     def test_bless_multiple_targets(self):
         random.seed(7003)
@@ -276,23 +325,25 @@ class TestClericSpellAction(unittest.TestCase):
         auto_build_actions = autobuild(
             self.session, SpellAction, self.entity, self.battle
         )
-        self.assertEqual(len(auto_build_actions), 11)
+        self.assertEqual(len(auto_build_actions), 13)
+        actual_actions = sorted([str(a) for a in auto_build_actions])
 
         self.assertEqual(
-            [str(a) for a in auto_build_actions],
-            [
-                "SpellAction: sacred_flame to Skeleton",
-                "SpellAction: cure_wounds to Shor Valu",
-                "SpellAction: guiding_bolt to Skeleton",
-                "SpellAction: spiritual_weapon to [2, 5]",
-                "SpellAction: spiritual_weapon to [3, 5]",
-                "SpellAction: spiritual_weapon to [3, 6]",
-                "SpellAction: spiritual_weapon to [4, 5]",
-                "SpellAction: spiritual_weapon to [4, 6]",
-                "SpellAction: spiritual_weapon to [6, 5]",
-                "SpellAction: spiritual_weapon to [7, 6]",
-                "SpellAction: protection_from_poison to Shor Valu",
-            ],
+           actual_actions,
+            ['SpellAction: cure_wounds to Shor Valu',
+             'SpellAction: guiding_bolt to Frenabs',
+             'SpellAction: guiding_bolt to Skeleton',
+             'SpellAction: protection_from_poison to Shor Valu',
+             'SpellAction: sacred_flame to Frenabs',
+             'SpellAction: sacred_flame to Skeleton',
+             'SpellAction: spiritual_weapon to [2, 5]',
+             'SpellAction: spiritual_weapon to [3, 5]',
+             'SpellAction: spiritual_weapon to [3, 6]',
+             'SpellAction: spiritual_weapon to [4, 5]',
+             'SpellAction: spiritual_weapon to [4, 6]',
+             'SpellAction: spiritual_weapon to [6, 5]',
+             'SpellAction: spiritual_weapon to [7, 6]'
+            ]
         )
 
 

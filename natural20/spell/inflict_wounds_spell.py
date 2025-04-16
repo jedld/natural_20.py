@@ -36,7 +36,7 @@ class InflictWoundsSpell(AttackSpell):
         if opts is None:
             opts = {}
 
-        _, attack_roll, _, _, _ = evaluate_spell_attack(battle, self.source, self.action.target, self.properties)
+        _, attack_roll, _, _, _, _ = evaluate_spell_attack(battle, self.source, self.action.target, self.properties)
         target_ac, _cover_ac = effective_ac(battle, self.source, self.action.target)
         return attack_roll.prob(target_ac)
 

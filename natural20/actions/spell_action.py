@@ -232,6 +232,14 @@ class SpellAction(Action):
             if item['target'].passive():
                 item['target'].is_passive = False
             damage_event(item, battle)
+        elif item['type'] == 'dismiss_effect':
+            item['source'].dismiss_effect(item['effect'])
+            session.event_manager.received_event({
+                'event': 'dismiss_effect',
+                'source': item['source'],
+                'target': item.get('target'),
+                'effect': item['effect']
+            })
         elif item['type'] == 'spell_miss':
             if item['target'].passive():
                 item['target'].is_passive = False

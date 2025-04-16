@@ -59,11 +59,14 @@ class ChillTouchSpell(AttackSpell):
     def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target
 
-        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})
+        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})
+        result = []
+        for event in events:
+            result.append(event)
 
         if hit:
             damage_roll = self._damage(battle, crit=attack_roll.nat_20())
-            return [{
+            result.extend([{
                 'source': entity,
                 'target': target,
                 'attack_name': "spell.chill_touch",
@@ -82,9 +85,9 @@ class ChillTouchSpell(AttackSpell):
                 'target': target,
                 'type': 'chill_touch',
                 'effect': self,
-            }]
+            }])
         else:
-            return [{
+            result.extend([{
                 'type': 'spell_miss',
                 'source': entity,
                 'target': target,
@@ -95,7 +98,9 @@ class ChillTouchSpell(AttackSpell):
                 'adv_info': adv_info,
                 'cover_ac': cover_ac_adjustments,
                 'spell': self.properties,
-            }]
+            }])
+
+        return result
 
     @staticmethod
     def heal_override(entity, opt=None):

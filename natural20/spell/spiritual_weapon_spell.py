@@ -98,6 +98,7 @@ class SpiritualWeaponSpell(Spell):
                     'action_surge': None,
                     'casted_level_spells': [],
                     'positions_entered': {},
+                    'legendary_actions': 0,
                     'group': battle.group_for(item['source'])
                 }
 

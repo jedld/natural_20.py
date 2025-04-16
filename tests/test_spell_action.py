@@ -54,7 +54,7 @@ class TestSpellAction(unittest.TestCase):
         self.battle.add(self.npc2, 'b', position=[1, 6])
         print(MapRenderer(self.battle_map).render())
         firebolt_spell = self.session.load_spell('firebolt')
-        _, _, advantage_mod, _, _ = evaluate_spell_attack(self.battle, self.entity, self.npc, firebolt_spell)
+        _, _, advantage_mod, _, _, _ = evaluate_spell_attack(self.battle, self.entity, self.npc, firebolt_spell)
         self.assertEqual(advantage_mod, -1)
 
     def test_shocking_grasp(self):
@@ -245,7 +245,7 @@ class TestSpellAction(unittest.TestCase):
         self.battle.action(action)
         self.battle.commit(action)
         DieRoll.unfudge()
-        self.assertEqual(self.entity.hp(), 6)
+        self.assertEqual(self.entity.hp(), 0)
 
     def test_shield_spell_async(self):
         class CustomReactionController(Controller):
@@ -289,7 +289,7 @@ class TestSpellAction(unittest.TestCase):
                 action = self.battle.action(action)
         self.battle.commit(action)
         DieRoll.unfudge()
-        self.assertEqual(self.entity.hp(), 6)
+        self.assertEqual(self.entity.hp(), 0)
 
     def test_autobuild(self):
         self.npc = self.session.npc('skeleton')

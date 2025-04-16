@@ -120,6 +120,8 @@ class EventManager:
 
         def attack_roll(event):
             msg = f"{self.show_name(event)} attacked {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {self.t(event['attack_name'])}{'(thrown)' if event['thrown'] else ''} and hits"
+            if event['as_legendary_action']:
+                msg = "[legendary action] " + msg
             if event['attack_roll']:
                 msg += f" with attack roll {event['attack_roll']} = {event['attack_roll'].result()}"
             if event['attack_roll'] and event['attack_roll'].nat_20():
@@ -131,10 +133,14 @@ class EventManager:
             self.output_logger.log(f"{msg}.")
 
         def miss(event):
+            msg = f"{self.show_name(event)} tried to attack {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']}{'(thrown)' if event['thrown'] else ''}"
+            if event['as_legendary_action']:
+                msg = "[legendary action] " + msg
+
             if event.get('spell_save'):
-                self.output_logger.log(f"{self.show_name(event)} tried to attack {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']}{'(thrown)' if event['thrown'] else ''} but succeeded on save with {event['spell_save']} > DC: {event['dc']}.")
+                self.output_logger.log(f"{msg} but succeeded on save with {event['spell_save']} > DC: {event['dc']}.")
             else:
-                self.output_logger.log(f"{self.show_name(event)} tried to attack {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']}{'(thrown)' if event['thrown'] else ''} but missed with {event['attack_roll']}= {event['attack_roll'].result()}.")
+                self.output_logger.log(f"{msg} but missed with {event['attack_roll']}= {event['attack_roll'].result()}.")
 
         def concentration_check(event):
             if event['result'] == 'success':
@@ -295,6 +301,7 @@ class EventManager:
             'start_of_combat': start_of_combat,
             'use_item': handle_use_item,
             'interact': interact,
+            'dismiss_effect': lambda event: self.output_logger.log(f"{self.show_name(event)}: {event['effect']} effect has been dismissed."),
             'resummon_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} summons {event['familiar'].name}"),
             'dismiss_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} dismisses {event['familiar'].name}"),
             'find_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} creates a familiar {event['familiar'].name}"),

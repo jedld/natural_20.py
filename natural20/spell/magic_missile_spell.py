@@ -36,7 +36,10 @@ class MagicMissileSpell(Spell):
         # if there are tuples in targets, flatten them
 
         for target in targets:
-            after_attack_roll_hook(battle, target, entity, None, None, opts={'magic_missile': True})
+            _, events = after_attack_roll_hook(battle, target, entity, None, None, opts={'magic_missile': True})
+            for event in events:
+                result.append(event)
+
             if target.has_spell_effect('shield'):
                 result.append({
                     'source': entity,

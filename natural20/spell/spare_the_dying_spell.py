@@ -59,9 +59,8 @@ class SpareTheDyingSpell(Spell):
         if target.hp() > 0:
             self.errors.append("target is not unconscious")
 
-        if not isinstance(target, Npc) or isinstance(target, PlayerCharacter):
+        if not (isinstance(target, Npc) or isinstance(target, PlayerCharacter)):
             self.errors.append("target must be an entity")
-
 
     @staticmethod
     def apply(battle, item, session=None):
