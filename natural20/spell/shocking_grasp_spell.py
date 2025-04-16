@@ -36,6 +36,7 @@ class ShockingGraspSpell(AttackSpell):
         return attack_roll.prob(target_ac)
 
     def resolve(self, entity, battle, spell_action, _battle_map):
+        result = []
         target = spell_action.target
         advantage_override = {
             "action": spell_action
@@ -44,7 +45,9 @@ class ShockingGraspSpell(AttackSpell):
         if target.equipped_metallic_armor():
             advantage_override['advantage'] = ['shocking_grasp_metallic']
 
-        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties, advantage_override)
+        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events = evaluate_spell_attack(battle, entity, target, self.properties, advantage_override)
+        for event in events:
+            result.append(event)
 
         if hit:
             level = 1
@@ -56,7 +59,7 @@ class ShockingGraspSpell(AttackSpell):
                 level += 1
 
             damage_roll = DieRoll.roll(f"{level}d8", crit=attack_roll.nat_20(), battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.shocking_grasp')))
-            return [
+            result.extend([
                 {
                     'source': entity,
                     'target': target,
@@ -77,9 +80,9 @@ class ShockingGraspSpell(AttackSpell):
                     'type': 'shocking_grasp',
                     'effect': self
                 }
-            ]
+            ])
         else:
-            return [
+            result.extend([
                 {
                     'type': 'spell_miss',
                     'source': entity,
@@ -93,7 +96,9 @@ class ShockingGraspSpell(AttackSpell):
                     'cover_ac': cover_ac_adjustments,
                     'spell': self.properties
                 }
-            ]
+            ])
+
+        return result
 
     @staticmethod
     def apply(battle, item, session=None):

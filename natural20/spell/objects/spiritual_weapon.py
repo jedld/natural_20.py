@@ -92,6 +92,7 @@ class SpiritualWeapon(Entity):
                 'action_surge': None,
                 'casted_level_spells': [],
                 'positions_entered': {},
+                'legendary_actions': 0,
                 'group': self.group
             }
 

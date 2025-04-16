@@ -38,13 +38,16 @@ class GuidingBoltSpell(AttackSpell):
         return self._damage(battle, opts).expected()
 
     def resolve(self, entity, battle, spell_action, _battle_map):
+        result = []
         target = spell_action.target
 
-        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})
+        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})
+        for event in events:
+            result.append(event)
 
         if hit:
             damage_roll = self._damage(battle, crit=attack_roll.nat_20(), opts={"at_level": spell_action.at_level})
-            return [{
+            result.extend([{
                 'source': entity,
                 'target': target,
                 'attack_name': "spell.guiding_bolt",
@@ -62,9 +65,9 @@ class GuidingBoltSpell(AttackSpell):
                 'target': target,
                 'type': 'guiding_bolt',
                 'effect': self
-            }]
+            }])
         else:
-            return [{
+            result.extend([{
                 'source': entity,
                 'target': target,
                 'attack_name': "spell.guiding_bolt",
@@ -74,7 +77,9 @@ class GuidingBoltSpell(AttackSpell):
                 'cover_ac': cover_ac_adjustments,
                 'type': 'spell_miss',
                 'spell': self.properties
-            }]
+            }])
+
+        return result
 
     @staticmethod
     def start_of_turn(entity, opt=None):
@@ -91,12 +96,26 @@ class GuidingBoltSpell(AttackSpell):
 
     @staticmethod
     def after_attack_roll_target(entity, opt=None):
-        entity.dismiss_effect(opt['effect'])
+        return [
+            {
+                'type': 'dismiss_effect',
+                'source': entity,
+                'effect': opt['effect']
+            }
+        ]
+
+    @staticmethod
+    def light_override(entity, opt=None):
+        return {
+            'bright': opt['bright'],
+            'dim': max(opt['dim'], 1)
+        }
 
     @staticmethod
     def apply(battle, item, session=None):
         if item['type'] == 'guiding_bolt':
             item['source'].add_casted_effect({ "target": item['target'], "effect" : item['effect'] })
-            item['target'].register_event_hook('after_attack_roll', GuidingBoltSpell, effect=item['effect'])
+            item['target'].register_event_hook('after_attack_roll_target', GuidingBoltSpell, effect=item['effect'])
             item['source'].register_event_hook('start_of_turn', GuidingBoltSpell, effect=item['effect'])
             item['target'].register_effect('targeted_advantage_override', GuidingBoltSpell, effect=item['effect'], source=item['source'])
+            item['target'].register_effect('light_override', GuidingBoltSpell, effect=item['effect'], source=item['source'])

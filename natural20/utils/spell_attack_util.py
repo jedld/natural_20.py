@@ -39,12 +39,13 @@ def evaluate_spell_attack(battle, entity, target, spell_properties, opts=None):
 
     entity.resolve_trigger('attack_resolved', { "target" : target})
 
-    force_miss = after_attack_roll_hook(battle, target,
+    force_miss, events = after_attack_roll_hook(battle, target,
                                         entity, attack_roll, target_ac, { "spell" : spell_properties})
     if not force_miss:
         cover_ac_adjustments = 0
         hit = True if attack_roll.nat_20() else False if attack_roll.nat_1() else attack_roll.result() >= target_ac
     else:
+        cover_ac_adjustments = None
         hit = False
 
-    return [hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info]
+    return [hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events]

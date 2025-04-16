@@ -53,7 +53,7 @@ class EngulfEffect:
             target_map = self.session.map_for(self.engulfing_entity)
             target_pos = target_map.entity_or_object_pos(self.engulfing_entity)
 
-            if not target_map.placeable(self.entity, target_pos[0], target_pos[1]):
+            if not target_map.placeable(self.entity, target_pos[0], target_pos[1], squeeze=False):
                 target_pos = target_map.find_empty_placeable_position(self.entity, target_pos[0], target_pos[1])
 
             target_map.add(self.entity, target_pos[0], target_pos[1])

@@ -974,6 +974,10 @@ class Entity(EntityStateEvaluator, Notable):
         if not entity_state:
             raise ValueError("entity has not been added to the battle yet")
 
+        total_legendary_actions = 0
+        if 'legendary_actions' in self.properties:
+            total_legendary_actions = 3
+
         entity_state.update({
             'action': 1,
             'bonus_action': 1,
@@ -985,7 +989,8 @@ class Entity(EntityStateEvaluator, Notable):
             'two_weapon': None,
             'action_surge': None,
             'casted_level_spells': [],
-            'positions_entered': {}
+            'positions_entered': {},
+            'legendary_actions': total_legendary_actions
         })
 
         self._reset_spiritual_weapon(battle)
@@ -1131,6 +1136,12 @@ class Entity(EntityStateEvaluator, Notable):
             return battle.entity_state_for(self).get('reaction')
         else:
             return 1
+
+    def total_legendary_actions(self, battle):
+        if battle:
+            return battle.entity_state_for(self).get('legendary_actions')
+        else:
+            return 0
 
     def free_object_interaction(self, battle):
         if battle is None:
@@ -1816,7 +1827,6 @@ class Entity(EntityStateEvaluator, Notable):
         self.death_fails = 0
         self.death_saves = 0
 
-
     def make_conscious(self):
         if 'unconscious' in self.statuses:
             self.statuses.remove("unconscious")
@@ -1859,6 +1869,16 @@ class Entity(EntityStateEvaluator, Notable):
 
         bright = max(bright)
         dim = max(dim)
+
+        # check for light overrides
+        light_override = self.eval_effect('light_override', {
+            'bright': bright,
+            'dim': dim
+        })
+
+        if light_override:
+            bright = light_override.get('bright', bright)
+            dim = light_override.get('dim', dim)
 
         if dim <= 0 and bright <= 0:
             return None

@@ -47,6 +47,22 @@ class GenericController(Controller):
 
     def roll_for(self, entity, stat, advantage=False, disadvantage=False):
         return None
+    
+    def legendary_action_listener(self, battle, session, entity, map, event):
+        valid_actions = []
+        if entity.total_legendary_actions(battle) > 0:
+            actions = [s for s in entity.available_actions(session, battle, legendary_actions=True)]
+            for action in actions:
+                    valid_targets = battle.valid_targets_for(entity, action)
+                    if event['target'] in valid_targets:
+                        action.target = event['target']
+                        action.legendary_action = True
+                        valid_actions.append(action)
+
+            selected_action = self.select_action(battle, entity, valid_actions )
+            return selected_action
+        return None
+
 
     def opportunity_attack_listener(self, battle, session, entity, map, event):
         actions = [s for s in entity.available_actions(session, battle, opportunity_attack=True)]

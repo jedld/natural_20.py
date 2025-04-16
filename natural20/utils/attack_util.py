@@ -19,9 +19,6 @@ def damage_event(item, battle):
     dmg = item['damage'].result() if isinstance(item['damage'], Rollable) else item['damage']
     dmg += item['sneak_attack'].result() if item.get('sneak_attack') is not None else 0
 
-
-
-
     session.event_manager.received_event({
         'source': item['source'],
         'attack_roll': item.get('attack_roll', None),
@@ -30,6 +27,7 @@ def damage_event(item, battle):
         'attack_name': item['attack_name'],
         'damage_type': item['damage_type'],
         'advantage_mod': item.get('advantage_mod', None),
+        'as_legendary_action': item.get('as_legendary_action', False),
         'as_reaction': item.get('as_reaction', False),
         'damage_roll': item['damage'],
         'sneak_attack': item.get('sneak_attack',False),
@@ -62,7 +60,10 @@ def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, op
     events = []
 
     if attack_roll:
-        target.resolve_trigger('after_attack_roll_target', { 'attack_roll': attack_roll } )
+        results = target.resolve_trigger('after_attack_roll_target', { 'attack_roll': attack_roll } )
+        if results:
+            events.append(results)
+
     if not isinstance(target, list) and not isinstance(target, tuple):
         targets = [target]
     else:
@@ -89,10 +90,4 @@ def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, op
 
         events = [item for sublist in events for item in sublist]
 
-        for item in events:
-            for klass in Action.__subclasses__():
-                if not isinstance(item, dict):
-                    raise Exception(f"item is not a dict: {item}")
-                klass.apply(battle, item, session=None)
-
-    return force_miss
+    return force_miss, events

@@ -39,6 +39,7 @@ class Action:
         self.committed = False
         self.disabled = False
         self.disabled_reason = None
+        self.legendary_action = False
 
         if opts is None:
             opts = {}

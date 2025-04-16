@@ -2,7 +2,7 @@ from itertools import combinations, combinations_with_replacement, product
 from natural20.action import Action
 from natural20.actions.spell_action import SpellAction
 from natural20.utils.movement import compute_actual_moves
-import pdb
+from natural20.map_renderer import MapRenderer
 
 
 def acquire_targets(param, entity, battle, map=None):
@@ -95,7 +95,8 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             if not possible_targets:
                 # No valid targets => entire build fails
                 if is_verbose:
-                    print("Unable to select target, no possible targets.")
+                    print(f"Unable to select target, no possible targets. for {entity.name}: {param}")
+                    print(MapRenderer(map).render(entity=entity, line_of_sight=True))
                 return None
 
             if match:
