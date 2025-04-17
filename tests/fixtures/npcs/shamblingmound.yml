@@ -41,6 +41,16 @@ attributes:
 - lightning_absorption
 multiattack:
   - slam,slam2,engulf
+legendary_actions:
+  - name: bone_splinter
+    type: ranged_attack
+    range: 20
+    range_max: 60
+    targets: 1
+    attack: 5
+    damage: 5
+    damage_die: 1d4+3
+    damage_type: piercing
 actions:
   - name: slam
     type: melee_attack

@@ -247,24 +247,28 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
 
         interact_only = opts.get('interact_only', False)
         except_interact = opts.get('except_interact', False)
-        legendary_actions = opts.get('legendary_actions', False)
+
         if self.unconscious():
             return ["end"]
 
         actions = []
 
-        if battle and battle.current_turn() != self and not opportunity_attack:
+        if legendary_actions:
+            actions.extend([s for s in self.generate_npc_attack_actions(battle, legendary_actions=True, auto_target=auto_target)])
+            return actions
+
+        if battle and battle.current_turn() != self and not opportunity_attack and not legendary_actions:
             if not self.familiar():
                 return []
             elif battle and battle.current_turn() == self.owner:
                 actions.append(SpellAction(session, self, "spell"))
                 return actions
 
-        if opportunity_attack and not self.familiar():
-            actions = [s for s in self.generate_npc_attack_actions(battle, opportunity_attack=True, legendary_actions=legendary_actions, auto_target=auto_target) if s.action_type == "attack" and s.npc_action["type"] == "melee_attack"]
+        elif opportunity_attack and not self.familiar():
+            actions = [s for s in self.generate_npc_attack_actions(battle, opportunity_attack=True, auto_target=auto_target) if s.action_type == "attack" and s.npc_action["type"] == "melee_attack"]
         else:
             if not interact_only and not self.familiar():
-                actions.extend(self.generate_npc_attack_actions(battle, legendary_actions=legendary_actions, auto_target=auto_target))
+                actions.extend(self.generate_npc_attack_actions(battle, auto_target=auto_target))
             for action_class in self.ACTION_LIST:
                 if interact_only and action_class != InteractAction:
                     continue

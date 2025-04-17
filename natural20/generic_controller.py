@@ -47,7 +47,7 @@ class GenericController(Controller):
 
     def roll_for(self, entity, stat, advantage=False, disadvantage=False):
         return None
-    
+
     def legendary_action_listener(self, battle, session, entity, map, event):
         valid_actions = []
         if entity.total_legendary_actions(battle) > 0:
@@ -58,7 +58,6 @@ class GenericController(Controller):
                         action.target = event['target']
                         action.legendary_action = True
                         valid_actions.append(action)
-
             selected_action = self.select_action(battle, entity, valid_actions )
             return selected_action
         return None

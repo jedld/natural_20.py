@@ -237,6 +237,9 @@ class Battle():
 
         # reset legendary actions
         for entity in self.combat_order:
+            if entity == self.current_turn():
+                continue
+
             if entity.npc() and len(entity.legendary_actions) > 0:
                 controller = self.controller_for(entity)
                 if controller:
