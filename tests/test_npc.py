@@ -65,6 +65,19 @@ class TestNpc(unittest.TestCase):
         print(MapRenderer(battle.map_for(npc), battle).render())
         print(MapRenderer(battle.map_for(fighter), battle).render())
 
+    def test_legendary_actions(self):
+        battle = Battle(self.session, self.map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position=[0, 1], token='G')
+        fighter.reset_turn(battle)
+        npc = self.session.npc('shamblingmound')
+        self.map.add(npc, 1, 0)
+        battle.add(npc, 'b')
+        npc.reset_turn(battle)
+        print(MapRenderer(battle.map_for(npc), battle).render())
+        actions = npc.available_actions(self.session, battle, legendary_actions=True)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0].name(), 'attack')
 
     def test_npc(self):
         session = self.make_session()
