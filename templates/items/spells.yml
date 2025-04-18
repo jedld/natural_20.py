@@ -50,6 +50,23 @@ bless:
   concentration: true
   spell_list_classes:
     - Cleric
+burning_hands:
+  label: Burning Hands
+  casting_time: 1:action
+  damage_type: fire
+  description: |
+    As you hold your hands with thumbs touching and fingers spread, a thin sheet of flames shoots forth from your outstretched fingertips. Each creature in a 15-foot cone must make a Dexterity saving throw. A creature takes 3d6 fire damage on a failed save, or half as much damage on a successful one.
+    The fire ignites any flammable objects in the area that aren't being worn or carried.
+  duration: instant
+  level: 1
+  name: Burning Hands
+  range_cone: 15
+  school: evocation
+  type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
+  spell_class: Natural20::BurningHands
 ice_knife:
   label: Ice Knife
   casting_time: 1:action
@@ -327,6 +344,25 @@ ray_of_frost:
   spell_list_classes:
     - Sorcerer
     - Wizard
+poison_spray:
+  label: Poison Spray
+  casting_time: 1:action
+  damage_type: poison
+  description: |
+    You extend your hand toward a creature you can see within range and project a puff of noxious gas from your palm. The creature must succeed on a Constitution saving throw or take 1d12 poison damage.
+  duration: instant
+  level: 0
+  components:
+    - verbal
+    - somatic
+  name: Poison Spray
+  range: 10
+  school: poison
+  type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
+  spell_class: Natural20::PoisonSpray
 shield:
   label: Shield
   casting_time: 1:reaction

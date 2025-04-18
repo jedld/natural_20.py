@@ -17,6 +17,7 @@ ability:
   wis: 12
   cha: 8
 prepared_spells:
+- burning_hands
 - chill_touch
 - firebolt
 - ray_of_frost
@@ -28,6 +29,7 @@ prepared_spells:
 - ice_knife
 - find_familiar
 - true_strike
+- poison_spray
 languages:
 - common
 - elvish

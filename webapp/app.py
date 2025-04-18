@@ -1121,13 +1121,19 @@ def get_target():
         else:
             target = target_position
 
+        target_squares = []
         while not isinstance(build_map, Action):
+            target_squares = []
             if build_map['param'][0]['type'] == 'select_choice':
                 build_map = build_map['next'](choice)
             elif build_map['param'][0]['type'] == 'select_empty_space':
                 build_map = build_map['next'](target)
             elif build_map['param'][0]['type'] == 'select_target':
                 build_map = build_map['next'](target)
+            elif build_map['param'][0]['type'] == 'select_cone':
+                entity_x, entity_y = battle_map.entity_or_object_pos(entity)
+                target_squares = battle_map.squares_in_cone((entity_x, entity_y), (x, y), build_map['param'][0]['range'] // battle_map.feet_per_grid)
+                build_map = build_map['next']([x, y])
             else:
                 raise ValueError(f"Unknown action type {build_map['param'][0]['type']}")
 
@@ -1140,12 +1146,12 @@ def get_target():
             if battle:
                 valid_targets = battle.valid_targets_for(entity, action)
                 valid_target = target in valid_targets
-            return jsonify(valid_target=valid_target, adv_mod=adv_mod, adv_info=adv_info, attack_mod=attack_mod)
+            return jsonify(valid_target=valid_target, target_squares=target_squares, adv_mod=adv_mod, adv_info=adv_info, attack_mod=attack_mod)
         else:
             action.validate(battle_map, target)
             if len(action.errors)  > 0:
                 return jsonify(valid_target=False, errors=action.errors)
-            return jsonify(valid_target=True, errors=action.errors)
+            return jsonify(valid_target=True, target_squares=target_squares, errors=action.errors)
     elif entity and target_entity and action_info == 'UseItemAction':
         action = UseItemAction(game_session, entity, 'use_item')
         valid_target = True
@@ -1431,7 +1437,17 @@ def action():
                             action_info['range'] = param_details.get('range', 5)
                             action_info['range_max'] = param_details.get('max_range', param_details.get('range', 5))
                             return jsonify(action_info)
-
+                    elif param_details['type'] == 'select_cone':
+                        if target:
+                            action = action['next'](target)
+                            continue
+                        else:
+                            action_info['action'] = action_type
+                            action_info['type'] = 'select_cone'
+                            action_info['param'] = action['param']
+                            action_info['range'] = param_details.get('range', 5)
+                            action_info['range_max'] = param_details.get('max_range', param_details.get('range', 5))
+                            return jsonify(action_info)
                     elif param_details['type'] == 'select_target':
                         valid_targets = battle_map.valid_targets_for(entity, param_details)
                         valid_targets = {target.entity_uid: battle_map.entity_or_object_pos(target) for target in valid_targets}

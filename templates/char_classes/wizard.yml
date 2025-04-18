@@ -20,6 +20,7 @@ available_skills:
 spell_list:
   cantrip:
     - acid_splash
+    - burning_hands
     - blade_ward
     - chill_touch
     - dancing_lights
