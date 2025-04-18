@@ -6,7 +6,7 @@ class MapRenderer:
         self.map = map
         self.battle = battle
 
-    def render(self, entity=None, line_of_sight=None, path=[], acrobatics_checks=[], athletics_checks=[], select_pos=None,
+    def render(self, entity=None, line_of_sight=None, path=[], acrobatics_checks=[], athletics_checks=[], selected_positions=[], select_pos=None,
                update_on_drop=True, sight_range=None, range_cutoff=False, path_char=None, highlight={}, viewport_size=None, top_position=[0, 0]):
         highlight_positions = [pos for e in highlight.keys() for pos in self.map.entity_squares(e)]
 
@@ -23,15 +23,17 @@ class MapRenderer:
             row = []
             for col_index in range(top_x, right_x + 1):
                 c = self.map.base_map[col_index][row_index]
-                display = self.render_position(c, col_index, row_index, path=path,
-                                            override_path_char=path_char,
-                                            entity=entity,
-                                            line_of_sight=line_of_sight,
-                                            update_on_drop=update_on_drop,
-                                            acrobatics_checks=acrobatics_checks,
-                                            athletics_checks=athletics_checks)
+                if selected_positions and (col_index, row_index) in selected_positions:
+                    display = 'X'
+                else:
+                    display = self.render_position(c, col_index, row_index, path=path,
+                                                override_path_char=path_char,
+                                                entity=entity,
+                                                line_of_sight=line_of_sight,
+                                                update_on_drop=update_on_drop,
+                                                acrobatics_checks=acrobatics_checks,
+                                                athletics_checks=athletics_checks)
 
-                if [col_index, row_index] in highlight_positions:
                     display = display.replace('\033[0m', '\033[48;5;9m')
 
                 if select_pos and select_pos == [col_index, row_index]:

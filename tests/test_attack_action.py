@@ -10,6 +10,7 @@ from natural20.map_renderer import MapRenderer
 from natural20.utils.ac_utils import calculate_cover_ac
 from natural20.weapons import compute_advantages_and_disadvantages
 from natural20.utils.action_builder import autobuild
+from natural20.utils.attack_util import squares_in_cone
 import pdb
 
 
@@ -181,7 +182,6 @@ class TestAttackAction(unittest.TestCase):
         advantages, disadvantages = compute_advantages_and_disadvantages(session, npc, character, npc.npc_actions[0], battle=battle)
         self.assertEqual(advantages, [])
         self.assertEqual(disadvantages, [])
-
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,6 +1,9 @@
 from natural20.action import Action
 from natural20.die_roll import Rollable
 import pdb
+import math
+
+
 
 def to_advantage_str(item):
     if 'adv_info' not in item or item['adv_info'] is None:
@@ -71,7 +74,7 @@ def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, op
 
     for target in targets:
         for spell in target.prepared_spells():
-            spell_details = battle.session.load_spell(spell)
+            spell_details = target.session.load_spell(spell)
             qty, resource = spell_details['casting_time'].split(':')
 
             if target.has_reaction(battle) and target.conscious() and resource == 'reaction':

@@ -175,6 +175,15 @@ class TestMap(unittest.TestCase):
         print(MapRenderer(map).render(path=traveled_squares, path_char='+'))
         self.assertEqual(traveled_squares, [])
 
+    def test_conal_attacks(self):
+        session = Session(root_path='tests/fixtures')
+        map = Map(session, 'tests/fixtures/maps/game_map.yml')
+        squares = map.squares_in_cone((0, 0), (1, 1), 3)
+        # self.assertEqual(squares,[(0, 1),(0, 2),(0, 3),(1, 0),(1, 1),(1, 2),(1, 3),(2, 0),(2, 1),(2, 2),(3, 0),(3, 1)])
+        print(MapRenderer(map).render(selected_positions=squares))
+        squares = map.squares_in_cone((2, 0), (2, 1), 4)
+        print(MapRenderer(map).render(selected_positions=squares))
+
     def test_multimap_transitions(self):
         session = Session(root_path='tests/fixtures')
         session.render_for_text = False

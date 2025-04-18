@@ -19,6 +19,7 @@ from natural20.weapons import compute_max_weapon_range
 from natural20.utils.list_utils import remove_duplicates, bresenham_line_of_sight
 from natural20.utils.movement import Movement, compute_actual_moves
 from copy import deepcopy
+from typing import List, Tuple, Set
 import math
 import pdb
 import os
@@ -595,6 +596,63 @@ class Map():
             return None
 
         return entity_data['entity']
+
+
+    def squares_in_cone(
+        self,
+        origin_pos: Tuple[int, int],
+        direction_pos: Tuple[int, int],
+        range_cone: int,
+    ) -> List[Tuple[int, int]]:
+        """
+        Return every map square hit by a 90‑degree cone (D&D 5e).
+
+        Args
+        ----
+        origin_pos : (x, y) coordinate of the cone’s vertex.
+        direction_pos : (x, y) point that fixes the cone’s facing.
+        range_cone : Maximum length of the cone in squares.
+
+        Returns
+        -------
+        List[(x, y)]  Squares inside the cone, sorted for reproducibility.
+        """
+        ox, oy = origin_pos
+        dx, dy = direction_pos[0] - ox, direction_pos[1] - oy
+        if dx == 0 and dy == 0:
+            raise ValueError("`direction_pos` must differ from `origin_pos`")
+
+        # Facing of the cone and half‑aperture (90 ° → ±45 °).
+        facing = math.atan2(dy, dx)
+        half_aperture = math.pi / 4      # 45 degrees on each side
+
+        affected: Set[Tuple[int, int]] = set()
+
+        # Scan a bounding‑box that certainly encloses the cone.
+        max_r = range_cone
+        for x in range(ox - max_r, ox + max_r + 1):
+            for y in range(oy - max_r, oy + max_r + 1):
+
+                # Reject squares outside the battle‑map early.
+                if not (0 <= x < self.size[0] and 0 <= y < self.size[1]):
+                    continue
+
+                vx, vy = x - ox, y - oy
+                if vx == 0 and vy == 0:        # skip the square the caster occupies
+                    continue
+
+                distance = math.hypot(vx, vy)
+                if distance > max_r + 0.5:     # +0.5 keeps corner squares on the edge
+                    continue
+
+                angle = math.atan2(vy, vx)
+                # Smallest signed angular difference in range [‑π, π).
+                delta = (angle - facing + math.pi) % (2 * math.pi) - math.pi
+
+                if abs(delta) <= half_aperture:
+                    affected.add((x, y))
+
+        return sorted(affected)
 
     def find_empty_placeable_position(self, entity, pos_x, pos_y):
         for ofs_x in range(-1, 2):

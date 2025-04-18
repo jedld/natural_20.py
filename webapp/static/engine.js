@@ -645,6 +645,7 @@ $(document).ready(() => {
   let pivotPoints = [];
   let moveMode = false,
     targetMode = false,
+    coneMode = false,
     multiTargetMode = false,
     multiTargetModeUnique = false;
   let movePath = [],
@@ -753,6 +754,7 @@ $(document).ready(() => {
         id: globalSourceEntity,
         x: coordsx,
         y: coordsy,
+        coneMode: coneMode,
         action_info: globalActionInfo,
         opts: globalOpts,
       });
@@ -763,10 +765,18 @@ $(document).ready(() => {
         Utils.ajaxGet("/target", { payload: data_payload }, (data) => {
           const { adv_info, valid_target } = data;
           // cache the valid_target value based on the x, y coords
-          valid_target_cache[`${coordsx}-${coordsy}`] = valid_target;
 
-        
+          if (data.target_squares && data.target_squares.length > 0) {
+            // set the target squares
+            // unset all tiles
+            $(".tile").css("border", "none");
+            data.target_squares.forEach((value) => {
+              $(`.tile[data-coords-x="${value[0]}"][data-coords-y="${value[1]}"]`).css("border", "2px solid red");
+            });
+          } else {
+            valid_target_cache[`${coordsx}-${coordsy}`] = valid_target;
             drawTargetLine(ctx, source, coordsx, coordsy, valid_target);
+          }
             if (adv_info) {
               adv_info[0].forEach(
                 (value) =>
@@ -777,7 +787,7 @@ $(document).ready(() => {
                   (tooltip += `<p><span style="color: red;">-${value}</span></p>`),
               );
             }
-        
+
           $("#coords-box").html(
             `<p>X: ${coordsx}</p><p>Y: ${coordsy}</p>${tooltip}`,
           );
@@ -871,8 +881,8 @@ $(document).ready(() => {
   // Cancel ongoing interactions on Escape.
   $(document).on("keydown", (event) => {
     if (event.keyCode === 27) {
-      if (moveMode || targetMode || multiTargetMode) {
-        moveMode = targetMode = multiTargetMode = false;
+      if (moveMode || targetMode || multiTargetMode || coneMode) {
+        moveMode = targetMode = multiTargetMode = coneMode = false;
         accumulatedPath = [];
         pivotPoints = [];
         valid_target_cache = {};
@@ -902,7 +912,7 @@ $(document).ready(() => {
   $("#main-map-area").on("contextmenu", function (e) {
     if (targetMode || multiTargetMode || moveMode) {
       e.preventDefault();
-      targetMode = multiTargetMode = moveMode = false;
+      targetMode = multiTargetMode = moveMode = coneMode = false;
       accumulatedPath = [];
       pivotPoints = [];
       valid_target_cache = {};
@@ -1129,6 +1139,29 @@ $(document).ready(() => {
         });
         break;
       }
+      case "select_cone":
+        $(".popover-menu").hide();
+        $("#modal-1").modal("hide");
+        source = { x: coordsx, y: coordsy, entity_uid };
+        targetModeMaxRange =
+          data.range_max !== undefined ? data.range_max : data.range;
+          coneMode = true
+          targetMode = true;
+          globalActionInfo = action;
+          globalOpts = opts;
+          globalSourceEntity = entity_uid;
+        targetModeCallback = (target) => {
+          ajaxPost(
+            "/action",
+            { id: entity_uid, action, opts, target },
+            (data) => {
+              console.log("Action request successful:", data);
+              refreshTurn();
+            },
+            true,
+          );
+        };
+        break;
       case "select_target":
         $(".popover-menu").hide();
         $("#modal-1").modal("hide");
@@ -1143,9 +1176,11 @@ $(document).ready(() => {
           max_targets = data.total_targets;
           multiTargetModeUnique = data.unique_targets === true;
           targetMode = false;
+          coneMode = false;
           valid_target_cache = {};
         } else {
           targetMode = true;
+          coneMode = false;
           globalActionInfo = action;
           globalOpts = opts;
           globalSourceEntity = entity_uid;
