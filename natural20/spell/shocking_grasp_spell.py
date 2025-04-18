@@ -31,7 +31,7 @@ class ShockingGraspSpell(AttackSpell):
         if any(armor["metallic"] for armor in self.action.target.equipped_armor()):
             advantage_override['advantage'] = ['shocking_grasp_metallic']
 
-        _, attack_roll, _, _, _ = evaluate_spell_attack(battle, self.source, self.action.target, self.properties, advantage_override)
+        _, attack_roll, _, _, _ = evaluate_spell_attack(self.session, self.source, self.action.target, self.properties, battle=battle, advantage_override=advantage_override)
         target_ac, _cover_ac = effective_ac(battle, self.source, self.action.target)
         return attack_roll.prob(target_ac)
 
@@ -45,7 +45,7 @@ class ShockingGraspSpell(AttackSpell):
         if target.equipped_metallic_armor():
             advantage_override['advantage'] = ['shocking_grasp_metallic']
 
-        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events = evaluate_spell_attack(battle, entity, target, self.properties, advantage_override)
+        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events = evaluate_spell_attack(self.session, entity, target, self.properties, battle=battle, opts=advantage_override)
         for event in events:
             result.append(event)
 

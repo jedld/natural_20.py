@@ -134,7 +134,7 @@ class EventManager:
 
         def miss(event):
             msg = f"{self.show_name(event)} tried to attack {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']}{'(thrown)' if event['thrown'] else ''}"
-            if event['as_legendary_action']:
+            if event.get('as_legendary_action'):
                 msg = "[legendary action] " + msg
 
             if event.get('spell_save'):

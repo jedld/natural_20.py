@@ -12,7 +12,6 @@ from natural20.map_renderer import MapRenderer
 from natural20.player_character import PlayerCharacter
 from natural20.session import Session
 from natural20.utils.action_builder import autobuild
-from natural20.utils.spell_attack_util import evaluate_spell_attack
 from natural20.weapons import target_advantage_condition
 from natural20.die_roll import DieRoll
 
@@ -61,14 +60,14 @@ class TestClericSpellAction(unittest.TestCase):
         self.battle.commit(action)
 
         adv_mod, adv_info = target_advantage_condition(
-            self.battle, self.entity, self.npc, action.spell_action.properties
+            self.session, self.entity, self.npc, action.spell_action.properties, battle=self.battle
         )
         self.assertEqual(adv_info, [["guiding_bolt_advantage"], []])
         self.assertEqual(adv_mod, 1)
         self.assertEqual(self.npc.hp(), 1)
         self.entity.resolve_trigger("end_of_turn")
         adv_mod, adv_info = target_advantage_condition(
-            self.battle, self.entity, self.npc, action.spell_action.properties
+            self.session, self.entity, self.npc, action.spell_action.properties, battle=self.battle
         )
         self.assertEqual(adv_mod, 1)
         self.assertEqual(adv_info, [["guiding_bolt_advantage"], []])
@@ -76,7 +75,7 @@ class TestClericSpellAction(unittest.TestCase):
         self.entity.resolve_trigger("start_of_turn")
         self.entity.resolve_trigger("end_of_turn")
         adv_mod, adv_info = target_advantage_condition(
-            self.battle, self.entity, self.npc, action.spell_action.properties
+            self.session, self.entity, self.npc, action.spell_action.properties, battle=self.battle
         )
         self.assertEqual(adv_mod, 0)
         self.assertEqual(adv_info, [[], []])
@@ -101,7 +100,7 @@ class TestClericSpellAction(unittest.TestCase):
         self.battle.commit(action)
 
         adv_mod, adv_info = target_advantage_condition(
-            self.battle, self.entity, self.npc, action.spell_action.properties
+            self.session, self.entity, self.npc, action.spell_action.properties, battle=self.battle
         )
         self.assertEqual(adv_info, [["guiding_bolt_advantage"], []])
         self.assertEqual(adv_mod, 1)
@@ -119,7 +118,7 @@ class TestClericSpellAction(unittest.TestCase):
 
         self.assertIsNotNone(action)
         adv_mod, adv_info = target_advantage_condition(
-            self.battle, self.entity, self.npc, action.using
+            self.session, self.entity, self.npc, action.using, battle=self.battle
         )
         self.assertEqual(adv_info, [["guiding_bolt_advantage"], []])
         self.assertEqual(adv_mod, 1)

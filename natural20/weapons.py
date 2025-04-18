@@ -42,26 +42,27 @@ def damage_modifier(entity, weapon, second_hand=False):
     return f"{damage_roll}{f'+{damage_mod}' if damage_mod >= 0 else damage_mod}"
 
 
-def target_advantage_condition(battle, source, target, weapon, source_pos=None, overrides=None, thrown=False):
+def target_advantage_condition(session, source, target, weapon, battle=None, source_pos=None, overrides=None, thrown=False):
     if overrides is None:
         overrides = {}
     if target is None:
         raise ValueError("target is mandatory")
-    if battle is None:
-        return [0, [[],[]]]
-    advantages, disadvantages = compute_advantages_and_disadvantages(battle, source, target, weapon,
-                                                                     source_pos=source_pos, overrides=overrides, thrown=thrown)
+
+    advantages, disadvantages = compute_advantages_and_disadvantages(session, source, target, weapon,
+                                                                     battle=battle, source_pos=source_pos, overrides=overrides, thrown=thrown)
     advantage_ctr = 0
     advantage_ctr += 1 if advantages else 0
     advantage_ctr -= 1 if disadvantages else 0
     return [advantage_ctr, [advantages, disadvantages]]
 
-def compute_advantages_and_disadvantages(battle, source, target, weapon, source_pos=None, overrides=None, thrown=False):
+def compute_advantages_and_disadvantages(session, source, target, weapon,
+                                         battle=None, source_pos=None,
+                                         overrides=None, thrown=False):
     if target is None:
         raise ValueError("target is mandatory")
     if overrides is None:
         overrides = {}
-    weapon = battle.session.load_weapon(weapon) if isinstance(weapon, str) or isinstance(weapon, str) else weapon
+    weapon = session.load_weapon(weapon) if isinstance(weapon, str) or isinstance(weapon, str) else weapon
     advantage = overrides.get('advantage', [])
     disadvantage = overrides.get('disadvantage', [])
 
@@ -88,27 +89,13 @@ def compute_advantages_and_disadvantages(battle, source, target, weapon, source_
         disadvantage.append('restrained')
     if target.restrained():
         advantage.append('restrained')
-    if target.dodge(battle):
-        disadvantage.append('target_dodge')
+
     if target.poisoned():
         disadvantage.append('target_poisoned')
     if not source.proficient_with_equipped_armor():
         disadvantage.append('armor_proficiency')
     if target.squeezed():
         advantage.append('squeezed')
-    if battle and battle.help_with(target):
-        advantage.append('being_helped')
-
-    if weapon and (thrown or weapon['type'] == 'ranged_attack'):
-        if battle.enemy_in_melee_range(source, source_pos=source_pos):
-            disadvantage.append('ranged_with_enemy_in_melee')
-        if target.prone():
-            disadvantage.append('target_is_prone_range')
-        if weapon['range'] and battle.map_for(source).distance(source, target, entity_1_pos=source_pos) > weapon['range']:
-            disadvantage.append('target_long_range')
-
-    if source.class_feature('pack_tactics') and battle.ally_within_enemy_melee_range(source, target, source_pos=source_pos):
-        advantage.append('pack_tactics')
 
     if weapon and 'heavy' in weapon.get('properties', []) and source.size == 'small':
         disadvantage.append('small_creature_using_heavy')
@@ -116,10 +103,29 @@ def compute_advantages_and_disadvantages(battle, source, target, weapon, source_
     if weapon and (not thrown and weapon['type'] == 'melee_attack') and target.prone():
         advantage.append('target_is_prone')
 
-    if battle and not battle.can_see(target, source, entity_2_pos=source_pos):
-        advantage.append('unseen_attacker')
+    if weapon and (thrown or weapon['type'] == 'ranged_attack'):
+        if target.prone():
+            disadvantage.append('target_is_prone_range')
 
-    if battle and not battle.can_see(source, target, entity_1_pos=source_pos):
-        disadvantage.append('invisible_attacker')
+    if battle:
+        if target.dodge(battle):
+            disadvantage.append('target_dodge')
+        if not battle.can_see(target, source, entity_2_pos=source_pos):
+            advantage.append('unseen_attacker')
+
+        if not battle.can_see(source, target, entity_1_pos=source_pos):
+            disadvantage.append('invisible_attacker')
+
+        if battle.help_with(target):
+            advantage.append('being_helped')
+
+        if weapon and (thrown or weapon['type'] == 'ranged_attack'):
+            if battle.enemy_in_melee_range(source, source_pos=source_pos):
+                disadvantage.append('ranged_with_enemy_in_melee')
+            if weapon['range'] and battle.map_for(source).distance(source, target, entity_1_pos=source_pos) > weapon['range']:
+                disadvantage.append('target_long_range')
+
+        if source.class_feature('pack_tactics') and battle.ally_within_enemy_melee_range(source, target, source_pos=source_pos):
+            advantage.append('pack_tactics')
 
     return [advantage, disadvantage]

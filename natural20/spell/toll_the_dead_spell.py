@@ -1,6 +1,5 @@
 from natural20.spell.spell import Spell
 from natural20.die_roll import DieRoll
-from natural20.utils.spell_attack_util import evaluate_spell_attack
 from natural20.weapons import damage_modifier, target_advantage_condition
 from natural20.utils.ac_utils import effective_ac
 from natural20.spell.extensions.hit_computations import AttackSpell

@@ -34,12 +34,12 @@ class IceKnifeSpell(AttackSpell):
 
     def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target
-
-        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})
-
+        results = []
+        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events_info = evaluate_spell_attack(self.session, entity, target, self.properties, battle=battle, opts={"action": spell_action})
+        results.extend(events_info)
         if hit:
             damage_roll = self._damage(battle)
-            return [{
+            results.append({
                 'source': entity,
                 'target': target,
                 'attack_name': "spell.ice_knife",
@@ -52,17 +52,17 @@ class IceKnifeSpell(AttackSpell):
                 'cover_ac': cover_ac_adjustments,
                 'type': 'spell_damage',
                 'spell': self.properties,
-            },
-            {
+            })
+            results.append({
                 'source': entity,
                 'target': target,
                 'type': 'ice_knife',
                 'at_level': self.action.at_level,
                 'effect': self,
                 'attack_roll': attack_roll,
-            }]
+            })
         else:
-            return [{
+            results.append({
                 'type': 'spell_miss',
                 'source': entity,
                 'target': target,
@@ -73,14 +73,16 @@ class IceKnifeSpell(AttackSpell):
                 'adv_info': adv_info,
                 'cover_ac': cover_ac_adjustments,
                 'spell': self.properties,
-            },{
+            })
+            results.append({
                 'source': entity,
                 'target': target,
                 'type': 'ice_knife',
                 'at_level': self.action.at_level,
                 'effect': self,
                 'attack_roll': attack_roll,
-            }]
+            })
+        return results
 
     @staticmethod
     def apply(battle, item, session=None):

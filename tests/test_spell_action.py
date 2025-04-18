@@ -54,7 +54,7 @@ class TestSpellAction(unittest.TestCase):
         self.battle.add(self.npc2, 'b', position=[1, 6])
         print(MapRenderer(self.battle_map).render())
         firebolt_spell = self.session.load_spell('firebolt')
-        _, _, advantage_mod, _, _, _ = evaluate_spell_attack(self.battle, self.entity, self.npc, firebolt_spell)
+        _, _, advantage_mod, _, _, _ = evaluate_spell_attack(self.session, self.entity, self.npc, firebolt_spell, battle=self.battle)
         self.assertEqual(advantage_mod, -1)
 
     def test_shocking_grasp(self):
@@ -88,7 +88,6 @@ class TestSpellAction(unittest.TestCase):
         self.assertEqual(list(DieRoll.die_rolls())[0].advantage, True)
         self.battle.commit(action)
         self.assertEqual(self.npc.hp(), 10)
-
 
     def setupMageArmor(self):
         action = SpellAction.build(self.session, self.entity)['next'](['mage_armor', 0])['next'](self.entity)
@@ -137,6 +136,32 @@ class TestSpellAction(unittest.TestCase):
         self.npc.heal(100)
         self.assertNotEqual(self.npc.hp(), 3)
 
+    def test_true_strike(self):
+        def cast_true_strike():
+            action = SpellAction.build(self.session, self.entity)['next'](['true_strike', 0])['next'](self.npc)
+            self.battle.execute_action(action)
+            return action
+
+        random.seed(1003)
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[5, 5])
+        self.assertEqual(self.npc.hp(), 13)
+        print(MapRenderer(self.battle_map).render())
+        cast_true_strike()
+        self.assertEqual(target_advantage_condition(self.session, self.entity, self.npc, None, battle=self.battle), [0, [[], []]])
+        self.entity.reset_turn(self.battle)
+        self.assertEqual(target_advantage_condition(self.session, self.entity, self.npc, None, battle=self.battle), [1, [['true_strike_advantage'], []]])
+        self.entity.resolve_trigger('end_of_turn')
+        self.assertEqual(target_advantage_condition(self.session, self.entity, self.npc, None, battle=self.battle), [0, [[], []]])
+        cast_true_strike()
+        self.entity.reset_turn(self.battle)
+        self.assertEqual(target_advantage_condition(self.session, self.entity, self.npc, None, battle=self.battle), [1, [['true_strike_advantage'], []]])
+
+        # true strike should be dismissed after the first attack
+        action = SpellAction.build(self.session, self.entity)['next'](['firebolt',0])['next'](self.npc)
+        self.battle.execute_action(action)
+        self.assertEqual(target_advantage_condition(self.session, self.entity, self.npc, None, battle=self.battle), [0, [[], []]])
+
     def test_chill_touch_undead(self):
         random.seed(1003)
         self.npc = self.session.npc('skeleton')
@@ -147,7 +172,7 @@ class TestSpellAction(unittest.TestCase):
         action.resolve(self.session, self.battle_map, { "battle" : self.battle})
         self.battle.commit(action)
         self.assertEqual(self.npc.hp(), 5)
-        self.assertEqual(target_advantage_condition(self.battle, self.npc, self.entity, None), [-1, [[], ['chill_touch_disadvantage']]])
+        self.assertEqual(target_advantage_condition(self.session, self.npc, self.entity, None, battle=self.battle), [-1, [[], ['chill_touch_disadvantage']]])
 
     def test_expeditious_retreat(self):
         action = SpellAction.build(self.session, self.entity)['next'](['expeditious_retreat', 0])

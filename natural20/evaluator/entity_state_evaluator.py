@@ -14,7 +14,8 @@ class EntityStateEvaluator:
                 cmd, test_expression = and_g.strip().split(':')
                 invert = test_expression[0] == '!'
                 if test_expression[0] == '!':
-                    test_expression = test_expression[1:] 
+                    test_expression = test_expression[1:]
+
                 result = False
                 if cmd == 'inventory':
                     result = self.item_count(test_expression) > 0
@@ -56,6 +57,8 @@ class EntityStateEvaluator:
                         result = self.prone()
                     elif test_expression == 'activated':
                         result = self.activated
+                    elif test_expression == 'grappling':
+                        result = self.is_grappling()
                 else:
                     raise ValueError(f"Invalid expression {cmd} {test_expression}")
 

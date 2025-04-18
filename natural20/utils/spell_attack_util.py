@@ -3,11 +3,11 @@ from natural20.utils.attack_util import after_attack_roll_hook
 from natural20.utils.ac_utils import effective_ac
 from natural20.die_roll import DieRoll
 
-def evaluate_spell_attack(battle, entity, target, spell_properties, opts=None):
+def evaluate_spell_attack(session, entity, target, spell_properties, battle=None, opts=None):
     if opts is None:
         opts = {}
     # DnD 5e advantage/disadvantage checks
-    advantage_mod, adv_info = target_advantage_condition(battle, entity, target, spell_properties, overrides=opts)
+    advantage_mod, adv_info = target_advantage_condition(session, entity, target, spell_properties, battle=battle, overrides=opts)
 
     action = opts.get('action', None)
 

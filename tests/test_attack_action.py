@@ -158,7 +158,7 @@ class TestAttackAction(unittest.TestCase):
         map_renderer = MapRenderer(battle_map)
         print(map_renderer.render())
 
-        advantages, disadvantages = compute_advantages_and_disadvantages(battle, npc, character, npc.npc_actions[0])
+        advantages, disadvantages = compute_advantages_and_disadvantages(session, npc, character, npc.npc_actions[0], battle=battle)
         self.assertEqual(advantages, ['pack_tactics'])
         self.assertEqual(disadvantages, [])
 
@@ -178,7 +178,7 @@ class TestAttackAction(unittest.TestCase):
         map_renderer = MapRenderer(battle_map)
         print(map_renderer.render())
 
-        advantages, disadvantages = compute_advantages_and_disadvantages(battle, npc, character, npc.npc_actions[0])
+        advantages, disadvantages = compute_advantages_and_disadvantages(session, npc, character, npc.npc_actions[0], battle=battle)
         self.assertEqual(advantages, [])
         self.assertEqual(disadvantages, [])
 

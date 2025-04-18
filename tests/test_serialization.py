@@ -8,7 +8,6 @@ from natural20.map import Map
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.map_renderer import MapRenderer
 from natural20.utils.ac_utils import calculate_cover_ac
-from natural20.weapons import compute_advantages_and_disadvantages
 from pdb import set_trace
 from natural20.web.json_renderer import JsonRenderer
 from natural20.map_renderer import MapRenderer

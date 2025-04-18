@@ -900,7 +900,7 @@ class Entity(EntityStateEvaluator, Notable):
     def dismiss_effect(self, effect, opts={}):
         if opts is None:
             opts = {}
-
+        
         if self.concentration == effect:
             self.drop_concentration()
 

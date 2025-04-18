@@ -4,7 +4,7 @@ from natural20.utils.spell_attack_util import evaluate_spell_attack
 from natural20.weapons import damage_modifier, target_advantage_condition
 from natural20.utils.ac_utils import effective_ac
 from natural20.spell.extensions.hit_computations import AttackSpell
-
+import pdb
 class FireboltSpell(AttackSpell):
     def __init__(self, session, source, spell_name, details):
         super().__init__(session, source, spell_name, details)
@@ -45,7 +45,8 @@ class FireboltSpell(AttackSpell):
     def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target
 
-        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})
+        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events = evaluate_spell_attack(self.session, entity, target, self.properties, battle=battle, opts={"action": spell_action})
+
         result = []
         for event in events:
             result.append(event)
