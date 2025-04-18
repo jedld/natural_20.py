@@ -14,6 +14,7 @@ class BurningHandsSpell(Spell):
                     'type': 'select_cone',
                     'num': 1,
                     'range': self.properties['range_cone'],
+                    'require_los': True
                 }
             ],
             'next': set_target
@@ -59,7 +60,7 @@ class BurningHandsSpell(Spell):
         target = spell_action.target
         entity_map = self.session.map_for(entity)
         source_pos = entity_map.position_of(entity)
-        squares = entity_map.squares_in_cone(source_pos, target, self.properties['range_cone'] // entity_map.feet_per_grid)
+        squares = entity_map.squares_in_cone(source_pos, target, self.properties['range_cone'] // entity_map.feet_per_grid, require_los=True)
         entity_targets = []
         for square in squares:
             _entity = entity_map.entity_at(square[0], square[1])

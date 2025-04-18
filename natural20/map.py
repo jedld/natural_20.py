@@ -603,56 +603,73 @@ class Map():
         origin_pos: Tuple[int, int],
         direction_pos: Tuple[int, int],
         range_cone: int,
+        require_los: bool = False,
     ) -> List[Tuple[int, int]]:
         """
-        Return every map square hit by a 90‑degree cone (D&D 5e).
+        Return every map square hit by a cone (D&D 5e).
+
+        A 5e cone of N squares has a half‑apex angle of atan(0.5) ≈ 26.565°,
+        because its width at distance d is d.  Optionally filter by line of sight.
 
         Args
         ----
-        origin_pos : (x, y) coordinate of the cone’s vertex.
-        direction_pos : (x, y) point that fixes the cone’s facing.
-        range_cone : Maximum length of the cone in squares.
+        origin_pos  : (x, y) coordinate of the cone’s vertex (the caster’s square).
+        direction_pos: (x, y) point that fixes the cone’s facing.
+        range_cone  : Maximum length of the cone in squares.
+        require_los : If True, only include squares with an unobstructed path from the origin.
 
         Returns
         -------
-        List[(x, y)]  Squares inside the cone, sorted for reproducibility.
+        Sorted list of (x, y) squares whose centers lie even partially within the cone.
         """
         ox, oy = origin_pos
         dx, dy = direction_pos[0] - ox, direction_pos[1] - oy
         if dx == 0 and dy == 0:
-            raise ValueError("`direction_pos` must differ from `origin_pos`")
+            raise ValueError("direction_pos must differ from origin_pos")
 
-        # Facing of the cone and half‑aperture (90 ° → ±45 °).
+        # Direction and half‐angle for a “distance‐=‐width” cone
         facing = math.atan2(dy, dx)
-        half_aperture = math.pi / 4      # 45 degrees on each side
+        half_aperture = math.atan(0.5)         # ≈ 26.565°
+
+        # To catch any partial overlap with a square, go out to range + √2/2
+        max_dist = range_cone + math.sqrt(2) / 2
 
         affected: Set[Tuple[int, int]] = set()
+        w, h = self.size  # map dimensions
 
-        # Scan a bounding‑box that certainly encloses the cone.
-        max_r = range_cone
-        for x in range(ox - max_r, ox + max_r + 1):
-            for y in range(oy - max_r, oy + max_r + 1):
-
-                # Reject squares outside the battle‑map early.
-                if not (0 <= x < self.size[0] and 0 <= y < self.size[1]):
+        # bounding box around the cone
+        for x in range(ox - range_cone, ox + range_cone + 1):
+            for y in range(oy - range_cone, oy + range_cone + 1):
+                # skip the caster’s own square
+                if (x, y) == (ox, oy):
+                    continue
+                # stay on the map
+                if not (0 <= x < w and 0 <= y < h):
                     continue
 
                 vx, vy = x - ox, y - oy
-                if vx == 0 and vy == 0:        # skip the square the caster occupies
+                dist = math.hypot(vx, vy)
+                if dist > max_dist:
                     continue
 
-                distance = math.hypot(vx, vy)
-                if distance > max_r + 0.5:     # +0.5 keeps corner squares on the edge
-                    continue
-
+                # check angular spread
                 angle = math.atan2(vy, vx)
-                # Smallest signed angular difference in range [‑π, π).
                 delta = (angle - facing + math.pi) % (2 * math.pi) - math.pi
+                if abs(delta) > half_aperture:
+                    continue
 
-                if abs(delta) <= half_aperture:
-                    affected.add((x, y))
+                # optional LOS check
+                if require_los and not self.line_of_sight(
+                        ox, oy, x, y,
+                        passability_mode=True,
+                        inclusive=True,
+                    ):
+                    continue
+
+                affected.add((x, y))
 
         return sorted(affected)
+
 
     def find_empty_placeable_position(self, entity, pos_x, pos_y):
         for ofs_x in range(-1, 2):
@@ -887,6 +904,7 @@ class Map():
         
     def line_of_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, \
                       inclusive=False, heavy_cover=False, entity=False, log_path=False,\
+                      passability_mode=False,\
                         creature_size_min=None):
         squares = self.squares_in_path(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive)
         squares_results = []
@@ -898,16 +916,25 @@ class Map():
             if distance and index == (distance - 1):
                 return None
 
-            if self.opaque(*s, origin=prev_square) or self.opaque(*prev_square, origin=s):
-                return None
+            if passability_mode:
+                for object in self.objects_at(*s):
+                    if not object.passable(prev_square):
+                        return None
+                for object in self.objects_at(*prev_square):
+                    if not object.passable(s):
+                        return None
+            else:
+                if self.opaque(*s, origin=prev_square) or self.opaque(*prev_square, origin=s):
+                    return None
 
-            if self.cover_at(*s) == 'total':
-                return None
+                if self.cover_at(*s) == 'total':
+                    return None
 
-            if heavy_cover and self.cover_at(*s) == 'three_quarter':
-                return None
-            if creature_size_min and self.entity_at(*s) and self.entity_at(*s).size_identifier() >= creature_size_min:
-                return None
+                if heavy_cover and self.cover_at(*s) == 'three_quarter':
+                    return None
+
+                if creature_size_min and self.entity_at(*s) and self.entity_at(*s).size_identifier() >= creature_size_min:
+                    return None
 
             prev_square = s
 
