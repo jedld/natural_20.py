@@ -79,6 +79,32 @@ class TestNpc(unittest.TestCase):
         self.assertEqual(len(actions), 1)
         self.assertEqual(actions[0].name(), 'attack')
 
+    def test_consecutive_multiattack(self):
+        battle = Battle(self.session, self.map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position=[0, 1], token='G')
+        npc = self.session.npc('shamblingmound')
+        self.map.add(npc, 1, 0)
+        battle.add(npc, 'b', add_to_initiative=True)
+        npc.reset_turn(battle)
+        battle.set_current_turn(npc)
+        print(MapRenderer(battle.map_for(npc), battle).render())
+        action = npc.available_actions(self.session, battle)
+        action_str = [str(a) for a in action]
+        self.assertEqual(action_str, ['Shamblingmound uses slam on Gomerin',
+        'Shamblingmound uses slam2 on Gomerin',
+        'Shamblingmound uses engulf on Gomerin',
+        'Shamblingmound uses bone_splinter on Gomerin',
+        'Dash',
+        'Disengage',
+        'Hide',
+        'Dodge',
+        'Look',
+        'move to [1, 1]',
+        'Shove',
+        'Help'])
+        self.assertEqual(len(action), 12)
+
     def test_npc(self):
         session = self.make_session()
 

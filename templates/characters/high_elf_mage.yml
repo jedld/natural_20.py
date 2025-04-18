@@ -27,6 +27,7 @@ prepared_spells:
 - shield
 - ice_knife
 - find_familiar
+- true_strike
 languages:
 - common
 - elvish

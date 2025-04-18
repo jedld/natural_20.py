@@ -39,3 +39,11 @@ inventory:
   qty: 1
 - type: healers_kit
   qty: 1
+- type: scroll_of_bless
+  qty: 1
+- type: scroll_of_protection_from_poison
+  qty: 1
+- type: scroll_of_spiritual_weapon
+  qty: 1
+- type: holy_water
+  qty: 1

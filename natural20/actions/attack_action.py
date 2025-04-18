@@ -280,7 +280,7 @@ class AttackAction(Action):
             opts = {}
 
         weapon, _, attack_mod, _, _ = self.get_weapon_info(opts)
-        advantage_mod, adv_info = target_advantage_condition(battle, self.source, self.target, weapon, thrown=self.thrown)
+        advantage_mod, adv_info = target_advantage_condition(self.session, self.source, self.target, weapon, battle=battle, thrown=self.thrown)
         return advantage_mod, adv_info, attack_mod
 
 
@@ -307,7 +307,7 @@ class AttackAction(Action):
             adv_info = [[],[]]
             self.advantage_mod = 0
         else:
-            self.advantage_mod, adv_info = target_advantage_condition(battle, self.source, target, weapon, thrown=self.thrown)
+            self.advantage_mod, adv_info = target_advantage_condition(session, self.source, target, weapon, battle=battle, thrown=self.thrown)
 
             if map:
                 self.evaluate_feature_protection(battle, map, target, adv_info)

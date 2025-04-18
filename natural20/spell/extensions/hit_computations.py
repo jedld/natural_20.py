@@ -30,12 +30,12 @@ class AttackSpell(Spell):
         if opts is None:
             opts = {}
 
-        _, attack_roll, _, _, _ , _= evaluate_spell_attack(battle, self.source, self.action.target, self.properties)
+        _, attack_roll, _, _, _ , _= evaluate_spell_attack(self.session, self.source, self.action.target, self.properties, battle=battle, opts=opts)
         target_ac, _cover_ac = effective_ac(battle, self.source, self.action.target)
         return attack_roll.prob(target_ac)
 
     def compute_advantage_info(self, battle, opts=None):
-        advantage_mod, adv_info = target_advantage_condition(battle, self.source, self.action.target, self.properties, overrides=opts)
+        advantage_mod, adv_info = target_advantage_condition(self.session, self.source, self.action.target, self.properties, battle=battle, overrides=opts)
         return advantage_mod, adv_info, 0
 
     def avg_damage(self, battle, opts=None):

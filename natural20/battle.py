@@ -672,6 +672,10 @@ class Battle():
                 return True
 
         return False
+    
+    def execute_action(self, action):
+        self.action(action)
+        self.commit(action)
 
     def trigger_opportunity_attack(self, entity, target, cur_x, cur_y, action=None):
         event = {
@@ -685,8 +689,7 @@ class Battle():
                 return action
 
         if action:
-            self.action(action)
-            self.commit(action)
+            self.execute_action(action)
         return None
 
     def to_dict(self):

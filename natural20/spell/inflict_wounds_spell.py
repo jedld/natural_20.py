@@ -36,7 +36,7 @@ class InflictWoundsSpell(AttackSpell):
         if opts is None:
             opts = {}
 
-        _, attack_roll, _, _, _, _ = evaluate_spell_attack(battle, self.source, self.action.target, self.properties)
+        _, attack_roll, _, _, _, _ = evaluate_spell_attack(self.session, self.source, self.action.target, self.properties, battle=battle)
         target_ac, _cover_ac = effective_ac(battle, self.source, self.action.target)
         return attack_roll.prob(target_ac)
 
@@ -44,14 +44,16 @@ class InflictWoundsSpell(AttackSpell):
         return self._damage(battle, opts).expected()
 
     def resolve(self, entity, battle, spell_action, _battle_map):
+        result = []
         target = spell_action.target
 
-        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})
+        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events = evaluate_spell_attack(self.session, entity, target, self.properties, battle=battle, opts={"action": spell_action})
+        for event in events:
+            result.append(event)
 
         if hit:
             damage_roll = self._damage(battle, crit=attack_roll.nat_20())
-
-            return [
+            result.extend([
                 {
                     'source': entity,
                     'target': target,
@@ -66,9 +68,9 @@ class InflictWoundsSpell(AttackSpell):
                     'type': 'spell_damage',
                     'spell': self.properties
                 },
-            ]
+            ])
         else:
-            return [
+            result.extend([
                 {
                     'type': 'spell_miss',
                     'source': entity,
@@ -82,7 +84,9 @@ class InflictWoundsSpell(AttackSpell):
                     'cover_ac': cover_ac_adjustments,
                     'spell': self.properties
                 }
-            ]
+            ])
+
+        return result
 
 
 

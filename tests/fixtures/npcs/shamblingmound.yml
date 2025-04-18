@@ -71,6 +71,7 @@ actions:
     damage_type: bludgeoning
     multiattack_group: 1
   - name: engulf
+    if: state:!grappling
     type: melee_attack
     range: 5
     targets: 1

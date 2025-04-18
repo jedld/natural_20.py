@@ -21,7 +21,7 @@ def load_spell_class(spell_name):
     from natural20.spell.shield_of_faith_spell import ShieldOfFaithSpell
     from natural20.spell.spiritual_weapon_spell import SpiritualWeaponSpell
     from natural20.spell.find_familiar_spell import FindFamiliarSpell
-
+    from natural20.spell.true_strike_spell import TrueStrikeSpell
     # Create a mapping of spell names to spell classes
     spell_classes = {
         'ShockingGraspSpell': ShockingGraspSpell,
@@ -44,7 +44,8 @@ def load_spell_class(spell_name):
         'ShieldOfFaithSpell': ShieldOfFaithSpell,
         'SpiritualWeaponSpell': SpiritualWeaponSpell,
         'ProtectionFromPoisonSpell': ProtectionFromPoisonSpell,
-        'FindFamiliarSpell': FindFamiliarSpell
+        'FindFamiliarSpell': FindFamiliarSpell,
+        'TrueStrikeSpell': TrueStrikeSpell
     }
 
     if spell_name not in spell_classes:

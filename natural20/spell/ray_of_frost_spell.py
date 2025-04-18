@@ -41,7 +41,7 @@ class RayOfFrostSpell(AttackSpell):
     def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target
 
-        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events = evaluate_spell_attack(battle, entity, target, self.properties, opts={"action": spell_action})
+        hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events = evaluate_spell_attack(self.session, entity, target, self.properties, battle=battle, opts={"action": spell_action})
         result = []
         for event in events:
             result.append(event)
