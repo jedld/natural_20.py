@@ -1132,7 +1132,8 @@ def get_target():
                 build_map = build_map['next'](target)
             elif build_map['param'][0]['type'] == 'select_cone':
                 entity_x, entity_y = battle_map.entity_or_object_pos(entity)
-                target_squares = battle_map.squares_in_cone((entity_x, entity_y), (x, y), build_map['param'][0]['range'] // battle_map.feet_per_grid)
+                require_los = build_map['param'][0]['require_los']
+                target_squares = battle_map.squares_in_cone((entity_x, entity_y), (x, y), build_map['param'][0]['range'] // battle_map.feet_per_grid, require_los=require_los)
                 build_map = build_map['next']([x, y])
             else:
                 raise ValueError(f"Unknown action type {build_map['param'][0]['type']}")
@@ -1317,14 +1318,18 @@ def action():
     target = None
 
     if target_coords:
-        if isinstance(target_coords, list):
-            target = []
-            for entity_uids in target_coords:
-                target.append(battle_map.entity_by_uid(entity_uids))
+        mode = action_request.get('mode', None)
+        if mode == 'cone':
+            target = [target_coords['x'], target_coords['y']]
         else:
-            target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
-            if not target:
-                target = [target_coords['x'], target_coords['y']]
+            if isinstance(target_coords, list):
+                target = []
+                for entity_uids in target_coords:
+                    target.append(battle_map.entity_by_uid(entity_uids))
+            else:
+                target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
+                if not target:
+                    target = [target_coords['x'], target_coords['y']]
 
     try:
         if action_type == 'MoveAction':

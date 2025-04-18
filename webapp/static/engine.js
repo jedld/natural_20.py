@@ -604,11 +604,13 @@ $(document).ready(() => {
       targetMode = false;
       valid_target_cache = {};
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      $(".tile").css("border", "none");
     } else if (moveMode) {
       if (coordsx !== source.x || coordsy !== source.y) {
         moveMode = false;
         move_path_cache = {};
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        $(".tile").css("border", "none");
         moveModeCallback(movePath);
         movePath = [];
       }
@@ -889,6 +891,7 @@ $(document).ready(() => {
         move_path_cache = {};
         multiTargetList = [];
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        $(".tile").css("border", "none");
         globalActionInfo = globalOpts = null;
       }
       $(".add-to-target, .popover-menu-2, .popover-menu").hide();
@@ -918,6 +921,7 @@ $(document).ready(() => {
       valid_target_cache = {};
       move_path_cache = {};
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      $(".tile").css("border", "none");
       $(".add-to-target, .popover-menu-2").hide();
     }
   });
@@ -1153,7 +1157,7 @@ $(document).ready(() => {
         targetModeCallback = (target) => {
           ajaxPost(
             "/action",
-            { id: entity_uid, action, opts, target },
+            { id: entity_uid, mode: 'cone', action, opts, target },
             (data) => {
               console.log("Action request successful:", data);
               refreshTurn();
@@ -1309,6 +1313,7 @@ $(document).ready(() => {
       move_path_cache = {};
       pivotPoints = [];
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      $(".tile").css("border", "none");
     }
     const dataPayload = { id: entity_uid, action, opts };
     ajaxPost(
