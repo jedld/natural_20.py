@@ -279,6 +279,7 @@ class GameManagement:
         self.socketio.emit('message', {'type': 'map',
                                   'width': tiles_dimension_width,
                                   'height': tiles_dimension_height,
+                                  'image_offset_px': self.battle_map.image_offset_px,
                                   'message': map_image_url})
         self.socketio.emit('message', {'type': 'initiative', 'message': {}})
         self.socketio.emit('message', {'type': 'turn', 'message': {}})

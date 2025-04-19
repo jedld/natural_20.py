@@ -13,13 +13,13 @@ const switchPOV = (entity_uid, canvas) => {
       (entity_uid = entity_uid),
       () => {
         if (data.background) {
-          $("#main-map-area .image-container img").attr("src", data.background);
+         
           $("#main-map-area .image-container img").css({
             width: `${data.width}px`,
-            height: `${data.height}px`,
+            objectFit: 'cover',
+            objectPosition: 'top',
           });
           $("#main-map-area .image-container").css({
-            width: `${data.width}px`,
             height: `${data.height}px`,
           });
           $("#main-map-area .tiles-container").data({
@@ -28,8 +28,11 @@ const switchPOV = (entity_uid, canvas) => {
           });
           $(".image-container").css({ height: data.height });
           $(".image-container img").css({ width: data.width });
-          canvas.width = data.width + $('.tiles-container').data('tile-size');
-          canvas.height = data.height + $('.tiles-container').data('tile-size');
+          const tile_size = $('.tiles-container').data('tile-size');
+          $('.image-container').css({top: data.image_offset_px[1] + tile_size, left: data.image_offset_px[0] + tile_size});
+          canvas.width = data.width + tile_size;
+          canvas.height = data.height + tile_size;
+          $("#main-map-area .image-container img").attr("src", data.background);
           $('body').attr('data-current-map', data.name);
         }
         const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
@@ -326,18 +329,20 @@ $(document).ready(() => {
         break;
       }
       case "map": {
-        const { message: map_url, width, height } = data;
+        const { message: map_url, width, height, image_offset_px } = data;
         $(".tiles-container").data({ width, height });
         $(".image-container img")
           .attr("src", map_url)
-          .css({ width: `${width}px`, height: `${height}px` });
+          .css({ width: `${width}px`, objectFit: 'cover', objectPosition: 'top' });
+        const tile_size = $(".tiles-container").data("tile-size");
         $(".image-container").css({
-          width: `${width}px`,
           height: `${height}px`,
+          top: image_offset_px[1] + tile_size,
+          left: image_offset_px[0] + tile_size,
         });
         const canvas = document.querySelector("canvas");
-        canvas.width = width + $(".tiles-container").data("tile-size");
-        canvas.height = height + $(".tiles-container").data("tile-size");
+        canvas.width = width + tile_size;
+        canvas.height = height + tile_size;
         Utils.refreshTileSet();
         break;
       }
