@@ -888,9 +888,9 @@ def end_turn():
     global current_game
     battle = current_game.get_current_battle()
 
-    battle.end_turn()
-    battle.next_turn()
     try:
+        battle.end_turn()
+        battle.next_turn()
         continue_game()
         return jsonify(status='ok')
     except AsyncReactionHandler as e:
