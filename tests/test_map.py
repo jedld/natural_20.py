@@ -179,9 +179,10 @@ class TestMap(unittest.TestCase):
         session = Session(root_path='tests/fixtures')
         map = Map(session, 'tests/fixtures/maps/game_map.yml')
         squares = map.squares_in_cone((0, 0), (1, 1), 3)
-        # self.assertEqual(squares,[(0, 1),(0, 2),(0, 3),(1, 0),(1, 1),(1, 2),(1, 3),(2, 0),(2, 1),(2, 2),(3, 0),(3, 1)])
+        self.assertEqual(squares,[(1, 1), (1, 2), (2, 1), (2, 2), (2, 3), (3, 2)])
         print(MapRenderer(map).render(selected_positions=squares))
         squares = map.squares_in_cone((2, 0), (2, 1), 4)
+        self.assertEqual(squares,[(1, 3), (1, 4), (2, 1), (2, 2), (2, 3), (2, 4), (3, 3), (3, 4)])
         print(MapRenderer(map).render(selected_positions=squares))
 
     def test_multimap_transitions(self):

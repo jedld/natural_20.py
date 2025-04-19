@@ -223,6 +223,25 @@ class TestSpellAction(unittest.TestCase):
         self.entity.reset_turn(self.battle)
         self.assertEqual(self.npc.speed(), 30)
 
+    def test_burning_hands(self):
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[0, 6])
+        self.npc.reset_turn(self.battle)
+        random.seed(1003)
+        print(MapRenderer(self.battle_map).render())
+        actions = autobuild(self.session,
+                           SpellAction,
+                           self.entity,
+                           self.battle,
+                           map=self.battle_map,
+                           match={ 'select_spell': 'burning_hands' },
+                           verbose=True,
+                           auto_target=True,
+                           )
+        self.assertEqual([str(action) for action in actions], ['SpellAction: burning_hands to [0, 7]'])
+        self.battle.execute_action(actions[0])
+        self.assertEqual(self.npc.hp(), 13)
+
     def test_compute_hit_probability(self):
         self.npc = self.session.npc('skeleton')
         self.battle.add(self.npc, 'b', position=[0, 6])
@@ -267,8 +286,7 @@ class TestSpellAction(unittest.TestCase):
             "damage_die": "1d6+2",
             "damage_type": "piercing"
         }
-        self.battle.action(action)
-        self.battle.commit(action)
+        self.battle.execute_action(action)
         DieRoll.unfudge()
         self.assertEqual(self.entity.hp(), 0)
 
@@ -320,12 +338,14 @@ class TestSpellAction(unittest.TestCase):
         self.npc = self.session.npc('skeleton')
         self.battle.add(self.npc, 'b', position=[0, 6])
         auto_build_actions = autobuild(self.session, SpellAction, self.entity, self.battle)
-        self.assertEqual(len(auto_build_actions), 3)
+        self.assertEqual(len(auto_build_actions), 4)
         action_list = [str(a) for a in  auto_build_actions]
-        
-        self.assertEqual(action_list, ['SpellAction: firebolt to Skeleton',
-                                       'SpellAction: mage_armor to Crysania',
-                                       'SpellAction: magic_missile to (Skeleton, Skeleton, Skeleton)'])
+
+        self.assertEqual(action_list, [
+            'SpellAction: burning_hands to [0, 7]',
+            'SpellAction: firebolt to Skeleton',
+            'SpellAction: mage_armor to Crysania',
+            'SpellAction: magic_missile to (Skeleton, Skeleton, Skeleton)'])
 
         self.assertEqual(self.entity.armor_class(), 12)
         # must be a valid action
@@ -339,8 +359,7 @@ class TestSpellAction(unittest.TestCase):
         # Cast find familiar spell
         print(MapRenderer(self.battle_map).render())
         action = autobuild(self.session, SpellAction, self.entity, None, map=self.battle_map, match=['find_familiar', 'bat', [0, 6]], verbose=True)[0]
-        self.battle.action(action)
-        self.battle.commit(action)
+        self.battle.execute_action(action)
         entity = self.battle_map.entity_at(0, 6)
         self.assertEqual(entity.name, 'Bat')
         self.assertEqual(entity.owner, self.entity)
@@ -356,23 +375,21 @@ class TestSpellAction(unittest.TestCase):
         self.assertIsNone(entity)
 
         action = autobuild(self.session, SpellAction, self.entity, None, map=self.battle_map, match=['find_familiar', 'bat', [0, 6]], verbose=True)[0]
-        self.battle.action(action)
-        self.battle.commit(action)
+        self.battle.execute_action(action)
 
         # test send to pocket dimension
         action = autobuild(self.session, FindFamiliarAction, self.entity, None, map=self.battle_map, match=['dismiss_temporary'], verbose=True)[0]
 
-        self.battle.action(action)
-        self.battle.commit(action)
+        self.battle.execute_action(action)
+
         entity = self.battle_map.entity_at(0, 6)
         self.assertIsNone(entity)
-
         self.assertEqual(len(self.entity.pocket_dimension), 1)
 
         # resummon
         action = autobuild(self.session, SummonFamiliarAction, self.entity, self.battle, map=self.battle_map, match=[[3, 5]], verbose=True)[0]
-        self.battle.action(action)
-        self.battle.commit(action)
+        self.battle.execute_action(action)
+
         entity = self.battle_map.entity_at(3, 5)
         self.assertIsNotNone(entity)
         self.assertEqual(entity.name, 'Bat')

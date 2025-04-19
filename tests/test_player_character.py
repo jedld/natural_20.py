@@ -91,7 +91,7 @@ class TestPlayerCharacter(unittest.TestCase):
 
     def test_wizard_available_spells(self):
         self.player = self.load_mage_character()
-        expected_spells = ['firebolt', 'mage_armor', 'magic_missile']
+        expected_spells = ['burning_hands', 'firebolt', 'mage_armor', 'magic_missile']
         self.assertEqual(self.player.available_spells(self.battle), expected_spells)
 
     def test_fighter_name(self):

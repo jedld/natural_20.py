@@ -1537,6 +1537,7 @@ class Entity(EntityStateEvaluator, Notable):
             'range' : item.get('range', None),
             'range_max' : item.get('range_max', None),
             'label': item.get('label', str(item.get('name')).capitalize()),
+            'image': item.get('image', k),
             'type': item.get('type'),
             'subtype': item.get('subtype'),
             'light': item.get('properties') and 'light' in item.get('properties', []),
@@ -1941,6 +1942,7 @@ class Entity(EntityStateEvaluator, Notable):
             usable.append({
                 'name': str(k),
                 'label': item_details.get('label', str(k)),
+                'image': item_details.get('image', k),
                 'item': item_details,
                 'qty': v['qty'],
                 'consumable': item_details['consumable']
@@ -1957,6 +1959,7 @@ class Entity(EntityStateEvaluator, Notable):
                 'name': str(k),
                 'label': item_details.get('label', item_details.get('name', k)),
                 'item': item_details,
+                'image': item_details.get('image', k),
                 'type': item_details.get('type', 'other'),
                 'qty': v['qty']
             })
@@ -1998,6 +2001,7 @@ class Entity(EntityStateEvaluator, Notable):
                     'name': k,
                     'label': v['label'] if v.get('label',None) else str(k),
                     'qty': v['qty'],
+                    'image': item.get('image', k),
                     'equipped': False,
                     'weight': item.get('weight', None)
                 })

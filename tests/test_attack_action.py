@@ -10,7 +10,6 @@ from natural20.map_renderer import MapRenderer
 from natural20.utils.ac_utils import calculate_cover_ac
 from natural20.weapons import compute_advantages_and_disadvantages
 from natural20.utils.action_builder import autobuild
-from natural20.utils.attack_util import squares_in_cone
 import pdb
 
 

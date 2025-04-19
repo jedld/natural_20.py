@@ -182,6 +182,7 @@ class SpellAction(Action):
         if opts is None:
             opts = {}
         battle = opts.get("battle", None)
+
         self.result = self.spell_action.resolve(self.source, battle, self, map)
 
         for r in self.result:

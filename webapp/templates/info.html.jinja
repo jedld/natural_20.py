@@ -489,7 +489,7 @@
                     {% for item in entity.usable_items() %}
                     <li class="tile-item" data-tooltip="{{ item['label'] }}">
                     <div class="item-icon-container">
-                        <img class="item-icon" src="{{ item.get('icon', '/assets/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
+                        <img class="item-icon" src="{{ item.get('icon', '/assets/items/' ~ item['image'] ~ '.png') }}" alt="{{ item['label'] }}">
                         <div class="item-quantity">{{ 'x ' ~ item.get('qty', 1) }}</div>
                     </div>
                     </li>
@@ -508,7 +508,7 @@
                     {% for item in entity.other_items() %}
                     <li class="tile-item" data-tooltip="{{ item['label'] }}">
                     <div class="item-icon-container">
-                        <img class="item-icon" src="{{ item.get('icon', '/assets/items/' ~ item['name'] ~ '.png') }}" alt="{{ item['label'] }}">
+                        <img class="item-icon" src="{{ item.get('icon', '/assets/items/' ~ item['image'] ~ '.png') }}" alt="{{ item['label'] }}">
                         <div class="item-quantity">{{ 'x ' ~ item.get('qty', 1) }}</div>
                         {% if item['type'] == 'letter' %}
                         <form method="post" action="/read_letter" target="_blank">

@@ -1289,12 +1289,12 @@ def read_letter():
     # Process the letter for the entity using the provided item_id.
     item, letter_content = entity.read_item(item_id)
 
-    output_logger.log(f"{entity.name} read {item['label']}: {letter_content}")
+    output_logger.log(f"{entity.name} read {item.get('label', item['name'])}: {letter_content}")
 
     # process raw text so that linebreaks are preserved when rendering on the web page
     letter_content = letter_content.replace('\n', '<br>')
 
-    return render_template('letter.html', letter_label=item['label'], letter_content=letter_content)
+    return render_template('letter.html', letter_label=item.get('label', item['name']), letter_content=letter_content)
 
 @app.route('/action', methods=['POST'])
 def action():
