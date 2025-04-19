@@ -3,7 +3,7 @@ from natural20.action import Action
 from natural20.actions.spell_action import SpellAction
 from natural20.utils.movement import compute_actual_moves
 from natural20.map_renderer import MapRenderer
-
+import pdb
 
 def acquire_targets(param, entity, battle, map=None):
     """
@@ -48,6 +48,31 @@ def acquire_targets(param, entity, battle, map=None):
 
     return possible_targets
 
+def optimize_conal_targets(position_choices, entity, battle, map, range_cone):
+    """
+    Optimize the target choices for a cone spell.
+    """
+    selected_positions = []
+    best_position = None
+    best_score = 1
+    entity_position = map.position_of(entity)
+    for i, position in enumerate(position_choices):
+        squares = map.squares_in_cone(entity_position, position, range_cone, require_los=True)
+        if len(squares) > 0:
+            score = 0
+            for square in squares:
+                entity_at_square = map.entity_at(square[0], square[1])
+                if entity_at_square is not None:
+                    if entity_at_square in battle.opponents_of(entity):
+                        score += 1
+                    elif entity_at_square in battle.allies_of(entity):
+                        score -= 1
+            if score >= best_score:
+                best_score = score
+                best_position = i
+    if best_position is not None:
+        selected_positions.append(position_choices[best_position])
+    return selected_positions
 
 def build_params(session, entity, battle, build_info, map=None, auto_target=True, match=None, is_verbose=False):
     """
@@ -61,6 +86,13 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
 
     for param in build_info["param"]:
         param_type = param["type"]
+
+        if isinstance(match, dict):
+            _match = match.get(param_type, None)
+            if not isinstance(_match, list):
+                _match = [_match]
+        else:
+            _match = match
 
         # -----------------------------
         # 1) SELECT SPELL
@@ -76,8 +108,10 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                     # If any spell is not castable, 
                     # original code breaks and sets build_info to None
                     return None
-            if match:
-                possible_spells = [spell for spell in possible_spells if spell[0] in match]
+
+            if _match:
+                possible_spells = [spell for spell in possible_spells if spell[0] in _match]
+
             params_list.append(possible_spells)
 
         # -----------------------------
@@ -99,8 +133,8 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                     print(MapRenderer(map).render(entity=entity, line_of_sight=True))
                 return None
 
-            if match:
-                possible_targets = [target for target in possible_targets if target in match]
+            if _match:
+                possible_targets = [target for target in possible_targets if target in _match]
 
             if is_verbose and len(possible_targets) == 0:
                 print(f"Unable to select target, possible targets: {possible_targets}")
@@ -148,7 +182,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                     if (map.bidirectionally_passable(entity, new_x, new_y, (cur_x, cur_y), battle, allow_squeeze=False)
                             and map.placeable(entity, new_x, new_y, battle, squeeze=False)):
                         
-                        if match and [new_x, new_y] not in match:
+                        if _match and [new_x, new_y] not in _match:
                             continue
 
                         chosen_path = [[cur_x, cur_y], [new_x, new_y]]
@@ -175,10 +209,10 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                 nearby_objects = map.objects_near(entity)
                 possible_objects = [obj for obj in nearby_objects if obj.interactable(entity)]
 
-                if match:
+                if _match:
                     possible_objects = [obj for obj in possible_objects if obj in match]
                     if is_verbose and not possible_objects:
-                        print(f"No interactable objects matching {match} found nearby.")
+                        print(f"No interactable objects matching {_match} found nearby.")
 
                 params_list.append(possible_objects)
             else:
@@ -196,21 +230,21 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             for k, v in interaction_actions.items():
                 _interaction_actions.append([k, v])
 
-            if match:
-                _interaction_actions = [ action for action in _interaction_actions if action[0] in match]
+            if _match:
+                _interaction_actions = [ action for action in _interaction_actions if action[0] in _match]
 
             params_list.append(_interaction_actions)
         elif param_type == "select_weapon":
             if hasattr(entity, 'attack_options'):
                 _usable_weapons = entity.attack_options(battle)
-                if match:
-                    usable_weapons = [ weapon for weapon in _usable_weapons if weapon['name'].lower() in match]
+                if _match:
+                    usable_weapons = [ weapon for weapon in _usable_weapons if weapon['name'].lower() in _match]
                 else:
                     usable_weapons = _usable_weapons
             else:
                 _usable_weapons = entity.equipped_weapons(session)
-                if match:
-                    usable_weapons = [weapon for weapon in _usable_weapons if weapon in match]
+                if _match:
+                    usable_weapons = [weapon for weapon in _usable_weapons if weapon in _match]
                 else:
                     usable_weapons = _usable_weapons
 
@@ -220,7 +254,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             params_list.append(usable_weapons)
         elif param_type == "select_choice":
             for choice in param["choices"]:
-                if match and choice[1] not in match:
+                if _match and choice[1] not in _match:
                     continue
                 params_list.append([choice])
         elif param_type == "select_items":
@@ -257,6 +291,41 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                 if is_verbose:
                     print(f"No valid empty space found for {entity.name} from {params_list}")
                 return None
+        elif param_type == "select_cone":
+            if not map:
+                if is_verbose:
+                    print(f"No map found for {entity.name}")
+                return None
+            _range = param.get("range", 5) // map.feet_per_grid
+            require_los = param.get("require_los", False)
+            # generate the border 5x5 squares around the entity
+            cur_x, cur_y = map.position_of(entity)
+            position_choices = []
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
+                    if abs(dx) == 1 or abs(dy) == 1:
+                        continue
+
+                    if dx == 0 and dy == 0:
+                        continue
+
+                    if cur_x + dx < 0 or cur_x + dx > map.size[0] - 1:
+                        continue
+
+                    if cur_y + dy < 0 or cur_y + dy > map.size[1] - 1:
+                        continue
+
+                    squares = map.squares_in_cone((cur_x, cur_y), (cur_x + dx, cur_y + dy), _range, require_los=require_los)
+
+                    if len(squares) == 0:
+                        continue
+
+                    position_choices.append([cur_x + dx, cur_y + dy])
+
+            if len(position_choices) > 0 and auto_target:
+                position_choices = optimize_conal_targets(position_choices, entity, battle, map, _range)
+
+            params_list.append(position_choices)
         else:
             raise ValueError(f"Unknown param type: {param_type}")
 

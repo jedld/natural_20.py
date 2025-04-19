@@ -557,7 +557,7 @@ $(document).ready(() => {
     });
   });
 
-  $(".modal-content").on("input", ".volume-slider", function () {
+  $("#modal-1 .modal-content").on("input", ".volume-slider", function () {
     if (active_background_sound) {
       ajaxPost(
         "/volume",
@@ -1031,12 +1031,12 @@ $(document).ready(() => {
 
   $("#select-soundtrack").click(() => {
     $.get("/tracks", { track_id: active_track_id }, (data) => {
-      $(".modal-content").html(data);
+      $("#modal-1 .modal-content").html(data);
       $("#modal-1").modal("show");
     });
   });
 
-  $(".modal-content").on("click", ".play", function () {
+  $("#modal-1 .modal-content").on("click", ".play", function () {
     const trackId = $('input[name="track_id"]:checked').val();
     ajaxPost(
       "/sound",
@@ -1085,7 +1085,7 @@ $(document).ready(() => {
         break;
       case "select_spell":
         Utils.ajaxGet("/spells", { id: entity_uid, action, opts }, (data) => {
-          $(".modal-content").html(data);
+          $("#modal-1 .modal-content").html(data);
           $("#modal-1").modal("show");
         });
         break;
@@ -1227,7 +1227,7 @@ $(document).ready(() => {
       case "select_items":
         function initiateTransfer() {
           Utils.ajaxGet("/items", { id: entity_uid, action, opts }, (data) => {
-            $(".modal-content").html(data);
+            $("#modal-1 .modal-content").html(data);
             $("#modal-1").modal("show");
             $(".loot-items-form").on("submit", function (e) {
               e.preventDefault();

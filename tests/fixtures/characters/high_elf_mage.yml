@@ -17,6 +17,7 @@ ability:
   wis: 12
   cha: 8
 prepared_spells:
+- burning_hands
 - chill_touch
 - firebolt
 - ray_of_frost

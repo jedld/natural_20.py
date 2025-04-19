@@ -1,4 +1,38 @@
 ---
+shield_of_faith:
+  label: Shield of Faith
+  casting_time: 1:bonus_action
+  components:
+    - verbal
+    - somatic
+  description: |
+    A shimmering field appears and surrounds a creature of your choice within range, granting it a +2 bonus to AC for the duration.
+  duration: 10m
+  level: 1
+  name: Shield of Faith
+  range: 60
+  school: abjuration
+  concentration: true
+  type: warding
+  spell_list_classes:
+    - Cleric
+  spell_class: Natural20::ShieldOfFaith
+spare_the_dying:
+  label: Spare the Dying
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  description: |
+    You touch a living creature that has 0 hit points. The creature becomes stable. This spell has no effect on undead or constructs.
+  duration: instant
+  level: 0
+  name: Spare the Dying
+  range: 15
+  school: necromancy
+  type: healing
+  spell_list_classes:
+    - Cleric
 bless:
   casting_time: 1:action
   label: Bless
@@ -16,6 +50,42 @@ bless:
   concentration: true
   spell_list_classes:
     - Cleric
+burning_hands:
+  label: Burning Hands
+  casting_time: 1:action
+  damage_type: fire
+  description: |
+    As you hold your hands with thumbs touching and fingers spread, a thin sheet of flames shoots forth from your outstretched fingertips. Each creature in a 15-foot cone must make a Dexterity saving throw. A creature takes 3d6 fire damage on a failed save, or half as much damage on a successful one.
+    The fire ignites any flammable objects in the area that aren't being worn or carried.
+  duration: instant
+  level: 1
+  name: Burning Hands
+  range_cone: 15
+  school: evocation
+  type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
+  spell_class: Natural20::BurningHands
+ice_knife:
+  label: Ice Knife
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  damage_type: piercing
+  description: |
+    You create a shard of ice and fling it at one creature within range. Make a ranged spell attack against the target. On a hit, the target takes 1d10 piercing damage. Hit or miss, the shard then explodes. The target and each creature within 5 feet of it must succeed on a Dexterity saving throw or take 2d6 cold damage.
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the cold damage increases by 1d6 for each slot level above 1st.
+  duration: instant
+  level: 1
+  name: Ice Knife
+  range: 60
+  school: conjuration
+  type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
 guiding_bolt:
   label: Guiding Bolt
   casting_time: 1:action
@@ -68,6 +138,24 @@ chill_touch:
   spell_list_classes:
     - Sorcerer
     - Wizard
+protection_from_poison:
+  label: Protection from Poison
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  description: |
+    You touch a creature. If it is poisoned, you neutralize the poison. If more than one poison afflicts the target, you neutralize one poison that you know is present, or you neutralize one at random.
+    For the duration, the target has advantage on saving throws against being poisoned, and it has resistance to poison damage.
+  duration: 1h
+  level: 2
+  name: Protection from Poison
+  range: touch
+  school: abjuration
+  type: warding
+  spell_list_classes:
+    - Cleric
+  spell_class: Natural20::ProtectionFromPoison
 sacred_flame:
   label: Sacred Flame
   casting_time: 1:action
@@ -119,6 +207,8 @@ inflict_wounds:
 expeditious_retreat:
   label: Expeditious Retreat
   casting_time: 1:bonus_action
+  description: |
+    This spell allows you to move at an incredible pace. When you cast this spell, and then as a bonus action on each of your turns until the spell ends, you can take the Dash action.
   components:
     - verbal
     - somatic
@@ -229,24 +319,6 @@ magic_missile:
   spell_list_classes:
     - Sorcerer
     - Wizard
-protection_from_poison:
-  label: Protection from Poison
-  casting_time: 1:action
-  components:
-    - verbal
-    - somatic
-  description: |
-    You touch a creature. If it is poisoned, you neutralize the poison. If more than one poison afflicts the target, you neutralize one poison that you know is present, or you neutralize one at random.
-    For the duration, the target has advantage on saving throws against being poisoned, and it has resistance to poison damage.
-  duration: 1h
-  level: 2
-  name: Protection from Poison
-  range: touch
-  school: abjuration
-  type: warding
-  spell_list_classes:
-    - Cleric
-  spell_class: Natural20::ProtectionFromPoison
 ray_of_frost:
   label: Ray of Frost
   base_damage: 1d8
@@ -272,9 +344,30 @@ ray_of_frost:
   spell_list_classes:
     - Sorcerer
     - Wizard
+poison_spray:
+  label: Poison Spray
+  casting_time: 1:action
+  damage_type: poison
+  description: |
+    You extend your hand toward a creature you can see within range and project a puff of noxious gas from your palm. The creature must succeed on a Constitution saving throw or take 1d12 poison damage.
+  duration: instant
+  level: 0
+  components:
+    - verbal
+    - somatic
+  name: Poison Spray
+  range: 10
+  school: poison
+  type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
+  spell_class: Natural20::PoisonSpray
 shield:
   label: Shield
   casting_time: 1:reaction
+  description: |
+    An invisible barrier of magical force appears and protects you. Until the start of your next turn, you have a +5 bonus to AC, including against the triggering attack, and you take no damage from magic missile.
   components:
     - verbal
     - somatic
