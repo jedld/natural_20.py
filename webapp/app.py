@@ -888,8 +888,10 @@ def end_turn():
     global current_game
     battle = current_game.get_current_battle()
 
+    end_turn_state = True
     try:
         battle.end_turn()
+        end_turn_state = False
         battle.next_turn()
         continue_game()
         return jsonify(status='ok')
@@ -897,6 +899,7 @@ def end_turn():
         for _, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
             current_game.waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
+            current_game.end_turn_state = end_turn_state
         socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
         return jsonify(status='ok')
 
@@ -1223,10 +1226,16 @@ def handle_reaction():
             battle.action(handler.action)
             battle.commit(handler.action)
         socketio.emit('message', {'type': 'dismiss_reaction', 'message': {}})
+
+        # reaction was during a players end step, in that case we need to start the next turn
+        if current_game.end_turn_state:
+            current_game.end_turn_state = False
+            battle.next_turn()
+
         current_game.ai_loop()
         continue_game()
     except AsyncReactionHandler as e:
-        for battle, entity, valid_actions in e.resolve():
+        for _, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
             current_game.waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
         socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})

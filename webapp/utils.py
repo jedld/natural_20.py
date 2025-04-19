@@ -67,6 +67,7 @@ class GameManagement:
         self.tile_px = tile_px
         self.waiting_for_user = False
         self.waiting_for_reaction = False
+        self.end_turn_state = False
         self.controllers = controllers
         self.npc_controller = npc_controller
         self.auto_battle = auto_battle
