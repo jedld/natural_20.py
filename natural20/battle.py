@@ -236,6 +236,9 @@ class Battle():
         self.trigger_event('end_of_turn', self,  { "target" : self.current_turn()})
 
         # reset legendary actions
+        self.eval_legendary_action()
+
+    def eval_legendary_action(self):
         for entity in self.combat_order:
             if entity == self.current_turn():
                 continue
@@ -245,8 +248,7 @@ class Battle():
                 if controller:
                     action = controller.legendary_action_listener(self, self.session, entity, self.map_for(entity), { "target" : self.current_turn() })
                     if action:
-                        self.resolve_action(entity, action)
-                        self.commit(action)
+                        self.execute_action(action)
 
     def battle_ends(self):
         """
@@ -521,7 +523,7 @@ class Battle():
     # @param entity [Natural20::Entity]
     # @param resource [str]
     def consume(self, entity, resource, qty=1):
-        valid_resources = ['action', 'reaction', 'bonus_action', 'movement', 'free_object_interaction', 'legendary_action']
+        valid_resources = ['action', 'reaction', 'bonus_action', 'movement', 'free_object_interaction', 'legendary_actions']
         if resource not in valid_resources:
             raise Exception('invalid resource')
 

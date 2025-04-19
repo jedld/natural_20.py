@@ -234,7 +234,7 @@ class AttackAction(Action):
             elif item.get('as_bonus_action'):
                 battle.consume(item['source'], 'bonus_action')
             elif item.get('as_legendary_action'):
-                battle.consume(item['source'], 'legendary_action')
+                battle.consume(item['source'], 'legendary_actions')
             elif item.get('second_hand'):
                 battle.consume(item['source'], 'bonus_action')
             else:
