@@ -243,6 +243,9 @@ class Battle():
             if entity == self.current_turn():
                 continue
 
+            if not entity.conscious():
+                continue
+
             if entity.npc() and len(entity.legendary_actions) > 0:
                 controller = self.controller_for(entity)
                 if controller:
