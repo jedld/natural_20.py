@@ -21,13 +21,15 @@ const Utils = {
       $('#mapModal').modal('hide');
       Utils.refreshTileSet(callback = () => {
         $('#main-map-area .image-container img').attr('src', data.background);
-        $('#main-map-area .image-container img').css({ width: `${data.width}px`, height: `${data.height}px` });
-        $('#main-map-area .image-container').css({ width: `${data.width}px`, height: `${data.height}px` });
+        $('#main-map-area .image-container img').css({ width: `${data.width}px`, objectFit: 'cover', objectPosition: 'top' });
+        $('#main-map-area .image-container').css({ height: `${data.height}px` });
         $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
         $('.image-container').css({height: data.height});
         $('.image-container img').css({width: data.width});
-        canvas.width = data.width + $('.tiles-container').data('tile-size');
-        canvas.height = data.height + $('.tiles-container').data('tile-size');
+        const tile_size = $('.tiles-container').data('tile-size');
+        $('.image-container').css({top: data.image_offset_px[1] + tile_size, left: data.image_offset_px[0] + tile_size});
+        canvas.width = data.width + tile_size;
+        canvas.height = data.height + tile_size;
         // Update the map name in the body data
         $('body').attr('data-current-map', mapId);
         // Refresh portraits when map is switched

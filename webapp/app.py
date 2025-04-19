@@ -665,6 +665,7 @@ def switch_map():
     tiles_dimension_width = map_width * TILE_PX
     return jsonify(background=f"assets/{background}",
                    name=map_name,
+                   image_offset_px=battle_map.image_offset_px,
                    height=tiles_dimension_height,
                    width=tiles_dimension_width)
 
@@ -1278,6 +1279,7 @@ def switch_pov():
         tiles_dimension_width = map_width * TILE_PX
         return jsonify(background=f"assets/{background}",
                     name=entity_battle_map.name,
+                    image_offset_px=entity_battle_map.image_offset_px,
                     height=tiles_dimension_height,
                     width=tiles_dimension_width)
 
