@@ -14,8 +14,9 @@ class LayOnHandsAction(Action):
         # return false if attribute second_wind_count does not exist
         if not hasattr(entity, 'lay_on_hands_max_pool'):
             return False
-
-        return (battle is None or entity.total_actions(battle) > 0) and entity.lay_on_hands_count > 0
+        if entity.lay_on_hands_count == 0:
+          return False
+        return (battle is None or entity.total_actions(battle) > 0)
 
     def label(self):
         return 'Lay on Hands'

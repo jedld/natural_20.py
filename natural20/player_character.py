@@ -15,6 +15,7 @@ from natural20.actions.hide_action import HideAction, HideBonusAction
 from natural20.actions.disengage_action import DisengageAction, DisengageBonusAction
 from natural20.actions.dash import DashAction, DashBonusAction
 from natural20.actions.second_wind_action import SecondWindAction
+from natural20.actions.lay_on_hands_action import LayOnHandsAction
 from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.stand_action import StandAction
@@ -54,6 +55,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Lootable,
     MoveAction,
     ProneAction,
     SecondWindAction,
+    LayOnHandsAction,
     StandAction,
     TwoWeaponAttackAction,
     HelpAction,
@@ -251,6 +253,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Lootable,
           action_list.append(DisengageAction(session, self, 'disengage'))
         elif action_type == SecondWindAction:
           action_list.append(SecondWindAction(session, self, 'second_wind'))
+        elif action_type == LayOnHandsAction:
+          action_list.append(LayOnHandsAction(session, self, 'lay_on_hands'))
         elif action_type == FirstAidAction:
           action_list.append(FirstAidAction(session, self, 'first_aid'))
         elif action_type == ActionSurgeAction:
