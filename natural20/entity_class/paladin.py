@@ -31,7 +31,8 @@ class Paladin():
     def initialize_paladin(self):
         self.spell_slots['paladin'] = self.reset_paladin_spell_slots()
         self.lay_on_hands_max_pool = self.paladin_level * 5
-        self.divine_sence_max_count = 1 + self.cha_mod()
+        self.divine_sense_max_count = 1 + self.cha_mod()
+        self.lay_on_hands_count = self.lay_on_hands_max_pool
 
     def special_actions_for_paladin(self, session, battle):
         actions = []
