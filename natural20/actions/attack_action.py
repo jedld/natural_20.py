@@ -8,6 +8,7 @@ from natural20.utils.ac_utils import effective_ac
 from natural20.spell.effects.life_drain_effect import LifeDrainEffect
 from natural20.spell.effects.strength_drain_effect import StrengthDrainEffect
 from natural20.spell.effects.engulf_effect import EngulfEffect
+from natural20.async_reaction_handler import AsyncReactionHandler
 import pdb
 
 class AttackAction(Action):
@@ -21,6 +22,7 @@ class AttackAction(Action):
         self.advantage_mod = None
         self.attack_roll = None
         self.as_bonus_action = False
+        self.hit_result = None
 
     def second_hand(self):
         return False
@@ -94,8 +96,6 @@ class AttackAction(Action):
 
     def __repr__(self):
         return f"AttackAction({self.source}, {self.action_type}, {self.opts})"
-
-
 
     def label(self):
         if self.npc_action:
@@ -380,41 +380,48 @@ class AttackAction(Action):
             raise Exception('damage should is required')
 
         if hit:
-            if self.source.class_feature('martial_advantage') and battle:
-                for entity in battle.allies_of(self.source):
-                    entity_map = battle.map_for(entity)
-                    if entity != target and entity_map.distance(entity, target) <= 5:
-                        damage += DieRoll.roll("2d6", description='dice_roll.martial_advantage', entity=self.source, battle=battle)
-                        break
-            hit_result = {
-                'source': self.source,
-                'target': target,
-                'type': 'damage',
-                'thrown': self.thrown,
-                'weapon': self.using,
-                'battle': battle,
-                'advantage_mod': self.advantage_mod,
-                'damage_roll': damage_roll,
-                'attack_name': attack_name,
-                'attack_roll': attack_roll,
-                'sneak_attack': sneak_attack_roll,
-                'target_ac': target.armor_class,
-                'cover_ac': cover_ac_adjustments,
-                'adv_info': adv_info,
-                'hit?': hit,
-                'damage_type': weapon.get('damage_type', None),
-                'damage': damage,
-                'ammo': ammo_type,
-                'as_reaction': bool(self.as_reaction),
-                'as_bonus_action': bool(self.as_bonus_action),
-                'as_legendary_action': bool(self.legendary_action),
-                'second_hand': self.second_hand(),
-                'npc_action': self.npc_action,
-                'multiattack_clear': False,
-                'multiattack_hits': True
-            }
-            self.result.append(hit_result)
+            if not self.hit_result:
+                if self.source.class_feature('martial_advantage') and battle:
+                    for entity in battle.allies_of(self.source):
+                        entity_map = battle.map_for(entity)
+                        if entity != target and entity_map.distance(entity, target) <= 5:
+                            damage += DieRoll.roll("2d6", description='dice_roll.martial_advantage', entity=self.source, battle=battle)
+                            break
+                self.hit_result = {
+                    'source': self.source,
+                    'target': target,
+                    'type': 'damage',
+                    'thrown': self.thrown,
+                    'weapon': self.using,
+                    'battle': battle,
+                    'advantage_mod': self.advantage_mod,
+                    'damage_roll': damage_roll,
+                    'attack_name': attack_name,
+                    'attack_roll': attack_roll,
+                    'sneak_attack': sneak_attack_roll,
+                    'target_ac': target.armor_class,
+                    'cover_ac': cover_ac_adjustments,
+                    'adv_info': adv_info,
+                    'hit?': hit,
+                    'damage_type': weapon.get('damage_type', None),
+                    'damage': damage,
+                    'ammo': ammo_type,
+                    'as_reaction': bool(self.as_reaction),
+                    'as_bonus_action': bool(self.as_bonus_action),
+                    'as_legendary_action': bool(self.legendary_action),
+                    'second_hand': self.second_hand(),
+                    'npc_action': self.npc_action,
+                    'multiattack_clear': False,
+                    'multiattack_hits': True
+                }
 
+            stored_reaction = self.has_async_reaction_for_source(self.source, 'on_attack_hit')
+            results = self.source.resolve_trigger('on_attack_hit', { 'result': self.hit_result, 'stored_reaction': stored_reaction } )
+            if results:
+                self.result.append(results)
+
+            self.result.append(self.hit_result)
+            
             if weapon.get('on_hit'):
                 print(f"Applying on_hit effects for {weapon}")
                 for effect in weapon['on_hit']:
@@ -467,7 +474,7 @@ class AttackAction(Action):
                                                                     "damage": damage,
                                                                     "source": self.source,
                                                                     "flavor": effect['flavor_fail'],
-                                                                    "info" : hit_result}))
+                                                                    "info" : self.hit_result}))
                     else:
                         self.result.append(target.apply_effect(effect['fail'], {
                                                                     "battle" : battle,
@@ -475,7 +482,7 @@ class AttackAction(Action):
                                                                     "damage": damage,
                                                                     "source": self.source,
                                                                     "flavor": effect['flavor_fail'],
-                                                                    "info" : hit_result}))
+                                                                    "info" : self.hit_result}))
         else:
             self.result.append({
                 'attack_name': attack_name,
