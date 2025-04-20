@@ -4,6 +4,7 @@ from natural20.entity_class.fighter import Fighter
 from natural20.entity_class.rogue import Rogue
 from natural20.entity_class.wizard import Wizard
 from natural20.entity_class.cleric import Cleric
+from natural20.entity_class.paladin import Paladin
 from natural20.actions.action_surge_action import ActionSurgeAction
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.look_action import LookAction
@@ -39,7 +40,7 @@ import uuid
 import pdb
 
 
-class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventory):
+class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Lootable, Inventory):
   ACTION_LIST = [
     SpellAction,
     AttackAction,
@@ -156,7 +157,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
       return self.properties.get('token',['P'])
   
   def subrace(self):
-      return self.properties['subrace']
+      return self.properties.get('subrace')
   
   def speed(self):
     effective_speed = self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('base_speed') or self.race_properties.get('base_speed')

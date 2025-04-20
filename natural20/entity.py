@@ -351,7 +351,7 @@ class Entity(EntityStateEvaluator, Notable):
         return i18n.t(self.name)
 
     def token_image(self):
-        return self.properties.get('token_image') or f"token_{(self.properties.get('kind') or self.properties.get('sub_type') or self.properties.get('name')).lower()}.png"
+        return self.properties.get('token_image') or f"token_{(self.properties.get('kind') or self.properties.get('sub_type') or self.properties.get('name').replace(' ', '_')).lower()}.png"
 
     def token_size(self):
         square_size = self.size()
@@ -1834,13 +1834,16 @@ class Entity(EntityStateEvaluator, Notable):
         if 'stable' in self.statuses:
             self.statuses.remove("stable")
 
-    def heal(self, amt):
+    def heal(self, original_amt):
         if self.dead():
             return
 
+        amt = original_amt
         if self.has_effect("heal_override"):
-            amt = self.eval_effect("heal_override", {"heal": amt})
+            amt = self.eval_effect("heal_override", {"heal": original_amt})
 
+        if (amt < original_amt):
+            self.event_manager.received_event({'source': self, 'event': 'negative_heal', 'previous': original_amt, 'new': amt, 'value': amt})
         prev_hp = self.hp()
 
         self.attributes["hp"] = min(self.max_hp(), self.hp() + amt)

@@ -1,0 +1,44 @@
+---
+hit_die: 1d10
+weapon_proficiencies:
+- light_armor
+- medium_armor
+- heavy_armor
+- shields
+- simple
+- martial
+saving_throw_proficiencies:
+- wisdom
+- charisma
+available_skills_choices: 2
+available_skills:
+- athletics
+- insight
+- intimidation
+- medicine
+- persuasion
+- religion
+class_features:
+- divine_sense
+- lay_on_hands
+proficiency_bonuses:
+- 2
+- 2
+- 2
+- 2
+- 3
+- 3
+- 3
+- 3
+- 4
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 5
+- 6
+- 6
+- 6
+- 6

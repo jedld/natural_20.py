@@ -169,6 +169,10 @@ player:
     sheet: characters/high_elf_mage.yml
     overrides:
       entity_uid: crysania
+  - position: [1, 3]
+    sheet: characters/goliath_paladin.yml
+    overrides:
+      entity_uid: goliath_paladin
 extensions:
   web:
     background_color: '#000000'

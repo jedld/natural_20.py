@@ -1,0 +1,33 @@
+name: Zavra Stonecrown
+race: goliath
+classes:
+  paladin: 2
+level: 2
+max_hp: 16
+hp: 16
+ability:
+  str: 17
+  dex: 12
+  con: 15
+  int: 11
+  wis: 11
+  cha: 15
+skills: []
+equipped:
+- shield
+- chain_mail
+- battleaxe
+- warhammer
+inventory:
+- type: shield
+  qty: 1
+- type: chain_mail
+  qty: 1
+- type: battleaxe
+  qty: 1
+- type: warhammer
+  qty: 1
+token:
+- Z
+alignment: true_neutral
+
