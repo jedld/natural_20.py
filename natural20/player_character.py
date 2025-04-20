@@ -523,18 +523,22 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Lootable,
 
     return bool(self.race_properties.get('darkvision', None) and (self.race_properties['darkvision'] >= distance))
 
-  def spell_slots_count(self, level, character_class=None):
-    if character_class is None:
-      character_class = list(self.spell_slots.keys())
-      total_slots = 0
-      for klass in character_class:
-        if self.spell_slots[klass].get(level, 0) > 0:
-          total_slots += self.spell_slots[klass][level]
-      return total_slots
-    elif character_class not in self.spell_slots:
-      return 0
+  def spell_slots_count(self, level=None, character_class=None):
+    if character_class not in self.spell_slots:
+      if character_class is None:
+        character_class = list(self.spell_slots.keys())
+      else:
+        return 0
 
-    return self.spell_slots[character_class].get(level, 0)
+    if isinstance(character_class, str):
+      slots = self.spell_slots[character_class]
+      return slots.get(level, 0) if level else sum(slots.values())
+
+    total = 0
+    for klass in character_class:
+      slots = self.spell_slots[klass]
+      total += slots.get(level, 0) if level else sum(slots.values())
+    return total
 
 
   # Returns the number of spell slots
