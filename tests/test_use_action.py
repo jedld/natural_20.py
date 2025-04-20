@@ -27,6 +27,7 @@ class TestUseItemAction(unittest.TestCase):
     def test_heal_thyself(self):
         self.assertEqual(self.action.usable_items(), 
                          [{'consumable': True,
+                            'image': 'healing_potion',
                             'item': {'consumable': True,
                                      'equippable': False,
                                         'hp_regained': '2d4+2',
