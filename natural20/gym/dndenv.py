@@ -21,6 +21,7 @@ from natural20.gym.tools import (
     action_to_gym_action,
     build_info
 )
+from webapp.llm_conversation_handler import LLMConversationHandler
 
 class GymInternalController(Controller):
     """
@@ -313,7 +314,7 @@ class dndenv(gym.Env):
             else:
                 self.session = self.custom_session
         else:
-            self.session = Session(self.root_path, event_manager=event_manager)
+            self.session = Session(self.root_path, event_manager=event_manager, conversation_handlers={'llm': LLMConversationHandler})
 
         self.session.reset()
         self.weapon_mappings, self.spell_mappings, self.entity_mappings = embedding_loader(self.session, weapon_mappings=self.weapon_mappings, spell_mappings=self.spell_mappings, entity_mappings=self.entity_mappings, **kwargs)
