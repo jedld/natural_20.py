@@ -64,10 +64,9 @@ const getTileCenter = (selector) => {
   const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
   const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
   const mainMapArea = $('#main-map-area')[0].getBoundingClientRect();
-  const tile_size = $('.tiles-container').data('tile-size');
   return {
-    x: rect.left - mainMapArea.left + rect.width / 2 + scrollLeft - tile_size,
-    y: rect.top - mainMapArea.top + rect.height / 2 + scrollTop - tile_size
+    x: rect.left - mainMapArea.left + rect.width / 2 + scrollLeft,
+    y: rect.top - mainMapArea.top + rect.height / 2 + scrollTop
   };
 };
 
