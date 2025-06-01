@@ -8,7 +8,7 @@ from natural20.utils.ac_utils import effective_ac
 from natural20.spell.effects.life_drain_effect import LifeDrainEffect
 from natural20.spell.effects.strength_drain_effect import StrengthDrainEffect
 from natural20.spell.effects.engulf_effect import EngulfEffect
-from natural20.async_reaction_handler import AsyncReactionHandler
+# from natural20.async_reaction_handler import AsyncReactionHandler
 import pdb
 
 class AttackAction(Action):

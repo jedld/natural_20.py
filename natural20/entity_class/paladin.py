@@ -1,5 +1,4 @@
 from natural20.actions.lay_on_hands_action import LayOnHandsAction
-from natural20.effect import Effect
 from collections import OrderedDict
 import pdb
 
@@ -25,9 +24,8 @@ PALADIN_SPELL_SLOT_TABLE = [
         [4, 3, 3, 3, 2]
     ]
 
-class DivineSmiteEffect(Effect):
+class DivineSmiteEffect:
     def __init__(self, source, target, value):
-        super().__init__(source, target, value)
         self.value = value
 
     def on_attack_hit(self, result):
