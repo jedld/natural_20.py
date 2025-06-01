@@ -516,6 +516,20 @@ def login():
 
     return render_template('login.html', title=TITLE, background=LOGIN_BACKGROUND)
 
+def pov_entities():
+    global current_game
+    if 'dm' in user_role():
+        # get all maps
+        pov_entities = []
+        for map in current_game.maps.values():
+            for e in map.entities:
+                if isinstance(e, PlayerCharacter):
+                    if e not in pov_entities:
+                        pov_entities.append(e)
+    else:
+        pov_entities = entities_controlled_by(session['username'])
+    return pov_entities
+
 @app.route('/')
 def index():
     global current_game
@@ -531,12 +545,7 @@ def index():
     background = current_game.get_background_image_for_user(session['username'])
     renderer = JsonRenderer(battle_map, battle, padding=MAP_PADDING)
 
-    if 'dm' in user_role():
-        pov_entities = None
-    else:
-        pov_entities = entities_controlled_by(session['username'])
-
-    my_2d_array = [renderer.render(entity_pov=pov_entities)]
+    my_2d_array = [renderer.render(entity_pov=pov_entities())]
     map_width, map_height = battle_map.size
     left_offset_px, top_offset_px = battle_map.image_offset_px
 
@@ -577,7 +586,7 @@ def index():
                            left_offset_px=left_offset_px,
                            available_maps=available_maps,
                            user_entity_ids=[e.entity_uid for e in entities_controlled_by(session['username'])],
-                           pov_entities=entities_controlled_by(session['username']),
+                           pov_entities=pov_entities(),
                            username=session['username'], role=user_role())
 eval_context = {}
 
@@ -829,9 +838,8 @@ def refresh_portraits():
     username = session.get('username')
     if not username:
         return "", 200
-    pov_entities = entities_controlled_by(username)
     current_pov_entity = current_game.get_pov_entity_for_user(username)
-    return render_template('floating_portraits.html', pov_entities=pov_entities, current_pov_entity=current_pov_entity)
+    return render_template('floating_portraits.html', pov_entities=pov_entities(), current_pov_entity=current_pov_entity)
 
 @app.route('/start', methods=['POST'])
 def start_battle():
@@ -967,25 +975,20 @@ def update():
 
     # Get current POV entity
     pov_entity = current_game.get_pov_entity_for_user(session['username'])
-
+    _pov_entities = None
     # Handle POV changes
     if entity and ('dm' in user_role() or entity in entities_controlled_by(session['username'], battle_map)):
         # Set new POV to selected entity
         current_game.set_pov_entity_for_user(session['username'], entity)
-        pov_entities = [entity]
+        _pov_entities = [entity]
     elif is_pov and not entity:
         current_game.set_pov_entity_for_user(session['username'], None)
         pov_entity = None
-        pov_entities = None
+        _pov_entities = None
 
-    if not pov_entity and 'dm' not in user_role():
-        # Default to entities controlled by the user
-        pov_entities = entities_controlled_by(session['username'], battle_map)
-    else:
-        # Use existing POV
-        pov_entities = [pov_entity] if pov_entity else None
 
-    my_2d_array = [renderer.render(entity_pov=pov_entities)]
+
+    my_2d_array = [renderer.render(entity_pov=_pov_entities)]
     return render_template('map.html', tiles=my_2d_array, tile_size_px=TILE_PX, random=random, is_setup=(request.args.get('is_setup') == 'true'))
 
 @app.route('/actions', methods=['GET'])
