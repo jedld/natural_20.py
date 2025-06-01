@@ -27,9 +27,17 @@ const Utils = {
         $('.image-container').css({height: data.height});
         $('.image-container img').css({width: data.width});
         const tile_size = $('.tiles-container').data('tile-size');
-        $('.image-container').css({top: data.image_offset_px[1] + tile_size, left: data.image_offset_px[0] + tile_size});
+        $('.tiles-container').css({
+          position: 'absolute',
+          top: `-${tile_size}px`,
+          left: `-${tile_size}px`,
+          width: data.width,
+          height: data.height
+        });
         canvas.width = data.width + tile_size;
         canvas.height = data.height + tile_size;
+        canvas.style.top = `-${tile_size}px`;
+        canvas.style.left = `-${tile_size}px`;
         // Update the map name in the body data
         $('body').attr('data-current-map', mapId);
         // Refresh portraits when map is switched
