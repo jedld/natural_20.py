@@ -49,6 +49,13 @@ class TestPlayerCharacter(unittest.TestCase):
         self.battle.start()
         player.reset_turn(self.battle)
         return player
+    
+    def load_goliath_paladin_character(self):
+        player = PlayerCharacter.load(self.session, 'goliath_paladin.yml')
+        self.battle.add(player, 'a')
+        self.battle.start()
+        player.reset_turn(self.battle)
+        return player
 
     def setUp(self):
         self.session = self.make_session()
@@ -145,6 +152,7 @@ class TestPlayerCharacter(unittest.TestCase):
     def test_fighter_usable_items(self):
         self.player = self.load_fighter_character()
         expected_items = [{
+            'image': 'healing_potion',
             'item': {
                 'consumable': True,
                 'equippable': False,
@@ -325,7 +333,6 @@ class TestPlayerCharacter(unittest.TestCase):
         self.assertEqual(self.player2.item_count('healing_potion'), 1)
         self.assertEqual(self.player2.item_count('arrows'), 30)
 
-
     def test_equip(self):
         self.player = self.load_rogue_character()
         self.assertEqual([item['name'] for item in self.player.equipped_items()], ['dagger', 'dagger', 'torch', 'studded_leather'])
@@ -339,5 +346,11 @@ class TestPlayerCharacter(unittest.TestCase):
         self.player.unequip('dagger')
         self.assertEqual([item['name'] for item in self.player.equipped_items()], ['torch', 'studded_leather'])
         self.assertEqual(self.player.unequipped_items()[0]['qty'], 2)
+
+    def test_goliath_paladin_spell_slots(self):
+        self.player = self.load_goliath_paladin_character()
+        self.assertEqual(self.player.spell_slots_count(1), 3)
+        self.assertEqual(self.player.spell_slots_count(9), 0)
+
 if __name__ == '__main__':
     unittest.main()

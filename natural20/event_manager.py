@@ -301,6 +301,7 @@ class EventManager:
             'start_of_combat': start_of_combat,
             'use_item': handle_use_item,
             'interact': interact,
+            'negative_heal': lambda event: self.output_logger.log(f"An effect is preventing {self.show_name(event)} from receiving the full amount of healing. {event['previous']} -> {event['new']}"),
             'dismiss_effect': lambda event: self.output_logger.log(f"{self.show_name(event)}: {event['effect']} effect has been dismissed."),
             'resummon_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} summons {event['familiar'].name}"),
             'dismiss_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} dismisses {event['familiar'].name}"),

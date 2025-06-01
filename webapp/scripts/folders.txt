@@ -1,3 +1,2 @@
 ../static/actions
-../assets/items/
 #../static/assets/objects
