@@ -63,9 +63,11 @@ const getTileCenter = (selector) => {
   const rect = $tile[0].getBoundingClientRect();
   const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
   const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+  const mainMapArea = $('#main-map-area')[0].getBoundingClientRect();
+  const tile_size = $('.tiles-container').data('tile-size');
   return {
-    x: rect.left + rect.width / 2 + scrollLeft,
-    y: rect.top + rect.height / 2 + scrollTop,
+    x: rect.left - mainMapArea.left + rect.width / 2 + scrollLeft - tile_size,
+    y: rect.top - mainMapArea.top + rect.height / 2 + scrollTop - tile_size
   };
 };
 
@@ -219,13 +221,23 @@ $(document).ready(() => {
   // --- Canvas Setup ---
   const tile_size = $(".tiles-container").data("tile-size");
   var canvas = document.createElement("canvas");
-  canvas.width = $(".tiles-container").data("width") + tile_size;
-  canvas.height = $(".tiles-container").data("height") + tile_size;
-  canvas.style.position = "absolute";
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  canvas.style.position = "fixed";
+  canvas.style.top = "0";
+  canvas.style.left = "0";
+  canvas.style.width = "100%";
+  canvas.style.height = "100%";
   canvas.style.zIndex = 1000;
   canvas.style.pointerEvents = "none";
-  document.body.appendChild(canvas);
+  $("body").append(canvas);
   var ctx = canvas.getContext("2d");
+
+  // Update canvas size on window resize
+  $(window).on('resize', function() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  });
 
   // Plays a background sound (stopping any previous one).
   const playSound = (url, track_id, volume, time_override = null) => {
@@ -679,13 +691,19 @@ $(document).ready(() => {
 
   $(".zoom-in").on("click", () => {
     scale += 0.1;
-    $("#main-map-area").css("transform", `scale(${scale})`);
+    $("#main-map-area").css({
+      "transform": `scale(${scale})`,
+      "transform-origin": "center center"
+    });
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   });
 
   $(".zoom-out").on("click", () => {
     scale -= 0.1;
-    $("#main-map-area").css("transform", `scale(${scale})`);
+    $("#main-map-area").css({
+      "transform": `scale(${scale})`,
+      "transform-origin": "center center"
+    });
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   });
 
