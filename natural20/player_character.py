@@ -4,6 +4,7 @@ from natural20.entity_class.fighter import Fighter
 from natural20.entity_class.rogue import Rogue
 from natural20.entity_class.wizard import Wizard
 from natural20.entity_class.cleric import Cleric
+from natural20.entity_class.paladin import Paladin
 from natural20.actions.action_surge_action import ActionSurgeAction
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.look_action import LookAction
@@ -14,6 +15,7 @@ from natural20.actions.hide_action import HideAction, HideBonusAction
 from natural20.actions.disengage_action import DisengageAction, DisengageBonusAction
 from natural20.actions.dash import DashAction, DashBonusAction
 from natural20.actions.second_wind_action import SecondWindAction
+from natural20.actions.lay_on_hands_action import LayOnHandsAction
 from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.stand_action import StandAction
@@ -39,7 +41,7 @@ import uuid
 import pdb
 
 
-class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventory):
+class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Lootable, Inventory):
   ACTION_LIST = [
     SpellAction,
     AttackAction,
@@ -53,6 +55,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
     MoveAction,
     ProneAction,
     SecondWindAction,
+    LayOnHandsAction,
     StandAction,
     TwoWeaponAttackAction,
     HelpAction,
@@ -156,7 +159,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
       return self.properties.get('token',['P'])
   
   def subrace(self):
-      return self.properties['subrace']
+      return self.properties.get('subrace')
   
   def speed(self):
     effective_speed = self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('base_speed') or self.race_properties.get('base_speed')
@@ -250,6 +253,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
           action_list.append(DisengageAction(session, self, 'disengage'))
         elif action_type == SecondWindAction:
           action_list.append(SecondWindAction(session, self, 'second_wind'))
+        elif action_type == LayOnHandsAction:
+          action_list.append(LayOnHandsAction(session, self, 'lay_on_hands'))
         elif action_type == FirstAidAction:
           action_list.append(FirstAidAction(session, self, 'first_aid'))
         elif action_type == ActionSurgeAction:
@@ -518,18 +523,22 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Lootable, Inventor
 
     return bool(self.race_properties.get('darkvision', None) and (self.race_properties['darkvision'] >= distance))
 
-  def spell_slots_count(self, level, character_class=None):
-    if character_class is None:
-      character_class = list(self.spell_slots.keys())
-      total_slots = 0
-      for klass in character_class:
-        if self.spell_slots[klass].get(level, 0) > 0:
-          total_slots += self.spell_slots[klass][level]
-      return total_slots
-    elif character_class not in self.spell_slots:
-      return 0
+  def spell_slots_count(self, level=None, character_class=None):
+    if character_class not in self.spell_slots:
+      if character_class is None:
+        character_class = list(self.spell_slots.keys())
+      else:
+        return 0
 
-    return self.spell_slots[character_class].get(level, 0)
+    if isinstance(character_class, str):
+      slots = self.spell_slots[character_class]
+      return slots.get(level, 0) if level else sum(slots.values())
+
+    total = 0
+    for klass in character_class:
+      slots = self.spell_slots[klass]
+      total += slots.get(level, 0) if level else sum(slots.values())
+    return total
 
 
   # Returns the number of spell slots

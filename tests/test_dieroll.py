@@ -38,7 +38,7 @@ class TestDieRoll(unittest.TestCase):
     self.assertEqual(DieRoll.roll('1d20').expected(), 10.5)
     self.assertEqual(DieRoll.roll('2d20').expected(), 21.0)
     self.assertEqual(round(DieRoll.roll('1d20', advantage=True).expected(), 2), 13.83)
-    self.assertEqual(DieRoll.roll('1d20', disadvantage=True).expected(), 7.175)
+    self.assertAlmostEqual(DieRoll.roll('1d20', disadvantage=True).expected(), 7.175)
     self.assertEqual(DieRoll.roll('1d20 + 2').expected(), 12.5)
 
   def test_probability(self):
