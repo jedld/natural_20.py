@@ -1,5 +1,6 @@
 name: Goblin Cave
 description: A cave inhabited by goblins
+background_image: index.mp4
 map:
   illumination: 0.0
   base:

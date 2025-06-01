@@ -123,7 +123,13 @@
     <div id="coords-box" style="position: fixed; top: 0; right: 0; background-color: white; padding: 10px; border: 1px solid black;"></div>
     <div id="main-map-area" style="background-color: {{ background_color }}; position: relative; width: 100%; height: 100vh; display: flex; justify-content: center; align-items: center; overflow: auto;">
         <div class="image-container" style="position: relative; height: {{ background_height }}px;">
-            <img src="{{ background_path }}" style="width: {{ background_width }}px; object-fit: cover; object-position: top;">
+            {% if background_path.endswith('.mp4') %}
+                <video autoplay loop muted playsinline style="width: {{ background_width }}px; height: inherit; object-fit: cover; object-position: top;">
+                    <source src="{{ background_path }}" type="video/mp4">
+                </video>
+            {% else %}
+                <img src="{{ background_path }}" style="width: {{ background_width }}px; object-fit: cover; object-position: top;">
+            {% endif %}
             <div id="tiles-area" class="tiles-container actions-container" data-width="{{ background_width }}" data-height="{{ background_height }}" data-tile-size="{{tile_size_px}}" style="position: absolute; top: -{{tile_size_px}}px; left: -{{tile_size_px}}px;"></div>
         </div>
     </div>
