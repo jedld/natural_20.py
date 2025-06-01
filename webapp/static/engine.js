@@ -437,18 +437,38 @@ $(document).ready(() => {
               `.tile[data-coords-x="${x}"][data-coords-y="${y}"]`,
             );
             const newRect = $newTile[0].getBoundingClientRect();
-            const newX = newRect.left + scrollLeft;
-            const newY = newRect.top + scrollTop;
-            if (newX === prevX && newY === prevY) {
+            const imageContainer = $('.image-container')[0].getBoundingClientRect();
+            const tile_size = $('.tiles-container').data('tile-size');
+            const newX = newRect.left - imageContainer.left + tile_size;
+            const newY = newRect.top - imageContainer.top + tile_size;
+            
+            // Set initial position if this is the first move
+            if (index === 0) {
+              $tile.css({ 
+                position: 'absolute',
+                top: newY,
+                left: newX
+              });
+              prevX = newX;
+              prevY = newY;
               moveFunc(p, index + 1);
-            } else {
-              setTimeout(() => {
-                $tile.css({ top: newY, left: newX });
-                moveFunc(p, index + 1);
-              }, 300);
+              return;
             }
+            
+            // Move to the next position in the path
+            setTimeout(() => {
+              $tile.css({ 
+                position: 'absolute',
+                top: newY,
+                left: newX,
+                transition: 'all 0.3s ease-in-out'
+              });
+              prevX = newX;
+              prevY = newY;
+              moveFunc(p, index + 1);
+            }, 300);
           };
-          moveFunc(path, 1);
+          moveFunc(path, 0); // Start from index 0 to set initial position
         };
         if (animationBuffer) {
           animateFunction(animationBuffer, 0);
