@@ -130,6 +130,9 @@ class Map():
             self._setup_npcs()
             self._trigger_after_setup()
 
+    def background_image(self):
+        return self.properties.get('background_image', None)
+
     def __iter__(self):
         """
         Make the Map class iterable.

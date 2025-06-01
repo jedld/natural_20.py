@@ -186,7 +186,9 @@ class GameManagement:
         return None
 
     def get_background_image_for_user(self, username):
-        name, _ = self.current_map_for_user.get(username, ('index', self.maps['index']))
+        name, _map = self.current_map_for_user.get(username, ('index', self.maps['index']))
+        if _map.background_image():
+            return 'maps/' + _map.background_image()
         return 'maps/' + name + '.png'
 
     def waiting_for_user_input(self):
