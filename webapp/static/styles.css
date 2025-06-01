@@ -100,31 +100,45 @@
 
 #battle-turn-order {
   position: fixed;
-  top: 0px;
+  top: 10px;
   left: 150px;
   width: 450px;
   height: 300px;
   background-color: white;
   border: 1px solid black;
   resize: both;
-  overflow: auto;
+  overflow: hidden;
   z-index: 3;
   margin: 5px;
+  max-height: 80vh;
 }
 
 #battle-turn-order #turn-order {
   padding-top: 30px;
+  height: calc(100% - 30px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 #battle-turn-order .header {
-  position: fixed;
-  width: inherit;
+  position: absolute;
+  width: 100%;
   z-index: 5;
   text-align: center;
   color: white;
   background-color: blue;
+  padding: 5px 0;
 }
 
+#battle-turn-order .turn-order-item {
+  padding: 5px;
+  border-bottom: 1px solid #ddd;
+}
+
+#battle-turn-order .active {
+  background-color: #337ab7;
+  color: white;
+}
 
 #console-container {
   position: fixed;
@@ -162,10 +176,6 @@
 
 input.initiative-text {
   color: black;
-}
-
-#battle-turn-order div.turn-order-item {
-  padding: 5px;
 }
 
 .turn-order-dead {
@@ -333,30 +343,6 @@ input.initiative-text {
   position: absolute;
   right: 10px;
   top: 10px;
-}
-
-/* Battle Turn Order Styles */
-#battle-turn-order {
-  top: 10px;
-  left: 150px;
-  width: 450px;
-  height: auto;
-  max-height: 80vh;
-}
-
-#battle-turn-order .turn-order-item {
-  padding: 5px;
-  border-bottom: 1px solid #ddd;
-}
-
-#battle-turn-order .active {
-  background-color: #337ab7;
-  color: white;
-}
-
-.turn-order-dead {
-  opacity: 0.6;
-  text-decoration: line-through;
 }
 
 .token-image {

@@ -1774,5 +1774,72 @@ def nearby_entities():
         'entities': nearby
     })
 
+@app.route('/update_group', methods=['POST'])
+def update_group():
+    if not request.is_json:
+        return jsonify(error='Request must be JSON'), 400
+    
+    data = request.get_json()
+    if not data or 'entity_uid' not in data or 'group' not in data:
+        return jsonify(error='Missing required parameters'), 400
+
+    entity_uid = data['entity_uid']
+    new_group = data['group']
+    
+    battle = current_game.get_current_battle()
+    if not battle:
+        return jsonify(error='No active battle'), 400
+
+    entity = current_game.get_entity_by_uid(entity_uid)
+    if not entity:
+        return jsonify(error='Entity not found'), 404
+
+    # Update the entity's group in the battle
+    if entity in battle.entities:
+        old_group = battle.entities[entity]['group']
+        battle.entities[entity]['group'] = new_group
+        
+        # Update the groups dictionary
+        if old_group in battle.groups:
+            battle.groups[old_group].discard(entity)
+        battle.groups.setdefault(new_group, set()).add(entity)
+        
+        return jsonify(status='ok')
+    else:
+        return jsonify(error='Entity not in battle'), 400
+
+@app.route('/update_controller', methods=['POST'])
+def update_controller():
+    if not request.is_json:
+        return jsonify(error='Request must be JSON'), 400
+    
+    data = request.get_json()
+    if not data or 'entity_uid' not in data or 'controller' not in data:
+        return jsonify(error='Missing required parameters'), 400
+
+    entity_uid = data['entity_uid']
+    new_controller = data['controller']
+    
+    battle = current_game.get_current_battle()
+    if not battle:
+        return jsonify(error='No active battle'), 400
+
+    entity = current_game.get_entity_by_uid(entity_uid)
+    if not entity:
+        return jsonify(error='Entity not found'), 404
+
+    # Create the appropriate controller
+    if new_controller == 'ai':
+        controller = GenericController(game_session)
+    else:  # manual
+        controller = WebController(game_session, None)
+        controller.add_user("dm")
+
+    # Register handlers and update the entity's controller
+    controller.register_handlers_on(entity)
+    battle.set_controller_for(entity, controller)
+
+    return jsonify(status='ok')
+
 if __name__ == '__main__':
     socketio.run(app, debug=False, host='0.0.0.0', port=5001, allow_unsafe_werkzeug=True)

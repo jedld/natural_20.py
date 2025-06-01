@@ -1575,4 +1575,34 @@ $(document).ready(() => {
     event.stopPropagation();
     Utils.toggleBubble(this);
   });
+
+  $("#turn-order").on("change", ".group-select", function() {
+    const $turnOrderItem = $(this).closest(".turn-order-item");
+    const entity_uid = $turnOrderItem.data("id");
+    console.log("Changing group for entity:", entity_uid); // Debug log
+    const new_group = $(this).val();
+    ajaxPost(
+      "/update_group",
+      { entity_uid, group: new_group },
+      (data) => {
+        console.log("Group updated successfully:", data);
+      },
+      true
+    );
+  });
+
+  $("#turn-order").on("change", ".controller-select", function() {
+    const $turnOrderItem = $(this).closest(".turn-order-item");
+    const entity_uid = $turnOrderItem.data("id");
+    console.log("Changing controller for entity:", entity_uid); // Debug log
+    const new_controller = $(this).val();
+    ajaxPost(
+      "/update_controller",
+      { entity_uid, controller: new_controller },
+      (data) => {
+        console.log("Controller updated successfully:", data);
+      },
+      true
+    );
+  });
 });

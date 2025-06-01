@@ -14,21 +14,28 @@
 {% for entity in battle.combat_order %}
   {% set is_current = entity == battle.current_turn() %}
   {% set is_dead = entity.dead() %}
-  <div class="turn-order-item  row {% if is_current %}active{% endif %} {% if is_dead %}turn-order-dead{% endif %}" >
+  <div class="turn-order-item row {% if is_current %}active{% endif %} {% if is_dead %}turn-order-dead{% endif %}" data-id="{{ entity.entity_uid }}">
     {% if 'dm' in role %}
       <form class="form-inline">
         <div class="col-xs-2">
           <img src="{{ url_for('static', filename='assets/' ~ entity.token_image()) }}" class="token-image img-responsive" data-id="{{entity.entity_uid}}">
         </div>
-        <div class="col-xs-3">
+        <div class="col-xs-2">
           <span class="entity-label">{{ entity.label() }}</span>
         </div>
-        <div class="col-xs-3">
+        <div class="col-xs-2">
           {% set entity_group = battle.entities[entity].group %}
           <select class="group-select form-control">
             {% for group in ['a', 'b', 'c'] %}
               <option value="{{ group }}" {% if entity_group == group %}selected{% endif %}>Group {{ group.upper() }}</option>
             {% endfor %}
+          </select>
+        </div>
+        <div class="col-xs-2">
+          {% set entity_controller = battle.entities[entity].get('controller', 'manual') %}
+          <select class="controller-select form-control">
+            <option value="manual" {% if entity_controller == 'manual' %}selected{% endif %}>Manual</option>
+            <option value="ai" {% if entity_controller == 'ai' %}selected{% endif %}>AI</option>
           </select>
         </div>
         <div class="col-xs-2">
