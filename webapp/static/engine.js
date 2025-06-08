@@ -5,6 +5,9 @@ let scale = 1;
 const switchPOV = (entity_uid, canvas) => {
   ajaxPost("/switch_pov", { entity_uid }, (data) => {
     console.log("Switched POV:", data);
+    if (data.background) {
+      Utils.updateMapDisplay(data, canvas);
+    }
     Utils.refreshTileSet(
       (is_setup = false),
       (pov = true),
@@ -12,29 +15,6 @@ const switchPOV = (entity_uid, canvas) => {
       (y = 0),
       (entity_uid = entity_uid),
       () => {
-        if (data.background) {
-         
-          $("#main-map-area .image-container img").css({
-            width: `${data.width}px`,
-            objectFit: 'cover',
-            objectPosition: 'top',
-          });
-          $("#main-map-area .image-container").css({
-            height: `${data.height}px`,
-          });
-          $("#main-map-area .tiles-container").data({
-            width: data.width,
-            height: data.height,
-          });
-          $(".image-container").css({ height: data.height });
-          $(".image-container img").css({ width: data.width });
-          const tile_size = $('.tiles-container').data('tile-size');
-          $('.image-container').css({top: data.image_offset_px[1] + tile_size, left: data.image_offset_px[0] + tile_size});
-          canvas.width = data.width + tile_size;
-          canvas.height = data.height + tile_size;
-          $("#main-map-area .image-container img").attr("src", data.background);
-          $('body').attr('data-current-map', data.name);
-        }
         const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
         centerOnTile($tile);
       },
