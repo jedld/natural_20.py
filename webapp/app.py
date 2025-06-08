@@ -265,6 +265,10 @@ def controller_of(entity_uid, username):
 
 app.add_template_global(controller_of, name='controller_of')
 
+def t(key):
+    return i18n.t(key)
+app.add_template_global(t, name='t')
+
 def opacity_for(tile):
     if tile['hiding']:
         return 0.7
@@ -1006,14 +1010,18 @@ def get_actions():
     if entity:
         if 'dm' in user_role() or current_user in entity_owners(entity):
             available_actions = entity.available_actions(session, battle, auto_target=False, map=battle_map, interact_only=True, admin_actions='dm' in user_role())
-            return render_template('actions.html', entity=entity, battle=battle, session=game_session, map=battle_map, available_actions=available_actions)
+            # Create entity map for looking up target entities
+            entity_map = battle_map.entities
+            return render_template('actions.html', entity=entity, battle=battle, session=game_session, map=battle_map, available_actions=available_actions, entity_map=entity_map)
         else:
             return jsonify(error="Forbidden"), 403
     object_ = battle_map.object_by_uid(id)
 
     if object_:
         available_actions = object_.available_actions(session, battle, auto_target=False, map=battle_map, interact_only=True, admin_actions=True)
-        return render_template('actions.html', entity=object_, battle=battle, session=game_session, map=battle_map, available_actions=available_actions)
+        # Create entity map for looking up target entities
+        entity_map = battle_map.entities
+        return render_template('actions.html', entity=object_, battle=battle, session=game_session, map=battle_map, available_actions=available_actions, entity_map=entity_map)
 
     return jsonify(error="Entity not found"), 404
 
