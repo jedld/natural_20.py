@@ -32,19 +32,19 @@
                 {% endif %}
               </div>
               {% if obj['notes'] %}
-                <button class="show-note-btn" onclick="Utils.toggleNoteOverlay(this)" style="top: {{obj['image_offset_px'][0]}}px; left: {{obj['image_offset_px'][1]}}px;">
+                <button class="show-note-btn" onclick="Utils.showNoteModal(this)" 
+                        data-name="{{ obj['name'] }}"
+                        data-label="{{ obj['label'] }}"
+                        style="top: {{obj['image_offset_px'][0]}}px; left: {{obj['image_offset_px'][1]}}px;">
                   <i class="glyphicon glyphicon-info-sign"></i>
                 </button>
-                <div class="object-note-overlay">
-                  <button class="close-note-btn" onclick="this.parentElement.style.display='none'">×</button>
-                  <div class="object-note" style="display: block;">
-                    {% for note in obj['notes'] %}
-                      {% if note['image'] %}
-                        <img class="note-image" src="{{ url_for('static', filename='assets/objects/' ~ note['image']) }}" >
-                      {% endif %}
-                      <p>{{ note['note'] }}</p>
-                    {% endfor %}
-                  </div>
+                <div class="note-content" style="display: none;">
+                  {% for note in obj['notes'] %}
+                    {% if note['image'] %}
+                      <img class="note-image" src="{{ url_for('static', filename='assets/objects/' ~ note['image']) }}" >
+                    {% endif %}
+                    <p>{{ note['note'] }}</p>
+                  {% endfor %}
                 </div>
               {% endif %}
             {% endfor %}
@@ -195,3 +195,18 @@
     </div>
   {% endfor %}
 {% endfor %}
+
+<div id="noteModal" class="custom-modal" style="display: none;">
+  <div class="custom-modal-content">
+    <div class="custom-modal-header">
+      <h4 id="noteModalTitle">Notes</h4>
+      <button class="custom-modal-close" onclick="Utils.closeNoteModal()">&times;</button>
+    </div>
+    <div class="custom-modal-body">
+      <div id="noteModalContent"></div>
+    </div>
+    <div class="custom-modal-footer">
+      <button class="custom-modal-btn" onclick="Utils.closeNoteModal()">Close</button>
+    </div>
+  </div>
+</div>
