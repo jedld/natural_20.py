@@ -90,6 +90,7 @@
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
+            position: relative;
         }
         .feature-item {
             background: #fff;
@@ -106,25 +107,34 @@
         }
         .feature-item::before {
             content: attr(data-tooltip);
-            position: absolute;
-            bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
+            position: fixed;
+            bottom: auto;
+            left: auto;
+            transform: none;
             padding: 8px;
             background: rgba(0, 0, 0, 0.8);
             color: white;
             border-radius: 4px;
             font-size: 0.9em;
-            white-space: nowrap;
+            overflow: visible;
+            white-space: normal;
+            max-width: 300px;
+            width: max-content;
+            word-wrap: break-word;
             opacity: 0;
             visibility: hidden;
             transition: all 0.2s ease;
             z-index: 1000;
+            text-align: left;
+            line-height: 1.4;
+            pointer-events: none;
         }
         .feature-item:hover::before {
             opacity: 1;
             visibility: visible;
-            bottom: 120%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
         }
     </style>
 
@@ -233,7 +243,7 @@
                             <h3>Race Features</h3>
                             <ul class="feature-list">
                             {% for feature in entity.race_properties.get('race_features', []) %}
-                                <li class="feature-item" data-tooltip="{{ feature }}">{{ feature | replace('_', ' ') | title }}</li>
+                                <li class="feature-item" data-tooltip="{{ t( 'features.' + feature) }}">{{ feature | replace('_', ' ') | title }}</li>
                             {% endfor %}
                             </ul>
                         </div>

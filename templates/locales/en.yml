@@ -241,6 +241,8 @@ en:
       prone: '%{name} is now prone.'
       stand: '%{name} stands up.'
   exit: Exit
+  features:
+    stones_endurance: Stones Endurance - You have resistance to bludgeoning, piercing, and slashing damage dealt by weapons and spells.
   game_author: By %{author}
   inventory:
     cannot_change_armor_combat: Cannot change armor during combat
