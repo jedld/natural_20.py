@@ -249,6 +249,19 @@ const Utils = {
   },
   dismissBubble: function(bubble) {
     bubble.style.display = 'none';
+  },
+  showNoteModal: function(btn) {
+    const noteContent = btn.nextElementSibling.innerHTML;
+    const name = btn.getAttribute('data-name');
+    const label = btn.getAttribute('data-label');
+    const title = label || name || 'Notes';
+    
+    $('#noteModalTitle').text(title);
+    $('#noteModalContent').html(noteContent);
+    $('#noteModal').show();
+  },
+  closeNoteModal: function() {
+    $('#noteModal').hide();
   }
 };
 
