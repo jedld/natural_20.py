@@ -20,26 +20,7 @@ const Utils = {
       console.log('Map selection successful:', data);
       $('#mapModal').modal('hide');
       Utils.refreshTileSet(callback = () => {
-        $('#main-map-area .image-container img').attr('src', data.background);
-        $('#main-map-area .image-container img').css({ width: `${data.width}px`, objectFit: 'cover', objectPosition: 'top' });
-        $('#main-map-area .image-container').css({ height: `${data.height}px` });
-        $('#main-map-area .tiles-container').data({ width: data.width, height: data.height });
-        $('.image-container').css({height: data.height});
-        $('.image-container img').css({width: data.width});
-        const tile_size = $('.tiles-container').data('tile-size');
-        $('.tiles-container').css({
-          position: 'absolute',
-          top: `-${tile_size}px`,
-          left: `-${tile_size}px`,
-          width: data.width,
-          height: data.height
-        });
-        canvas.width = data.width + tile_size;
-        canvas.height = data.height + tile_size;
-        canvas.style.top = `-${tile_size}px`;
-        canvas.style.left = `-${tile_size}px`;
-        // Update the map name in the body data
-        $('body').attr('data-current-map', mapId);
+        Utils.updateMapDisplay(data, canvas);
         // Refresh portraits when map is switched
         Utils.refreshPortraits();
         if (first_callback) first_callback();
@@ -262,6 +243,49 @@ const Utils = {
   },
   closeNoteModal: function() {
     $('#noteModal').hide();
+  },
+  updateMapDisplay: function(data, canvas) {
+    const tile_size = $('.tiles-container').data('tile-size');
+    
+    // Update image container and image
+    $("#main-map-area .image-container img").css({
+      width: `${data.width}px`,
+      objectFit: 'cover',
+      objectPosition: 'top',
+    });
+    $("#main-map-area .image-container").css({
+      height: `${data.height}px`,
+    });
+    
+    // Update tiles container
+    $("#main-map-area .tiles-container").css({
+      position: 'absolute',
+      top: `-${tile_size}px`,
+      left: `-${tile_size}px`,
+      width: data.width,
+      height: data.height,
+    });
+    
+    // Update image container position with consistent offset handling
+    const imageOffset = data.image_offset_px || [0, 0];
+    $('.image-container').css({
+      height: data.height,
+      top: imageOffset[1] + tile_size,
+      left: imageOffset[0] + tile_size
+    });
+    
+    // Update image
+    $(".image-container img").css({ width: data.width });
+    
+    // Update canvas
+    canvas.width = data.width + tile_size;
+    canvas.height = data.height + tile_size;
+    canvas.style.top = `-${tile_size}px`;
+    canvas.style.left = `-${tile_size}px`;
+    
+    // Update background and map name
+    $("#main-map-area .image-container img").attr("src", data.background);
+    $('body').attr('data-current-map', data.name);
   }
 };
 

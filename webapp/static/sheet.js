@@ -1,5 +1,16 @@
 $(document).ready(function() {
     var entityId = $('body').data('id');
+    
+    // Handle section expansion
+    $('.section-header').on('click', function() {
+        const section = $(this).closest('.section');
+        const content = section.find('.section-content');
+        const icon = $(this).find('.toggle-icon');
+        
+        content.slideToggle(200);
+        icon.toggleClass('fa-chevron-down fa-chevron-up');
+    });
+
     // Handle Tab Switching
     function openTab(evt, tabName) {
         $('.tabcontent').hide();
@@ -88,4 +99,82 @@ $(document).ready(function() {
 
     // Open the default tab
     $('.tablinks').first().click();
+
+    // Controller assignment functionality
+    const controllerInput = $('#controller-input');
+    const suggestionsList = $('#controller-suggestions');
+    const controllersList = $('#controllers-list');
+    let currentEntityId = $('body').data('id');
+
+    // Handle input for auto-complete
+    controllerInput.on('input', function() {
+        const query = $(this).val().trim();
+        if (query.length < 2) {
+            suggestionsList.hide();
+            return;
+        }
+
+        // Fetch suggestions from server
+        $.get('/get_users', { query: query }, function(users) {
+            suggestionsList.empty();
+            users.forEach(user => {
+                if (!controllersList.find(`li:contains('${user}')`).length) {
+                    suggestionsList.append(`<div data-username="${user}">${user}</div>`);
+                }
+            });
+            suggestionsList.show();
+        });
+    });
+
+    // Handle suggestion selection
+    suggestionsList.on('click', 'div', function() {
+        const username = $(this).data('username');
+        addController(username);
+        controllerInput.val('');
+        suggestionsList.hide();
+    });
+
+    // Handle removing a controller
+    controllersList.on('click', '.remove-controller', function() {
+        const username = $(this).data('username');
+        removeController(username);
+    });
+
+    // Add a controller
+    function addController(username) {
+        $.post('/update_controller', {
+            entity_uid: currentEntityId,
+            controller: username,
+            action: 'add'
+        }, function(response) {
+            if (response.status === 'ok') {
+                controllersList.append(`
+                    <li>
+                        ${username}
+                        <button class="btn btn-sm btn-danger remove-controller" data-username="${username}">×</button>
+                    </li>
+                `);
+            }
+        });
+    }
+
+    // Remove a controller
+    function removeController(username) {
+        $.post('/update_controller', {
+            entity_uid: currentEntityId,
+            controller: username,
+            action: 'remove'
+        }, function(response) {
+            if (response.status === 'ok') {
+                controllersList.find(`li:contains('${username}')`).remove();
+            }
+        });
+    }
+
+    // Close suggestions when clicking outside
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('.controller-assignment').length) {
+            suggestionsList.hide();
+        }
+    });
 });

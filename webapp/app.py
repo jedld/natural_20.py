@@ -1579,7 +1579,7 @@ def get_info():
     entity = battle_map.entity_by_uid(info_id)
     if entity is None:
         entity = battle_map.object_by_uid(info_id)
-    return render_template('info.html.jinja', entity=entity, session=game_session, restricted=False)
+    return render_template('info.html.jinja', entity=entity, session=game_session, restricted=False, role=user_role())
 
 @app.route('/logout', methods=['POST'])
 def logout():
@@ -1822,6 +1822,7 @@ def update_controller():
 
     entity_uid = data['entity_uid']
     new_controller = data['controller']
+    action = data.get('action', 'add')  # Default to add if not specified
     
     battle = current_game.get_current_battle()
     if not battle:
@@ -1831,18 +1832,34 @@ def update_controller():
     if not entity:
         return jsonify(error='Entity not found'), 404
 
-    # Create the appropriate controller
-    if new_controller == 'ai':
-        controller = GenericController(game_session)
-    else:  # manual
+    # Get the web controller for this entity
+    controller = current_game.get_controller_for_entity(entity)
+    if not controller:
         controller = WebController(game_session, None)
         controller.add_user("dm")
+        current_game.web_controllers[entity] = controller
 
-    # Register handlers and update the entity's controller
-    controller.register_handlers_on(entity)
-    battle.set_controller_for(entity, controller)
+    # Add or remove the user from the controller
+    if action == 'add':
+        controller.add_user(new_controller)
+    elif action == 'remove':
+        controller.users.discard(new_controller)
 
     return jsonify(status='ok')
+
+@app.route('/get_users')
+def get_users():
+    query = request.args.get('query', '').lower()
+    if not query:
+        return jsonify([])
+    
+    # Get all users from username_to_sid
+    users = []
+    for username in username_to_sid.keys():
+        if query in username.lower():
+            users.append(username)
+    
+    return jsonify(users)
 
 if __name__ == '__main__':
     socketio.run(app, debug=False, host='0.0.0.0', port=5001, allow_unsafe_werkzeug=True)

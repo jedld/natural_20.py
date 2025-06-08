@@ -908,3 +908,69 @@ input.initiative-input.form-control {
   color: #333;
   word-wrap: break-word;
 }
+
+.controller-assignment {
+    margin: 20px 0;
+    padding: 15px;
+    background: #f9f9f9;
+    border-radius: 5px;
+}
+
+.controller-assignment .form-group {
+    margin-bottom: 20px;
+}
+
+.controller-assignment input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.suggestions-list {
+    position: absolute;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    width: 100%;
+    z-index: 1000;
+    display: none;
+}
+
+.suggestions-list div {
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.suggestions-list div:hover {
+    background: #f0f0f0;
+}
+
+.current-controllers {
+    margin-top: 20px;
+}
+
+.current-controllers ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.current-controllers li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 5px;
+}
+
+.current-controllers .remove-controller {
+    padding: 2px 8px;
+    font-size: 16px;
+    line-height: 1;
+}
