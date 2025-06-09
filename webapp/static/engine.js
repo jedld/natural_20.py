@@ -1,6 +1,12 @@
 // --- Global Helpers & Utilities ---
 
 let scale = 1;
+let keyboardMovementMode = false;
+let keyboardMovementSource = null;
+let keyboardMovementPath = [];
+let keyboardMovementPivotPoints = [];
+let globalCanvas = null;
+let globalCtx = null;
 
 const switchPOV = (entity_uid, canvas) => {
   ajaxPost("/switch_pov", { entity_uid }, (data) => {
@@ -187,6 +193,159 @@ const centerOnEntityId = (id) => {
   centerOnTile($tile);
 };
 
+// Keyboard movement controls
+function handleKeyboardMovement(key, entity_uid, coordsx, coordsy) {
+  console.log("handleKeyboardMovement called with:", { key, entity_uid, coordsx, coordsy });
+  
+  if (!keyboardMovementMode) {
+    // Initialize keyboard movement mode
+    console.log("Initializing keyboard movement mode");
+    keyboardMovementMode = true;
+    keyboardMovementSource = { x: coordsx, y: coordsy };
+    keyboardMovementPath = [];
+    keyboardMovementPivotPoints = [];
+    moveMode = false; // Disable mouse-based movement
+    globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+  }
+
+  let newX = keyboardMovementSource.x;
+  let newY = keyboardMovementSource.y;
+
+  // Calculate new position based on key
+  switch(key) {
+    case 'ArrowUp':
+    case 'w':
+    case 'W':
+      newY--;
+      break;
+    case 'ArrowDown':
+    case 's':
+    case 'S':
+      newY++;
+      break;
+    case 'ArrowLeft':
+    case 'a':
+    case 'A':
+      newX--;
+      break;
+    case 'ArrowRight':
+    case 'd':
+    case 'D':
+      newX++;
+      break;
+  }
+
+  console.log("Attempting to move to:", { newX, newY });
+
+  // Check if this is a backtracking move
+  if (keyboardMovementPath.length > 0) {
+    const lastMove = keyboardMovementPath[keyboardMovementPath.length - 1];
+    const isBacktracking = 
+      (key === 'ArrowUp' || key === 'w' || key === 'W') && lastMove[1] < newY ||
+      (key === 'ArrowDown' || key === 's' || key === 'S') && lastMove[1] > newY ||
+      (key === 'ArrowLeft' || key === 'a' || key === 'A') && lastMove[0] < newX ||
+      (key === 'ArrowRight' || key === 'd' || key === 'D') && lastMove[0] > newX;
+
+    if (isBacktracking) {
+      console.log("Backtracking detected, canceling last move");
+      // Remove the last move from the path
+      keyboardMovementPath.pop();
+      // Update source position to the previous position
+      if (keyboardMovementPath.length > 0) {
+        const newSource = keyboardMovementPath[keyboardMovementPath.length - 1];
+        keyboardMovementSource = { x: newSource[0], y: newSource[1] };
+      } else {
+        keyboardMovementSource = { x: coordsx, y: coordsy };
+      }
+      // Redraw the path
+      Utils.drawMovementPath(globalCtx, keyboardMovementPath, 0, true);
+      return;
+    }
+  }
+
+  // Check if the new position is valid
+  Utils.ajaxGet(
+    "/path",
+    {
+      from: keyboardMovementSource,
+      to: { x: newX, y: newY },
+      accumulatedPath: keyboardMovementPath.length > 0 ? JSON.stringify(keyboardMovementPath) : null
+    },
+    (data) => {
+      console.log("Path check response:", data);
+      if (data.cost.budget >= 0 && data.path) {
+        // Update source position
+        keyboardMovementSource = { x: newX, y: newY };
+        
+        // Add to path
+        if (keyboardMovementPath.length > 0) {
+          keyboardMovementPath.pop();
+        }
+        keyboardMovementPath = [...keyboardMovementPath, ...data.path];
+        
+        console.log("Updated path:", keyboardMovementPath);
+        
+        // Draw the path
+        Utils.drawMovementPath(globalCtx, keyboardMovementPath, data.cost.budget, data.placeable);
+      } else {
+        console.log("Invalid move - path not available or budget exceeded");
+      }
+    }
+  );
+}
+
+function executeKeyboardMovement(entity_uid, action, opts) {
+  console.log("Executing keyboard movement");
+  ajaxPost(
+    "/action",
+    {
+      id: entity_uid,
+      action: "MoveAction",
+      opts: {
+        action_type: "move",
+        source: entity_uid
+      },
+      path: keyboardMovementPath
+    },
+    (data) => {
+      console.log("Movement executed:", data);
+      if (data.status === 'ok') {
+        refreshTurn();
+        // hide the popover menu
+        $(".popover-menu").hide();
+      } else if (data.param && data.param[0].type === "movement") {
+        // Handle movement selection if needed
+        moveModeCallback = (path) => {
+          ajaxPost(
+            "/action",
+            { id: entity_uid, action, opts, path },
+            (data) => {
+              console.log("Action request successful:", data);
+              refreshTurn();
+            },
+            true
+          );
+        };
+        $(".popover-menu").hide();
+        moveMode = true;
+        source = { x: keyboardMovementSource.x, y: keyboardMovementSource.y };
+        accumulatedPath = [];
+        pivotPoints = [];
+      }
+      resetKeyboardMovement();
+    },
+    true
+  );
+}
+
+function resetKeyboardMovement() {
+  keyboardMovementMode = false;
+  keyboardMovementSource = null;
+  keyboardMovementPath = [];
+  keyboardMovementPivotPoints = [];
+  globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+}
+
 // --- Document Ready: Event Bindings & Main Logic ---
 $(document).ready(() => {
   let active_background_sound = null;
@@ -199,23 +358,23 @@ $(document).ready(() => {
 
   // --- Canvas Setup ---
   const tile_size = $(".tiles-container").data("tile-size");
-  var canvas = document.createElement("canvas");
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  canvas.style.position = "fixed";
-  canvas.style.top = "0";
-  canvas.style.left = "0";
-  canvas.style.width = "100%";
-  canvas.style.height = "100%";
-  canvas.style.zIndex = 1000;
-  canvas.style.pointerEvents = "none";
-  $("body").append(canvas);
-  var ctx = canvas.getContext("2d");
+  globalCanvas = document.createElement("canvas");
+  globalCanvas.width = window.innerWidth;
+  globalCanvas.height = window.innerHeight;
+  globalCanvas.style.position = "fixed";
+  globalCanvas.style.top = "0";
+  globalCanvas.style.left = "0";
+  globalCanvas.style.width = "100%";
+  globalCanvas.style.height = "100%";
+  globalCanvas.style.zIndex = 1000;
+  globalCanvas.style.pointerEvents = "none";
+  $("body").append(globalCanvas);
+  globalCtx = globalCanvas.getContext("2d");
 
   // Update canvas size on window resize
   $(window).on('resize', function() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    globalCanvas.width = window.innerWidth;
+    globalCanvas.height = window.innerHeight;
   });
 
   // Plays a background sound (stopping any previous one).
@@ -606,7 +765,7 @@ $(document).ready(() => {
     valid_target_cache = {};
     multiTargetList = [];
     $(".add-to-target, .popover-menu-2").hide();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
     e.stopPropagation();
   });
 
@@ -619,13 +778,13 @@ $(document).ready(() => {
       targetModeCallback({ x: coordsx, y: coordsy });
       targetMode = false;
       valid_target_cache = {};
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
       $(".tile").css("border", "none");
     } else if (moveMode) {
       if (coordsx !== source.x || coordsy !== source.y) {
         moveMode = false;
         move_path_cache = {};
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
         $(".tile").css("border", "none");
         moveModeCallback(movePath);
         movePath = [];
@@ -694,7 +853,7 @@ $(document).ready(() => {
       "transform": `scale(${scale})`,
       "transform-origin": "center center"
     });
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
   });
 
   $(".zoom-out").on("click", () => {
@@ -703,7 +862,7 @@ $(document).ready(() => {
       "transform": `scale(${scale})`,
       "transform-origin": "center center"
     });
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
   });
 
   // Draws a target line from a source to a given set of coordinates.
@@ -715,7 +874,7 @@ $(document).ready(() => {
     const scrollLeft =
       window.pageXOffset || document.documentElement.scrollLeft;
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
     ctx.beginPath();
     ctx.strokeStyle = "red";
     ctx.lineWidth = 5;
@@ -784,7 +943,7 @@ $(document).ready(() => {
       });
 
       if (valid_target_cache[`${coordsx}-${coordsy}`]) {
-        drawTargetLine(ctx, source, coordsx, coordsy, valid_target_cache[`${coordsx}-${coordsy}`]);
+        drawTargetLine(globalCtx, source, coordsx, coordsy, valid_target_cache[`${coordsx}-${coordsy}`]);
       } else {
         Utils.ajaxGet("/target", { payload: data_payload }, (data) => {
           const { adv_info, valid_target } = data;
@@ -799,7 +958,7 @@ $(document).ready(() => {
             });
           } else {
             valid_target_cache[`${coordsx}-${coordsy}`] = valid_target;
-            drawTargetLine(ctx, source, coordsx, coordsy, valid_target);
+            drawTargetLine(globalCtx, source, coordsx, coordsy, valid_target);
           }
             if (adv_info) {
               adv_info[0].forEach(
@@ -844,11 +1003,10 @@ $(document).ready(() => {
               path: data.path
             };
 
-
             // Add the new path segment to the movement path
             movePath = [...movePath, ...data.path];
             // Draw the complete path
-            Utils.drawMovementPath(ctx, movePath, available_cost, data.placeable);
+            Utils.drawMovementPath(globalCtx, movePath, available_cost, data.placeable);
           }
         };
 
@@ -912,7 +1070,7 @@ $(document).ready(() => {
         valid_target_cache = {};
         move_path_cache = {};
         multiTargetList = [];
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
         $(".tile").css("border", "none");
         globalActionInfo = globalOpts = null;
       }
@@ -922,9 +1080,9 @@ $(document).ready(() => {
     if (event.keyCode === 81) {
       // get current mouse tile coords
       if (currentPosition) {
-      const coordsx = currentPosition.x;
-      const coordsy = currentPosition.y;
-      if (source.x !== coordsx || source.y !== coordsy) {
+        const coordsx = currentPosition.x;
+        const coordsy = currentPosition.y;
+        if (source.x !== coordsx || source.y !== coordsy) {
           pivotPoints.push([source.x, source.y]);
           accumulatedPath = accumulatedPath.concat(currentPosition.path);
           source = { x: coordsx, y: coordsy };
@@ -942,7 +1100,7 @@ $(document).ready(() => {
       pivotPoints = [];
       valid_target_cache = {};
       move_path_cache = {};
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
       $(".tile").css("border", "none");
       $(".add-to-target, .popover-menu-2").hide();
     }
@@ -955,7 +1113,7 @@ $(document).ready(() => {
       if (multiTargetList.length < max_targets) {
         multiTargetList.push(entity_uid);
         if (multiTargetModeUnique) $(this).hide();
-        drawLine(ctx, source, `.tile[data-coords-id="${entity_uid}"]`, {
+        drawLine(globalCtx, source, coordsx, coordsy, {
           lineWidth: 3,
           withArrow: false,
           randomCurve: true,
@@ -1334,7 +1492,7 @@ $(document).ready(() => {
       accumulatedPath = [];
       move_path_cache = {};
       pivotPoints = [];
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
       $(".tile").css("border", "none");
     }
     const dataPayload = { id: entity_uid, action, opts };
@@ -1344,6 +1502,43 @@ $(document).ready(() => {
       (data) => handleAction(entity_uid, action, opts, coordsx, coordsy, data),
       true,
     );
+  });
+
+  // Add keyboard event handler for movement
+  $(document).on("keydown", function(e) {
+    // Check for popover menu instead of actions-container
+    const $popoverMenu = $(".popover-menu:visible");
+    if ($popoverMenu.length) {
+      const $tile = $popoverMenu.closest(".tile");
+      if ($tile.length) {
+        const entity_uid = $tile.data("coords-id");
+        const coordsx = $tile.data("coords-x");
+        const coordsy = $tile.data("coords-y");
+
+        console.log("Action bar visible for entity:", entity_uid, "at coords:", coordsx, coordsy);
+
+        // Handle movement keys
+        if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", "W", "A", "S", "D"].includes(e.key)) {
+          e.preventDefault(); // Prevent page scrolling
+          console.log("Movement key pressed:", e.key);
+          handleKeyboardMovement(e.key, entity_uid, coordsx, coordsy);
+        }
+        // Handle Enter key to execute movement
+        else if (e.key === "Enter" && keyboardMovementMode) {
+          e.preventDefault();
+          console.log("Executing keyboard movement");
+          const action = "move";
+          const opts = {};
+          executeKeyboardMovement(entity_uid, action, opts);
+        }
+        // Handle Escape key to cancel movement
+        else if (e.key === "Escape" && keyboardMovementMode) {
+          e.preventDefault();
+          console.log("Cancelling keyboard movement");
+          resetKeyboardMovement();
+        }
+      }
+    }
   });
 
   $("#turn-order").on("click", "#add-more", function () {
