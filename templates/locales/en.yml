@@ -242,6 +242,10 @@ en:
       stand: '%{name} stands up.'
   exit: Exit
   features:
+    brave: Brave - You have advantage on saving throws against being frightened.
+    halfling_nimbleness: Halfling Nimbleness - You can move through the space of any creature that is of a size larger than yours.
+    naturally_stealthy: Naturally Stealthy - You can attempt to hide even when you are obscured only by a creature that is at least one size larger than you.
+    lucky: Lucky - When you roll a 1 on the d20 for an attack roll, ability check, or saving throw, you can reroll the die and must use the new roll.
     stones_endurance: Stones Endurance - You have resistance to bludgeoning, piercing, and slashing damage dealt by weapons and spells.
   game_author: By %{author}
   inventory:
