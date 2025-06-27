@@ -552,7 +552,7 @@ $(document).ready(() => {
               text: action.label,
             };
             drawLine(
-              ctx,
+              globalCtx,
               { x: $tile.data("coords-x"), y: $tile.data("coords-y") },
               `.tile[data-coords-id="${action.target}"]`,
               opts,
@@ -699,7 +699,7 @@ $(document).ready(() => {
         break;
       case "switch_map":
         var map_id = data.message.map;
-        Utils.switchMap(map_id, canvas);
+        Utils.switchMap(map_id, globalCanvas);
         break;
 
       default:
@@ -755,7 +755,7 @@ $(document).ready(() => {
   $("#mapModal").on("change", "#map-select", function (event) {
     event.preventDefault();
     const map_id = $("#map-select").val();
-    Utils.switchMap(map_id, canvas);
+    Utils.switchMap(map_id, globalCanvas);
   });
 
   // --- Tile & Action Event Handlers ---
@@ -921,7 +921,7 @@ $(document).ready(() => {
   // Character switcher
   $('#floating-entity-portraits').on('click', '.floating-entity-portrait', function() {
     const entity_uid = $(this).data('id');
-    switchPOV(entity_uid, canvas);
+    switchPOV(entity_uid, globalCanvas);
   });
 
   // Highlight tile info or draw movement data on hover.
