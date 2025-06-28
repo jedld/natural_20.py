@@ -1001,6 +1001,35 @@ input.initiative-input.form-control {
   font-style: italic;
 }
 
+/* Processing indicator styles */
+.chat-message.processing {
+  background-color: #f0f8ff;
+  border-left: 4px solid #4caf50;
+  opacity: 0.8;
+}
+
+.processing-dots {
+  animation: processingDots 1.5s infinite;
+  display: inline-block;
+}
+
+@keyframes processingDots {
+  0%, 20% {
+    content: ".";
+  }
+  40% {
+    content: "..";
+  }
+  60%, 100% {
+    content: "...";
+  }
+}
+
+.processing-text {
+  color: #4caf50;
+  font-weight: 500;
+}
+
 .chat-interface {
   margin-top: 15px;
 }
