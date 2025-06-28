@@ -1987,9 +1987,10 @@ def ai_chat():
         # Add basic session context
         context['session'] = {
             'username': session.get('username'),
-            'role': user_role()
+            'role': user_role(),
+            'current_map': current_game.get_map_for_user(session['username']).name
         }
-        
+        print("Context:", context)
         # Send message to AI with RAG context
         response = llm_handler.send_message(message, context)
         
