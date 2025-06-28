@@ -60,6 +60,11 @@ from datetime import datetime
 from webapp.llm_conversation_handler import LLMConversationHandler
 import threading
 
+# Import the LLM handler
+from webapp.llm_handler import llm_handler
+from webapp.game_context import GameContextProvider
+import requests
+
 app = Flask(__name__, static_folder='static', static_url_path='/')
 
 # Determine if we're running in AWS or locally
@@ -158,6 +163,56 @@ current_game = GameManagement(game_session=game_session,
                               autosave=AUTOSAVE,
                               system_logger=logger,
                               soundtrack=SOUNDTRACKS)
+
+# Initialize game context provider for LLM RAG
+game_context_provider = GameContextProvider(game_session, current_game)
+
+# Register game context functions with the LLM handler
+def register_game_context_functions():
+    """Register all game context functions with the LLM handler."""
+    llm_handler.register_game_context_function(
+        "get_map_info",
+        game_context_provider.get_map_info,
+        "Get current map information including terrain, layout, and basic details"
+    )
+    
+    llm_handler.register_game_context_function(
+        "get_entities",
+        game_context_provider.get_entities,
+        "Get all entities on the current map with their positions and basic information"
+    )
+    
+    llm_handler.register_game_context_function(
+        "get_player_characters",
+        game_context_provider.get_player_characters,
+        "Get information about player characters on the current map"
+    )
+    
+    llm_handler.register_game_context_function(
+        "get_npcs",
+        game_context_provider.get_npcs,
+        "Get information about NPCs on the current map"
+    )
+    
+    # Create a proxy for get_entity_details that can handle function calling
+    def get_entity_details_proxy(*args, **kwargs):
+        """Proxy function for get_entity_details that can handle function calling."""
+        return game_context_provider.get_entity_details(*args, **kwargs)
+    
+    llm_handler.register_game_context_function(
+        "get_entity_details",
+        get_entity_details_proxy,
+        "Get detailed information about a specific entity by name"
+    )
+    
+    llm_handler.register_game_context_function(
+        "get_battle_status",
+        game_context_provider.get_battle_status,
+        "Get current battle information if combat is active"
+    )
+
+# Register the functions
+register_game_context_functions()
 
 i18n.set('locale', 'en')
 
@@ -1868,6 +1923,291 @@ def get_users():
             users.append(username)
     
     return jsonify(users)
+
+# AI Chatbot Routes
+@app.route('/ai/initialize', methods=['POST'])
+def ai_initialize():
+    """Initialize the AI provider."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    try:
+        provider = request.form.get('provider')
+        api_key = request.form.get('api_key')
+        base_url = request.form.get('base_url')
+        model = request.form.get('model')
+        
+        if not provider:
+            return jsonify({'success': False, 'error': 'Provider is required'})
+        
+        config = {}
+        if api_key:
+            config['api_key'] = api_key
+        if base_url:
+            config['base_url'] = base_url
+        if model:
+            config['model'] = model
+        
+        success = llm_handler.initialize_provider(provider, config)
+        
+        if success:
+            # Get provider info for response
+            provider_info = llm_handler.get_provider_info()
+            response_data = {'success': True}
+            
+            # Add model information if available
+            if provider_info.get('current_model'):
+                response_data['model'] = provider_info['current_model']
+            if provider_info.get('available_models'):
+                response_data['available_models'] = provider_info['available_models']
+            
+            return jsonify(response_data)
+        else:
+            return jsonify({'success': False, 'error': f'Failed to initialize {provider} provider'})
+            
+    except Exception as e:
+        logger.error(f"Error initializing AI: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/ai/chat', methods=['POST'])
+def ai_chat():
+    """Send a message to the AI and get a response."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    try:
+        message = request.form.get('message')
+        
+        if not message:
+            return jsonify({'success': False, 'error': 'Message is required'})
+        
+        # Get comprehensive game context using the LLM handler's RAG system
+        context = llm_handler.get_game_context()
+        
+        # Add basic session context
+        context['session'] = {
+            'username': session.get('username'),
+            'role': user_role()
+        }
+        
+        # Send message to AI with RAG context
+        response = llm_handler.send_message(message, context)
+        
+        return jsonify({'success': True, 'response': response})
+        
+    except Exception as e:
+        logger.error(f"Error in AI chat: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/ai/context', methods=['GET'])
+def ai_get_context():
+    """Get current game context for the AI."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    try:
+        # Get comprehensive game context using the LLM handler's RAG system
+        context = llm_handler.get_game_context()
+        
+        # Add basic session context
+        context['session'] = {
+            'username': session.get('username'),
+            'role': user_role()
+        }
+        
+        return jsonify({'success': True, 'context': context})
+        
+    except Exception as e:
+        logger.error(f"Error getting game context: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/ai/clear-history', methods=['POST'])
+def ai_clear_history():
+    """Clear the AI conversation history."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    try:
+        llm_handler.clear_history()
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        logger.error(f"Error clearing AI history: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/ai/history', methods=['GET'])
+def ai_get_history():
+    """Get the AI conversation history."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    try:
+        history = llm_handler.get_conversation_history()
+        return jsonify({'success': True, 'history': history})
+        
+    except Exception as e:
+        logger.error(f"Error getting AI history: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/ai/ollama/models', methods=['GET'])
+def ai_get_ollama_models():
+    """Get available Ollama models."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    try:
+        base_url = request.args.get('base_url', 'http://localhost:11434')
+        
+        # Test connection to Ollama
+        response = requests.get(f"{base_url}/api/tags", timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            models = [model['name'] for model in data.get('models', [])]
+            return jsonify({'success': True, 'models': models})
+        else:
+            return jsonify({'success': False, 'error': f'Ollama API error: {response.status_code}'})
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error connecting to Ollama: {e}")
+        return jsonify({'success': False, 'error': f'Failed to connect to Ollama: {str(e)}'})
+    except Exception as e:
+        logger.error(f"Error getting Ollama models: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/ai/set-model', methods=['POST'])
+def ai_set_model():
+    """Set the model for the current AI provider."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    try:
+        model_name = request.form.get('model')
+        
+        if not model_name:
+            return jsonify({'success': False, 'error': 'Model name is required'})
+        
+        success = llm_handler.set_model(model_name)
+        
+        if success:
+            return jsonify({'success': True, 'model': model_name})
+        else:
+            return jsonify({'success': False, 'error': f'Failed to set model: {model_name}'})
+            
+    except Exception as e:
+        logger.error(f"Error setting AI model: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/ai/provider-info', methods=['GET'])
+def ai_get_provider_info():
+    """Get information about the current AI provider."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    try:
+        info = llm_handler.get_provider_info()
+        return jsonify({'success': True, 'info': info})
+        
+    except Exception as e:
+        logger.error(f"Error getting provider info: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/ai/entity-details', methods=['GET'])
+def ai_get_entity_details():
+    """Get detailed information about a specific entity for RAG."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    try:
+        entity_name = request.args.get('entity_name')
+        if not entity_name:
+            return jsonify({'success': False, 'error': 'Entity name is required'})
+        
+        details = game_context_provider.get_entity_details(entity_name)
+        return jsonify({'success': True, 'details': details})
+        
+    except Exception as e:
+        logger.error(f"Error getting entity details: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/ai/terrain-info', methods=['GET'])
+def ai_get_terrain_info():
+    """Get terrain information for a specific location for RAG."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    try:
+        x = request.args.get('x', type=int)
+        y = request.args.get('y', type=int)
+        
+        if x is None or y is None:
+            return jsonify({'success': False, 'error': 'X and Y coordinates are required'})
+        
+        terrain_info = game_context_provider.get_map_terrain_info(x, y)
+        return jsonify({'success': True, 'terrain_info': terrain_info})
+        
+    except Exception as e:
+        logger.error(f"Error getting terrain info: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/ai/available-actions', methods=['GET'])
+def ai_get_available_actions():
+    """Get available actions for a specific entity for RAG."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    try:
+        entity_name = request.args.get('entity_name')
+        if not entity_name:
+            return jsonify({'success': False, 'error': 'Entity name is required'})
+        
+        actions = game_context_provider.get_available_actions(entity_name)
+        return jsonify({'success': True, 'actions': actions})
+        
+    except Exception as e:
+        logger.error(f"Error getting available actions: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+def get_game_context():
+    """Get current game context for the AI."""
+    context = {}
+    
+    try:
+        # Get current map
+        battle_map = current_game.get_map_for_user(session['username'])
+        if battle_map:
+            context['current_map'] = battle_map.name
+        
+        # Get current battle status
+        battle = current_game.get_current_battle()
+        if battle:
+            context['battle'] = True
+            current_turn = battle.current_turn()
+            if current_turn:
+                context['current_turn'] = current_turn.label()
+        
+        # Get entities in the current map
+        if battle_map:
+            entities = []
+            for entity in battle_map.entities:
+                if hasattr(entity, 'label'):
+                    entity_info = {
+                        'name': entity.label(),
+                        'type': entity.__class__.__name__,
+                        'position': battle_map.entity_or_object_pos(entity) if hasattr(battle_map, 'entity_or_object_pos') else None
+                    }
+                    entities.append(entity_info)
+            context['entities'] = entities
+        
+        # Get POV entity
+        pov_entity = current_game.get_pov_entity_for_user(session['username'])
+        if pov_entity:
+            context['pov_entity'] = pov_entity.label()
+        
+    except Exception as e:
+        logger.error(f"Error getting game context: {e}")
+        context['error'] = str(e)
+    
+    return context
 
 if __name__ == '__main__':
     socketio.run(app, debug=False, host='0.0.0.0', port=5001, allow_unsafe_werkzeug=True)

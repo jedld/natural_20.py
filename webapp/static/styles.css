@@ -974,3 +974,152 @@ input.initiative-input.form-control {
     font-size: 16px;
     line-height: 1;
 }
+
+/* AI Chatbot Interface Styles */
+.chat-message {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  word-wrap: break-word;
+}
+
+.chat-message.user {
+  background-color: #e3f2fd;
+  border-left: 4px solid #2196f3;
+  margin-left: 20px;
+}
+
+.chat-message.assistant {
+  background-color: #f3e5f5;
+  border-left: 4px solid #9c27b0;
+  margin-right: 20px;
+}
+
+.chat-message.system {
+  background-color: #fff3e0;
+  border-left: 4px solid #ff9800;
+  font-style: italic;
+}
+
+.chat-interface {
+  margin-top: 15px;
+}
+
+.ai-config-section {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.ai-config-section h5 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+#chat-messages {
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+#chat-messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+#chat-messages::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+#chat-messages::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+#chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Tab Navigation Styles */
+.nav-tabs {
+  border-bottom: 2px solid #dee2e6;
+  margin-bottom: 20px;
+}
+
+.nav-tabs .nav-link {
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #6c757d;
+  font-weight: 500;
+  padding: 10px 15px;
+  margin-right: 5px;
+  border-radius: 4px 4px 0 0;
+  transition: all 0.2s ease;
+}
+
+.nav-tabs .nav-link:hover {
+  border-color: transparent;
+  background-color: #f8f9fa;
+  color: #495057;
+}
+
+.nav-tabs .nav-link.active {
+  color: #007bff;
+  background-color: #fff;
+  border-bottom: 2px solid #007bff;
+}
+
+.nav-tabs .nav-link i {
+  margin-right: 5px;
+}
+
+/* Modal Size Adjustments */
+.modal-lg {
+  max-width: 900px;
+}
+
+/* Status Label Styles */
+.label {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: bold;
+  border-radius: 3px;
+}
+
+.label-default {
+  background-color: #6c757d;
+  color: white;
+}
+
+.label-success {
+  background-color: #28a745;
+  color: white;
+}
+
+.label-danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+/* Input Group Adjustments */
+.input-group-btn .btn {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .modal-lg {
+    max-width: 95%;
+    margin: 10px auto;
+  }
+  
+  .ai-config-section .row {
+    margin: 0;
+  }
+  
+  .ai-config-section .col-md-6 {
+    padding: 0 5px;
+  }
+}
