@@ -217,27 +217,125 @@
       })();
     </script>
     <div id="commandModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="commandModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
+      <div class="modal-dialog modal-lg">
         <div class="modal-content">
-          <form id="command-form">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                 <span aria-hidden="true">&times;</span>
-              </button>
-              <h4 class="modal-title" id="commandModalLabel">DM Command Console</h4>
-            </div>
-            <div class="modal-body">
-              <div class="form-group">
-                <label for="command-input">Command</label>
-                <input type="text" class="form-control" id="command-input" placeholder="Type your command here">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+               <span aria-hidden="true">&times;</span>
+            </button>
+            <h4 class="modal-title" id="commandModalLabel">DM Console</h4>
+          </div>
+          <div class="modal-body">
+            <!-- Tab Navigation -->
+            <ul class="nav nav-tabs" id="dmConsoleTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <a class="nav-link active" id="command-tab" data-toggle="tab" href="#command-panel" role="tab" aria-controls="command-panel" aria-selected="true">
+                  <i class="glyphicon glyphicon-console"></i> Command Console
+                </a>
+              </li>
+              <li class="nav-item" role="presentation">
+                <a class="nav-link" id="ai-tab" data-toggle="tab" href="#ai-panel" role="tab" aria-controls="ai-panel" aria-selected="false">
+                  <i class="glyphicon glyphicon-comment"></i> AI Assistant
+                </a>
+              </li>
+            </ul>
+            
+            <!-- Tab Content -->
+            <div class="tab-content" id="dmConsoleTabContent">
+              <!-- Command Console Tab -->
+              <div class="tab-pane fade show active" id="command-panel" role="tabpanel" aria-labelledby="command-tab">
+                <form id="command-form">
+                  <div class="form-group">
+                    <label for="command-input">Command</label>
+                    <input type="text" class="form-control" id="command-input" placeholder="Type your command here">
+                  </div>
+                  <div id="command-output" style="white-space: pre-wrap; background: #eee; padding: 10px; height: 200px; overflow-y: auto;"></div>
+                </form>
               </div>
-              <div id="command-output" style="white-space: pre-wrap; background: #eee; padding: 10px; height: 150px; overflow-y: auto;"></div>
+              
+              <!-- AI Assistant Tab -->
+              <div class="tab-pane fade" id="ai-panel" role="tabpanel" aria-labelledby="ai-tab">
+                <!-- AI Configuration Section -->
+                <div class="ai-config-section" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                  <h5><i class="glyphicon glyphicon-cog"></i> AI Configuration</h5>
+                  <div class="row">
+                    <div class="col-md-6">
+                      <div class="form-group">
+                        <label for="ai-provider-select">Provider</label>
+                        <select class="form-control" id="ai-provider-select">
+                          <option value="mock">Mock (Testing)</option>
+                          <option value="ollama">Ollama (Local)</option>
+                          <option value="openai">OpenAI GPT</option>
+                          <option value="anthropic">Anthropic Claude</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-group">
+                        <label for="ai-api-key">API Key / URL</label>
+                        <input type="text" class="form-control" id="ai-api-key" placeholder="Enter API key or Ollama URL">
+                        <small class="form-text text-muted">For Ollama, leave empty for localhost:11434 or enter custom URL</small>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="row" id="model-selection-row" style="display: none;">
+                    <div class="col-md-6">
+                      <div class="form-group">
+                        <label for="ai-model-select">Model</label>
+                        <select class="form-control" id="ai-model-select">
+                          <option value="">Loading models...</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-group">
+                        <label>&nbsp;</label>
+                        <button type="button" class="btn btn-sm btn-info" id="refresh-models" style="margin-top: 25px;">
+                          <i class="glyphicon glyphicon-refresh"></i> Refresh Models
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-primary" id="initialize-ai">
+                    <i class="glyphicon glyphicon-play"></i> Initialize AI
+                  </button>
+                  <span id="ai-status" class="label label-default" style="margin-left: 10px;">Not initialized</span>
+                </div>
+                
+                <!-- Chat Interface -->
+                <div class="chat-interface">
+                  <div id="chat-messages" style="height: 250px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #fff; margin-bottom: 10px;">
+                    <div class="chat-message system">
+                      <strong>AI Assistant:</strong> Welcome! I'm here to help you with your D&D game. I can assist with game mechanics, story development, battle management, and more. What would you like help with?
+                    </div>
+                  </div>
+                  
+                  <form id="chat-form">
+                    <div class="input-group">
+                      <input type="text" class="form-control" id="chat-input" placeholder="Ask me anything about your D&D game..." disabled>
+                      <span class="input-group-btn">
+                        <button class="btn btn-primary" type="submit" id="send-chat" disabled>
+                          <i class="glyphicon glyphicon-send"></i> Send
+                        </button>
+                      </span>
+                    </div>
+                  </form>
+                  
+                  <div style="margin-top: 10px;">
+                    <button type="button" class="btn btn-sm btn-default" id="clear-chat">
+                      <i class="glyphicon glyphicon-trash"></i> Clear Chat
+                    </button>
+                    <button type="button" class="btn btn-sm btn-info" id="get-context">
+                      <i class="glyphicon glyphicon-info-sign"></i> Get Game Context
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="modal-footer">
-              <button type="submit" class="btn btn-primary">Send Command</button>
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+          </div>
         </div>
       </div>
     </div>
