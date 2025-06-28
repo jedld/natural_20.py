@@ -27,6 +27,69 @@
         .image-container img {
           width: {{ background_width }}px;
         }
+
+        /* Draggable panel styles */
+        .draggable-panel {
+          transition: transform 0.1s ease-out;
+          user-select: none;
+        }
+
+        .draggable-panel.dragging {
+          transition: none;
+          cursor: move;
+        }
+
+        .draggable-panel .panel-header {
+          cursor: move;
+          user-select: none;
+        }
+
+        .draggable-panel .panel-header:hover {
+          background-color: #e9ecef;
+        }
+
+        /* Chat message styles */
+        .chat-message {
+          margin-bottom: 8px;
+          padding: 4px 0;
+          word-wrap: break-word;
+        }
+
+        .chat-message.user {
+          color: #2c3e50;
+        }
+
+        .chat-message.assistant {
+          color: #27ae60;
+        }
+
+        .chat-message.system {
+          color: #7f8c8d;
+          font-style: italic;
+        }
+
+        .chat-message.processing {
+          color: #f39c12;
+        }
+
+        /* Scrollbar styling for chat messages */
+        #draggable-chat-messages::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        #draggable-chat-messages::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 3px;
+        }
+
+        #draggable-chat-messages::-webkit-scrollbar-thumb {
+          background: #c1c1c1;
+          border-radius: 3px;
+        }
+
+        #draggable-chat-messages::-webkit-scrollbar-thumb:hover {
+          background: #a8a8a8;
+        }
     </style>
 </head>
 <body data-soundtrack-id="{{ soundtrack.name }}" data-soundtrack-url="{{soundtrack.file}}" data-soundtrack-time="{{soundtrack.time}}" data-soundtrack-volume="{{ soundtrack.volume }}" data-battle_in_progress="{{ 'true' if battle else 'false' }}"
@@ -402,8 +465,8 @@
 </div>
 
     <!-- Draggable AI Chatbot Interface -->
-    <div id="ai-chat-panel" class="draggable-panel" style="display: none; position: fixed; top: 100px; right: 20px; width: 400px; height: 500px; z-index: 1000; background: white; border: 2px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-      <div class="panel-header" style="background: #f8f9fa; padding: 10px; border-bottom: 1px solid #ddd; border-radius: 6px 6px 0 0; cursor: move;">
+    <div id="ai-chat-panel" class="draggable-panel" style="display: none; position: fixed; top: 100px; right: 20px; width: 400px; height: 600px; z-index: 1000; background: white; border: 2px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); overflow: hidden;">
+      <div class="panel-header" style="background: #f8f9fa; padding: 10px; border-bottom: 1px solid #ddd; border-radius: 6px 6px 0 0; cursor: move; user-select: none;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <h5 style="margin: 0; color: #333;">
             <i class="glyphicon glyphicon-comment"></i> AI Assistant
@@ -419,9 +482,9 @@
         </div>
       </div>
       
-      <div class="panel-body" style="padding: 15px; height: 100%; display: flex; flex-direction: column;">
+      <div class="panel-body" style="padding: 15px; height: calc(100% - 60px); display: flex; flex-direction: column; overflow: hidden;">
         <!-- AI Configuration Section -->
-        <div class="ai-config-section" style="margin-bottom: 15px;">
+        <div class="ai-config-section" style="margin-bottom: 15px; flex-shrink: 0;">
           <h6 style="margin-top: 0; margin-bottom: 10px; color: #333;">AI Configuration</h6>
           
           <div class="form-group" style="margin-bottom: 10px;">
@@ -440,7 +503,7 @@
             <small class="help-block" style="font-size: 11px; margin-top: 2px;"></small>
           </div>
           
-          <div class="row" id="draggable-model-selection-row" style="margin-bottom: 10px;">
+          <div class="row" id="draggable-model-selection-row" style="display: none; margin-bottom: 10px;">
             <div class="col-xs-8">
               <div class="form-group" style="margin-bottom: 0;">
                 <label for="draggable-ai-model-select" style="font-size: 12px;">Model:</label>
@@ -468,14 +531,14 @@
         </div>
         
         <!-- Chat Interface -->
-        <div class="chat-interface" style="flex: 1; display: flex; flex-direction: column;">
-          <div id="draggable-chat-messages" style="flex: 1; height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 8px; background: #fff; margin-bottom: 8px; font-size: 12px;">
+        <div class="chat-interface" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+          <div id="draggable-chat-messages" style="flex: 1; overflow-y: auto; border: 1px solid #ddd; padding: 8px; background: #fff; margin-bottom: 8px; font-size: 12px; min-height: 0;">
             <div class="chat-message system">
               <strong>AI Assistant:</strong> Welcome! I'm here to help you with your D&D game. Initialize the AI to get started.
             </div>
           </div>
           
-          <form id="draggable-chat-form" style="margin-bottom: 8px;">
+          <form id="draggable-chat-form" style="margin-bottom: 8px; flex-shrink: 0;">
             <div class="input-group input-group-sm">
               <input type="text" class="form-control" id="draggable-chat-input" placeholder="Ask me anything..." disabled style="font-size: 12px;">
               <span class="input-group-btn">
@@ -486,7 +549,7 @@
             </div>
           </form>
           
-          <div style="display: flex; gap: 5px;">
+          <div style="display: flex; gap: 5px; flex-shrink: 0;">
             <button type="button" class="btn btn-xs btn-default" id="draggable-clear-chat">
               <i class="glyphicon glyphicon-trash"></i> Clear
             </button>
@@ -496,6 +559,9 @@
           </div>
         </div>
       </div>
+      
+      <!-- Resize handle -->
+      <div class="resize-handle" style="position: absolute; bottom: 0; right: 0; width: 15px; height: 15px; cursor: se-resize; background: linear-gradient(135deg, transparent 50%, #ccc 50%);"></div>
     </div>
 
     <!-- AI Chat Toggle Button -->

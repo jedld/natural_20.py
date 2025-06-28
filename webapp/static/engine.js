@@ -2236,12 +2236,17 @@ $(document).ready(() => {
 
   // AI Chat Panel Draggable Functionality
   let isDragging = false;
+  let isResizing = false;
   let currentX;
   let currentY;
   let initialX;
   let initialY;
   let xOffset = 0;
   let yOffset = 0;
+  let initialWidth;
+  let initialHeight;
+  let initialResizeX;
+  let initialResizeY;
 
   // Toggle AI Chat Panel
   $("#toggle-ai-chat").on("click", function() {
@@ -2279,18 +2284,35 @@ $(document).ready(() => {
 
   // Drag functionality for AI Chat Panel
   $("#ai-chat-panel .panel-header").on("mousedown", function(e) {
-    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'I') {
-      return; // Don't start drag if clicking on buttons
+    // Don't start drag if clicking on buttons or their icons
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'I' || $(e.target).closest('button').length) {
+      return;
     }
     
     const $panel = $("#ai-chat-panel");
     initialX = e.clientX - xOffset;
     initialY = e.clientY - yOffset;
     
-    if (e.target === this || $(e.target).closest('.panel-header').length) {
-      isDragging = true;
-      $panel.addClass("dragging");
-    }
+    isDragging = true;
+    $panel.addClass("dragging");
+    
+    // Prevent text selection during drag
+    e.preventDefault();
+  });
+
+  // Resize functionality for AI Chat Panel
+  $("#ai-chat-panel .resize-handle").on("mousedown", function(e) {
+    const $panel = $("#ai-chat-panel");
+    initialResizeX = e.clientX;
+    initialResizeY = e.clientY;
+    initialWidth = $panel.width();
+    initialHeight = $panel.height();
+    
+    isResizing = true;
+    $panel.addClass("resizing");
+    
+    e.preventDefault();
+    e.stopPropagation();
   });
 
   $(document).on("mousemove", function(e) {
@@ -2304,6 +2326,20 @@ $(document).ready(() => {
       yOffset = currentY;
       
       setTranslate(currentX, currentY, $("#ai-chat-panel"));
+    } else if (isResizing) {
+      e.preventDefault();
+      
+      const deltaX = e.clientX - initialResizeX;
+      const deltaY = e.clientY - initialResizeY;
+      
+      const newWidth = Math.max(300, initialWidth + deltaX);
+      const newHeight = Math.max(400, initialHeight + deltaY);
+      
+      const $panel = $("#ai-chat-panel");
+      $panel.css({
+        width: newWidth + 'px',
+        height: newHeight + 'px'
+      });
     }
   });
 
@@ -2311,6 +2347,19 @@ $(document).ready(() => {
     if (isDragging) {
       isDragging = false;
       $("#ai-chat-panel").removeClass("dragging");
+      
+      // Save position after a short delay to ensure smooth transition
+      setTimeout(savePanelPosition, 100);
+    } else if (isResizing) {
+      isResizing = false;
+      $("#ai-chat-panel").removeClass("resizing");
+      
+      // Save size to localStorage
+      const $panel = $("#ai-chat-panel");
+      localStorage.setItem("aiChatPanelSize", JSON.stringify({
+        width: $panel.width(),
+        height: $panel.height()
+      }));
     }
   });
 
@@ -2321,12 +2370,14 @@ $(document).ready(() => {
     const windowWidth = $(window).width();
     const windowHeight = $(window).height();
     
-    // Constrain to viewport
-    if (xPos < -rect.width + 50) xPos = -rect.width + 50;
-    if (xPos > windowWidth - 50) xPos = windowWidth - 50;
+    // Constrain to viewport with some padding
+    const padding = 20;
+    if (xPos < -rect.width + padding) xPos = -rect.width + padding;
+    if (xPos > windowWidth - padding) xPos = windowWidth - padding;
     if (yPos < 0) yPos = 0;
-    if (yPos > windowHeight - 50) yPos = windowHeight - 50;
+    if (yPos > windowHeight - padding) yPos = windowHeight - padding;
     
+    // Use transform3d for better performance
     $el.css("transform", `translate3d(${xPos}px, ${yPos}px, 0)`);
   }
 
@@ -2339,25 +2390,27 @@ $(document).ready(() => {
     }
   }
 
-  // Load panel position from localStorage
+  // Load panel position and size from localStorage
   function loadPanelPosition() {
     const savedPosition = localStorage.getItem("aiChatPanelPosition");
+    const savedSize = localStorage.getItem("aiChatPanelSize");
+    
     if (savedPosition) {
       $("#ai-chat-panel").css("transform", savedPosition);
     }
-  }
-
-  // Save position when panel is moved
-  $(document).on("mouseup", function() {
-    if (isDragging) {
-      setTimeout(savePanelPosition, 100);
+    
+    if (savedSize) {
+      try {
+        const size = JSON.parse(savedSize);
+        $("#ai-chat-panel").css({
+          width: size.width + 'px',
+          height: size.height + 'px'
+        });
+      } catch (e) {
+        console.log("Failed to parse saved size");
+      }
     }
-  });
-
-  // Load position on page load
-  $(document).ready(function() {
-    loadPanelPosition();
-  });
+  }
 
   // Handle window resize to keep panel in bounds
   $(window).on("resize", function() {
@@ -2371,12 +2424,21 @@ $(document).ready(() => {
       let newX = xOffset;
       let newY = yOffset;
       
+      // Check if panel is outside viewport bounds
       if (rect.right > windowWidth) {
         newX = windowWidth - rect.width - 20;
         needsReposition = true;
       }
+      if (rect.left < 0) {
+        newX = 20;
+        needsReposition = true;
+      }
       if (rect.bottom > windowHeight) {
         newY = windowHeight - rect.height - 20;
+        needsReposition = true;
+      }
+      if (rect.top < 0) {
+        newY = 20;
         needsReposition = true;
       }
       
@@ -2455,4 +2517,11 @@ $(document).ready(() => {
       loadOllamaModels();
     }
   });
+
+  // Load position on page load
+  $(document).ready(function() {
+    loadPanelPosition();
+  });
+
+  // Handle window resize to keep panel in bounds
 });

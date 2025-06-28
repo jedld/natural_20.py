@@ -55,6 +55,12 @@ class GameContextProvider:
                         "position": battle_map.entity_or_object_pos(entity) if hasattr(battle_map, 'entity_or_object_pos') else None
                     }
                     
+                    if hasattr(entity, 'npc_type'):
+                        entity_info["npc_type"] = entity.npc_type
+
+                    if hasattr(entity, 'group'):
+                        entity_info["group"] = entity.group
+
                     # Add additional entity properties
                     if hasattr(entity, 'hp') and callable(getattr(entity, 'hp')):
                         entity_info["hp"] = entity.hp()
