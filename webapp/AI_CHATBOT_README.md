@@ -266,6 +266,45 @@ For issues and questions:
 - Test with the mock provider to isolate issues
 - Ensure all dependencies are properly installed
 
+## Thinking Model Support
+
+Some LLM models (like deepseek-r1:7b) use "thinking" responses with `<think>` tags to show their reasoning process. The system now handles these automatically:
+
+### **Automatic Response Cleaning**
+- Removes `<think>`, `<reasoning>`, and `<thought>` tags and their content
+- Strips reasoning text like "Okay, so...", "Let me...", "I need to..."
+- Preserves function calls while removing unwanted content
+- Automatically scrolls to show the latest results
+
+### **Fallback Mechanism**
+- If a model still returns thinking responses, the system automatically retries with a more direct prompt
+- Uses stricter parameters to reduce thinking behavior
+- Ensures function calls are always properly formatted
+
+### **Model-Specific Optimizations**
+For Ollama models, the system uses optimized parameters:
+- **Temperature**: 0.1 (more deterministic)
+- **Response Length**: Limited to 500 tokens
+- **Stop Sequences**: Prevents thinking patterns
+- **Repetition Penalty**: Reduces redundant content
+
+### **Example**
+**Before (thinking model):**
+```
+<think>
+Okay, so I need to figure out what the user wants...
+Let me think about this step by step...
+I should use the get_player_characters() function.
+</think>
+
+[FUNCTION_CALL: get_player_characters()]
+```
+
+**After (cleaned):**
+```
+[FUNCTION_CALL: get_player_characters()]
+```
+
 ---
 
 **Note**: This AI system is designed to assist DMs and enhance the gaming experience. It should not replace human judgment or creativity in running D&D games. 

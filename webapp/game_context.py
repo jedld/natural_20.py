@@ -29,18 +29,8 @@ class GameContextProvider:
             map_info = {
                 "name": battle_map.name,
                 "size": battle_map.size if hasattr(battle_map, 'size') else None,
-                "feet_per_grid": battle_map.feet_per_grid if hasattr(battle_map, 'feet_per_grid') else 5,
-                "background_image": getattr(battle_map, 'background_image', None),
-                "description": getattr(battle_map, 'description', 'No description available'),
-                "properties": getattr(battle_map, 'properties', {})
+                "feet_per_grid": battle_map.feet_per_grid if hasattr(battle_map, 'feet_per_grid') else 5
             }
-            
-            # Add terrain information if available
-            if hasattr(battle_map, 'terrain'):
-                map_info["terrain"] = {
-                    "difficult_terrain": getattr(battle_map.terrain, 'difficult_terrain', []),
-                    "impassable": getattr(battle_map.terrain, 'impassable', [])
-                }
             
             return map_info
             
@@ -66,27 +56,46 @@ class GameContextProvider:
                     }
                     
                     # Add additional entity properties
-                    if hasattr(entity, 'hp'):
+                    if hasattr(entity, 'hp') and callable(getattr(entity, 'hp')):
+                        entity_info["hp"] = entity.hp()
+                    elif hasattr(entity, 'hp'):
                         entity_info["hp"] = entity.hp
-                        entity_info["max_hp"] = getattr(entity, 'max_hp', entity.hp)
                     
-                    if hasattr(entity, 'ac'):
+                    if hasattr(entity, 'max_hp') and callable(getattr(entity, 'max_hp')):
+                        entity_info["max_hp"] = entity.max_hp()
+                    elif hasattr(entity, 'max_hp'):
+                        entity_info["max_hp"] = entity.max_hp
+                    
+                    if hasattr(entity, 'ac') and callable(getattr(entity, 'ac')):
+                        entity_info["ac"] = entity.ac()
+                    elif hasattr(entity, 'ac'):
                         entity_info["ac"] = entity.ac
                     
-                    if hasattr(entity, 'level'):
+                    if hasattr(entity, 'level') and callable(getattr(entity, 'level')):
+                        entity_info["level"] = entity.level()
+                    elif hasattr(entity, 'level'):
                         entity_info["level"] = entity.level
                     
-                    if hasattr(entity, 'dead'):
+                    # Fix bound method calls by ensuring they are executed
+                    if hasattr(entity, 'dead') and callable(getattr(entity, 'dead')):
                         entity_info["dead"] = entity.dead()
+                    elif hasattr(entity, 'dead'):
+                        entity_info["dead"] = entity.dead
                     
-                    if hasattr(entity, 'unconscious'):
+                    if hasattr(entity, 'unconscious') and callable(getattr(entity, 'unconscious')):
                         entity_info["unconscious"] = entity.unconscious()
+                    elif hasattr(entity, 'unconscious'):
+                        entity_info["unconscious"] = entity.unconscious
                     
-                    if hasattr(entity, 'prone'):
+                    if hasattr(entity, 'prone') and callable(getattr(entity, 'prone')):
                         entity_info["prone"] = entity.prone()
+                    elif hasattr(entity, 'prone'):
+                        entity_info["prone"] = entity.prone
                     
-                    if hasattr(entity, 'hidden'):
+                    if hasattr(entity, 'hidden') and callable(getattr(entity, 'hidden')):
                         entity_info["hidden"] = entity.hidden()
+                    elif hasattr(entity, 'hidden'):
+                        entity_info["hidden"] = entity.hidden
                     
                     entities.append(entity_info)
                     
@@ -118,25 +127,41 @@ class GameContextProvider:
                             "position": battle_map.entity_or_object_pos(entity) if hasattr(battle_map, 'entity_or_object_pos') else None,
                             "class": getattr(entity, 'class_name', 'Unknown'),
                             "level": getattr(entity, 'level', 1),
-                            "hp": getattr(entity, 'hp', 0),
-                            "max_hp": getattr(entity, 'max_hp', 0),
-                            "ac": getattr(entity, 'ac', 10)
                         }
+                        
+                        # Add HP with proper method handling
+                        if hasattr(entity, 'hp') and callable(getattr(entity, 'hp')):
+                            pc_info["hp"] = entity.hp()
+                        elif hasattr(entity, 'hp'):
+                            pc_info["hp"] = entity.hp
+                        
+                        if hasattr(entity, 'max_hp') and callable(getattr(entity, 'max_hp')):
+                            pc_info["max_hp"] = entity.max_hp()
+                        elif hasattr(entity, 'max_hp'):
+                            pc_info["max_hp"] = entity.max_hp
+                        
+                        if hasattr(entity, 'ac') and callable(getattr(entity, 'ac')):
+                            pc_info["ac"] = entity.ac()
+                        elif hasattr(entity, 'ac'):
+                            pc_info["ac"] = entity.ac
                         
                         # Add ability scores if available
                         if hasattr(entity, 'strength'):
-                            pc_info["abilities"] = {
-                                "strength": entity.strength,
-                                "dexterity": getattr(entity, 'dexterity', 10),
-                                "constitution": getattr(entity, 'constitution', 10),
-                                "intelligence": getattr(entity, 'intelligence', 10),
-                                "wisdom": getattr(entity, 'wisdom', 10),
-                                "charisma": getattr(entity, 'charisma', 10)
-                            }
+                            abilities = {}
+                            for ability in ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']:
+                                if hasattr(entity, ability) and callable(getattr(entity, ability)):
+                                    abilities[ability] = getattr(entity, ability)()
+                                elif hasattr(entity, ability):
+                                    abilities[ability] = getattr(entity, ability)
+                                else:
+                                    abilities[ability] = 10
+                            pc_info["abilities"] = abilities
                         
                         # Add current status effects
-                        if hasattr(entity, 'current_effects'):
+                        if hasattr(entity, 'current_effects') and callable(getattr(entity, 'current_effects')):
                             pc_info["effects"] = [str(effect['effect']) for effect in entity.current_effects()]
+                        elif hasattr(entity, 'current_effects'):
+                            pc_info["effects"] = entity.current_effects
                         
                         player_characters.append(pc_info)
                         
@@ -167,10 +192,23 @@ class GameContextProvider:
                             "entity_uid": getattr(entity, 'entity_uid', None),
                             "position": battle_map.entity_or_object_pos(entity) if hasattr(battle_map, 'entity_or_object_pos') else None,
                             "type": entity.__class__.__name__,
-                            "hp": getattr(entity, 'hp', 0),
-                            "max_hp": getattr(entity, 'max_hp', 0),
-                            "ac": getattr(entity, 'ac', 10)
                         }
+                        
+                        # Add HP with proper method handling
+                        if hasattr(entity, 'hp') and callable(getattr(entity, 'hp')):
+                            npc_info["hp"] = entity.hp()
+                        elif hasattr(entity, 'hp'):
+                            npc_info["hp"] = entity.hp
+                        
+                        if hasattr(entity, 'max_hp') and callable(getattr(entity, 'max_hp')):
+                            npc_info["max_hp"] = entity.max_hp()
+                        elif hasattr(entity, 'max_hp'):
+                            npc_info["max_hp"] = entity.max_hp
+                        
+                        if hasattr(entity, 'ac') and callable(getattr(entity, 'ac')):
+                            npc_info["ac"] = entity.ac()
+                        elif hasattr(entity, 'ac'):
+                            npc_info["ac"] = entity.ac
                         
                         # Add NPC-specific information
                         if hasattr(entity, 'cr'):
@@ -179,14 +217,21 @@ class GameContextProvider:
                         if hasattr(entity, 'alignment'):
                             npc_info["alignment"] = entity.alignment
                         
-                        if hasattr(entity, 'size'):
+                        if hasattr(entity, 'size') and callable(getattr(entity, 'size')):
+                            npc_info["size"] = entity.size()
+                        elif hasattr(entity, 'size'):
                             npc_info["size"] = entity.size
                         
-                        if hasattr(entity, 'dead'):
+                        # Fix bound method calls by ensuring they are executed
+                        if hasattr(entity, 'dead') and callable(getattr(entity, 'dead')):
                             npc_info["dead"] = entity.dead()
+                        elif hasattr(entity, 'dead'):
+                            npc_info["dead"] = entity.dead
                         
-                        if hasattr(entity, 'unconscious'):
+                        if hasattr(entity, 'unconscious') and callable(getattr(entity, 'unconscious')):
                             npc_info["unconscious"] = entity.unconscious()
+                        elif hasattr(entity, 'unconscious'):
+                            npc_info["unconscious"] = entity.unconscious
                         
                         if hasattr(entity, 'hostile'):
                             npc_info["hostile"] = getattr(entity, 'hostile', False)
@@ -232,64 +277,91 @@ class GameContextProvider:
             }
             
             # Add combat stats
-            if hasattr(target_entity, 'hp'):
+            if hasattr(target_entity, 'hp') and callable(getattr(target_entity, 'hp')):
+                details["hp"] = target_entity.hp()
+            elif hasattr(target_entity, 'hp'):
                 details["hp"] = target_entity.hp
-                details["max_hp"] = getattr(target_entity, 'max_hp', target_entity.hp)
             
-            if hasattr(target_entity, 'ac'):
+            if hasattr(target_entity, 'max_hp') and callable(getattr(target_entity, 'max_hp')):
+                details["max_hp"] = target_entity.max_hp()
+            elif hasattr(target_entity, 'max_hp'):
+                details["max_hp"] = target_entity.max_hp
+            
+            if hasattr(target_entity, 'ac') and callable(getattr(target_entity, 'ac')):
+                details["ac"] = target_entity.ac()
+            elif hasattr(target_entity, 'ac'):
                 details["ac"] = target_entity.ac
             
-            if hasattr(target_entity, 'initiative'):
+            if hasattr(target_entity, 'initiative') and callable(getattr(target_entity, 'initiative')):
+                details["initiative"] = target_entity.initiative()
+            elif hasattr(target_entity, 'initiative'):
                 details["initiative"] = target_entity.initiative
             
             # Add ability scores
             if hasattr(target_entity, 'strength'):
-                details["abilities"] = {
-                    "strength": target_entity.strength,
-                    "dexterity": getattr(target_entity, 'dexterity', 10),
-                    "constitution": getattr(target_entity, 'constitution', 10),
-                    "intelligence": getattr(target_entity, 'intelligence', 10),
-                    "wisdom": getattr(target_entity, 'wisdom', 10),
-                    "charisma": getattr(target_entity, 'charisma', 10)
-                }
+                abilities = {}
+                for ability in ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']:
+                    if hasattr(target_entity, ability) and callable(getattr(target_entity, ability)):
+                        abilities[ability] = getattr(target_entity, ability)()
+                    elif hasattr(target_entity, ability):
+                        abilities[ability] = getattr(target_entity, ability)
+                    else:
+                        abilities[ability] = 10
+                details["abilities"] = abilities
             
             # Add status information
-            if hasattr(target_entity, 'dead'):
+            if hasattr(target_entity, 'dead') and callable(getattr(target_entity, 'dead')):
                 details["dead"] = target_entity.dead()
+            elif hasattr(target_entity, 'dead'):
+                details["dead"] = target_entity.dead
             
-            if hasattr(target_entity, 'unconscious'):
+            if hasattr(target_entity, 'unconscious') and callable(getattr(target_entity, 'unconscious')):
                 details["unconscious"] = target_entity.unconscious()
+            elif hasattr(target_entity, 'unconscious'):
+                details["unconscious"] = target_entity.unconscious
             
-            if hasattr(target_entity, 'prone'):
+            if hasattr(target_entity, 'prone') and callable(getattr(target_entity, 'prone')):
                 details["prone"] = target_entity.prone()
+            elif hasattr(target_entity, 'prone'):
+                details["prone"] = target_entity.prone
             
-            if hasattr(target_entity, 'hidden'):
+            if hasattr(target_entity, 'hidden') and callable(getattr(target_entity, 'hidden')):
                 details["hidden"] = target_entity.hidden()
+            elif hasattr(target_entity, 'hidden'):
+                details["hidden"] = target_entity.hidden
             
-            if hasattr(target_entity, 'grappled'):
+            if hasattr(target_entity, 'grappled') and callable(getattr(target_entity, 'grappled')):
                 details["grappled"] = target_entity.grappled()
+            elif hasattr(target_entity, 'grappled'):
+                details["grappled"] = target_entity.grappled
             
             # Add current effects
-            if hasattr(target_entity, 'current_effects'):
+            if hasattr(target_entity, 'current_effects') and callable(getattr(target_entity, 'current_effects')):
                 details["effects"] = [str(effect['effect']) for effect in target_entity.current_effects()]
+            elif hasattr(target_entity, 'current_effects'):
+                details["effects"] = target_entity.current_effects
             
             # Add inventory if available
-            if hasattr(target_entity, 'inventory_items'):
+            if hasattr(target_entity, 'inventory_items') and callable(getattr(target_entity, 'inventory_items')):
                 try:
                     inventory = target_entity.inventory_items(self.game_session)
                     if inventory:
                         details["inventory"] = [item.get('name', 'Unknown Item') for item in inventory]
                 except:
                     pass
+            elif hasattr(target_entity, 'inventory_items'):
+                details["inventory"] = target_entity.inventory_items
             
             # Add equipment if available
-            if hasattr(target_entity, 'equipment'):
+            if hasattr(target_entity, 'equipment') and callable(getattr(target_entity, 'equipment')):
                 try:
                     equipment = target_entity.equipment()
                     if equipment:
                         details["equipment"] = equipment
                 except:
                     pass
+            elif hasattr(target_entity, 'equipment'):
+                details["equipment"] = target_entity.equipment
             
             return details
             
