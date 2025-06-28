@@ -1969,12 +1969,36 @@ $(document).ready(() => {
     // Disable input while processing
     $("#chat-input, #send-chat").prop("disabled", true);
     
+    // Add processing indicator
+    const processingId = addProcessingMessage();
+    
+    // Set up timeout indicators for longer processing times
+    const timeout1 = setTimeout(() => {
+      updateProcessingMessage(processingId, "Processing your request");
+    }, 3000);
+    
+    const timeout2 = setTimeout(() => {
+      updateProcessingMessage(processingId, "Gathering game data");
+    }, 8000);
+    
+    const timeout3 = setTimeout(() => {
+      updateProcessingMessage(processingId, "Almost done");
+    }, 15000);
+    
     // Send message to AI
     $.ajax({
       type: "POST",
       url: "/ai/chat",
       data: { message: message },
       success: (data) => {
+        // Clear timeouts
+        clearTimeout(timeout1);
+        clearTimeout(timeout2);
+        clearTimeout(timeout3);
+        
+        // Remove processing indicator
+        removeProcessingMessage(processingId);
+        
         if (data.success) {
           addChatMessage("assistant", data.response);
         } else {
@@ -1984,12 +2008,52 @@ $(document).ready(() => {
         $("#chat-input").focus();
       },
       error: () => {
+        // Clear timeouts
+        clearTimeout(timeout1);
+        clearTimeout(timeout2);
+        clearTimeout(timeout3);
+        
+        // Remove processing indicator
+        removeProcessingMessage(processingId);
+        
         addChatMessage("system", "Network error occurred while communicating with AI.");
         $("#chat-input, #send-chat").prop("disabled", false);
         $("#chat-input").focus();
       }
     });
   });
+
+  // Helper function to add a processing message with animated dots
+  function addProcessingMessage() {
+    const timestamp = new Date().toLocaleTimeString();
+    const processingId = 'processing-' + Date.now();
+    const messageHtml = `
+      <div id="${processingId}" class="chat-message assistant processing">
+        <strong>AI Assistant (${timestamp}):</strong> 
+        <span class="processing-text">Thinking</span><span class="processing-dots">...</span>
+      </div>
+    `;
+    $("#chat-messages").append(messageHtml);
+    
+    // Scroll to bottom
+    const chatMessages = $("#chat-messages");
+    chatMessages.scrollTop(chatMessages[0].scrollHeight);
+    
+    return processingId;
+  }
+
+  // Helper function to update processing message text
+  function updateProcessingMessage(processingId, text) {
+    const $processing = $(`#${processingId}`);
+    if ($processing.length) {
+      $processing.find('.processing-text').text(text);
+    }
+  }
+
+  // Helper function to remove a processing message
+  function removeProcessingMessage(processingId) {
+    $(`#${processingId}`).remove();
+  }
 
   // Clear chat history
   $("#clear-chat").on("click", function() {
