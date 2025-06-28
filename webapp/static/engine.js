@@ -1637,8 +1637,17 @@ $(document).ready(() => {
           console.log("Command request successful:", data);
           $("#command-output").append(data + "\n");
         }
+        // Scroll to bottom of output
+        $("#command-output").scrollTop($("#command-output")[0].scrollHeight);
       },
     });
+  });
+
+  // Handle Enter key press in command input
+  $("#command-input").on("keypress", function(e) {
+    if (e.which === 13) { // Enter key
+      $("#command-form").submit();
+    }
   });
 
   // Append server responses tagged with type 'command_response' to the command output
