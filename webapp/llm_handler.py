@@ -74,15 +74,17 @@ class SessionLogger:
         content = json.dumps(messages, indent=2, ensure_ascii=False)
         self.log_interaction("RAW REQUEST TO LLM", content, metadata)
     
-    def log_response(self, response: str, provider_info: Dict[str, Any]):
+    def log_response(self, response: str, provider_info: Dict[str, Any], partial: bool = False):
         """Log a raw response from the LLM."""
         metadata = {
             "provider": provider_info.get("provider_type", "unknown"),
             "model": provider_info.get("current_model", "unknown"),
             "response_length": len(response)
         }
-        
-        self.log_interaction("RAW RESPONSE FROM LLM", response, metadata)
+        if partial:
+            self.log_interaction("PARTIAL RESPONSE FROM LLM", response, metadata)
+        else:
+            self.log_interaction("RAW RESPONSE FROM LLM", response, metadata)
     
     def log_error(self, error: str, context: Optional[str] = None):
         """Log an error with context."""
@@ -763,9 +765,8 @@ class LLMHandler:
             # Get response from provider
             raw_response = self.current_provider.send_message(messages)
             logger.info(f"[LLMHandler] Raw response from provider: {raw_response}")
-            self.session_logger.log_response(raw_response, provider_info)
-            last_raw_response = raw_response
-            
+            # self.session_logger.log_response(raw_response, provider_info, partial=True)
+
             # Try to detect done_reason if available (for OpenAI, Ollama, etc.)
             done_reason = None
             if isinstance(raw_response, dict):
@@ -807,10 +808,8 @@ class LLMHandler:
             if not is_truncated:
                 break
             
-            # Add a follow-up message to continue
-            self.conversation_history.append({"role": "user", "content": "Continue."})
-            messages = [{"role": "system", "content": system_prompt}]
-            messages.extend(self.conversation_history)
+            messages.append({"role": "assistant", "content": raw_response})
+
             continuation_count += 1
             logger.info(f"[LLMHandler] Requesting continuation from LLM (count: {continuation_count})")
         
@@ -818,39 +817,32 @@ class LLMHandler:
         # Clean the full response
         cleaned_response = self._clean_response(full_response)
         logger.info(f"[LLMHandler] Cleaned response: {cleaned_response}")
-        
+
         # Check if the response contains function calls
         has_function_calls = "[FUNCTION_CALL:" in cleaned_response
-        
+
         if has_function_calls:
             logger.info("[LLMHandler] Found function calls, processing...")
             logger.info(f"[LLMHandler] Function calls found in: {cleaned_response}")
-            processed_response = self._process_function_calls(cleaned_response, context)
-            logger.info(f"[LLMHandler] Function call results: {processed_response}")
-            
+            function_calls = self._process_function_calls(cleaned_response, context)
+            self.conversation_history.extend(function_calls)
+
             # Format the function results into a user-friendly response
-            formatted_response = self._format_function_results(processed_response, message)
+            formatted_response = self._format_function_results(self.conversation_history, context, message)
             self.conversation_history.append({"role": "assistant", "content": formatted_response})
             return formatted_response
         else:
             # No function calls, return the cleaned response directly
             self.conversation_history.append({"role": "assistant", "content": cleaned_response})
+            self.session_logger.log_response(cleaned_response, provider_info, partial=False)
             return cleaned_response
 
-    def _format_function_results(self, processed_response: str, original_message: str) -> str:
+    def _format_function_results(self, processed_response: List[str], context: Optional[Dict[str, Any]] = None, original_message: str = None) -> str:
         """Send function results back to the LLM for formatting with continuation support."""
-        formatting_messages = [
-            {"role": "system", "content": """You are a helpful D&D VTT assistant. 
-The user asked a question, and I've gathered the relevant game data for you. 
-Please format this data into a clear, user-friendly response. 
-Focus on the most important information and present it in an organized way.
-Do not mention that you're formatting data - just provide the information naturally."""},
-            {"role": "user", "content": f"Original question: {original_message}\n\nGame data: {processed_response}\n\nPlease provide a user-friendly response based on this data."}
-        ]
-        
+      
         # Log the formatting request
         provider_info = self.get_provider_info()
-        self.session_logger.log_request(formatting_messages, provider_info)
+        self.session_logger.log_request(processed_response, provider_info)
         
         # --- CONTINUATION LOGIC FOR FORMATTING ---
         full_response = ""
@@ -859,10 +851,9 @@ Do not mention that you're formatting data - just provide the information natura
         
         while continuation_count < max_continuations:
             # Get response from provider
-            raw_response = self.current_provider.send_message(formatting_messages)
+            raw_response = self.current_provider.send_message(processed_response)
             logger.info(f"[LLMHandler] Formatting response from provider: {raw_response}")
-            self.session_logger.log_response(raw_response, provider_info)
-            
+            self.session_logger.log_response(raw_response, provider_info, partial=True)
             # Try to detect done_reason if available
             done_reason = None
             if isinstance(raw_response, dict):
@@ -870,10 +861,10 @@ Do not mention that you're formatting data - just provide the information natura
                 content = raw_response.get('message', {}).get('content', '') or raw_response.get('content', '')
             else:
                 content = raw_response
-            
+
             # Append content to full_response
             full_response += (content if content else "")
-            
+
             # Heuristic: If done_reason is 'length' or response ends abruptly, continue
             is_truncated = False
             if done_reason and done_reason == 'length':
@@ -881,7 +872,6 @@ Do not mention that you're formatting data - just provide the information natura
             elif content and len(content) > 0:
                 # Check for various truncation indicators
                 trimmed = content.strip()
-                
                 # If the content ends with ... or is very long without proper ending
                 if trimmed.endswith("..."):
                     is_truncated = True
@@ -904,7 +894,7 @@ Do not mention that you're formatting data - just provide the information natura
                 break
             
             # Add a follow-up message to continue
-            formatting_messages.append({"role": "user", "content": "Continue."})
+            processed_response.append({"role": "assistant", "content": content})
             continuation_count += 1
             logger.info(f"[LLMHandler] Requesting continuation for formatting (count: {continuation_count})")
         
@@ -914,8 +904,9 @@ Do not mention that you're formatting data - just provide the information natura
         logger.info(f"[LLMHandler] Final formatted response: {formatted_response}")
         return formatted_response
 
-    def _process_function_calls(self, response: str, context: Optional[Dict[str, Any]] = None) -> str:
+    def _process_function_calls(self, response: str, context: Optional[Dict[str, Any]] = None) -> List[str]:
         """Process function calls in the LLM response."""
+        function_results_list = []
         logger.info(f"[LLMHandler] _process_function_calls called with: {response}")
         
         # Find all function calls in the response - improved regex to handle arguments better
@@ -927,10 +918,19 @@ Do not mention that you're formatting data - just provide the information natura
             logger.info("[LLMHandler] No function calls found, returning original response")
             return response
         
-        # Execute each function call
-        function_results = []
+        # Track unique function calls and their results
+        function_results = {}
         logger.info(f"[LLMHandler] Available functions: {list(self.game_context_functions.keys())}")
+        
+        # Process each unique function call
         for func_name, arg_str in matches:
+            # Create unique key for function+args combination
+            call_key = f"{func_name}:{arg_str}"
+            
+            # Skip if we've already processed this exact function call
+            if call_key in function_results:
+                continue
+                
             logger.info(f"[LLMHandler] Processing function: {func_name} with args: '{arg_str}'")
             try:
                 if func_name in self.game_context_functions:
@@ -986,31 +986,21 @@ Do not mention that you're formatting data - just provide the information natura
                     # Log the function call
                     self.session_logger.log_function_call(func_name, args, result)
                     
-                    function_results.append(f"Function {func_name} returned: {result}")
+                    function_results[call_key] = f"Function {func_name} returned: {result}"
                 else:
                     logger.info(f"[LLMHandler] Unknown function: {func_name}")
                     self.session_logger.log_error(f"Unknown function: {func_name}", "Function not found in registry")
-                    function_results.append(f"Unknown function: {func_name}")
+                    function_results[call_key] = f"Unknown function: {func_name}"
             except Exception as e:
                 logger.error(f"[LLMHandler] Error executing {func_name}: {str(e)}")
                 self.session_logger.log_error(f"Error executing {func_name}: {str(e)}", "Function execution error")
-                function_results.append(f"Error executing {func_name}: {str(e)}")
-        
-        # Replace function calls with results
-        processed_response = response
-        for i, (func_name, arg_str) in enumerate(matches):
-            if i < len(function_results):
-                # Replace the function call with the result
-                # Handle both cases: with arguments and without arguments
-                if arg_str and arg_str.strip():
-                    old_text = f"[FUNCTION_CALL: {func_name}({arg_str})]"
-                else:
-                    old_text = f"[FUNCTION_CALL: {func_name}()]"
-                logger.info(f"[LLMHandler] Replacing '{old_text}' with '{function_results[i]}'")
-                processed_response = processed_response.replace(old_text, function_results[i], 1)
-        
-        logger.info(f"[LLMHandler] Final processed response: {processed_response}")
-        return processed_response
+                function_results[call_key] = f"Error executing {func_name}: {str(e)}"
+
+        for func_name, arg_str in matches:
+            call_key = f"{func_name}:{arg_str}"
+            if call_key in function_results:
+                function_results_list.append({"role": "system", "content": f"[FUNCTION_CALL: {func_name}({arg_str})]: {function_results[call_key]}"})
+        return function_results_list
     
     def get_available_models(self) -> List[str]:
         """Get available models for the current provider."""

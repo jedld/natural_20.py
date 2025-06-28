@@ -59,7 +59,8 @@ from utils import SocketIOOutputLogger, GameManagement
 from datetime import datetime
 from webapp.llm_conversation_handler import LLMConversationHandler
 import threading
-
+import pdb
+import traceback
 # Import the LLM handler
 from webapp.llm_handler import llm_handler
 from webapp.game_context import GameContextProvider
@@ -1997,6 +1998,8 @@ def ai_chat():
         return jsonify({'success': True, 'response': response})
         
     except Exception as e:
+        pdb.set_trace()
+        print(f"Error in AI chat: {e}")
         logger.error(f"Error in AI chat: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
