@@ -2025,11 +2025,37 @@ $(document).ready(() => {
     });
   });
 
+  // Helper function to clean thinking tags from responses
+  function cleanThinkingTags(content) {
+    if (!content || typeof content !== 'string') {
+      return content;
+    }
+    
+    // Remove thinking tags and their content
+    let cleaned = content.replace(/<think>.*?<\/think>/gs, '');
+    cleaned = cleaned.replace(/<reasoning>.*?<\/reasoning>/gs, '');
+    cleaned = cleaned.replace(/<thought>.*?<\/thought>/gs, '');
+    
+    // Remove reasoning blocks that start with "Okay, so" or similar
+    cleaned = cleaned.replace(/Okay, so.*?(?=\[FUNCTION_CALL:|$)/gs, '');
+    cleaned = cleaned.replace(/Let me.*?(?=\[FUNCTION_CALL:|$)/gs, '');
+    cleaned = cleaned.replace(/I need to.*?(?=\[FUNCTION_CALL:|$)/gs, '');
+    
+    // Clean up extra whitespace and newlines
+    cleaned = cleaned.replace(/\n\s*\n/g, '\n');
+    cleaned = cleaned.trim();
+    
+    return cleaned;
+  }
+
   // Helper function to add chat messages
   function addChatMessage(role, content) {
     const timestamp = new Date().toLocaleTimeString();
     let messageClass = "chat-message";
     let prefix = "";
+    
+    // Clean thinking tags from content (safety measure)
+    const cleanedContent = cleanThinkingTags(content);
     
     switch(role) {
       case "user":
@@ -2046,7 +2072,7 @@ $(document).ready(() => {
         break;
     }
     
-    const messageHtml = `<div class="${messageClass}">${prefix} ${content}</div>`;
+    const messageHtml = `<div class="${messageClass}">${prefix} ${cleanedContent}</div>`;
     $("#chat-messages").append(messageHtml);
     
     // Scroll to bottom
