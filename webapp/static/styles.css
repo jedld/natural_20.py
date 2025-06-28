@@ -1152,3 +1152,106 @@ input.initiative-input.form-control {
     padding: 0 5px;
   }
 }
+
+/* Draggable Panel Styles */
+.draggable-panel {
+  user-select: none;
+  resize: both;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+.draggable-panel .panel-header {
+  cursor: move;
+  user-select: none;
+}
+
+.draggable-panel .panel-body {
+  overflow: hidden;
+}
+
+/* Dragging state */
+.draggable-panel.dragging {
+  box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+  z-index: 1001 !important;
+}
+
+.draggable-panel.dragging .panel-header {
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%) !important;
+}
+
+/* AI Chat Panel Specific Styles */
+#ai-chat-panel {
+  min-width: 350px;
+  min-height: 400px;
+  max-width: 600px;
+  max-height: 80vh;
+  transition: all 0.3s ease;
+}
+
+#ai-chat-panel .panel-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-bottom: 1px solid #ddd;
+  border-radius: 6px 6px 0 0;
+  transition: background 0.2s ease;
+}
+
+#ai-chat-panel .panel-header h5 {
+  color: white;
+  margin: 0;
+}
+
+#ai-chat-panel .panel-header .btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  transition: all 0.2s ease;
+}
+
+#ai-chat-panel .panel-header .btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+/* Toggle Button Styles */
+#toggle-ai-chat {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transition: all 0.3s ease;
+}
+
+#toggle-ai-chat:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+}
+
+#toggle-ai-chat.btn-success {
+  background: #5cb85c;
+  border-color: #4cae4c;
+}
+
+/* Minimized State */
+#ai-chat-panel.minimized .panel-body {
+  display: none;
+}
+
+#ai-chat-panel.minimized {
+  height: auto;
+  width: 300px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  #ai-chat-panel {
+    width: 90vw !important;
+    height: 70vh !important;
+    left: 5vw !important;
+    right: 5vw !important;
+    top: 15vh !important;
+  }
+  
+  #toggle-ai-chat {
+    top: 10px !important;
+    right: 10px !important;
+  }
+}

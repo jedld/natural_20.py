@@ -1794,10 +1794,22 @@ $(document).ready(() => {
   let aiInitialized = false;
 
   // Initialize AI provider
-  $("#initialize-ai").on("click", function() {
-    const provider = $("#ai-provider-select").val();
-    const apiKey = $("#ai-api-key").val();
-    const selectedModel = $("#ai-model-select").val();
+  $("#initialize-ai, #draggable-initialize-ai").on("click", function() {
+    // Determine which panel is active and get the appropriate form values
+    let provider, apiKey, selectedModel;
+    let isDraggable = $(this).attr("id") === "draggable-initialize-ai";
+    
+    if (isDraggable) {
+      // Draggable panel is active
+      provider = $("#draggable-ai-provider-select").val();
+      apiKey = $("#draggable-ai-api-key").val();
+      selectedModel = $("#draggable-ai-model-select").val();
+    } else {
+      // Modal is active
+      provider = $("#ai-provider-select").val();
+      apiKey = $("#ai-api-key").val();
+      selectedModel = $("#ai-model-select").val();
+    }
     
     if (provider === "mock") {
       // Mock provider doesn't need API key
@@ -1808,17 +1820,30 @@ $(document).ready(() => {
         success: (data) => {
           if (data.success) {
             aiInitialized = true;
-            $("#ai-status").removeClass("label-default label-danger").addClass("label-success").text("Initialized");
-            $("#chat-input, #send-chat").prop("disabled", false);
-            addChatMessage("system", "AI Assistant initialized successfully! How can I help you with your D&D game?");
+            if (isDraggable) {
+              $("#draggable-ai-status").removeClass("label-default label-danger").addClass("label-success").text("Initialized");
+              $("#draggable-chat-input, #draggable-send-chat").prop("disabled", false);
+            } else {
+              $("#ai-status").removeClass("label-default label-danger").addClass("label-success").text("Initialized");
+              $("#chat-input, #send-chat").prop("disabled", false);
+            }
+            addChatMessage("system", "AI Assistant initialized successfully! How can I help you with your D&D game?", isDraggable);
           } else {
-            $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
-            addChatMessage("system", "Failed to initialize AI: " + (data.error || "Unknown error"));
+            if (isDraggable) {
+              $("#draggable-ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+            } else {
+              $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+            }
+            addChatMessage("system", "Failed to initialize AI: " + (data.error || "Unknown error"), isDraggable);
           }
         },
         error: () => {
-          $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
-          addChatMessage("system", "Failed to initialize AI: Network error");
+          if (isDraggable) {
+            $("#draggable-ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+          } else {
+            $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+          }
+          addChatMessage("system", "Failed to initialize AI: Network error", isDraggable);
         }
       });
     } else if (provider === "ollama") {
@@ -1838,23 +1863,36 @@ $(document).ready(() => {
         success: (data) => {
           if (data.success) {
             aiInitialized = true;
-            $("#ai-status").removeClass("label-default label-danger").addClass("label-success").text("Initialized");
-            $("#chat-input, #send-chat").prop("disabled", false);
-            addChatMessage("system", `AI Assistant initialized successfully with ${data.model || 'Ollama'}! How can I help you with your D&D game?`);
+            if (isDraggable) {
+              $("#draggable-ai-status").removeClass("label-default label-danger").addClass("label-success").text("Initialized");
+              $("#draggable-chat-input, #draggable-send-chat").prop("disabled", false);
+            } else {
+              $("#ai-status").removeClass("label-default label-danger").addClass("label-success").text("Initialized");
+              $("#chat-input, #send-chat").prop("disabled", false);
+            }
+            addChatMessage("system", `AI Assistant initialized successfully with ${data.model || 'Ollama'}! How can I help you with your D&D game?`, isDraggable);
           } else {
-            $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
-            addChatMessage("system", "Failed to initialize AI: " + (data.error || "Unknown error"));
+            if (isDraggable) {
+              $("#draggable-ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+            } else {
+              $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+            }
+            addChatMessage("system", "Failed to initialize AI: " + (data.error || "Unknown error"), isDraggable);
           }
         },
         error: () => {
-          $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
-          addChatMessage("system", "Failed to initialize AI: Network error. Make sure Ollama is running.");
+          if (isDraggable) {
+            $("#draggable-ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+          } else {
+            $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+          }
+          addChatMessage("system", "Failed to initialize AI: Network error. Make sure Ollama is running.", isDraggable);
         }
       });
     } else {
       // Real providers need API key
       if (!apiKey) {
-        addChatMessage("system", "Please enter an API key for the selected provider.");
+        addChatMessage("system", "Please enter an API key for the selected provider.", isDraggable);
         return;
       }
       
@@ -1868,30 +1906,55 @@ $(document).ready(() => {
         success: (data) => {
           if (data.success) {
             aiInitialized = true;
-            $("#ai-status").removeClass("label-default label-danger").addClass("label-success").text("Initialized");
-            $("#chat-input, #send-chat").prop("disabled", false);
-            addChatMessage("system", "AI Assistant initialized successfully! How can I help you with your D&D game?");
+            if (isDraggable) {
+              $("#draggable-ai-status").removeClass("label-default label-danger").addClass("label-success").text("Initialized");
+              $("#draggable-chat-input, #draggable-send-chat").prop("disabled", false);
+            } else {
+              $("#ai-status").removeClass("label-default label-danger").addClass("label-success").text("Initialized");
+              $("#chat-input, #send-chat").prop("disabled", false);
+            }
+            addChatMessage("system", "AI Assistant initialized successfully! How can I help you with your D&D game?", isDraggable);
           } else {
-            $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
-            addChatMessage("system", "Failed to initialize AI: " + (data.error || "Unknown error"));
+            if (isDraggable) {
+              $("#draggable-ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+            } else {
+              $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+            }
+            addChatMessage("system", "Failed to initialize AI: " + (data.error || "Unknown error"), isDraggable);
           }
         },
         error: () => {
-          $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
-          addChatMessage("system", "Failed to initialize AI: Network error");
+          if (isDraggable) {
+            $("#draggable-ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+          } else {
+            $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+          }
+          addChatMessage("system", "Failed to initialize AI: Network error", isDraggable);
         }
       });
     }
   });
 
-  // Handle provider change
-  $("#ai-provider-select").on("change", function() {
+  // Handle provider change for both modal and draggable panel
+  $("#ai-provider-select, #draggable-ai-provider-select").on("change", function() {
     const provider = $(this).val();
-    const $apiKeyField = $("#ai-api-key");
-    const $modelRow = $("#model-selection-row");
-    const $apiKeyLabel = $apiKeyField.prev("label");
-    const $apiKeyHelp = $apiKeyField.next("small");
+    const isDraggable = $(this).attr("id") === "draggable-ai-provider-select";
     
+    // Get the appropriate form elements based on which panel triggered the event
+    let $apiKeyField, $modelRow, $apiKeyLabel, $apiKeyHelp;
+    
+    if (isDraggable) {
+      $apiKeyField = $("#draggable-ai-api-key");
+      $modelRow = $("#draggable-model-selection-row");
+      $apiKeyLabel = $apiKeyField.prev("label");
+      $apiKeyHelp = $apiKeyField.next("small");
+    } else {
+      $apiKeyField = $("#ai-api-key");
+      $modelRow = $("#model-selection-row");
+      $apiKeyLabel = $apiKeyField.prev("label");
+      $apiKeyHelp = $apiKeyField.next("small");
+    }
+
     if (provider === "mock") {
       $apiKeyField.prop("disabled", true).val("");
       $apiKeyLabel.text("API Key");
@@ -1902,7 +1965,13 @@ $(document).ready(() => {
       $apiKeyLabel.text("Ollama URL");
       $apiKeyHelp.text("Leave empty for localhost:11434 or enter custom URL");
       $modelRow.show();
-      loadOllamaModels();
+      
+      // Load models for the appropriate panel
+      if (isDraggable) {
+        loadDraggableOllamaModels();
+      } else {
+        loadOllamaModels();
+      }
     } else {
       $apiKeyField.prop("disabled", false).val("");
       $apiKeyLabel.text("API Key");
@@ -1913,6 +1982,7 @@ $(document).ready(() => {
 
   // Load Ollama models
   function loadOllamaModels() {
+    // Use the API key from the modal panel
     const url = $("#ai-api-key").val() || "http://localhost:11434";
     
     $.ajax({
@@ -1928,6 +1998,8 @@ $(document).ready(() => {
             $modelSelect.append(`<option value="${model}">${model}</option>`);
           });
           addChatMessage("system", `Found ${data.models.length} Ollama models. Please select one and initialize.`);
+          // Sync with draggable panel
+          syncModelSelections();
         } else {
           $modelSelect.append('<option value="">No models found</option>');
           addChatMessage("system", "No Ollama models found. Please make sure Ollama is running and has models installed.");
@@ -1948,41 +2020,47 @@ $(document).ready(() => {
     }
   });
 
-  // Initialize provider select on page load
-  $("#ai-provider-select").trigger("change");
+  // Initialize provider select on page load for both panels
+  $("#ai-provider-select, #draggable-ai-provider-select").trigger("change");
 
   // Handle chat form submission
-  $("#chat-form").on("submit", function(e) {
+  $("#chat-form, #draggable-chat-form").on("submit", function(e) {
     e.preventDefault();
     if (!aiInitialized) {
-      addChatMessage("system", "Please initialize the AI assistant first.");
+      const isDraggable = $(this).attr("id") === "draggable-chat-form";
+      addChatMessage("system", "Please initialize the AI assistant first.", isDraggable);
       return;
     }
     
-    const message = $("#chat-input").val().trim();
+    const isDraggable = $(this).attr("id") === "draggable-chat-form";
+    const $input = isDraggable ? $("#draggable-chat-input") : $("#chat-input");
+    const $sendButton = isDraggable ? $("#draggable-send-chat") : $("#send-chat");
+    
+    const message = $input.val().trim();
     if (message === "") return;
     
     // Add user message to chat
-    addChatMessage("user", message);
-    $("#chat-input").val("");
+    addChatMessage("user", message, isDraggable);
+    $input.val("");
     
     // Disable input while processing
-    $("#chat-input, #send-chat").prop("disabled", true);
+    $input.prop("disabled", true);
+    $sendButton.prop("disabled", true);
     
     // Add processing indicator
-    const processingId = addProcessingMessage();
+    const processingId = addProcessingMessage(isDraggable);
     
     // Set up timeout indicators for longer processing times
     const timeout1 = setTimeout(() => {
-      updateProcessingMessage(processingId, "Processing your request");
+      updateProcessingMessage(processingId, "Processing your request", isDraggable);
     }, 3000);
     
     const timeout2 = setTimeout(() => {
-      updateProcessingMessage(processingId, "Gathering game data");
+      updateProcessingMessage(processingId, "Gathering game data", isDraggable);
     }, 8000);
     
     const timeout3 = setTimeout(() => {
-      updateProcessingMessage(processingId, "Almost done");
+      updateProcessingMessage(processingId, "Almost done", isDraggable);
     }, 15000);
     
     // Send message to AI
@@ -1997,15 +2075,16 @@ $(document).ready(() => {
         clearTimeout(timeout3);
         
         // Remove processing indicator
-        removeProcessingMessage(processingId);
+        removeProcessingMessage(processingId, isDraggable);
         
         if (data.success) {
-          addChatMessage("assistant", data.response);
+          addChatMessage("assistant", data.response, isDraggable);
         } else {
-          addChatMessage("system", "Error: " + (data.error || "Unknown error"));
+          addChatMessage("system", "Error: " + (data.error || "Unknown error"), isDraggable);
         }
-        $("#chat-input, #send-chat").prop("disabled", false);
-        $("#chat-input").focus();
+        $input.prop("disabled", false);
+        $sendButton.prop("disabled", false);
+        $input.focus();
       },
       error: () => {
         // Clear timeouts
@@ -2014,51 +2093,22 @@ $(document).ready(() => {
         clearTimeout(timeout3);
         
         // Remove processing indicator
-        removeProcessingMessage(processingId);
+        removeProcessingMessage(processingId, isDraggable);
         
-        addChatMessage("system", "Network error occurred while communicating with AI.");
-        $("#chat-input, #send-chat").prop("disabled", false);
-        $("#chat-input").focus();
+        addChatMessage("system", "Network error occurred while communicating with AI.", isDraggable);
+        $input.prop("disabled", false);
+        $sendButton.prop("disabled", false);
+        $input.focus();
       }
     });
   });
 
-  // Helper function to add a processing message with animated dots
-  function addProcessingMessage() {
-    const timestamp = new Date().toLocaleTimeString();
-    const processingId = 'processing-' + Date.now();
-    const messageHtml = `
-      <div id="${processingId}" class="chat-message assistant processing">
-        <strong>AI Assistant (${timestamp}):</strong> 
-        <span class="processing-text">Thinking</span><span class="processing-dots">...</span>
-      </div>
-    `;
-    $("#chat-messages").append(messageHtml);
-    
-    // Scroll to bottom
-    const chatMessages = $("#chat-messages");
-    chatMessages.scrollTop(chatMessages[0].scrollHeight);
-    
-    return processingId;
-  }
-
-  // Helper function to update processing message text
-  function updateProcessingMessage(processingId, text) {
-    const $processing = $(`#${processingId}`);
-    if ($processing.length) {
-      $processing.find('.processing-text').text(text);
-    }
-  }
-
-  // Helper function to remove a processing message
-  function removeProcessingMessage(processingId) {
-    $(`#${processingId}`).remove();
-  }
-
   // Clear chat history
-  $("#clear-chat").on("click", function() {
+  $("#clear-chat, #draggable-clear-chat").on("click", function() {
+    const isDraggable = $(this).attr("id") === "draggable-clear-chat";
     if (confirm("Are you sure you want to clear the chat history?")) {
-      $("#chat-messages").html('<div class="chat-message system"><strong>AI Assistant:</strong> Chat history cleared. How can I help you?</div>');
+      const $chatContainer = isDraggable ? $("#draggable-chat-messages") : $("#chat-messages");
+      $chatContainer.html('<div class="chat-message system"><strong>AI Assistant:</strong> Chat history cleared. How can I help you?</div>');
       
       // Clear server-side history
       $.ajax({
@@ -2072,22 +2122,55 @@ $(document).ready(() => {
   });
 
   // Get game context
-  $("#get-context").on("click", function() {
+  $("#get-context, #draggable-get-context").on("click", function() {
+    const isDraggable = $(this).attr("id") === "draggable-get-context";
     $.ajax({
       type: "GET",
       url: "/ai/context",
       success: (data) => {
         if (data.success) {
-          addChatMessage("system", "Game context retrieved and sent to AI assistant.");
+          addChatMessage("system", "Game context retrieved and sent to AI assistant.", isDraggable);
         } else {
-          addChatMessage("system", "Failed to get game context: " + (data.error || "Unknown error"));
+          addChatMessage("system", "Failed to get game context: " + (data.error || "Unknown error"), isDraggable);
         }
       },
       error: () => {
-        addChatMessage("system", "Failed to get game context: Network error");
+        addChatMessage("system", "Failed to get game context: Network error", isDraggable);
       }
     });
   });
+
+  // Helper function to add a processing message with animated dots
+  function addProcessingMessage(isDraggable = false) {
+    const timestamp = new Date().toLocaleTimeString();
+    const processingId = 'processing-' + Date.now();
+    const $chatContainer = isDraggable ? $("#draggable-chat-messages") : $("#chat-messages");
+    const messageHtml = `
+      <div id="${processingId}" class="chat-message assistant processing">
+        <strong>AI Assistant (${timestamp}):</strong> 
+        <span class="processing-text">Thinking</span><span class="processing-dots">...</span>
+      </div>
+    `;
+    $chatContainer.append(messageHtml);
+    
+    // Scroll to bottom
+    $chatContainer.scrollTop($chatContainer[0].scrollHeight);
+    
+    return processingId;
+  }
+
+  // Helper function to update processing message text
+  function updateProcessingMessage(processingId, text, isDraggable = false) {
+    const $processing = $(`#${processingId}`);
+    if ($processing.length) {
+      $processing.find('.processing-text').text(text);
+    }
+  }
+
+  // Helper function to remove a processing message
+  function removeProcessingMessage(processingId, isDraggable = false) {
+    $(`#${processingId}`).remove();
+  }
 
   // Helper function to clean thinking tags from responses
   function cleanThinkingTags(content) {
@@ -2113,10 +2196,18 @@ $(document).ready(() => {
   }
 
   // Helper function to add chat messages
-  function addChatMessage(role, content) {
+  function addChatMessage(role, content, isDraggable = false) {
     const timestamp = new Date().toLocaleTimeString();
     let messageClass = "chat-message";
     let prefix = "";
+    let $chatContainer;
+    
+    // Determine which chat container to use
+    if (isDraggable) {
+      $chatContainer = $("#draggable-chat-messages");
+    } else {
+      $chatContainer = $("#chat-messages");
+    }
     
     // Clean thinking tags from content (safety measure)
     const cleanedContent = cleanThinkingTags(content);
@@ -2137,10 +2228,231 @@ $(document).ready(() => {
     }
     
     const messageHtml = `<div class="${messageClass}">${prefix} ${cleanedContent}</div>`;
-    $("#chat-messages").append(messageHtml);
+    $chatContainer.append(messageHtml);
     
     // Scroll to bottom
-    const chatMessages = $("#chat-messages");
-    chatMessages.scrollTop(chatMessages[0].scrollHeight);
+    $chatContainer.scrollTop($chatContainer[0].scrollHeight);
   }
+
+  // AI Chat Panel Draggable Functionality
+  let isDragging = false;
+  let currentX;
+  let currentY;
+  let initialX;
+  let initialY;
+  let xOffset = 0;
+  let yOffset = 0;
+
+  // Toggle AI Chat Panel
+  $("#toggle-ai-chat").on("click", function() {
+    const $panel = $("#ai-chat-panel");
+    if ($panel.is(":visible")) {
+      $panel.hide();
+      $(this).removeClass("btn-success").addClass("btn-primary");
+    } else {
+      $panel.show();
+      $(this).removeClass("btn-primary").addClass("btn-success");
+    }
+  });
+
+  // Close AI Chat Panel
+  $("#close-chat").on("click", function() {
+    $("#ai-chat-panel").hide();
+    $("#toggle-ai-chat").removeClass("btn-success").addClass("btn-primary");
+  });
+
+  // Minimize AI Chat Panel
+  $("#minimize-chat").on("click", function() {
+    const $panel = $("#ai-chat-panel");
+    const $body = $panel.find(".panel-body");
+    
+    if ($panel.hasClass("minimized")) {
+      $panel.removeClass("minimized");
+      $body.show();
+      $(this).find("i").removeClass("glyphicon-plus").addClass("glyphicon-minus");
+    } else {
+      $panel.addClass("minimized");
+      $body.hide();
+      $(this).find("i").removeClass("glyphicon-minus").addClass("glyphicon-plus");
+    }
+  });
+
+  // Drag functionality for AI Chat Panel
+  $("#ai-chat-panel .panel-header").on("mousedown", function(e) {
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'I') {
+      return; // Don't start drag if clicking on buttons
+    }
+    
+    const $panel = $("#ai-chat-panel");
+    initialX = e.clientX - xOffset;
+    initialY = e.clientY - yOffset;
+    
+    if (e.target === this || $(e.target).closest('.panel-header').length) {
+      isDragging = true;
+      $panel.addClass("dragging");
+    }
+  });
+
+  $(document).on("mousemove", function(e) {
+    if (isDragging) {
+      e.preventDefault();
+      
+      currentX = e.clientX - initialX;
+      currentY = e.clientY - initialY;
+      
+      xOffset = currentX;
+      yOffset = currentY;
+      
+      setTranslate(currentX, currentY, $("#ai-chat-panel"));
+    }
+  });
+
+  $(document).on("mouseup", function() {
+    if (isDragging) {
+      isDragging = false;
+      $("#ai-chat-panel").removeClass("dragging");
+    }
+  });
+
+  function setTranslate(xPos, yPos, el) {
+    // Keep panel within viewport bounds
+    const $el = $(el);
+    const rect = $el[0].getBoundingClientRect();
+    const windowWidth = $(window).width();
+    const windowHeight = $(window).height();
+    
+    // Constrain to viewport
+    if (xPos < -rect.width + 50) xPos = -rect.width + 50;
+    if (xPos > windowWidth - 50) xPos = windowWidth - 50;
+    if (yPos < 0) yPos = 0;
+    if (yPos > windowHeight - 50) yPos = windowHeight - 50;
+    
+    $el.css("transform", `translate3d(${xPos}px, ${yPos}px, 0)`);
+  }
+
+  // Save panel position to localStorage
+  function savePanelPosition() {
+    const $panel = $("#ai-chat-panel");
+    const transform = $panel.css("transform");
+    if (transform && transform !== "none") {
+      localStorage.setItem("aiChatPanelPosition", transform);
+    }
+  }
+
+  // Load panel position from localStorage
+  function loadPanelPosition() {
+    const savedPosition = localStorage.getItem("aiChatPanelPosition");
+    if (savedPosition) {
+      $("#ai-chat-panel").css("transform", savedPosition);
+    }
+  }
+
+  // Save position when panel is moved
+  $(document).on("mouseup", function() {
+    if (isDragging) {
+      setTimeout(savePanelPosition, 100);
+    }
+  });
+
+  // Load position on page load
+  $(document).ready(function() {
+    loadPanelPosition();
+  });
+
+  // Handle window resize to keep panel in bounds
+  $(window).on("resize", function() {
+    const $panel = $("#ai-chat-panel");
+    if ($panel.is(":visible")) {
+      const rect = $panel[0].getBoundingClientRect();
+      const windowWidth = $(window).width();
+      const windowHeight = $(window).height();
+      
+      let needsReposition = false;
+      let newX = xOffset;
+      let newY = yOffset;
+      
+      if (rect.right > windowWidth) {
+        newX = windowWidth - rect.width - 20;
+        needsReposition = true;
+      }
+      if (rect.bottom > windowHeight) {
+        newY = windowHeight - rect.height - 20;
+        needsReposition = true;
+      }
+      
+      if (needsReposition) {
+        xOffset = newX;
+        yOffset = newY;
+        setTranslate(newX, newY, $panel);
+        savePanelPosition();
+      }
+    }
+  });
+
+  // Load Ollama models for draggable panel
+  function loadDraggableOllamaModels() {
+    // Use the API key from the draggable panel
+    const url = $("#draggable-ai-api-key").val() || "http://localhost:11434";
+    
+    $.ajax({
+      type: "GET",
+      url: "/ai/ollama/models",
+      data: { base_url: url },
+      success: (data) => {
+        const $modelSelect = $("#draggable-ai-model-select");
+        $modelSelect.empty();
+        
+        if (data.success && data.models && data.models.length > 0) {
+          data.models.forEach(model => {
+            $modelSelect.append(`<option value="${model}">${model}</option>`);
+          });
+          addChatMessage("system", `Found ${data.models.length} Ollama models. Please select one and initialize.`, true);
+          // Sync with modal panel
+          syncModelSelections();
+        } else {
+          $modelSelect.append('<option value="">No models found</option>');
+          addChatMessage("system", "No Ollama models found. Please make sure Ollama is running and has models installed.", true);
+        }
+      },
+      error: (xhr, status, error) => {
+        const $modelSelect = $("#draggable-ai-model-select");
+        $modelSelect.empty().append('<option value="">Failed to load models</option>');
+        addChatMessage("system", "Failed to load Ollama models. Please check your Ollama installation and connection.", true);
+      }
+    });
+  }
+
+  // Sync model selections between modal and draggable panel
+  function syncModelSelections() {
+    const modalModel = $("#ai-model-select").val();
+    const draggableModel = $("#draggable-ai-model-select").val();
+    
+    // If one has a selection and the other doesn't, sync them
+    if (modalModel && !draggableModel) {
+      $("#draggable-ai-model-select").val(modalModel);
+    } else if (draggableModel && !modalModel) {
+      $("#ai-model-select").val(draggableModel);
+    }
+  }
+
+  // Handle model selection changes to sync between panels
+  $("#ai-model-select, #draggable-ai-model-select").on("change", function() {
+    const selectedModel = $(this).val();
+    const isDraggable = $(this).attr("id") === "draggable-ai-model-select";
+    
+    if (isDraggable) {
+      $("#ai-model-select").val(selectedModel);
+    } else {
+      $("#draggable-ai-model-select").val(selectedModel);
+    }
+  });
+
+  // Refresh models button for draggable panel
+  $("#draggable-refresh-models").on("click", function() {
+    if ($("#draggable-ai-provider-select").val() === "ollama") {
+      loadDraggableOllamaModels();
+      // Also refresh the modal models to keep them in sync
+      loadOllamaModels();
+    }
+  });
 });
