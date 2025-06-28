@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI Thinking Tag Cleaning Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .original {
+            background-color: #ffe6e6;
+            border-left: 4px solid #ff0000;
+        }
+        .cleaned {
+            background-color: #e6ffe6;
+            border-left: 4px solid #00ff00;
+        }
+        .chat-message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            word-wrap: break-word;
+        }
+        .chat-message.assistant {
+            background-color: #f3e5f5;
+            border-left: 4px solid #9c27b0;
+            margin-right: 20px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>UI Thinking Tag Cleaning Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Basic Thinking Tags</h2>
+        <div class="original">
+            <h3>Original Response:</h3>
+            <pre>&lt;think&gt;
+I need to help the user with their D&D game. Let me think about what they need.
+&lt;/think&gt;
+
+Here's the information you requested about your characters.</pre>
+        </div>
+        <div class="cleaned">
+            <h3>Cleaned Response:</h3>
+            <div id="test1-result"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Thinking Tags with Function Calls</h2>
+        <div class="original">
+            <h3>Original Response:</h3>
+            <pre>&lt;think&gt;
+I should call the appropriate functions to get game data.
+&lt;/think&gt;
+
+[FUNCTION_CALL: get_map_info()]
+[FUNCTION_CALL: get_entities()]</pre>
+        </div>
+        <div class="cleaned">
+            <h3>Cleaned Response:</h3>
+            <div id="test2-result"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Reasoning Blocks</h2>
+        <div class="original">
+            <h3>Original Response:</h3>
+            <pre>Okay, so I need to figure out what the user wants. Let me analyze this step by step.
+
+Here's what I found for you.</pre>
+        </div>
+        <div class="cleaned">
+            <h3>Cleaned Response:</h3>
+            <div id="test3-result"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 4: Chat Message Display</h2>
+        <div class="original">
+            <h3>Original Response:</h3>
+            <pre>&lt;think&gt;
+This is a complex question about D&D mechanics. Let me think through the rules.
+&lt;/think&gt;
+
+Based on the D&D 5e rules, here's how that works:
+
+**Attack Rolls:**
+- Roll 1d20 + your attack modifier
+- Compare to target's Armor Class (AC)
+- If you meet or exceed the AC, you hit!
+
+**Damage:**
+- If you hit, roll your weapon's damage dice
+- Add your relevant ability modifier
+- Apply any special effects or bonuses</pre>
+        </div>
+        <div class="cleaned">
+            <h3>Cleaned Response (as displayed in chat):</h3>
+            <div id="test4-result"></div>
+        </div>
+    </div>
+
+    <script>
+        // Helper function to clean thinking tags from responses (same as in engine.js)
+        function cleanThinkingTags(content) {
+            if (!content || typeof content !== 'string') {
+                return content;
+            }
+            
+            // Remove thinking tags and their content
+            let cleaned = content.replace(/<think>.*?<\/think>/gs, '');
+            cleaned = cleaned.replace(/<reasoning>.*?<\/reasoning>/gs, '');
+            cleaned = cleaned.replace(/<thought>.*?<\/thought>/gs, '');
+            
+            // Remove reasoning blocks that start with "Okay, so" or similar
+            cleaned = cleaned.replace(/Okay, so.*?(?=\[FUNCTION_CALL:|$)/gs, '');
+            cleaned = cleaned.replace(/Let me.*?(?=\[FUNCTION_CALL:|$)/gs, '');
+            cleaned = cleaned.replace(/I need to.*?(?=\[FUNCTION_CALL:|$)/gs, '');
+            
+            // Clean up extra whitespace and newlines
+            cleaned = cleaned.replace(/\n\s*\n/g, '\n');
+            cleaned = cleaned.trim();
+            
+            return cleaned;
+        }
+
+        // Helper function to add chat messages (same as in engine.js)
+        function addChatMessage(role, content) {
+            const timestamp = new Date().toLocaleTimeString();
+            let messageClass = "chat-message";
+            let prefix = "";
+            
+            // Clean thinking tags from content (safety measure)
+            const cleanedContent = cleanThinkingTags(content);
+            
+            switch(role) {
+                case "user":
+                    messageClass += " user";
+                    prefix = `<strong>You (${timestamp}):</strong>`;
+                    break;
+                case "assistant":
+                    messageClass += " assistant";
+                    prefix = `<strong>AI Assistant (${timestamp}):</strong>`;
+                    break;
+                case "system":
+                    messageClass += " system";
+                    prefix = `<strong>System (${timestamp}):</strong>`;
+                    break;
+            }
+            
+            return `<div class="${messageClass}">${prefix} ${cleanedContent}</div>`;
+        }
+
+        // Test data
+        const test1Original = `<think>
+I need to help the user with their D&D game. Let me think about what they need.
+</think>
+
+Here's the information you requested about your characters.`;
+
+        const test2Original = `<think>
+I should call the appropriate functions to get game data.
+</think>
+
+[FUNCTION_CALL: get_map_info()]
+[FUNCTION_CALL: get_entities()]`;
+
+        const test3Original = `Okay, so I need to figure out what the user wants. Let me analyze this step by step.
+
+Here's what I found for you.`;
+
+        const test4Original = `<think>
+This is a complex question about D&D mechanics. Let me think through the rules.
+</think>
+
+Based on the D&D 5e rules, here's how that works:
+
+**Attack Rolls:**
+- Roll 1d20 + your attack modifier
+- Compare to target's Armor Class (AC)
+- If you meet or exceed the AC, you hit!
+
+**Damage:**
+- If you hit, roll your weapon's damage dice
+- Add your relevant ability modifier
+- Apply any special effects or bonuses`;
+
+        // Run tests
+        document.getElementById('test1-result').innerHTML = `<pre>${cleanThinkingTags(test1Original)}</pre>`;
+        document.getElementById('test2-result').innerHTML = `<pre>${cleanThinkingTags(test2Original)}</pre>`;
+        document.getElementById('test3-result').innerHTML = `<pre>${cleanThinkingTags(test3Original)}</pre>`;
+        document.getElementById('test4-result').innerHTML = addChatMessage('assistant', test4Original);
+
+        console.log('UI Thinking Tag Cleaning Tests Completed');
+        console.log('Test 1 - Basic thinking tags:', cleanThinkingTags(test1Original));
+        console.log('Test 2 - Function calls:', cleanThinkingTags(test2Original));
+        console.log('Test 3 - Reasoning blocks:', cleanThinkingTags(test3Original));
+    </script>
+</body>
+</html> 

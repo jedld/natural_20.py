@@ -711,6 +711,7 @@ class LLMHandler:
         self.current_provider = None
         self.game_context_functions = {}
         self.conversation_history = []
+        self.session_logger = SessionLogger()  # Create session logger
     
     def initialize_provider(self, provider_name: str, config: Dict[str, Any]) -> bool:
         """Initialize a specific LLM provider."""
@@ -721,230 +722,123 @@ class LLMHandler:
         provider = self.providers[provider_name]
         if provider.initialize(config):
             self.current_provider = provider
+            # Log provider initialization
+            provider_info = self.get_provider_info()
+            self.session_logger.log_interaction("PROVIDER_INITIALIZED", 
+                                              f"Provider {provider_name} initialized successfully", 
+                                              provider_info)
             return True
         return False
     
     def send_message(self, message: str, context: Optional[Dict[str, Any]] = None) -> str:
-        """Send a message to the LLM and get a response."""
+        """Send a message to the LLM and get a response, automatically handling truncated responses."""
         logger.debug(f"[LLMHandler] send_message called with message: {message}")
         if not self.current_provider:
             logger.error("[LLMHandler] No LLM provider initialized.")
-            return "AI assistant is not initialized. Please initialize a provider first."
+            error_msg = "AI assistant is not initialized. Please initialize a provider first."
+            self.session_logger.log_error(error_msg, "No provider initialized")
+            return error_msg
         
-        # Add message to conversation history
         self.conversation_history.append({"role": "user", "content": message})
         logger.debug(f"[LLMHandler] Conversation history: {self.conversation_history}")
         
-        # Build system prompt with context
         system_prompt = self._build_system_prompt(context)
         logger.debug(f"[LLMHandler] System prompt: {system_prompt}")
         
-        # Prepare messages for the LLM
         messages = [{"role": "system", "content": system_prompt}]
         messages.extend(self.conversation_history)
         logger.debug(f"[LLMHandler] Messages sent to provider: {messages}")
         
-        try:
-            # For thinking models, we need to handle back-and-forth conversation
-            max_iterations = 5  # Reduced from 10 to prevent long loops
-            iteration = 0
-            thinking_count = 0  # Track consecutive thinking responses
-            previous_responses = []  # Track previous responses to detect loops
+        provider_info = self.get_provider_info()
+        self.session_logger.log_request(messages, provider_info)
+        
+        # --- CONTINUATION LOGIC START ---
+        full_response = ""
+        continuation_count = 0
+        max_continuations = 5
+        last_done_reason = None
+        last_raw_response = None
+        
+        while continuation_count < max_continuations:
+            # Get response from provider
+            raw_response = self.current_provider.send_message(messages)
+            logger.info(f"[LLMHandler] Raw response from provider: {raw_response}")
+            self.session_logger.log_response(raw_response, provider_info)
+            last_raw_response = raw_response
             
-            while iteration < max_iterations:
-                iteration += 1
-                logger.debug(f"[LLMHandler] Iteration {iteration}")
-
-                # Get response from provider
-                raw_response = self.current_provider.send_message(messages)
-                logger.info(f"[LLMHandler] Raw response from provider: {raw_response}")
-
-                # Clean the response
-                cleaned_response = self._clean_response(raw_response)
-                logger.info(f"[LLMHandler] Cleaned response: {cleaned_response}")
-                
-                # Check for repeated responses (loop detection)
-                if cleaned_response in previous_responses:
-                    logger.warning(f"[LLMHandler] Detected repeated response, breaking loop")
-                    # Try a direct approach with a simpler prompt
-                    direct_messages = [
-                        {"role": "system", "content": "You are a D&D VTT assistant. Respond ONLY with function calls in format [FUNCTION_CALL: function_name()]. No explanations, no thinking."},
-                        {"role": "user", "content": message}
-                    ]
-                    response = self.current_provider.send_message(direct_messages)
-                    cleaned_response = self._clean_response(response)
-                    
-                    if cleaned_response.strip() and "[FUNCTION_CALL:" in cleaned_response:
-                        processed_response = self._process_function_calls(cleaned_response, context)
-                        formatted_response = self._format_function_results(processed_response, message)
-                        self.conversation_history.append({"role": "assistant", "content": formatted_response})
-                        return formatted_response
-                    else:
-                        # Provide fallback response
-                        fallback = "I'm here to help with your D&D game! I can provide information about the current map, entities, characters, and battle status. What would you like to know?"
-                        self.conversation_history.append({"role": "assistant", "content": fallback})
-                        return fallback
-                
-                # Also check raw response for repeated patterns
-                if raw_response in previous_responses:
-                    logger.warning(f"[LLMHandler] Detected repeated raw response, breaking loop")
-                    # Try a direct approach with a simpler prompt
-                    direct_messages = [
-                        {"role": "system", "content": "You are a D&D VTT assistant. Respond ONLY with function calls in format [FUNCTION_CALL: function_name()]. No explanations, no thinking."},
-                        {"role": "user", "content": message}
-                    ]
-                    response = self.current_provider.send_message(direct_messages)
-                    cleaned_response = self._clean_response(response)
-                    
-                    if cleaned_response.strip() and "[FUNCTION_CALL:" in cleaned_response:
-                        processed_response = self._process_function_calls(cleaned_response, context)
-                        formatted_response = self._format_function_results(processed_response, message)
-                        self.conversation_history.append({"role": "assistant", "content": formatted_response})
-                        return formatted_response
-                    else:
-                        # Provide fallback response
-                        fallback = "I'm here to help with your D&D game! I can provide information about the current map, entities, characters, and battle status. What would you like to know?"
-                        self.conversation_history.append({"role": "assistant", "content": fallback})
-                        return fallback
-                
-                # Check for similar responses (partial match)
-                for prev_response in previous_responses:
-                    if prev_response and len(prev_response) > 10:  # Only check substantial responses
-                        # Check if current response is very similar to a previous one
-                        if (cleaned_response and len(cleaned_response) > 10 and 
-                            (cleaned_response in prev_response or prev_response in cleaned_response)):
-                            logger.warning(f"[LLMHandler] Detected similar response, breaking loop")
-                            # Try a direct approach with a simpler prompt
-                            direct_messages = [
-                                {"role": "system", "content": "You are a D&D VTT assistant. Respond ONLY with function calls in format [FUNCTION_CALL: function_name()]. No explanations, no thinking."},
-                                {"role": "user", "content": message}
-                            ]
-                            response = self.current_provider.send_message(direct_messages)
-                            cleaned_response = self._clean_response(response)
-                            
-                            if cleaned_response.strip() and "[FUNCTION_CALL:" in cleaned_response:
-                                processed_response = self._process_function_calls(cleaned_response, context)
-                                formatted_response = self._format_function_results(processed_response, message)
-                                self.conversation_history.append({"role": "assistant", "content": formatted_response})
-                                return formatted_response
-                            else:
-                                # Provide fallback response
-                                fallback = "I'm here to help with your D&D game! I can provide information about the current map, entities, characters, and battle status. What would you like to know?"
-                                self.conversation_history.append({"role": "assistant", "content": fallback})
-                                return fallback
-                
-                # Check if conversation history is getting too long
-                if len(self.conversation_history) > 10:
-                    logger.warning(f"[LLMHandler] Conversation history too long ({len(self.conversation_history)}), trimming history")
-                    # Remove oldest entries to keep the length at 10
-                    self.conversation_history = self.conversation_history[-10:]
-                    # No need to break the loop, just continue
-                
-                previous_responses.append(cleaned_response)
-                previous_responses.append(raw_response)
-                
-                # Check if the response contains thinking patterns
-                has_thinking = re.search(r'<think>|<reasoning>|<thought>|Okay, so|Let me|I need to', raw_response, re.IGNORECASE)
-                
-                # Check if the response contains function calls
-                has_function_calls = "[FUNCTION_CALL:" in cleaned_response
-                
-                # If we have function calls, process them and provide results as context
-                if has_function_calls:
-                    logger.info("[LLMHandler] Found function calls, processing...")
-                    logger.info(f"[LLMHandler] Function calls found in: {cleaned_response}")
-                    processed_response = self._process_function_calls(cleaned_response, context)
-                    logger.info(f"[LLMHandler] Function call results: {processed_response}")
-                    
-                    # Add the function results as context for the next iteration
-                    context_message = f"Here is the game data I gathered: {processed_response}\n\nPlease provide a complete, user-friendly response based on this information."
-                    self.conversation_history.append({"role": "assistant", "content": cleaned_response})
-                    self.conversation_history.append({"role": "user", "content": context_message})
-                    
-                    # Update messages for next iteration
-                    messages = [{"role": "system", "content": system_prompt}]
-                    messages.extend(self.conversation_history)
-                    continue
-                
-                # If we have thinking patterns but no function calls, handle thinking loop
-                elif has_thinking and not has_function_calls:
-                    thinking_count += 1
-                    logger.debug(f"[LLMHandler] Detected thinking patterns (count: {thinking_count}), continuing conversation...")
-                    
-                    # If we've had too many consecutive thinking responses, break the loop
-                    if thinking_count >= 2:
-                        logger.warning(f"[LLMHandler] Too many consecutive thinking responses ({thinking_count}), breaking loop")
-                        # Try a direct approach with a simpler prompt
-                        direct_messages = [
-                            {"role": "system", "content": "You are a D&D VTT assistant. Respond ONLY with function calls in format [FUNCTION_CALL: function_name()]. No explanations, no thinking."},
-                            {"role": "user", "content": message}
-                        ]
-                        response = self.current_provider.send_message(direct_messages)
-                        cleaned_response = self._clean_response(response)
-                        
-                        if cleaned_response.strip() and "[FUNCTION_CALL:" in cleaned_response:
-                            processed_response = self._process_function_calls(cleaned_response, context)
-                            formatted_response = self._format_function_results(processed_response, message)
-                            self.conversation_history.append({"role": "assistant", "content": formatted_response})
-                            return formatted_response
-                        else:
-                            # Provide fallback response
-                            fallback = "I'm here to help with your D&D game! I can provide information about the current map, entities, characters, and battle status. What would you like to know?"
-                            self.conversation_history.append({"role": "assistant", "content": fallback})
-                            return fallback
-                    
-                    # Add the current response to conversation history
-                    self.conversation_history.append({"role": "assistant", "content": cleaned_response})
-                    
-                    # Add a follow-up message to encourage function calls
-                    follow_up = "Please respond with function calls in the format [FUNCTION_CALL: function_name()] to gather the necessary information."
-                    self.conversation_history.append({"role": "user", "content": follow_up})
-                    
-                    # Update messages for next iteration
-                    messages = [{"role": "system", "content": system_prompt}]
-                    messages.extend(self.conversation_history)
-                    continue
-                
-                # If we have a clean response without thinking or function calls, we're done
-                elif cleaned_response.strip() and not has_thinking and not has_function_calls:
-                    logger.info("[LLMHandler] Got clean final response")
-                    self.conversation_history.append({"role": "assistant", "content": cleaned_response})
-                    return cleaned_response
-                
-                # If we have an empty response, try direct prompt
-                else:
-                    logger.debug("[LLMHandler] Empty response, trying direct prompt...")
-                    direct_messages = [
-                        {"role": "system", "content": "You are a D&D VTT assistant. Respond ONLY with function calls in format [FUNCTION_CALL: function_name()]. No explanations, no thinking."},
-                        {"role": "user", "content": message}
-                    ]
-                    response = self.current_provider.send_message(direct_messages)
-                    cleaned_response = self._clean_response(response)
-                    
-                    if cleaned_response.strip() and "[FUNCTION_CALL:" in cleaned_response:
-                        processed_response = self._process_function_calls(cleaned_response, context)
-                        formatted_response = self._format_function_results(processed_response, message)
-                        self.conversation_history.append({"role": "assistant", "content": formatted_response})
-                        return formatted_response
-                    else:
-                        # Provide fallback response
-                        fallback = "I'm here to help with your D&D game! I can provide information about the current map, entities, characters, and battle status. What would you like to know?"
-                        self.conversation_history.append({"role": "assistant", "content": fallback})
-                        return fallback
+            # Try to detect done_reason if available (for OpenAI, Ollama, etc.)
+            done_reason = None
+            if isinstance(raw_response, dict):
+                # Some providers may return a dict
+                done_reason = raw_response.get('done_reason') or raw_response.get('finish_reason')
+                content = raw_response.get('message', {}).get('content', '') or raw_response.get('content', '')
+            else:
+                content = raw_response
             
-            # If we've exceeded max iterations, provide a fallback
-            logger.warning(f"[LLMHandler] Exceeded max iterations ({max_iterations}), providing fallback")
-            fallback = "I'm here to help with your D&D game! I can provide information about the current map, entities, characters, and battle status. What would you like to know?"
-            self.conversation_history.append({"role": "assistant", "content": fallback})
-            return fallback
+            # Append content to full_response
+            full_response += (content if content else "")
             
-        except Exception as e:
-            logger.error(f"[LLMHandler] Error communicating with AI: {str(e)}", exc_info=True)
-            self.conversation_history.append({"role": "assistant", "content": str(e)})
-            return f"Error communicating with AI: {str(e)}"
+            # Heuristic: If done_reason is 'length' or response ends abruptly, continue
+            is_truncated = False
+            if done_reason and done_reason == 'length':
+                is_truncated = True
+            elif content and len(content) > 0:
+                # Check for various truncation indicators
+                trimmed = content.strip()
+                
+                # If the content ends with ... or is very long without proper ending
+                if trimmed.endswith("..."):
+                    is_truncated = True
+                elif len(trimmed) > 100 and not trimmed[-1] in ".!?\n":
+                    is_truncated = True
+                # Check if response ends mid-sentence (no proper ending punctuation)
+                elif len(trimmed) > 20 and not trimmed[-1] in ".!?\n":
+                    is_truncated = True
+                # Check if thinking tags are incomplete (no closing tag)
+                elif "<think>" in content and "</think>" not in content:
+                    is_truncated = True
+                # Check if the response seems incomplete (ends with common incomplete phrases)
+                elif any(trimmed.endswith(phrase) for phrase in [
+                    "To determine", "I need to", "Let me", "Based on", "The user", 
+                    "This shows", "We can see", "It appears", "The data", "Looking at"
+                ]):
+                    is_truncated = True
+            
+            if not is_truncated:
+                break
+            
+            # Add a follow-up message to continue
+            self.conversation_history.append({"role": "user", "content": "Continue."})
+            messages = [{"role": "system", "content": system_prompt}]
+            messages.extend(self.conversation_history)
+            continuation_count += 1
+            logger.info(f"[LLMHandler] Requesting continuation from LLM (count: {continuation_count})")
+        
+        # --- CONTINUATION LOGIC END ---
+        # Clean the full response
+        cleaned_response = self._clean_response(full_response)
+        logger.info(f"[LLMHandler] Cleaned response: {cleaned_response}")
+        
+        # Check if the response contains function calls
+        has_function_calls = "[FUNCTION_CALL:" in cleaned_response
+        
+        if has_function_calls:
+            logger.info("[LLMHandler] Found function calls, processing...")
+            logger.info(f"[LLMHandler] Function calls found in: {cleaned_response}")
+            processed_response = self._process_function_calls(cleaned_response, context)
+            logger.info(f"[LLMHandler] Function call results: {processed_response}")
+            
+            # Format the function results into a user-friendly response
+            formatted_response = self._format_function_results(processed_response, message)
+            self.conversation_history.append({"role": "assistant", "content": formatted_response})
+            return formatted_response
+        else:
+            # No function calls, return the cleaned response directly
+            self.conversation_history.append({"role": "assistant", "content": cleaned_response})
+            return cleaned_response
 
     def _format_function_results(self, processed_response: str, original_message: str) -> str:
-        """Send function results back to the LLM for formatting."""
+        """Send function results back to the LLM for formatting with continuation support."""
         formatting_messages = [
             {"role": "system", "content": """You are a helpful D&D VTT assistant. 
 The user asked a question, and I've gathered the relevant game data for you. 
@@ -954,8 +848,70 @@ Do not mention that you're formatting data - just provide the information natura
             {"role": "user", "content": f"Original question: {original_message}\n\nGame data: {processed_response}\n\nPlease provide a user-friendly response based on this data."}
         ]
         
-        formatted_response = self.current_provider.send_message(formatting_messages)
-        logger.info(f"[LLMHandler] Formatted response: {formatted_response}")
+        # Log the formatting request
+        provider_info = self.get_provider_info()
+        self.session_logger.log_request(formatting_messages, provider_info)
+        
+        # --- CONTINUATION LOGIC FOR FORMATTING ---
+        full_response = ""
+        continuation_count = 0
+        max_continuations = 5
+        
+        while continuation_count < max_continuations:
+            # Get response from provider
+            raw_response = self.current_provider.send_message(formatting_messages)
+            logger.info(f"[LLMHandler] Formatting response from provider: {raw_response}")
+            self.session_logger.log_response(raw_response, provider_info)
+            
+            # Try to detect done_reason if available
+            done_reason = None
+            if isinstance(raw_response, dict):
+                done_reason = raw_response.get('done_reason') or raw_response.get('finish_reason')
+                content = raw_response.get('message', {}).get('content', '') or raw_response.get('content', '')
+            else:
+                content = raw_response
+            
+            # Append content to full_response
+            full_response += (content if content else "")
+            
+            # Heuristic: If done_reason is 'length' or response ends abruptly, continue
+            is_truncated = False
+            if done_reason and done_reason == 'length':
+                is_truncated = True
+            elif content and len(content) > 0:
+                # Check for various truncation indicators
+                trimmed = content.strip()
+                
+                # If the content ends with ... or is very long without proper ending
+                if trimmed.endswith("..."):
+                    is_truncated = True
+                elif len(trimmed) > 100 and not trimmed[-1] in ".!?\n":
+                    is_truncated = True
+                # Check if response ends mid-sentence (no proper ending punctuation)
+                elif len(trimmed) > 20 and not trimmed[-1] in ".!?\n":
+                    is_truncated = True
+                # Check if thinking tags are incomplete (no closing tag)
+                elif "<think>" in content and "</think>" not in content:
+                    is_truncated = True
+                # Check if the response seems incomplete (ends with common incomplete phrases)
+                elif any(trimmed.endswith(phrase) for phrase in [
+                    "To determine", "I need to", "Let me", "Based on", "The user", 
+                    "This shows", "We can see", "It appears", "The data", "Looking at"
+                ]):
+                    is_truncated = True
+            
+            if not is_truncated:
+                break
+            
+            # Add a follow-up message to continue
+            formatting_messages.append({"role": "user", "content": "Continue."})
+            continuation_count += 1
+            logger.info(f"[LLMHandler] Requesting continuation for formatting (count: {continuation_count})")
+        
+        # Clean the full formatting response
+        formatted_response = self._clean_response(full_response)
+        
+        logger.info(f"[LLMHandler] Final formatted response: {formatted_response}")
         return formatted_response
 
     def _process_function_calls(self, response: str, context: Optional[Dict[str, Any]] = None) -> str:
@@ -1026,12 +982,18 @@ Do not mention that you're formatting data - just provide the information natura
                     # Execute the function
                     result = self.game_context_functions[func_name]['function'](*args, **kwargs)
                     logger.info(f"[LLMHandler] Function {func_name} returned: {result}")
+                    
+                    # Log the function call
+                    self.session_logger.log_function_call(func_name, args, result)
+                    
                     function_results.append(f"Function {func_name} returned: {result}")
                 else:
                     logger.info(f"[LLMHandler] Unknown function: {func_name}")
+                    self.session_logger.log_error(f"Unknown function: {func_name}", "Function not found in registry")
                     function_results.append(f"Unknown function: {func_name}")
             except Exception as e:
                 logger.error(f"[LLMHandler] Error executing {func_name}: {str(e)}")
+                self.session_logger.log_error(f"Error executing {func_name}: {str(e)}", "Function execution error")
                 function_results.append(f"Error executing {func_name}: {str(e)}")
         
         # Replace function calls with results
@@ -1084,6 +1046,16 @@ Do not mention that you're formatting data - just provide the information natura
         self.conversation_history = []
         if self.current_provider and hasattr(self.current_provider, 'conversation_history'):
             self.current_provider.conversation_history = []
+    
+    def get_session_info(self) -> Dict[str, Any]:
+        """Get information about the current session."""
+        return self.session_logger.get_session_info()
+    
+    def clear_session(self):
+        """Clear the current session and start a new one."""
+        self.clear_history()
+        self.session_logger = SessionLogger()
+        logger.info("[LLMHandler] Started new session")
     
     def get_conversation_history(self) -> List[Dict[str, Any]]:
         """Get the conversation history."""
@@ -1273,10 +1245,18 @@ REMEMBER:
         response = re.sub(r'Let me.*?(?=\[FUNCTION_CALL:|$)', '', response, flags=re.DOTALL)
         response = re.sub(r'I need to.*?(?=\[FUNCTION_CALL:|$)', '', response, flags=re.DOTALL)
         
-        # Remove any text before the first function call
-        function_call_match = re.search(r'\[FUNCTION_CALL:', response)
-        if function_call_match:
-            response = response[function_call_match.start():]
+        # Check if there are function calls in the response
+        has_function_calls = "[FUNCTION_CALL:" in response
+        
+        if has_function_calls:
+            # If there are function calls, only keep content from the first function call onwards
+            function_call_match = re.search(r'\[FUNCTION_CALL:', response)
+            if function_call_match:
+                response = response[function_call_match.start():]
+        else:
+            # If no function calls, preserve all content after removing thinking tags
+            # This allows for natural language responses when no function calls are needed
+            pass
         
         # Clean up extra whitespace and newlines
         response = re.sub(r'\n\s*\n', '\n', response)
@@ -1285,8 +1265,18 @@ REMEMBER:
         # If we removed all content and there are no function calls, return a fallback
         if not response.strip() and "[FUNCTION_CALL:" not in response:
             logger.warning(f"[LLMHandler] Cleaned response is empty, original was: {repr(original_response)}")
-            # Check if the original response had any useful content
-            if "function" in original_response.lower() or "call" in original_response.lower():
+            # Check if the original response had any useful content after thinking tags
+            # Remove thinking tags from original to check for remaining content
+            cleaned_original = re.sub(r'<think>.*?</think>', '', original_response, flags=re.DOTALL)
+            cleaned_original = re.sub(r'<reasoning>.*?</reasoning>', '', cleaned_original, flags=re.DOTALL)
+            cleaned_original = re.sub(r'<thought>.*?</thought>', '', cleaned_original, flags=re.DOTALL)
+            cleaned_original = cleaned_original.strip()
+            
+            if cleaned_original and len(cleaned_original) > 10:
+                # There's useful content after thinking tags, return it
+                logger.info(f"[LLMHandler] Found useful content after thinking tags: {cleaned_original[:100]}...")
+                response = cleaned_original
+            elif "function" in original_response.lower() or "call" in original_response.lower():
                 # Try to extract any function-like patterns
                 function_patterns = re.findall(r'\[.*?\]', original_response)
                 if function_patterns:
