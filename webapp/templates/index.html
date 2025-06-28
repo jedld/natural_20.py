@@ -285,20 +285,20 @@
                       </div>
                     </div>
                   </div>
-                  <div class="row" id="model-selection-row" style="display: none;">
-                    <div class="col-md-6">
-                      <div class="form-group">
-                        <label for="ai-model-select">Model</label>
-                        <select class="form-control" id="ai-model-select">
+                  <div class="row" id="model-selection-row" style="display: none; margin-bottom: 10px;">
+                    <div class="col-xs-8">
+                      <div class="form-group" style="margin-bottom: 0;">
+                        <label for="ai-model-select" style="font-size: 12px;">Model:</label>
+                        <select class="form-control input-sm" id="ai-model-select" style="font-size: 12px;">
                           <option value="">Loading models...</option>
                         </select>
                       </div>
                     </div>
-                    <div class="col-md-6">
-                      <div class="form-group">
-                        <label>&nbsp;</label>
-                        <button type="button" class="btn btn-sm btn-info" id="refresh-models" style="margin-top: 25px;">
-                          <i class="glyphicon glyphicon-refresh"></i> Refresh Models
+                    <div class="col-xs-4">
+                      <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-size: 12px;">&nbsp;</label>
+                        <button type="button" class="btn btn-xs btn-info" id="draggable-refresh-models" style="width: 100%;">
+                          <i class="glyphicon glyphicon-refresh"></i>
                         </button>
                       </div>
                     </div>
@@ -400,5 +400,107 @@
     </div>
   </div>
 </div>
+
+    <!-- Draggable AI Chatbot Interface -->
+    <div id="ai-chat-panel" class="draggable-panel" style="display: none; position: fixed; top: 100px; right: 20px; width: 400px; height: 500px; z-index: 1000; background: white; border: 2px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+      <div class="panel-header" style="background: #f8f9fa; padding: 10px; border-bottom: 1px solid #ddd; border-radius: 6px 6px 0 0; cursor: move;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h5 style="margin: 0; color: #333;">
+            <i class="glyphicon glyphicon-comment"></i> AI Assistant
+          </h5>
+          <div>
+            <button type="button" class="btn btn-xs btn-default" id="minimize-chat" title="Minimize">
+              <i class="glyphicon glyphicon-minus"></i>
+            </button>
+            <button type="button" class="btn btn-xs btn-default" id="close-chat" title="Close">
+              <i class="glyphicon glyphicon-remove"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="panel-body" style="padding: 15px; height: 100%; display: flex; flex-direction: column;">
+        <!-- AI Configuration Section -->
+        <div class="ai-config-section" style="margin-bottom: 15px;">
+          <h6 style="margin-top: 0; margin-bottom: 10px; color: #333;">AI Configuration</h6>
+          
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label for="draggable-ai-provider-select" style="font-size: 12px;">Provider:</label>
+            <select class="form-control input-sm" id="draggable-ai-provider-select" style="font-size: 12px;">
+              <option value="mock">Mock (Test)</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="ollama">Ollama (Local)</option>
+            </select>
+          </div>
+          
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label for="draggable-ai-api-key" style="font-size: 12px;">API Key/URL:</label>
+            <input type="text" class="form-control input-sm" id="draggable-ai-api-key" placeholder="Enter API key or Ollama URL" style="font-size: 12px;">
+            <small class="help-block" style="font-size: 11px; margin-top: 2px;"></small>
+          </div>
+          
+          <div class="row" id="draggable-model-selection-row" style="margin-bottom: 10px;">
+            <div class="col-xs-8">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="draggable-ai-model-select" style="font-size: 12px;">Model:</label>
+                <select class="form-control input-sm" id="draggable-ai-model-select" style="font-size: 12px;">
+                  <option value="">Loading models...</option>
+                </select>
+              </div>
+            </div>
+            <div class="col-xs-4">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 12px;">&nbsp;</label>
+                <button type="button" class="btn btn-xs btn-info" id="draggable-refresh-models" style="width: 100%;">
+                  <i class="glyphicon glyphicon-refresh"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 10px;">
+            <button type="button" class="btn btn-xs btn-primary" id="draggable-initialize-ai">
+              <i class="glyphicon glyphicon-play"></i> Initialize AI
+            </button>
+            <span id="draggable-ai-status" class="label label-default" style="margin-left: 10px; font-size: 11px;">Not initialized</span>
+          </div>
+        </div>
+        
+        <!-- Chat Interface -->
+        <div class="chat-interface" style="flex: 1; display: flex; flex-direction: column;">
+          <div id="draggable-chat-messages" style="flex: 1; height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 8px; background: #fff; margin-bottom: 8px; font-size: 12px;">
+            <div class="chat-message system">
+              <strong>AI Assistant:</strong> Welcome! I'm here to help you with your D&D game. Initialize the AI to get started.
+            </div>
+          </div>
+          
+          <form id="draggable-chat-form" style="margin-bottom: 8px;">
+            <div class="input-group input-group-sm">
+              <input type="text" class="form-control" id="draggable-chat-input" placeholder="Ask me anything..." disabled style="font-size: 12px;">
+              <span class="input-group-btn">
+                <button class="btn btn-primary btn-sm" type="submit" id="draggable-send-chat" disabled style="font-size: 12px;">
+                  <i class="glyphicon glyphicon-send"></i>
+                </button>
+              </span>
+            </div>
+          </form>
+          
+          <div style="display: flex; gap: 5px;">
+            <button type="button" class="btn btn-xs btn-default" id="draggable-clear-chat">
+              <i class="glyphicon glyphicon-trash"></i> Clear
+            </button>
+            <button type="button" class="btn btn-xs btn-info" id="draggable-get-context">
+              <i class="glyphicon glyphicon-info-sign"></i> Context
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Chat Toggle Button -->
+    <button id="toggle-ai-chat" class="btn btn-primary" style="position: fixed; bottom: 20px; right: 20px; z-index: 999; border-radius: 50%; width: 50px; height: 50px; padding: 0; font-size: 18px;">
+      <i class="glyphicon glyphicon-comment"></i>
+    </button>
 </body>
 </html>
