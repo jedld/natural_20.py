@@ -1780,4 +1780,268 @@ $(document).ready(() => {
       true
     );
   });
+
+  // AI Chatbot Interface Handlers
+  let aiInitialized = false;
+
+  // Initialize AI provider
+  $("#initialize-ai").on("click", function() {
+    const provider = $("#ai-provider-select").val();
+    const apiKey = $("#ai-api-key").val();
+    const selectedModel = $("#ai-model-select").val();
+    
+    if (provider === "mock") {
+      // Mock provider doesn't need API key
+      $.ajax({
+        type: "POST",
+        url: "/ai/initialize",
+        data: { provider: provider },
+        success: (data) => {
+          if (data.success) {
+            aiInitialized = true;
+            $("#ai-status").removeClass("label-default label-danger").addClass("label-success").text("Initialized");
+            $("#chat-input, #send-chat").prop("disabled", false);
+            addChatMessage("system", "AI Assistant initialized successfully! How can I help you with your D&D game?");
+          } else {
+            $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+            addChatMessage("system", "Failed to initialize AI: " + (data.error || "Unknown error"));
+          }
+        },
+        error: () => {
+          $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+          addChatMessage("system", "Failed to initialize AI: Network error");
+        }
+      });
+    } else if (provider === "ollama") {
+      // Ollama provider
+      const config = { provider: provider };
+      if (apiKey) {
+        config.base_url = apiKey;
+      }
+      if (selectedModel) {
+        config.model = selectedModel;
+      }
+      
+      $.ajax({
+        type: "POST",
+        url: "/ai/initialize",
+        data: config,
+        success: (data) => {
+          if (data.success) {
+            aiInitialized = true;
+            $("#ai-status").removeClass("label-default label-danger").addClass("label-success").text("Initialized");
+            $("#chat-input, #send-chat").prop("disabled", false);
+            addChatMessage("system", `AI Assistant initialized successfully with ${data.model || 'Ollama'}! How can I help you with your D&D game?`);
+          } else {
+            $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+            addChatMessage("system", "Failed to initialize AI: " + (data.error || "Unknown error"));
+          }
+        },
+        error: () => {
+          $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+          addChatMessage("system", "Failed to initialize AI: Network error. Make sure Ollama is running.");
+        }
+      });
+    } else {
+      // Real providers need API key
+      if (!apiKey) {
+        addChatMessage("system", "Please enter an API key for the selected provider.");
+        return;
+      }
+      
+      $.ajax({
+        type: "POST",
+        url: "/ai/initialize",
+        data: { 
+          provider: provider,
+          api_key: apiKey
+        },
+        success: (data) => {
+          if (data.success) {
+            aiInitialized = true;
+            $("#ai-status").removeClass("label-default label-danger").addClass("label-success").text("Initialized");
+            $("#chat-input, #send-chat").prop("disabled", false);
+            addChatMessage("system", "AI Assistant initialized successfully! How can I help you with your D&D game?");
+          } else {
+            $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+            addChatMessage("system", "Failed to initialize AI: " + (data.error || "Unknown error"));
+          }
+        },
+        error: () => {
+          $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
+          addChatMessage("system", "Failed to initialize AI: Network error");
+        }
+      });
+    }
+  });
+
+  // Handle provider change
+  $("#ai-provider-select").on("change", function() {
+    const provider = $(this).val();
+    const $apiKeyField = $("#ai-api-key");
+    const $modelRow = $("#model-selection-row");
+    const $apiKeyLabel = $apiKeyField.prev("label");
+    const $apiKeyHelp = $apiKeyField.next("small");
+    
+    if (provider === "mock") {
+      $apiKeyField.prop("disabled", true).val("");
+      $apiKeyLabel.text("API Key");
+      $apiKeyHelp.text("");
+      $modelRow.hide();
+    } else if (provider === "ollama") {
+      $apiKeyField.prop("disabled", false).val("http://localhost:11434");
+      $apiKeyLabel.text("Ollama URL");
+      $apiKeyHelp.text("Leave empty for localhost:11434 or enter custom URL");
+      $modelRow.show();
+      loadOllamaModels();
+    } else {
+      $apiKeyField.prop("disabled", false).val("");
+      $apiKeyLabel.text("API Key");
+      $apiKeyHelp.text("");
+      $modelRow.hide();
+    }
+  });
+
+  // Load Ollama models
+  function loadOllamaModels() {
+    const url = $("#ai-api-key").val() || "http://localhost:11434";
+    
+    $.ajax({
+      type: "GET",
+      url: "/ai/ollama/models",
+      data: { base_url: url },
+      success: (data) => {
+        const $modelSelect = $("#ai-model-select");
+        $modelSelect.empty();
+        
+        if (data.success && data.models && data.models.length > 0) {
+          data.models.forEach(model => {
+            $modelSelect.append(`<option value="${model}">${model}</option>`);
+          });
+          addChatMessage("system", `Found ${data.models.length} Ollama models. Please select one and initialize.`);
+        } else {
+          $modelSelect.append('<option value="">No models found</option>');
+          addChatMessage("system", "No Ollama models found. Please make sure Ollama is running and has models installed.");
+        }
+      },
+      error: () => {
+        const $modelSelect = $("#ai-model-select");
+        $modelSelect.empty().append('<option value="">Failed to load models</option>');
+        addChatMessage("system", "Failed to load Ollama models. Please check your Ollama installation and connection.");
+      }
+    });
+  }
+
+  // Refresh models button
+  $("#refresh-models").on("click", function() {
+    if ($("#ai-provider-select").val() === "ollama") {
+      loadOllamaModels();
+    }
+  });
+
+  // Initialize provider select on page load
+  $("#ai-provider-select").trigger("change");
+
+  // Handle chat form submission
+  $("#chat-form").on("submit", function(e) {
+    e.preventDefault();
+    if (!aiInitialized) {
+      addChatMessage("system", "Please initialize the AI assistant first.");
+      return;
+    }
+    
+    const message = $("#chat-input").val().trim();
+    if (message === "") return;
+    
+    // Add user message to chat
+    addChatMessage("user", message);
+    $("#chat-input").val("");
+    
+    // Disable input while processing
+    $("#chat-input, #send-chat").prop("disabled", true);
+    
+    // Send message to AI
+    $.ajax({
+      type: "POST",
+      url: "/ai/chat",
+      data: { message: message },
+      success: (data) => {
+        if (data.success) {
+          addChatMessage("assistant", data.response);
+        } else {
+          addChatMessage("system", "Error: " + (data.error || "Unknown error"));
+        }
+        $("#chat-input, #send-chat").prop("disabled", false);
+        $("#chat-input").focus();
+      },
+      error: () => {
+        addChatMessage("system", "Network error occurred while communicating with AI.");
+        $("#chat-input, #send-chat").prop("disabled", false);
+        $("#chat-input").focus();
+      }
+    });
+  });
+
+  // Clear chat history
+  $("#clear-chat").on("click", function() {
+    if (confirm("Are you sure you want to clear the chat history?")) {
+      $("#chat-messages").html('<div class="chat-message system"><strong>AI Assistant:</strong> Chat history cleared. How can I help you?</div>');
+      
+      // Clear server-side history
+      $.ajax({
+        type: "POST",
+        url: "/ai/clear-history",
+        success: (data) => {
+          console.log("Chat history cleared");
+        }
+      });
+    }
+  });
+
+  // Get game context
+  $("#get-context").on("click", function() {
+    $.ajax({
+      type: "GET",
+      url: "/ai/context",
+      success: (data) => {
+        if (data.success) {
+          addChatMessage("system", "Game context retrieved and sent to AI assistant.");
+        } else {
+          addChatMessage("system", "Failed to get game context: " + (data.error || "Unknown error"));
+        }
+      },
+      error: () => {
+        addChatMessage("system", "Failed to get game context: Network error");
+      }
+    });
+  });
+
+  // Helper function to add chat messages
+  function addChatMessage(role, content) {
+    const timestamp = new Date().toLocaleTimeString();
+    let messageClass = "chat-message";
+    let prefix = "";
+    
+    switch(role) {
+      case "user":
+        messageClass += " user";
+        prefix = `<strong>You (${timestamp}):</strong>`;
+        break;
+      case "assistant":
+        messageClass += " assistant";
+        prefix = `<strong>AI Assistant (${timestamp}):</strong>`;
+        break;
+      case "system":
+        messageClass += " system";
+        prefix = `<strong>System (${timestamp}):</strong>`;
+        break;
+    }
+    
+    const messageHtml = `<div class="${messageClass}">${prefix} ${content}</div>`;
+    $("#chat-messages").append(messageHtml);
+    
+    // Scroll to bottom
+    const chatMessages = $("#chat-messages");
+    chatMessages.scrollTop(chatMessages[0].scrollHeight);
+  }
 });
