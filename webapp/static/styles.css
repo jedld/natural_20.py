@@ -796,6 +796,19 @@ input.initiative-input.form-control {
   pointer-events: auto;
 }
 
+/* Hide dialog bubble by default when hover-only class is present */
+.dialog-bubble.hover-only {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+/* Show dialog bubble when hovering over the entity */
+.tile:hover .dialog-bubble.hover-only {
+  opacity: 1;
+  visibility: visible;
+}
+
 .dialog-bubble:hover {
   background-color: #45a049;
   transform: scale(1.1);
@@ -1287,5 +1300,355 @@ input.initiative-input.form-control {
   #toggle-ai-chat {
     top: 10px !important;
     right: 10px !important;
+  }
+}
+
+/* JRPG Dialog Modal Styles */
+.jrpg-dialog-content {
+  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  border: 3px solid #8b4513;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  color: #ecf0f1;
+}
+
+.jrpg-dialog-header {
+  background: linear-gradient(135deg, #8b4513 0%, #a0522d 100%);
+  border-bottom: 2px solid #654321;
+  border-radius: 12px 12px 0 0;
+  color: #f4f4f4;
+}
+
+.jrpg-dialog-header .close {
+  color: #f4f4f4;
+  opacity: 0.8;
+}
+
+.jrpg-dialog-header .close:hover {
+  opacity: 1;
+}
+
+.jrpg-dialog-body {
+  padding: 20px;
+  background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+}
+
+.jrpg-dialog-container {
+  display: flex;
+  gap: 20px;
+  height: 500px;
+}
+
+/* Entity Profile Panel */
+.entity-profile-panel {
+  width: 250px;
+  background: linear-gradient(135deg, #3a4a5c 0%, #2c3e50 100%);
+  border: 2px solid #8b4513;
+  border-radius: 10px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.entity-portrait {
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.portrait-image {
+  width: 120px;
+  height: 120px;
+  border: 3px solid #8b4513;
+  border-radius: 10px;
+  background: #2c3e50;
+  object-fit: cover;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+}
+
+.entity-name {
+  color: #f39c12;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 15px;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.entity-stats {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 15px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(139, 69, 19, 0.3);
+}
+
+.stat-row:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.stat-label {
+  color: #bdc3c7;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.stat-value {
+  color: #f39c12;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.entity-description {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.description-text {
+  color: #ecf0f1;
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0;
+  text-align: justify;
+}
+
+/* Chat Interface Panel */
+.chat-interface-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, #3a4a5c 0%, #2c3e50 100%);
+  border: 2px solid #8b4513;
+  border-radius: 10px;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.chat-messages-container {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px 8px 0 0;
+}
+
+.dialog-chat-messages {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.dialog-chat-message {
+  margin-bottom: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  position: relative;
+  animation: messageSlideIn 0.3s ease-out;
+}
+
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dialog-chat-message.player {
+  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+  border-left: 4px solid #1abc9c;
+  margin-left: 20px;
+}
+
+.dialog-chat-message.entity {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  border-left: 4px solid #f39c12;
+  margin-right: 20px;
+}
+
+.dialog-chat-message.system {
+  background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+  border-left: 4px solid #34495e;
+  font-style: italic;
+  text-align: center;
+}
+
+.dialog-chat-message .message-sender {
+  font-weight: bold;
+  font-size: 12px;
+  margin-bottom: 4px;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.dialog-chat-message .message-content {
+  color: #ecf0f1;
+  font-size: 14px;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+.dialog-chat-message .message-timestamp {
+  font-size: 10px;
+  color: rgba(236, 240, 241, 0.7);
+  text-align: right;
+  margin-top: 4px;
+}
+
+.chat-input-container {
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 0 0 8px 8px;
+  border-top: 2px solid #8b4513;
+}
+
+.chat-input-container .input-group {
+  margin-bottom: 10px;
+}
+
+.chat-input-container .form-control {
+  background: rgba(44, 62, 80, 0.8);
+  border: 2px solid #8b4513;
+  color: #ecf0f1;
+  border-radius: 8px 0 0 8px;
+}
+
+.chat-input-container .form-control:focus {
+  background: rgba(44, 62, 80, 0.9);
+  border-color: #f39c12;
+  color: #ecf0f1;
+  box-shadow: 0 0 8px rgba(243, 156, 18, 0.5);
+}
+
+.chat-input-container .btn {
+  border-radius: 0 8px 8px 0;
+  background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+  border: 2px solid #8b4513;
+  color: #2c3e50;
+  font-weight: bold;
+}
+
+.chat-input-container .btn:hover {
+  background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.chat-options {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.chat-options .form-group {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.chat-options label {
+  color: #bdc3c7;
+  font-size: 12px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.chat-options .form-control {
+  background: rgba(44, 62, 80, 0.8);
+  border: 2px solid #8b4513;
+  color: #ecf0f1;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.volume-btn {
+  background: rgba(44, 62, 80, 0.8);
+  border: 2px solid #8b4513;
+  color: #ecf0f1;
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.volume-btn.active {
+  background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+  color: #2c3e50;
+  font-weight: bold;
+}
+
+.volume-btn:hover {
+  background: rgba(243, 156, 18, 0.3);
+  border-color: #f39c12;
+}
+
+.jrpg-dialog-footer {
+  background: linear-gradient(135deg, #8b4513 0%, #a0522d 100%);
+  border-top: 2px solid #654321;
+  border-radius: 0 0 12px 12px;
+}
+
+.jrpg-dialog-footer .btn {
+  border: 2px solid #654321;
+  font-weight: bold;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.jrpg-dialog-footer .btn-default {
+  background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+  color: #2c3e50;
+}
+
+.jrpg-dialog-footer .btn-info {
+  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+  color: #ecf0f1;
+}
+
+/* Scrollbar styling for chat messages */
+.dialog-chat-messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dialog-chat-messages::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.dialog-chat-messages::-webkit-scrollbar-thumb {
+  background: #8b4513;
+  border-radius: 4px;
+}
+
+.dialog-chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #a0522d;
+}
+
+/* Responsive design for JRPG dialog */
+@media (max-width: 768px) {
+  .jrpg-dialog-container {
+    flex-direction: column;
+    height: auto;
+  }
+  
+  .entity-profile-panel {
+    width: 100%;
+    margin-bottom: 15px;
+  }
+  
+  .chat-interface-panel {
+    height: 400px;
+  }
+  
+  .chat-options {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

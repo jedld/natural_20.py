@@ -1763,7 +1763,217 @@ $(document).ready(() => {
   // Handle dialog bubble clicks for dialog-capable entities
   function handleDialogBubbleClick(entityId, entityName) {
     console.log('Dialog bubble clicked for entity:', entityId, entityName);
-    handleTalk(entityId);
+    
+    // Show the JRPG dialog modal
+    $('#jrpgDialogModal').modal('show');
+    
+    // Load entity information for the profile panel
+    loadEntityProfile(entityId);
+    
+    // Load conversation languages
+    loadDialogLanguages(entityId);
+    
+    // Initialize chat interface
+    initializeDialogChat(entityId);
+    
+    // Add welcome message with the provided entity name
+    addDialogMessage('system', `Welcome to the conversation with ${entityName || 'this entity'}!`, 'system');
+  }
+  
+  // Load entity profile information
+  function loadEntityProfile(entityId) {
+    // Get entity information from the tile data
+    const $tile = $(`.tile[data-coords-id="${entityId}"]`);
+    
+    // Get entity name from the tile label or entity name
+    let entityName = 'Unknown Entity';
+    const $nameplate = $tile.find('.nameplate');
+    if ($nameplate.length) {
+      entityName = $nameplate.text();
+    } else {
+      // Try to get from entity data attribute
+      entityName = $tile.data('entity-name') || 'Unknown Entity';
+    }
+    
+    // Set entity name initially
+    $('#dialogEntityName').text(entityName);
+    
+    // Get entity portrait (use the entity image if available)
+    const $entityImg = $tile.find('.npc');
+    if ($entityImg.length) {
+      const portraitSrc = $entityImg.attr('src');
+      $('#dialogEntityPortrait').attr('src', portraitSrc);
+    } else {
+      // Use a default portrait
+      $('#dialogEntityPortrait').attr('src', '/static/assets/token_adversary.png');
+    }
+    
+    // Load detailed entity information via AJAX
+    $.ajax({
+      url: '/entity_info',
+      type: 'GET',
+      data: { entity_id: entityId },
+      success: (data) => {
+        if (data.success) {
+          const entity = data.entity;
+          
+          // Update entity name with the proper name from server
+          if (entity.name) {
+            $('#dialogEntityName').text(entity.name);
+          }
+          
+          // Update entity stats
+          $('#dialogEntityHP').text(`${entity.hp || 0}/${entity.max_hp || 0}`);
+          $('#dialogEntityAC').text(entity.ac || 'Unknown');
+          $('#dialogEntityLevel').text(entity.level || 'Unknown');
+          $('#dialogEntityRace').text(entity.race || 'Unknown');
+          $('#dialogEntityClass').text(entity.class || 'Unknown');
+          
+          // Update description
+          $('#dialogEntityDescription').text(entity.description || 'No description available.');
+        } else {
+          // Set default values if entity info not available
+          $('#dialogEntityHP').text('0/0');
+          $('#dialogEntityAC').text('Unknown');
+          $('#dialogEntityLevel').text('Unknown');
+          $('#dialogEntityRace').text('Unknown');
+          $('#dialogEntityClass').text('Unknown');
+          $('#dialogEntityDescription').text('Entity information not available.');
+        }
+      },
+      error: () => {
+        // Set default values on error
+        $('#dialogEntityHP').text('0/0');
+        $('#dialogEntityAC').text('Unknown');
+        $('#dialogEntityLevel').text('Unknown');
+        $('#dialogEntityRace').text('Unknown');
+        $('#dialogEntityClass').text('Unknown');
+        $('#dialogEntityDescription').text('Entity information not available.');
+      }
+    });
+  }
+  
+  // Load available languages for the dialog
+  function loadDialogLanguages(entityId) {
+    const $tile = $(`.tile[data-coords-id="${entityId}"]`);
+    const languages = $tile.data('conversation-languages');
+    
+    const $languageSelect = $('#dialogLanguageSelect');
+    $languageSelect.empty();
+    
+    if (languages && languages.length > 0) {
+      const languagesArray = languages.split(',');
+      languagesArray.forEach(language => {
+        const lang = language.trim();
+        if (lang !== 'common') {
+          $languageSelect.append(`<option value="${lang}">${lang}</option>`);
+        } else {
+          $languageSelect.append(`<option value="Common" selected>Common</option>`);
+        }
+      });
+    } else {
+      $languageSelect.append(`<option value="Common" selected>Common</option>`);
+    }
+  }
+  
+  // Initialize the dialog chat interface
+  function initializeDialogChat(entityId) {
+    // Clear previous messages
+    $('#dialogChatMessages').empty();
+    
+    // Handle send message button
+    $('#dialogSendMessage').off('click').on('click', function() {
+      sendDialogMessage(entityId);
+    });
+    
+    // Handle Enter key in chat input
+    $('#dialogChatInput').off('keypress').on('keypress', function(e) {
+      if (e.which === 13) { // Enter key
+        sendDialogMessage(entityId);
+      }
+    });
+    
+    // Handle volume button clicks
+    $('.volume-btn').off('click').on('click', function() {
+      $('.volume-btn').removeClass('active');
+      $(this).addClass('active');
+    });
+    
+    // Handle history button
+    $('#dialogHistoryBtn').off('click').on('click', function() {
+      loadDialogHistory(entityId);
+    });
+    
+    // Focus on input
+    $('#dialogChatInput').focus();
+  }
+  
+  // Send a message in the dialog
+  function sendDialogMessage(entityId) {
+    const message = $('#dialogChatInput').val().trim();
+    if (!message) return;
+    
+    const selectedLanguage = $('#dialogLanguageSelect').val();
+    const selectedVolume = $('.volume-btn.active');
+    const distance_ft = parseInt(selectedVolume.data('distance'));
+    
+    // Add player message to chat
+    addDialogMessage('player', message, 'player');
+    
+    // Clear input
+    $('#dialogChatInput').val('');
+    
+    // Send message to server
+    $.ajax({
+      url: '/talk',
+      type: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({
+        entity_id: entityId,
+        message: message,
+        targets: [],
+        no_specific_target: true,
+        language: selectedLanguage,
+        distance_ft: distance_ft
+      }),
+      success: (data) => {
+        if (data.success) {
+          // Add entity response if provided
+          if (data.response) {
+            addDialogMessage('entity', data.response, 'entity');
+          }
+        } else {
+          addDialogMessage('system', 'Message sent successfully.', 'system');
+        }
+      },
+      error: () => {
+        addDialogMessage('system', 'Failed to send message.', 'system');
+      }
+    });
+  }
+  
+  // Add a message to the dialog chat
+  function addDialogMessage(sender, content, type) {
+    const timestamp = new Date().toLocaleTimeString();
+    const messageHtml = `
+      <div class="dialog-chat-message ${type}">
+        <div class="message-sender">${sender}</div>
+        <div class="message-content">${content}</div>
+        <div class="message-timestamp">${timestamp}</div>
+      </div>
+    `;
+    
+    $('#dialogChatMessages').append(messageHtml);
+    
+    // Scroll to bottom
+    const $messages = $('#dialogChatMessages');
+    $messages.scrollTop($messages[0].scrollHeight);
+  }
+  
+  // Load dialog history
+  function loadDialogHistory(entityId) {
+    // This could be expanded to load conversation history from the server
+    addDialogMessage('system', 'Conversation history feature coming soon!', 'system');
   }
 
   $("#turn-order").on("change", ".group-select", function() {
@@ -1794,6 +2004,14 @@ $(document).ready(() => {
       },
       true
     );
+  });
+
+
+  $(document).on('click', '.dialog-bubble', function(event) {
+    event.stopPropagation();
+    const entityId = $(this).data('id');
+    const entityName = $(this).data('name');
+    handleDialogBubbleClick(entityId, entityName);
   });
 
   Chat.init();
