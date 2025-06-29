@@ -106,13 +106,6 @@
           </div>
         {% endif %}
           
-          {# --- Dialog bubble for dialog-capable entities --- #}
-          {% if tile['dialog'] %}
-            <div class="dialog-bubble" onclick="handleDialogBubbleClick('{{ tile.id }}', '{{ tile.name }}'); event.stopPropagation();">
-              <i class="glyphicon glyphicon-comment"></i>
-            </div>
-          {% endif %}
-          
           <div class="popover-menu" style="display: none;">
             <ul>
               <li>Info</li>
@@ -139,7 +132,13 @@
             data-name="{{ tile.name }}">
                 <i class="glyphicon glyphicon-plus"></i>
           </button>
-
+          {# --- Dialog bubble for dialog-capable entities --- #}
+          {% if tile['dialog'] %}
+            <div class="dialog-bubble hover-only" data-id="{{ tile.id }}" data-name="{{ tile.name }}">
+              <i class="glyphicon glyphicon-comment"></i>
+            </div>
+          {% endif %}
+          
             <div class="entity" data-id="{{ tile.id }}">
               {% set entity_size = tile.entity_size %}
               {% set multiplier = 1 %}
@@ -147,6 +146,8 @@
                 {% set multiplier = 2 %}
               {% endif %}
               {% set image_size_px = tile_size_px * multiplier %}
+              
+
               {% if tile['is_flying'] %}
               <div class="flying-entity-wrapper" style="transform: {{ transform_for(tile) }};">
                 <img class="npc flying-entity"
