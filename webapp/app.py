@@ -1647,6 +1647,69 @@ def get_info():
         entity = battle_map.object_by_uid(info_id)
     return render_template('info.html.jinja', entity=entity, session=game_session, restricted=False, role=user_role())
 
+@app.route('/entity_info', methods=['GET'])
+def get_entity_info():
+    """Get entity information for the JRPG dialog modal."""
+    global current_game
+    
+    entity_id = request.args.get('entity_id')
+    if not entity_id:
+        return jsonify({'success': False, 'error': 'Entity ID is required'}), 400
+    
+    try:
+        entity = current_game.get_entity_by_uid(entity_id)
+        if not entity:
+            return jsonify({'success': False, 'error': 'Entity not found'}), 404
+        
+        # Build entity information
+        entity_info = {
+            'name': entity.label() if hasattr(entity, 'label') else str(entity),
+            'entity_uid': getattr(entity, 'entity_uid', None),
+            'description': entity.description() if hasattr(entity, 'description') else 'No description available.'
+        }
+        
+        # Add combat stats
+        if hasattr(entity, 'hp') and callable(getattr(entity, 'hp')):
+            entity_info['hp'] = entity.hp()
+        elif hasattr(entity, 'hp'):
+            entity_info['hp'] = entity.hp
+        
+        if hasattr(entity, 'max_hp') and callable(getattr(entity, 'max_hp')):
+            entity_info['max_hp'] = entity.max_hp()
+        elif hasattr(entity, 'max_hp'):
+            entity_info['max_hp'] = entity.max_hp
+        
+        if hasattr(entity, 'armor_class') and callable(getattr(entity, 'armor_class')):
+            entity_info['ac'] = entity.armor_class()
+        elif hasattr(entity, 'ac'):
+            entity_info['ac'] = entity.ac
+        
+        # Add level information
+        if hasattr(entity, 'level') and callable(getattr(entity, 'level')):
+            entity_info['level'] = entity.level()
+        elif hasattr(entity, 'level'):
+            entity_info['level'] = entity.level
+        
+        # Add race information
+        if hasattr(entity, 'race') and callable(getattr(entity, 'race')):
+            entity_info['race'] = entity.race()
+        elif hasattr(entity, 'race'):
+            entity_info['race'] = entity.race
+        
+        # Add class information
+        if hasattr(entity, 'class_descriptor') and callable(getattr(entity, 'class_descriptor')):
+            entity_info['class'] = entity.class_descriptor()
+        elif hasattr(entity, 'class_and_level') and callable(getattr(entity, 'class_and_level')):
+            class_info = entity.class_and_level()
+            if class_info:
+                entity_info['class'] = ', '.join([f"{cls} {lvl}" for cls, lvl in class_info])
+        
+        return jsonify({'success': True, 'entity': entity_info})
+        
+    except Exception as e:
+        logger.error(f"Error getting entity info: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/logout', methods=['POST'])
 def logout():
     session['username'] = None
