@@ -628,6 +628,7 @@ def index():
                         ['start_time']) % current_game.current_soundtrack['duration']
         current_game.current_soundtrack['time'] = int(time_s)
 
+    current_pov = [entity.entity_uid for entity in pov_entities()]
     return render_template('index.html', tiles=my_2d_array, tile_size_px=TILE_PX,
                            background_path=f"assets/{background}",
                            background_width=tiles_dimension_width,
@@ -647,6 +648,7 @@ def index():
                            available_maps=available_maps,
                            user_entity_ids=[e.entity_uid for e in entities_controlled_by(session['username'])],
                            pov_entities=pov_entities(),
+                           current_pov=current_pov[0],
                            username=session['username'], role=user_role())
 eval_context = {}
 
@@ -1352,7 +1354,7 @@ def switch_pov():
                     height=tiles_dimension_height,
                     width=tiles_dimension_width)
 
-    return jsonify(status='ok')
+    return jsonify(status='ok', pov_entity=entity_id)
 
 @app.route('/read_letter', methods=['POST'])
 def read_letter():

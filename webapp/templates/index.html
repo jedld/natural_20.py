@@ -95,6 +95,7 @@
 </head>
 <body data-soundtrack-id="{{ soundtrack.name }}" data-soundtrack-url="{{soundtrack.file}}" data-soundtrack-time="{{soundtrack.time}}" data-soundtrack-volume="{{ soundtrack.volume }}" data-battle_in_progress="{{ 'true' if battle else 'false' }}"
       data-current-map="{{ current_map }}"
+      data-pov-entity="{{ current_pov }}"
       data-waiting-for-reaction="{{ 'true' if waiting_for_reaction else 'false' }}"
       data-username="{{ username }}" data-role="{{ role }}" data-controls="{{ entity_ids }}">
     <div id="reaction-modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
@@ -472,6 +473,9 @@
       <div class="modal-header jrpg-dialog-header">
         <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
         <h4 class="modal-title" id="jrpgDialogModalLabel">Dialog</h4>
+        <span id="dialogModeIndicator" class="mode-indicator" style="display: none;">
+          <i class="glyphicon glyphicon-comment"></i> Talk Mode
+        </span>
       </div>
       <div class="modal-body jrpg-dialog-body">
         <div class="jrpg-dialog-container">
@@ -482,7 +486,7 @@
             </div>
             <div class="entity-info">
               <h3 id="dialogEntityName" class="entity-name">Entity Name</h3>
-              <div class="entity-stats">
+              <!-- <div class="entity-stats">
                 <div class="stat-row">
                   <span class="stat-label">HP:</span>
                   <span id="dialogEntityHP" class="stat-value">0/0</span>
@@ -503,7 +507,7 @@
                   <span class="stat-label">Class:</span>
                   <span id="dialogEntityClass" class="stat-value">Unknown</span>
                 </div>
-              </div>
+              </div> -->
               <div class="entity-description">
                 <p id="dialogEntityDescription" class="description-text">Entity description will appear here.</p>
               </div>
@@ -540,6 +544,12 @@
                     <button type="button" class="btn btn-sm btn-primary volume-btn active" data-volume="normal" data-distance="30">Normal</button>
                     <button type="button" class="btn btn-sm btn-default volume-btn" data-volume="shout" data-distance="60">Shout</button>
                   </div>
+                </div>
+                <div class="form-group">
+                  <label>Mode:</label>
+                  <button type="button" class="btn btn-sm btn-info" id="toggleTalkMode" title="Toggle between regular dialog and talk to entity mode">
+                    <i class="glyphicon glyphicon-comment"></i> Talk Mode
+                  </button>
                 </div>
               </div>
             </div>
