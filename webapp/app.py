@@ -1984,12 +1984,14 @@ def ai_chat():
         
         # Get comprehensive game context using the LLM handler's RAG system
         context = llm_handler.get_game_context()
-        
+        username = session.get('username')
+        current_pov_entity = current_game.get_pov_entity_for_user(username)
         # Add basic session context
         context['session'] = {
             'username': session.get('username'),
             'role': user_role(),
-            'current_map': current_game.get_map_for_user(session['username']).name
+            'current_map': current_game.get_map_for_user(session['username']).name,
+            'pov_entity': current_pov_entity.entity_uid if current_pov_entity else None
         }
         print("Context:", context)
         # Send message to AI with RAG context

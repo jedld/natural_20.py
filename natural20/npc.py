@@ -86,6 +86,8 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         self.condition_immunities = self.properties.get("condition_immunities", [])
         self.damage_vulnerabilities = self.properties.get("damage_vulnerabilities", [])
         self.damage_immunities = self.properties.get("damage_immunities", [])
+        self.dialog = self.properties.get("dialog", False)
+
         if self.properties.get("speed_fly"):
             self.flying = True
 

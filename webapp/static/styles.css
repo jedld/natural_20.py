@@ -777,6 +777,40 @@ input.initiative-input.form-control {
   border-width: 8px 8px 0;
 }
 
+/* Dialog Bubble for Dialog-Capable Entities */
+.dialog-bubble {
+  position: absolute;
+  top: 41px;
+  left: 43px;
+  width: 20px;
+  height: 20px;
+  background-color: #4CAF50;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1002;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  transition: all 0.2s ease;
+  pointer-events: auto;
+}
+
+.dialog-bubble:hover {
+  background-color: #45a049;
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+}
+
+.dialog-bubble:hover:after {
+  border-color: transparent transparent #45a049;
+}
+
+.dialog-bubble i {
+  color: white;
+  font-size: 14px;
+}
+
 /* Flying Entity Animation */
 @keyframes floating {
   0% {
