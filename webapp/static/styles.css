@@ -1328,6 +1328,22 @@ input.initiative-input.form-control {
   opacity: 1;
 }
 
+.mode-indicator {
+  background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+  color: #2c3e50;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  margin-left: 10px;
+  border: 1px solid #d35400;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.mode-indicator i {
+  margin-right: 4px;
+}
+
 .jrpg-dialog-body {
   padding: 20px;
   background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
