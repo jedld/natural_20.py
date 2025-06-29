@@ -8,7 +8,7 @@ current game state information for the VTT system.
 import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-
+from natural20.player_character import PlayerCharacter
 logger = logging.getLogger(__name__)
 
 class GameContextProvider:
@@ -57,6 +57,10 @@ class GameContextProvider:
                     
                     if hasattr(entity, 'npc_type'):
                         entity_info["npc_type"] = entity.npc_type
+                    
+                    if isinstance(entity, PlayerCharacter):
+                        entity_info["player_character"] = True
+                        entity_info["classes"] = entity.class_descriptor()
 
                     if hasattr(entity, 'group'):
                         entity_info["group"] = entity.group
@@ -126,13 +130,12 @@ class GameContextProvider:
             for entity in battle_map.entities:
                 try:
                     # Check if this is a player character
-                    if hasattr(entity, 'player_character') and entity.player_character:
+                    if isinstance(entity, PlayerCharacter):
                         pc_info = {
                             "name": entity.label() if hasattr(entity, 'label') else str(entity),
                             "entity_uid": getattr(entity, 'entity_uid', None),
                             "position": battle_map.entity_or_object_pos(entity) if hasattr(battle_map, 'entity_or_object_pos') else None,
-                            "class": getattr(entity, 'class_name', 'Unknown'),
-                            "level": getattr(entity, 'level', 1),
+                            "class": entity.class_descriptor()
                         }
                         
                         # Add HP with proper method handling
@@ -146,22 +149,12 @@ class GameContextProvider:
                         elif hasattr(entity, 'max_hp'):
                             pc_info["max_hp"] = entity.max_hp
                         
-                        if hasattr(entity, 'ac') and callable(getattr(entity, 'ac')):
-                            pc_info["ac"] = entity.ac()
-                        elif hasattr(entity, 'ac'):
-                            pc_info["ac"] = entity.ac
+                        if hasattr(entity, 'armor_class') and callable(getattr(entity, 'armor_class')):
+                            pc_info["ac"] = entity.armor_class()
                         
-                        # Add ability scores if available
-                        if hasattr(entity, 'strength'):
-                            abilities = {}
-                            for ability in ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']:
-                                if hasattr(entity, ability) and callable(getattr(entity, ability)):
-                                    abilities[ability] = getattr(entity, ability)()
-                                elif hasattr(entity, ability):
-                                    abilities[ability] = getattr(entity, ability)
-                                else:
-                                    abilities[ability] = 10
-                            pc_info["abilities"] = abilities
+                        pc_info["inventory"] = entity.inventory_items(self.game_session)
+                        pc_info["equipped"] = entity.equipped_items()
+                        pc_info["attributes"] = entity.attributes
                         
                         # Add current status effects
                         if hasattr(entity, 'current_effects') and callable(getattr(entity, 'current_effects')):
