@@ -4,7 +4,7 @@ class LLMConversationController:
         self.llm_client = None
         self.api_key = None
         self.model = "gpt-4o"
-        self.max_history = 10  # Maximum number of messages to keep in history
+        self.max_history = 100  # Maximum number of messages to keep in history
 
     def get_conversation(self, conversation_id):
         return self.conversations.get(conversation_id, None)
