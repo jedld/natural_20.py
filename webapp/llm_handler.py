@@ -1188,7 +1188,7 @@ REMEMBER:
                 prompt += f"\nEntities on Map: {len(context['entities'])}"
             
             if context.get('pov_entity'):
-                prompt += f"\nCurrent POV: {context['pov_entity']}"
+                prompt += f"\nCurrent POV uids: {context['pov_entity']}"
         
         prompt += "\n\nHow can I help you with your D&D game today?"
         return prompt

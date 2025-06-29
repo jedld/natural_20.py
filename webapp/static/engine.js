@@ -1760,6 +1760,12 @@ $(document).ready(() => {
     Utils.toggleBubble(this);
   });
 
+  // Handle dialog bubble clicks for dialog-capable entities
+  function handleDialogBubbleClick(entityId, entityName) {
+    console.log('Dialog bubble clicked for entity:', entityId, entityName);
+    handleTalk(entityId);
+  }
+
   $("#turn-order").on("change", ".group-select", function() {
     const $turnOrderItem = $(this).closest(".turn-order-item");
     const entity_uid = $turnOrderItem.data("id");

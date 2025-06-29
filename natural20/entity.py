@@ -75,6 +75,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.check_results = {}
         self.owner = None
         self.conversation_controller = None
+        self.dialog = False
         # Attach methods dynamically
         for ability, skills in self.SKILL_AND_ABILITY_MAP.items():
             for skill in skills:

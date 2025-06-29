@@ -161,6 +161,7 @@ class JsonRenderer:
                     'hp': entity.hp(),
                     'max_hp': entity.max_hp(),
                     'entity_size': entity.size(),
+                    'dialog': entity.dialog,
                     'conversation_buffer': entity.conversation(listener_languages=listener_languages),
                     'conversation_languages': ",".join(entity.languages())
                     })
