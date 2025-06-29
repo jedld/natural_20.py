@@ -592,7 +592,7 @@ def pov_entities():
 
 @app.route('/')
 def index():
-    global current_game
+    global current_game, logger
     battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     available_maps = current_game.get_available_maps()
@@ -603,7 +603,7 @@ def index():
    
 
     background = current_game.get_background_image_for_user(session['username'])
-    renderer = JsonRenderer(battle_map, battle, padding=MAP_PADDING)
+    renderer = JsonRenderer(battle_map, battle, padding=MAP_PADDING, logger=logger)
 
     my_2d_array = [renderer.render(entity_pov=pov_entities())]
     map_width, map_height = battle_map.size
@@ -1020,7 +1020,7 @@ def next_turn():
 
 @app.route('/update')
 def update():
-    global current_game
+    global current_game, logger
 
     x = int(request.args.get('x'))
     y = int(request.args.get('y'))
@@ -1035,7 +1035,7 @@ def update():
 
     # Get current POV entity
     pov_entity = current_game.get_pov_entity_for_user(session['username'])
-    _pov_entities = None
+    _pov_entities = [pov_entity]
     # Handle POV changes
     if entity and ('dm' in user_role() or entity in entities_controlled_by(session['username'], battle_map)):
         # Set new POV to selected entity
@@ -1046,8 +1046,10 @@ def update():
         pov_entity = None
         _pov_entities = None
 
+    if not 'dm' in user_role() and pov_entity is None:
+        _pov_entities = [entities_controlled_by(session['username'], battle_map)[0]]
 
-
+    logger.info(f"entity: {entity}, pov_entity: {pov_entity}, _pov_entities: {_pov_entities}")
     my_2d_array = [renderer.render(entity_pov=_pov_entities)]
     return render_template('map.html', tiles=my_2d_array, tile_size_px=TILE_PX, random=random, is_setup=(request.args.get('is_setup') == 'true'))
 
