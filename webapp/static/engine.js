@@ -7,6 +7,7 @@ let keyboardMovementPath = [];
 let keyboardMovementPivotPoints = [];
 let globalCanvas = null;
 let globalCtx = null;
+let talkToEntityMode = false; // Flag to track when user is talking to an entity
 
 const switchPOV = (entity_uid, canvas) => {
   ajaxPost("/switch_pov", { entity_uid }, (data) => {
@@ -14,6 +15,8 @@ const switchPOV = (entity_uid, canvas) => {
     if (data.background) {
       Utils.updateMapDisplay(data, canvas);
     }
+    // update the pov entity id in the body data
+    $('body').attr('data-pov-entity', data.pov_entity);
     Utils.refreshTileSet(
       (is_setup = false),
       (pov = true),
@@ -1657,6 +1660,14 @@ $(document).ready(() => {
 
   // Handle talk action
   function handleTalk(entityId) {
+    // Check if we're in talk to entity mode (JRPG dialog)
+    if (talkToEntityMode) {
+      // Use the JRPG dialog modal instead
+      handleDialogBubbleClick(entityId, 'Entity');
+      return;
+    }
+    
+    // Original talk modal behavior
     $('#talkModal').modal('show');
    
     // Get the tile data to access conversation languages
@@ -1751,6 +1762,10 @@ $(document).ready(() => {
     const $menu = $(this).closest('.popover-menu');
     const $tile = $(this).closest('.tile');
     const entityId = $tile.data('coords-id');
+    
+    // Ensure we're not in talk to entity mode for regular talk actions
+    talkToEntityMode = false;
+    
     handleTalk(entityId);
     $menu.hide();
   });
@@ -1764,8 +1779,17 @@ $(document).ready(() => {
   function handleDialogBubbleClick(entityId, entityName) {
     console.log('Dialog bubble clicked for entity:', entityId, entityName);
     
+    // Set talk to entity mode flag
+    talkToEntityMode = true;
+    
     // Show the JRPG dialog modal
     $('#jrpgDialogModal').modal('show');
+    
+    // Update modal title to indicate talk to entity mode
+    $('#jrpgDialogModalLabel').text('Talk to Entity');
+    
+    // Show mode indicator
+    $('#dialogModeIndicator').show();
     
     // Load entity information for the profile panel
     loadEntityProfile(entityId);
@@ -1777,7 +1801,12 @@ $(document).ready(() => {
     initializeDialogChat(entityId);
     
     // Add welcome message with the provided entity name
-    addDialogMessage('system', `Welcome to the conversation with ${entityName || 'this entity'}!`, 'system');
+    const currentPovEntity = getCurrentPovEntity();
+    if (currentPovEntity) {
+      addDialogMessage('system', `You are now talking to ${entityName || 'this entity'}.`, 'system');
+    } else {
+      addDialogMessage('system', `Welcome to the conversation with ${entityName || 'this entity'}!`, 'system');
+    }
   }
   
   // Load entity profile information
@@ -1795,8 +1824,8 @@ $(document).ready(() => {
       entityName = $tile.data('entity-name') || 'Unknown Entity';
     }
     
-    // Set entity name initially
-    $('#dialogEntityName').text(entityName);
+    // Set entity name initially and store entity ID
+    $('#dialogEntityName').text(entityName).data('entity-id', entityId);
     
     // Get entity portrait (use the entity image if available)
     const $entityImg = $tile.find('.npc');
@@ -1819,7 +1848,7 @@ $(document).ready(() => {
           
           // Update entity name with the proper name from server
           if (entity.name) {
-            $('#dialogEntityName').text(entity.name);
+            $('#dialogEntityName').text(entity.name).data('entity-id', entityId);
           }
           
           // Update entity stats
@@ -1904,8 +1933,29 @@ $(document).ready(() => {
       loadDialogHistory(entityId);
     });
     
+    // Handle mode toggle button
+    $('#toggleTalkMode').off('click').on('click', function() {
+      talkToEntityMode = !talkToEntityMode;
+      updateTalkModeDisplay();
+    });
+    
     // Focus on input
     $('#dialogChatInput').focus();
+  }
+  
+  // Update the display based on talk mode
+  function updateTalkModeDisplay() {
+    if (talkToEntityMode) {
+      $('#dialogModeIndicator').show();
+      $('#jrpgDialogModalLabel').text('Talk to Entity');
+      $('#toggleTalkMode').removeClass('btn-info').addClass('btn-warning').html('<i class="glyphicon glyphicon-comment"></i> Regular Mode');
+      addDialogMessage('system', 'Switched to Talk to Entity mode. You are now talking to the entity.', 'system');
+    } else {
+      $('#dialogModeIndicator').hide();
+      $('#jrpgDialogModalLabel').text('Dialog');
+      $('#toggleTalkMode').removeClass('btn-warning').addClass('btn-info').html('<i class="glyphicon glyphicon-comment"></i> Talk Mode');
+      addDialogMessage('system', 'Switched to Regular Dialog mode.', 'system');
+    }
   }
   
   // Send a message in the dialog
@@ -1923,16 +1973,27 @@ $(document).ready(() => {
     // Clear input
     $('#dialogChatInput').val('');
     
+    // Determine the source entity based on mode
+    let sourceEntityId = entityId;
+    if (talkToEntityMode) {
+      // In talk to entity mode, the POV user is talking to the entity
+      // We need to get the current POV user's entity ID
+      const currentPovEntity = getCurrentPovEntity();
+      if (currentPovEntity) {
+        sourceEntityId = currentPovEntity;
+      }
+    }
+    
     // Send message to server
     $.ajax({
       url: '/talk',
       type: 'POST',
       contentType: 'application/json',
       data: JSON.stringify({
-        entity_id: entityId,
+        entity_id: sourceEntityId,
         message: message,
-        targets: [],
-        no_specific_target: true,
+        targets: talkToEntityMode ? [entityId] : [], // In talk mode, target the entity being talked to
+        no_specific_target: !talkToEntityMode, // Only set to true if not in talk mode
         language: selectedLanguage,
         distance_ft: distance_ft
       }),
@@ -1951,13 +2012,61 @@ $(document).ready(() => {
       }
     });
   }
-  
+
+  // Helper function to get current POV entity ID
+  function getCurrentPovEntity() {
+    // Try to get from the floating portraits
+    const $currentPov = $('#floating-entity-portraits .floating-entity-portrait.current-pov');
+    if ($currentPov.length) {
+      return $currentPov.data('id');
+    }
+
+    const povEntityId =$('body').data('pov-entity');
+
+    if (povEntityId) {
+      return povEntityId;
+    }
+
+    // If we can't determine POV, return null
+    return null;
+  }
+
   // Add a message to the dialog chat
   function addDialogMessage(sender, content, type) {
     const timestamp = new Date().toLocaleTimeString();
+
+    // Determine the display name based on mode and sender
+    let displayName = sender;
+    if (talkToEntityMode) {
+      if (sender === 'player') {
+        // Get the current POV entity name
+        const currentPovEntity = getCurrentPovEntity();
+        if (currentPovEntity) {
+          const $povTile = $(`.tile[data-coords-id="${currentPovEntity}"]`);
+          const $nameplate = $povTile.find('.nameplate');
+          if ($nameplate.length) {
+            displayName = $nameplate.text();
+          } else {
+            displayName = 'You';
+          }
+        } else {
+          displayName = 'You';
+        }
+      } else if (sender === 'entity') {
+        // Get the entity being talked to
+        const $entityTile = $(`.tile[data-coords-id="${$('#dialogEntityName').data('entity-id')}"]`);
+        const $nameplate = $entityTile.find('.nameplate');
+        if ($nameplate.length) {
+          displayName = $nameplate.text();
+        } else {
+          displayName = 'Entity';
+        }
+      }
+    }
+    
     const messageHtml = `
       <div class="dialog-chat-message ${type}">
-        <div class="message-sender">${sender}</div>
+        <div class="message-sender">${displayName}</div>
         <div class="message-content">${content}</div>
         <div class="message-timestamp">${timestamp}</div>
       </div>
@@ -1975,6 +2084,22 @@ $(document).ready(() => {
     // This could be expanded to load conversation history from the server
     addDialogMessage('system', 'Conversation history feature coming soon!', 'system');
   }
+
+  // Reset talk to entity mode when modal is closed
+  $('#jrpgDialogModal').on('hidden.bs.modal', function() {
+    talkToEntityMode = false;
+    $('#dialogModeIndicator').hide();
+    $('#jrpgDialogModalLabel').text('Dialog');
+    console.log('Talk to entity mode reset');
+  });
+
+  // Reset talk to entity mode when modal is closed via close button
+  $('#jrpgDialogModal .close, #jrpgDialogModal .btn-default').on('click', function() {
+    talkToEntityMode = false;
+    $('#dialogModeIndicator').hide();
+    $('#jrpgDialogModalLabel').text('Dialog');
+    console.log('Talk to entity mode reset via close button');
+  });
 
   $("#turn-order").on("change", ".group-select", function() {
     const $turnOrderItem = $(this).closest(".turn-order-item");
