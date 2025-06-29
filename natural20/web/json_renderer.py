@@ -2,11 +2,16 @@ import numpy as np
 import pdb
 from natural20.map import Map
 from natural20.battle import Battle
+import logging
 class JsonRenderer:
-    def __init__(self, map: Map, battle: Battle=None, padding=None):
+    def __init__(self, map: Map, battle: Battle=None, padding=None, logger=None):
         self.map = map
         self.battle = battle
         self.padding = padding
+        if logger is None:
+            self.logger = logging.getLogger(__name__)
+        else:
+            self.logger = logger
 
     def render(self, entity_pov=None, path=None, select_pos=None):
         if path is None:
@@ -23,6 +28,8 @@ class JsonRenderer:
                 if entity:
                     for pos in self.map.entity_squares(entity):
                         entity_pov_locations.append(pos)
+
+        self.logger.info(f"entity_pov_locations: {entity_pov_locations}")
         if self.padding:
             width += self.padding[0]
             height += self.padding[1]
