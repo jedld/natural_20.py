@@ -504,12 +504,14 @@ class OllamaProvider(LLMProvider):
     def __init__(self):
         self.base_url = "http://localhost:11434"
         self.model = None
+        self.context_window = 16384  # Default context window size
         self.conversation_history = []
     
     def initialize(self, config: Dict[str, Any]) -> bool:
         try:
             self.base_url = config.get('base_url', 'http://localhost:11434')
             self.model = config.get('model')
+            self.context_window = config.get('context_window', 16384)  # Allow configurable context window
             
             # Test connection
             response = requests.get(f"{self.base_url}/api/tags", timeout=10)
@@ -548,6 +550,7 @@ class OllamaProvider(LLMProvider):
                     "top_k": 10,         # Reduce randomness
                     "top_p": 0.9,        # Reduce randomness
                     "repeat_penalty": 1.1,  # Prevent repetition
+                    "num_ctx": self.context_window,  # Set context window size
                     # Remove stop tokens that are too aggressive
                     "stop": []  # Let the model generate naturally
                 }
@@ -580,7 +583,8 @@ class OllamaProvider(LLMProvider):
                             "num_predict": 200,
                             "top_k": 10,
                             "top_p": 0.9,
-                            "repeat_penalty": 1.1
+                            "repeat_penalty": 1.1,
+                            "num_ctx": self.context_window  # Set context window size
                         }
                     }
 
@@ -629,6 +633,18 @@ class OllamaProvider(LLMProvider):
             self.model = model_name
             return True
         return False
+    
+    def set_context_window(self, context_window: int) -> bool:
+        """Set the context window size for the model."""
+        if context_window > 0:
+            self.context_window = context_window
+            logger.info(f"[OllamaProvider] Context window set to {context_window}")
+            return True
+        return False
+    
+    def get_context_window(self) -> int:
+        """Get the current context window size."""
+        return self.context_window
     
     def _build_system_prompt(self, context: Optional[Dict[str, Any]] = None) -> str:
         """Build a strict system prompt enforcing function calling."""
@@ -1014,6 +1030,30 @@ class LLMHandler:
             return False
         return self.current_provider.set_model(model_name)
     
+    def set_context_window(self, context_window: int) -> bool:
+        """Set the context window size for the current provider (Ollama only)."""
+        if not self.current_provider:
+            return False
+        
+        # Only Ollama provider supports context window setting
+        if hasattr(self.current_provider, 'set_context_window'):
+            return self.current_provider.set_context_window(context_window)
+        else:
+            logger.warning(f"[LLMHandler] Provider {type(self.current_provider).__name__} does not support context window setting")
+            return False
+    
+    def get_context_window(self) -> Optional[int]:
+        """Get the current context window size for the current provider (Ollama only)."""
+        if not self.current_provider:
+            return None
+        
+        # Only Ollama provider supports context window getting
+        if hasattr(self.current_provider, 'get_context_window'):
+            return self.current_provider.get_context_window()
+        else:
+            logger.warning(f"[LLMHandler] Provider {type(self.current_provider).__name__} does not support context window getting")
+            return None
+    
     def get_provider_info(self) -> Dict[str, Any]:
         """Get information about the current provider."""
         if not self.current_provider:
@@ -1028,6 +1068,12 @@ class LLMHandler:
         # Add provider-specific info
         if hasattr(self.current_provider, 'current_model'):
             info['current_model'] = self.current_provider.current_model
+        
+        # Add context window info for Ollama provider
+        if hasattr(self.current_provider, 'get_context_window'):
+            context_window = self.current_provider.get_context_window()
+            if context_window:
+                info['context_window'] = context_window
         
         return info
     
