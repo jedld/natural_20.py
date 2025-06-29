@@ -88,6 +88,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Lootable,
 
     self.group = self.properties.get('group', 'a')
 
+    # Player characters have dialog capability by default
+    self.dialog = True
+
     # use ordered dict to maintain order of spell slots
     self.spell_slots = {}
     with open(f"{self.session.root_path}/races/{race_file}.yml") as file:

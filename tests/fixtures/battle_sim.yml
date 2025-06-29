@@ -64,6 +64,7 @@ legend:
     sub_type: goblin
     overrides:
       hp: 40
+      dialog: true
   Y:
     name: animated_armor_spawner
     type: animated_spawner
