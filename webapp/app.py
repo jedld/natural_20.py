@@ -1888,12 +1888,12 @@ def talk():
                     current_game.update_group(receiver, 'b')
                     output_logger.log(f"entity {receiver.label()} is now in the hostile group")
                 else:
-                    if "[INVENTORY]" in response:
+                    if "[INVENTORY" in response:
                         response = [item.name for item in receiver.inventory]
                         system_response = f'[INVENTORY] {", ".join(response)}'
                         llm_conversation_handler.add_message(receiver.entity_uid, 'system', system_response)
                         response = llm_conversation_handler.generate_response(receiver.entity_uid)
-                    elif "[OBSERVE]" in response:
+                    elif "[OBSERVE" in response:
                         nearby = receiver.observe(current_game.get_map_for_entity(receiver))
                         for entity, distance in nearby:
                             response += f"{entity.label()} is {distance}ft away\n"
