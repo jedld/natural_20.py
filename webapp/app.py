@@ -66,6 +66,7 @@ import traceback
 from webapp.llm_handler import llm_handler
 from webapp.game_context import GameContextProvider
 import requests
+import re
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 
@@ -1882,18 +1883,20 @@ def talk():
             llm_conversation_handler.create_conversation(receiver.entity_uid, system_prompt)
 
             if receiver in directed_to:
-                message = f"{entity.label()} says: {message}"
+                message = f"{entity.label()} says [in {language}]: {message}"
             else:
                 message = f"you overheard {entity.label()} say: \"{message}\" to {[e.label() for e in directed_to]}"
             llm_conversation_handler.add_message(receiver.entity_uid, 'user', message)
             response = llm_conversation_handler.generate_response(receiver.entity_uid)
             if response:
+                # Remove any text between and including square brackets
+                response = re.sub(r'\[.*?\]', '', response)
                 receiver.send_conversation(response, targets=[entity])
                 owners = entity_owners(receiver)
                 for owner in owners:
                     sids = username_to_sid.get(owner, [])
                     for sid in sids:
-                        socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': receiver.entity_uid, 'message': response}}, to=sid)
+                        socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': receiver.entity_uid, 'message': response, 'targets': [e.entity_uid for e in directed_to]}}, to=sid)
 
     return jsonify({'success': True})
 
