@@ -226,20 +226,12 @@ for extension in EXTENSIONS:
 
 # Initialize the LLM conversation handler
 # Initialize the LLM with API key from environment variable
-CONVERSATION_SYSTEM_PROMPT = """
-You play as an NPC named as "{name}" in a Dungeons and Dragons game world. The following text will describe
-the backstory of your character. Please respond to the user in character based on the backstory and personality provided.
-The conversation history  will be a list given in the following format:
+if os.path.exists(os.path.join(LEVEL, 'npc_system_prompt.txt')):
+    with open(os.path.join(LEVEL, 'npc_system_prompt.txt')) as f:
+        CONVERSATION_SYSTEM_PROMPT = f.read()
+else:
+    CONVERSATION_SYSTEM_PROMPT = ""
 
-<name> says: <message>
-
-Respond to the character in first person. Roleplay the character as much as possible and
-do not go out of character.
-
-<start_of_backstory>
-{backstory}
-<end_of_backstory>
-"""
 llm_handler = LLMHandler()
 llm_handler.initialize_provider('ollama', {'model': 'llama3.1:8b'})
 llm_conversation_handler = LLMConversationController(llm_handler)
@@ -1890,6 +1882,24 @@ def talk():
             response = llm_conversation_handler.generate_response(receiver.entity_uid)
             if response:
                 # Remove any text between and including square brackets
+                if "[GO_HOSTILE]" in response:
+                    # switch entity to the hostile group
+                    receiver.update_state('active')
+                    current_game.update_group(receiver, 'b')
+                    output_logger.log(f"entity {receiver.label()} is now in the hostile group")
+                else:
+                    if "[INVENTORY]" in response:
+                        response = [item.name for item in receiver.inventory]
+                        system_response = f'[INVENTORY] {", ".join(response)}'
+                        llm_conversation_handler.add_message(receiver.entity_uid, 'system', system_response)
+                        response = llm_conversation_handler.generate_response(receiver.entity_uid)
+                    elif "[OBSERVE]" in response:
+                        nearby = receiver.observe(current_game.get_map_for_entity(receiver))
+                        for entity, distance in nearby:
+                            response += f"{entity.label()} is {distance}ft away\n"
+                        system_response = f'[OBSERVE] {response}'
+                        llm_conversation_handler.add_message(receiver.entity_uid, 'system', system_response)
+                        response = llm_conversation_handler.generate_response(receiver.entity_uid)
                 response = re.sub(r'\[.*?\]', '', response)
                 receiver.send_conversation(response, targets=[entity])
                 owners = entity_owners(entity)
@@ -1912,24 +1922,15 @@ def nearby_entities():
     if not entity:
         return jsonify({'error': 'Entity not found'}), 404
 
-    entity_map = current_game.get_map_for_entity(entity)    # Get all entities on the same map
-    map_entities = entity_map.entities_in_range(entity, range_ft)
-    nearby = []
+    nearby = entity.observe(current_game.get_map_for_entity(entity), range_ft)
 
-    for other_entity in map_entities:
-        if other_entity == entity:
-            continue
-        if not other_entity.conversable():
-            continue
-
-        line_of_sight = entity_map.can_see(entity, other_entity)
-        if not line_of_sight:
-            continue
-
-        nearby.append({
-            'id': other_entity.entity_uid,
-            'name': other_entity.label(),
-            'distance': entity_map.distance(entity, other_entity) * entity_map.feet_per_grid
+    response = []
+    for entity, distance in nearby:
+        response.append({
+            'id': entity.entity_uid,
+            'name': entity.label(),
+            'distance': distance,
+            'conversable': entity.conversable()
         })
 
     return jsonify({
