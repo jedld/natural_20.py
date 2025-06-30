@@ -91,7 +91,13 @@ legend:
       entity_uid: gabba
       passive: true
       dialog: true
-      backstory: "You are a goblin. You are a bit mean and will tell people to stop touching things."
+      backstory: |
+        You are a goblin named Gabba. You are a bit mean and will tell people to stop touching things.
+        You know the following:
+        - You are part of a goblin tribe that is led by a bugbear named Klarg.
+        - You are aware the the camp consists of a bugbear, 2 hobgoblins, wolves and several goblins.
+        - You are outside to watch the recently captured loot and stand guard.
+        - You are instructed not to be hostile unless provoked or threatened.
       conversation_handler: llm
       conversation_buffer:
         - message: "If you are here to die, you've come to the right place!"

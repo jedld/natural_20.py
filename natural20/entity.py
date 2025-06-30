@@ -543,6 +543,23 @@ class Entity(EntityStateEvaluator, Notable):
             
             self.after_death()
 
+    def observe(self, entity_map, range_ft=30):
+        map_entities = entity_map.entities_in_range(self, range_ft)
+        nearby = []
+
+        for other_entity in map_entities:
+            if other_entity == self:
+                continue
+            if not other_entity.conversable():
+                continue
+
+            line_of_sight = entity_map.can_see(self, other_entity)
+            if not line_of_sight:
+                continue
+
+            nearby.append([other_entity,  entity_map.distance(self, other_entity) * entity_map.feet_per_grid])
+        return nearby
+    
     def after_death(self):
         pass
 
