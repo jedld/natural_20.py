@@ -501,39 +501,62 @@ $(document).ready(() => {
       }
       case "conversation": {
         // Handle real-time conversation updates
-        const { entity_id, message } = data.message;
-      
-        // Find the tile with the entity
-        const $tile = $(`.tile[data-coords-id="${entity_id}"]`);
-        if ($tile.length) {
-          // Check if conversation bubble already exists
-          let $bubble = $tile.find('.conversation-bubble');
+        const { entity_id, message, targets } = data.message;
         
-          if ($bubble.length) {
-            // Update existing bubble
-            $bubble.find('.bubble-content').text(message);
-            $bubble.removeClass('minimized');
-            $bubble.find('.bubble-content').show();
-            $bubble.find('.bubble-minimized').hide();
-          } else {
-            // Create new bubble
-            $bubble = $(`
-              <div class="conversation-bubble">
-                <div class="bubble-content">${message}</div>
-                <div class="bubble-minimized" style="display: none;">
-                  <i class="glyphicon glyphicon-comment"></i>
-                </div>
-                <button class="close-bubble" onclick="Utils.dismissBubble(this.parentElement); event.stopPropagation();">×</button>
-              </div>
-            `);
-            $tile.append($bubble);
+        // Validate required fields
+        if (!entity_id || !message) {
+          console.warn('Invalid conversation event received:', data.message);
+          break;
+        }
+      
+        // Check if dialog modal is open and if this entity matches the current dialog
+        const $dialogModal = $('#jrpgDialogModal');
+        const currentDialogEntityId = $('#dialogEntityName').data('entity-id');
+        const currentPovEntity = getCurrentPovEntity();
+        
+        // Check if this message should be shown in dialog modal:
+        // 1. Dialog modal is open and this entity matches the current dialog entity
+        // 2. OR this message is directed to the current POV entity (targets includes current POV)
+        const shouldShowInDialog = $dialogModal.is(':visible') && (
+          currentDialogEntityId === entity_id || 
+          (targets && Array.isArray(targets) && targets.includes(currentPovEntity))
+        );
+        
+        // Check if this message is directed to the current POV entity (for potential dialog opening)
+        const isDirectedToPov = targets && Array.isArray(targets) && targets.includes(currentPovEntity);
+        
+        if (shouldShowInDialog) {
+          // Dialog modal is open and this entity matches - show message in dialog
+          console.log('Adding conversation message to dialog modal:', message);
+          
+          try {
+            // Get the entity name for display
+            const $entityTile = $(`.tile[data-coords-id="${entity_id}"]`);
+            let entityName = 'Entity';
+            if ($entityTile.length) {
+              const $nameplate = $entityTile.find('.nameplate');
+              if ($nameplate.length) {
+                entityName = $nameplate.text();
+              } else {
+                entityName = $entityTile.data('entity-name') || 'Entity';
+              }
+            }
+            
+            // Add the message to the dialog chat
+            addDialogMessage('entity', message, 'entity');
+          } catch (error) {
+            console.error('Error adding message to dialog modal:', error);
+            // Fallback to showing conversation bubble
+            showConversationBubble(entity_id, message);
           }
-
-          setTimeout(() => {
-            $tile.find('.conversation-bubble').fadeOut(500, function() {
-              $(this).remove();
-            });
-          }, 10000);
+        } else if (isDirectedToPov && !$dialogModal.is(':visible')) {
+          // Message is directed to current POV but dialog modal is not open
+          // Show conversation bubble and optionally provide a way to open dialog
+          console.log('Message directed to POV entity, but dialog modal not open:', message);
+          showDialogTriggerBubble(entity_id, message);
+        } else {
+          // Show conversation bubble on tile as before
+          showConversationBubble(entity_id, message);
         }
         break;
       }
@@ -2029,6 +2052,88 @@ $(document).ready(() => {
 
     // If we can't determine POV, return null
     return null;
+  }
+
+  // Helper function to show a regular conversation bubble
+  function showConversationBubble(entity_id, message) {
+    const $tile = $(`.tile[data-coords-id="${entity_id}"]`);
+    if ($tile.length) {
+      // Check if conversation bubble already exists
+      let $bubble = $tile.find('.conversation-bubble');
+    
+      if ($bubble.length) {
+        // Update existing bubble
+        $bubble.find('.bubble-content').text(message);
+        $bubble.removeClass('minimized');
+        $bubble.find('.bubble-content').show();
+        $bubble.find('.bubble-minimized').hide();
+      } else {
+        // Create new bubble
+        $bubble = $(`
+          <div class="conversation-bubble">
+            <div class="bubble-content">${message}</div>
+            <div class="bubble-minimized" style="display: none;">
+              <i class="glyphicon glyphicon-comment"></i>
+            </div>
+            <button class="close-bubble" onclick="Utils.dismissBubble(this.parentElement); event.stopPropagation();">×</button>
+          </div>
+        `);
+        $tile.append($bubble);
+      }
+
+      setTimeout(() => {
+        $tile.find('.conversation-bubble').fadeOut(500, function() {
+          $(this).remove();
+        });
+      }, 10000);
+    }
+  }
+
+  // Helper function to show a dialog-trigger conversation bubble
+  function showDialogTriggerBubble(entity_id, message) {
+    const $tile = $(`.tile[data-coords-id="${entity_id}"]`);
+    if ($tile.length) {
+      // Create a special conversation bubble that can open the dialog
+      let $bubble = $tile.find('.conversation-bubble');
+    
+      if ($bubble.length) {
+        // Update existing bubble
+        $bubble.find('.bubble-content').text(message);
+        $bubble.removeClass('minimized');
+        $bubble.find('.bubble-content').show();
+        $bubble.find('.bubble-minimized').hide();
+      } else {
+        // Create new bubble with click handler to open dialog
+        $bubble = $(`
+          <div class="conversation-bubble dialog-trigger" style="cursor: pointer;">
+            <div class="bubble-content">${message}</div>
+            <div class="bubble-minimized" style="display: none;">
+              <i class="glyphicon glyphicon-comment"></i>
+            </div>
+            <div class="dialog-indicator" style="position: absolute; top: -5px; right: -5px; background: #4CAF50; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+              <i class="glyphicon glyphicon-chevron-right"></i>
+            </div>
+            <button class="close-bubble" onclick="Utils.dismissBubble(this.parentElement); event.stopPropagation();">×</button>
+          </div>
+        `);
+        
+        // Add click handler to open dialog modal
+        $bubble.on('click', function(e) {
+          if (!$(e.target).hasClass('close-bubble')) {
+            const entityName = $tile.find('.nameplate').text() || $tile.data('entity-name') || 'Entity';
+            handleDialogBubbleClick(entity_id, entityName);
+          }
+        });
+        
+        $tile.append($bubble);
+      }
+
+      setTimeout(() => {
+        $tile.find('.conversation-bubble').fadeOut(500, function() {
+          $(this).remove();
+        });
+      }, 15000); // Longer timeout for dialog-trigger bubbles
+    }
   }
 
   // Add a message to the dialog chat

@@ -674,6 +674,33 @@ input.initiative-input.form-control {
   z-index: 1000;
 }
 
+/* Special styling for dialog-trigger conversation bubbles */
+.conversation-bubble.dialog-trigger {
+  background-color: rgba(76, 175, 80, 0.9);
+  color: white;
+  border: 2px solid #4CAF50;
+  box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+  animation: dialogPulse 2s ease-in-out infinite;
+}
+
+@keyframes dialogPulse {
+  0% {
+    box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+  }
+  50% {
+    box-shadow: 0 6px 12px rgba(76, 175, 80, 0.5);
+  }
+  100% {
+    box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+  }
+}
+
+.conversation-bubble.dialog-trigger:hover {
+  background-color: rgba(69, 160, 73, 0.95);
+  transform: translateX(-50%) scale(1.05);
+  transition: all 0.2s ease;
+}
+
 .conversation-bubble .sender {
   font-weight: bold;
   color: #333;
