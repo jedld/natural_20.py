@@ -2132,8 +2132,9 @@ $(document).ready(() => {
   });
 
 
-  $(document).on('click', '.dialog-bubble', function(event) {
+  $(".tiles-container").on('click', '.dialog-bubble', function(event) {
     event.stopPropagation();
+    event.preventDefault();
     const entityId = $(this).data('id');
     const entityName = $(this).data('name');
     handleDialogBubbleClick(entityId, entityName);
