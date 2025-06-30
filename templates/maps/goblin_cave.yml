@@ -91,7 +91,7 @@ legend:
       entity_uid: gabba
       passive: true
       dialog: true
-      conversation_prompt: "You are a goblin. You are a bit mean and will tell people to stop touching things."
+      backstory: "You are a goblin. You are a bit mean and will tell people to stop touching things."
       conversation_handler: llm
       conversation_buffer:
         - message: "If you are here to die, you've come to the right place!"
