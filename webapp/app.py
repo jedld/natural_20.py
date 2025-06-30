@@ -1066,7 +1066,7 @@ def update():
 
     logger.info(f"entity: {entity}, pov_entity: {pov_entity}, _pov_entities: {_pov_entities}")
     my_2d_array = [renderer.render(entity_pov=_pov_entities)]
-    return render_template('map.html', tiles=my_2d_array, tile_size_px=TILE_PX, random=random, is_setup=(request.args.get('is_setup') == 'true'))
+    return render_template('map.html', pov_entity=pov_entity, tiles=my_2d_array, tile_size_px=TILE_PX, random=random, is_setup=(request.args.get('is_setup') == 'true'))
 
 @app.route('/actions', methods=['GET'])
 def get_actions():
@@ -1892,11 +1892,11 @@ def talk():
                 # Remove any text between and including square brackets
                 response = re.sub(r'\[.*?\]', '', response)
                 receiver.send_conversation(response, targets=[entity])
-                owners = entity_owners(receiver)
+                owners = entity_owners(entity)
                 for owner in owners:
                     sids = username_to_sid.get(owner, [])
                     for sid in sids:
-                        socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': receiver.entity_uid, 'message': response, 'targets': [e.entity_uid for e in directed_to]}}, to=sid)
+                        socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': receiver.entity_uid, 'message': response, 'targets': [entity.entity_uid]}}, to=sid)
 
     return jsonify({'success': True})
 
