@@ -524,7 +524,7 @@ $(document).ready(() => {
         
         // Check if this message is directed to the current POV entity (for potential dialog opening)
         const isDirectedToPov = targets && Array.isArray(targets) && targets.includes(currentPovEntity);
-        
+        debugger;
         if (shouldShowInDialog) {
           // Dialog modal is open and this entity matches - show message in dialog
           console.log('Adding conversation message to dialog modal:', message);
