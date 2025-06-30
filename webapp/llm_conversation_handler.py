@@ -14,17 +14,7 @@ class LLMConversationHandler:
         self.initialized = False
         self.entity = entity
         self.system_prompt = system_prompt
-        self.initialize(api_key=os.environ.get('OPENAI_API_KEY'))
 
-    def initialize(self, api_key=None, model="gpt-4o"):
-        """Initialize the LLM controller with the provided API key and model."""
-        try:
-            self.controller.initialize_llm(api_key=api_key, model=model)
-            self.initialized = True
-            return True
-        except Exception as e:
-            print(f"Failed to initialize LLM: {e}")
-            return False
 
     def process_message(self, entity, source, message, language, memory_buffer, directed_to=None):
         if not self.initialized:

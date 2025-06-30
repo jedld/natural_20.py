@@ -82,6 +82,8 @@ class Entity(EntityStateEvaluator, Notable):
                 setattr(self, f"{skill}_mod", self.make_skill_mod_function(skill, ability))
                 setattr(self, f"{skill}_check", self.make_skill_check_function(skill))
 
+    def backstory(self):
+        return self.properties.get('backstory', '')
 
     def immune_to_condition(self, condition):
         return condition in self.condition_immunities
@@ -192,9 +194,9 @@ class Entity(EntityStateEvaluator, Notable):
             
             if language not in other_entity.languages():
                 print(f'{other_entity.name} does not speak {language}')
-                nearby.append([other_entity, gibberish(message, language)])
+                nearby.append([other_entity, gibberish(message, language), targets])
             else:
-                nearby.append([other_entity, message])
+                nearby.append([other_entity, message, targets])
                 print(f'{other_entity.name} speaks {language} and receives message {message}')
                 other_entity.receive_conversation(self, message, language=language, directed_to=targets)
 

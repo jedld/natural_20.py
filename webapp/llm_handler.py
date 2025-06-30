@@ -748,7 +748,7 @@ class LLMHandler:
             return True
         return False
     
-    def send_message(self, message: str, context: Optional[Dict[str, Any]] = None) -> str:
+    def send_message(self, message, context: Optional[Dict[str, Any]] = None) -> str:
         """Send a message to the LLM and get a response, automatically handling truncated responses."""
         logger.debug(f"[LLMHandler] send_message called with message: {message}")
         if not self.current_provider:
@@ -757,15 +757,19 @@ class LLMHandler:
             self.session_logger.log_error(error_msg, "No provider initialized")
             return error_msg
         
-        self.conversation_history.append({"role": "user", "content": message})
-        logger.debug(f"[LLMHandler] Conversation history: {self.conversation_history}")
-        
-        system_prompt = self._build_system_prompt(context)
-        logger.debug(f"[LLMHandler] System prompt: {system_prompt}")
-        
-        messages = [{"role": "system", "content": system_prompt}]
-        messages.extend(self.conversation_history)
-        logger.debug(f"[LLMHandler] Messages sent to provider: {messages}")
+        if isinstance(message, list):
+            self.conversation_history = message
+            messages = message
+        else:
+            self.conversation_history.append({"role": "user", "content": message})
+            logger.debug(f"[LLMHandler] Conversation history: {self.conversation_history}")
+            
+            system_prompt = self._build_system_prompt(context)
+            logger.debug(f"[LLMHandler] System prompt: {system_prompt}")
+            
+            messages = [{"role": "system", "content": system_prompt}]
+            messages.extend(self.conversation_history)
+            logger.debug(f"[LLMHandler] Messages sent to provider: {messages}")
         
         provider_info = self.get_provider_info()
         self.session_logger.log_request(messages, provider_info)
