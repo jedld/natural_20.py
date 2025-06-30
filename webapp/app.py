@@ -57,7 +57,8 @@ import time
 import uuid
 from utils import SocketIOOutputLogger, GameManagement
 from datetime import datetime
-from webapp.llm_conversation_handler import LLMConversationHandler
+from webapp.llm_conversation_controller import LLMConversationController
+from webapp.llm_handler import LLMHandler
 import threading
 import pdb
 import traceback
@@ -146,7 +147,7 @@ output_logger.log("Server started")
 
 event_manager = EventManager(output_logger=output_logger, movement_consolidation=True)
 event_manager.standard_cli()
-game_session = GameSession.Session(LEVEL, event_manager=event_manager, conversation_handlers={'llm': LLMConversationHandler})
+game_session = GameSession.Session(LEVEL, event_manager=event_manager)
 game_session.render_for_text = False # render for text is disabled since we are using a web renderer
 current_soundtrack = None
 
@@ -167,6 +168,7 @@ current_game = GameManagement(game_session=game_session,
 
 # Initialize game context provider for LLM RAG
 game_context_provider = GameContextProvider(game_session, current_game)
+llm_conversation_handler = None
 
 # Register game context functions with the LLM handler
 def register_game_context_functions():
@@ -223,14 +225,24 @@ for extension in EXTENSIONS:
 
 # Initialize the LLM conversation handler
 # Initialize the LLM with API key from environment variable
-# @app.before_first_request
-# def initialize_llm():
-#     api_key = os.environ.get('OPENAI_API_KEY')
-#     if api_key:
-#         llm_conversation_handler.initialize(api_key=api_key)
-#         print("LLM conversation handler initialized successfully")
-#     else:
-#         print("OPENAI_API_KEY not found in environment variables. LLM conversations will not be available.")
+CONVERSATION_SYSTEM_PROMPT = """
+You play as an NPC named as "{name}" in a Dungeons and Dragons game world. The following text will describe
+the backstory of your character. Please respond to the user in character based on the backstory and personality provided.
+The conversation history  will be a list given in the following format:
+
+<name> says: <message>
+
+Respond to the character in first person. Roleplay the character as much as possible and
+do not go out of character.
+
+<start_of_backstory>
+{backstory}
+<end_of_backstory>
+"""
+llm_handler = LLMHandler()
+llm_handler.initialize_provider('ollama', {'model': 'llama3.1:8b'})
+llm_conversation_handler = LLMConversationController(llm_handler)
+
 
 def logged_in():
     return session.get('username') is not None
@@ -1836,11 +1848,13 @@ def usable_items():
 
 @app.route('/talk', methods=['POST'])
 def talk():
+    global llm_conversation_handler
+    global CONVERSATION_SYSTEM_PROMPT
     data = request.get_json()
     entity_id = data.get('entity_id')
     message = data.get('message')
     language = data.get('language')
-    targets = data.get('targets', [])
+    primary_targets = data.get('targets', [])
     distance_ft = data.get('distance_ft', 30)
     if not entity_id or not message:
         return jsonify({'error': 'Entity ID and message are required'}), 400
@@ -1851,24 +1865,35 @@ def talk():
     # Create conversation message
     # Add message to entity's conversation history
     entity_targets = []
-    if len(targets) > 0:
-        for _entity_uid in targets:
+    if len(primary_targets) > 0:
+        for _entity_uid in primary_targets:
             entity_targets.append(game_session.entity_by_uid(_entity_uid))
     processed_conversations = entity.send_conversation(message, distance_ft=distance_ft, targets=entity_targets, language=language)
     current_sids = username_to_sid.get(session['username'], [])
     for sid in current_sids:
         socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': entity_id, 'message': message}}, to=sid)
 
-    for target, message in processed_conversations:
+    for receiver, message, directed_to in processed_conversations:
         # # Trigger LLM response for NPCs if LLM is initialized
         # if llm_conversation_handler.initialized and target.npc():
         #     llm_conversation_handler.handle_conversation(target, entity, message, language)
-            
-        owners = entity_owners(target)
-        for owner in owners:
-            sids = username_to_sid.get(owner, [])
-            for sid in sids:
-                socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': entity_id, 'message': message}}, to=sid)
+        if receiver.is_npc() and receiver.dialog:
+            system_prompt = CONVERSATION_SYSTEM_PROMPT.format(backstory=receiver.backstory(), name=receiver.label())
+            llm_conversation_handler.create_conversation(receiver.entity_uid, system_prompt)
+
+            if receiver in directed_to:
+                message = f"{entity.label()} says: {message}"
+            else:
+                message = f"you overheard {entity.label()} say: \"{message}\" to {[e.label() for e in directed_to]}"
+            llm_conversation_handler.add_message(receiver.entity_uid, 'user', message)
+            response = llm_conversation_handler.generate_response(receiver.entity_uid)
+            if response:
+                receiver.send_conversation(response, targets=[entity])
+                owners = entity_owners(receiver)
+                for owner in owners:
+                    sids = username_to_sid.get(owner, [])
+                    for sid in sids:
+                        socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': receiver.entity_uid, 'message': response}}, to=sid)
 
     return jsonify({'success': True})
 
