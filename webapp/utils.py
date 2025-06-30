@@ -288,6 +288,10 @@ class GameManagement:
 
     def get_available_maps(self):
         return list(self.maps.keys())
+    
+    def update_group(self, entity, group):
+        entity.group = group
+        self.loop_environment()
 
     def loop_environment(self):
         if not self.auto_battle:
