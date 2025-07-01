@@ -226,7 +226,7 @@ class Map():
     def add_linked_map(self, name, map):
         self.linked_maps[name] = map
 
-    def entity_by_uid(self, uid):
+    def entity_by_uid(self, uid) -> Entity:
         for entity in self.entities.keys():
             if entity.entity_uid == uid:
                 return entity
@@ -249,12 +249,13 @@ class Map():
                 return obj
         return None
 
-    def thing_at(self, pos_x, pos_y, reveal_concealed=False):
+    def thing_at(self, pos_x, pos_y, reveal_concealed=False) -> List[Entity]:
         if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
             return []
         things = []
         things.append(self.entity_at(pos_x, pos_y))
-        things.append(self.object_at(pos_x, pos_y, reveal_concealed=reveal_concealed))
+        for obj in self.objects_at(pos_x, pos_y, reveal_concealed=reveal_concealed):
+            things.append(obj)
         return [thing for thing in things if thing is not None]
 
     def add(self, entity, pos_x, pos_y, group='b'):
@@ -368,6 +369,7 @@ class Map():
             if reveal_concealed or not obj.concealed():
                 return obj
         return None
+    
 
 
     def objects_near(self, entity, battle=None):
@@ -545,7 +547,7 @@ class Map():
     # @param pos_x [Integer]
     # @param pos_y [Integer]
     # @return [List[Object]]
-    def objects_at(self, pos_x, pos_y, match=None):
+    def objects_at(self, pos_x, pos_y, match=None, reveal_concealed=False) -> List[Object]:
         if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
             return []
 
@@ -556,7 +558,7 @@ class Map():
             for klass in match:
                 objects.update([obj for obj in self.objects[pos_x][pos_y] if isinstance(obj, klass)])
             return list(objects)
-        return self.objects[pos_x][pos_y]
+        return [obj for obj in self.objects[pos_x][pos_y] if reveal_concealed or not obj.secret()]
 
     # Natural20::Entity to look around
     # @param entity [Natural20::Entity] The entity to look around his line of sight
@@ -714,6 +716,14 @@ class Map():
                 entity_1_squares.append([pos1_x + ofs_x, pos1_y + ofs_y])
         return entity_1_squares
     
+    def kind_of_door(self, pos_x, pos_y) -> bool:
+        for obj in self.objects_at(pos_x, pos_y):
+            if obj.secret():
+                continue
+            if isinstance(obj, DoorObject) or isinstance(obj, DoorObjectWall):
+                return True
+        return False
+
     def can_see_square(self, entity, pos2: tuple, allow_dark_vision=True, force_dark_vision=False, inclusive=None):
         has_line_of_sight = False
         max_illumination = 0.0

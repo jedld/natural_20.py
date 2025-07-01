@@ -71,7 +71,7 @@ class JsonRenderer:
                                 result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': True, 'light': 0.0, 'opacity': 0.95, 'soft_shadow_direction': soft_shadow_direction})
                                 continue
                             # check if there is a door like object in the square
-                            if any([isinstance(obj, DoorObject) or isinstance(obj, DoorObjectWall) for obj in self.map.objects_at(x, y)]):
+                            if self.map.kind_of_door(x, y):
                                 line_of_sight = any([self.map.can_see_square(entity, (x, y), force_dark_vision=True, inclusive=False) for entity in entity_pov])
                                 result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': line_of_sight, 'light': 0.0, 'opacity': 0.8, 'soft_shadow_direction': soft_shadow_direction})
                             else:
