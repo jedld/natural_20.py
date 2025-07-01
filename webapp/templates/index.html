@@ -466,104 +466,72 @@
   </div>
 </div>
 
-    <!-- JRPG Dialog Modal -->
-<div class="modal fade" id="jrpgDialogModal" tabindex="-1" role="dialog" aria-labelledby="jrpgDialogModalLabel">
-  <div class="modal-dialog modal-lg" role="document">
-    <div class="modal-content jrpg-dialog-content">
-      <div class="modal-header jrpg-dialog-header">
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-        <h4 class="modal-title" id="jrpgDialogModalLabel">Dialog</h4>
+    <!-- JRPG Dialog Panel (Draggable) -->
+<div id="jrpgDialogPanel" class="draggable-dialog-panel" style="display: none; position: fixed; top: 100px; left: 50px; width: 800px; height: 600px; z-index: 1000; background: white; border: 2px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); overflow: hidden;">
+  <div class="dialog-panel-header" style="background: #f8f9fa; padding: 10px; border-bottom: 1px solid #ddd; border-radius: 6px 6px 0 0; cursor: move; user-select: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h5 style="margin: 0; color: #333;">
+        <i class="glyphicon glyphicon-comment"></i> <span id="jrpgDialogPanelLabel">Dialog</span>
         <span id="dialogModeIndicator" class="mode-indicator" style="display: none;">
-          <i class="glyphicon glyphicon-comment"></i> Talk Mode
+          <i class="glyphicon glyphicon-user"></i> Talk Mode
         </span>
-      </div>
-      <div class="modal-body jrpg-dialog-body">
-        <div class="jrpg-dialog-container">
-          <!-- Entity Profile Panel (Left Side) -->
-          <div class="entity-profile-panel">
-            <div class="entity-portrait">
-              <img id="dialogEntityPortrait" src="" alt="Entity Portrait" class="portrait-image">
-            </div>
-            <div class="entity-info">
-              <h3 id="dialogEntityName" class="entity-name">Entity Name</h3>
-              <!-- <div class="entity-stats">
-                <div class="stat-row">
-                  <span class="stat-label">HP:</span>
-                  <span id="dialogEntityHP" class="stat-value">0/0</span>
-                </div>
-                <div class="stat-row">
-                  <span class="stat-label">AC:</span>
-                  <span id="dialogEntityAC" class="stat-value">0</span>
-                </div>
-                <div class="stat-row">
-                  <span class="stat-label">Level:</span>
-                  <span id="dialogEntityLevel" class="stat-value">0</span>
-                </div>
-                <div class="stat-row">
-                  <span class="stat-label">Race:</span>
-                  <span id="dialogEntityRace" class="stat-value">Unknown</span>
-                </div>
-                <div class="stat-row">
-                  <span class="stat-label">Class:</span>
-                  <span id="dialogEntityClass" class="stat-value">Unknown</span>
-                </div>
-              </div> -->
-              <div class="entity-description">
-                <p id="dialogEntityDescription" class="description-text">Entity description will appear here.</p>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Chat Interface (Right Side) -->
-          <div class="chat-interface-panel">
-            <div class="chat-messages-container">
-              <div id="dialogChatMessages" class="dialog-chat-messages">
-                <!-- Chat messages will appear here -->
-              </div>
-            </div>
-            <div class="chat-input-container">
-              <div class="input-group">
-                <input type="text" class="form-control" id="dialogChatInput" placeholder="Type your message..." maxlength="200">
-                <span class="input-group-btn">
-                  <button class="btn btn-primary" type="button" id="dialogSendMessage">
-                    <i class="glyphicon glyphicon-send"></i> Send
-                  </button>
-                </span>
-              </div>
-              <div class="chat-options">
-                <div class="form-group">
-                  <label for="dialogLanguageSelect">Language:</label>
-                  <select class="form-control" id="dialogLanguageSelect">
-                    <option value="Common" selected>Common</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label>Volume:</label>
-                  <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-sm btn-default volume-btn" data-volume="whisper" data-distance="5">Whisper</button>
-                    <button type="button" class="btn btn-sm btn-primary volume-btn active" data-volume="normal" data-distance="30">Normal</button>
-                    <button type="button" class="btn btn-sm btn-default volume-btn" data-volume="shout" data-distance="60">Shout</button>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>Mode:</label>
-                  <button type="button" class="btn btn-sm btn-info" id="toggleTalkMode" title="Toggle between regular dialog and talk to entity mode">
-                    <i class="glyphicon glyphicon-comment"></i> Talk Mode
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer jrpg-dialog-footer">
-        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-info" id="dialogHistoryBtn">
-          <i class="glyphicon glyphicon-time"></i> History
+      </h5>
+      <div>
+        <button type="button" class="btn btn-xs btn-default" id="minimize-dialog" title="Minimize">
+          <i class="glyphicon glyphicon-minus"></i>
+        </button>
+        <button type="button" class="btn btn-xs btn-default" id="close-dialog" title="Close">
+          <i class="glyphicon glyphicon-remove"></i>
         </button>
       </div>
     </div>
   </div>
+  
+  <div class="dialog-panel-body" style="padding: 15px; height: calc(100% - 60px); display: flex; flex-direction: column; overflow: hidden;">
+    <div class="jrpg-dialog-container">
+      <!-- Entity Profile Panel (Left Side) -->
+      <div class="entity-profile-panel">
+        <div class="entity-portrait">
+          <img id="dialogEntityPortrait" src="" alt="Entity Portrait" class="portrait-image">
+        </div>
+        <div class="entity-info">
+          <h3 id="dialogEntityName" class="entity-name">Entity Name</h3>
+          <div class="entity-description">
+            <p id="dialogEntityDescription" class="description-text">Entity description will appear here.</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Chat Interface (Right Side) -->
+      <div class="chat-interface-panel">
+        <div class="chat-messages-container">
+          <div id="dialogChatMessages" class="dialog-chat-messages">
+            <!-- Chat messages will appear here -->
+          </div>
+        </div>
+        <div class="chat-input-container">
+          <div class="chat-input-row">
+            <div class="language-selector">
+              <select class="form-control" id="dialogLanguageSelect">
+                <option value="Common" selected>Common</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <input type="text" class="form-control" id="dialogChatInput" placeholder="Type your message..." maxlength="200">
+              <span class="input-group-btn">
+                <button class="btn btn-primary" type="button" id="dialogSendMessage">
+                  <i class="glyphicon glyphicon-send"></i> Send
+                </button>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Resize handle -->
+  <div class="dialog-resize-handle" style="position: absolute; bottom: 0; right: 0; width: 15px; height: 15px; cursor: se-resize; background: linear-gradient(135deg, transparent 50%, #ccc 50%);"></div>
 </div>
 
     <!-- only for DMs -->
