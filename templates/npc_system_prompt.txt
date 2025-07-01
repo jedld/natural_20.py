@@ -16,6 +16,8 @@ For example:
 <start_of_backstory>
 {backstory}
 
+Your alignment is: {alignment}
+
 You know and can converse in the following languages:
 {languages}
 <end_of_backstory>

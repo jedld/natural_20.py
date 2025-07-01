@@ -196,6 +196,76 @@ const centerOnEntityId = (id) => {
   centerOnTile($tile);
 };
 
+// Function to show target selection modal
+const showTargetSelectionModal = (targets, position) => {
+  const $modal = $('#targetSelectionModal');
+  const $targetList = $('#targetList');
+  
+  // Clear previous content
+  $targetList.empty();
+  
+  // Add target options
+  targets.forEach((target, index) => {
+    const $targetOption = $(`
+      <div class="target-option" data-target-id="${target.id}" data-target-type="${target.type}">
+        <img class="target-image" src="${target.image || '/static/assets/default_target.png'}" alt="${target.name}" onerror="this.src='/static/assets/default_target.png'">
+        <div class="target-info">
+          <div class="target-name">${target.name}</div>
+          <div class="target-type">${target.type}</div>
+        </div>
+      </div>
+    `);
+    
+    $targetOption.on('click', function() {
+      // Remove selection from all options
+      $('.target-option').removeClass('selected');
+      // Add selection to clicked option
+      $(this).addClass('selected');
+    });
+    
+    $targetList.append($targetOption);
+  });
+  
+  // Handle modal confirmation
+  $modal.off('click', '.btn-primary').on('click', '.btn-primary', function() {
+    const $selectedTarget = $('.target-option.selected');
+    if ($selectedTarget.length > 0) {
+      const targetId = $selectedTarget.data('target-id');
+      const targetType = $selectedTarget.data('target-type');
+      
+      // Close modal
+      $modal.modal('hide');
+      
+      // Execute the action with the selected target
+      if (targetType === 'position') {
+        // For position targets, use coordinates
+        targetModeCallback({ x: position.x, y: position.y });
+      } else {
+        // For entity/object targets, use the target ID
+        targetModeCallback({ target_id: targetId, x: position.x, y: position.y });
+      }
+      
+      // Reset target mode
+      targetMode = false;
+      valid_target_cache = {};
+      globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+      $(".tile").css("border", "none");
+    }
+  });
+  
+  // Handle modal cancellation
+  $modal.off('hidden.bs.modal').on('hidden.bs.modal', function() {
+    // Reset target mode if modal is closed without selection
+    targetMode = false;
+    valid_target_cache = {};
+    globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+    $(".tile").css("border", "none");
+  });
+  
+  // Show the modal
+  $modal.modal('show');
+};
+
 // Keyboard movement controls
 function handleKeyboardMovement(key, entity_uid, coordsx, coordsy) {
   console.log("handleKeyboardMovement called with:", { key, entity_uid, coordsx, coordsy });
@@ -801,11 +871,35 @@ $(document).ready(() => {
     const coordsy = $tile.data("coords-y");
 
     if (targetMode) {
-      targetModeCallback({ x: coordsx, y: coordsy });
-      targetMode = false;
-      valid_target_cache = {};
-      globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
-      $(".tile").css("border", "none");
+      // Check if there are multiple valid targets at this position
+      if (globalActionInfo && (globalActionInfo === 'AttackAction' || globalActionInfo === 'LinkedAttackAction' || globalActionInfo === 'SpellAction')) {
+        Utils.ajaxGet("/targets_at_position", { 
+          entity_id: globalSourceEntity, 
+          x: coordsx, 
+          y: coordsy, 
+          action_info: globalActionInfo, 
+          opts: JSON.stringify(globalOpts || {}) 
+        }, (data) => {
+          if (data.success && data.targets && data.targets.length > 1) {
+            // Show target selection modal
+            showTargetSelectionModal(data.targets, { x: coordsx, y: coordsy });
+          } else {
+            // Single target or no targets, proceed normally
+            targetModeCallback({ x: coordsx, y: coordsy });
+            targetMode = false;
+            valid_target_cache = {};
+            globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+            $(".tile").css("border", "none");
+          }
+        });
+      } else {
+        // Not a point target action, proceed normally
+        targetModeCallback({ x: coordsx, y: coordsy });
+        targetMode = false;
+        valid_target_cache = {};
+        globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+        $(".tile").css("border", "none");
+      }
     } else if (moveMode) {
       if (coordsx !== source.x || coordsy !== source.y) {
         moveMode = false;
@@ -1396,9 +1490,20 @@ $(document).ready(() => {
           globalSourceEntity = entity_uid;
         }
         targetModeCallback = (target) => {
+          // Handle both coordinate-based and target_id-based targeting
+          const actionData = { id: entity_uid, action, opts };
+          
+          if (target.target_id) {
+            // Use target_id for specific entity/object targeting
+            actionData.target = target.target_id;
+          } else {
+            // Use coordinates for position-based targeting
+            actionData.target = target;
+          }
+          
           ajaxPost(
             "/action",
-            { id: entity_uid, action, opts, target },
+            actionData,
             (data) => {
               console.log("Action request successful:", data);
               refreshTurn();

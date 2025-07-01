@@ -38,7 +38,7 @@ from natural20.spell.extensions.hit_computations import AttackSpell
 from natural20.entity import Entity
 from natural20.action import Action, AsyncReactionHandler
 from natural20.battle import Battle
-
+from natural20.item_library.object import Object
 from natural20.utils.movement import Movement
 from natural20.generic_controller import GenericController
 import natural20.session as GameSession
@@ -480,7 +480,10 @@ def describe_terrain(tile):
     if things:
         for thing in things:
             description.append(thing.label())
-            if isinstance(thing, Entity):
+            if isinstance(thing, Object):
+                if thing.dead():
+                    description.append("Destroyed")
+            if not isinstance(thing, Object):
                 # obtain buffs and status effects on entity
                 if thing.prone():
                     description.append("Prone")
@@ -1883,7 +1886,9 @@ def talk():
         if receiver.entity_uid == entity_id:
             continue
         if receiver.is_npc() and receiver.dialog:
-            system_prompt = CONVERSATION_SYSTEM_PROMPT.format(backstory=receiver.backstory(), name=receiver.label(),
+            system_prompt = CONVERSATION_SYSTEM_PROMPT.format(backstory=receiver.backstory(),
+                                                              name=receiver.label(),
+                                                              alignment=receiver.alignment().replace("_", " "),
                                                               languages=", ".join(receiver.languages()))
             llm_conversation_handler.create_conversation(receiver.entity_uid, system_prompt)
 
@@ -2336,6 +2341,135 @@ def get_game_context():
         context['error'] = str(e)
     
     return context
+
+@app.route('/targets_at_position', methods=['GET'])
+def get_targets_at_position():
+    """Get all valid targets at a specific tile position for target selection modal."""
+    global current_game
+    
+    try:
+        entity_id = request.args.get('entity_id')
+        x = int(request.args.get('x'))
+        y = int(request.args.get('y'))
+        action_info = request.args.get('action_info')
+        opts = json.loads(request.args.get('opts', '{}'))
+        
+        if not entity_id or x is None or y is None or not action_info:
+            return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+        
+        entity = current_game.get_entity_by_uid(entity_id)
+        if not entity:
+            return jsonify({'success': False, 'error': 'Entity not found'}), 404
+        
+        battle_map = current_game.get_map_for_entity(entity)
+        battle = current_game.get_current_battle()
+        
+        # Get all things at the position
+        things_at_position = battle_map.thing_at(x, y)
+        
+        # Filter to only valid targets based on the action
+        valid_targets = []
+        
+        if action_info in ['AttackAction', 'LinkedAttackAction']:
+            action = AttackAction(game_session, entity, 'attack')
+            action.using = opts.get('using')
+            action.npc_action = opts.get('npc_action', None)
+            action.thrown = opts.get('thrown', False)
+            
+            # Check each thing at the position
+            for thing in things_at_position:
+                if thing and thing.allow_targeting():
+                    action.target = thing
+                    action.validate(battle_map, target=thing)
+                    
+                    if not action.errors:
+                        if battle:
+                            battle_valid_targets = battle.valid_targets_for(entity, action)
+                            if thing in battle_valid_targets:
+                                valid_targets.append({
+                                    'id': thing.entity_uid,
+                                    'name': thing.label() if hasattr(thing, 'label') else str(thing),
+                                    'type': thing.__class__.__name__,
+                                    'image': getattr(thing, 'profile_image', lambda: None)()
+                                })
+                        else:
+                            map_valid_targets = battle_map.valid_targets_for(entity, action)
+                            if thing in map_valid_targets:
+                                valid_targets.append({
+                                    'id': thing.entity_uid,
+                                    'name': thing.label() if hasattr(thing, 'label') else str(thing),
+                                    'type': thing.__class__.__name__,
+                                    'image': getattr(thing, 'profile_image', lambda: None)()
+                                })
+        
+        elif action_info == 'SpellAction':
+            build_map = SpellAction.build(game_session, entity)
+            spell_choice = (opts['spell'], opts['at_level'])
+            build_map = build_map['next'](spell_choice)
+            
+            # Check each thing at the position
+            for thing in things_at_position:
+                if thing and thing.allow_targeting():
+                    try:
+                        # Try to build the action with this target
+                        test_build = build_map
+                        while not isinstance(test_build, Action):
+                            if test_build['param'][0]['type'] == 'select_target':
+                                test_build = test_build['next'](thing)
+                            elif test_build['param'][0]['type'] == 'select_empty_space':
+                                test_build = test_build['next']([x, y])
+                            else:
+                                break
+                        
+                        if isinstance(test_build, Action):
+                            test_build.validate(battle_map, target=thing)
+                            if not test_build.errors:
+                                valid_targets.append({
+                                    'id': thing.entity_uid,
+                                    'name': thing.label() if hasattr(thing, 'label') else str(thing),
+                                    'type': thing.__class__.__name__,
+                                    'image': getattr(thing, 'profile_image', lambda: None)()
+                                })
+                    except:
+                        # If validation fails, skip this target
+                        continue
+        
+        # Also check if the position itself is a valid target (for area spells)
+        try:
+            if action_info == 'SpellAction':
+                build_map = SpellAction.build(game_session, entity)
+                spell_choice = (opts['spell'], opts['at_level'])
+                build_map = build_map['next'](spell_choice)
+                
+                test_build = build_map
+                while not isinstance(test_build, Action):
+                    if test_build['param'][0]['type'] == 'select_empty_space':
+                        test_build = test_build['next']([x, y])
+                    else:
+                        break
+                
+                if isinstance(test_build, Action):
+                    test_build.validate(battle_map, target=[x, y])
+                    if not test_build.errors:
+                        valid_targets.append({
+                            'id': f'position_{x}_{y}',
+                            'name': f'Position ({x}, {y})',
+                            'type': 'position',
+                            'image': None
+                        })
+        except:
+            # If position validation fails, skip
+            pass
+        
+        return jsonify({
+            'success': True,
+            'targets': valid_targets,
+            'position': {'x': x, 'y': y}
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting targets at position: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     socketio.run(app, debug=False, host='0.0.0.0', port=5001, allow_unsafe_werkzeug=True)

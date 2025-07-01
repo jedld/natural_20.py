@@ -1,0 +1,70 @@
+<div class="modal fade" id="targetSelectionModal" tabindex="-1" role="dialog" aria-labelledby="targetSelectionModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="targetSelectionModalLabel">Select Target</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>Multiple valid targets found at this location. Please select which one to target:</p>
+        <div id="targetList" class="list-group">
+          <!-- Target options will be populated here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.target-option {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  margin-bottom: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.target-option:hover {
+  background-color: #f8f9fa;
+}
+
+.target-option.selected {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.target-image {
+  width: 40px;
+  height: 40px;
+  margin-right: 10px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
+.target-info {
+  flex: 1;
+}
+
+.target-name {
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.target-type {
+  font-size: 0.9em;
+  opacity: 0.7;
+}
+
+.target-option.selected .target-type {
+  opacity: 0.9;
+}
+</style> 

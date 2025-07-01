@@ -97,6 +97,9 @@ class Entity(EntityStateEvaluator, Notable):
     def description(self):
         return self.properties.get('description', self._description)
 
+    def alignment(self) -> str:
+        return self.properties.get('alignment', 'neutral')
+
     def items_label(self):
       return self.t(f"entity.#{self.__class__}.item_label", default=f"{self.name} Items")
 
@@ -167,7 +170,7 @@ class Entity(EntityStateEvaluator, Notable):
         if self.conversation_controller:
             self.conversation_controller.process_message(self, source, message, language, self.memory_buffer, directed_to)
 
-    def send_conversation(self, message, distance_ft=30, targets=None, language=None):
+    def send_conversation(self, message, distance_ft=30, targets=None, language=None) -> List[Tuple['Entity', str, List['Entity']]]:
         if language is None:
             language = "common"
         language = language.lower()

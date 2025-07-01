@@ -1741,3 +1741,51 @@ input.initiative-input.form-control {
     width: 100%;
   }
 }
+
+/* Target Selection Modal Styles */
+.target-option {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  margin-bottom: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.target-option:hover {
+  background-color: #f8f9fa;
+}
+
+.target-option.selected {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.target-image {
+  width: 40px;
+  height: 40px;
+  margin-right: 10px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
+.target-info {
+  flex: 1;
+}
+
+.target-name {
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.target-type {
+  font-size: 0.9em;
+  opacity: 0.7;
+}
+
+.target-option.selected .target-type {
+  opacity: 0.9;
+}
