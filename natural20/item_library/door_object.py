@@ -16,6 +16,12 @@ class DoorObject(Object):
         self.door_pos = self.properties.get("door_pos", None)
         self.passable_threshold = self.properties.get("passable_threshold", None)
 
+    def label(self):
+        return self.properties.get("label", f"{'Closed' if self.closed() else 'Opened'} Door")
+
+    def description(self):
+        return self.properties.get("description", "A door")
+
     def after_setup(self):
         if self.front_direction == "auto":
             # check for walls and auto determine the direction
@@ -393,6 +399,12 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
         self.door_pos = self.properties.get("door_pos", 0)
         self.window = self.properties.get("window", [0, 0, 0, 0])
         self.is_secret = self.properties.get("secret", False)
+
+    def label(self):
+        return self.properties.get("label", f"{'Closed' if self.closed() else 'Opened'} Door")
+
+    def description(self):
+        return self.properties.get("description", "A door")
 
     def token(self):
         return StoneWallDirectional.token(self)

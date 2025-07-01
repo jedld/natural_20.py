@@ -3,6 +3,7 @@ import time
 import os
 import yaml
 from natural20.map import Map
+from natural20.entity import Entity
 from natural20.battle import Battle
 from natural20.generic_controller import GenericController
 from natural20.web.web_controller import WebController, ManualControl
@@ -161,13 +162,13 @@ class GameManagement:
         self.logger.info(f"Switching map for {username} to {map_name}")
         self.current_map_for_user[username] = (map_name, self.maps[map_name])
 
-    def get_map_for_user(self, username):
+    def get_map_for_user(self, username) -> Map:
         if 'index' not in self.maps:
              return self.maps.values()[0]
         name, _map = self.current_map_for_user.get(username, ('index', self.maps['index']))
         return _map
 
-    def get_map_for_entity(self, entity):
+    def get_map_for_entity(self, entity) -> Map:
         for _, map_obj in self.maps.items():
             if isinstance(entity, str):
                 _entity = map_obj.get_entity_by_uid(entity)
@@ -178,7 +179,7 @@ class GameManagement:
                 return map_obj
         return None
 
-    def get_entity_by_uid(self, entity_uid):
+    def get_entity_by_uid(self, entity_uid) -> Entity:
         for _, map_obj in self.maps.items():
             entity = map_obj.entity_by_uid(entity_uid)
             if entity:
