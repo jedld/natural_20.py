@@ -326,6 +326,14 @@ def controller_of(entity_uid, username):
 
 app.add_template_global(controller_of, name='controller_of')
 
+def within_talking_distance(entity_uid):
+    current_map = current_game.get_map_for_user(session['username'])
+    pov_entity = current_game.get_pov_entity_for_user(session['username'])
+    if not pov_entity:
+        return False
+    return current_map.distance(pov_entity.entity_uid, entity_uid) <= 2 and current_map.can_see(pov_entity, entity_uid)
+app.add_template_global(within_talking_distance, name='within_talking_distance')
+
 def t(key):
     return i18n.t(key)
 app.add_template_global(t, name='t')
@@ -598,6 +606,11 @@ def pov_entities():
 @app.route('/')
 def index():
     global current_game, logger
+    if 'dm' not in user_role():
+        pov_entity = current_game.get_pov_entity_for_user(session['username'])
+        if not pov_entity:
+            current_game.set_pov_entity_for_user(session['username'], entities_controlled_by(session['username'])[0])
+
     battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     available_maps = current_game.get_available_maps()
@@ -1867,11 +1880,11 @@ def talk():
         socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': entity_id, 'message': message}}, to=sid)
 
     for receiver, message, directed_to in processed_conversations:
-        # # Trigger LLM response for NPCs if LLM is initialized
-        # if llm_conversation_handler.initialized and target.npc():
-        #     llm_conversation_handler.handle_conversation(target, entity, message, language)
+        if receiver.entity_uid == entity_id:
+            continue
         if receiver.is_npc() and receiver.dialog:
-            system_prompt = CONVERSATION_SYSTEM_PROMPT.format(backstory=receiver.backstory(), name=receiver.label())
+            system_prompt = CONVERSATION_SYSTEM_PROMPT.format(backstory=receiver.backstory(), name=receiver.label(),
+                                                              languages=", ".join(receiver.languages()))
             llm_conversation_handler.create_conversation(receiver.entity_uid, system_prompt)
 
             if receiver in directed_to:
@@ -1879,34 +1892,47 @@ def talk():
             else:
                 message = f"you overheard {entity.label()} say: \"{message}\" to {[e.label() for e in directed_to]}"
             llm_conversation_handler.add_message(receiver.entity_uid, 'user', message)
-            response = llm_conversation_handler.generate_response(receiver.entity_uid)
-            if response:
-                # Remove any text between and including square brackets
-                if "[GO_HOSTILE]" in response:
-                    # switch entity to the hostile group
-                    receiver.update_state('active')
-                    current_game.update_group(receiver, 'b')
-                    output_logger.log(f"entity {receiver.label()} is now in the hostile group")
-                else:
-                    if "[INVENTORY" in response or "[LIST_INVENTORY" in response:
-                        response = [item.name for item in receiver.inventory]
-                        system_response = f'[INVENTORY] {", ".join(response)}'
-                        llm_conversation_handler.add_message(receiver.entity_uid, 'system', system_response)
-                        response = llm_conversation_handler.generate_response(receiver.entity_uid)
-                    elif "[OBSERVE" in response:
-                        nearby = receiver.observe(current_game.get_map_for_entity(receiver))
-                        for entity, distance in nearby:
-                            response += f"{entity.label()} is {distance}ft away\n"
-                        system_response = f'[OBSERVE] {response}'
-                        llm_conversation_handler.add_message(receiver.entity_uid, 'system', system_response)
-                        response = llm_conversation_handler.generate_response(receiver.entity_uid)
-                response = re.sub(r'\[.*?\]', '', response)
-                receiver.send_conversation(response, targets=[entity])
-                owners = entity_owners(entity)
-                for owner in owners:
-                    sids = username_to_sid.get(owner, [])
-                    for sid in sids:
-                        socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': receiver.entity_uid, 'message': response, 'targets': [entity.entity_uid]}}, to=sid)
+
+            if receiver in directed_to:
+                logger.info(f"generating response for {receiver.label()}")
+                response = llm_conversation_handler.generate_response(receiver.entity_uid)
+                logger.info(f"response for {receiver.label()}: {response}")
+                if response:
+                    if "[in" in response:
+                        language = response.split("[in")[1].split("]")[0]
+                        response = response.split("[in")[2]
+                    else:
+                        language = "common"
+
+                    if language not in receiver.languages():
+                        language = receiver.languages()[0]
+
+                    # Remove any text between and including square brackets
+                    if "[GO_HOSTILE]" in response:
+                        # switch entity to the hostile group
+                        receiver.update_state('active')
+                        current_game.update_group(receiver, 'b')
+                        output_logger.log(f"entity {receiver.label()} is now in the hostile group")
+                    else:
+                        if "[INVENTORY" in response or "[LIST_INVENTORY" in response:
+                            response = [item['label'] for item in receiver.inventory_items(game_session)]
+                            system_response = f'[INVENTORY] {", ".join(response)}'
+                            llm_conversation_handler.add_message(receiver.entity_uid, 'system', system_response)
+                            response = llm_conversation_handler.generate_response(receiver.entity_uid)
+                        elif "[OBSERVE" in response:
+                            nearby = receiver.observe(current_game.get_map_for_entity(receiver))
+                            for entity, distance in nearby:
+                                response += f"{entity.label()} is {distance}ft away\n"
+                            system_response = f'[OBSERVE] {response}'
+                            llm_conversation_handler.add_message(receiver.entity_uid, 'system', system_response)
+                            response = llm_conversation_handler.generate_response(receiver.entity_uid)
+                    response = re.sub(r'\[.*?\]', '', response)
+                    receiver.send_conversation(response, targets=[entity], language=language)
+                    owners = entity_owners(entity)
+                    for owner in owners:
+                        sids = username_to_sid.get(owner, [])
+                        for sid in sids:
+                            socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': receiver.entity_uid, 'message': response, 'targets': [entity.entity_uid]}}, to=sid)
 
     return jsonify({'success': True})
 
@@ -1934,7 +1960,7 @@ def nearby_entities():
         })
 
     return jsonify({
-        'entities': nearby
+        'entities': response
     })
 
 @app.route('/update_group', methods=['POST'])
