@@ -1330,29 +1330,42 @@ input.initiative-input.form-control {
   }
 }
 
-/* JRPG Dialog Modal Styles */
-.jrpg-dialog-content {
+/* JRPG Dialog Panel Styles */
+.draggable-dialog-panel {
   background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
   border: 3px solid #8b4513;
   border-radius: 15px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   color: #ecf0f1;
+  transition: box-shadow 0.3s ease;
 }
 
-.jrpg-dialog-header {
+.draggable-dialog-panel:hover {
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+}
+
+.dialog-panel-header {
   background: linear-gradient(135deg, #8b4513 0%, #a0522d 100%);
   border-bottom: 2px solid #654321;
   border-radius: 12px 12px 0 0;
   color: #f4f4f4;
+  transition: background 0.3s ease;
 }
 
-.jrpg-dialog-header .close {
-  color: #f4f4f4;
-  opacity: 0.8;
+.dialog-panel-header:hover {
+  background: linear-gradient(135deg, #a0522d 0%, #b8860b 100%);
 }
 
-.jrpg-dialog-header .close:hover {
-  opacity: 1;
+.dialog-panel-header .btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.dialog-panel-header .btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
 }
 
 .mode-indicator {
@@ -1371,9 +1384,11 @@ input.initiative-input.form-control {
   margin-right: 4px;
 }
 
-.jrpg-dialog-body {
+.dialog-panel-body {
   padding: 20px;
   background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+  height: calc(100% - 60px);
+  overflow: hidden;
 }
 
 .jrpg-dialog-container {
@@ -1556,8 +1571,37 @@ input.initiative-input.form-control {
   border-top: 2px solid #8b4513;
 }
 
+.chat-input-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.language-selector {
+  flex-shrink: 0;
+  width: 120px;
+}
+
+.language-selector .form-control {
+  background: rgba(44, 62, 80, 0.8);
+  border: 2px solid #8b4513;
+  color: #ecf0f1;
+  border-radius: 6px;
+  font-size: 12px;
+  height: 34px;
+  padding: 6px 8px;
+}
+
+.language-selector .form-control:focus {
+  background: rgba(44, 62, 80, 0.9);
+  border-color: #f39c12;
+  color: #ecf0f1;
+  box-shadow: 0 0 8px rgba(243, 156, 18, 0.5);
+}
+
 .chat-input-container .input-group {
-  margin-bottom: 10px;
+  flex: 1;
+  margin-bottom: 0;
 }
 
 .chat-input-container .form-control {
@@ -1586,32 +1630,6 @@ input.initiative-input.form-control {
   background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-.chat-options {
-  display: flex;
-  gap: 15px;
-  align-items: center;
-}
-
-.chat-options .form-group {
-  margin-bottom: 0;
-  flex: 1;
-}
-
-.chat-options label {
-  color: #bdc3c7;
-  font-size: 12px;
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.chat-options .form-control {
-  background: rgba(44, 62, 80, 0.8);
-  border: 2px solid #8b4513;
-  color: #ecf0f1;
-  border-radius: 6px;
-  font-size: 12px;
 }
 
 .volume-btn {
@@ -1674,8 +1692,32 @@ input.initiative-input.form-control {
   background: #a0522d;
 }
 
+/* Dialog resize handle */
+.dialog-resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 15px;
+  height: 15px;
+  cursor: se-resize;
+  background: linear-gradient(135deg, transparent 50%, #8b4513 50%);
+  border-radius: 0 0 15px 0;
+  transition: background 0.3s ease;
+}
+
+.dialog-resize-handle:hover {
+  background: linear-gradient(135deg, transparent 50%, #f39c12 50%);
+}
+
 /* Responsive design for JRPG dialog */
 @media (max-width: 768px) {
+  .draggable-dialog-panel {
+    width: 90vw !important;
+    height: 70vh !important;
+    left: 5vw !important;
+    top: 15vh !important;
+  }
+  
   .jrpg-dialog-container {
     flex-direction: column;
     height: auto;
@@ -1690,8 +1732,12 @@ input.initiative-input.form-control {
     height: 400px;
   }
   
-  .chat-options {
+  .chat-input-row {
     flex-direction: column;
-    align-items: stretch;
+    gap: 8px;
+  }
+  
+  .language-selector {
+    width: 100%;
   }
 }

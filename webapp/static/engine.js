@@ -509,15 +509,15 @@ $(document).ready(() => {
           break;
         }
       
-        // Check if dialog modal is open and if this entity matches the current dialog
-        const $dialogModal = $('#jrpgDialogModal');
+        // Check if dialog panel is open and if this entity matches the current dialog
+        const $dialogPanel = $('#jrpgDialogPanel');
         const currentDialogEntityId = $('#dialogEntityName').data('entity-id');
         const currentPovEntity = getCurrentPovEntity();
         
-        // Check if this message should be shown in dialog modal:
-        // 1. Dialog modal is open and this entity matches the current dialog entity
+        // Check if this message should be shown in dialog panel:
+        // 1. Dialog panel is open and this entity matches the current dialog entity
         // 2. OR this message is directed to the current POV entity (targets includes current POV)
-        const shouldShowInDialog = $dialogModal.is(':visible') && (
+        const shouldShowInDialog = $dialogPanel.is(':visible') && (
           currentDialogEntityId === entity_id || 
           (targets && Array.isArray(targets) && targets.includes(currentPovEntity))
         );
@@ -526,8 +526,8 @@ $(document).ready(() => {
         const isDirectedToPov = targets && Array.isArray(targets) && targets.includes(currentPovEntity);
         debugger;
         if (shouldShowInDialog) {
-          // Dialog modal is open and this entity matches - show message in dialog
-          console.log('Adding conversation message to dialog modal:', message);
+          // Dialog panel is open and this entity matches - show message in dialog
+          console.log('Adding conversation message to dialog panel:', message);
           
           try {
             // Get the entity name for display
@@ -549,10 +549,10 @@ $(document).ready(() => {
             // Fallback to showing conversation bubble
             showConversationBubble(entity_id, message);
           }
-        } else if (isDirectedToPov && !$dialogModal.is(':visible')) {
-          // Message is directed to current POV but dialog modal is not open
+        } else if (isDirectedToPov && !$dialogPanel.is(':visible')) {
+          // Message is directed to current POV but dialog panel is not open
           // Show conversation bubble and optionally provide a way to open dialog
-          console.log('Message directed to POV entity, but dialog modal not open:', message);
+          console.log('Message directed to POV entity, but dialog panel not open:', message);
           showDialogTriggerBubble(entity_id, message);
         } else {
           // Show conversation bubble on tile as before
@@ -1752,7 +1752,7 @@ $(document).ready(() => {
         const noSpecificTarget = $('#noSpecificTarget').is(':checked');
         const selectedLanguage = $('#languageSelect').val();
         const selectedVolume = $('input[name="speechVolume"]:checked');
-        const distance_ft = parseInt(selectedVolume.data('distance'));
+        const distance_ft = 10;
        
         $.ajax({
           url: '/talk',
@@ -1805,14 +1805,12 @@ $(document).ready(() => {
     // Set talk to entity mode flag
     talkToEntityMode = true;
     
-    // Show the JRPG dialog modal
-    $('#jrpgDialogModal').modal('show');
+    // Show the JRPG dialog panel
+    $('#jrpgDialogPanel').show();
     
-    // Update modal title to indicate talk to entity mode
-    $('#jrpgDialogModalLabel').text('Talk to Entity');
+    // Update panel title to indicate talk to entity mode
+    $('#jrpgDialogPanelLabel').text('Talk to Entity');
     
-    // Show mode indicator
-    $('#dialogModeIndicator').show();
     
     // Load entity information for the profile panel
     loadEntityProfile(entityId);
@@ -1970,12 +1968,12 @@ $(document).ready(() => {
   function updateTalkModeDisplay() {
     if (talkToEntityMode) {
       $('#dialogModeIndicator').show();
-      $('#jrpgDialogModalLabel').text('Talk to Entity');
+      $('#jrpgDialogPanelLabel').text('Talk to Entity');
       $('#toggleTalkMode').removeClass('btn-info').addClass('btn-warning').html('<i class="glyphicon glyphicon-comment"></i> Regular Mode');
       addDialogMessage('system', 'Switched to Talk to Entity mode. You are now talking to the entity.', 'system');
     } else {
       $('#dialogModeIndicator').hide();
-      $('#jrpgDialogModalLabel').text('Dialog');
+      $('#jrpgDialogPanelLabel').text('Dialog');
       $('#toggleTalkMode').removeClass('btn-warning').addClass('btn-info').html('<i class="glyphicon glyphicon-comment"></i> Talk Mode');
       addDialogMessage('system', 'Switched to Regular Dialog mode.', 'system');
     }
@@ -1988,7 +1986,7 @@ $(document).ready(() => {
     
     const selectedLanguage = $('#dialogLanguageSelect').val();
     const selectedVolume = $('.volume-btn.active');
-    const distance_ft = parseInt(selectedVolume.data('distance'));
+    const distance_ft = 10;
     
     // Add player message to chat
     addDialogMessage('player', message, 'player');
@@ -2190,20 +2188,30 @@ $(document).ready(() => {
     addDialogMessage('system', 'Conversation history feature coming soon!', 'system');
   }
 
-  // Reset talk to entity mode when modal is closed
-  $('#jrpgDialogModal').on('hidden.bs.modal', function() {
+  // Reset talk to entity mode when panel is closed
+  $('#close-dialog').on('click', function() {
+    $('#jrpgDialogPanel').hide();
     talkToEntityMode = false;
     $('#dialogModeIndicator').hide();
-    $('#jrpgDialogModalLabel').text('Dialog');
+    $('#jrpgDialogPanelLabel').text('Dialog');
     console.log('Talk to entity mode reset');
   });
 
-  // Reset talk to entity mode when modal is closed via close button
-  $('#jrpgDialogModal .close, #jrpgDialogModal .btn-default').on('click', function() {
-    talkToEntityMode = false;
-    $('#dialogModeIndicator').hide();
-    $('#jrpgDialogModalLabel').text('Dialog');
-    console.log('Talk to entity mode reset via close button');
+  // Minimize dialog panel
+  $('#minimize-dialog').on('click', function() {
+    const $panel = $('#jrpgDialogPanel');
+    const $body = $panel.find('.dialog-panel-body');
+    const $header = $panel.find('.dialog-panel-header');
+    
+    if ($body.is(':visible')) {
+      $body.hide();
+      $panel.css('height', '60px');
+      $(this).html('<i class="glyphicon glyphicon-plus"></i>');
+    } else {
+      $body.show();
+      $panel.css('height', '600px');
+      $(this).html('<i class="glyphicon glyphicon-minus"></i>');
+    }
   });
 
   $("#turn-order").on("change", ".group-select", function() {
@@ -2246,5 +2254,110 @@ $(document).ready(() => {
   });
 
   Chat.init();
+  
+  // Make dialog panel draggable and resizable
+  makeDialogPanelDraggable();
+  makeDialogPanelResizable();
+  
   // Handle window resize to keep panel in bounds
 });
+
+// Function to make dialog panel draggable
+function makeDialogPanelDraggable() {
+  const $panel = $('#jrpgDialogPanel');
+  const $header = $panel.find('.dialog-panel-header');
+  let isDragging = false;
+  let startX, startY, startLeft, startTop;
+
+  $header.on('mousedown', function(e) {
+    if (e.target.tagName === 'BUTTON' || $(e.target).closest('button').length) {
+      return; // Don't drag if clicking on buttons
+    }
+    
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startLeft = parseInt($panel.css('left'));
+    startTop = parseInt($panel.css('top'));
+    
+    $panel.css('cursor', 'grabbing');
+    e.preventDefault();
+  });
+
+  $(document).on('mousemove', function(e) {
+    if (!isDragging) return;
+    
+    const deltaX = e.clientX - startX;
+    const deltaY = e.clientY - startY;
+    
+    const newLeft = startLeft + deltaX;
+    const newTop = startTop + deltaY;
+    
+    // Keep panel within window bounds
+    const maxLeft = window.innerWidth - $panel.outerWidth();
+    const maxTop = window.innerHeight - $panel.outerHeight();
+    
+    $panel.css({
+      left: Math.max(0, Math.min(newLeft, maxLeft)) + 'px',
+      top: Math.max(0, Math.min(newTop, maxTop)) + 'px'
+    });
+  });
+
+  $(document).on('mouseup', function() {
+    if (isDragging) {
+      isDragging = false;
+      $panel.css('cursor', 'default');
+    }
+  });
+}
+
+// Function to make dialog panel resizable
+function makeDialogPanelResizable() {
+  const $panel = $('#jrpgDialogPanel');
+  const $resizeHandle = $panel.find('.dialog-resize-handle');
+  let isResizing = false;
+  let startX, startY, startWidth, startHeight;
+
+  $resizeHandle.on('mousedown', function(e) {
+    isResizing = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startWidth = $panel.outerWidth();
+    startHeight = $panel.outerHeight();
+    
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  $(document).on('mousemove', function(e) {
+    if (!isResizing) return;
+    
+    const deltaX = e.clientX - startX;
+    const deltaY = e.clientY - startY;
+    
+    const newWidth = startWidth + deltaX;
+    const newHeight = startHeight + deltaY;
+    
+    // Minimum size constraints
+    const minWidth = 400;
+    const minHeight = 300;
+    
+    // Maximum size constraints (keep within window)
+    const maxWidth = window.innerWidth - parseInt($panel.css('left'));
+    const maxHeight = window.innerHeight - parseInt($panel.css('top'));
+    
+    const finalWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
+    const finalHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
+    
+    $panel.css({
+      width: finalWidth + 'px',
+      height: finalHeight + 'px'
+    });
+  });
+
+  $(document).on('mouseup', function() {
+    if (isResizing) {
+      isResizing = false;
+    }
+  });
+}
