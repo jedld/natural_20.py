@@ -714,7 +714,7 @@ class Map():
                 entity_1_squares.append([pos1_x + ofs_x, pos1_y + ofs_y])
         return entity_1_squares
     
-    def can_see_square(self, entity, pos2: tuple, allow_dark_vision=True, force_dark_vision=False):
+    def can_see_square(self, entity, pos2: tuple, allow_dark_vision=True, force_dark_vision=False, inclusive=None):
         has_line_of_sight = False
         max_illumination = 0.0
         sighting_distance = None
@@ -729,7 +729,8 @@ class Map():
             # so that the user is aware of the walls otherwise it will just 
             # look like an empty space. For web rendering we don't need to do this
             # since we have the map as an image background and the walls are visible
-            inclusive = not self.session.render_for_text
+            if inclusive is None:
+                inclusive = not self.session.render_for_text
 
             if self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive) is None:
                 continue
