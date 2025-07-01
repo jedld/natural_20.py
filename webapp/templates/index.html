@@ -25,7 +25,7 @@
           height: {{ background_height }}px;
         }
 
-        .image-container img {
+        .image-container img.background-image {
           width: {{ background_width }}px;
         }
 
@@ -193,7 +193,7 @@
                     <source src="{{ background_path }}" type="video/mp4">
                 </video>
             {% else %}
-                <img src="{{ background_path }}" style="width: {{ background_width }}px; object-fit: cover; object-position: top;">
+                <img src="{{ background_path }}" class="background-image" style="width: {{ background_width }}px; object-fit: cover; object-position: top;">
             {% endif %}
             <div id="tiles-area" class="tiles-container actions-container" data-width="{{ background_width }}" data-height="{{ background_height }}" data-tile-size="{{tile_size_px}}" style="position: absolute; top: -{{tile_size_px}}px; left: -{{tile_size_px}}px;"></div>
         </div>
@@ -468,7 +468,7 @@
 
     <!-- JRPG Dialog Panel (Draggable) -->
 <div id="jrpgDialogPanel" class="draggable-dialog-panel" style="display: none; position: fixed; top: 100px; left: 50px; width: 800px; height: 600px; z-index: 1000; background: white; border: 2px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); overflow: hidden;">
-  <div class="dialog-panel-header" style="background: #f8f9fa; padding: 10px; border-bottom: 1px solid #ddd; border-radius: 6px 6px 0 0; cursor: move; user-select: none;">
+  <div class="dialog-panel-header" style="padding: 10px; border-bottom: 1px solid #ddd; border-radius: 6px 6px 0 0; cursor: move; user-select: none;">
     <div style="display: flex; justify-content: space-between; align-items: center;">
       <h5 style="margin: 0; color: #333;">
         <i class="glyphicon glyphicon-comment"></i> <span id="jrpgDialogPanelLabel">Dialog</span>
