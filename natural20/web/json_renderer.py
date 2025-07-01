@@ -2,6 +2,7 @@ import numpy as np
 import pdb
 from natural20.map import Map
 from natural20.battle import Battle
+from natural20.item_library.door_object import DoorObject, DoorObjectWall
 import logging
 class JsonRenderer:
     def __init__(self, map: Map, battle: Battle=None, padding=None, logger=None):
@@ -69,9 +70,13 @@ class JsonRenderer:
                             if any([self.map.can_see_square(entity, (x, y), force_dark_vision=True) for entity in entity_pov]):
                                 result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': True, 'light': 0.0, 'opacity': 0.95, 'soft_shadow_direction': soft_shadow_direction})
                                 continue
-
-                            result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 1.0, 'soft_shadow_direction': soft_shadow_direction})
-                            continue
+                            # check if there is a door like object in the square
+                            if any([isinstance(obj, DoorObject) or isinstance(obj, DoorObjectWall) for obj in self.map.objects_at(x, y)]):
+                                line_of_sight = any([self.map.can_see_square(entity, (x, y), force_dark_vision=True, inclusive=False) for entity in entity_pov])
+                                result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': line_of_sight, 'light': 0.0, 'opacity': 0.8, 'soft_shadow_direction': soft_shadow_direction})
+                            else:
+                                result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 1.0, 'soft_shadow_direction': soft_shadow_direction})
+                                continue
 
                 object_entities = self.map.objects_at(x, y)
                 entity = self.map.entity_at(x, y)
@@ -118,7 +123,9 @@ class JsonRenderer:
                     for object_entity in objects:
                         if entity_pov and entity_pov != current_entity:
                             visible_to_pov = any([self.map.can_see(entity_p, object_entity, allow_dark_vision=True) for entity_p in entity_pov])
-                            if not visible_to_pov:
+                            if isinstance(object_entity, DoorObject) or isinstance(object_entity, DoorObjectWall):
+                                visible_to_pov = True
+                            elif not visible_to_pov:
                                 continue
                         object_info = {
                             "id" : object_entity.entity_uid,
