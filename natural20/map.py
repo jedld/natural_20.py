@@ -751,6 +751,11 @@ class Map():
         """
         Check if entity can see entity2
         """
+        if isinstance(entity, str):
+            entity = self.entity_by_uid(entity)
+        if isinstance(entity2, str):
+            entity2 = self.entity_by_uid(entity2)
+
         if entity == entity2:
             return True
 
@@ -1049,10 +1054,15 @@ class Map():
         return entities
 
     def distance(self, entity1, entity2, entity_1_pos=None, entity_2_pos=None):
+        if isinstance(entity1, str):
+            entity1 = self.entity_by_uid(entity1)
+        if isinstance(entity2, str):
+            entity2 = self.entity_by_uid(entity2)
         if entity1 is None:
             raise ValueError('entity 1 param cannot be None')
         if entity2 is None:
             raise ValueError('entity 2 param cannot be None')
+
 
         # entity 1 squares
         entity_1_sq = self.entity_squares_at_pos(entity1, *entity_1_pos) if entity_1_pos else self.entity_squares(entity1)

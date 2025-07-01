@@ -524,7 +524,7 @@ $(document).ready(() => {
         
         // Check if this message is directed to the current POV entity (for potential dialog opening)
         const isDirectedToPov = targets && Array.isArray(targets) && targets.includes(currentPovEntity);
-        debugger;
+
         if (shouldShowInDialog) {
           // Dialog panel is open and this entity matches - show message in dialog
           console.log('Adding conversation message to dialog panel:', message);
@@ -1694,7 +1694,8 @@ $(document).ready(() => {
     $('#talkModal').modal('show');
    
     // Get the tile data to access conversation languages
-    const $tile = $(`.tile[data-coords-id="${entityId}"]`);
+    const povEntity = getCurrentPovEntity();
+    const $tile = $(`.tile[data-coords-id="${povEntity}"]`);
     const languages = $tile.data('conversation-languages');
 
     const languagesArray = languages.split(',');
@@ -1782,6 +1783,7 @@ $(document).ready(() => {
   // Update the popover menu click handler
   $(document).on('click', '.talk-action', function(event) {
     event.stopPropagation();
+    event.preventDefault();
     const $menu = $(this).closest('.popover-menu');
     const $tile = $(this).closest('.tile');
     const entityId = $tile.data('coords-id');
@@ -1905,7 +1907,7 @@ $(document).ready(() => {
   
   // Load available languages for the dialog
   function loadDialogLanguages(entityId) {
-    const $tile = $(`.tile[data-coords-id="${entityId}"]`);
+    const $tile = $(`.tile[data-coords-id="${getCurrentPovEntity()}"]`);
     const languages = $tile.data('conversation-languages');
     
     const $languageSelect = $('#dialogLanguageSelect');
