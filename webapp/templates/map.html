@@ -133,7 +133,7 @@
                 <i class="glyphicon glyphicon-plus"></i>
           </button>
           {# --- Dialog bubble for dialog-capable entities --- #}
-          {% if tile['dialog'] and pov_entity.entity_uid != tile.id %}
+          {% if tile['dialog'] and pov_entity.entity_uid != tile.id and within_talking_distance(tile.id) %}
             <div class="dialog-bubble hover-only" data-id="{{ tile.id }}" data-name="{{ tile.name }}">
               <i class="glyphicon glyphicon-comment"></i>
             </div>
