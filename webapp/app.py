@@ -1921,11 +1921,7 @@ def talk():
                 response = llm_conversation_handler.generate_response(receiver.entity_uid)
                 logger.info(f"response for {receiver.label()}: {response}")
                 if response:
-                    if "[in" in response:
-                        language = response.split("[in")[1].split("]")[0]
-                        response = response.split("[in")[2]
-                    else:
-                        language = "common"
+                    language, response = parse_language_from_response(response)
 
                     if language not in receiver.languages():
                         language = receiver.languages()[0]
@@ -1938,10 +1934,13 @@ def talk():
                         output_logger.log(f"entity {receiver.label()} is now in the hostile group")
                     else:
                         if "[INVENTORY" in response or "[LIST_INVENTORY" in response:
-                            response = [item['label'] for item in receiver.inventory_items(game_session)]
-                            system_response = f'[INVENTORY] {", ".join(response)}'
+                            inventory_items = [item['label'] for item in receiver.inventory_items(game_session)]
+                            system_response = f'[INVENTORY] {", ".join(inventory_items)}'
                             llm_conversation_handler.add_message(receiver.entity_uid, 'system', system_response)
                             response = llm_conversation_handler.generate_response(receiver.entity_uid)
+                            # Re-parse language for the new response
+                            if response:
+                                language, response = parse_language_from_response(response)
                         elif "[OBSERVE" in response:
                             nearby = receiver.observe(current_game.get_map_for_entity(receiver))
                             for entity, distance in nearby:
@@ -1949,6 +1948,9 @@ def talk():
                             system_response = f'[OBSERVE] {response}'
                             llm_conversation_handler.add_message(receiver.entity_uid, 'system', system_response)
                             response = llm_conversation_handler.generate_response(receiver.entity_uid)
+                            # Re-parse language for the new response
+                            if response:
+                                language, response = parse_language_from_response(response)
                     response = re.sub(r'\[.*?\]', '', response)
                     receiver.send_conversation(response, targets=[entity], language=language)
                     owners = entity_owners(entity)
@@ -2317,6 +2319,32 @@ def ai_get_available_actions():
     except Exception as e:
         logger.error(f"Error getting available actions: {e}")
         return jsonify({'success': False, 'error': str(e)})
+
+def parse_language_from_response(response):
+    """Helper function to parse language from AI response."""
+    if not response or "[in" not in response:
+        return "common", response
+    
+    try:
+        # Find the start of [in
+        start_idx = response.find("[in")
+        if start_idx != -1:
+            # Find the closing bracket after [in
+            end_bracket_idx = response.find("]", start_idx)
+            if end_bracket_idx != -1:
+                # Extract language (everything between [in and ])
+                language = response[start_idx + 3:end_bracket_idx].strip()
+                # Extract the rest of the response after the closing bracket
+                response_text = response[end_bracket_idx + 1:].strip()
+                return language, response_text
+            else:
+                # No closing bracket found, treat as common
+                return "common", response
+        else:
+            return "common", response
+    except (IndexError, ValueError):
+        # Fallback to common if parsing fails
+        return "common", response
 
 def get_game_context():
     """Get current game context for the AI."""
