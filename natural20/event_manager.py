@@ -187,6 +187,8 @@ class EventManager:
                 else:
                     keyword = "="
             msg = ""
+            if event.get('damage_threshold_active'):
+                msg += f"Damage dealt to {self.show_name(event)} is too weak to have any effect."
             if event.get('total_damage') < event.get('value'):
                 msg += f" {self.show_name(event)} seems to have taken less damage than expected."
             elif event.get('total_damage') > event.get('value'):

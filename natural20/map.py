@@ -258,6 +258,9 @@ class Map():
             things.append(obj)
         return [thing for thing in things if thing is not None]
 
+    def entities_at(self, pos_x, pos_y) -> List[Entity]:
+        return self.thing_at(pos_x, pos_y, reveal_concealed=False)
+
     def add(self, entity, pos_x, pos_y, group='b'):
         self.unaware_npcs.append({'group': group if group else 'b', 'entity': entity})
         self.entities[entity] = [pos_x, pos_y]

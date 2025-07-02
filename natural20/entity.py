@@ -681,6 +681,9 @@ class Entity(EntityStateEvaluator, Notable):
     def opaque(self, _origin):
         return False
     
+    def damage_threshold(self):
+        return 0
+    
     def passable(self, _origin):
         return True
     
@@ -722,6 +725,9 @@ class Entity(EntityStateEvaluator, Notable):
         entity_state['statuses'].add('disengage')
 
     def has_reaction(self, battle):
+        if not battle:
+            return True
+
         return battle.entity_state_for(self).get('reaction', 0) > 0
 
     def has_action(self, battle):
@@ -1742,6 +1748,11 @@ class Entity(EntityStateEvaluator, Notable):
             total_damage = dmg * 2
         else:
             total_damage = dmg
+        damage_threshold_active = False
+
+        if total_damage < self.damage_threshold():
+            total_damage = 0
+            damage_threshold_active = True
 
         self.attributes["hp"] -= total_damage
         instant_death = False
@@ -1796,7 +1807,7 @@ class Entity(EntityStateEvaluator, Notable):
         if self.hp() <= 0:
             self.attributes["hp"] = 0
 
-        session.event_manager.received_event({'source': self, 'event': 'damage', 'total_damage': total_damage, 'value': dmg, 'damage_type': damage_type, 'roll_info': roll_info, 'instant_death': instant_death, 'sneak_attack': sneak_attack})
+        session.event_manager.received_event({'source': self, 'event': 'damage', 'total_damage': total_damage, 'damage_threshold_active': damage_threshold_active, 'value': dmg, 'damage_type': damage_type, 'roll_info': roll_info, 'instant_death': instant_death, 'sneak_attack': sneak_attack})
 
         if battle and item and total_damage > 0:
             self.on_take_damage(battle, item)
