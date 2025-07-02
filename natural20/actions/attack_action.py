@@ -134,7 +134,7 @@ class AttackAction(Action):
                         'type': 'select_target',
                         'num': 1,
                         'weapon': action2.using,
-                        'target_types': ['enemies'],
+                        'target_types': ['enemies', 'objects'],
                     }
                     ],
                 'next': set_target

@@ -35,6 +35,10 @@ def acquire_targets(param, entity, battle, map=None):
         enemies = battle.opponents_of(entity) if battle else []
         possible_targets |= in_range_and_visible(enemies)
 
+    if "objects" in target_types:
+        objects = map.objects_near(entity) if map else []
+        possible_targets |= in_range_and_visible(objects)
+
     if "allies" in target_types:
         if battle:
             allies = battle.allies_of(entity)
