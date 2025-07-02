@@ -234,7 +234,7 @@ else:
     CONVERSATION_SYSTEM_PROMPT = ""
 
 llm_handler = LLMHandler()
-llm_handler.initialize_provider('ollama', {'model': 'llama3.1:8b'})
+llm_handler.initialize_provider('ollama', {'model': 'gemma3:27b'})
 llm_conversation_handler = LLMConversationController(llm_handler)
 
 # Initialize Entity RAG Handler
@@ -1868,8 +1868,11 @@ def talk():
         if receiver.entity_uid == entity_id:
             continue
         if receiver.is_npc() and receiver.dialog:
+            attributes = receiver.ability_scores
+            attributes_str = "\n".join([f"{k}: {v}" for k, v in attributes.items()])
             system_prompt = CONVERSATION_SYSTEM_PROMPT.format(backstory=receiver.backstory(),
                                                               name=receiver.label(),
+                                                              attributes=attributes_str,
                                                               alignment=receiver.alignment().replace("_", " "),
                                                               languages=", ".join(receiver.languages()))
             llm_conversation_handler.create_conversation(receiver.entity_uid, system_prompt)
