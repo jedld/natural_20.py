@@ -193,5 +193,8 @@ class TestAttackAction(unittest.TestCase):
         print(map_renderer.render())
         attack_action = autobuild(session, AttackAction, character, battle, match=[door_entity, 'vicious_rapier'], verbose=True)[0]
         battle.execute_action(attack_action)
+        print(map_renderer.render())
+        self.assertEqual(door_entity.dead(), True)
+
 if __name__ == '__main__':
     unittest.main()
