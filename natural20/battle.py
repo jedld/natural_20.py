@@ -394,7 +394,8 @@ class Battle():
         return {}
 
     def dismiss_help_for(self, entity):
-        self.entities[entity]['help_with'] = {}
+        if entity in self.entities:
+            self.entities[entity]['help_with'] = {}
 
     # Returns opponents of entity
     # @param entity [Natural20::Entity] target entity
@@ -677,7 +678,7 @@ class Battle():
                 return True
 
         return False
-    
+
     def execute_action(self, action):
         self.action(action)
         self.commit(action)
