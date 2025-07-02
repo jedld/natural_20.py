@@ -51,7 +51,7 @@ class Object(Entity, Container, EventLoader):
             "cha": 0
         })
 
-        self.statuses = set()
+        self.statuses = []
         self.properties = properties
         self.resistances = properties.get('resistances', [])
         self.is_concealed = properties.get('concealed', False)
@@ -148,10 +148,13 @@ class Object(Entity, Container, EventLoader):
             if len(self.properties['ability_check'].items()) > 0:
                 return True
         return False
-    
+
     def swimmable(self) -> bool:
         return self.properties.get('swimmable', False)
-    
+
+    def immune_to_condition(self, condition):
+        return True
+
     def damage_threshold(self) -> int:
         return self.properties.get('damage_threshold', 0)
 

@@ -182,5 +182,16 @@ class TestAttackAction(unittest.TestCase):
         self.assertEqual(advantages, [])
         self.assertEqual(disadvantages, [])
 
+    def test_player_can_attack_door(self):
+        session = self.make_session()
+        battle_map = Map(session, 'battle_sim_objects')
+        battle = Battle(session, battle_map)
+        character = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        door_entity = battle_map.entities_at(1, 4)[0]
+        battle.add(character, 'a', position=[1, 5], token='G')
+        map_renderer = MapRenderer(battle_map)
+        print(map_renderer.render())
+        attack_action = autobuild(session, AttackAction, character, battle, match=[door_entity, 'vicious_rapier'], verbose=True)[0]
+        battle.execute_action(attack_action)
 if __name__ == '__main__':
     unittest.main()
