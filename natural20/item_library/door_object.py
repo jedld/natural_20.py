@@ -144,6 +144,9 @@ class DoorObject(Object):
         return transform
 
     def available_interactions(self, entity, battle=None, admin=False):
+        if self.dead():
+            return {}
+
         if self.concealed() and not admin:
             return {}
 
@@ -236,7 +239,7 @@ class DoorObject(Object):
         return actions
 
     def interactable(self, entity=None):
-        return True
+        return not self.dead()
 
     def resolve(self, entity, action, other_params, opts=None):
         results = super().resolve(entity, action, other_params, opts)
