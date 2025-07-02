@@ -197,7 +197,7 @@ const centerOnEntityId = (id) => {
 };
 
 // Function to show target selection modal
-const showTargetSelectionModal = (targets, position) => {
+const showTargetSelectionModal = (targets, position, actionData = null) => {
   const $modal = $('#targetSelectionModal');
   const $targetList = $('#targetList');
   
@@ -208,7 +208,7 @@ const showTargetSelectionModal = (targets, position) => {
   targets.forEach((target, index) => {
     const $targetOption = $(`
       <div class="target-option" data-target-id="${target.id}" data-target-type="${target.type}">
-        <img class="target-image" src="${target.image || '/static/assets/default_target.png'}" alt="${target.name}" onerror="this.src='/static/assets/default_target.png'">
+        <img class="target-image" src="${target.image || ''}" alt="${target.name}" style="${!target.image ? 'display: none;' : ''}">
         <div class="target-info">
           <div class="target-name">${target.name}</div>
           <div class="target-type">${target.type}</div>
@@ -236,13 +236,31 @@ const showTargetSelectionModal = (targets, position) => {
       // Close modal
       $modal.modal('hide');
       
-      // Execute the action with the selected target
-      if (targetType === 'position') {
-        // For position targets, use coordinates
-        targetModeCallback({ x: position.x, y: position.y });
+      if (actionData) {
+        // This is a multiple target case - call the action again with the specific target
+        const newActionData = { ...actionData };
+        if (targetType === 'position') {
+          // For position targets, use coordinates
+          newActionData.target = { x: position.x, y: position.y };
+        } else {
+          // For entity/object targets, use the target ID
+          newActionData.target = targetId;
+        }
+        
+        // Call the action again with the specific target
+        ajaxPost("/action", newActionData, (data) => {
+          console.log("Action request successful:", data);
+          refreshTurn();
+        }, true);
       } else {
-        // For entity/object targets, use the target ID
-        targetModeCallback({ target_id: targetId, x: position.x, y: position.y });
+        // This is a regular target mode case
+        if (targetType === 'position') {
+          // For position targets, use coordinates
+          targetModeCallback({ x: position.x, y: position.y });
+        } else {
+          // For entity/object targets, use the target ID
+          targetModeCallback({ target_id: targetId, x: position.x, y: position.y });
+        }
       }
       
       // Reset target mode
@@ -1505,6 +1523,20 @@ $(document).ready(() => {
             "/action",
             actionData,
             (data) => {
+              if (data.status === 'multiple_targets') {
+                let target_list = data.entities; // list of [label, entity_uid]
+                
+                // Convert the target list to the format expected by showTargetSelectionModal
+                const targets = target_list.map(([label, entity_uid]) => ({
+                  id: entity_uid,
+                  name: label,
+                  type: 'entity',
+                  image: null // Could be enhanced to include entity images
+                }));
+                
+                // Show the target selection modal with the original action data
+                showTargetSelectionModal(targets, { x: target.x, y: target.y }, { id: entity_uid, action, opts });
+              }
               console.log("Action request successful:", data);
               refreshTurn();
             },
@@ -1516,7 +1548,7 @@ $(document).ready(() => {
         $(".popover-menu").hide();
         $("#modal-1").modal("hide");
 
-        source = { x: coordsx, y: coordsy, entity_uid };
+        source = { x: coordsx, y: coordsy, mode: 'point_target', entity_uid };
         targetModeMaxRange =
           data.range_max !== undefined ? data.range_max : data.range;
         targetMode = true;
