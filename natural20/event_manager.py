@@ -252,6 +252,11 @@ class EventManager:
                 self.output_logger.log(f"{self.show_name(event)} to {self.show_target_name(event)}[{event['language']}]: {event['message']}")
             else:
                 self.output_logger.log(f"{self.show_name(event)} [in {event['language']}]: {event['message']}")
+        def died(event):
+            if event['source'].object():
+                self.output_logger.log(f"{self.show_name(event)} is destroyed.")
+            else:
+                self.output_logger.log(f"{self.show_name(event)} died.")
 
         event_handlers = {
             'ability_check': ability_check,
@@ -271,7 +276,7 @@ class EventManager:
             'second_wind': lambda event: self.output_logger.log(f"{self.show_name(event)} uses second wind to recover {event['value']}={event['value'].result()} hit points."),    
             'disengage': lambda event: self.output_logger.log(f"{self.show_name(event)} disengages."),
             'dodge': lambda event: self.output_logger.log(f"{self.show_name(event)} dodges."),
-            'died': lambda event: self.output_logger.log(f"{self.show_name(event)} died."),
+            'died': died,
             'dash': lambda event: self.output_logger.log(f"{self.show_name(event)} {'bonus action' if event['as_bonus_action'] else ''} dashes."),
             'stand': lambda event: self.output_logger.log(f"{self.show_name(event)} stands up."),
             'prone': lambda event: self.output_logger.log(f"{self.show_name(event)} goes prone."),
