@@ -501,18 +501,15 @@ REMEMBER:
 class OllamaProvider(LLMProvider):
     """Ollama local provider."""
     
-    def __init__(self):
-        self.base_url = "http://localhost:11434"
+    def __init__(self, opts = {}):
+        self.base_url = opts.get('base_url', "http://localhost:11434")
         self.model = None
-        self.context_window = 16384  # Default context window size
+        self.context_window = opts.get('context_window', 16384)  # Default context window size
         self.conversation_history = []
     
     def initialize(self, config: Dict[str, Any]) -> bool:
         try:
-            self.base_url = config.get('base_url', 'http://localhost:11434')
             self.model = config.get('model')
-            self.context_window = config.get('context_window', 16384)  # Allow configurable context window
-            
             # Test connection
             response = requests.get(f"{self.base_url}/api/tags", timeout=10)
             if response.status_code != 200:
@@ -719,12 +716,12 @@ REMEMBER:
 class LLMHandler:
     """Main handler for LLM interactions with RAG capabilities."""
     
-    def __init__(self):
+    def __init__(self, opts = {}):
         self.providers = {
             'mock': MockProvider(),
             'openai': OpenAIProvider(),
             'anthropic': AnthropicProvider(),
-            'ollama': OllamaProvider()
+            'ollama': OllamaProvider(opts)
         }
         self.current_provider = None
         self.game_context_functions = {}

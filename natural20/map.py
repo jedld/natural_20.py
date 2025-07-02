@@ -249,17 +249,17 @@ class Map():
                 return obj
         return None
 
-    def thing_at(self, pos_x, pos_y, reveal_concealed=False) -> List[Entity]:
+    def thing_at(self, pos_x, pos_y, reveal_concealed=False, require_alive=True) -> List[Entity]:
         if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
             return []
         things = []
         things.append(self.entity_at(pos_x, pos_y))
         for obj in self.objects_at(pos_x, pos_y, reveal_concealed=reveal_concealed):
             things.append(obj)
-        return [thing for thing in things if thing is not None]
+        return [thing for thing in things if thing is not None and (require_alive is False or not thing.dead())]
 
-    def entities_at(self, pos_x, pos_y) -> List[Entity]:
-        return self.thing_at(pos_x, pos_y, reveal_concealed=False)
+    def entities_at(self, pos_x, pos_y, require_alive=True) -> List[Entity]:
+        return self.thing_at(pos_x, pos_y, reveal_concealed=False, require_alive=require_alive)
 
     def add(self, entity, pos_x, pos_y, group='b'):
         self.unaware_npcs.append({'group': group if group else 'b', 'entity': entity})
