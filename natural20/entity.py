@@ -528,7 +528,7 @@ class Entity(EntityStateEvaluator, Notable):
 
     def make_dead(self):
         if not self.dead():
-            self.event_manager.received_event({ 'source': self, 'event': 'died' })
+            self.session.event_manager.received_event({ 'source': self, 'event': 'died' })
             # print(f"{self.name} died. :(")
             self.drop_grapple()
             if 'dead' not in self.statuses:
@@ -1776,7 +1776,7 @@ class Entity(EntityStateEvaluator, Notable):
             self.make_dead()
 
         elif self.hp() <= 0:
-            self.make_dead() if self.npc() else self.make_unconscious()
+            self.make_dead() if self.npc() or self.object() else self.make_unconscious()
             # drop concentration spells
             if self.concentration:
                 self.dismiss_effect(self.concentration)
