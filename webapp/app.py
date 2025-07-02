@@ -65,6 +65,7 @@ import traceback
 # Import the LLM handler
 from webapp.llm_handler import llm_handler
 from webapp.game_context import GameContextProvider
+from webapp.entity_rag_handler import EntityRAGHandler
 import requests
 import re
 
@@ -235,6 +236,9 @@ else:
 llm_handler = LLMHandler()
 llm_handler.initialize_provider('ollama', {'model': 'llama3.1:8b'})
 llm_conversation_handler = LLMConversationController(llm_handler)
+
+# Initialize Entity RAG Handler
+entity_rag_handler = EntityRAGHandler(game_session, current_game)
 
 
 def logged_in():
@@ -1702,48 +1706,8 @@ def get_entity_info():
         if not entity:
             return jsonify({'success': False, 'error': 'Entity not found'}), 404
         
-        # Build entity information
-        entity_info = {
-            'name': entity.label() if hasattr(entity, 'label') else str(entity),
-            'entity_uid': getattr(entity, 'entity_uid', None),
-            'description': entity.description() if hasattr(entity, 'description') else 'No description available.'
-        }
-        
-        # Add combat stats
-        if hasattr(entity, 'hp') and callable(getattr(entity, 'hp')):
-            entity_info['hp'] = entity.hp()
-        elif hasattr(entity, 'hp'):
-            entity_info['hp'] = entity.hp
-        
-        if hasattr(entity, 'max_hp') and callable(getattr(entity, 'max_hp')):
-            entity_info['max_hp'] = entity.max_hp()
-        elif hasattr(entity, 'max_hp'):
-            entity_info['max_hp'] = entity.max_hp
-        
-        if hasattr(entity, 'armor_class') and callable(getattr(entity, 'armor_class')):
-            entity_info['ac'] = entity.armor_class()
-        elif hasattr(entity, 'ac'):
-            entity_info['ac'] = entity.ac
-        
-        # Add level information
-        if hasattr(entity, 'level') and callable(getattr(entity, 'level')):
-            entity_info['level'] = entity.level()
-        elif hasattr(entity, 'level'):
-            entity_info['level'] = entity.level
-        
-        # Add race information
-        if hasattr(entity, 'race') and callable(getattr(entity, 'race')):
-            entity_info['race'] = entity.race()
-        elif hasattr(entity, 'race'):
-            entity_info['race'] = entity.race
-        
-        # Add class information
-        if hasattr(entity, 'class_descriptor') and callable(getattr(entity, 'class_descriptor')):
-            entity_info['class'] = entity.class_descriptor()
-        elif hasattr(entity, 'class_and_level') and callable(getattr(entity, 'class_and_level')):
-            class_info = entity.class_and_level()
-            if class_info:
-                entity_info['class'] = ', '.join([f"{cls} {lvl}" for cls, lvl in class_info])
+        # Use EntityRAGHandler to get comprehensive entity context
+        entity_info = entity_rag_handler.get_entity_context(entity)
         
         return jsonify({'success': True, 'entity': entity_info})
         
@@ -1921,37 +1885,10 @@ def talk():
                 response = llm_conversation_handler.generate_response(receiver.entity_uid)
                 logger.info(f"response for {receiver.label()}: {response}")
                 if response:
-                    language, response = parse_language_from_response(response)
-
-                    if language not in receiver.languages():
-                        language = receiver.languages()[0]
-
-                    # Remove any text between and including square brackets
-                    if "[GO_HOSTILE]" in response:
-                        # switch entity to the hostile group
-                        receiver.update_state('active')
-                        current_game.update_group(receiver, 'b')
-                        output_logger.log(f"entity {receiver.label()} is now in the hostile group")
-                    else:
-                        if "[INVENTORY" in response or "[LIST_INVENTORY" in response:
-                            inventory_items = [item['label'] for item in receiver.inventory_items(game_session)]
-                            system_response = f'[INVENTORY] {", ".join(inventory_items)}'
-                            llm_conversation_handler.add_message(receiver.entity_uid, 'system', system_response)
-                            response = llm_conversation_handler.generate_response(receiver.entity_uid)
-                            # Re-parse language for the new response
-                            if response:
-                                language, response = parse_language_from_response(response)
-                        elif "[OBSERVE" in response:
-                            nearby = receiver.observe(current_game.get_map_for_entity(receiver))
-                            for entity, distance in nearby:
-                                response += f"{entity.label()} is {distance}ft away\n"
-                            system_response = f'[OBSERVE] {response}'
-                            llm_conversation_handler.add_message(receiver.entity_uid, 'system', system_response)
-                            response = llm_conversation_handler.generate_response(receiver.entity_uid)
-                            # Re-parse language for the new response
-                            if response:
-                                language, response = parse_language_from_response(response)
-                    response = re.sub(r'\[.*?\]', '', response)
+                    # Use EntityRAGHandler to process the response
+                    language, response = entity_rag_handler.process_entity_response(
+                        response, receiver, llm_conversation_handler
+                    )
                     receiver.send_conversation(response, targets=[entity], language=language)
                     owners = entity_owners(entity)
                     for owner in owners:
@@ -1973,16 +1910,8 @@ def nearby_entities():
     if not entity:
         return jsonify({'error': 'Entity not found'}), 404
 
-    nearby = entity.observe(current_game.get_map_for_entity(entity), range_ft)
-
-    response = []
-    for entity, distance in nearby:
-        response.append({
-            'id': entity.entity_uid,
-            'name': entity.label(),
-            'distance': distance,
-            'conversable': entity.conversable()
-        })
+    # Use EntityRAGHandler to get nearby entities
+    response = entity_rag_handler.get_nearby_entities(entity, range_ft)
 
     return jsonify({
         'entities': response
@@ -2320,31 +2249,7 @@ def ai_get_available_actions():
         logger.error(f"Error getting available actions: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
-def parse_language_from_response(response):
-    """Helper function to parse language from AI response."""
-    if not response or "[in" not in response:
-        return "common", response
-    
-    try:
-        # Find the start of [in
-        start_idx = response.find("[in")
-        if start_idx != -1:
-            # Find the closing bracket after [in
-            end_bracket_idx = response.find("]", start_idx)
-            if end_bracket_idx != -1:
-                # Extract language (everything between [in and ])
-                language = response[start_idx + 3:end_bracket_idx].strip()
-                # Extract the rest of the response after the closing bracket
-                response_text = response[end_bracket_idx + 1:].strip()
-                return language, response_text
-            else:
-                # No closing bracket found, treat as common
-                return "common", response
-        else:
-            return "common", response
-    except (IndexError, ValueError):
-        # Fallback to common if parsing fails
-        return "common", response
+
 
 def get_game_context():
     """Get current game context for the AI."""
