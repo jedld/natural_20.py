@@ -33,6 +33,9 @@ class ShieldSpell(Spell):
         if opts is None:
             opts = {}
 
+        if not battle:
+            return [[], False]
+
         spell = battle.session.load_spell('shield')
         original_action = opts.get('original_action', None)
 

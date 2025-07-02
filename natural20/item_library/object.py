@@ -152,6 +152,8 @@ class Object(Entity, Container, EventLoader):
     def swimmable(self) -> bool:
         return self.properties.get('swimmable', False)
     
+    def damage_threshold(self) -> int:
+        return self.properties.get('damage_threshold', 0)
 
     def swim_movement_cost(self) -> int:
         if not self.swimmable():

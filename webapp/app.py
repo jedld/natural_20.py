@@ -1422,17 +1422,27 @@ def action():
 
     if target_coords:
         mode = action_request.get('mode', None)
-        if mode == 'cone':
+        if mode == 'cone' or mode == 'point_target':
             target = [target_coords['x'], target_coords['y']]
         else:
             if isinstance(target_coords, list):
                 target = []
                 for entity_uids in target_coords:
                     target.append(battle_map.entity_by_uid(entity_uids))
+            elif isinstance(target_coords, str):
+                # Target is an entity UID
+                target = battle_map.entity_by_uid(target_coords)
             else:
-                target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
-                if not target:
+                # Target is coordinates
+                targets = battle_map.entities_at(int(target_coords['x']), int(target_coords['y']))
+                if len(targets) == 1:
+                    target = targets[0]
+                elif len(targets) == 0:
                     target = [target_coords['x'], target_coords['y']]
+                else:
+                    target_list = [[target.label(), target.entity_uid] for target in targets]
+                    return jsonify(status='multiple_targets', message=f"Multiple entities at {target_coords['x']}, {target_coords['y']}",
+                                   entities=target_list)
 
     try:
         if action_type == 'MoveAction':
@@ -1475,7 +1485,7 @@ def action():
             action.npc_action = opts.get('npc_action', None)
             action.thrown = opts.get('thrown', False)
 
-            valid_targets = battle_map.valid_targets_for(entity, action)
+            valid_targets = battle_map.valid_targets_for(entity, action, include_objects=True)
             valid_targets = { target.entity_uid: battle_map.entity_or_object_pos(target) for target in valid_targets}
 
             if action.npc_action:
@@ -1484,10 +1494,18 @@ def action():
                 weapon_details = game_session.load_weapon(action.using)
 
             if target_coords:
-                target = battle_map.entity_at(int(target_coords['x']), int(target_coords['y']))
-                if valid_targets.get(target.entity_uid):
+                if isinstance(target_coords, str):
+                    # Target is an entity UID
+                    target = battle_map.entity_by_uid(target_coords)
+                else:
+                    # Target is coordinates
+                    target = battle_map.entities_at(int(target_coords['x']), int(target_coords['y']))[0]
+
+                if target and valid_targets.get(target.entity_uid):
                     action.target = target
                     return jsonify(commit_and_update(action))
+                else:
+                    return jsonify(status='error', message=f"Invalid Target {target_coords}")
             else:
                 action_info['action'] = 'attack'
                 action_info['type'] = 'select_target'
