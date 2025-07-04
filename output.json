@@ -1,0 +1,93 @@
+{
+    "tasks": [
+        {
+            "attachments": [
+                {
+                    "id": "f3d95811-a179-4807-8a98-3a324360dcd4",
+                    "type": "ElasticNetworkInterface",
+                    "status": "ATTACHED",
+                    "details": [
+                        {
+                            "name": "subnetId",
+                            "value": "subnet-ded1e9e2"
+                        },
+                        {
+                            "name": "networkInterfaceId",
+                            "value": "eni-0156288a91023bcec"
+                        },
+                        {
+                            "name": "macAddress",
+                            "value": "06:4f:9f:80:b1:3f"
+                        },
+                        {
+                            "name": "privateDnsName",
+                            "value": "ip-10-0-0-125.ec2.internal"
+                        },
+                        {
+                            "name": "privateIPv4Address",
+                            "value": "10.0.0.125"
+                        }
+                    ]
+                }
+            ],
+            "attributes": [
+                {
+                    "name": "ecs.cpu-architecture",
+                    "value": "x86_64"
+                }
+            ],
+            "availabilityZone": "us-east-1e",
+            "capacityProviderName": "Infra-ECS-Cluster-natural20-dh-9a836307-AsgCapacityProvider-44a7C7Ui0ZZq",
+            "clusterArn": "arn:aws:ecs:us-east-1:416032911879:cluster/natural20-dh",
+            "connectivity": "CONNECTED",
+            "connectivityAt": "2025-07-04T17:08:12.560000+08:00",
+            "containerInstanceArn": "arn:aws:ecs:us-east-1:416032911879:container-instance/natural20-dh/79c063e0644f4ecdab2b5e694c2e180b",
+            "containers": [
+                {
+                    "containerArn": "arn:aws:ecs:us-east-1:416032911879:container/natural20-dh/a5c1c048bddd409892a80d76924ec2fa/9658e65d-5a58-42c9-8d11-ed9faa31db8c",
+                    "taskArn": "arn:aws:ecs:us-east-1:416032911879:task/natural20-dh/a5c1c048bddd409892a80d76924ec2fa",
+                    "name": "natural20",
+                    "image": "416032911879.dkr.ecr.us-east-1.amazonaws.com/natural20",
+                    "imageDigest": "sha256:1949cfc1b9d6824d7c202611b344870eec40675b866c59a536fcbafa500d25d7",
+                    "runtimeId": "8f455741649f6bd5701a23c66cfc5486b33835d91a7f3f7fdacb49a6e27c58a2",
+                    "lastStatus": "RUNNING",
+                    "networkBindings": [],
+                    "networkInterfaces": [
+                        {
+                            "attachmentId": "f3d95811-a179-4807-8a98-3a324360dcd4",
+                            "privateIpv4Address": "10.0.0.125"
+                        }
+                    ],
+                    "healthStatus": "UNKNOWN",
+                    "cpu": "0"
+                }
+            ],
+            "cpu": "1024",
+            "createdAt": "2025-07-04T17:04:49.661000+08:00",
+            "desiredStatus": "RUNNING",
+            "enableExecuteCommand": false,
+            "group": "service:natural20-web",
+            "healthStatus": "UNKNOWN",
+            "lastStatus": "RUNNING",
+            "launchType": "EC2",
+            "memory": "900",
+            "overrides": {
+                "containerOverrides": [
+                    {
+                        "name": "natural20"
+                    }
+                ],
+                "inferenceAcceleratorOverrides": []
+            },
+            "pullStartedAt": "2025-07-04T17:09:01.392000+08:00",
+            "pullStoppedAt": "2025-07-04T17:09:44.209000+08:00",
+            "startedAt": "2025-07-04T17:10:02.429000+08:00",
+            "startedBy": "ecs-svc/1441720245406589007",
+            "tags": [],
+            "taskArn": "arn:aws:ecs:us-east-1:416032911879:task/natural20-dh/a5c1c048bddd409892a80d76924ec2fa",
+            "taskDefinitionArn": "arn:aws:ecs:us-east-1:416032911879:task-definition/natural20-dh:10",
+            "version": 5
+        }
+    ],
+    "failures": []
+}
