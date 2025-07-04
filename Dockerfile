@@ -39,6 +39,9 @@ ENV TEMPLATE_DIR=/app/templates
 ENV FLASK_APP=webapp/app.py
 ENV AWS_ENVIRONMENT=true
 
+# CORS Configuration:
+# ENV CORS_ORIGINS=https://myapp.com,https://www.myapp.com  # Comma-separated list of allowed origins
+
 # LLM Configuration Environment Variables
 # These can be overridden when running the container:
 # 
