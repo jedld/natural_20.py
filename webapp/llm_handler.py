@@ -14,7 +14,7 @@ import requests
 from datetime import datetime
 import re
 import uuid
-
+import pdb
 logger = logging.getLogger('werkzeug')
 logger.setLevel(logging.INFO)
 
@@ -753,7 +753,6 @@ class LLMHandler:
             error_msg = "AI assistant is not initialized. Please initialize a provider first."
             self.session_logger.log_error(error_msg, "No provider initialized")
             return error_msg
-        
         if isinstance(message, list):
             self.conversation_history = message
             messages = message
@@ -805,12 +804,10 @@ class LLMHandler:
                 trimmed = content.strip()
                 
                 # If the content ends with ... or is very long without proper ending
-                if trimmed.endswith("..."):
-                    is_truncated = True
-                elif len(trimmed) > 100 and not trimmed[-1] in ".!?\n":
+                if len(trimmed) > 100 and not trimmed[-1] in ".!?]\n":
                     is_truncated = True
                 # Check if response ends mid-sentence (no proper ending punctuation)
-                elif len(trimmed) > 20 and not trimmed[-1] in ".!?\n":
+                elif len(trimmed) > 20 and not trimmed[-1] in ".!?]\n":
                     is_truncated = True
                 # Check if thinking tags are incomplete (no closing tag)
                 elif "<think>" in content and "</think>" not in content:
