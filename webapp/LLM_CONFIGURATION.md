@@ -105,6 +105,25 @@ export OLLAMA_MODEL=gemma3:27b                     # Optional, defaults to gemma
 - `codellama:7b`
 - `qwen2.5:7b`
 
+### Timeout Configuration
+
+For ECS/AWS environments where network latency may be higher, you can configure timeouts:
+
+```bash
+export OPENAI_TIMEOUT=120      # OpenAI API timeout (seconds)
+export ANTHROPIC_TIMEOUT=120   # Anthropic API timeout (seconds)
+export OLLAMA_TIMEOUT=120      # Ollama API timeout (seconds)
+```
+
+**Default Timeouts:**
+- OpenAI: 60 seconds
+- Anthropic: 60 seconds
+- Ollama: 60 seconds
+
+**Recommended for ECS/AWS:**
+- Increase timeouts to 120-180 seconds for better reliability
+- Monitor your application logs for timeout errors
+
 ## Configuration Examples
 
 ### Example 1: OpenAI with GPT-4o

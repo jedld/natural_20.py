@@ -61,6 +61,11 @@ ENV AWS_ENVIRONMENT=true
 # ENV OLLAMA_BASE_URL=http://localhost:11434  # Default: http://localhost:11434
 # ENV OLLAMA_MODEL=gemma3:27b      # Default: gemma3:27b
 #
+# Timeout Configuration (recommended for ECS/AWS):
+# ENV OPENAI_TIMEOUT=60            # Default: 60 seconds
+# ENV ANTHROPIC_TIMEOUT=60         # Default: 60 seconds  
+# ENV OLLAMA_TIMEOUT=60            # Default: 60 seconds
+#
 # Example usage:
 # docker run -e LLM_PROVIDER=openai -e OPENAI_API_KEY=your_key -e OPENAI_MODEL=gpt-4o your-image
 # docker run -e LLM_PROVIDER=ollama -e OLLAMA_BASE_URL=http://ollama:11434 -e OLLAMA_MODEL=llama3.2:7b your-image

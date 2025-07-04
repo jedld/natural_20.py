@@ -244,7 +244,9 @@ class OpenAIProvider(LLMProvider):
             # Import OpenAI client
             try:
                 from openai import OpenAI
+                logger.info(f"[OpenAIProvider] Initializing OpenAI client with API key: {self.api_key}")
                 self.client = OpenAI(api_key=self.api_key)
+                logger.info(f"[OpenAIProvider] OpenAI client initialized")
             except ImportError:
                 logger.error("OpenAI library not installed. Install with: pip install openai")
                 return False
@@ -263,11 +265,16 @@ class OpenAIProvider(LLMProvider):
             # system_prompt = self._build_system_prompt()
             
             logger.info(f"Messages: {messages}")
+            
+            # Get timeout from environment or use default
+            timeout = int(os.environ.get('OPENAI_TIMEOUT', '60'))
+            
             response = self.client.chat.completions.create(
                 model=self.current_model,
                 messages=messages,
                 max_tokens=1000,
-                temperature=0.7
+                temperature=0.7,
+                timeout=timeout
             )
             logger.info(f"Response: {response}")
             assistant_response = response.choices[0].message.content
@@ -402,11 +409,14 @@ class AnthropicProvider(LLMProvider):
                 "messages": messages
             }
             
+            # Get timeout from environment or use default
+            timeout = int(os.environ.get('ANTHROPIC_TIMEOUT', '60'))
+            
             response = requests.post(
                 "https://api.anthropic.com/v1/messages",
                 headers=headers,
                 json=data,
-                timeout=30
+                timeout=timeout
             )
             
             if response.status_code == 200:
@@ -511,8 +521,10 @@ class OllamaProvider(LLMProvider):
     
     def initialize(self, config: Dict[str, Any]) -> bool:
         try:
+            self.base_url = config.get('base_url', "http://localhost:11434")
             self.model = config.get('model')
             # Test connection
+            logger.info(f"[OllamaProvider] Initializing Ollama provider with base URL: {self.base_url}")
             response = requests.get(f"{self.base_url}/api/tags", timeout=10)
             if response.status_code != 200:
                 return False
@@ -555,11 +567,14 @@ class OllamaProvider(LLMProvider):
                 }
             }
             print("Request:", payload)
+            # Get timeout from environment or use default
+            timeout = int(os.environ.get('OLLAMA_TIMEOUT', '60'))
+            
             # Make the API call
             response = requests.post(
                 f"{self.base_url}/api/chat",
                 json=payload,
-                timeout=30
+                timeout=timeout
             )
             
             if response.status_code == 200:
@@ -590,7 +605,7 @@ class OllamaProvider(LLMProvider):
                     direct_response = requests.post(
                         f"{self.base_url}/api/chat",
                         json=direct_payload,
-                        timeout=30
+                        timeout=timeout
                     )
                     
                     if direct_response.status_code == 200:
@@ -617,7 +632,9 @@ class OllamaProvider(LLMProvider):
     
     def get_available_models(self) -> List[str]:
         try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=10)
+            # Get timeout from environment or use default for model listing
+            timeout = int(os.environ.get('OLLAMA_TIMEOUT', '30'))
+            response = requests.get(f"{self.base_url}/api/tags", timeout=timeout)
             if response.status_code == 200:
                 data = response.json()
                 return [model['name'] for model in data.get('models', [])]

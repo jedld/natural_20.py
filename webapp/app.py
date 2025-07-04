@@ -114,12 +114,17 @@ def get_allowed_origins():
             "*"  # Fallback to allow all origins in production
         ]
     else:
-        # In local development, allow localhost origins
+        # In local development, allow localhost origins and common ngrok patterns
         default_origins = [
             "http://localhost:5000", 
             "http://127.0.0.1:5000", 
             "http://localhost:5001", 
-            "http://127.0.0.1:5001"
+            "http://127.0.0.1:5001",
+            # Add common ngrok patterns
+            "https://*.ngrok.io",
+            "https://*.ngrok-free.app",
+            "http://*.ngrok.io",
+            "http://*.ngrok-free.app"
         ]
     
     logger.info(f"Using default CORS origins for {'production' if (is_aws or is_production) else 'development'}: {default_origins}")
@@ -149,7 +154,11 @@ socketio = SocketIO(app,
     manage_session=True,
     cookie=True,
     always_connect=True,
-    message_queue=None  # Disable message queue since we're using a single worker
+    message_queue=None,  # Disable message queue since we're using a single worker
+    # Add ngrok-specific settings
+    transports=['websocket', 'polling'],  # Allow both WebSocket and polling
+    allow_upgrades=True,
+    upgrade_timeout=10
 )
 Session(app)
 
@@ -336,7 +345,7 @@ def initialize_llm_from_env():
         if success:
             logger.info(f"Initialized Ollama provider with model: {model} at {base_url}")
         else:
-            logger.error("Failed to initialize Ollama provider")
+            logger.error(f"Failed to initialize Ollama provider: {config}")
             
     else:
         logger.warning(f"Unknown LLM provider: {llm_provider}, using mock provider")
@@ -2563,4 +2572,15 @@ def get_targets_at_position():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
-    socketio.run(app, debug=False, host='0.0.0.0', port=5001, allow_unsafe_werkzeug=True)
+    # Configure for better ngrok compatibility
+    socketio.run(
+        app, 
+        debug=False, 
+        host='0.0.0.0', 
+        port=5001, 
+        allow_unsafe_werkzeug=True,
+        # Add ngrok-specific settings
+        use_reloader=False,  # Disable reloader for ngrok
+        threaded=True,  # Enable threading
+        log_output=True
+    )
