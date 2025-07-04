@@ -261,6 +261,30 @@ The web application supports multiple LLM providers that can be configured using
 
 ### Environment Variables
 
+#### CORS Configuration
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `CORS_ORIGINS` | Comma-separated list of allowed origins | Environment-based | No |
+
+**CORS Defaults:**
+- **Development**: `http://localhost:5000`, `http://127.0.0.1:5000`, `http://localhost:5001`, `http://127.0.0.1:5001`
+- **Production**: AWS ALB domain + wildcard (`*`)
+
+**Examples:**
+```bash
+# Custom domains
+export CORS_ORIGINS="https://myapp.com,https://www.myapp.com"
+
+# Allow all origins (use with caution)
+export CORS_ORIGINS="*"
+
+# Mixed protocols
+export CORS_ORIGINS="http://localhost:5000,https://myapp.com"
+```
+
+#### LLM Configuration
+
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `LLM_PROVIDER` | Provider to use (openai, anthropic, ollama, mock) | `ollama` | No |
