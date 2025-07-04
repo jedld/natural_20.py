@@ -132,6 +132,41 @@ class Entity(EntityStateEvaluator, Notable):
     def conversable(self):
         return False
 
+    def conversation_history(self, listener):
+        history = []
+        
+        for message in self.conversation_buffer:
+            if message['source'] == self and (message.get("target") == "all" or listener in message.get('directed_to', [])):
+                language = message.get('language', 'common')
+                if language in listener.languages():
+                    history.append({
+                        'source': self.label(),
+                        'target': listener.label(),
+                        'message': message['message'],
+                        'language': language,
+                        'type': 'entity'
+                    })
+                else:
+                    # If the listener does not understand the language, use gibberish
+                    message['message'] = gibberish(message['message'], language=language)
+            if self in message.get('directed_to', []):
+                language = message.get('language', 'common')
+                history.append({
+                    'source': message['source'].label(),
+                    'message': message['message'],
+                    'target': self.label(),
+                    'language': language,
+                    'type': 'player'
+                })
+        return history
+    
+    def conversation_keywords(self):
+        """
+        Returns a list of keywords that this entity can respond to in conversations.
+        This is used to trigger specific actions or responses based on the conversation context.
+        """
+        return self.properties.get('converstation_keywords', [])
+ 
     def conversation(self, outgoing=True, listener_languages=None):
         if listener_languages is None:
             listener_languages = ["common"]
@@ -198,6 +233,7 @@ class Entity(EntityStateEvaluator, Notable):
             if language not in other_entity.languages():
                 print(f'{other_entity.name} does not speak {language}')
                 nearby.append([other_entity, gibberish(message, language), targets])
+                other_entity.receive_conversation(self, gibberish(message, language), language=language, directed_to=targets)
             else:
                 nearby.append([other_entity, message, targets])
                 print(f'{other_entity.name} speaks {language} and receives message {message}')
@@ -1108,6 +1144,7 @@ class Entity(EntityStateEvaluator, Notable):
             self.make_conscious()
         elif state == 'dead':
             self.make_dead()
+
 
     def do_grappled_by(self, grappler):
         if not self.immune_to_condition('grappled'):

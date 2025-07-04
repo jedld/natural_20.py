@@ -10,6 +10,7 @@ import logging
 from typing import List, Tuple, Dict, Any, Optional
 from natural20.entity import Entity
 from natural20.session import Session
+from natural20.concern.generic_event_handler import GenericEventHandler
 
 logger = logging.getLogger('werkzeug')
 
@@ -33,7 +34,7 @@ class EntityRAGHandler:
         self.game_session = game_session
         self.current_game = current_game
     
-    def process_entity_response(self, response: str, receiver: Entity, llm_conversation_handler) -> Tuple[str, str]:
+    def process_entity_response(self, response: str, receiver: Entity, speaker: Entity, llm_conversation_handler) -> Tuple[str, str]:
         """
         Process an entity response for RAG commands and return the cleaned response and language.
         
@@ -56,7 +57,7 @@ class EntityRAGHandler:
             language = receiver.languages()[0]
         
         # Process RAG commands
-        response = self._process_rag_commands(response, receiver, llm_conversation_handler)
+        response = self._process_rag_commands(response, speaker, receiver, llm_conversation_handler)
         
         # Clean up any remaining bracketed content
         response = re.sub(r'\[.*?\]', '', response)
@@ -97,7 +98,7 @@ class EntityRAGHandler:
             # Fallback to common if parsing fails
             return "common", response
 
-    def _process_rag_commands(self, response: str, receiver: Entity, llm_conversation_handler) -> str:
+    def _process_rag_commands(self, response: str, speaker: Entity, receiver: Entity, llm_conversation_handler) -> str:
         """
         Process RAG commands in the response and generate appropriate responses.
 
@@ -123,6 +124,14 @@ class EntityRAGHandler:
         # Handle observation requests
         if "[OBSERVE" in response:
             return self._handle_observation_request(receiver, llm_conversation_handler)
+
+        for keywords in receiver.conversation_keywords():
+            if keywords['keyword'] in response:
+                logger.info(f"Processing event for keyword '{keywords['keyword']}': {keywords}")
+                generic_handler = GenericEventHandler(self.game_session, receiver, keywords)
+                generic_handler.handle(self, opts={'speaker': speaker})
+                # Remove the keyword from the response
+                response = response.replace(keywords['keyword'], '')
 
         return response
 

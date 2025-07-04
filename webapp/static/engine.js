@@ -2088,11 +2088,8 @@ $(document).ready(() => {
       $(this).addClass('active');
     });
     
-    // Handle history button
-    $('#dialogHistoryBtn').off('click').on('click', function() {
-      loadDialogHistory(entityId);
-    });
-    
+    loadDialogHistory(entityId);
+
     // Handle mode toggle button
     $('#toggleTalkMode').off('click').on('click', function() {
       talkToEntityMode = !talkToEntityMode;
@@ -2323,9 +2320,45 @@ $(document).ready(() => {
   
   // Load dialog history
   function loadDialogHistory(entityId) {
-    // This could be expanded to load conversation history from the server
-    addDialogMessage('system', 'Conversation history feature coming soon!', 'system');
+    $.ajax({
+      url: '/dialog_history',
+      type: 'GET',
+      data: { entity_id: entityId,
+              entity_pov: getCurrentPovEntity() },
+      dataType: 'json',
+      beforeSend: () => {
+        $('#dialogChatMessages').html('<div class="loading">Loading history...</div>');
+       },
+      success: (data) => {
+        if (data.success) {
+          const $historyContainer = $('#dialogChatMessages');
+          $historyContainer.empty();
+          
+          if (data.history && data.history.length > 0) {
+            data.history.forEach(entry => {
+              const messageHtml = `
+                <div class="dialog-chat-message ${entry.type}">
+                  <div class="message-sender">${entry.source}</div>
+                  <div class="message-content">${entry.message}</div>
+                </div>
+              `;
+              $historyContainer.append(messageHtml);
+            });
+          } else {
+            $historyContainer.append('<div class="no-history">No conversation history available.</div>');
+          }
+          // Show the history modal
+          $('#dialogHistoryModal').modal('show');
+        } else {
+          $('#dialogHistoryContainer').html('<div class="error">Failed to load history.</div>');
+        }
+      },
+      error: () => {
+        $('#dialogHistoryContainer').html('<div class="error">Error loading history.</div>');
+      }
+    });
   }
+
 
   // Reset talk to entity mode when panel is closed
   $('#close-dialog').on('click', function() {

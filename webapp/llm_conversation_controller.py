@@ -29,10 +29,35 @@ class LLMConversationController:
         # Trim history if it exceeds max_history
         if len(self.conversations[conversation_id]["messages"]) > self.max_history:
             # Keep the system prompt and the most recent messages
-            system_prompt = self.conversations[conversation_id]["system_prompt"]
             messages = self.conversations[conversation_id]["messages"]
             self.conversations[conversation_id]["messages"] = messages[-self.max_history:]
-    
+
+    def update_conversation_history(self, conversation_id, new_messages):
+        """Update the conversation history with new messages."""
+        if conversation_id not in self.conversations:
+            self.create_conversation(conversation_id)
+        self.conversations[conversation_id]["messages"] = []
+        print(new_messages)
+
+        for message in new_messages:
+            if message["source"].entity_uid == conversation_id:
+                role = "assistant"
+                message_content = f"{message['message']}"
+
+            elif conversation_id in [e.entity_uid for e in message["directed_to"]]:
+                role = "user"
+                # If the message is directed to this conversation controller, format it accordingly
+                message_content = f"{message['source'].label()} says to you (in {message['language']}): {message['message']}"
+            else:
+                role = message.get("role", "system")
+                directed_entities =",".join([e.label() for e in message["directed_to"]])
+                if message["directed_to"]:
+                    message_content = f"you overhear {message['source']} talk to {directed_entities} (in {message['language']}): {message['message']}"
+                else:
+                    message_content = f"{message['source']} says (in {message['language']}) to no one in particular: {message['message']}"
+            self.add_message(conversation_id, role, message_content)
+
+
     def generate_response(self, conversation_id, entity_context=None):
         if conversation_id not in self.conversations:
             return "I don't have any context for this conversation."
