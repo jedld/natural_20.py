@@ -26,6 +26,7 @@ const switchPOV = (entity_uid, canvas) => {
       (entity_uid = entity_uid),
       () => {
         const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
+        createGlobalCanvas();
         centerOnTile($tile);
       },
     );
@@ -438,18 +439,10 @@ function resetKeyboardMovement() {
   globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
 }
 
-// --- Document Ready: Event Bindings & Main Logic ---
-$(document).ready(() => {
-  let active_background_sound = null;
-  let lastMovedEntityBeforeRefresh = null;
-  let active_track_id = -1;
-  const battleEntityList = [];
-
-  let backgroundSoundStartTime = $("body").data("soundtrack-time");
-  let pageRenderTime = new Date().getTime();
-
-  // --- Canvas Setup ---
-  const tile_size = $(".tiles-container").data("tile-size");
+function createGlobalCanvas() {
+  if (globalCanvas) {
+    document.body.removeChild(globalCanvas);
+  }
   globalCanvas = document.createElement("canvas");
   globalCanvas.width = window.innerWidth;
   globalCanvas.height = window.innerHeight;
@@ -462,7 +455,24 @@ $(document).ready(() => {
   globalCanvas.style.pointerEvents = "none";
   $("body").append(globalCanvas);
   globalCtx = globalCanvas.getContext("2d");
+}
 
+
+// --- Document Ready: Event Bindings & Main Logic ---
+$(document).ready(() => {
+  let active_background_sound = null;
+  let lastMovedEntityBeforeRefresh = null;
+  let active_track_id = -1;
+  const battleEntityList = [];
+
+  let backgroundSoundStartTime = $("body").data("soundtrack-time");
+  let pageRenderTime = new Date().getTime();
+
+  // --- Canvas Setup ---
+  const tile_size = $(".tiles-container").data("tile-size");
+
+ 
+  createGlobalCanvas();
   // Update canvas size on window resize
   $(window).on('resize', function() {
     globalCanvas.width = window.innerWidth;
