@@ -22,7 +22,7 @@ logger.setLevel(logging.INFO)
 class SessionLogger:
     """Handles session-based logging for LLM interactions."""
     
-    def __init__(self, log_dir: str = "llm_logs"):
+    def __init__(self, log_dir: str = None):
         self.log_dir = log_dir
         self.session_id = str(uuid.uuid4())[:8]  # Short session ID
         self.session_start = datetime.now()
@@ -31,21 +31,27 @@ class SessionLogger:
         os.makedirs(self.log_dir, exist_ok=True)
         
         # Create session log file
-        self.log_file = os.path.join(self.log_dir, f"session_{self.session_id}_{self.session_start.strftime('%Y%m%d_%H%M%S')}.log")
-        
-        # Write session header
-        with open(self.log_file, 'w') as f:
-            f.write(f"=== LLM SESSION LOG ===\n")
-            f.write(f"Session ID: {self.session_id}\n")
-            f.write(f"Start Time: {self.session_start}\n")
-            f.write(f"Log File: {self.log_file}\n")
-            f.write("=" * 50 + "\n\n")
+        if self.log_dir:
+            self.log_file = os.path.join(self.log_dir, f"session_{self.session_id}_{self.session_start.strftime('%Y%m%d_%H%M%S')}.log")
+            
+            # Write session header
+            with open(self.log_file, 'w') as f:
+                f.write(f"=== LLM SESSION LOG ===\n")
+                f.write(f"Session ID: {self.session_id}\n")
+                f.write(f"Start Time: {self.session_start}\n")
+                f.write(f"Log File: {self.log_file}\n")
+                f.write("=" * 50 + "\n\n")
+        else:
+            self.log_file = None
         
         logger.info(f"[SessionLogger] Created session log: {self.log_file}")
     
     def log_interaction(self, interaction_type: str, content: str, metadata: Optional[Dict[str, Any]] = None):
         """Log an interaction with timestamp and metadata."""
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        
+        if not self.log_file:
+            return
         
         with open(self.log_file, 'a', encoding='utf-8') as f:
             f.write(f"\n--- {interaction_type.upper()} ---\n")
