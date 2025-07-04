@@ -91,17 +91,39 @@ app = Flask(__name__, static_folder='static', static_url_path='/')
 is_aws = os.environ.get('AWS_ENVIRONMENT', 'false').lower() == 'true'
 is_production = os.environ.get('FLASK_ENV', 'development') == 'production'
 
-# Configure CORS for the Flask app based on environment
-if is_aws or is_production:
-    # In AWS/production, allow the ALB domain and any subdomains
-    allowed_origins = [
-        "http://natural20-alb-1402295348.us-east-1.elb.amazonaws.com",
-        "https://natural20-alb-1402295348.us-east-1.elb.amazonaws.com",
-        "*"  # Fallback to allow all origins in production
-    ]
-else:
-    # In local development, allow localhost origins
-    allowed_origins = ["http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:5001", "http://127.0.0.1:5001"]
+# Configure CORS for the Flask app based on environment variables
+def get_allowed_origins():
+    """Get allowed origins from environment variables or use defaults."""
+    
+    # Check for explicit CORS origins configuration
+    cors_origins = os.environ.get('CORS_ORIGINS')
+    if cors_origins:
+        # Parse comma-separated list of origins
+        origins = [origin.strip() for origin in cors_origins.split(',') if origin.strip()]
+        logger.info(f"Using CORS origins from environment: {origins}")
+        return origins
+    
+    # Fallback to environment-based defaults
+    if is_aws or is_production:
+        # In AWS/production, allow the ALB domain and any subdomains
+        default_origins = [
+            "http://natural20-alb-1402295348.us-east-1.elb.amazonaws.com",
+            "https://natural20-alb-1402295348.us-east-1.elb.amazonaws.com",
+            "*"  # Fallback to allow all origins in production
+        ]
+    else:
+        # In local development, allow localhost origins
+        default_origins = [
+            "http://localhost:5000", 
+            "http://127.0.0.1:5000", 
+            "http://localhost:5001", 
+            "http://127.0.0.1:5001"
+        ]
+    
+    logger.info(f"Using default CORS origins for {'production' if (is_aws or is_production) else 'development'}: {default_origins}")
+    return default_origins
+
+allowed_origins = get_allowed_origins()
 
 CORS(app, resources={r"/*": {"origins": allowed_origins, "supports_credentials": True}})
 
