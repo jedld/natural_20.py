@@ -8,6 +8,7 @@ let keyboardMovementPivotPoints = [];
 let globalCanvas = null;
 let globalCtx = null;
 let talkToEntityMode = false; // Flag to track when user is talking to an entity
+let dialogMessageProcessing = false; // Flag to track if a dialog message is being processed
 
 const switchPOV = (entity_uid, canvas) => {
   ajaxPost("/switch_pov", { entity_uid }, (data) => {
@@ -2078,6 +2079,7 @@ $(document).ready(() => {
     // Handle Enter key in chat input
     $('#dialogChatInput').off('keypress').on('keypress', function(e) {
       if (e.which === 13) { // Enter key
+        e.preventDefault(); // Prevent default to avoid form submission
         sendDialogMessage(entityId);
       }
     });
@@ -2120,6 +2122,11 @@ $(document).ready(() => {
     const message = $('#dialogChatInput').val().trim();
     if (!message) return;
     
+    // Prevent multiple messages from being sent simultaneously
+    if (dialogMessageProcessing) return;
+    
+    dialogMessageProcessing = true;
+    
     const selectedLanguage = $('#dialogLanguageSelect').val();
     const selectedVolume = $('.volume-btn.active');
     const distance_ft = 10;
@@ -2129,6 +2136,33 @@ $(document).ready(() => {
     
     // Clear input
     $('#dialogChatInput').val('');
+    
+    // Disable input and send button while processing
+    const $input = $('#dialogChatInput');
+    const $sendButton = $('#dialogSendMessage');
+    const $languageSelect = $('#dialogLanguageSelect');
+    const $inputContainer = $('.chat-input-container');
+    
+    $input.prop('disabled', true);
+    $sendButton.prop('disabled', true).html('<i class="glyphicon glyphicon-refresh spinning"></i> Sending...');
+    $languageSelect.prop('disabled', true);
+    $inputContainer.addClass('disabled');
+    
+    // Add waiting indicator
+    const waitingId = addWaitingIndicator();
+    
+    // Set up timeout indicators for longer processing times
+    const timeout1 = setTimeout(() => {
+      updateWaitingIndicator(waitingId, "Processing your message...");
+    }, 2000);
+    
+    const timeout2 = setTimeout(() => {
+      updateWaitingIndicator(waitingId, "Entity is thinking...");
+    }, 5000);
+    
+    const timeout3 = setTimeout(() => {
+      updateWaitingIndicator(waitingId, "Almost ready to respond...");
+    }, 10000);
     
     // Determine the source entity based on mode
     let sourceEntityId = entityId;
@@ -2155,6 +2189,24 @@ $(document).ready(() => {
         distance_ft: distance_ft
       }),
       success: (data) => {
+        // Clear timeouts
+        clearTimeout(timeout1);
+        clearTimeout(timeout2);
+        clearTimeout(timeout3);
+        
+        // Remove waiting indicator
+        removeWaitingIndicator(waitingId);
+        
+        // Re-enable input and send button
+        $input.prop('disabled', false);
+        $sendButton.prop('disabled', false).html('<i class="glyphicon glyphicon-send"></i> Send');
+        $languageSelect.prop('disabled', false);
+        $inputContainer.removeClass('disabled');
+        $input.focus();
+        
+        // Reset processing flag
+        dialogMessageProcessing = false;
+        
         if (data.success) {
           // Add entity response if provided
           if (data.response) {
@@ -2165,6 +2217,24 @@ $(document).ready(() => {
         }
       },
       error: () => {
+        // Clear timeouts
+        clearTimeout(timeout1);
+        clearTimeout(timeout2);
+        clearTimeout(timeout3);
+        
+        // Remove waiting indicator
+        removeWaitingIndicator(waitingId);
+        
+        // Re-enable input and send button
+        $input.prop('disabled', false);
+        $sendButton.prop('disabled', false).html('<i class="glyphicon glyphicon-send"></i> Send');
+        $languageSelect.prop('disabled', false);
+        $inputContainer.removeClass('disabled');
+        $input.focus();
+        
+        // Reset processing flag
+        dialogMessageProcessing = false;
+        
         addDialogMessage('system', 'Failed to send message.', 'system');
       }
     });
@@ -2316,6 +2386,46 @@ $(document).ready(() => {
     // Scroll to bottom
     const $messages = $('#dialogChatMessages');
     $messages.scrollTop($messages[0].scrollHeight);
+  }
+  
+  // Add a waiting indicator to the dialog chat
+  function addWaitingIndicator() {
+    const waitingId = 'waiting-' + Date.now();
+    const waitingHtml = `
+      <div id="${waitingId}" class="dialog-chat-message waiting">
+        <div class="message-sender">System</div>
+        <div class="message-content">
+          <i class="glyphicon glyphicon-refresh spinning"></i> Waiting for response...
+        </div>
+        <div class="message-timestamp">${new Date().toLocaleTimeString()}</div>
+      </div>
+    `;
+    
+    $('#dialogChatMessages').append(waitingHtml);
+    
+    // Scroll to bottom
+    const $messages = $('#dialogChatMessages');
+    $messages.scrollTop($messages[0].scrollHeight);
+    
+    return waitingId;
+  }
+  
+  // Update the waiting indicator message
+  function updateWaitingIndicator(waitingId, message) {
+    const $waiting = $(`#${waitingId}`);
+    if ($waiting.length) {
+      $waiting.find('.message-content').html(`<i class="glyphicon glyphicon-refresh spinning"></i> ${message}`);
+    }
+  }
+  
+  // Remove the waiting indicator
+  function removeWaitingIndicator(waitingId) {
+    const $waiting = $(`#${waitingId}`);
+    if ($waiting.length) {
+      $waiting.fadeOut(300, function() {
+        $(this).remove();
+      });
+    }
   }
   
   // Load dialog history

@@ -1564,11 +1564,55 @@ input.initiative-input.form-control {
   margin-top: 4px;
 }
 
+.dialog-chat-message.waiting {
+  background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+  border-left: 4px solid #d35400;
+  font-style: italic;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .chat-input-container {
   padding: 15px;
   background: rgba(0, 0, 0, 0.3);
   border-radius: 0 0 8px 8px;
   border-top: 2px solid #8b4513;
+}
+
+.chat-input-container.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.chat-input-container.disabled input,
+.chat-input-container.disabled select,
+.chat-input-container.disabled button {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .chat-input-row {
