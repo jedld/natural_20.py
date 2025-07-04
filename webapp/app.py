@@ -91,6 +91,8 @@ app = Flask(__name__, static_folder='static', static_url_path='/')
 is_aws = os.environ.get('AWS_ENVIRONMENT', 'false').lower() == 'true'
 is_production = os.environ.get('FLASK_ENV', 'development') == 'production'
 
+logger = logging.getLogger('werkzeug')
+logger.setLevel(logging.INFO)
 # Configure CORS for the Flask app based on environment variables
 def get_allowed_origins():
     """Get allowed origins from environment variables or use defaults."""
@@ -191,8 +193,7 @@ game_session = GameSession.Session(LEVEL, event_manager=event_manager)
 game_session.render_for_text = False # render for text is disabled since we are using a web renderer
 current_soundtrack = None
 
-logger = logging.getLogger('werkzeug')
-logger.setLevel(logging.INFO)
+
 
 current_game = GameManagement(game_session=game_session,
                               map_location=BATTLEMAP,
