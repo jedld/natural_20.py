@@ -1837,6 +1837,37 @@ def usable_items():
     action = UseItemAction(game_session, entity, 'use_item')
     return render_template('usable_items.html', entity=entity, usable_items=available_items, action=action)
 
+@app.route("/dialog_history", methods=["GET"])
+def dialog_history():
+    global current_game
+    entity_id = request.args.get('entity_id')
+    entity_pov_id = request.args.get('entity_pov', None)
+    if not entity_id:
+        return jsonify({'error': 'Entity ID is required'}), 400
+    entity = current_game.get_entity_by_uid(entity_id)
+    if not entity:
+        return jsonify({'error': 'Entity not found'}), 404
+
+    
+    if entity_pov_id:
+        entity_pov = current_game.get_entity_by_uid(entity_pov_id)
+        history = entity.conversation_history(entity_pov)
+        return jsonify({
+            'success': True,
+            'history': history,
+            'entity_id': entity_id,
+            'entity_name': entity.label(),
+            'entity_pov': entity_pov.entity_uid
+        })
+    else:
+        return jsonify({
+            'success': True,
+            'history': [],
+            'entity_id': entity_id,
+            'entity_name': entity.label(),
+            'entity_pov': False
+        })
+
 @app.route('/talk', methods=['POST'])
 def talk():
     global llm_conversation_handler
@@ -1876,12 +1907,7 @@ def talk():
                                                               alignment=receiver.alignment().replace("_", " "),
                                                               languages=", ".join(receiver.languages()))
             llm_conversation_handler.create_conversation(receiver.entity_uid, system_prompt)
-
-            if receiver in directed_to:
-                message = f"{entity.label()} says [in {language}]: {message}"
-            else:
-                message = f"you overheard {entity.label()} say: \"{message}\" to {[e.label() for e in directed_to]}"
-            llm_conversation_handler.add_message(receiver.entity_uid, 'user', message)
+            llm_conversation_handler.update_conversation_history(receiver.entity_uid, receiver.conversation_buffer)
 
             if receiver in directed_to:
                 logger.info(f"generating response for {receiver.label()}")
@@ -1890,7 +1916,7 @@ def talk():
                 if response:
                     # Use EntityRAGHandler to process the response
                     language, response = entity_rag_handler.process_entity_response(
-                        response, receiver, llm_conversation_handler
+                        response, receiver, entity, llm_conversation_handler
                     )
                     receiver.send_conversation(response, targets=[entity], language=language)
                     owners = entity_owners(entity)
