@@ -8,8 +8,9 @@
   "autosave" : false,
   "soundtracks" : [
     {
-      "name" : "Goblin Ambush",
-      "file" : "goblin_ambush.mp3"
+      "name" : "battle",
+      "file" : "sounds/goblin_ambush.mp3",
+      "volume" : 20
     }
   ],
   "logins" : [
