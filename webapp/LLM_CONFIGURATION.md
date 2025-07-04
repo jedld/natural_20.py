@@ -1,6 +1,34 @@
-# LLM Configuration Guide
+# Configuration Guide
 
-This guide explains how to configure the Large Language Model (LLM) providers for the Natural20 web application using environment variables.
+This guide explains how to configure the Natural20 web application using environment variables.
+
+## Overview
+
+The application supports multiple configuration options through environment variables:
+
+- **LLM Providers** (OpenAI, Anthropic, Ollama, Mock)
+- **CORS Configuration** (Allowed origins for web requests)
+- **Application Settings** (Environment, templates, etc.)
+
+## Environment Variables
+
+### CORS Configuration
+
+Set the `CORS_ORIGINS` environment variable to specify allowed origins for web requests:
+
+```bash
+# Comma-separated list of allowed origins
+export CORS_ORIGINS="http://localhost:5000,https://myapp.com,https://www.myapp.com"
+
+# Or allow all origins (use with caution in production)
+export CORS_ORIGINS="*"
+```
+
+**Default Behavior:**
+- **Development**: `http://localhost:5000`, `http://127.0.0.1:5000`, `http://localhost:5001`, `http://127.0.0.1:5001`
+- **Production**: AWS ALB domain + wildcard (`*`)
+
+### LLM Provider Configuration
 
 ## Overview
 
