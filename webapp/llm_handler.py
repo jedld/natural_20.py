@@ -26,13 +26,13 @@ class SessionLogger:
         self.log_dir = log_dir
         self.session_id = str(uuid.uuid4())[:8]  # Short session ID
         self.session_start = datetime.now()
-        
-        # Create log directory if it doesn't exist
-        os.makedirs(self.log_dir, exist_ok=True)
-        
+
         # Create session log file
         if self.log_dir:
+            # Create log directory if it doesn't exist
+            os.makedirs(self.log_dir, exist_ok=True)
             self.log_file = os.path.join(self.log_dir, f"session_{self.session_id}_{self.session_start.strftime('%Y%m%d_%H%M%S')}.log")
+            logger.info(f"[SessionLogger] Created session log: {self.log_file}")
             
             # Write session header
             with open(self.log_file, 'w') as f:
@@ -41,10 +41,11 @@ class SessionLogger:
                 f.write(f"Start Time: {self.session_start}\n")
                 f.write(f"Log File: {self.log_file}\n")
                 f.write("=" * 50 + "\n\n")
+            logger.info(f"[SessionLogger] Created session log: {self.log_file}")
         else:
             self.log_file = None
         
-        logger.info(f"[SessionLogger] Created session log: {self.log_file}")
+        
     
     def log_interaction(self, interaction_type: str, content: str, metadata: Optional[Dict[str, Any]] = None):
         """Log an interaction with timestamp and metadata."""
