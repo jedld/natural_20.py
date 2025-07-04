@@ -9,6 +9,22 @@ import click
 from PIL import Image
 import logging
 import importlib
+
+# Load environment variables from .env file if it exists
+try:
+    from dotenv import load_dotenv
+    # Try to load from webapp/.env first, then from parent directory
+    env_path = os.path.join(os.path.dirname(__file__), '.env')
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+    else:
+        # Try parent directory
+        parent_env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+        if os.path.exists(parent_env_path):
+            load_dotenv(parent_env_path)
+except ImportError:
+    # python-dotenv not installed, continue without it
+    pass
 from natural20.ai.path_compute import PathCompute
 from natural20.web.json_renderer import JsonRenderer
 from natural20.web.web_controller import WebController, ManualControl
@@ -233,8 +249,80 @@ if os.path.exists(os.path.join(LEVEL, 'npc_system_prompt.txt')):
 else:
     CONVERSATION_SYSTEM_PROMPT = ""
 
-llm_handler = LLMHandler()
-llm_handler.initialize_provider('ollama', {'model': 'gemma3:27b'})
+def initialize_llm_from_env():
+    """Initialize LLM handler from environment variables."""
+    llm_handler = LLMHandler()
+    
+    # Check for LLM provider configuration
+    llm_provider = os.environ.get('LLM_PROVIDER', 'ollama').lower()
+    
+    if llm_provider == 'openai':
+        # OpenAI configuration
+        api_key = os.environ.get('OPENAI_API_KEY')
+        base_url = os.environ.get('OPENAI_BASE_URL')
+        model = os.environ.get('OPENAI_MODEL', 'gpt-4o')
+        
+        if not api_key:
+            logger.warning("OPENAI_API_KEY not set, LLM features will be disabled")
+            return llm_handler
+        
+        config = {
+            'api_key': api_key,
+            'model': model
+        }
+        if base_url:
+            config['base_url'] = base_url
+            
+        success = llm_handler.initialize_provider('openai', config)
+        if success:
+            logger.info(f"Initialized OpenAI provider with model: {model}")
+        else:
+            logger.error("Failed to initialize OpenAI provider")
+            
+    elif llm_provider == 'anthropic':
+        # Anthropic configuration
+        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        model = os.environ.get('ANTHROPIC_MODEL', 'claude-3-5-sonnet-20241022')
+        
+        if not api_key:
+            logger.warning("ANTHROPIC_API_KEY not set, LLM features will be disabled")
+            return llm_handler
+        
+        config = {
+            'api_key': api_key,
+            'model': model
+        }
+        
+        success = llm_handler.initialize_provider('anthropic', config)
+        if success:
+            logger.info(f"Initialized Anthropic provider with model: {model}")
+        else:
+            logger.error("Failed to initialize Anthropic provider")
+            
+    elif llm_provider == 'ollama':
+        # Ollama configuration
+        base_url = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
+        model = os.environ.get('OLLAMA_MODEL', 'gemma3:27b')
+        
+        config = {
+            'base_url': base_url,
+            'model': model
+        }
+        
+        success = llm_handler.initialize_provider('ollama', config)
+        if success:
+            logger.info(f"Initialized Ollama provider with model: {model} at {base_url}")
+        else:
+            logger.error("Failed to initialize Ollama provider")
+            
+    else:
+        logger.warning(f"Unknown LLM provider: {llm_provider}, using mock provider")
+        llm_handler.initialize_provider('mock', {})
+    
+    return llm_handler
+
+# Initialize LLM handler from environment variables
+llm_handler = initialize_llm_from_env()
 llm_conversation_handler = LLMConversationController(llm_handler)
 
 # Initialize Entity RAG Handler

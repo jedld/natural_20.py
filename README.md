@@ -221,6 +221,70 @@ docker run --runtime=nvidia --gpus all -p 8000:8000 -v ~/.cache/huggingface:/roo
        -it vllm --model NousResearch/Meta-Llama-3-8B-Instruct --dtype=auto --api-key token1234
 ```
 
+LLM Configuration for Web Application
+=====================================
+
+The web application supports multiple LLM providers that can be configured using environment variables. This allows you to use different AI models for the DM chatbot and NPC conversations.
+
+### Supported Providers
+
+- **OpenAI** (GPT models) - Requires API key
+- **Anthropic** (Claude models) - Requires API key  
+- **Ollama** (Local models) - Free, runs locally
+- **Mock** (Testing) - For development/testing
+
+### Quick Configuration
+
+1. **Copy the example environment file:**
+   ```bash
+   cp webapp/env.example webapp/.env
+   ```
+
+2. **Edit the `.env` file with your preferred configuration:**
+   ```bash
+   # For OpenAI
+   LLM_PROVIDER=openai
+   OPENAI_API_KEY=your_api_key_here
+   OPENAI_MODEL=gpt-4o-mini
+   
+   # For Ollama (default)
+   LLM_PROVIDER=ollama
+   OLLAMA_BASE_URL=http://localhost:11434
+   OLLAMA_MODEL=gemma3:27b
+   ```
+
+3. **Start the application:**
+   ```bash
+   cd webapp
+   python -m flask run
+   ```
+
+### Environment Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `LLM_PROVIDER` | Provider to use (openai, anthropic, ollama, mock) | `ollama` | No |
+| `OPENAI_API_KEY` | OpenAI API key | - | Yes (for OpenAI) |
+| `OPENAI_MODEL` | OpenAI model name | `gpt-4o-mini` | No |
+| `OPENAI_BASE_URL` | Custom OpenAI endpoint | `https://api.openai.com/v1` | No |
+| `ANTHROPIC_API_KEY` | Anthropic API key | - | Yes (for Anthropic) |
+| `ANTHROPIC_MODEL` | Anthropic model name | `claude-3-5-sonnet-20241022` | No |
+| `OLLAMA_BASE_URL` | Ollama server URL | `http://localhost:11434` | No |
+| `OLLAMA_MODEL` | Ollama model name | `gemma3:27b` | No |
+
+### Docker Configuration
+
+When running in Docker, pass environment variables:
+
+```bash
+docker run -e LLM_PROVIDER=openai \
+           -e OPENAI_API_KEY=your_api_key \
+           -e OPENAI_MODEL=gpt-4o-mini \
+           your-app-image
+```
+
+For detailed configuration options, see [LLM Configuration Guide](webapp/LLM_CONFIGURATION.md).
+
 Running the interactive Webapp
 ==============================
 

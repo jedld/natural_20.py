@@ -253,21 +253,16 @@ class OpenAIProvider(LLMProvider):
         
         try:
             # Build system prompt with RAG context
-            system_prompt = self._build_system_prompt(messages)
+            # system_prompt = self._build_system_prompt()
             
-            # Add to conversation history
-            self.conversation_history.append({"role": "user", "content": messages[-1]['content']})
-            
-            # Prepare messages for API call
-            messages = [{"role": "system", "content": system_prompt}] + self.conversation_history
-            
+            logger.info(f"Messages: {messages}")
             response = self.client.chat.completions.create(
                 model=self.current_model,
                 messages=messages,
                 max_tokens=1000,
                 temperature=0.7
             )
-            
+            logger.info(f"Response: {response}")
             assistant_response = response.choices[0].message.content
             self.conversation_history.append({"role": "assistant", "content": assistant_response})
             
@@ -380,7 +375,7 @@ class AnthropicProvider(LLMProvider):
         
         try:
             # Build system prompt with RAG context
-            system_prompt = self._build_system_prompt(messages)
+            system_prompt = self._build_system_prompt()
             
             # Add to conversation history
             self.conversation_history.append({"role": "user", "content": messages[-1]['content']})
@@ -839,21 +834,34 @@ class LLMHandler:
             logger.info("[LLMHandler] Found function calls, processing...")
             logger.info(f"[LLMHandler] Function calls found in: {cleaned_response}")
             function_calls = self._process_function_calls(cleaned_response, context)
-            self.conversation_history.extend(function_calls)
-
-            # Format the function results into a user-friendly response
-            formatted_response = self._format_function_results(self.conversation_history, context, message)
-            self.conversation_history.append({"role": "assistant", "content": formatted_response})
-            return formatted_response
+            
+            # Check if any function calls were actually processed
+            if function_calls:
+                self.conversation_history.extend(function_calls)
+                # Format the function results into a user-friendly response
+                formatted_response = self._format_function_results(function_calls, context, message)
+                self.conversation_history.append({"role": "assistant", "content": formatted_response})
+                return formatted_response
+            else:
+                # Function calls were found but none were processed (e.g., unknown functions)
+                logger.info("[LLMHandler] No valid function calls processed, returning original response")
+                self.conversation_history.append({"role": "assistant", "content": cleaned_response})
+                self.session_logger.log_response(cleaned_response, provider_info, partial=False)
+                return cleaned_response
         else:
             # No function calls, return the cleaned response directly
             self.conversation_history.append({"role": "assistant", "content": cleaned_response})
             self.session_logger.log_response(cleaned_response, provider_info, partial=False)
             return cleaned_response
 
-    def _format_function_results(self, processed_response: List[str], context: Optional[Dict[str, Any]] = None, original_message: str = None) -> str:
+    def _format_function_results(self, processed_response: List[Dict[str, str]], context: Optional[Dict[str, Any]] = None, original_message: str = None) -> str:
         """Send function results back to the LLM for formatting with continuation support."""
       
+        # Handle empty response list
+        if not processed_response:
+            logger.warning("[LLMHandler] _format_function_results called with empty response list")
+            return "No function results to format."
+        
         # Log the formatting request
         provider_info = self.get_provider_info()
         self.session_logger.log_request(processed_response, provider_info)
@@ -918,7 +926,7 @@ class LLMHandler:
         logger.info(f"[LLMHandler] Final formatted response: {formatted_response}")
         return formatted_response
 
-    def _process_function_calls(self, response: str, context: Optional[Dict[str, Any]] = None) -> List[str]:
+    def _process_function_calls(self, response: str, context: Optional[Dict[str, Any]] = None) -> List[Dict[str, str]]:
         """Process function calls in the LLM response."""
         function_results_list = []
         logger.info(f"[LLMHandler] _process_function_calls called with: {response}")
@@ -929,8 +937,8 @@ class LLMHandler:
         logger.info(f"[LLMHandler] Found {len(matches)} function call matches: {matches}")
         
         if not matches:
-            logger.info("[LLMHandler] No function calls found, returning original response")
-            return response
+            logger.info("[LLMHandler] No function calls found, returning empty list")
+            return []
         
         # Track unique function calls and their results
         function_results = {}
