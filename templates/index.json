@@ -53,24 +53,29 @@
       "name" : "dm",
       "password" : "admin",
       "role" : ["dm"]
+    },
+    {
+      "name" : "party",
+      "password" : "party",
+      "role" : ["player"]
     }
   ],
   "default_controllers": [
     {
       "entity_uid" : "gomerin",
-      "controllers" : ["gomerin"]
+      "controllers" : ["gomerin", "party"]
     },
     {
       "entity_uid": "crysania",
-      "controllers": ["crysania"]
+      "controllers": ["crysania", "party"]
     },
     {
       "entity_uid": "shorvalu",
-      "controllers": ["shorvalu"]
+      "controllers": ["shorvalu", "party"]
     },
     {
       "entity_uid": "rumblebelly",
-      "controllers": ["rumblebelly"]
+      "controllers": ["rumblebelly", "party"]
     }
   ]
 }
