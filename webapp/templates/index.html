@@ -462,13 +462,11 @@
                           <i class="glyphicon glyphicon-send"></i> Send
                         </button>
                       </span>
-                    </div>
-                  </form>
-                  
-                  <div style="margin-top: 10px;">
-                    <button type="button" class="btn btn-sm btn-default" id="clear-chat">
-                      <i class="glyphicon glyphicon-trash"></i> Clear Chat
-                    </button>
+                    </div>,
+                    {
+                      "entity_uid": "party",
+                      "controllers": ["rumblebelly", "crysania", "gomerin", "shorvalu"]
+                    }
                     <button type="button" class="btn btn-sm btn-info" id="get-context">
                       <i class="glyphicon glyphicon-info-sign"></i> Get Game Context
                     </button>
@@ -495,13 +493,11 @@
       <div class="modal-body">
         <form id="talkForm">
           <div class="form-group">
-            <label for="talkMessage">Message:</label>
-            <textarea class="form-control" id="talkMessage" rows="3" required></textarea>
-          </div>
-          <div class="form-group">
-            <label for="languageSelect">Language:</label>
-            <select class="form-control" id="languageSelect" required>
-              <!-- Languages will be populated here -->
+            <label for="talkMessage">Me,
+              {
+                "entity_uid": "party",
+                "controllers": ["rumblebelly", "crysania", "gomerin", "shorvalu"]
+              }pulated here -->
             </select>
           </div>
           <div class="form-group">
@@ -607,7 +603,7 @@
 </div>
 
     <!-- only for DMs -->
-
+    {% if 'dm' in role %}
     <!-- Draggable AI Chatbot Interface -->
     <div id="ai-chat-panel" class="draggable-panel" style="display: none; position: fixed; top: 100px; right: 20px; width: 400px; height: 600px; z-index: 1000; background: white; border: 2px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); overflow: hidden;">
       <div class="panel-header" style="background: #f8f9fa; padding: 10px; border-bottom: 1px solid #ddd; border-radius: 6px 6px 0 0; cursor: move; user-select: none;">
@@ -633,10 +629,11 @@
           
           <div class="form-group" style="margin-bottom: 10px;">
             <label for="draggable-ai-provider-select" style="font-size: 12px;">Provider:</label>
-            <select class="form-control input-sm" id="draggable-ai-provider-select" style="font-size: 12px;">
-              <option value="mock">Mock (Test)</option>
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
+            <select class="form-control inpu,
+            {
+              "entity_uid": "party",
+              "controllers": ["rumblebelly", "crysania", "gomerin", "shorvalu"]
+            }ropic</option>
               <option value="ollama">Ollama (Local)</option>
             </select>
           </div>
@@ -712,6 +709,6 @@
     <button id="toggle-ai-chat" class="btn btn-primary" style="position: fixed; bottom: 20px; right: 20px; z-index: 999; border-radius: 50%; width: 50px; height: 50px; padding: 0; font-size: 18px;">
       <i class="glyphicon glyphicon-comment"></i>
     </button>
-
+    {% endif %}
 </body>
 </html>
