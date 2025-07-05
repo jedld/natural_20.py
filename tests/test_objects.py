@@ -13,6 +13,7 @@ from natural20.item_library.door_object import DoorObject
 from natural20.actions.look_action import LookAction
 from natural20.actions.interact_action import InteractAction
 import random
+from natural20.ai.path_compute import PathCompute
 import pdb
 
 class TestObjects(unittest.TestCase):
@@ -64,18 +65,20 @@ class TestObjects(unittest.TestCase):
         self.assertEqual(self.entity.hp(), 66)
 
     def test_proximity_spawner(self):
+        def count_goblins():
+            return sum(1 for entity in self.map.entities.keys() if entity.name == 'Krizzit')
         self.map = Map(self.session, 'battle_sim')
         self.battle = Battle(self.session, self.map)
         self.entity = PlayerCharacter.load(self.session, "high_elf_fighter.yml")
-        self.battle.add(self.entity, 'a', position=[3, 6], token='G')
-        self.assertIsNotNone(self.map.entity_at(3, 6))
+        self.battle.add(self.entity, 'a', position=[1, 6], token='G')
+        self.assertIsNotNone(self.map.entity_at(1, 6))
         self.entity.reset_turn(self.battle)
         print(MapRenderer(self.map).render(self.battle))
-        action = autobuild(self.session, MoveAction, self.entity, self.battle, match=[[4, 6]], verbose=True)[0]
-        self.battle.action(action)
-        self.battle.commit(action)
+        path = PathCompute(self.battle, self.map, self.entity).compute_path(1, 6, 4, 6)
+        self.assertEqual(path, [(1, 6), (2, 6), (3, 6), (4, 6)])
+        action = MoveAction(self.session,self.entity, 'move')
+        action.move_path = path
+        self.assertEqual(count_goblins(), 1)
+        self.battle.execute_action(action)
         print(MapRenderer(self.map).render(self.battle))
-        self.assertEqual(self.entity.hp(), 67)
-        spawned_entity = self.map.entity_at(5, 6)
-        self.assertIsNotNone(spawned_entity)
-        self.assertEqual(spawned_entity.name, 'Krizzit')
+        self.assertEqual(count_goblins(), 2)

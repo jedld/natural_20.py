@@ -257,7 +257,7 @@ class Map():
         for obj in self.objects_at(pos_x, pos_y, reveal_concealed=reveal_concealed):
             if obj not in things:
                 things.append(obj)
-        return [thing for thing in things if thing is not None and (require_alive is False or not thing.dead())]
+        return [thing for thing in things if thing is not None and (require_alive is False or not thing.dead() and thing.allow_targeting())]
 
     def entities_at(self, pos_x, pos_y, require_alive=True) -> List[Entity]:
         return self.thing_at(pos_x, pos_y, reveal_concealed=False, require_alive=require_alive)
