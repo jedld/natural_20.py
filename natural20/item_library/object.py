@@ -216,6 +216,9 @@ class Object(Entity, Container, EventLoader):
                 }
         return interactions
 
+    def allow_targeting(self):
+        return self.max_hp() > 0
+
     def investigate_details(self, entity):
         investigate_details = []
 
