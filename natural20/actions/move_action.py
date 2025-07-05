@@ -123,68 +123,79 @@ class MoveAction(Action):
             return self
 
         # cutoff = False
-
-        safe_moves = []
+        move_segments = []
+        _safe_moves = []
         for index, move in enumerate(actual_moves):
             is_flying_or_jumping = self.source.flying or move in movement.jump_locations
             if index > 0:
                 trigger_results = map.area_trigger(self.source, move, is_flying_or_jumping)
                 if not trigger_results:
-                    safe_moves.append(move)
+                    _safe_moves.append(move)
                 else:
-                    safe_moves.append(move)
+                    if index > 0:
+                        _safe_moves.append(actual_moves[index - 1])
+                    else:
+                        assert False, "should not happen"
+                    _safe_moves.append(move)
+                    move_segments.append(_safe_moves)
+                    _safe_moves = []
+
                     additional_effects += trigger_results
                     if any(result['type'] == 'cancel_move' for result in trigger_results):
                         break
             else:
-                safe_moves.append(move)
+                _safe_moves.append(move)
+        if len(_safe_moves) > 0:
+            move_segments.append(_safe_moves)
 
-        movement = compute_actual_moves(self.source, safe_moves, map, battle, movement_budget, manual_jump=jumps)
+        for index, safe_moves in enumerate(move_segments):
+            movement = compute_actual_moves(self.source, safe_moves, map, battle, movement_budget, manual_jump=jumps)
 
-        if self.source.is_grappling():
-            grappled_movement = movement.movement.copy()
-            grappled_movement.pop()
-
-            for grappling_target in self.source.grappling_targets():
-                start_pos = map.entity_or_object_pos(grappling_target)
-                grappled_entity_movement = [start_pos] + grappled_movement
-
-                additional_effects.append({
-                    'source': grappling_target,
-                    'map': map,
-                    'battle': battle,
-                    'type': 'move',
-                    'path': grappled_entity_movement,
-                    'as_dash': self.as_dash,
-                    'as_bonus_action': self.as_bonus_action,
-                    'move_cost': 0,
-                    'position': grappled_entity_movement[-1]
-                })
-
+            if self.source.is_grappling():
+                grappled_movement = movement.movement.copy()
                 grappled_movement.pop()
-        # print(f"budget: {movement_budget}  {movement.budget}")
-        movement_cost = movement_budget - movement.budget
 
-        for move in reversed(movement.movement):
-            if  map.placeable(self.source, *move, battle, squeeze=False):
-                break
-            else:
-                movement.movement.remove(move)
-                movement_cost -= 1
+                for grappling_target in self.source.grappling_targets():
+                    start_pos = map.entity_or_object_pos(grappling_target)
+                    grappled_entity_movement = [start_pos] + grappled_movement
 
-        self.result.append({
-            'source': self.source,
-            'map': map,
-            'battle': battle,
-            'as_dash': self.as_dash,
-            'as_bonus_action': self.as_bonus_action,
-            'type': 'move',
-            'path': movement.movement,
-            'move_cost': movement_cost,
-            'position': movement.movement[-1]
-        })
-        self.result += additional_effects
+                    additional_effects.append({
+                        'source': grappling_target,
+                        'map': map,
+                        'battle': battle,
+                        'type': 'move',
+                        'path': grappled_entity_movement,
+                        'as_dash': self.as_dash,
+                        'as_bonus_action': self.as_bonus_action,
+                        'move_cost': 0,
+                        'position': grappled_entity_movement[-1]
+                    })
 
+                    grappled_movement.pop()
+            # print(f"budget: {movement_budget}  {movement.budget}")
+            movement_cost = movement_budget - movement.budget
+
+            for move in reversed(movement.movement):
+                if  map.placeable(self.source, *move, battle, squeeze=False):
+                    break
+                else:
+                    movement.movement.remove(move)
+                    movement_cost -= 1
+
+            self.result.append({
+                'source': self.source,
+                'map': map,
+                'battle': battle,
+                'as_dash': self.as_dash,
+                'as_bonus_action': self.as_bonus_action,
+                'type': 'move',
+                'path': movement.movement,
+                'move_cost': movement_cost,
+                'position': movement.movement[-1]
+            })
+
+            if index < len(additional_effects):
+                self.result.append(additional_effects[index])
         return self
 
     def check_opportunity_attacks(self, entity, move_list, battle, grappled=False):
