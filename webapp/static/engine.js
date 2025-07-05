@@ -824,7 +824,9 @@ $(document).ready(() => {
         break;
       case "switch_map":
         var map_id = data.message.map;
-        Utils.switchMap(map_id, globalCanvas);
+        Utils.switchMap(map_id, globalCanvas, ()=>{
+          createGlobalCanvas();
+        });
         break;
 
       default:
@@ -880,7 +882,9 @@ $(document).ready(() => {
   $("#mapModal").on("change", "#map-select", function (event) {
     event.preventDefault();
     const map_id = $("#map-select").val();
-    Utils.switchMap(map_id, globalCanvas);
+    Utils.switchMap(map_id, globalCanvas, ()=>{
+      createGlobalCanvas();
+    });
   });
 
   // --- Tile & Action Event Handlers ---
@@ -1184,7 +1188,7 @@ $(document).ready(() => {
                 processMovementData(data);
               }
             );
-          }, 200); // 0.2 seconds delay
+          }, 50); // 0.1 seconds delay
         }
       }
     }
