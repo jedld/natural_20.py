@@ -345,6 +345,9 @@ class Entity(EntityStateEvaluator, Notable):
     def hp(self):
         return self.attributes["hp"]
 
+    def max_hp(self):
+        return self.attributes.get('max_hp', 0)
+
     def set_hp(self, hp, override_max=False):
         if override_max:
             self.attributes["hp"] = hp
@@ -1790,6 +1793,9 @@ class Entity(EntityStateEvaluator, Notable):
         if total_damage < self.damage_threshold():
             total_damage = 0
             damage_threshold_active = True
+
+        if total_damage > 0:
+            self.resolve_trigger('damage', { "dmg": total_damage, 'damage_type': damage_type })
 
         self.attributes["hp"] -= total_damage
         instant_death = False
