@@ -55,6 +55,7 @@ class Object(Entity, Container, EventLoader):
         self.properties = properties
         self.resistances = properties.get('resistances', [])
         self.is_concealed = properties.get('concealed', False)
+        self.is_secret = self.properties.get("secret", False)
         self.perception_dc = properties.get('perception_dc', None)
         self.setup_other_attributes()
         if properties.get('hp_die', None):
@@ -162,9 +163,6 @@ class Object(Entity, Container, EventLoader):
         if not self.swimmable():
             return self.movement_cost()
         return self.properties.get('movement_cost_swim', self.properties.get('movement_cost', 1))
-
-    def max_hp(self) -> int:
-        return self.hp
 
     def placeable(self) -> bool:
         return self.properties.get('placeable', True)

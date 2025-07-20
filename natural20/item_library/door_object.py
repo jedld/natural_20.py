@@ -364,6 +364,8 @@ class DoorObject(Object):
             self.close()
         elif state == "unconcealed":
             self.is_concealed = False
+        elif state == "unsecret":
+            self.is_secret = False
         elif state == "concealed":
             self.is_concealed = True
         else:
@@ -401,10 +403,10 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
         StoneWallDirectional.__init__(self, session, map, properties)
         self.door_pos = self.properties.get("door_pos", 0)
         self.window = self.properties.get("window", [0, 0, 0, 0])
-        self.is_secret = self.properties.get("secret", False)
 
     def label(self):
         return self.properties.get("label", f"{'Closed' if self.closed() else 'Opened'} Door")
+
 
     def description(self):
         return self.properties.get("description", "A door")
