@@ -16,7 +16,10 @@
                     left: {{ tile['x'] * tile_size_px + tile_size_px }}px;
                     width: {{ tile_size_px }}px;
                     height: {{ tile_size_px }}px;">
-
+          {# --- Render fog of war if the tile is not in line of sight --- #}
+          {% if not tile['line_of_sight'] %}
+            <div class="fog-of-war" style="width: {{ tile_size_px }}px; height: {{ tile_size_px }}px;"></div>
+          {% endif %}
           {# --- Render objects on the tile --- #}
           {% if tile['objects'] %}
             {% for obj in tile['objects'] %}
@@ -70,10 +73,7 @@
             {% endfor %}
           {% endif %}
           
-          {# --- Render fog of war if the tile is not in line of sight --- #}
-          {% if not tile['line_of_sight'] %}
-            <div class="fog-of-war" style="width: {{ tile_size_px }}px; height: {{ tile_size_px }}px;"></div>
-          {% endif %}
+
           
           {# --- Brightness overlay --- #}
           <div class="brightness-overlay" style="opacity: {{ tile['opacity'] }};"></div>

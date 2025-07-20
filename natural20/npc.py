@@ -225,9 +225,6 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
     def token(self):
         return self.properties["token"]
 
-    def max_hp(self):
-        return self._max_hp
-
     def name(self):
         return self._name
 
