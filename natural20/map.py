@@ -865,6 +865,8 @@ class Map():
 
     def passable(self, entity, pos_x, pos_y, battle=None, allow_squeeze=True, origin=None, ignore_opposing=False,
                  incorporeal=False):
+        if entity is None:
+            return False
         effective_token_size = entity.token_size() - 1 if allow_squeeze and entity.token_size() > 1 else entity.token_size()
         for ofs_x in range(effective_token_size):
             for ofs_y in range(effective_token_size):

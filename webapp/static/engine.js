@@ -49,15 +49,20 @@ const ajaxPost = (url, data, onSuccess, isJSON = false) => {
 };
 
 // Returns the center coordinates of a tile element.
-const getTileCenter = (selector) => {
-  const $tile = $(selector);
+const getTileCenter = ($tile) => {
+  if (typeof $tile === 'string') {
+    $tile = $($tile);
+  }
+  if (!$tile.length || !$tile[0].getBoundingClientRect) {
+    throw new Error('getTileCenter: invalid tile');
+  }
   const rect = $tile[0].getBoundingClientRect();
   const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
   const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-  const mainMapArea = $('#main-map-area')[0].getBoundingClientRect();
+  const tile_size = $('.tiles-container').data('tile-size');
   return {
-    x: rect.left - mainMapArea.left + rect.width / 2 + scrollLeft,
-    y: rect.top - mainMapArea.top + rect.height / 2 + scrollTop
+    x: rect.left + scrollLeft + tile_size / 2,
+    y: rect.top + scrollTop + tile_size / 2
   };
 };
 
@@ -91,53 +96,68 @@ function addToInitiative($btn, battleEntityList) {
 
 // Draws a line from a source tile to a target tile. Options let you customize
 // the line width, stroke color, whether to add an arrowhead, use a curved path, etc.
-function drawLine(ctx, source, targetSelector, options = {}) {
+function drawLine(ctx, from, to, opts = {}) {
   const {
     lineWidth = 5,
     withArrow = false,
     randomCurve = false,
     strokeStyle = "green",
     text = null,
-  } = options;
+  } = opts;
 
-  const srcCenter = getTileCenter(
-    `.tile[data-coords-x="${source.x}"][data-coords-y="${source.y}"]`,
-  );
-  const tgtCenter = getTileCenter(targetSelector);
-
+  // Ensure from and to are objects with x and y
+  // If to is a selector string, convert to jQuery object and extract x/y
+  let fromCoords = from;
+  let toCoords = to;
+  if (typeof from === 'string') {
+    const $fromTile = $(from);
+    fromCoords = { x: $fromTile.data('coords-x'), y: $fromTile.data('coords-y') };
+  }
+  if (typeof to === 'string') {
+    const $toTile = $(to);
+    toCoords = { x: $toTile.data('coords-x'), y: $toTile.data('coords-y') };
+  }
+  // Now get centers
+  const fromCenter = getTileCenter($(`.tile[data-coords-x="${fromCoords.x}"][data-coords-y="${fromCoords.y}"]`));
+  const toCenter = getTileCenter($(`.tile[data-coords-x="${toCoords.x}"][data-coords-y="${toCoords.y}"]`));
+  ctx.save();
   ctx.beginPath();
-  ctx.strokeStyle = strokeStyle;
+  ctx.moveTo(fromCenter.x, fromCenter.y);
+  ctx.lineTo(toCenter.x, toCenter.y);
   ctx.lineWidth = lineWidth;
+  ctx.strokeStyle = strokeStyle;
 
-  let angle = Math.atan2(tgtCenter.y - srcCenter.y, tgtCenter.x - srcCenter.x);
+  let angle = Math.atan2(toCenter.y - fromCenter.y, toCenter.x - fromCenter.x);
 
   if (randomCurve) {
     const randomAngle = (Math.random() * (90 - 20) + 20) * (Math.PI / 180);
     const controlX =
-      (srcCenter.x + tgtCenter.x) / 2 +
-      (Math.cos(randomAngle) * (tgtCenter.y - srcCenter.y)) / 2;
+      (fromCenter.x + toCenter.x) / 2 +
+      (Math.cos(randomAngle) * (toCenter.y - fromCenter.y)) / 2;
     const controlY =
-      (srcCenter.y + tgtCenter.y) / 2 +
-      (Math.sin(randomAngle) * (tgtCenter.y - srcCenter.y)) / 2;
-    ctx.moveTo(srcCenter.x, srcCenter.y);
-    ctx.quadraticCurveTo(controlX, controlY, tgtCenter.x, tgtCenter.y);
+      (fromCenter.y + toCenter.y) / 2 +
+      (Math.sin(randomAngle) * (toCenter.y - fromCenter.y)) / 2;
+    ctx.moveTo(fromCenter.x, fromCenter.y);
+    ctx.quadraticCurveTo(controlX, controlY, toCenter.x, toCenter.y);
     angle = randomAngle; // update angle for arrow/text placement
   } else {
-    ctx.moveTo(srcCenter.x, srcCenter.y);
-    ctx.lineTo(tgtCenter.x, tgtCenter.y);
+    ctx.moveTo(fromCenter.x, fromCenter.y);
+    ctx.lineTo(toCenter.x, toCenter.y);
   }
+
+  ctx.stroke();
 
   if (withArrow) {
     const headlen = 10;
-    ctx.moveTo(tgtCenter.x, tgtCenter.y);
+    ctx.moveTo(toCenter.x, toCenter.y);
     ctx.lineTo(
-      tgtCenter.x - headlen * Math.cos(angle - Math.PI / 6),
-      tgtCenter.y - headlen * Math.sin(angle - Math.PI / 6),
+      toCenter.x - headlen * Math.cos(angle - Math.PI / 6),
+      toCenter.y - headlen * Math.sin(angle - Math.PI / 6),
     );
-    ctx.moveTo(tgtCenter.x, tgtCenter.y);
+    ctx.moveTo(toCenter.x, toCenter.y);
     ctx.lineTo(
-      tgtCenter.x - headlen * Math.cos(angle + Math.PI / 6),
-      tgtCenter.y - headlen * Math.sin(angle + Math.PI / 6),
+      toCenter.x - headlen * Math.cos(angle + Math.PI / 6),
+      toCenter.y - headlen * Math.sin(angle + Math.PI / 6),
     );
   }
 
@@ -145,10 +165,10 @@ function drawLine(ctx, source, targetSelector, options = {}) {
 
   if (text !== null) {
     const textOffset = 15;
-    const textX = tgtCenter.x + textOffset * Math.cos(angle);
+    const textX = toCenter.x + textOffset * Math.cos(angle);
     const textY =
-      tgtCenter.y +
-      (tgtCenter.y > srcCenter.y ? 1 : -1) * textOffset * Math.sin(angle);
+      toCenter.y +
+      (toCenter.y > fromCenter.y ? 1 : -1) * textOffset * Math.sin(angle);
     ctx.fillStyle = strokeStyle;
     ctx.font = "16px Arial";
     ctx.textAlign = "center";
@@ -1261,12 +1281,15 @@ $(document).ready(() => {
 
   // Multi-target selection.
   $(".tiles-container").on("click", ".add-to-target", function (e) {
-    const entity_uid = $(this).closest(".tile").data("coords-id");
+    const $tile = $(this).closest(".tile");
+    const entity_uid = $tile.data("coords-id");
+    const coordsx = $tile.data("coords-x");
+    const coordsy = $tile.data("coords-y");
     if (!multiTargetList.includes(entity_uid) || !multiTargetModeUnique) {
       if (multiTargetList.length < max_targets) {
         multiTargetList.push(entity_uid);
         if (multiTargetModeUnique) $(this).hide();
-        drawLine(globalCtx, source, coordsx, coordsy, {
+        drawLine(globalCtx, source, { x: coordsx, y: coordsy }, {
           lineWidth: 3,
           withArrow: false,
           randomCurve: true,

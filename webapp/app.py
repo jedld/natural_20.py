@@ -111,6 +111,7 @@ def get_allowed_origins():
         default_origins = [
             "http://natural20-alb-1402295348.us-east-1.elb.amazonaws.com",
             "https://natural20-alb-1402295348.us-east-1.elb.amazonaws.com",
+            "https://0ad1d39fb719.ngrok.app",
             "*"  # Fallback to allow all origins in production
         ]
     else:
@@ -120,6 +121,7 @@ def get_allowed_origins():
             "http://127.0.0.1:5000", 
             "http://localhost:5001", 
             "http://127.0.0.1:5001",
+            "https://0ad1d39fb719.ngrok.app",
             # Add common ngrok patterns
             "https://*.ngrok.io",
             "https://*.ngrok-free.app",

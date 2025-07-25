@@ -186,11 +186,13 @@
               </div>
 
               {% if tile['hp'] is defined and tile['hp'] is not none %}
+                {%if tile['max_hp'] %}
                 {% set health_width = (tile['hp'] / tile['max_hp']) * image_size_px %}
                 {% set color = 'red' if (tile['hp'] / tile['max_hp']) < 0.2 else 'green' %}
                 <div class="health-bar"
                      style="width: {{ health_width }}px; background-color: {{ color }};">
                 </div>
+                {%endif %}
               {% endif %}
               
               {% if tile['label'] %}
