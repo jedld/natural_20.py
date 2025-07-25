@@ -121,14 +121,13 @@ function drawLine(ctx, from, to, opts = {}) {
   const fromCenter = getTileCenter($(`.tile[data-coords-x="${fromCoords.x}"][data-coords-y="${fromCoords.y}"]`));
   const toCenter = getTileCenter($(`.tile[data-coords-x="${toCoords.x}"][data-coords-y="${toCoords.y}"]`));
   ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(fromCenter.x, fromCenter.y);
-  ctx.lineTo(toCenter.x, toCenter.y);
   ctx.lineWidth = lineWidth;
   ctx.strokeStyle = strokeStyle;
 
   let angle = Math.atan2(toCenter.y - fromCenter.y, toCenter.x - fromCenter.x);
 
+  // Draw the main line
+  ctx.beginPath();
   if (randomCurve) {
     const randomAngle = (Math.random() * (90 - 20) + 20) * (Math.PI / 180);
     const controlX =
@@ -145,8 +144,7 @@ function drawLine(ctx, from, to, opts = {}) {
     ctx.lineTo(toCenter.x, toCenter.y);
   }
 
-  ctx.stroke();
-
+  // Draw arrow if needed
   if (withArrow) {
     const headlen = 10;
     ctx.moveTo(toCenter.x, toCenter.y);
