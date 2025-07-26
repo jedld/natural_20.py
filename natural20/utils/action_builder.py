@@ -19,11 +19,11 @@ def acquire_targets(param, entity, battle, map=None):
     # Helper function to filter by range & visibility if we have a valid map.
     def in_range_and_visible(targets):
         if not map or spell_range <= 0:
-            return set(targets)
+            return {t for t in targets if t.allow_targeting()}
         return {
             t
             for t in targets
-            if map.can_see(entity, t) and t.allow_targeting() and map.distance(entity, t) <= spell_range
+            if map.can_see(entity, t) and not t.concealed() and t.allow_targeting() and map.distance(entity, t) <= spell_range
         }
 
     target_types = param.get("target_types", ['enemies'])
