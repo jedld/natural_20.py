@@ -163,6 +163,8 @@ class Ground(Object, Lootable):
     def color(self):
         return 'cyan'
     
+    def max_hp(self):
+        return None
 
     def build_map(self, action, action_object):
         if action == 'pickup_drop':

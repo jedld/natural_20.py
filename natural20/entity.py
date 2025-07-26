@@ -346,7 +346,7 @@ class Entity(EntityStateEvaluator, Notable):
         return self.attributes["hp"]
 
     def max_hp(self):
-        return self.attributes.get('max_hp', 0)
+        return self.attributes.get('max_hp', self.properties.get('max_hp', 0))
 
     def set_hp(self, hp, override_max=False):
         if override_max:
