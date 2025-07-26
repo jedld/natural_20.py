@@ -259,6 +259,12 @@ The web application supports multiple LLM providers that can be configured using
    python -m flask run
    ```
 
+### running using gunicorn in production mode
+
+```
+TEMPLATE_DIR=../user_levels/death_house/  gunicorn --worker-class eventlet --workers 1 --bind 0.0.0.0:5001 --timeout 120 app:app
+```
+
 ### Environment Variables
 
 #### CORS Configuration
