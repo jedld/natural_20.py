@@ -76,6 +76,12 @@ class GenericEventHandler:
             else:
                 handle_teleport(teleport_properties)
 
+        if self.properties.get('delete'):
+            delete_properties = self.properties.get('delete')
+            entity_ref = delete_properties.get('entity')
+            if entity_ref is None or entity_ref == 'self':
+                self.map.remove(entity)
+
         if self.properties.get('spawn'):
             place_entity_properties = self.properties['spawn']
             if not isinstance(place_entity_properties, list):
@@ -128,7 +134,10 @@ class GenericEventHandler:
                 if target_map is None:
                     raise Exception(f"Could not find map {target_map_name}")
 
-                target_request = update_state_properties['target']
+                target_request = update_state_properties.get('target')
+                if target_request is None:
+                    target_request = 'self'
+
                 targets = []
                 if target_request == 'session':
                     self.session.update_state(update_state_properties['state'])

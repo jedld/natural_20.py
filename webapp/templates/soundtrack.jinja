@@ -20,7 +20,7 @@
     </label>
   </div>
   {% endfor %}
-  {% if track_id %}
+  {% if current_soundtrack %}
   <div class="volume-controls">
     <label>Volume:</label>
     <input type="range" min="0" max="100" value="{{current_soundtrack.volume}}" class="volume-slider">

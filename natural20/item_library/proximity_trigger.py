@@ -19,10 +19,9 @@ class ProximityTrigger(Object):
         object_position = self.map.position_of(self)
 
         if not self.activated:
-            if not self.multi_trigger:
-                self.activated = True
-
             if self.within_distance(object_position, entity_pos):
+                if not self.multi_trigger:
+                    self.activated = True
                 if self.line_of_sight:
                     if not self.map.can_see_square(entity, object_position,
                                                    force_dark_vision=True):

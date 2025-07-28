@@ -63,6 +63,7 @@ class Object(Entity, Container, EventLoader):
         else:
             self.attributes["hp"] = properties.get('max_hp', None)
 
+        self.targettable = properties.get("targettable", self.attributes.get("hp") is not None)
         if properties.get('inventory'):
             self.inventory = {
                 inventory['type']: {'qty': inventory['qty']} for inventory in properties['inventory']
@@ -215,6 +216,9 @@ class Object(Entity, Container, EventLoader):
         return interactions
 
     def allow_targeting(self):
+        if not self.targettable:
+            return False
+
         if self.max_hp() is None:
             return False
         return self.max_hp() > 0
