@@ -74,6 +74,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.helping_with = set()
         self.check_results = {}
         self.owner = None
+        self.targettable = True
         self.conversation_controller = None
         self.dialog = False
         # Attach methods dynamically
@@ -1147,6 +1148,8 @@ class Entity(EntityStateEvaluator, Notable):
             self.make_conscious()
         elif state == 'dead':
             self.make_dead()
+        elif state == 'untargettable':
+            self.targettable = False
 
 
     def do_grappled_by(self, grappler):
@@ -1751,7 +1754,7 @@ class Entity(EntityStateEvaluator, Notable):
         return spell_list
     
     def allow_targeting(self):
-        return not self.properties.get('spiritual', False)
+        return self.targettable and not self.properties.get('spiritual', False)
     
     def allow_talk(self):
         return len(self.languages()) > 0

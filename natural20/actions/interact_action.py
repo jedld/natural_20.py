@@ -61,7 +61,7 @@ class InteractAction(Action):
 
     @staticmethod
     def can(entity, battle):
-        return battle is None or not battle.ongoing or entity.total_actions(battle) > 0 or entity.free_object_interaction(battle)
+        return battle is None or not battle.ongoing or entity.free_object_interaction(battle)
 
     @staticmethod
     def build(session, source):
@@ -141,8 +141,9 @@ class InteractAction(Action):
             if battle:
                 if item.get('cost') == 'action':
                     battle.consume(entity, 'action', 1)
+                    battle.consume(entity, 'free_object_interaction', 1)
                 else:
-                    battle.consume(entity, 'free_object_interaction', 1) or battle.consume(entity, 'action', 1)
+                    battle.consume(entity, 'free_object_interaction', 1)
 
                 session.event_manager.received_event({
                         "event": 'interact', 
