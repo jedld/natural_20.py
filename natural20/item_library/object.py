@@ -123,6 +123,14 @@ class Object(Entity, Container, EventLoader):
 
     def opaque(self, origin=None) -> Optional[bool]:
         return self.properties.get('opaque')
+    
+
+    def dead(self) -> bool:
+        """
+        Check if the object is dead.
+        An object is considered dead if it has no HP or its HP is less than or equal to 0.
+        """
+        return self.max_hp() is not None and self.hp() is not None and self.hp() <= 0
 
     def half_cover(self) -> Optional[bool]:
         return self.properties.get('cover') == 'half'
@@ -221,7 +229,11 @@ class Object(Entity, Container, EventLoader):
 
         if self.max_hp() is None:
             return False
-        return self.max_hp() > 0
+
+        return self.hp() > 0
+    
+    def kind_of_door(self) -> bool:
+        return self.properties.get('kind_of_door', False)
 
     def investigate_details(self, entity):
         investigate_details = []

@@ -120,6 +120,13 @@ class Entity(EntityStateEvaluator, Notable):
 
     def current_concentration(self):
         return self.concentration
+    
+    def kind_of_door(self):
+        """
+        Returns True if this entity is a kind of door, False otherwise.
+        This is used to determine if the entity can be interacted with as a door.
+        """
+        return self.properties.get('kind_of_door', False)
 
     def class_descriptor(self):
         return self.name.lower()
