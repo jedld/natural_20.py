@@ -15,6 +15,9 @@ class DoorObject(Object):
         self.key_name = self.properties.get("key")
         self.door_pos = self.properties.get("door_pos", None)
         self.passable_threshold = self.properties.get("passable_threshold", None)
+ 
+    def kind_of_door(self):
+        return self.properties.get('kind_of_door', True)
 
     def label(self):
         return self.properties.get("label", f"{'Closed' if self.closed() else 'Opened'} Door")
@@ -70,6 +73,9 @@ class DoorObject(Object):
         return self.state == "closed"
 
     def opened(self):
+        if self.dead():
+            return True
+
         return self.state == "opened"
 
     def open(self):
@@ -407,6 +413,8 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
     def label(self):
         return self.properties.get("label", f"{'Closed' if self.closed() else 'Opened'} Door")
 
+    def kind_of_door(self):
+        return self.properties.get('kind_of_door', True)
 
     def description(self):
         return self.properties.get("description", "A door")
@@ -427,7 +435,7 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
         pos_x, pos_y = self.map.position_of(self)
 
         def check_door_opaque():
-            if self.opened():
+            if self.opened() or self.dead():
                 return False
 
             if isinstance(self.door_pos, list):

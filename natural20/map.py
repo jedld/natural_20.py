@@ -724,7 +724,7 @@ class Map():
         for obj in self.objects_at(pos_x, pos_y):
             if obj.secret():
                 continue
-            if isinstance(obj, DoorObject) or isinstance(obj, DoorObjectWall):
+            if obj.kind_of_door() and not obj.dead():
                 return True
         return False
 
@@ -770,6 +770,10 @@ class Map():
             entity = self.entity_by_uid(entity)
         if isinstance(entity2, str):
             entity2 = self.entity_by_uid(entity2)
+
+        if entity2.kind_of_door() and not entity2.concealed() and not entity2.secret():
+            # doors are always visible
+            return True
 
         if entity == entity2:
             return True
