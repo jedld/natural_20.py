@@ -185,7 +185,7 @@ class Ground(Object, Lootable):
     def available_interactions(self, entity, battle=None, admin=False):
         interactions = {}
         if self.map.position_of(entity) == self.map.position_of(self):
-            if len(self.inventory) > 0 or len(entity.inventory) > 0:
+            if (hasattr(entity, 'inventory') and len(entity.inventory) > 0) or (hasattr(self, 'inventory') and len(self.inventory) > 0):
                 interactions['pickup_drop'] = {}
         return interactions
 
