@@ -228,6 +228,8 @@ def render_terrain(battle, map, entity_type_mappings, view_port_size=(12, 12)):
                         terrain_int = 3
                     elif terrain == 'o':
                         terrain_int = 4
+                    elif terrain == 'A':
+                        terrain_int = 5
                     elif terrain == '#':
                         terrain_int = 2
                     elif terrain == '·':
