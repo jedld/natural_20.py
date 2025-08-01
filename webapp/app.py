@@ -176,6 +176,7 @@ TILE_PX = int(index_data["tile_size"])
 
 
 LOGIN_BACKGROUND = index_data["login_background"]
+CHARACTER_SELECTION_BACKGROUND = index_data.get("character_selection_background", index_data["login_background"])
 BATTLEMAP = index_data["map"]
 OTHERMAPS = index_data.get("other_maps", {})
 SOUNDTRACKS = index_data["soundtracks"]
@@ -746,7 +747,7 @@ def character_selection():
     
     return render_template('character_selection.html', 
                          title=TITLE, 
-                         background=LOGIN_BACKGROUND,
+                         background=CHARACTER_SELECTION_BACKGROUND,
                          selectable_characters=selectable_characters,
                          taken_characters=taken_characters)
 
@@ -791,6 +792,122 @@ def select_character():
     
     logger.info(f"User {username} selected character {character_name}")
     return jsonify(status='ok')
+
+@app.route('/character_details/<character_name>', methods=['GET'])
+def character_details(character_name):
+    """Get detailed information about a character for preview"""
+    try:
+        # Load the character from the game session
+        character = current_game.get_entity_by_uid(character_name)
+        
+        if not character:
+            return jsonify(error="Character not found"), 404
+        
+        # Extract important character information
+        details = {
+            'name': character.name.title(),
+            'display_name': character.display_name,
+            'race': character.race_properties.get('name', 'Unknown'),
+            'subrace': character.subrace() or 'None',
+            'classes': character.c_class(),
+            'level': character.level(),
+            'hit_points': {
+                'current': character.hp(),
+                'maximum': character.max_hp()
+            },
+            'armor_class': character.armor_class(),
+            'speed': character.speed(),
+            'ability_scores': {
+                'str': character.ability_score_str(),
+                'dex': character.ability_score_dex(), 
+                'con': character.ability_score_con(),
+                'int': character.ability_score_int(),
+                'wis': character.ability_score_wis(),
+                'cha': character.ability_score_cha()
+            },
+            'ability_modifiers': {
+                'str': character.str_mod(),
+                'dex': character.dex_mod(),
+                'con': character.con_mod(), 
+                'int': character.int_mod(),
+                'wis': character.wis_mod(),
+                'cha': character.cha_mod()
+            },
+            'proficiency_bonus': character.proficiency_bonus(),
+            'passive_perception': character.passive_perception(),
+            'languages': character.languages(),
+            'equipment': {
+                'weapons': [],
+                'armor': [],
+                'other': []
+            },
+            'spells': {
+                'has_spells': character.has_spells() if hasattr(character, 'has_spells') else False,
+                'spell_slots': {},
+                'known_spells': []
+            },
+            'class_features': [],
+            'racial_features': []
+        }
+        
+        # Get equipped items
+        equipped_items = character.equipped_items()
+        for item in equipped_items:
+            item_type = item.get('type', 'other')
+            item_info = {
+                'name': item.get('label', item.get('name', 'Unknown')),
+                'damage': item.get('damage'),
+                'range': item.get('range'),
+                'properties': item.get('properties', [])
+            }
+            
+            if item_type in ['melee_attack', 'ranged_attack']:
+                details['equipment']['weapons'].append(item_info)
+            elif item_type in ['armor', 'shield']:
+                item_info['ac'] = item.get('ac')
+                item_info['bonus_ac'] = item.get('bonus_ac')
+                details['equipment']['armor'].append(item_info)
+            else:
+                details['equipment']['other'].append(item_info)
+        
+        # Get spell information if character has spells
+        if details['spells']['has_spells']:
+            try:
+                # Get available spells
+                available_spells = character.available_spells(None)
+                details['spells']['known_spells'] = available_spells
+                
+                # Get spell slots for each class
+                for class_name in character.c_class().keys():
+                    class_slots = {}
+                    for level in range(1, 10):
+                        slots = character.spell_slots_count(level, class_name)
+                        if slots > 0:
+                            class_slots[f'level_{level}'] = slots
+                    if class_slots:
+                        details['spells']['spell_slots'][class_name] = class_slots
+            except:
+                # If spell info fails, just mark as having spells but no details
+                pass
+        
+        # Get some key class features
+        important_features = [
+            'action_surge', 'second_wind', 'sneak_attack', 'rage', 'bardic_inspiration',
+            'channel_divinity', 'lay_on_hands', 'fighting_style', 'spellcasting'
+        ]
+        for feature in important_features:
+            if character.class_feature(feature):
+                details['class_features'].append(feature.replace('_', ' ').title())
+        
+        # Get racial features
+        racial_features = character.race_properties.get('race_features', [])
+        details['racial_features'] = [f.replace('_', ' ').title() for f in racial_features[:5]]  # Limit to first 5
+        
+        return jsonify(details)
+        
+    except Exception as e:
+        logger.error(f"Error getting character details for {character_name}: {e}")
+        return jsonify(error="Failed to load character details"), 500
 
 def pov_entities():
     global current_game
