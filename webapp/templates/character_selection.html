@@ -274,7 +274,262 @@
             background: rgba(46, 125, 50, 0.9);
         }
         
-        /* Responsive design */
+        .character-actions {
+            margin-top: 15px;
+        }
+        
+        .btn-character-details {
+            background: linear-gradient(145deg, #654321, #8B4513);
+            border: 2px solid #D4AF37;
+            color: #F5DEB3;
+            font-family: 'Cinzel', serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+        }
+        
+        .btn-character-details:hover {
+            background: linear-gradient(145deg, #8B4513, #A0522D);
+            border-color: #FFD700;
+            color: #FFF;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .btn-character-details i {
+            margin-right: 6px;
+        }
+        
+        /* Character Details Side Panel */
+        .character-details-panel {
+            position: fixed;
+            top: 0;
+            right: -400px; /* Hidden by default */
+            width: 400px;
+            height: 100vh;
+            background: linear-gradient(145deg, rgba(139, 69, 19, 0.98), rgba(160, 82, 45, 0.98));
+            border-left: 3px solid #D4AF37;
+            z-index: 2000;
+            overflow-y: auto;
+            transition: right 0.3s ease-in-out;
+            box-shadow: -5px 0 15px rgba(0, 0, 0, 0.5);
+        }
+        
+        .character-details-panel.open {
+            right: 0;
+        }
+        
+        .panel-header {
+            background: rgba(212, 175, 55, 0.2);
+            padding: 20px;
+            border-bottom: 2px solid #D4AF37;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .panel-header h2 {
+            color: #FFD700;
+            font-family: 'Uncial Antiqua', cursive;
+            font-size: 1.5rem;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+        
+        .panel-close {
+            background: none;
+            border: none;
+            color: #F5DEB3;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .panel-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .panel-body {
+            padding: 20px;
+            color: #F5DEB3;
+        }
+        
+        /* Adjust main content when panel is open */
+        .content-overlay {
+            transition: margin-right 0.3s ease-in-out;
+        }
+        
+        .content-overlay.panel-open {
+            margin-right: 400px;
+        }
+        
+        /* Responsive adjustments for smaller screens */
+        @media (max-width: 1200px) {
+            .character-details-panel {
+                width: 350px;
+                right: -350px;
+            }
+            
+            .content-overlay.panel-open {
+                margin-right: 350px;
+            }
+        }
+        
+        @media (max-width: 992px) {
+            .character-details-panel {
+                width: 100%;
+                right: -100%;
+            }
+            
+            .content-overlay.panel-open {
+                margin-right: 0;
+                transform: translateX(-100%);
+            }
+        }
+        
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr; /* Single column for side panel */
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .details-section {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid #8B4513;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .details-section h3 {
+            color: #D4AF37;
+            font-family: 'Uncial Antiqua', cursive;
+            font-size: 1.2rem;
+            margin: 0 0 10px 0;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+            border-bottom: 1px solid #D4AF37;
+            padding-bottom: 5px;
+        }
+        
+        .ability-scores {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        
+        .ability-score {
+            text-align: center;
+            background: rgba(139, 69, 19, 0.3);
+            border: 1px solid #8B4513;
+            border-radius: 5px;
+            padding: 8px 4px;
+        }
+        
+        .ability-score .ability-name {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            color: #D4AF37;
+        }
+        
+        .ability-score .ability-value {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        
+        .ability-score .ability-modifier {
+            font-size: 0.9rem;
+            color: #CCC;
+        }
+        
+        .equipment-list, .spell-list, .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .equipment-list li, .spell-list li, .feature-list li {
+            background: rgba(139, 69, 19, 0.2);
+            border: 1px solid #8B4513;
+            border-radius: 4px;
+            padding: 6px 10px;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .equipment-weapon {
+            border-left: 4px solid #DC3545;
+        }
+        
+        .equipment-armor {
+            border-left: 4px solid #28A745;
+        }
+        
+        .equipment-other {
+            border-left: 4px solid #6C757D;
+        }
+        
+        .spell-level {
+            color: #D4AF37;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .basic-info {
+            grid-column: span 2;
+        }
+        
+        .basic-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        
+        .basic-info-item {
+            text-align: center;
+        }
+        
+        .basic-info-label {
+            color: #D4AF37;
+            font-size: 0.9rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+        
+        .basic-info-value {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .details-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .ability-scores {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .basic-info-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
         @media (max-width: 768px) {
             .main-title {
                 font-size: 2.5rem;
@@ -382,6 +637,13 @@
             window.location.href = '/logout';
         });
         
+        // Handle view character details
+        $('.btn-character-details').on('click', function(e) {
+            e.stopPropagation(); // Prevent card selection
+            const characterName = $(this).data('character');
+            showCharacterDetails(characterName);
+        });
+        
         function showMessage(message, type) {
             $('#messageArea').html(
                 '<div class="alert alert-dnd alert-' + type + '" role="alert">' + message + '</div>'
@@ -397,6 +659,275 @@
                 $('#confirmButton').prop('disabled', selectedCharacter === null);
             }
         }
+        
+        function showCharacterDetails(characterName) {
+            // Show the side panel
+            $('#characterDetailsPanel').addClass('open');
+            $('.content-overlay').addClass('panel-open');
+            
+            // Update title
+            const capitalizedName = characterName.charAt(0).toUpperCase() + characterName.slice(1);
+            $('#characterDetailsTitle').text(capitalizedName + ' - Character Details');
+            
+            // Show loading state
+            $('#characterDetailsBody').html(`
+                <div class="loading-spinner">
+                    <div class="spinner"></div>
+                    <p style="color: #F5DEB3; margin-top: 10px;">Loading character details...</p>
+                </div>
+            `);
+            
+            $.ajax({
+                type: 'GET',
+                url: '/character_details/' + characterName,
+                dataType: 'json',
+                success: function(data) {
+                    displayCharacterDetails(data);
+                },
+                error: function(xhr, status, error) {
+                    $('#characterDetailsBody').html(`
+                        <div class="alert alert-dnd alert-danger" role="alert">
+                            Failed to load character details. Please try again.
+                        </div>
+                    `);
+                }
+            });
+        }
+        
+        function displayCharacterDetails(data) {
+            const modifierStr = (mod) => mod >= 0 ? `+${mod}` : `${mod}`;
+            
+            // Pre-process complex data to avoid eval-like operations in template literals
+            const raceDisplay = data.race + (data.subrace !== 'None' ? ` (${data.subrace})` : '');
+            const classDisplay = Object.entries(data.classes)
+                .map(([cls, lvl]) => {
+                    const capitalizedClass = cls.charAt(0).toUpperCase() + cls.slice(1);
+                    return `${capitalizedClass} ${lvl}`;
+                })
+                .join(', ');
+            
+            // Build the HTML string step by step to avoid CSP issues
+            let html = `
+                <div class="details-section basic-info">
+                    <h3>Basic Information</h3>
+                    <div class="basic-info-grid">
+                        <div class="basic-info-item">
+                            <div class="basic-info-label">Race</div>
+                            <div class="basic-info-value">${raceDisplay}</div>
+                        </div>
+                        <div class="basic-info-item">
+                            <div class="basic-info-label">Class & Level</div>
+                            <div class="basic-info-value">${classDisplay}</div>
+                        </div>
+                        <div class="basic-info-item">
+                            <div class="basic-info-label">Hit Points</div>
+                            <div class="basic-info-value">${data.hit_points.current}/${data.hit_points.maximum}</div>
+                        </div>
+                        <div class="basic-info-item">
+                            <div class="basic-info-label">Armor Class</div>
+                            <div class="basic-info-value">${data.armor_class}</div>
+                        </div>
+                        <div class="basic-info-item">
+                            <div class="basic-info-label">Speed</div>
+                            <div class="basic-info-value">${data.speed} ft</div>
+                        </div>
+                        <div class="basic-info-item">
+                            <div class="basic-info-label">Proficiency</div>
+                            <div class="basic-info-value">+${data.proficiency_bonus}</div>
+                        </div>
+                        <div class="basic-info-item">
+                            <div class="basic-info-label">Perception</div>
+                            <div class="basic-info-value">${data.passive_perception}</div>
+                        </div>
+                        <div class="basic-info-item">
+                            <div class="basic-info-label">Languages</div>
+                            <div class="basic-info-value">${data.languages.length}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="details-grid">
+                    <div class="details-section">
+                        <h3>Ability Scores</h3>
+                        <div class="ability-scores">
+                            <div class="ability-score">
+                                <div class="ability-name">STR</div>
+                                <div class="ability-value">${data.ability_scores.str}</div>
+                                <div class="ability-modifier">${modifierStr(data.ability_modifiers.str)}</div>
+                            </div>
+                            <div class="ability-score">
+                                <div class="ability-name">DEX</div>
+                                <div class="ability-value">${data.ability_scores.dex}</div>
+                                <div class="ability-modifier">${modifierStr(data.ability_modifiers.dex)}</div>
+                            </div>
+                            <div class="ability-score">
+                                <div class="ability-name">CON</div>
+                                <div class="ability-value">${data.ability_scores.con}</div>
+                                <div class="ability-modifier">${modifierStr(data.ability_modifiers.con)}</div>
+                            </div>
+                            <div class="ability-score">
+                                <div class="ability-name">INT</div>
+                                <div class="ability-value">${data.ability_scores.int}</div>
+                                <div class="ability-modifier">${modifierStr(data.ability_modifiers.int)}</div>
+                            </div>
+                            <div class="ability-score">
+                                <div class="ability-name">WIS</div>
+                                <div class="ability-value">${data.ability_scores.wis}</div>
+                                <div class="ability-modifier">${modifierStr(data.ability_modifiers.wis)}</div>
+                            </div>
+                            <div class="ability-score">
+                                <div class="ability-name">CHA</div>
+                                <div class="ability-value">${data.ability_scores.cha}</div>
+                                <div class="ability-modifier">${modifierStr(data.ability_modifiers.cha)}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="details-section">
+                        <h3>Equipment</h3>`;
+            
+            // Build equipment sections separately to avoid CSP issues
+            // Weapons section
+            if (data.equipment.weapons.length > 0) {
+                html += '<h4 style="color: #DC3545; font-size: 1rem; margin: 10px 0 5px 0;">Weapons:</h4>';
+                html += '<ul class="equipment-list">';
+                data.equipment.weapons.forEach(weapon => {
+                    html += '<li class="equipment-weapon">';
+                    html += `<strong>${weapon.name}</strong>`;
+                    if (weapon.damage) html += ` - ${weapon.damage} damage`;
+                    if (weapon.range) html += ` (${weapon.range} ft)`;
+                    if (weapon.properties && weapon.properties.length > 0) {
+                        const propertiesText = weapon.properties.join(', ');
+                        html += `<br><small>${propertiesText}</small>`;
+                    }
+                    html += '</li>';
+                });
+                html += '</ul>';
+            }
+            
+            // Armor section
+            if (data.equipment.armor.length > 0) {
+                html += '<h4 style="color: #28A745; font-size: 1rem; margin: 10px 0 5px 0;">Armor:</h4>';
+                html += '<ul class="equipment-list">';
+                data.equipment.armor.forEach(armor => {
+                    html += '<li class="equipment-armor">';
+                    html += `<strong>${armor.name}</strong>`;
+                    if (armor.ac) html += ` - AC ${armor.ac}`;
+                    if (armor.bonus_ac) html += ` (+${armor.bonus_ac})`;
+                    html += '</li>';
+                });
+                html += '</ul>';
+            }
+            
+            // Other equipment section
+            if (data.equipment.other.length > 0) {
+                html += '<h4 style="color: #6C757D; font-size: 1rem; margin: 10px 0 5px 0;">Other:</h4>';
+                html += '<ul class="equipment-list">';
+                data.equipment.other.forEach(item => {
+                    html += `<li class="equipment-other"><strong>${item.name}</strong></li>`;
+                });
+                html += '</ul>';
+            }
+            
+            // No equipment message
+            if (data.equipment.weapons.length === 0 && data.equipment.armor.length === 0 && data.equipment.other.length === 0) {
+                html += '<p style="color: #CCC; font-style: italic;">No equipment information available</p>';
+            }
+            
+            html += `
+                    </div>
+                </div>
+                
+                <div class="details-grid">`;
+            
+            // Spells section
+            if (data.spells.has_spells) {
+                html += `
+                    <div class="details-section">
+                        <h3>Spells</h3>`;
+                
+                // Spell slots
+                if (Object.keys(data.spells.spell_slots).length > 0) {
+                    html += '<h4 style="color: #D4AF37; font-size: 1rem; margin: 10px 0 5px 0;">Spell Slots:</h4>';
+                    Object.entries(data.spells.spell_slots).forEach(([className, slots]) => {
+                        html += '<div style="margin-bottom: 8px;">';
+                        const capitalizedClassName = className.charAt(0).toUpperCase() + className.slice(1);
+                        html += `<strong>${capitalizedClassName}:</strong> `;
+                        const slotTexts = Object.entries(slots).map(([level, count]) => {
+                            const levelText = level.replace('level_', 'L');
+                            return `${levelText}:${count}`;
+                        });
+                        html += slotTexts.join(', ');
+                        html += '</div>';
+                    });
+                }
+                
+                // Known spells
+                if (data.spells.known_spells.length > 0) {
+                    html += '<h4 style="color: #D4AF37; font-size: 1rem; margin: 10px 0 5px 0;">Known Spells:</h4>';
+                    html += '<ul class="spell-list">';
+                    data.spells.known_spells.forEach(spell => {
+                        const spellName = spell.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        html += `<li>${spellName}</li>`;
+                    });
+                    html += '</ul>';
+                } else {
+                    html += '<p style="color: #CCC; font-style: italic;">Spell information not available</p>';
+                }
+                
+                html += '</div>';
+            }
+            
+            // Features section
+            html += `
+                <div class="details-section">
+                    <h3>Features & Abilities</h3>`;
+            
+            if (data.class_features.length > 0) {
+                html += '<h4 style="color: #D4AF37; font-size: 1rem; margin: 10px 0 5px 0;">Class Features:</h4>';
+                html += '<ul class="feature-list">';
+                data.class_features.forEach(feature => {
+                    html += `<li>${feature}</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            if (data.racial_features.length > 0) {
+                html += '<h4 style="color: #D4AF37; font-size: 1rem; margin: 10px 0 5px 0;">Racial Traits:</h4>';
+                html += '<ul class="feature-list">';
+                data.racial_features.forEach(feature => {
+                    html += `<li>${feature}</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            if (data.class_features.length === 0 && data.racial_features.length === 0) {
+                html += '<p style="color: #CCC; font-style: italic;">Feature information not available</p>';
+            }
+            
+            html += `
+                </div>
+            </div>`;
+            
+            // Languages section
+            if (data.languages.length > 0) {
+                const languageNames = data.languages.map(lang => lang.charAt(0).toUpperCase() + lang.slice(1));
+                const languageText = languageNames.join(', ');
+                html += `
+                    <div class="details-section">
+                        <h3>Languages</h3>
+                        <p>${languageText}</p>
+                    </div>`;
+            }
+            
+            $('#characterDetailsBody').html(html);
+        }
+        
+        // Close character details panel
+        window.closeCharacterDetails = function() {
+            $('#characterDetailsPanel').removeClass('open');
+            $('.content-overlay').removeClass('panel-open');
+        };
     });
     </script>
 </head>
@@ -425,6 +956,11 @@
                         <div class="character-info">
                             <h3 class="character-name">{{ character.name.title() }}</h3>
                             <p class="character-description">{{ character.description }}</p>
+                            <div class="character-actions">
+                                <button type="button" class="btn-character-details" data-character="{{ character.name }}">
+                                    <i class="glyphicon glyphicon-list-alt"></i> View Details
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -443,6 +979,20 @@
                     <div class="spinner"></div>
                     <p style="color: #F5DEB3; margin-top: 10px;">Processing your selection...</p>
                 </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Character Details Side Panel -->
+    <div class="character-details-panel" id="characterDetailsPanel">
+        <div class="panel-header">
+            <h2 id="characterDetailsTitle">Character Details</h2>
+            <button class="panel-close" onclick="closeCharacterDetails()">&times;</button>
+        </div>
+        <div class="panel-body" id="characterDetailsBody">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+                <p style="color: #F5DEB3; margin-top: 10px;">Loading character details...</p>
             </div>
         </div>
     </div>
