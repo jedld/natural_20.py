@@ -117,6 +117,7 @@ class HideBonusAction(HideAction):
 
         if entity.any_class_feature(["shadow_stealth"]):
             map_entity = battle.map_for(entity)
-            return map_entity.light_at(map_entity.position_of(entity)) <= 0.5
+            pos_x, pos_y = map_entity.position_of(entity)
+            return map_entity.light_at(pos_x, pos_y) <= 0.5
 
         return False
