@@ -807,7 +807,7 @@ def character_details(character_name):
         details = {
             'name': character.name.title(),
             'display_name': character.display_name,
-            'race': character.race_properties.get('name', 'Unknown'),
+            'race': character.race(),
             'subrace': character.subrace() or 'None',
             'classes': character.c_class(),
             'level': character.level(),
