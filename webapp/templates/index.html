@@ -243,7 +243,7 @@
             {% else %}
                 <img src="{{ background_path }}" class="background-image" style="width: {{ background_width }}px; object-fit: cover; object-position: top;">
             {% endif %}
-            <div id="tiles-area" class="tiles-container actions-container" data-width="{{ background_width }}" data-height="{{ background_height }}" data-tile-size="{{tile_size_px}}" style="position: absolute; top: -{{tile_size_px}}px; left: -{{tile_size_px}}px;"></div>
+            <div id="tiles-area" class="tiles-container actions-container" data-width="{{ background_width }}" data-height="{{ background_height }}" data-tile-size="{{tile_size_px}}" style="position: absolute; top: -{{tile_size_px + top_offset_px}}px; left: -{{tile_size_px + left_offset_px}}px;"></div>
         </div>
     </div>
     <div class="modal fade" id="modal-1" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
