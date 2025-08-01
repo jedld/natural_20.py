@@ -63,6 +63,8 @@
           success: function(data) {
             if (data.error) {
               $('#errorMessage').text(data.error).show();
+            } else if (data.status === 'character_selection_required') {
+              window.location.href = '/character_selection';
             } else {
               window.location.href = '/';
             }
