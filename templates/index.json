@@ -13,6 +13,28 @@
       "volume" : 20
     }
   ],
+  "selectable_characters" : [
+    {
+      "name" : "gomerin",
+      "file" : "characters/gomerin.png",
+      "description" : "A brave warrior with a heart of gold."
+    },
+    {
+      "name" : "crysania",
+      "file" : "characters/crysania.png",
+      "description" : "A skilled mage with a mysterious past."
+    },
+    {
+      "name" : "rumblebelly",
+      "file" : "characters/rumblebelly.png",
+      "description" : "A rogue with a knack for getting into trouble."
+    },
+    {
+      "name" : "shorvalu",
+      "file" : "characters/shorvalu.png",
+      "description" : "A paladin sworn to uphold justice."
+    }
+  ],
   "logins" : [
     {
       "name" : "gomerin",
@@ -63,19 +85,19 @@
   "default_controllers": [
     {
       "entity_uid" : "gomerin",
-      "controllers" : ["gomerin", "party"]
+      "controllers" : []
     },
     {
       "entity_uid": "crysania",
-      "controllers": ["crysania", "party"]
+      "controllers": []
     },
     {
       "entity_uid": "shorvalu",
-      "controllers": ["shorvalu", "party"]
+      "controllers": []
     },
     {
       "entity_uid": "rumblebelly",
-      "controllers": ["rumblebelly", "party"]
+      "controllers": []
     }
   ]
 }

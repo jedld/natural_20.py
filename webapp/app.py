@@ -713,10 +713,84 @@ def login():
         login_info = next((login for login in LOGINS if login["name"].lower() == username), None)
         if login_info and login_info["password"] == password:
             session['username'] = username
+            
+            # Check if user has any assigned controllers
+            user_entities = entities_controlled_by(username)
+            if not user_entities and 'dm' not in user_role():
+                # Redirect to character selection if no characters assigned
+                return jsonify(status='character_selection_required')
+            
             return jsonify(status='ok')
         return jsonify(error="Invalid Login Credentials")
 
     return render_template('login.html', title=TITLE, background=LOGIN_BACKGROUND)
+
+@app.route('/character_selection', methods=['GET'])
+def character_selection():
+    if not logged_in():
+        return redirect(url_for('login'))
+    
+    # Check if user already has characters assigned
+    user_entities = entities_controlled_by(session['username'])
+    if user_entities:
+        return redirect(url_for('index'))
+    
+    # Get list of selectable characters from index.json
+    selectable_characters = index_data.get("selectable_characters", [])
+    
+    # Find characters that are already taken by other users
+    taken_characters = set()
+    for controller in CONTROLLERS:
+        if controller['controllers']:  # If anyone is assigned to this character
+            taken_characters.add(controller['entity_uid'])
+    
+    return render_template('character_selection.html', 
+                         title=TITLE, 
+                         background=LOGIN_BACKGROUND,
+                         selectable_characters=selectable_characters,
+                         taken_characters=taken_characters)
+
+@app.route('/select_character', methods=['POST'])
+def select_character():
+    if not logged_in():
+        return jsonify(error="Not logged in"), 401
+    
+    character_name = request.form.get('character')
+    username = session['username']
+    
+    if not character_name:
+        return jsonify(error="No character specified")
+    
+    # Check if character exists in selectable characters
+    selectable_characters = index_data.get("selectable_characters", [])
+    character_exists = any(char['name'] == character_name for char in selectable_characters)
+    
+    if not character_exists:
+        return jsonify(error="Invalid character selection")
+    
+    # Check if character is already taken
+    for controller in CONTROLLERS:
+        if controller['entity_uid'] == character_name and controller['controllers']:
+            return jsonify(error="Character is already taken")
+    
+    # Assign character to user
+    for controller in CONTROLLERS:
+        if controller['entity_uid'] == character_name:
+            if username not in controller['controllers']:
+                controller['controllers'].append(username)
+            break
+    else:
+        # Character not found in default controllers, create new entry
+        CONTROLLERS.append({
+            'entity_uid': character_name,
+            'controllers': [username]
+        })
+    
+    # Update the current_game controllers if needed
+    current_game._setup_controllers()
+    
+    logger.info(f"User {username} selected character {character_name}")
+    return jsonify(status='ok')
 
 def pov_entities():
     global current_game
@@ -735,19 +809,23 @@ def pov_entities():
 @app.route('/')
 def index():
     global current_game, logger
+    if not logged_in():
+        print("not logged in")
+        return redirect(url_for('login'))
+    
+    # Check if user needs to select a character
     if 'dm' not in user_role():
+        user_entities = entities_controlled_by(session['username'])
+        if not user_entities:
+            return redirect(url_for('character_selection'))
+        
         pov_entity = current_game.get_pov_entity_for_user(session['username'])
         if not pov_entity:
-            current_game.set_pov_entity_for_user(session['username'], entities_controlled_by(session['username'])[0])
+            current_game.set_pov_entity_for_user(session['username'], user_entities[0])
 
     battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     available_maps = current_game.get_available_maps()
-
-    if not logged_in():
-        print("not logged in")
-        return redirect(url_for('login'))
-   
 
     background = current_game.get_background_image_for_user(session['username'])
     renderer = JsonRenderer(battle_map, battle, padding=MAP_PADDING, logger=logger)
@@ -795,7 +873,7 @@ def index():
                            available_maps=available_maps,
                            user_entity_ids=[e.entity_uid for e in entities_controlled_by(session['username'])],
                            pov_entities=pov_entities(),
-                           current_pov=current_pov[0],
+                           current_pov=current_pov[0] if current_pov else None,
                            username=session['username'], role=user_role())
 eval_context = {}
 
@@ -1837,7 +1915,7 @@ def get_entity_info():
         logger.error(f"Error getting entity info: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/logout', methods=['POST'])
+@app.route('/logout', methods=['POST', 'GET'])
 def logout():
     session['username'] = None
     return redirect(url_for('login'))

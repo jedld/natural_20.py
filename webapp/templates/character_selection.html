@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ title }} - Choose Your Character</title>
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <!-- Bootstrap JS -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <!-- D&D Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+    
+    <style>
+        /* D&D Theme Styling */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: 'Cinzel', serif;
+        }
+        
+        body {
+            background-image: url("{{ url_for('static', filename='assets/' ~ background) }}");
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-attachment: fixed;
+            overflow-x: hidden;
+        }
+        
+        /* Overlay for better text readability */
+        .content-overlay {
+            background: linear-gradient(
+                rgba(0, 0, 0, 0.7), 
+                rgba(139, 69, 19, 0.4)
+            );
+            min-height: 100vh;
+            padding: 20px 0;
+        }
+        
+        /* Main title */
+        .main-title {
+            text-align: center;
+            margin: 30px 0 50px 0;
+            color: #D4AF37;
+            font-family: 'Uncial Antiqua', cursive;
+            font-size: 3.5rem;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.8);
+            letter-spacing: 2px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #F5DEB3;
+            font-size: 1.3rem;
+            margin-bottom: 40px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+        }
+        
+        /* Character selection container */
+        .character-selection {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 15px;
+        }
+        
+        /* Character card styling */
+        .character-card {
+            background: linear-gradient(
+                145deg, 
+                rgba(139, 69, 19, 0.9), 
+                rgba(160, 82, 45, 0.9)
+            );
+            border: 3px solid #D4AF37;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .character-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                45deg, 
+                transparent 0%, 
+                rgba(212, 175, 55, 0.1) 50%, 
+                transparent 100%
+            );
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .character-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            border-color: #FFD700;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.6);
+        }
+        
+        .character-card:hover::before {
+            opacity: 1;
+        }
+        
+        .character-card.selected {
+            border-color: #FFD700;
+            background: linear-gradient(
+                145deg, 
+                rgba(218, 165, 32, 0.9), 
+                rgba(184, 134, 11, 0.9)
+            );
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(255, 215, 0, 0.3);
+        }
+        
+        .character-card.unavailable {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: linear-gradient(
+                145deg, 
+                rgba(105, 105, 105, 0.9), 
+                rgba(128, 128, 128, 0.9)
+            );
+            border-color: #808080;
+        }
+        
+        .character-card.unavailable:hover {
+            transform: none;
+            border-color: #808080;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+        }
+        
+        /* Character image and content layout */
+        .character-content {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .character-image {
+            width: 120px;
+            height: 120px;
+            border-radius: 12px;
+            border: 3px solid #8B4513;
+            object-fit: cover;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease;
+        }
+        
+        .character-card:hover .character-image {
+            transform: scale(1.05);
+        }
+        
+        .character-info {
+            flex: 1;
+        }
+        
+        .character-name {
+            font-family: 'Uncial Antiqua', cursive;
+            font-size: 2rem;
+            color: #F5DEB3;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            text-transform: capitalize;
+        }
+        
+        .character-description {
+            color: #DDD;
+            font-size: 1.1rem;
+            line-height: 1.5;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+        }
+        
+        .character-status {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .status-available {
+            background-color: rgba(46, 125, 50, 0.9);
+            color: #E8F5E8;
+            border: 1px solid #4CAF50;
+        }
+        
+        .status-selected {
+            background-color: rgba(212, 175, 55, 0.9);
+            color: #1A1A1A;
+            border: 1px solid #FFD700;
+        }
+        
+        .status-taken {
+            background-color: rgba(183, 28, 28, 0.9);
+            color: #FFEBEE;
+            border: 1px solid #F44336;
+        }
+        
+        /* Action buttons */
+        .action-buttons {
+            text-align: center;
+            margin-top: 40px;
+            margin-bottom: 30px;
+        }
+        
+        .btn-dnd {
+            background: linear-gradient(145deg, #8B4513, #A0522D);
+            border: 2px solid #D4AF37;
+            color: #F5DEB3;
+            font-family: 'Cinzel', serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            padding: 12px 30px;
+            border-radius: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+            margin: 0 10px;
+        }
+        
+        .btn-dnd:hover {
+            background: linear-gradient(145deg, #A0522D, #CD853F);
+            border-color: #FFD700;
+            color: #FFF;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+        }
+        
+        .btn-dnd:disabled {
+            background: linear-gradient(145deg, #696969, #808080);
+            border-color: #A9A9A9;
+            color: #D3D3D3;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        /* Error/success messages */
+        .alert-dnd {
+            background: rgba(139, 69, 19, 0.95);
+            border: 2px solid #D4AF37;
+            color: #F5DEB3;
+            border-radius: 8px;
+            margin: 20px auto;
+            max-width: 600px;
+            text-align: center;
+            font-family: 'Cinzel', serif;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+        }
+        
+        .alert-danger {
+            border-color: #DC3545;
+            background: rgba(183, 28, 28, 0.9);
+        }
+        
+        .alert-success {
+            border-color: #28A745;
+            background: rgba(46, 125, 50, 0.9);
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 2.5rem;
+            }
+            
+            .character-content {
+                flex-direction: column;
+                text-align: center;
+                gap: 15px;
+            }
+            
+            .character-image {
+                width: 100px;
+                height: 100px;
+            }
+            
+            .character-name {
+                font-size: 1.5rem;
+            }
+            
+            .character-description {
+                font-size: 1rem;
+            }
+        }
+        
+        /* Loading spinner */
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            margin: 20px;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(212, 175, 55, 0.3);
+            border-top: 4px solid #D4AF37;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    
+    <script>
+    $(document).ready(function() {
+        let selectedCharacter = null;
+        
+        // Handle character card selection
+        $('.character-card').on('click', function() {
+            if ($(this).hasClass('unavailable')) {
+                return;
+            }
+            
+            // Remove previous selection
+            $('.character-card').removeClass('selected');
+            $('.status-selected').removeClass('status-selected').addClass('status-available').text('Available');
+            
+            // Select this character
+            $(this).addClass('selected');
+            $(this).find('.character-status').removeClass('status-available').addClass('status-selected').text('Selected');
+            
+            selectedCharacter = $(this).data('character-name');
+            $('#confirmButton').prop('disabled', false);
+        });
+        
+        // Handle character selection confirmation
+        $('#confirmButton').on('click', function() {
+            if (!selectedCharacter) {
+                showMessage('Please select a character first.', 'danger');
+                return;
+            }
+            
+            showLoading(true);
+            
+            $.ajax({
+                type: 'POST',
+                url: '/select_character',
+                data: { character: selectedCharacter },
+                dataType: 'json',
+                success: function(data) {
+                    showLoading(false);
+                    if (data.error) {
+                        showMessage(data.error, 'danger');
+                    } else {
+                        showMessage('Character selected successfully! Redirecting...', 'success');
+                        setTimeout(function() {
+                            window.location.href = '/';
+                        }, 1500);
+                    }
+                },
+                error: function() {
+                    showLoading(false);
+                    showMessage('An unexpected error occurred. Please try again.', 'danger');
+                }
+            });
+        });
+        
+        // Handle logout
+        $('#logoutButton').on('click', function() {
+            window.location.href = '/logout';
+        });
+        
+        function showMessage(message, type) {
+            $('#messageArea').html(
+                '<div class="alert alert-dnd alert-' + type + '" role="alert">' + message + '</div>'
+            );
+        }
+        
+        function showLoading(show) {
+            if (show) {
+                $('.loading-spinner').show();
+                $('#confirmButton').prop('disabled', true);
+            } else {
+                $('.loading-spinner').hide();
+                $('#confirmButton').prop('disabled', selectedCharacter === null);
+            }
+        }
+    });
+    </script>
+</head>
+<body>
+    <div class="content-overlay">
+        <div class="container-fluid">
+            <h1 class="main-title">{{ title }}</h1>
+            <p class="subtitle">Choose Your Hero for the Adventure</p>
+            
+            <div class="character-selection">
+                <div id="messageArea"></div>
+                
+                {% for character in selectable_characters %}
+                <div class="character-card {% if character.name in taken_characters %}unavailable{% endif %}" 
+                     data-character-name="{{ character.name }}">
+                    <div class="character-status {% if character.name in taken_characters %}status-taken{% else %}status-available{% endif %}">
+                        {% if character.name in taken_characters %}Taken{% else %}Available{% endif %}
+                    </div>
+                    
+                    <div class="character-content">
+                        <img src="{{ url_for('static', filename='assets/token_' ~ character.name ~ '.png') }}" 
+                             alt="{{ character.name }}" 
+                             class="character-image"
+                             onerror="this.src='{{ url_for('static', filename='assets/goblin_ambush_login.png') }}';">
+                        
+                        <div class="character-info">
+                            <h3 class="character-name">{{ character.name.title() }}</h3>
+                            <p class="character-description">{{ character.description }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <div class="action-buttons">
+                    <button type="button" id="confirmButton" class="btn-dnd" disabled>
+                        Confirm Selection
+                    </button>
+                    <button type="button" id="logoutButton" class="btn-dnd">
+                        Logout
+                    </button>
+                </div>
+                
+                <div class="loading-spinner">
+                    <div class="spinner"></div>
+                    <p style="color: #F5DEB3; margin-top: 10px;">Processing your selection...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
