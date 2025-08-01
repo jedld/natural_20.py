@@ -610,6 +610,10 @@ $(document).ready(() => {
           top: image_offset_px[1] + tile_size,
           left: image_offset_px[0] + tile_size,
         });
+        $("#tiles-area").css({
+          top: -tile_size + image_offset_px[1],
+          left: -tile_size + image_offset_px[0],
+        })
         const canvas = document.querySelector("canvas");
         canvas.width = width + tile_size;
         canvas.height = height + tile_size;
