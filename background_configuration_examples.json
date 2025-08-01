@@ -1,0 +1,46 @@
+{
+  "_comment": "Example configurations for character selection backgrounds",
+  
+  "example_1_same_background": {
+    "title": "The Goblin Ambush",
+    "login_background": "goblin_ambush_login.png",
+    "comment": "When character_selection_background is not specified, it uses login_background"
+  },
+  
+  "example_2_different_backgrounds": {
+    "title": "The Goblin Ambush", 
+    "login_background": "goblin_ambush_login.png",
+    "character_selection_background": "goblin_ambush.png",
+    "comment": "Different backgrounds for login vs character selection"
+  },
+  
+  "example_3_custom_backgrounds": {
+    "title": "Dragon's Lair Campaign",
+    "login_background": "dragon_castle_gates.png",
+    "character_selection_background": "heroes_tavern.png", 
+    "comment": "Completely custom backgrounds for immersive experience"
+  },
+  
+  "background_suggestions": {
+    "login_backgrounds": [
+      "castle_entrance.png",
+      "mystical_portal.png", 
+      "tavern_exterior.png",
+      "dungeon_gates.png"
+    ],
+    "character_selection_backgrounds": [
+      "heroes_hall.png",
+      "character_lineup.png",
+      "adventurers_guild.png", 
+      "tavern_interior.png",
+      "fantasy_library.png"
+    ]
+  },
+  
+  "implementation_notes": {
+    "fallback_behavior": "If character_selection_background is not defined, login_background is used",
+    "image_location": "All background images should be placed in templates/assets/ directory",
+    "supported_formats": ["png", "jpg", "jpeg", "webp"],
+    "recommended_size": "1920x1080 or higher for best quality on all devices"
+  }
+}
