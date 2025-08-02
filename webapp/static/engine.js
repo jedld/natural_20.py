@@ -303,21 +303,40 @@ class EventQueue {
       }
       const [entity_uid, path, action] = animationLog[idx];
       const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
-      if (action) {
-        const opts = {
-          lineWidth: 3,
-          withArrow: true,
-          randomCurve: true,
-          strokeStyle: action.type === "attack" ? "red" : "blue",
-          text: action.label,
-        };
-        drawLine(
-          globalCtx,
-          { x: $tile.data("coords-x"), y: $tile.data("coords-y") },
-          `.tile[data-coords-id="${action.target}"]`,
-          opts,
-        );
+      if (action && action.target) {
+        // Check if both source and target tiles exist before drawing action line
+        const $targetTile = $(`.tile[data-coords-id="${action.target}"]`);
+        if ($tile.length > 0 && $targetTile.length > 0) {
+          const opts = {
+            lineWidth: 3,
+            withArrow: true,
+            randomCurve: true,
+            strokeStyle: action.type === "attack" ? "red" : "blue",
+            text: action.label,
+          };
+          drawLine(
+            globalCtx,
+            { x: $tile.data("coords-x"), y: $tile.data("coords-y") },
+            `.tile[data-coords-id="${action.target}"]`,
+            opts,
+          );
+        } else {
+          console.warn('Action line drawing skipped: source or target tile not found', {
+            entity_uid,
+            target: action.target,
+            sourceFound: $tile.length > 0,
+            targetFound: $targetTile.length > 0
+          });
+        }
       }
+      
+      // Check if the entity tile exists before proceeding with animation
+      if (!$tile.length) {
+        console.warn('Entity tile not found, skipping animation for:', entity_uid);
+        animateFunction(animationLog, idx + 1);
+        return;
+      }
+      
       const tileRect = $tile[0].getBoundingClientRect();
       const scrollLeft =
         window.pageXOffset || document.documentElement.scrollLeft;
@@ -338,6 +357,14 @@ class EventQueue {
         const $newTile = $(
           `.tile[data-coords-x="${x}"][data-coords-y="${y}"]`,
         );
+        
+        // Check if the target tile exists
+        if (!$newTile.length) {
+          console.warn('Target tile not found, skipping move step:', { x, y, entity_uid });
+          moveFunc(p, index + 1);
+          return;
+        }
+        
         const newRect = $newTile[0].getBoundingClientRect();
         const imageContainer = $('.image-container')[0].getBoundingClientRect();
         const tile_size = $('.tiles-container').data('tile-size');
@@ -501,6 +528,9 @@ const refreshTurn = () => {
 
 // Global variables used by EventQueue and other components
 let active_background_sound = null;
+let active_track_id = -1;
+let backgroundSoundStartTime = null;
+let pageRenderTime = null;
 
 const switchPOV = (entity_uid, canvas) => {
   ajaxPost("/switch_pov", { entity_uid }, (data) => {
@@ -540,13 +570,35 @@ const ajaxPost = (url, data, onSuccess, isJSON = false) => {
   });
 };
 
+// Plays a background sound (stopping any previous one).
+const playSound = (url, track_id, volume, time_override = null) => {
+  const elapsed = (Date.now() - pageRenderTime) / 1000;
+  var seekTime;
+  if (time_override !== null) {
+    seekTime = time_override;
+  } else {
+    seekTime = backgroundSoundStartTime + elapsed;
+  }
+
+  if (active_background_sound) active_background_sound.pause();
+
+  active_background_sound = new Audio(`/assets/${url}`);
+  active_background_sound.loop = true;
+  active_background_sound.currentTime = seekTime;
+  active_background_sound.volume = volume ? volume / 100 : 0.5;
+  active_track_id = track_id;
+  active_background_sound.play();
+  $(".volume-slider").val(active_background_sound.volume * 100);
+};
+
 // Returns the center coordinates of a tile element.
 const getTileCenter = ($tile) => {
   if (typeof $tile === 'string') {
     $tile = $($tile);
   }
-  if (!$tile.length || !$tile[0].getBoundingClientRect) {
-    throw new Error('getTileCenter: invalid tile');
+  if (!$tile.length || !$tile[0] || !$tile[0].getBoundingClientRect) {
+    console.warn('getTileCenter: invalid tile or tile not found', $tile);
+    return null;
   }
   const rect = $tile[0].getBoundingClientRect();
   const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
@@ -609,9 +661,17 @@ function drawLine(ctx, from, to, opts = {}) {
     const $toTile = $(to);
     toCoords = { x: $toTile.data('coords-x'), y: $toTile.data('coords-y') };
   }
+  
   // Now get centers
   const fromCenter = getTileCenter($(`.tile[data-coords-x="${fromCoords.x}"][data-coords-y="${fromCoords.y}"]`));
   const toCenter = getTileCenter($(`.tile[data-coords-x="${toCoords.x}"][data-coords-y="${toCoords.y}"]`));
+  
+  // Check if we successfully got tile centers
+  if (!fromCenter || !toCenter) {
+    console.warn('drawLine: Could not find valid tile centers', { fromCoords, toCoords });
+    return;
+  }
+  
   ctx.save();
   ctx.lineWidth = lineWidth;
   ctx.strokeStyle = strokeStyle;
@@ -971,11 +1031,11 @@ function createGlobalCanvas() {
 // --- Document Ready: Event Bindings & Main Logic ---
 $(document).ready(() => {
   let lastMovedEntityBeforeRefresh = null;
-  let active_track_id = -1;
   const battleEntityList = [];
 
-  let backgroundSoundStartTime = $("body").data("soundtrack-time");
-  let pageRenderTime = new Date().getTime();
+  // Initialize global variables
+  backgroundSoundStartTime = $("body").data("soundtrack-time");
+  pageRenderTime = new Date().getTime();
 
   // --- Canvas Setup ---
   const tile_size = $(".tiles-container").data("tile-size");
@@ -987,27 +1047,6 @@ $(document).ready(() => {
     globalCanvas.width = window.innerWidth;
     globalCanvas.height = window.innerHeight;
   });
-
-  // Plays a background sound (stopping any previous one).
-  const playSound = (url, track_id, volume, time_override = null) => {
-    const elapsed = (Date.now() - pageRenderTime) / 1000;
-    var seekTime;
-    if (time_override !== null) {
-      seekTime = time_override;
-    } else {
-      seekTime = backgroundSoundStartTime + elapsed;
-    }
-
-    if (active_background_sound) active_background_sound.pause();
-
-    active_background_sound = new Audio(`/assets/${url}`);
-    active_background_sound.loop = true;
-    active_background_sound.currentTime = seekTime;
-    active_background_sound.volume = volume ? volume / 100 : 0.5;
-    active_track_id = track_id;
-    active_background_sound.play();
-    $(".volume-slider").val(active_background_sound.volume * 100);
-  };
 
   const username = $("body").data("username");
   
