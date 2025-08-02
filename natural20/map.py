@@ -23,6 +23,7 @@ from typing import List, Tuple, Set
 import math
 import pdb
 import os
+import numpy as np
 
 class Terrain():
     def __init__(self, name, passable, movement_cost, symbol=None):
@@ -522,18 +523,51 @@ class Map():
         return targets
 
     def difficult_terrain(self, entity, pos_x, pos_y, battle=None):
-        if entity is None:
-            return False
+        """
+        Check if the position contains difficult terrain for the entity.
 
+        Returns True if:
+        - There's another entity in the way
+        - There are objects with movement cost > 1 (unless entity can swim through them)
+        """
+        # Helper function to check if objects at a position cause difficult terrain
+        def is_difficult_due_to_objects(x, y, entity=None):
+            objects_at_pos = self.objects_at(x, y)
+            if not objects_at_pos:
+                return False
+
+            max_movement_cost = np.max([obj.movement_cost() for obj in objects_at_pos])
+
+            # If movement cost is normal, it's not difficult terrain
+            if max_movement_cost <= 1:
+                return False
+
+            # Check if entity can swim through water
+            if entity and entity.swim_speed() > 0:
+                swimmable_objects = [obj for obj in objects_at_pos if obj.swimmable() and obj.swim_movement_cost() <= 1]
+                if swimmable_objects:
+                    return False
+
+            return True
+
+        # If no entity provided, just check the single position
+        if entity is None:
+            return is_difficult_due_to_objects(pos_x, pos_y)
+
+        # Check all squares the entity would occupy
         for pos in self.entity_squares_at_pos(entity, pos_x, pos_y):
             r_x, r_y = pos
+
+            # Skip squares already occupied by this entity
             if self.tokens[r_x][r_y] and self.tokens[r_x][r_y]['entity'] == entity:
                 continue
+
+            # Other entities in the way count as difficult terrain
             if self.tokens[r_x][r_y] and not self.tokens[r_x][r_y]['entity'].dead():
                 return True
-            if self.object_at(r_x, r_y) and self.object_at(r_x, r_y).movement_cost() > 1:
-                if entity.swim_speed() > 0 and self.object_at(r_x, r_y).swimmable() and self.object_at(r_x, r_y).swim_movement_cost() <= 1:
-                    return False
+
+            # Check terrain objects
+            if is_difficult_due_to_objects(r_x, r_y, entity):
                 return True
 
         return False

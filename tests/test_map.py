@@ -208,3 +208,23 @@ class TestMap(unittest.TestCase):
         map1.move_to(character, 1, 6, None)
         print(MapRenderer(map1).render())
         self.assertEqual(map1.entity_at(0, 0), character)
+
+    def test_map_difficult_terrain(self):
+        session = Session(root_path='tests/fixtures')
+        session.render_for_text = False
+        map = Map(session, 'tests/fixtures/battle_sim_objects.yml')
+        character = PlayerCharacter.load(session, 'characters/halfling_rogue.yml')
+        map.place((0,2), character)
+        print(MapRenderer(map).render())
+        self.assertTrue(map.difficult_terrain(character, 3, 2))
+        self.assertFalse(map.difficult_terrain(character, 6, 2))
+
+    def test_complex_map(self):
+        session = Session(root_path='tests/fixtures')
+        session.render_for_text = False
+        map = Map(session, 'tests/fixtures/maps/complex_map.yml')
+        character = PlayerCharacter.load(session, 'characters/halfling_rogue.yml')
+        map.place((5,7), character)
+        self.assertTrue(map.difficult_terrain(character, 5, 8))
+        print(MapRenderer(map).render())
+

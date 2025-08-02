@@ -1,0 +1,293 @@
+name: Basement 2
+description: Basement 2
+image_offset_px: [2, 16]
+map:
+  illumination: 0.0
+  base:
+    - '##┻┻┻┻┻####'
+    - '......┓####'
+    - '.┌┣...┫####'
+    - '.├┗...┛####'
+    - '┘#┘.#.#####'
+    - '#...#w#####'
+    - '..┬┌┬ww....'
+    - '┬.┬├wwwwww.'
+    - '┐.┌├wwwwww.'
+    - '...├ww..ww.'
+    - '┘.└├ww..ww.'
+    - '...<wwwwww.'
+    - '┬.┬├wwwwww.'
+    - '###├wwwwww.'
+    - '#####..####'
+    - '#####..####'
+  base_1:
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - T..........
+    - .....~.....
+    - ......s....
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ......X....
+    - ...........
+  meta:
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - ...........
+    - .....L.....
+    - ...........
+lights:
+  A:
+    bright: 5
+    dim: 5
+  B:
+    bright: 10
+    dim: 10
+legend:
+  L:
+    name: lorgoth
+    label: Lorgoth, The Decayer
+    type: npc
+    sub_type: shamblingmound
+    group: b
+    overrides:
+      token_image: token_lorgoth.png
+      entity_uid: lorgoth
+      passive: true
+      label: Lorgoth, The Decayer
+      battle_music: lorgoth
+  X:
+    type: note
+    name: refuse_pile
+    buttons:
+      - action: nature_check
+        label: Discern refuse pile
+    notes:
+      - note: The refuse appears to be a "shambling mound". sometimes called a shambler, trudges ponderously through bleak swamps, dismal marshes, and rain forests, consuming any organic matter in its path.
+        nature_dc: 15
+    ability_checks:
+      nature:
+        prompt: Investigate?
+        dc: 15
+  w:
+    name: Pool of water
+    type: water
+  T:
+    name: transition_to_basement_1
+    type: teleporter
+    target_map: basement_1
+    target_position: [7, 12]
+    notes:
+      - note: To upper level
+  f:
+    name: black marble fireplace
+    label: black marble fireplace
+    type: fireplace
+    inventory:
+    - type: longsword
+      qty: 1
+  g:
+    name: fireplace
+    label: fireplace
+    type: fireplace
+  ┌:
+    name: Stone Wall Thin_Top_Left
+    type: stone_wall_tl
+  ┬:
+    name: Stone Wall Thin_Top
+    type: stone_wall_t
+  ┐:
+    name: Stone Wall Thin_Top_Right
+    type: stone_wall_tr
+  ┤:
+    name: Stone Wall Thin_Right
+    type: stone_wall_r
+  ├:
+    name: Stone Wall Thin_Left
+    type: stone_wall_l
+  ┴:
+    name: Stone Wall Thin_Bottom
+    type: stone_wall_b
+  ┘:
+    name: Stone Wall Thin_Bottom_Right
+    type: stone_wall_br
+  └:
+    name: Stone Wall Thin_Bottom_Left
+    type: stone_wall_bl
+  ╙:
+    name: corner_door_rb
+    type: corner_door_rb
+  ╒:
+    name: corner_door_tl
+    type: corner_door_tl
+  ╗:
+    name: corner_door_tr
+    type: corner_door_tr
+  ╝:
+    name: corner_door_br
+    type: corner_door_br
+  ╚:
+    name: corner_door_bl
+    type: corner_door_bl
+  ^:
+    name: door
+    type: top_door
+  v:
+    name: door
+    type: bottom_door
+  ╙:
+    name: corner_door_rb
+    type: corner_door_rb
+  ╒:
+    name: corner_door_tl
+    type: corner_door_tl
+  ╓:
+    name: corner_door_lt
+    type: corner_door_lt
+  ╖:
+    name: corner_door_bl
+    type: corner_door_bl
+  ┓:
+    name: tr_corner_barrier
+    type: barrier
+    border:
+      - 1
+      - 1
+      - 0
+      - 0
+  ┗:
+    name: bl_corner_barrier
+    type: barrier
+    border:
+      - 0
+      - 0
+      - 1
+      - 1
+  ┛:
+    name: br_corner_barrier
+    type: barrier
+    border:
+      - 0
+      - 1
+      - 0
+      - 1
+  ┏:
+    name: lt_corner_barrier
+    type: barrier
+    border:
+      - 1
+      - 0
+      - 0
+      - 1
+  ┣:
+    name: l_corner_barrier
+    type: barrier
+    border:
+      - 0
+      - 0
+      - 0
+      - 1
+  ┫:
+    name: r_corner_barrier
+    type: barrier
+    border:
+      - 0
+      - 1
+      - 0
+      - 0
+  ┳:
+    name: t_corner_barrier
+    type: barrier
+    border:
+      - 1
+      - 0
+      - 0
+      - 0
+  ┻:
+    name: b_corner_barrier
+    type: barrier
+    border:
+      - 0
+      - 0
+      - 1
+      - 0
+  '<':
+    name: secret door
+    type: door_l
+    secret: true
+    secret_dc: 15
+    notes:
+      - note: A secret door
+        secret: true
+  H:
+    name: stone_wall_lr
+    type: stone_wall_lr
+  '*':
+    name: bottom storage room
+    type: bottom_storage_room
+  '~':
+    name: portcullis
+    label: Portcullis
+    type: portcullis_b
+    image_offset_px: [0, 50]
+    notes:
+      - note: A rusty iron portcullis the bottom is submerged in 2 feet of water.
+    buttons:
+      - action: athlethics_check
+        label: Lift (Athletics DC 20)
+    ability_checks:
+      athlethics:
+        prompt: You can try to lift the portcullis.
+        dc: 20
+    events:
+      - event: 'athletics_check_success'
+        update_state:
+          target: self
+          state: opened
+  s:
+    name: wooden_wheel
+    label: Half-embedded Wooden wheel
+    type: switch
+    state: 'off'
+    interact_distance: 0
+    image_offset_px: [0, 50]
+    notes:
+      - note: A half-embedded wooden wheel that can be used to raise and lower the portcullis.
+      - perception_dc: 1
+    events:
+      - event: 'on'
+        message: The portcullis raises up.
+        update_state:
+          target: portcullis
+          state: opened
+      - event: 'off'
+        message: The portcullis lowers down.
+        update_state:
+          target: portcullis
+          state: closed
+notes:
+  - position: [1, 12]
+    width: 2
+    height: 1
+    description: A wrought-iron gate with hinges on one side and a lock on the other.
+extensions:
+  web:
+    background_color: '#000000'
