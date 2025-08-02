@@ -10,6 +10,498 @@ let globalCtx = null;
 let talkToEntityMode = false; // Flag to track when user is talking to an entity
 let dialogMessageProcessing = false; // Flag to track if a dialog message is being processed
 
+// Event queue system for FIFO processing
+class EventQueue {
+  constructor() {
+    this.queue = [];
+    this.processing = false;
+    this.maxQueueSize = 100; // Prevent memory leaks
+    this.processedCount = 0;
+    this.debugMode = false; // Set to true for debugging
+  }
+
+  setDebugMode(enabled) {
+    this.debugMode = enabled;
+  }
+
+  getStatus() {
+    return {
+      queueLength: this.queue.length,
+      processing: this.processing,
+      processedCount: this.processedCount,
+      maxQueueSize: this.maxQueueSize
+    };
+  }
+
+  enqueue(event) {
+    if (this.queue.length >= this.maxQueueSize) {
+      console.warn('Event queue is full, dropping oldest event');
+      this.queue.shift();
+    }
+    
+    if (this.debugMode) {
+      console.log(`[EventQueue] Enqueuing event: ${event.type}, queue length: ${this.queue.length + 1}`);
+    }
+    
+    this.queue.push(event);
+    this.processNext();
+  }
+
+  async processNext() {
+    if (this.processing || this.queue.length === 0) {
+      return;
+    }
+
+    this.processing = true;
+    
+    while (this.queue.length > 0) {
+      const event = this.queue.shift();
+      this.processedCount++;
+      
+      if (this.debugMode) {
+        console.log(`[EventQueue] Processing event #${this.processedCount}: ${event.type}, remaining: ${this.queue.length}`);
+      }
+      
+      try {
+        await this.processEvent(event);
+        
+        // Add a small delay between events to ensure smooth visual transitions
+        // Especially important for movement events that involve animations
+        if (event.type === 'move' && this.queue.length > 0) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (error) {
+        console.error('Error processing event:', error, event);
+      }
+    }
+    
+    this.processing = false;
+    
+    if (this.debugMode) {
+      console.log(`[EventQueue] Processing complete. Total processed: ${this.processedCount}`);
+    }
+  }
+
+  async processEvent(data) {
+    return new Promise((resolve) => {
+      if (this.debugMode) {
+        console.log(`[EventQueue] Processing event: ${data.type}`, data);
+      } else {
+        console.log("Processing event:", data);
+      }
+      
+      switch (data.type) {
+        case "refresh_map": {
+          Utils.refreshTileSet();
+          resolve();
+          break;
+        }
+        case "map": {
+          this.processMapEvent(data, resolve);
+          break;
+        }
+        case "conversation": {
+          this.processConversationEvent(data, resolve);
+          break;
+        }
+        case "move": {
+          this.processMoveEvent(data, resolve);
+          break;
+        }
+        case "message":
+          console.log(data.message);
+          resolve();
+          break;
+        case "error":
+          console.error(data.message);
+          resolve();
+          break;
+        case "console":
+          $("#console-container #console").append(`<p>${data.message}</p>`);
+          $("#console-container").scrollTop(
+            $("#console-container")[0].scrollHeight,
+          );
+          resolve();
+          break;
+        case "track":
+          console.log("Playing track:", data.message);
+          playSound(
+            data.message.url,
+            data.message.track_id,
+            data.message.volume,
+            0,
+          );
+          resolve();
+          break;
+        case "prompt": {
+          alert(data.message);
+          ajaxPost(
+            "/response",
+            { response: "", callback: data.callback },
+            (resp) => {
+              console.log("Response sent successfully:", resp);
+              resolve();
+            },
+            true,
+          );
+          break;
+        }
+        case "turn":
+          refreshTurn();
+          resolve();
+          break;
+        case "focus":
+          centerOnTileXY(data.message.x, data.message.y, true);
+          resolve();
+          break;
+        case "stoptrack":
+          this.processStopTrackEvent(data, resolve);
+          break;
+        case "volume":
+          if (active_background_sound) {
+            active_background_sound.volume = data.message.volume / 100;
+            $(".volume-slider").val(data.message.volume);
+          }
+          resolve();
+          break;
+        case "initiative":
+          refreshTurnOrder();
+          $("#start-initiative, #start-battle").hide();
+          $("#end-battle").show();
+          resolve();
+          break;
+        case "stop":
+          $("#turn-order").html("");
+          $(".game-turn-container").hide();
+          $("#battle-turn-order").fadeOut();
+          $("#start-initiative, #start-battle").show();
+          $("#end-battle").hide();
+          resolve();
+          break;
+        case "reaction":
+          Utils.ajaxGet("/reaction", {}, (data) => {
+            $("#reaction-modal .reaction-content").html(data);
+            $("#reaction-modal").modal("show");
+            resolve();
+          });
+          break;
+        case "dismiss_reaction":
+          $("#reaction-modal").modal("hide");
+          resolve();
+          break;
+        case "switch_map":
+          var map_id = data.message.map;
+          Utils.switchMap(map_id, globalCanvas, ()=>{
+            createGlobalCanvas();
+            resolve();
+          });
+          break;
+        case "command_response":
+          $("#command-output").append(data.message + "\n");
+          resolve();
+          break;
+        default:
+          console.log("Unknown message type:", data.type);
+          resolve();
+      }
+    });
+  }
+
+  processMapEvent(data, resolve) {
+    const { message: map_url, width, height, image_offset_px } = data;
+    $(".tiles-container").data({ width, height });
+    $(".image-container img")
+      .attr("src", map_url)
+      .css({ width: `${width}px`, objectFit: 'cover', objectPosition: 'top' });
+    const tile_size = $(".tiles-container").data("tile-size");
+    $(".image-container").css({
+      height: `${height}px`,
+      top: image_offset_px[1] + tile_size,
+      left: image_offset_px[0] + tile_size,
+    });
+    $("#tiles-area").css({
+      top: -tile_size + image_offset_px[1],
+      left: -tile_size + image_offset_px[0],
+    })
+    const canvas = document.querySelector("canvas");
+    canvas.width = width + tile_size;
+    canvas.height = height + tile_size;
+    Utils.refreshTileSet();
+    resolve();
+  }
+
+  processConversationEvent(data, resolve) {
+    // Handle real-time conversation updates
+    const { entity_id, message, targets } = data.message;
+    
+    // Validate required fields
+    if (!entity_id || !message) {
+      console.warn('Invalid conversation event received:', data.message);
+      resolve();
+      return;
+    }
+  
+    // Check if dialog panel is open and if this entity matches the current dialog
+    const $dialogPanel = $('#jrpgDialogPanel');
+    const currentDialogEntityId = $('#dialogEntityName').data('entity-id');
+    const currentPovEntity = getCurrentPovEntity();
+    
+    // Check if this message should be shown in dialog panel:
+    // 1. Dialog panel is open and this entity matches the current dialog entity
+    // 2. OR this message is directed to the current POV entity (targets includes current POV)
+    const shouldShowInDialog = $dialogPanel.is(':visible') && (
+      currentDialogEntityId === entity_id || 
+      (targets && Array.isArray(targets) && targets.includes(currentPovEntity))
+    );
+    
+    // Check if this message is directed to the current POV entity (for potential dialog opening)
+    const isDirectedToPov = targets && Array.isArray(targets) && targets.includes(currentPovEntity);
+
+    if (shouldShowInDialog) {
+      // Dialog panel is open and this entity matches - show message in dialog
+      console.log('Adding conversation message to dialog panel:', message);
+      
+      try {
+        // Get the entity name for display
+        const $entityTile = $(`.tile[data-coords-id="${entity_id}"]`);
+        let entityName = 'Entity';
+        if ($entityTile.length) {
+          const $nameplate = $entityTile.find('.nameplate');
+          if ($nameplate.length) {
+            entityName = $nameplate.text();
+          } else {
+            entityName = $entityTile.data('entity-name') || 'Entity';
+          }
+        }
+        
+        // Add the message to the dialog chat
+        addDialogMessage('entity', message, 'entity');
+      } catch (error) {
+        console.error('Error adding message to dialog modal:', error);
+        // Fallback to showing conversation bubble
+        showConversationBubble(entity_id, message);
+      }
+    } else if (isDirectedToPov && !$dialogPanel.is(':visible')) {
+      // Message is directed to current POV but dialog panel is not open
+      // Show conversation bubble and optionally provide a way to open dialog
+      console.log('Message directed to POV entity, but dialog panel not open:', message);
+      showDialogTriggerBubble(entity_id, message);
+    } else {
+      // Show conversation bubble on tile as before
+      showConversationBubble(entity_id, message);
+    }
+    resolve();
+  }
+
+  processMoveEvent(data, resolve) {
+    const animationBuffer = data.message.animation_log;
+    const animateFunction = (animationLog, idx) => {
+      if (idx >= animationLog.length) {
+        Utils.refreshTileSet();
+        resolve();
+        return;
+      }
+      const [entity_uid, path, action] = animationLog[idx];
+      const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
+      if (action) {
+        const opts = {
+          lineWidth: 3,
+          withArrow: true,
+          randomCurve: true,
+          strokeStyle: action.type === "attack" ? "red" : "blue",
+          text: action.label,
+        };
+        drawLine(
+          globalCtx,
+          { x: $tile.data("coords-x"), y: $tile.data("coords-y") },
+          `.tile[data-coords-id="${action.target}"]`,
+          opts,
+        );
+      }
+      const tileRect = $tile[0].getBoundingClientRect();
+      const scrollLeft =
+        window.pageXOffset || document.documentElement.scrollLeft;
+      const scrollTop =
+        window.pageYOffset || document.documentElement.scrollTop;
+      let prevX = tileRect.left + scrollLeft;
+      let prevY = tileRect.top + scrollTop;
+      
+      const moveFunc = (p, index) => {
+        if (index >= p.length) {
+          // Clean up transition properties when animation is complete
+          $tile.css('transition', '');
+          // Animation for this entity is complete, move to next entity
+          animateFunction(animationLog, idx + 1);
+          return;
+        }
+        const [x, y] = p[index];
+        const $newTile = $(
+          `.tile[data-coords-x="${x}"][data-coords-y="${y}"]`,
+        );
+        const newRect = $newTile[0].getBoundingClientRect();
+        const imageContainer = $('.image-container')[0].getBoundingClientRect();
+        const tile_size = $('.tiles-container').data('tile-size');
+        const newX = newRect.left - imageContainer.left + tile_size;
+        const newY = newRect.top - imageContainer.top + tile_size;
+        
+        // Set initial position if this is the first move
+        if (index === 0) {
+          $tile.css({ 
+            position: 'absolute',
+            top: newY,
+            left: newX
+          });
+          prevX = newX;
+          prevY = newY;
+          // Continue immediately to next step
+          moveFunc(p, index + 1);
+          return;
+        }
+        
+        // Clear any existing transition to ensure clean state
+        $tile.css('transition', 'none');
+        
+        // Use requestAnimationFrame to ensure the transition is properly set
+        requestAnimationFrame(() => {
+          $tile.css({ 
+            position: 'absolute',
+            top: newY,
+            left: newX,
+            transition: 'all 0.3s ease-in-out'
+          });
+          
+          // Listen for the transition end event to ensure precise timing
+          const transitionEndHandler = (e) => {
+            if (e.target === $tile[0] && (e.propertyName === 'top' || e.propertyName === 'left')) {
+              $tile.off('transitionend', transitionEndHandler);
+              prevX = newX;
+              prevY = newY;
+              moveFunc(p, index + 1);
+            }
+          };
+          
+          $tile.on('transitionend', transitionEndHandler);
+          
+          // Fallback timeout in case transitionend doesn't fire
+          setTimeout(() => {
+            $tile.off('transitionend', transitionEndHandler);
+            prevX = newX;
+            prevY = newY;
+            moveFunc(p, index + 1);
+          }, 350); // Slightly longer than transition time as fallback
+        });
+      };
+      
+      // Start the movement sequence for this entity
+      if (path && path.length > 0) {
+        moveFunc(path, 0);
+      } else {
+        // No path to animate, move to next entity immediately
+        animateFunction(animationLog, idx + 1);
+      }
+    };
+    
+    if (animationBuffer && animationBuffer.length > 0) {
+      animateFunction(animationBuffer, 0);
+    } else {
+      Utils.refreshTileSet();
+      resolve();
+    }
+  }
+
+  processStopTrackEvent(data, resolve) {
+    if (active_background_sound) {
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaElementSource(
+        active_background_sound,
+      );
+      const gainNode = audioCtx.createGain();
+      source.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 2);
+      gainNode.addEventListener("ended", () => {
+        active_background_sound.pause();
+        active_background_sound = null;
+        active_track_id = -1;
+        resolve();
+      });
+    } else {
+      resolve();
+    }
+  }
+}
+
+// Create global event queue instance
+const eventQueue = new EventQueue();
+
+// Add debug panel for monitoring event queue
+function createEventQueueDebugPanel() {
+  const debugPanel = $(`
+    <div id="event-queue-debug" style="position: fixed; top: 10px; right: 10px; 
+         background: rgba(0,0,0,0.8); color: white; padding: 10px; 
+         border-radius: 5px; font-family: monospace; font-size: 12px; 
+         z-index: 9999; display: none;">
+      <div><strong>Event Queue Status</strong></div>
+      <div>Queue Length: <span id="queue-length">0</span></div>
+      <div>Processing: <span id="processing-status">false</span></div>
+      <div>Total Processed: <span id="processed-count">0</span></div>
+      <div>
+        <button onclick="eventQueue.setDebugMode(true)">Enable Debug</button>
+        <button onclick="eventQueue.setDebugMode(false)">Disable Debug</button>
+        <button onclick="toggleEventQueueDebug()">Hide</button>
+      </div>
+    </div>
+  `);
+  
+  $('body').append(debugPanel);
+}
+
+function updateEventQueueDebugPanel() {
+  const status = eventQueue.getStatus();
+  $('#queue-length').text(status.queueLength);
+  $('#processing-status').text(status.processing);
+  $('#processed-count').text(status.processedCount);
+}
+
+function toggleEventQueueDebug() {
+  $('#event-queue-debug').toggle();
+}
+
+// Update debug panel every 100ms when visible
+setInterval(() => {
+  if ($('#event-queue-debug').is(':visible')) {
+    updateEventQueueDebugPanel();
+  }
+}, 100);
+
+// Add keyboard shortcut to toggle debug panel (Ctrl+Shift+Q)
+$(document).keydown(function(e) {
+  if (e.ctrlKey && e.shiftKey && e.keyCode === 81) { // Q key
+    if ($('#event-queue-debug').length === 0) {
+      createEventQueueDebugPanel();
+    }
+    toggleEventQueueDebug();
+  }
+});
+
+// Global functions used by EventQueue and other components
+const refreshTurnOrder = () => {
+  Utils.ajaxGet("/turn_order", {}, (data) => {
+    $("#turn-order").html(data);
+    $("#battle-turn-order").show();
+  });
+};
+
+const refreshTurn = () => {
+  Utils.ajaxGet("/turn", {}, (data) => {
+    $(".game-turn-container").html(data).show();
+  });
+};
+
+// Global variables used by EventQueue and other components
+let active_background_sound = null;
+
 const switchPOV = (entity_uid, canvas) => {
   ajaxPost("/switch_pov", { entity_uid }, (data) => {
     console.log("Switched POV:", data);
@@ -478,7 +970,6 @@ function createGlobalCanvas() {
 
 // --- Document Ready: Event Bindings & Main Logic ---
 $(document).ready(() => {
-  let active_background_sound = null;
   let lastMovedEntityBeforeRefresh = null;
   let active_track_id = -1;
   const battleEntityList = [];
@@ -575,285 +1066,12 @@ $(document).ready(() => {
     console.error('Socket error:', error);
   });
 
-  const refreshTurnOrder = () => {
-    Utils.ajaxGet("/turn_order", {}, (data) => {
-      $("#turn-order").html(data);
-      $("#battle-turn-order").show();
-    });
-  };
-
-  const refreshTurn = () => {
-    Utils.ajaxGet("/turn", {}, (data) => {
-      $(".game-turn-container").html(data).show();
-    });
-  };
-
   Utils.refreshTileSet();
 
   // --- Socket Message Handler ---
   socket.on("message", (data) => {
-    console.log("Message received:", data);
-    switch (data.type) {
-      case "refresh_map": {
-        Utils.refreshTileSet();
-        break;
-      }
-      case "map": {
-        const { message: map_url, width, height, image_offset_px } = data;
-        $(".tiles-container").data({ width, height });
-        $(".image-container img")
-          .attr("src", map_url)
-          .css({ width: `${width}px`, objectFit: 'cover', objectPosition: 'top' });
-        const tile_size = $(".tiles-container").data("tile-size");
-        $(".image-container").css({
-          height: `${height}px`,
-          top: image_offset_px[1] + tile_size,
-          left: image_offset_px[0] + tile_size,
-        });
-        $("#tiles-area").css({
-          top: -tile_size + image_offset_px[1],
-          left: -tile_size + image_offset_px[0],
-        })
-        const canvas = document.querySelector("canvas");
-        canvas.width = width + tile_size;
-        canvas.height = height + tile_size;
-        Utils.refreshTileSet();
-        break;
-      }
-      case "conversation": {
-        // Handle real-time conversation updates
-        const { entity_id, message, targets } = data.message;
-        
-        // Validate required fields
-        if (!entity_id || !message) {
-          console.warn('Invalid conversation event received:', data.message);
-          break;
-        }
-      
-        // Check if dialog panel is open and if this entity matches the current dialog
-        const $dialogPanel = $('#jrpgDialogPanel');
-        const currentDialogEntityId = $('#dialogEntityName').data('entity-id');
-        const currentPovEntity = getCurrentPovEntity();
-        
-        // Check if this message should be shown in dialog panel:
-        // 1. Dialog panel is open and this entity matches the current dialog entity
-        // 2. OR this message is directed to the current POV entity (targets includes current POV)
-        const shouldShowInDialog = $dialogPanel.is(':visible') && (
-          currentDialogEntityId === entity_id || 
-          (targets && Array.isArray(targets) && targets.includes(currentPovEntity))
-        );
-        
-        // Check if this message is directed to the current POV entity (for potential dialog opening)
-        const isDirectedToPov = targets && Array.isArray(targets) && targets.includes(currentPovEntity);
-
-        if (shouldShowInDialog) {
-          // Dialog panel is open and this entity matches - show message in dialog
-          console.log('Adding conversation message to dialog panel:', message);
-          
-          try {
-            // Get the entity name for display
-            const $entityTile = $(`.tile[data-coords-id="${entity_id}"]`);
-            let entityName = 'Entity';
-            if ($entityTile.length) {
-              const $nameplate = $entityTile.find('.nameplate');
-              if ($nameplate.length) {
-                entityName = $nameplate.text();
-              } else {
-                entityName = $entityTile.data('entity-name') || 'Entity';
-              }
-            }
-            
-            // Add the message to the dialog chat
-            addDialogMessage('entity', message, 'entity');
-          } catch (error) {
-            console.error('Error adding message to dialog modal:', error);
-            // Fallback to showing conversation bubble
-            showConversationBubble(entity_id, message);
-          }
-        } else if (isDirectedToPov && !$dialogPanel.is(':visible')) {
-          // Message is directed to current POV but dialog panel is not open
-          // Show conversation bubble and optionally provide a way to open dialog
-          console.log('Message directed to POV entity, but dialog panel not open:', message);
-          showDialogTriggerBubble(entity_id, message);
-        } else {
-          // Show conversation bubble on tile as before
-          showConversationBubble(entity_id, message);
-        }
-        break;
-      }
-      case "move": {
-        const animationBuffer = data.message.animation_log;
-        const animateFunction = (animationLog, idx) => {
-          if (idx >= animationLog.length) {
-            Utils.refreshTileSet();
-            return;
-          }
-          const [entity_uid, path, action] = animationLog[idx];
-          const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
-          if (action) {
-            const opts = {
-              lineWidth: 3,
-              withArrow: true,
-              randomCurve: true,
-              strokeStyle: action.type === "attack" ? "red" : "blue",
-              text: action.label,
-            };
-            drawLine(
-              globalCtx,
-              { x: $tile.data("coords-x"), y: $tile.data("coords-y") },
-              `.tile[data-coords-id="${action.target}"]`,
-              opts,
-            );
-          }
-          const tileRect = $tile[0].getBoundingClientRect();
-          const scrollLeft =
-            window.pageXOffset || document.documentElement.scrollLeft;
-          const scrollTop =
-            window.pageYOffset || document.documentElement.scrollTop;
-          let prevX = tileRect.left + scrollLeft;
-          let prevY = tileRect.top + scrollTop;
-          const moveFunc = (p, index) => {
-            if (index >= p.length) {
-              animateFunction(animationLog, idx + 1);
-              return;
-            }
-            const [x, y] = p[index];
-            const $newTile = $(
-              `.tile[data-coords-x="${x}"][data-coords-y="${y}"]`,
-            );
-            const newRect = $newTile[0].getBoundingClientRect();
-            const imageContainer = $('.image-container')[0].getBoundingClientRect();
-            const tile_size = $('.tiles-container').data('tile-size');
-            const newX = newRect.left - imageContainer.left + tile_size;
-            const newY = newRect.top - imageContainer.top + tile_size;
-            
-            // Set initial position if this is the first move
-            if (index === 0) {
-              $tile.css({ 
-                position: 'absolute',
-                top: newY,
-                left: newX
-              });
-              prevX = newX;
-              prevY = newY;
-              moveFunc(p, index + 1);
-              return;
-            }
-            
-            // Move to the next position in the path
-            setTimeout(() => {
-              $tile.css({ 
-                position: 'absolute',
-                top: newY,
-                left: newX,
-                transition: 'all 0.3s ease-in-out'
-              });
-              prevX = newX;
-              prevY = newY;
-              moveFunc(p, index + 1);
-            }, 300);
-          };
-          moveFunc(path, 0); // Start from index 0 to set initial position
-        };
-        if (animationBuffer) {
-          animateFunction(animationBuffer, 0);
-        } else {
-          Utils.refreshTileSet();
-        }
-        break;
-      }
-      case "message":
-        console.log(data.message);
-        break;
-      case "error":
-        console.error(data.message);
-        break;
-      case "console":
-        $("#console-container #console").append(`<p>${data.message}</p>`);
-        $("#console-container").scrollTop(
-          $("#console-container")[0].scrollHeight,
-        );
-        break;
-      case "track":
-        console.log("Playing track:", data.message);
-        playSound(
-          data.message.url,
-          data.message.track_id,
-          data.message.volume,
-          0,
-        );
-        break;
-      case "prompt": {
-        alert(data.message);
-        ajaxPost(
-          "/response",
-          { response: "", callback: data.callback },
-          (resp) => console.log("Response sent successfully:", resp),
-          true,
-        );
-        break;
-      }
-      case "turn":
-        refreshTurn();
-        break;
-      case "focus":
-        centerOnTileXY(data.message.x, data.message.y, true);
-        break;
-      case "stoptrack":
-        if (active_background_sound) {
-          const audioCtx = new AudioContext();
-          const source = audioCtx.createMediaElementSource(
-            active_background_sound,
-          );
-          const gainNode = audioCtx.createGain();
-          source.connect(gainNode);
-          gainNode.connect(audioCtx.destination);
-          gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
-          gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 2);
-          gainNode.addEventListener("ended", () => {
-            active_background_sound.pause();
-            active_background_sound = null;
-            active_track_id = -1;
-          });
-        }
-        break;
-      case "volume":
-        if (active_background_sound) {
-          active_background_sound.volume = data.message.volume / 100;
-          $(".volume-slider").val(data.message.volume);
-        }
-        break;
-      case "initiative":
-        refreshTurnOrder();
-        $("#start-initiative, #start-battle").hide();
-        $("#end-battle").show();
-        break;
-      case "stop":
-        $("#turn-order").html("");
-        $(".game-turn-container").hide();
-        $("#battle-turn-order").fadeOut();
-        $("#start-initiative, #start-battle").show();
-        $("#end-battle").hide();
-        break;
-      case "reaction":
-        Utils.ajaxGet("/reaction", {}, (data) => {
-          $("#reaction-modal .reaction-content").html(data);
-          $("#reaction-modal").modal("show");
-        });
-        break;
-      case "dismiss_reaction":
-        $("#reaction-modal").modal("hide");
-        break;
-      case "switch_map":
-        var map_id = data.message.map;
-        Utils.switchMap(map_id, globalCanvas, ()=>{
-          createGlobalCanvas();
-        });
-        break;
-
-      default:
-        console.log("Unknown message type:", data.type);
-    }
+    // Enqueue the event for FIFO processing
+    eventQueue.enqueue(data);
   });
 
   let currentSoundtrackId = $("body").data("soundtrack-id");
@@ -1855,7 +2073,8 @@ $(document).ready(() => {
 
   // Append server responses tagged with type 'command_response' to the command output
   socket.on("command_response", (data) => {
-    $("#command-output").append(data.message + "\n");
+    // Enqueue command response events for FIFO processing
+    eventQueue.enqueue(data);
   });
 
   // Handle talk action

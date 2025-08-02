@@ -128,6 +128,8 @@ class MapRenderer:
             if isinstance(line_of_sight, list):
                 has_line_of_sight = any(self.map.can_see_square(l, (col_index, row_index)) for l in line_of_sight)
             elif line_of_sight:
+                if (col_index, row_index) == (0, 8):
+                    print("Checking line of sight for", (col_index, row_index), "against", line_of_sight)
                 has_line_of_sight = self.map.can_see_square(line_of_sight, (col_index, row_index))
 
             if line_of_sight and not has_line_of_sight:

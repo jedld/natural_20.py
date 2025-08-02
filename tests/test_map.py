@@ -223,8 +223,12 @@ class TestMap(unittest.TestCase):
         session = Session(root_path='tests/fixtures')
         session.render_for_text = False
         map = Map(session, 'tests/fixtures/maps/complex_map.yml')
+
         character = PlayerCharacter.load(session, 'characters/halfling_rogue.yml')
-        map.place((5,7), character)
+        map.place((5,11), character)
+        # print(MapRenderer(map).render(line_of_sight=character))
         self.assertTrue(map.difficult_terrain(character, 5, 8))
-        print(MapRenderer(map).render())
+        self.assertTrue(map.opaque(2, 11, origin=(3, 11)))
+        self.assertFalse(map.passable(character, 2, 11, origin=(3, 11)))
+        self.assertFalse(map.can_see_square(character, (2, 11)))
 
