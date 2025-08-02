@@ -903,6 +903,12 @@ class Map():
 
     def passable(self, entity, pos_x, pos_y, battle=None, allow_squeeze=True, origin=None, ignore_opposing=False,
                  incorporeal=False):
+        def all_passable_objects(relative_x, relative_y, origin):
+            for object in self.objects_at(relative_x, relative_y, reveal_concealed=True):
+                if not object.passable(origin) and not incorporeal:
+                    return False
+            return True
+
         if entity is None:
             return False
         effective_token_size = entity.token_size() - 1 if allow_squeeze and entity.token_size() > 1 else entity.token_size()
@@ -922,8 +928,10 @@ class Map():
                 if self.base_map[relative_x][relative_y] == '#':
                     return False
 
-                for object in self.objects_at(relative_x, relative_y):
-                    if not object.passable(origin) and not incorporeal:
+                if not all_passable_objects(relative_x, relative_y, origin):
+                    return False
+                if origin:
+                    if not all_passable_objects(*origin, origin=(relative_x, relative_y)):
                         return False
 
                 if battle and self.tokens[relative_x][relative_y]:
@@ -1030,13 +1038,13 @@ class Map():
             return True
         else:
             if self.object_at(pos_x, pos_y):
-                for object in self.objects_at(pos_x, pos_y):
+                for object in self.objects_at(pos_x, pos_y, reveal_concealed=True):
                     if object.opaque(origin):
                         return True
 
             if origin:
                 if self.object_at(*origin):
-                    for object in self.objects_at(*origin):
+                    for object in self.objects_at(*origin, reveal_concealed=True):
                         if object.opaque((pos_x, pos_y)):
                             return True
 
