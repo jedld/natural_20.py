@@ -1158,10 +1158,22 @@ def compute_path():
     cost = battle_map.movement_cost(entity, accumulated_path)
     placeable = battle_map.placeable(entity, int(destination['x']), int(destination['y']), battle, False)
 
+    # Get terrain information for each tile in the path
+    terrain_info = []
+    if path:
+        for x, y in path:
+            is_difficult = battle_map.difficult_terrain(entity, x, y, battle)
+            terrain_info.append({
+                'x': x,
+                'y': y,
+                'difficult': is_difficult
+            })
+
     path_data = {
         "path": path,
         "cost": cost.to_dict(),
-        "placeable": placeable
+        "placeable": placeable,
+        "terrain_info": terrain_info
     }
     return jsonify(path_data)
 

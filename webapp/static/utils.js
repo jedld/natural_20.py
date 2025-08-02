@@ -175,27 +175,80 @@ const Utils = {
       });
     });
   },
-  drawMovementPath: function(ctx, movePath, available_cost, placeable) {
+  drawMovementPath: function(ctx, movePath, available_cost, placeable, terrainInfo) {
     const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    ctx.beginPath();
+    
+    // Create a lookup map for terrain information for faster access
+    const terrainLookup = {};
+    if (terrainInfo) {
+      console.log("Drawing movement path with terrain info:", terrainInfo);
+      terrainInfo.forEach(info => {
+        terrainLookup[`${info.x},${info.y}`] = info.difficult;
+      });
+    }
+    
     ctx.strokeStyle = "green";
     ctx.lineWidth = 5;
     let prevX, prevY;
+    
     movePath.forEach((coords, index) => {
       const [x, y] = coords;
       const rect = $(`.tile[data-coords-x="${x}"][data-coords-y="${y}"]`)[0].getBoundingClientRect();
       const centerX = rect.left + rect.width / 2 + scrollLeft;
       const centerY = rect.top + rect.height / 2 + scrollTop;
+      
       if (index === 0) {
+        ctx.beginPath();
         ctx.moveTo(centerX, centerY);
+        prevX = centerX;
+        prevY = centerY;
       } else {
+        // Check if this segment goes through difficult terrain
+        const isDifficult = terrainLookup[`${x},${y}`] || false;
+        if (isDifficult) {
+          console.log(`Tile ${x},${y} has difficult terrain - using dotted line`);
+        }
+        
+        // Start a new path segment with appropriate line style
+        ctx.beginPath();
+        ctx.moveTo(prevX, prevY);
         ctx.lineTo(centerX, centerY);
+        
+        // Set line dash for difficult terrain
+        if (isDifficult) {
+          ctx.setLineDash([10, 10]); // Dotted line: 10px dash, 10px gap
+        } else {
+          ctx.setLineDash([]); // Solid line
+        }
+        
+        ctx.stroke();
+        
+        prevX = centerX;
+        prevY = centerY;
       }
+      
+      // Draw arrow at the end
       if (index === movePath.length - 1) {
+        ctx.beginPath();
+        ctx.setLineDash([]); // Reset to solid line for arrow
         const arrowSize = 10;
-        const angle = Math.atan2(centerY - prevY, centerX - prevX);
+        // Calculate angle from previous position to current position
+        let angle;
+        if (index > 0) {
+          // Use the direction from the previous segment
+          const prevCoords = movePath[index - 1];
+          const [prevTileX, prevTileY] = prevCoords;
+          const prevRect = $(`.tile[data-coords-x="${prevTileX}"][data-coords-y="${prevTileY}"]`)[0].getBoundingClientRect();
+          const prevCenterX = prevRect.left + prevRect.width / 2 + scrollLeft;
+          const prevCenterY = prevRect.top + prevRect.height / 2 + scrollTop;
+          angle = Math.atan2(centerY - prevCenterY, centerX - prevCenterX);
+        } else {
+          // Fallback for single tile path (shouldn't happen in normal movement)
+          angle = 0;
+        }
+        
         if (placeable) {
           ctx.moveTo(
             centerX - arrowSize * Math.cos(angle - Math.PI / 6),
@@ -212,6 +265,10 @@ const Utils = {
           ctx.moveTo(centerX + arrowSize, centerY - arrowSize);
           ctx.lineTo(centerX - arrowSize, centerY + arrowSize);
         }
+        
+        ctx.stroke();
+        
+        // Draw movement cost text
         ctx.font = "20px Arial";
         ctx.fillStyle = "green";
         ctx.fillText(
@@ -220,10 +277,10 @@ const Utils = {
           centerY + $(".tile").height() / 2,
         );
       }
-      prevX = centerX;
-      prevY = centerY;
     });
-    ctx.stroke();
+    
+    // Reset line dash to solid for future drawing operations
+    ctx.setLineDash([]);
   },
   toggleBubble: function(bubble) {
     bubble.classList.toggle('minimized');
