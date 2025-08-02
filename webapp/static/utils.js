@@ -183,7 +183,6 @@ const Utils = {
     // Create a lookup map for terrain information for faster access
     const terrainLookup = {};
     if (terrainInfo) {
-      console.log("Drawing movement path with terrain info:", terrainInfo);
       terrainInfo.forEach(info => {
         terrainLookup[`${info.x},${info.y}`] = info.difficult;
       });
@@ -207,9 +206,6 @@ const Utils = {
       } else {
         // Check if this segment goes through difficult terrain
         const isDifficult = terrainLookup[`${x},${y}`] || false;
-        if (isDifficult) {
-          console.log(`Tile ${x},${y} has difficult terrain - using dotted line`);
-        }
         
         // Start a new path segment with appropriate line style
         ctx.beginPath();
