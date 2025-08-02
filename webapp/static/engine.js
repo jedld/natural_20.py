@@ -369,7 +369,7 @@ function handleKeyboardMovement(key, entity_uid, coordsx, coordsy) {
         keyboardMovementSource = { x: coordsx, y: coordsy };
       }
       // Redraw the path
-      Utils.drawMovementPath(globalCtx, keyboardMovementPath, 0, true);
+      Utils.drawMovementPath(globalCtx, keyboardMovementPath, 0, true, null);
       return;
     }
   }
@@ -397,7 +397,7 @@ function handleKeyboardMovement(key, entity_uid, coordsx, coordsy) {
         console.log("Updated path:", keyboardMovementPath);
         
         // Draw the path
-        Utils.drawMovementPath(globalCtx, keyboardMovementPath, data.cost.budget, data.placeable);
+        Utils.drawMovementPath(globalCtx, keyboardMovementPath, data.cost.budget, data.placeable, data.terrain_info);
       } else {
         console.log("Invalid move - path not available or budget exceeded");
       }
@@ -1181,7 +1181,7 @@ $(document).ready(() => {
             // Add the new path segment to the movement path
             movePath = [...movePath, ...data.path];
             // Draw the complete path
-            Utils.drawMovementPath(globalCtx, movePath, available_cost, data.placeable);
+            Utils.drawMovementPath(globalCtx, movePath, available_cost, data.placeable, data.terrain_info);
           }
         };
 
