@@ -462,11 +462,7 @@
                           <i class="glyphicon glyphicon-send"></i> Send
                         </button>
                       </span>
-                    </div>,
-                    {
-                      "entity_uid": "party",
-                      "controllers": ["rumblebelly", "crysania", "gomerin", "shorvalu"]
-                    }
+                    </div>
                     <button type="button" class="btn btn-sm btn-info" id="get-context">
                       <i class="glyphicon glyphicon-info-sign"></i> Get Game Context
                     </button>
@@ -493,11 +489,12 @@
       <div class="modal-body">
         <form id="talkForm">
           <div class="form-group">
-            <label for="talkMessage">Me,
-              {
-                "entity_uid": "party",
-                "controllers": ["rumblebelly", "crysania", "gomerin", "shorvalu"]
-              }pulated here -->
+            <label for="talkMessage">
+              <select class="form-control" id="talkLanguageSelect">
+                <option value="Common" selected>Common</option>
+                {% for language in languages %}
+                  <option value="{{ language }}">{{ language }}</option>
+                {% endfor %}
             </select>
           </div>
           <div class="form-group">
@@ -629,11 +626,7 @@
           
           <div class="form-group" style="margin-bottom: 10px;">
             <label for="draggable-ai-provider-select" style="font-size: 12px;">Provider:</label>
-            <select class="form-control inpu,
-            {
-              "entity_uid": "party",
-              "controllers": ["rumblebelly", "crysania", "gomerin", "shorvalu"]
-            }ropic</option>
+            <select class="form-control input-sm" id="draggable-ai-provider-select" style="font-size: 12px;">
               <option value="ollama">Ollama (Local)</option>
             </select>
           </div>
