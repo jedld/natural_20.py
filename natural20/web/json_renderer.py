@@ -68,7 +68,7 @@ class JsonRenderer:
 
                         if not any([self.map.can_see_square(entity, (x, y)) for entity in entity_pov]):
                             if any([self.map.can_see_square(entity, (x, y), force_dark_vision=True) for entity in entity_pov]):
-                                result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': True, 'light': 0.0, 'opacity': 0.95, 'soft_shadow_direction': soft_shadow_direction})
+                                result_row.append({'x': x, 'y': y, 'difficult': self.map.difficult_terrain(entity, x, y), 'line_of_sight': True, 'light': 0.0, 'opacity': 0.95, 'soft_shadow_direction': soft_shadow_direction})
                                 continue
                             # check if there is a door like object in the square
                             if self.map.kind_of_door(x, y):
