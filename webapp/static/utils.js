@@ -257,6 +257,9 @@ const Utils = {
       height: `${data.height}px`,
     });
     
+    // Update image container position with consistent offset handling
+    const imageOffset = data.image_offset_px || [0, 0];
+    
     // Update tiles container
     $("#main-map-area .tiles-container").css({
       position: 'absolute',
@@ -265,24 +268,25 @@ const Utils = {
       width: data.width,
       height: data.height,
     });
-    
-    // Update image container position with consistent offset handling
-    const imageOffset = data.image_offset_px || [0, 0];
+    $("#tiles-area").css({
+      top: -(tile_size + imageOffset[1]),
+      left: -(tile_size + imageOffset[0]),
+    });
     $('.image-container').css({
       height: data.height,
       top: imageOffset[1] + tile_size,
       left: imageOffset[0] + tile_size
     });
-    
+
     // Update image
     $(".image-container img").css({ width: data.width });
-    
+
     // Update canvas
     canvas.width = data.width + tile_size;
     canvas.height = data.height + tile_size;
     canvas.style.top = `-${tile_size}px`;
     canvas.style.left = `-${tile_size}px`;
-    
+
     // Update background and map name
     $("#main-map-area .image-container img").attr("src", data.background);
     $('body').attr('data-current-map', data.name);
