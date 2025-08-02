@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test playSound Fix</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+</head>
+<body data-soundtrack-time="0" data-username="test">
+    <div class="volume-slider" style="display: none;"></div>
+    
+    <script>
+        // Mock required global objects and functions for testing
+        window.Utils = {
+            refreshTileSet: function() { console.log('refreshTileSet called'); },
+            ajaxGet: function() { console.log('ajaxGet called'); }
+        };
+        
+        // Mock the io function to return a simple socket object
+        window.io = function() {
+            return {
+                on: function(event, callback) { console.log('Socket event:', event); },
+                emit: function(event, data) { console.log('Socket emit:', event, data); }
+            };
+        };
+    </script>
+    
+    <!-- Include the engine.js file -->
+    <script src="engine.js"></script>
+    
+    <script>
+        // Test that playSound is now globally accessible
+        console.log('Testing playSound function...');
+        
+        if (typeof playSound !== 'undefined') {
+            console.log('✅ SUCCESS: playSound is defined globally');
+            
+            // Test that the EventQueue can access playSound
+            try {
+                const testEvent = {
+                    type: "track",
+                    message: {
+                        url: "test.mp3",
+                        track_id: 1,
+                        volume: 50
+                    }
+                };
+                
+                // Create a mock audio element to prevent actual audio playback
+                window.Audio = function() {
+                    return {
+                        play: function() { console.log('Mock audio play called'); },
+                        pause: function() { console.log('Mock audio pause called'); },
+                        volume: 0.5,
+                        currentTime: 0,
+                        loop: false
+                    };
+                };
+                
+                // Test that EventQueue can process track events without errors
+                eventQueue.processEvent(testEvent).then(() => {
+                    console.log('✅ SUCCESS: EventQueue can process track events');
+                }).catch((error) => {
+                    console.error('❌ FAILED: EventQueue track processing error:', error);
+                });
+                
+            } catch (error) {
+                console.error('❌ FAILED: Error testing EventQueue:', error);
+            }
+            
+        } else {
+            console.error('❌ FAILED: playSound is still not defined globally');
+        }
+        
+        // Test that global variables are properly initialized
+        console.log('Global variables check:');
+        console.log('- active_background_sound:', typeof active_background_sound);
+        console.log('- active_track_id:', typeof active_track_id);
+        console.log('- backgroundSoundStartTime:', typeof backgroundSoundStartTime);
+        console.log('- pageRenderTime:', typeof pageRenderTime);
+    </script>
+</body>
+</html>
