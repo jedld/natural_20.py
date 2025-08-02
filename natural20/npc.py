@@ -161,7 +161,7 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         if self.linked_hp:
             return self.linked_hp.max_hp()
         else:
-            return super().max_hp()
+            return self._max_hp
         
     def set_hp(self, hp, override_max=False):
         if self.linked_hp:
