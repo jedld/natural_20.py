@@ -29,8 +29,6 @@ const Utils = {
   },
   
   // OPTIMIZED VERSION: Only update tiles that have changed
-  // This prevents interactive elements (action menus, die rolls, etc.) from being 
-  // removed while players are actively using them
   refreshTileSet: function(is_setup = false, pov = false, x = 0, y = 0, entity_uid= null, callback = null)  {
     // For initial setup, use the full update to avoid complexity
     if (is_setup) {
@@ -63,9 +61,6 @@ const Utils = {
   
   // Optimized tile update that preserves interactive elements
   updateChangedTilesOptimized: function($newTiles) {
-    let tilesUpdated = 0;
-    let tilesPreserved = 0;
-    
     $newTiles.each(function() {
       const $newTile = $(this);
       const x = $newTile.data('coords-x');
@@ -78,14 +73,12 @@ const Utils = {
       if ($existingTile.length === 0) {
         // New tile - just add it
         $('.tiles-container').append($newTile);
-        tilesUpdated++;
         return;
       }
       
       // Check if tile has actually changed by comparing key attributes
       if (Utils.tilesAreEqual($existingTile, $newTile)) {
-        tilesPreserved++;
-        return; // No change needed - preserve interactive elements
+        return; // No change needed
       }
       
       // Preserve any active interactive elements
@@ -93,16 +86,10 @@ const Utils = {
       
       // Replace the tile
       $existingTile.replaceWith($newTile);
-      tilesUpdated++;
       
       // Restore preserved elements
       Utils.restoreInteractiveElements($('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]'), preservedElements);
     });
-    
-    // Debug logging to show optimization effectiveness
-    if (console && console.log) {
-      console.log('Tile update optimization: ' + tilesUpdated + ' updated, ' + tilesPreserved + ' preserved');
-    }
     
     // Re-initialize die roll components on updated tiles
     if (Utils.autoInsertDieRoll) { Utils.autoInsertDieRoll(); }
@@ -112,7 +99,7 @@ const Utils = {
   // Compare tiles to see if they need updating
   tilesAreEqual: function($tile1, $tile2) {
     // Compare key attributes that would indicate a meaningful change
-    const attrs = ['data-coords-id', 'data-light', 'data-difficult', 'data-darkvision'];
+    const attrs = ['data-coords-id', 'data-light', 'data-difficult'];
     
     for (let attr of attrs) {
       if ($tile1.attr(attr) !== $tile2.attr(attr)) {
@@ -120,45 +107,19 @@ const Utils = {
       }
     }
     
-    // Compare entity presence and ID
-    const entity1Id = $tile1.find('.entity').data('id');
-    const entity2Id = $tile2.find('.entity').data('id');
-    if (entity1Id !== entity2Id) {
+    // Compare entity content
+    const entity1 = $tile1.find('.entity').html();
+    const entity2 = $tile2.find('.entity').html();
+    
+    if (entity1 !== entity2) {
       return false;
     }
     
-    // Compare health bar if present
-    const health1 = $tile1.find('.health-bar').attr('style');
-    const health2 = $tile2.find('.health-bar').attr('style');
-    if (health1 !== health2) {
-      return false;
-    }
+    // Compare conversation bubbles
+    const bubble1 = $tile1.find('.conversation-bubble').text();
+    const bubble2 = $tile2.find('.conversation-bubble').text();
     
-    // Compare nameplate
-    const name1 = $tile1.find('.nameplate').text();
-    const name2 = $tile2.find('.nameplate').text();
-    if (name1 !== name2) {
-      return false;
-    }
-    
-    // Compare effects
-    const effects1 = $tile1.find('.effect img').length;
-    const effects2 = $tile2.find('.effect img').length;
-    if (effects1 !== effects2) {
-      return false;
-    }
-    
-    // Compare conversation bubbles (but not the preserved interactive ones)
-    const bubble1 = $tile1.find('.conversation-bubble .bubble-content').text();
-    const bubble2 = $tile2.find('.conversation-bubble .bubble-content').text();
     if (bubble1 !== bubble2) {
-      return false;
-    }
-    
-    // Compare fog of war
-    const fog1 = $tile1.find('.fog-of-war').length;
-    const fog2 = $tile2.find('.fog-of-war').length;
-    if (fog1 !== fog2) {
       return false;
     }
     
