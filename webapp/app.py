@@ -2596,6 +2596,74 @@ def update_spell_slots():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to update spell slots: {str(e)}'}), 500
 
+@app.route('/dm_move_entity', methods=['POST'])
+def dm_move_entity():
+    """Move an entity to a specific position (DM only)."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    if not request.is_json:
+        return jsonify({'success': False, 'error': 'Request must be JSON'}), 400
+    
+    data = request.get_json()
+    if not data or 'entity_id' not in data or 'x' not in data or 'y' not in data:
+        return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+
+    entity_id = data['entity_id']
+    target_x = data['x']
+    target_y = data['y']
+    
+    # Validate coordinates
+    try:
+        target_x = int(target_x)
+        target_y = int(target_y)
+        if target_x < 0 or target_y < 0:
+            return jsonify({'success': False, 'error': 'Coordinates must be non-negative'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Coordinates must be numbers'}), 400
+
+    # Find the entity
+    entity = current_game.get_entity_by_uid(entity_id)
+    if not entity:
+        return jsonify({'success': False, 'error': 'Entity not found'}), 404
+
+    # Get the entity's current map
+    battle_map = current_game.get_map_for_entity(entity)
+    if not battle_map:
+        return jsonify({'success': False, 'error': 'Entity map not found'}), 404
+
+    # Validate target coordinates are within map bounds
+    if target_x >= battle_map.size[0] or target_y >= battle_map.size[1]:
+        return jsonify({'success': False, 'error': f'Coordinates out of bounds. Map size is {battle_map.size[0]}x{battle_map.size[1]}'}), 400
+
+    try:
+        # Get current position for logging
+        current_x, current_y = battle_map.entity_or_object_pos(entity)
+        
+        # Check if the target position is placeable for this entity
+        battle = current_game.get_current_battle()
+        if not battle_map.placeable(entity, target_x, target_y, battle):
+            return jsonify({'success': False, 'error': 'Target position is not placeable for this entity'}), 400
+        
+        # Perform the move
+        battle_map.move_to(entity, target_x, target_y, battle)
+        
+        # Log the move for tracking
+        output_logger.log(f"DM moved {entity.label()} from ({current_x}, {current_y}) to ({target_x}, {target_y})")
+        
+        # Emit update to refresh the UI for all connected clients
+        socketio.emit('message', {'type': 'refresh_map'})
+        
+        return jsonify({
+            'success': True,
+            'entity_id': entity_id,
+            'from': {'x': current_x, 'y': current_y},
+            'to': {'x': target_x, 'y': target_y}
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to move entity: {str(e)}'}), 500
+
 @app.route('/get_users')
 def get_users():
     query = request.args.get('query', '').lower()
