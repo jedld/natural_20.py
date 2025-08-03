@@ -276,6 +276,13 @@ const Utils = {
     if (items1 !== items2) {
       return false;
     }
+
+    // compare notes
+    const notes1 = $tile1.find('.show-note-btn').length;
+    const notes2 = $tile2.find('.show-note-btn').length;
+    if (notes1 !== notes2) {
+      return false;
+    }
     
     return true; // Tiles are effectively the same
   },
