@@ -2510,6 +2510,92 @@ def update_action_resources():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to update resource: {str(e)}'}), 500
 
+@app.route('/update_spell_slots', methods=['POST'])
+def update_spell_slots():
+    """Update spell slots for an entity (DM only)."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    if not request.is_json:
+        return jsonify({'success': False, 'error': 'Request must be JSON'}), 400
+    
+    data = request.get_json()
+    if not data or 'entity_id' not in data or 'character_class' not in data or 'level' not in data or 'value' not in data:
+        return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+
+    entity_id = data['entity_id']
+    character_class = data['character_class']
+    level = data['level']
+    value = data['value']
+    operation = data.get('operation', 'set')  # 'set', 'add', or 'subtract'
+    
+    # Validate level
+    try:
+        level = int(level)
+        if level < 1 or level > 9:
+            return jsonify({'success': False, 'error': 'Spell level must be between 1 and 9'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Level must be a number'}), 400
+    
+    # Validate value
+    try:
+        value = int(value)
+        if value < 0:
+            return jsonify({'success': False, 'error': 'Spell slot value cannot be negative'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Spell slot value must be a number'}), 400
+
+    # Find the entity
+    battle_map = current_game.get_map_for_user(session['username'])
+    entity = battle_map.entity_by_uid(entity_id)
+    if not entity:
+        return jsonify({'success': False, 'error': 'Entity not found'}), 404
+
+    # Check if entity has spells
+    if not hasattr(entity, 'spell_slots') or not entity.spell_slots:
+        return jsonify({'success': False, 'error': 'Entity does not have spell slots'}), 400
+
+    # Check if character class exists for this entity
+    if character_class not in entity.spell_slots:
+        return jsonify({'success': False, 'error': f'Character class {character_class} not found for entity'}), 400
+
+    try:
+        current_value = entity.spell_slots[character_class].get(level, 0)
+        max_value = entity.max_spell_slots(level, character_class)
+        
+        if operation == 'set':
+            new_value = value
+        elif operation == 'add':
+            new_value = current_value + value
+        elif operation == 'subtract':
+            new_value = max(0, current_value - value)  # Don't allow negative values
+        else:
+            return jsonify({'success': False, 'error': 'Invalid operation. Use set, add, or subtract'}), 400
+        
+        # Cap values at maximum spell slots
+        new_value = min(new_value, max_value)
+        
+        # Update the spell slot
+        entity.spell_slots[character_class][level] = new_value
+        
+        # Log the change for tracking
+        output_logger.log(f"DM updated {entity.label()}'s {character_class} level {level} spell slots from {current_value} to {new_value}")
+        
+        # Emit update to refresh the UI for all connected clients
+        socketio.emit('message', {'type': 'refresh_map'})
+        
+        return jsonify({
+            'success': True,
+            'character_class': character_class,
+            'level': level,
+            'old_value': current_value,
+            'new_value': new_value,
+            'max_value': max_value
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to update spell slots: {str(e)}'}), 500
+
 @app.route('/get_users')
 def get_users():
     query = request.args.get('query', '').lower()
