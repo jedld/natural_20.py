@@ -753,14 +753,14 @@ class Map():
 
                 entity_1_squares.append([pos1_x + ofs_x, pos1_y + ofs_y])
         return entity_1_squares
-    
-    def kind_of_door(self, pos_x, pos_y) -> bool:
+
+    def kind_of_door(self, pos_x, pos_y):
         for obj in self.objects_at(pos_x, pos_y):
             if obj.secret():
                 continue
             if obj.kind_of_door() and not obj.dead():
-                return True
-        return False
+                return obj
+        return None
 
     def can_see_square(self, entity, pos2: tuple, allow_dark_vision=True, force_dark_vision=False, inclusive=None):
         has_line_of_sight = False
@@ -804,10 +804,6 @@ class Map():
             entity = self.entity_by_uid(entity)
         if isinstance(entity2, str):
             entity2 = self.entity_by_uid(entity2)
-
-        if entity2.kind_of_door() and not entity2.concealed() and not entity2.secret():
-            # doors are always visible
-            return True
 
         if entity == entity2:
             return True
@@ -869,6 +865,10 @@ class Map():
 
         if not has_line_of_sight:
             return False
+        
+        if entity2.kind_of_door() and not entity2.concealed() and not entity2.secret():
+            # doors are always visible
+            return True
 
         if allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid):
             max_illumination += 0.5
