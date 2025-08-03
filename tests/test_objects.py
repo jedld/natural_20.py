@@ -1,4 +1,5 @@
 import unittest
+from natural20 import actions
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.move_action import MoveAction
 from natural20.session import Session
@@ -82,3 +83,22 @@ class TestObjects(unittest.TestCase):
         self.battle.execute_action(action)
         print(MapRenderer(self.map).render(self.battle))
         self.assertEqual(count_goblins(), 2)
+
+    def test_multi_switch(self):
+        self.map = Map(self.session, 'maps/object_map')
+        self.session.maps['object_map'] = self.map
+        self.battle = Battle(self.session, self.map)
+        self.entity = PlayerCharacter.load(self.session, "high_elf_fighter.yml")
+        self.battle.add(self.entity, 'a', position=[2, 3], token='G')
+        self.entity.reset_turn(self.battle)
+        print(MapRenderer(self.map).render(self.battle))
+        switch = self.map.object_at(2, 4)
+        self.assertIsNotNone(switch)
+        self.assertEqual(switch.state, 'index')
+        action = autobuild(self.session, InteractAction, self.entity, self.battle, match=[switch, 'servants_quarters'])[0]
+        self.assertIsInstance(action, InteractAction)
+        self.battle.action(action)
+        self.battle.commit(action)
+        print(MapRenderer(self.map).render(self.battle))
+        self.assertEqual(switch.state, 'servants_quarters')
+        self.assertEqual(self.map.entity_or_object_pos(self.entity),[0, 1])
