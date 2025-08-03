@@ -6,6 +6,7 @@ class MultiSwitch(Object):
     def __init__(self, session, map, properties):
         super().__init__(session, map, properties)
         self.switch_id = self.properties.get('id')
+        self.is_stateful = self.properties.get('stateful', True)
         self.states = self.properties.get('states', ['on', 'off'])
         if not self.states:
             raise ValueError('states is required')
@@ -32,7 +33,7 @@ class MultiSwitch(Object):
                     return interactions
 
             for state in self.states:
-                if state != self.state:
+                if not self.is_stateful or state != self.state:
                     interactions[state] = {}
 
         return interactions
@@ -52,10 +53,14 @@ class MultiSwitch(Object):
 
     def use(self, entity, result, session=None):
         action = result.get('action')
-        if action in self.states:
-            if action != self.state:
-                self.state = action
-                self.resolve_trigger(action, opts={'source': entity, 'target': self})
-        else:
+        
+        if action not in self.states:
             self.session.logger.warning(f"Unknown action {action} for MultiSwitch {self.switch_id}")
+            return self
+        
+        # Only change state and trigger if not stateful or the state is different
+        if not self.is_stateful or action != self.state:
+            self.state = action
+            self.resolve_trigger(action, opts={'source': entity, 'target': self})
+        
         return self
