@@ -179,6 +179,7 @@
                     <li id="switch-map" data-toggle="modal" data-target="#mapModal">Switch Map</li>
                     <li id="reload-map" data-toggle="modal" data-target="#reloadModal">Reload Map</li>
                     <li id="send-command" data-toggle="modal" data-target="#commandModal">Send Command</li>
+                    <li id="toggle-npc-spawner">NPC Spawner</li>
                 {% endif %}
                 <li id="open-console">Open Console</li>
                 <li>
@@ -301,6 +302,23 @@
             {% endif %}
         </div>
     </div>
+    {% if 'dm' in role %}
+    <!-- NPC Spawner Window -->
+    <div id="npc-spawner" class="floating-window" style="display: none; position: fixed; top: 350px; left: 10px; width: 300px; height: 400px;">
+        <div class="header" style="cursor: move; background-color: #5cb85c; color: white; text-align: center; padding: 5px;">
+            <span>NPC Spawner</span>
+            <button id="close-npc-spawner" style="float: right; background: none; border: none; color: white; font-size: 16px;">&times;</button>
+        </div>
+        <div class="npc-spawner-content" style="padding: 10px; height: calc(100% - 35px); overflow-y: auto;">
+            <div class="npc-search" style="margin-bottom: 10px;">
+                <input type="text" id="npc-search-input" class="form-control" placeholder="Search NPCs..." style="font-size: 12px;">
+            </div>
+            <div id="npc-list">
+                <!-- NPCs will be loaded here -->
+            </div>
+        </div>
+    </div>
+    {% endif %}
     <div id="console-container" class="floating-window" style="display: none;">
         <div class="header" style="cursor: move; display: flex; justify-content: space-between; align-items: center;">
             <span>Combat Log</span>
