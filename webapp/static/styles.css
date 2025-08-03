@@ -1973,3 +1973,54 @@ input.initiative-input.form-control {
   font-size: 11px;
   opacity: 0.8;
 }
+
+/* Drag and Drop Entity Styles */
+.entity-dragging {
+  opacity: 0.5;
+  transform: scale(0.9);
+  transition: all 0.2s ease;
+}
+
+.drag-target-highlight {
+  background-color: rgba(0, 123, 255, 0.3) !important;
+  border: 2px solid #007bff !important;
+  box-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
+  z-index: 100;
+  transition: all 0.2s ease;
+}
+
+.entity-drag-ghost {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  transition: transform 0.1s ease;
+}
+
+.entity-drag-ghost:hover {
+  transform: scale(1.05);
+}
+
+/* Cursor styles for draggable entities (DM only) */
+body[data-role*="dm"] .tile.has-draggable-entity:hover {
+  cursor: grab;
+}
+
+body[data-role*="dm"] .tile.entity-dragging {
+  cursor: grabbing;
+}
+
+/* Global cursor change during entity dragging */
+body.entity-dragging-active {
+  cursor: grabbing !important;
+}
+
+body[data-role*="dm"] .tile.entity-dragging {
+  cursor: grabbing;
+}
+
+/* Prevent text selection during drag */
+.entity-dragging,
+.entity-dragging * {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
