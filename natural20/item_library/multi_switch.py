@@ -41,8 +41,8 @@ class MultiSwitch(Object):
         result = {}
         if opts is None:
             opts = {}
+
         if action in self.states:
-            self.state = action
             return {
                 'action': action,
                 'source': entity,
@@ -55,5 +55,7 @@ class MultiSwitch(Object):
         if action in self.states:
             if action != self.state:
                 self.state = action
-                self.resolve_trigger(action)
+                self.resolve_trigger(action, opts={'source': entity, 'target': self})
+        else:
+            self.session.logger.warning(f"Unknown action {action} for MultiSwitch {self.switch_id}")
         return self

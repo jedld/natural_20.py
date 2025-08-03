@@ -611,6 +611,12 @@ switch:
   state: off
   token:
     - S
+dumbwaiter:
+  color: yellow
+  item_class: MultiSwitch
+  name: Dumbwaiter
+  placeable: true
+  passable: true
 note:
   color: yellow
   name: Note
