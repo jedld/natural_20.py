@@ -174,6 +174,74 @@
             background: #ccc;
             cursor: not-allowed;
         }
+
+        /* Action Resource Controls for DM */
+        .action-resource-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .action-resource-input {
+            width: 60px;
+            padding: 3px 6px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            text-align: center;
+            font-family: inherit;
+            font-size: inherit;
+        }
+        .action-resource-input:focus {
+            outline: none;
+            border-color: #8b0000;
+        }
+        .action-resource-buttons {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .action-resource-btn {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #666;
+            background: #f9f9f9;
+            border-radius: 3px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        .action-resource-btn:hover {
+            background: #e9e9e9;
+            border-color: #333;
+        }
+        .action-resource-btn:active {
+            background: #d9d9d9;
+        }
+        .action-resource-btn.minus-btn {
+            color: #dc3545;
+        }
+        .action-resource-btn.plus-btn {
+            color: #28a745;
+        }
+        .action-resource-save-btn {
+            padding: 3px 8px;
+            background: #8b0000;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.2s ease;
+        }
+        .action-resource-save-btn:hover {
+            background: #660000;
+        }
+        .action-resource-save-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
     </style>
 
 </head>
@@ -370,6 +438,54 @@
                         </div>
                     </div>
                     {% endif %}
+                    {% endif %}
+
+                    {% if 'dm' in role and battle and battle.entity_state_for(entity) %}
+                    <h3>Action Resources (DM Controls)</h3>
+                    <p style="font-size: 0.9em; color: #666; margin-bottom: 10px;">
+                        <i>Modify action economy during battle. Use +/- buttons for quick adjustments or type values directly.</i>
+                    </p>
+                    <table>
+                        <tr>
+                            <th>Actions</th>
+                            <td>
+                                <div class="action-resource-controls">
+                                    <input type="number" class="action-resource-input" id="action-input" value="{{ battle.entity_state_for(entity).get('action', 0) }}" min="0" max="10" title="Current number of actions available">
+                                    <div class="action-resource-buttons">
+                                        <button class="action-resource-btn minus-btn" onclick="updateActionResource('action', -1)" title="Remove one action">-</button>
+                                        <button class="action-resource-btn plus-btn" onclick="updateActionResource('action', 1)" title="Add one action">+</button>
+                                        <button class="action-resource-save-btn" onclick="setActionResource('action')" id="save-action-btn" title="Set to the specified value">Set</button>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Bonus Actions</th>
+                            <td>
+                                <div class="action-resource-controls">
+                                    <input type="number" class="action-resource-input" id="bonus-action-input" value="{{ battle.entity_state_for(entity).get('bonus_action', 0) }}" min="0" max="10" title="Current number of bonus actions available">
+                                    <div class="action-resource-buttons">
+                                        <button class="action-resource-btn minus-btn" onclick="updateActionResource('bonus_action', -1)" title="Remove one bonus action">-</button>
+                                        <button class="action-resource-btn plus-btn" onclick="updateActionResource('bonus_action', 1)" title="Add one bonus action">+</button>
+                                        <button class="action-resource-save-btn" onclick="setActionResource('bonus_action')" id="save-bonus-action-btn" title="Set to the specified value">Set</button>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Reactions</th>
+                            <td>
+                                <div class="action-resource-controls">
+                                    <input type="number" class="action-resource-input" id="reaction-input" value="{{ battle.entity_state_for(entity).get('reaction', 0) }}" min="0" max="10" title="Current number of reactions available">
+                                    <div class="action-resource-buttons">
+                                        <button class="action-resource-btn minus-btn" onclick="updateActionResource('reaction', -1)" title="Remove one reaction">-</button>
+                                        <button class="action-resource-btn plus-btn" onclick="updateActionResource('reaction', 1)" title="Add one reaction">+</button>
+                                        <button class="action-resource-save-btn" onclick="setActionResource('reaction')" id="save-reaction-btn" title="Set to the specified value">Set</button>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
                     {% endif %}
                 </div>
             </div>
@@ -775,11 +891,73 @@
             });
         }
 
+        // Action Resource Update Functions for DM
+        function updateActionResource(resourceType, change) {
+            const input = document.getElementById(resourceType.replace('_', '-') + '-input');
+            const currentValue = parseInt(input.value) || 0;
+            const newValue = Math.max(0, Math.min(10, currentValue + change));
+            input.value = newValue;
+            
+            // Auto-save the change
+            setActionResource(resourceType);
+        }
+        
+        function setActionResource(resourceType) {
+            const input = document.getElementById(resourceType.replace('_', '-') + '-input');
+            const button = document.getElementById('save-' + resourceType.replace('_', '-') + '-btn');
+            const value = parseInt(input.value);
+            
+            if (isNaN(value) || value < 0) {
+                alert('Resource value must be 0 or greater');
+                return;
+            }
+            
+            button.disabled = true;
+            button.textContent = 'Saving...';
+            
+            fetch('/update_action_resources', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    entity_id: document.body.dataset.id,
+                    resource_type: resourceType,
+                    value: value,
+                    operation: 'set'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    button.textContent = 'Saved!';
+                    setTimeout(() => {
+                        button.textContent = 'Set';
+                        button.disabled = false;
+                    }, 1000);
+                } else {
+                    alert('Failed to update ' + resourceType.replace('_', ' ') + ': ' + (data.error || 'Unknown error'));
+                    button.textContent = 'Set';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                alert('Error updating ' + resourceType.replace('_', ' ') + ': ' + error);
+                button.textContent = 'Set';
+                button.disabled = false;
+            });
+        }
+
         // Add Enter key support for HP inputs
         document.addEventListener('DOMContentLoaded', function() {
             const maxHPInput = document.getElementById('max-hp-input');
             const currentHPInput = document.getElementById('current-hp-input');
             const tempHPInput = document.getElementById('temp-hp-input');
+            
+            // Action resource inputs
+            const actionInput = document.getElementById('action-input');
+            const bonusActionInput = document.getElementById('bonus-action-input');
+            const reactionInput = document.getElementById('reaction-input');
             
             if (maxHPInput) {
                 maxHPInput.addEventListener('keypress', function(e) {
@@ -801,6 +979,30 @@
                 tempHPInput.addEventListener('keypress', function(e) {
                     if (e.key === 'Enter') {
                         updateTempHP();
+                    }
+                });
+            }
+            
+            if (actionInput) {
+                actionInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        setActionResource('action');
+                    }
+                });
+            }
+            
+            if (bonusActionInput) {
+                bonusActionInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        setActionResource('bonus_action');
+                    }
+                });
+            }
+            
+            if (reactionInput) {
+                reactionInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        setActionResource('reaction');
                     }
                 });
             }

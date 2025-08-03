@@ -2020,12 +2020,13 @@ def get_items():
 @app.route('/info', methods=['GET'])
 def get_info():
     battle_map = current_game.get_map_for_user(session['username'])
+    battle = current_game.get_current_battle()
     info_id = request.args.get('id')
     # Fetch the necessary information based on the info_id
     entity = battle_map.entity_by_uid(info_id)
     if entity is None:
         entity = battle_map.object_by_uid(info_id)
-    return render_template('info.html.jinja', entity=entity, session=game_session, restricted=False, role=user_role())
+    return render_template('info.html.jinja', entity=entity, session=game_session, battle=battle, restricted=False, role=user_role())
 
 @app.route('/entity_info', methods=['GET'])
 def get_entity_info():
@@ -2427,6 +2428,87 @@ def update_hp():
         
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to update HP: {str(e)}'}), 500
+
+@app.route('/update_action_resources', methods=['POST'])
+def update_action_resources():
+    """Update action resources for an entity during battle (DM only)."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    if not request.is_json:
+        return jsonify({'success': False, 'error': 'Request must be JSON'}), 400
+    
+    data = request.get_json()
+    if not data or 'entity_id' not in data or 'resource_type' not in data or 'value' not in data:
+        return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+
+    entity_id = data['entity_id']
+    resource_type = data['resource_type']
+    value = data['value']
+    operation = data.get('operation', 'set')  # 'set', 'add', or 'subtract'
+    
+    # Validate resource_type
+    valid_resources = ['action', 'bonus_action', 'reaction']
+    if resource_type not in valid_resources:
+        return jsonify({'success': False, 'error': 'Invalid resource type'}), 400
+    
+    # Validate value
+    try:
+        value = int(value)
+        if value < 0:
+            return jsonify({'success': False, 'error': 'Resource value cannot be negative'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Resource value must be a number'}), 400
+
+    # Check if there's an active battle
+    battle = current_game.get_current_battle()
+    if not battle:
+        return jsonify({'success': False, 'error': 'No active battle found'}), 400
+
+    # Find the entity
+    entity = current_game.get_entity_by_uid(entity_id)
+    if not entity:
+        return jsonify({'success': False, 'error': 'Entity not found'}), 404
+
+    # Check if entity is in the battle
+    entity_state = battle.entity_state_for(entity)
+    if not entity_state:
+        return jsonify({'success': False, 'error': 'Entity is not in the current battle'}), 400
+
+    try:
+        current_value = entity_state.get(resource_type, 0)
+        
+        if operation == 'set':
+            new_value = value
+        elif operation == 'add':
+            new_value = current_value + value
+        elif operation == 'subtract':
+            new_value = max(0, current_value - value)  # Don't allow negative values
+        else:
+            return jsonify({'success': False, 'error': 'Invalid operation. Use set, add, or subtract'}), 400
+        
+        # Cap values at reasonable maximums
+        max_values = {'action': 10, 'bonus_action': 10, 'reaction': 10}  # Arbitrary but reasonable limits
+        new_value = min(new_value, max_values[resource_type])
+        
+        # Update the resource
+        entity_state[resource_type] = new_value
+        
+        # Log the change for tracking
+        output_logger.log(f"DM updated {entity.label()}'s {resource_type.replace('_', ' ')} from {current_value} to {new_value}")
+        
+        # Emit update to refresh the UI for all connected clients
+        socketio.emit('message', {'type': 'refresh_map'})
+        
+        return jsonify({
+            'success': True,
+            'resource_type': resource_type,
+            'old_value': current_value,
+            'new_value': new_value
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to update resource: {str(e)}'}), 500
 
 @app.route('/get_users')
 def get_users():
