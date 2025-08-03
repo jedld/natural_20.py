@@ -283,6 +283,13 @@ const Utils = {
     if (notes1 !== notes2) {
       return false;
     }
+
+    // check if the dialog bubbles are the same
+    const dialog1 = $tile1.find('.dialog-bubble').length;
+    const dialog2 = $tile2.find('.dialog-bubble').length;
+    if (dialog1 !== dialog2) {
+      return false;
+    }
     
     return true; // Tiles are effectively the same
   },
