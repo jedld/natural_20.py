@@ -599,6 +599,37 @@
   <div class="dialog-resize-handle" style="position: absolute; bottom: 0; right: 0; width: 15px; height: 15px; cursor: se-resize; background: linear-gradient(135deg, transparent 50%, #ccc 50%);"></div>
 </div>
 
+    <!-- Music Volume Control Widget for Non-DM Users -->
+    {% if 'dm' not in role %}
+    <div id="music-control-widget" class="music-control-widget" style="display: none; position: fixed; bottom: 20px; right: 20px; z-index: 2000; background: rgba(0, 0, 0, 0.8); color: white; border-radius: 8px; padding: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); min-width: 200px;">
+      <div class="music-control-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h6 style="margin: 0; color: #fff; display: flex; align-items: center;">
+          <i class="glyphicon glyphicon-music" style="margin-right: 6px;"></i>
+          Music Volume
+        </h6>
+        <button type="button" class="btn btn-xs" id="toggle-music-widget" title="Collapse/Expand" style="background: none; border: none; color: #fff; padding: 2px;">
+          <i class="glyphicon glyphicon-chevron-up" id="widget-chevron"></i>
+        </button>
+      </div>
+      <div id="music-control-content">
+        <div style="margin-bottom: 8px;">
+          <small id="current-track-name" style="color: #ccc;">No music playing</small>
+        </div>
+        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+          <button type="button" class="btn btn-xs btn-default" id="mute-toggle" title="Mute/Unmute" style="margin-right: 8px; min-width: 60px;">
+            <i class="glyphicon glyphicon-volume-up" id="mute-icon"></i>
+            <span id="mute-text">Mute</span>
+          </button>
+          <input type="range" min="0" max="100" value="70" class="user-volume-slider" id="user-volume-slider" style="flex: 1; margin-right: 8px;">
+          <small id="volume-display" style="color: #ccc; min-width: 30px;">70%</small>
+        </div>
+        <div style="font-size: 11px; color: #999; text-align: center;">
+          <small>Your personal volume override<br/>DM controls music selection</small>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- only for DMs -->
     {% if 'dm' in role %}
     <!-- Draggable AI Chatbot Interface -->

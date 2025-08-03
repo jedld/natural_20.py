@@ -2,32 +2,60 @@
   <button class="close" aria-label="Close" type="button" data-dismiss="modal">
     <span aria-hidden="true">&times;</span>
   </button>
-  <h4 class="modal-title" id="myModalLabel">Select Soundtrack</h4>
+  <h4 class="modal-title" id="myModalLabel">DM Sound Manager</h4>
 </div>
 <div class="modal-body">
+  <!-- Current Track Display -->
+  <div class="current-track-section" style="margin-bottom: 20px; padding: 10px; background: #f5f5f5; border-radius: 5px;">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <div>
+        <strong>Current Track:</strong> 
+        <span id="current-track-display">
+          {% if current_soundtrack %}{{ current_soundtrack_name }}{% else %}None{% endif %}
+        </span>
+      </div>
+      <div class="playback-controls">
+        {% if current_soundtrack %}
+        <button class="btn btn-warning pause-btn" type="button" title="Pause Music">
+          <i class="glyphicon glyphicon-pause"></i> Pause
+        </button>
+        {% else %}
+        <button class="btn btn-success play-btn" type="button" title="Resume Music" style="display: none;">
+          <i class="glyphicon glyphicon-play"></i> Play
+        </button>
+        {% endif %}
+        <button class="btn btn-danger stop-btn" type="button" title="Stop Music" {% if not current_soundtrack %}style="display: none;"{% endif %}>
+          <i class="glyphicon glyphicon-stop"></i> Stop
+        </button>
+      </div>
+    </div>
+    {% if current_soundtrack %}
+    <div class="volume-controls" style="margin-top: 10px;">
+      <label>Volume:</label>
+      <input type="range" min="0" max="100" value="{{current_soundtrack.volume or 50}}" class="volume-slider" style="width: 200px;">
+      <span class="volume-display">{{current_soundtrack.volume or 50}}%</span>
+    </div>
+    {% endif %}
+  </div>
 
-  <div class="radio">
-    <label>
-      <input type="radio" name="track_id" value="-1" {% if not current_soundtrack %}checked="checked" {% endif %}/>
-      None
-    </label>
+  <!-- Track Selection -->
+  <div class="track-selection">
+    <h5>Available Tracks:</h5>
+    <div class="track-list" style="max-height: 300px; overflow-y: auto;">
+      <div class="track-item" data-track-id="-1" style="padding: 8px; border: 1px solid #ddd; margin: 2px 0; cursor: pointer; border-radius: 3px; {% if not current_soundtrack %}background: #e6f3ff;{% endif %}">
+        <span class="track-name"><strong>🔇 Stop Music</strong></span>
+      </div>
+      {% for track in tracks %}
+      <div class="track-item" data-track-id="{{ track.id }}" data-track-url="{{ track.url }}" style="padding: 8px; border: 1px solid #ddd; margin: 2px 0; cursor: pointer; border-radius: 3px; {% if track.id == current_soundtrack_name %}background: #e6f3ff;{% endif %}">
+        <div style="display: flex; justify-content: between; align-items: center;">
+          <span class="track-name">🎵 {{ track.name }}</span>
+          <small class="track-volume" style="margin-left: auto; color: #666;">Vol: <span class="track-vol-display">50</span>%</small>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
   </div>
-  {% for track in tracks %}
-  <div class="radio">
-    <label>
-      <input type="radio" name="track_id" value="{{ track.id }}" {% if track.id == current_soundtrack_name %}checked="checked"{% endif %}/>
-      {{ track.name }}
-    </label>
-  </div>
-  {% endfor %}
-  {% if current_soundtrack %}
-  <div class="volume-controls">
-    <label>Volume:</label>
-    <input type="range" min="0" max="100" value="{{current_soundtrack.volume}}" class="volume-slider">
-  </div>
-  {% endif %}
 </div>
 <div class="modal-footer">
   <button class="btn btn-default" data-dismiss="modal" type="button">Close</button>
-  <button class="btn btn-primary play" type="button">Play</button>
 </div>

@@ -131,6 +131,17 @@ class EventQueue {
             data.message.volume,
             0,
           );
+          
+          // Update DM Sound Manager state when track changes
+          if (typeof DMSoundManager !== 'undefined') {
+            DMSoundManager.currentTrackId = data.message.track_id || data.message.id;
+            DMSoundManager.isPlaying = true;
+            // Update UI if the modal is open
+            if ($('#modal-1').hasClass('in') || $('#modal-1').is(':visible')) {
+              DMSoundManager.updateUI();
+            }
+          }
+          
           resolve();
           break;
         case "prompt": {
@@ -161,6 +172,21 @@ class EventQueue {
           if (active_background_sound) {
             active_background_sound.volume = data.message.volume / 100;
             $(".volume-slider").val(data.message.volume);
+            
+            // Update DM Sound Manager if volume changed externally
+            if (typeof DMSoundManager !== 'undefined' && DMSoundManager.currentTrackId && DMSoundManager.currentTrackId !== "-1") {
+              DMSoundManager.setTrackVolume(DMSoundManager.currentTrackId, data.message.volume);
+              // Update UI if the modal is open
+              if ($('#modal-1').hasClass('in') || $('#modal-1').is(':visible')) {
+                $('.volume-display').text(data.message.volume + '%');
+                DMSoundManager.updateVolumeDisplays();
+              }
+            }
+            
+            // Apply user volume control on top of DM volume change
+            if (typeof UserVolumeControl !== 'undefined') {
+              setTimeout(() => UserVolumeControl.applyUserVolume(), 50);
+            }
           }
           resolve();
           break;
@@ -451,6 +477,17 @@ class EventQueue {
         active_background_sound.pause();
         active_background_sound = null;
         active_track_id = -1;
+        
+        // Update DM Sound Manager state
+        if (typeof DMSoundManager !== 'undefined') {
+          DMSoundManager.currentTrackId = "-1";
+          DMSoundManager.isPlaying = false;
+          // Update UI if the modal is open
+          if ($('#modal-1').hasClass('in') || $('#modal-1').is(':visible')) {
+            DMSoundManager.updateUI();
+          }
+        }
+        
         resolve();
       });
     } else {
@@ -587,6 +624,247 @@ const ajaxPost = (url, data, onSuccess, isJSON = false) => {
   });
 };
 
+// DM Sound Manager - Enhanced soundtrack control for DMs
+const DMSoundManager = {
+  // Store volume preferences for each track
+  trackVolumes: {},
+  currentTrackId: null,
+  isPlaying: false,
+  
+  // Load track volumes from localStorage
+  loadTrackVolumes: function() {
+    const saved = localStorage.getItem('dmTrackVolumes');
+    if (saved) {
+      try {
+        this.trackVolumes = JSON.parse(saved);
+      } catch (e) {
+        console.warn('Failed to load track volumes:', e);
+        this.trackVolumes = {};
+      }
+    }
+  },
+  
+  // Save track volumes to localStorage
+  saveTrackVolumes: function() {
+    try {
+      localStorage.setItem('dmTrackVolumes', JSON.stringify(this.trackVolumes));
+    } catch (e) {
+      console.warn('Failed to save track volumes:', e);
+    }
+  },
+  
+  // Get saved volume for a track (default 50)
+  getTrackVolume: function(trackId) {
+    return this.trackVolumes[trackId] || 50;
+  },
+  
+  // Set volume for a track
+  setTrackVolume: function(trackId, volume) {
+    this.trackVolumes[trackId] = volume;
+    this.saveTrackVolumes();
+  },
+  
+  // Switch to a track (one-click switching)
+  switchToTrack: function(trackId) {
+    if (trackId === this.currentTrackId && this.isPlaying) {
+      // Same track and playing - toggle pause
+      this.togglePlayPause();
+      return;
+    }
+    
+    // Different track or resuming - switch to it
+    const volume = this.getTrackVolume(trackId);
+    
+    // Send track switch request to server
+    ajaxPost(
+      "/sound",
+      { track_id: trackId },
+      (data) => {
+        console.log("Track switched successfully:", data);
+        this.currentTrackId = trackId;
+        this.isPlaying = trackId !== "-1";
+        
+        // Update global state
+        active_track_id = trackId;
+        
+        // If stopping music, clear the audio
+        if (trackId === "-1") {
+          if (active_background_sound) {
+            active_background_sound.pause();
+            active_background_sound = null;
+          }
+        }
+        
+        this.updateUI();
+      },
+      true
+    );
+    
+    // Also send volume if not stopping
+    if (trackId !== "-1") {
+      setTimeout(() => {
+        ajaxPost(
+          "/volume",
+          { volume: volume },
+          () => console.log("Volume set for track:", trackId, volume),
+          true
+        );
+      }, 100);
+    }
+  },
+  
+  // Toggle play/pause for current track
+  togglePlayPause: function() {
+    if (this.currentTrackId && this.currentTrackId !== "-1") {
+      if (this.isPlaying) {
+        // Pause - stop the track
+        ajaxPost(
+          "/sound",
+          { track_id: "-1" },
+          (data) => {
+            console.log("Track paused successfully:", data);
+            // Keep track ID but mark as not playing (paused state)
+            this.isPlaying = false;
+            this.updateUI();
+          },
+          true
+        );
+      } else {
+        // Resume - play the track again
+        const volume = this.getTrackVolume(this.currentTrackId);
+        ajaxPost(
+          "/sound",
+          { track_id: this.currentTrackId },
+          (data) => {
+            console.log("Track resumed successfully:", data);
+            this.isPlaying = true;
+            this.updateUI();
+          },
+          true
+        );
+        
+        // Set volume
+        setTimeout(() => {
+          ajaxPost(
+            "/volume",
+            { volume: volume },
+            () => console.log("Volume restored for resumed track:", volume),
+            true
+          );
+        }, 100);
+      }
+    }
+  },
+  
+  // Stop current track
+  stopTrack: function() {
+    ajaxPost(
+      "/sound",
+      { track_id: "-1" },
+      (data) => {
+        console.log("Track stopped successfully:", data);
+        this.currentTrackId = "-1";
+        this.isPlaying = false;
+        active_track_id = -1;
+        
+        if (active_background_sound) {
+          active_background_sound.pause();
+          active_background_sound = null;
+        }
+        
+        this.updateUI();
+      },
+      true
+    );
+  },
+  
+  // Update UI elements
+  updateUI: function() {
+    const currentDisplay = $('#current-track-display');
+    const playBtn = $('.play-btn');
+    const pauseBtn = $('.pause-btn');
+    const stopBtn = $('.stop-btn');
+    const volumeSection = $('.volume-controls');
+    
+    // Update current track display
+    if (this.currentTrackId && this.currentTrackId !== "-1") {
+      const trackItem = $(`.track-item[data-track-id="${this.currentTrackId}"]`);
+      const trackName = trackItem.find('.track-name').text().replace('🎵 ', '');
+      currentDisplay.text(trackName);
+      
+      // Show/hide playback controls
+      if (this.isPlaying) {
+        playBtn.hide();
+        pauseBtn.show();
+        stopBtn.show();
+        volumeSection.show();
+      } else {
+        playBtn.show();
+        pauseBtn.hide();
+        stopBtn.hide();
+        volumeSection.hide();
+      }
+    } else {
+      currentDisplay.text('None');
+      playBtn.hide();
+      pauseBtn.hide();
+      stopBtn.hide();
+      volumeSection.hide();
+    }
+    
+    // Update track list highlighting
+    $('.track-item').removeClass('active-track');
+    if (this.currentTrackId) {
+      $(`.track-item[data-track-id="${this.currentTrackId}"]`).addClass('active-track');
+    }
+    
+    // Update volume displays
+    this.updateVolumeDisplays();
+  },
+  
+  // Update volume displays for all tracks
+  updateVolumeDisplays: function() {
+    $('.track-item').each((index, element) => {
+      const $element = $(element);
+      const trackId = $element.data('track-id');
+      if (trackId && trackId !== "-1") {
+        const volume = this.getTrackVolume(trackId);
+        $element.find('.track-vol-display').text(volume);
+      }
+    });
+  },
+  
+  // Set volume for current track
+  setCurrentVolume: function(volume) {
+    if (this.currentTrackId && this.currentTrackId !== "-1") {
+      this.setTrackVolume(this.currentTrackId, volume);
+      
+      // Send to server
+      ajaxPost(
+        "/volume",
+        { volume: volume },
+        () => console.log("Volume updated for current track:", volume),
+        true
+      );
+      
+      // Update display
+      $('.volume-display').text(volume + '%');
+      this.updateVolumeDisplays();
+    }
+  },
+  
+  // Initialize the sound manager
+  init: function() {
+    this.loadTrackVolumes();
+    
+    // Get current state from active_track_id
+    this.currentTrackId = active_track_id;
+    this.isPlaying = active_background_sound !== null;
+    
+    this.updateUI();
+  }
+};
+
 // Plays a background sound (stopping any previous one).
 const playSound = (url, track_id, volume, time_override = null) => {
   const elapsed = (Date.now() - pageRenderTime) / 1000;
@@ -606,6 +884,124 @@ const playSound = (url, track_id, volume, time_override = null) => {
   active_track_id = track_id;
   active_background_sound.play();
   $(".volume-slider").val(active_background_sound.volume * 100);
+  
+  // Update DM Sound Manager state
+  if (typeof DMSoundManager !== 'undefined') {
+    DMSoundManager.currentTrackId = track_id;
+    DMSoundManager.isPlaying = true;
+  }
+  
+  // Apply user volume control if available (for non-DM users)
+  if (typeof UserVolumeControl !== 'undefined') {
+    setTimeout(() => UserVolumeControl.applyUserVolume(), 100);
+  }
+};
+
+// User Volume Control System (for non-DM users)
+const UserVolumeControl = {
+  // Get user's saved volume preference (0-100)
+  getUserVolume: function() {
+    const saved = localStorage.getItem('userMusicVolume');
+    return saved !== null ? parseInt(saved) : 70; // Default to 70%
+  },
+  
+  // Save user's volume preference
+  setUserVolume: function(volume) {
+    localStorage.setItem('userMusicVolume', volume.toString());
+  },
+  
+  // Get user's mute preference
+  getUserMuted: function() {
+    return localStorage.getItem('userMusicMuted') === 'true';
+  },
+  
+  // Save user's mute preference
+  setUserMuted: function(muted) {
+    localStorage.setItem('userMusicMuted', muted.toString());
+  },
+  
+  // Apply user volume on top of DM volume
+  applyUserVolume: function() {
+    if (active_background_sound) {
+      const dmVolume = parseFloat($('body').attr('data-soundtrack-volume')) || 50;
+      const userVolume = this.getUserVolume();
+      const isMuted = this.getUserMuted();
+      
+      // Calculate effective volume: DM volume * user volume multiplier
+      const effectiveVolume = isMuted ? 0 : (dmVolume / 100) * (userVolume / 100);
+      active_background_sound.volume = Math.max(0, Math.min(1, effectiveVolume));
+      
+      // Update widget display
+      this.updateWidget();
+    }
+  },
+  
+  // Update the music control widget
+  updateWidget: function() {
+    const widget = $('#music-control-widget');
+    const userVolume = this.getUserVolume();
+    const isMuted = this.getUserMuted();
+    const trackName = $('body').attr('data-soundtrack-id') || 'No music playing';
+    
+    // Update track name
+    $('#current-track-name').text(trackName);
+    
+    // Update volume slider
+    $('#user-volume-slider').val(userVolume);
+    $('#volume-display').text(userVolume + '%');
+    
+    // Update mute button
+    const muteIcon = $('#mute-icon');
+    const muteText = $('#mute-text');
+    if (isMuted) {
+      muteIcon.removeClass('glyphicon-volume-up').addClass('glyphicon-volume-off');
+      muteText.text('Unmute');
+      $('#mute-toggle').addClass('btn-warning').removeClass('btn-default');
+    } else {
+      muteIcon.removeClass('glyphicon-volume-off').addClass('glyphicon-volume-up');
+      muteText.text('Mute');
+      $('#mute-toggle').removeClass('btn-warning').addClass('btn-default');
+    }
+    
+    // Show widget if music is playing
+    if (active_background_sound && trackName !== 'No music playing') {
+      widget.show().addClass('fade-in');
+    } else {
+      widget.hide();
+    }
+  },
+  
+  // Initialize the user volume control system
+  init: function() {
+    const self = this;
+    
+    // Set up volume slider
+    $('#user-volume-slider').on('input', function() {
+      const volume = parseInt($(this).val());
+      self.setUserVolume(volume);
+      self.applyUserVolume();
+    });
+    
+    // Set up mute toggle
+    $('#mute-toggle').on('click', function() {
+      const isMuted = !self.getUserMuted();
+      self.setUserMuted(isMuted);
+      self.applyUserVolume();
+    });
+    
+    // Set up widget collapse/expand
+    $('#toggle-music-widget').on('click', function() {
+      $('#music-control-widget').toggleClass('collapsed');
+    });
+    
+    // Initialize widget state
+    this.updateWidget();
+    
+    // Apply saved volume if music is already playing
+    if (active_background_sound) {
+      this.applyUserVolume();
+    }
+  }
 };
 
 // Returns the center coordinates of a tile element.
@@ -1054,6 +1450,11 @@ $(document).ready(() => {
   backgroundSoundStartTime = $("body").data("soundtrack-time");
   pageRenderTime = new Date().getTime();
 
+  // Initialize user volume control for non-DM users
+  if (typeof UserVolumeControl !== 'undefined' && $('#music-control-widget').length > 0) {
+    UserVolumeControl.init();
+  }
+
   // --- Canvas Setup ---
   const tile_size = $(".tiles-container").data("tile-size");
 
@@ -1142,6 +1543,11 @@ $(document).ready(() => {
         currentSoundtrackVolume,
       );
       currentSoundtrackId = null;
+      
+      // Update user volume control widget after music starts
+      if (typeof UserVolumeControl !== 'undefined') {
+        setTimeout(() => UserVolumeControl.updateWidget(), 200);
+      }
     }
   });
 
@@ -1156,13 +1562,22 @@ $(document).ready(() => {
   });
 
   $("#modal-1 .modal-content").on("input", ".volume-slider", function () {
+    const volume = parseInt($(this).val());
+    $('.volume-display').text(volume + '%');
+    
     if (active_background_sound) {
-      ajaxPost(
-        "/volume",
-        { volume: $(this).val() },
-        () => console.log("Volume updated successfully"),
-        true,
-      );
+      // Update DM Sound Manager volume
+      if (typeof DMSoundManager !== 'undefined') {
+        DMSoundManager.setCurrentVolume(volume);
+      } else {
+        // Fallback to original behavior
+        ajaxPost(
+          "/volume",
+          { volume: volume },
+          () => console.log("Volume updated successfully"),
+          true,
+        );
+      }
     }
   });
 
@@ -1670,21 +2085,33 @@ $(document).ready(() => {
     $.get("/tracks", { track_id: active_track_id }, (data) => {
       $("#modal-1 .modal-content").html(data);
       $("#modal-1").modal("show");
+      
+      // Initialize DM Sound Manager after modal loads
+      setTimeout(() => {
+        DMSoundManager.init();
+      }, 100);
     });
   });
 
-  $("#modal-1 .modal-content").on("click", ".play", function () {
-    const trackId = $('input[name="track_id"]:checked').val();
-    ajaxPost(
-      "/sound",
-      { track_id: trackId },
-      (data) => {
-        console.log("Sound request successful:", data);
-        $("#modal-1").modal("hide");
-      },
-      (isJSON = true),
-    );
+  // DM Sound Manager Event Handlers
+  $("#modal-1 .modal-content").on("click", ".track-item", function () {
+    const trackId = $(this).data('track-id');
+    DMSoundManager.switchToTrack(trackId);
   });
+  
+  $("#modal-1 .modal-content").on("click", ".play-btn", function () {
+    DMSoundManager.togglePlayPause();
+  });
+  
+  $("#modal-1 .modal-content").on("click", ".pause-btn", function () {
+    DMSoundManager.togglePlayPause();
+  });
+  
+  $("#modal-1 .modal-content").on("click", ".stop-btn", function () {
+    DMSoundManager.stopTrack();
+  });
+
+
 
   $("#reload-map").click(() => {
     Utils.ajaxPost("/reload_map", {}, (data) => {
