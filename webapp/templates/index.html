@@ -531,6 +531,22 @@
   </div>
 </div>
 
+<!-- Note Modal -->
+<div id="noteModal" class="custom-modal" style="display: none;">
+  <div class="custom-modal-content">
+    <div class="custom-modal-header">
+      <h4 id="noteModalTitle">Notes</h4>
+      <button class="custom-modal-close" onclick="Utils.closeNoteModal()">&times;</button>
+    </div>
+    <div class="custom-modal-body">
+      <div id="noteModalContent"></div>
+    </div>
+    <div class="custom-modal-footer">
+      <button class="custom-modal-btn" onclick="Utils.closeNoteModal()">Close</button>
+    </div>
+  </div>
+</div>
+
     <!-- JRPG Dialog Panel (Draggable) -->
 <div id="jrpgDialogPanel" class="draggable-dialog-panel" style="display: none; position: fixed; top: 100px; left: 50px; width: 800px; height: 600px; z-index: 1000; background: white; border: 2px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); overflow: hidden;">
   <div class="dialog-panel-header" style="padding: 10px; border-bottom: 1px solid #ddd; border-radius: 6px 6px 0 0; cursor: move; user-select: none;">

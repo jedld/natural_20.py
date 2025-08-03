@@ -286,13 +286,32 @@ class DoorObject(Object):
         if action == "open":
             if self.closed():
                 self.open()
+                if session:
+                    session.event_manager.received_event({
+                        "source": entity,
+                        "target": self,
+                        "event": "object_interaction",
+                        "sub_type": "open",
+                        "result": "success",
+                        "reason": "Door opened"
+                    })
         elif action == "close":
             if self.opened():
                 if self.someone_blocking_the_doorway():
                     EventManager.received_event(source=self, user=entity, event="object_interaction",
                                                           sub_type="close_failed", result="failed",
                                                           reason="Cannot close door since something is in the doorway")
-                self.close()
+                else:
+                    self.close()
+                    if session:
+                        session.event_manager.received_event({
+                            "source": entity,
+                            "target": self,
+                            "event": "object_interaction",
+                            "sub_type": "close",
+                            "result": "success",
+                            "reason": "Door closed"
+                        })
         elif action == "lockpick_success":
             if self.locked:
                 self.unlock()
