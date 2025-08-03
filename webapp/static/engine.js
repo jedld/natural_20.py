@@ -1467,6 +1467,27 @@ function createGlobalCanvas() {
   globalCtx = globalCanvas.getContext("2d");
 }
 
+// Check if user is DM
+function isDM() {
+  return $('body').data('role') && $('body').data('role').includes('dm');
+}
+
+// Update draggable entity classes for proper cursor styling
+function updateDraggableEntityClasses() {
+  if (!isDM()) return;
+  
+  $('.tile').removeClass('has-draggable-entity');
+  $('.tile').each(function() {
+    const $tile = $(this);
+    const entityId = $tile.data("coords-id");
+    
+    // Add class if tile has an entity or NPC
+    if (entityId && $tile.find('.entity, .npc').length) {
+      $tile.addClass('has-draggable-entity');
+    }
+  });
+}
+
 
 // --- Document Ready: Event Bindings & Main Logic ---
 $(document).ready(() => {
@@ -1717,6 +1738,10 @@ $(document).ready(() => {
     ".show-note-btn, .object-note-overlay",
     function (e) {
       e.stopPropagation();
+      // Call the note modal function if it's a note button
+      if ($(this).hasClass('show-note-btn')) {
+        Utils.showNoteModal(this);
+      }
     },
   );
 
@@ -3295,27 +3320,6 @@ $(document).ready(() => {
   let draggedEntityTile = null;
   let dragOffset = { x: 0, y: 0 };
   let dragGhost = null;
-
-  // Check if user is DM
-  function isDM() {
-    return $('body').data('role') && $('body').data('role').includes('dm');
-  }
-
-  // Update draggable entity classes for proper cursor styling
-  function updateDraggableEntityClasses() {
-    if (!isDM()) return;
-    
-    $('.tile').removeClass('has-draggable-entity');
-    $('.tile').each(function() {
-      const $tile = $(this);
-      const entityId = $tile.data("coords-id");
-      
-      // Add class if tile has an entity or NPC
-      if (entityId && $tile.find('.entity, .npc').length) {
-        $tile.addClass('has-draggable-entity');
-      }
-    });
-  }
 
   // Mouse down on entity tile (start drag)
   $(".tiles-container").on("mousedown", ".tile", function(e) {
