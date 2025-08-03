@@ -1727,7 +1727,6 @@ def update_npc():
     except Exception as e:
         logger.error(f"Error updating NPC: {str(e)}")
         return jsonify(error=f'Failed to update NPC: {str(e)}'), 500
-
 @app.route('/update')
 def update():
     global current_game, logger
