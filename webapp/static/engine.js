@@ -10,6 +10,30 @@ let globalCtx = null;
 let talkToEntityMode = false; // Flag to track when user is talking to an entity
 let dialogMessageProcessing = false; // Flag to track if a dialog message is being processed
 
+// Mode & State Variables (global scope for access by functions)
+let valid_target_cache = {};
+let move_path_cache = {};
+let currentPosition = null;
+let accumulatedPath = [];
+let pivotPoints = [];
+let moveMode = false,
+  targetMode = false,
+  coneMode = false,
+  multiTargetMode = false,
+  multiTargetModeUnique = false;
+let movePath = [],
+  multiTargetList = [];
+let max_targets = 1;
+let targetModeCallback = null,
+  moveModeCallback = null;
+let targetModeMaxRange = 0,
+  source = null,
+  battle_setup = false;
+let globalActionInfo = null,
+  globalOpts = null,
+  globalSourceEntity = null;
+let pathDebounceTimer = null;
+
 // Event queue system for FIFO processing
 class EventQueue {
   constructor() {
@@ -1684,31 +1708,6 @@ $(document).ready(() => {
       }
     }
   });
-
-  // Mode & State Variables
-  let valid_target_cache = {};
-  let move_path_cache = {};
-  let currentPosition = null;
-  let accumulatedPath = [];
-  let pivotPoints = [];
-  let moveMode = false,
-    targetMode = false,
-    coneMode = false,
-    multiTargetMode = false,
-    multiTargetModeUnique = false;
-  let movePath = [],
-    multiTargetList = [];
-  let max_targets = 1;
-  let targetModeCallback = null,
-    moveModeCallback = null;
-  let targetModeMaxRange = 0,
-    source = null,
-    battle_setup = false;
-  let globalActionInfo = null,
-    globalOpts = null,
-    globalSourceEntity = null;
-  // Add debounce timer variable
-  let pathDebounceTimer = null;
 
   $(".tiles-container").on(
     "click",
