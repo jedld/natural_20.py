@@ -2110,6 +2110,121 @@ $(document).ready(() => {
     centerOnEntityId($(this).data("id"));
   });
 
+  // Drag and drop functionality for turn order reordering (DM only)
+  let draggedElement = null;
+  let draggedIndex = -1;
+
+  $("#turn-order").on("dragstart", ".turn-order-item[draggable='true']", function (e) {
+    // Only allow dragging from the drag handle or empty areas, not from form elements
+    const target = e.originalEvent.target;
+    if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'BUTTON' ||
+        target.closest('input, select, button')) {
+      e.preventDefault();
+      return false;
+    }
+    
+    draggedElement = this;
+    draggedIndex = $(this).index();
+    $(this).addClass("dragging");
+    
+    // Set drag data
+    e.originalEvent.dataTransfer.effectAllowed = "move";
+    e.originalEvent.dataTransfer.setData("text/html", this.outerHTML);
+    
+    console.log("Started dragging entity:", $(this).data("id"));
+  });
+
+  $("#turn-order").on("dragend", ".turn-order-item[draggable='true']", function (e) {
+    $(this).removeClass("dragging");
+    $(".turn-order-item").removeClass("drag-over drag-over-bottom");
+    draggedElement = null;
+    draggedIndex = -1;
+  });
+
+  $("#turn-order").on("dragover", ".turn-order-item", function (e) {
+    e.preventDefault();
+    e.originalEvent.dataTransfer.dropEffect = "move";
+    
+    if (this !== draggedElement) {
+      const rect = this.getBoundingClientRect();
+      const midpoint = rect.top + rect.height / 2;
+      const mouseY = e.originalEvent.clientY;
+      
+      $(".turn-order-item").removeClass("drag-over drag-over-bottom");
+      
+      if (mouseY < midpoint) {
+        $(this).addClass("drag-over");
+      } else {
+        $(this).addClass("drag-over-bottom");
+      }
+    }
+  });
+
+  $("#turn-order").on("drop", ".turn-order-item", function (e) {
+    e.preventDefault();
+    
+    if (this !== draggedElement) {
+      const targetIndex = $(this).index();
+      const rect = this.getBoundingClientRect();
+      const midpoint = rect.top + rect.height / 2;
+      const mouseY = e.originalEvent.clientY;
+      
+      let newIndex = targetIndex;
+      if (mouseY >= midpoint) {
+        newIndex = targetIndex + 1;
+      }
+      
+      // Adjust for moving elements within the same container
+      if (draggedIndex < newIndex) {
+        newIndex--;
+      }
+      
+      // Get the new order of entity IDs
+      const $turnOrderItems = $("#turn-order .turn-order-item");
+      const entityOrder = [];
+      
+      $turnOrderItems.each(function(index) {
+        if (this !== draggedElement) {
+          entityOrder.push($(this).data("id"));
+        }
+      });
+      
+      // Insert the dragged element at the new position
+      const draggedEntityId = $(draggedElement).data("id");
+      entityOrder.splice(newIndex, 0, draggedEntityId);
+      
+      console.log("Reordering initiative:", entityOrder);
+      
+      // Send the new order to the server
+      ajaxPost("/reorder_initiative", 
+        { entity_order: entityOrder }, 
+        (data) => {
+          if (data.status === 'ok') {
+            console.log("Initiative reordered successfully");
+            // Refresh the turn order display
+            refreshTurnOrder();
+          } else {
+            console.error("Failed to reorder initiative:", data.error);
+            alert("Failed to reorder initiative: " + (data.error || "Unknown error"));
+          }
+        },
+        true
+      );
+    }
+    
+    $(".turn-order-item").removeClass("drag-over drag-over-bottom");
+  });
+
+  // Prevent default drag behavior on the turn order container
+  $("#turn-order").on("dragover", function(e) {
+    e.preventDefault();
+  });
+
+  // Prevent dragging when clicking on form elements
+  $("#turn-order").on("mousedown", "input, select, button", function(e) {
+    e.stopPropagation();
+  });
+
   $("#select-soundtrack").click(() => {
     $.get("/tracks", { track_id: active_track_id }, (data) => {
       $("#modal-1 .modal-content").html(data);

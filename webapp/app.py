@@ -1389,6 +1389,41 @@ def next_turn():
     #     f.write(yaml.dump(battle_map.to_dict()))
     return jsonify(status='ok')
 
+@app.route('/reorder_initiative', methods=['POST'])
+def reorder_initiative():
+    global current_game
+    
+    # Check if user is DM
+    if 'dm' not in user_role():
+        return jsonify(error='Only DMs can reorder initiative'), 403
+    
+    battle = current_game.get_current_battle()
+    if not battle:
+        return jsonify(error='No active battle'), 400
+    
+    if not request.json or 'entity_order' not in request.json:
+        return jsonify(error='No entity order provided'), 400
+    
+    entity_order = request.json['entity_order']
+    
+    try:
+        # Use the lock to make the operation atomic
+        with game_state_lock:
+            battle.reorder_initiative(entity_order)
+        
+        # Notify all clients of the initiative update
+        socketio.emit('message', { 'type': 'initiative', 'message': {'index': battle.current_turn_index}})
+        
+        logger.info(f"Initiative reordered by {session['username']}: {entity_order}")
+        return jsonify(status='ok')
+        
+    except ValueError as e:
+        logger.error(f"Failed to reorder initiative: {str(e)}")
+        return jsonify(error=str(e)), 400
+    except Exception as e:
+        logger.error(f"Unexpected error reordering initiative: {str(e)}")
+        return jsonify(error='Internal server error'), 500
+
 @app.route('/update')
 def update():
     global current_game, logger
