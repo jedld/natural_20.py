@@ -116,6 +116,102 @@ const Chat = {
         // Scroll to bottom
         $chatContainer.scrollTop($chatContainer[0].scrollHeight);
     },
+    getCurrentPovEntity: () => {
+        // Try to get from the floating portraits
+        const $currentPov = $('#floating-entity-portraits .floating-entity-portrait.current-pov');
+        if ($currentPov.length) {
+            return $currentPov.data('id');
+        }
+
+        const povEntityId = $('body').data('pov-entity');
+
+        if (povEntityId) {
+            return povEntityId;
+        }
+
+        // If we can't determine POV, return null
+        return null;
+    },
+    showConversationBubble: function (entity_id, message) {
+        const $tile = $(`.tile[data-coords-id="${entity_id}"]`);
+        if ($tile.length) {
+            // Check if conversation bubble already exists
+            let $bubble = $tile.find('.conversation-bubble');
+
+            if ($bubble.length) {
+                // Update existing bubble
+                $bubble.find('.bubble-content').text(message);
+                $bubble.removeClass('minimized');
+                $bubble.find('.bubble-content').show();
+                $bubble.find('.bubble-minimized').hide();
+            } else {
+                // Create new bubble
+                $bubble = $(`
+          <div class="conversation-bubble">
+            <div class="bubble-content">${message}</div>
+            <div class="bubble-minimized" style="display: none;">
+              <i class="glyphicon glyphicon-comment"></i>
+            </div>
+            <button class="close-bubble" onclick="Utils.dismissBubble(this.parentElement); event.stopPropagation();">×</button>
+          </div>
+        `);
+                $tile.append($bubble);
+            }
+
+            setTimeout(() => {
+                $tile.find('.conversation-bubble').fadeOut(500, function () {
+                    $(this).remove();
+                });
+            }, 10000);
+        }
+    },
+    addDialogMessage: function (sender, content, type) {
+        const timestamp = new Date().toLocaleTimeString();
+
+        // Determine the display name based on mode and sender
+        let displayName = sender;
+        if (talkToEntityMode) {
+            if (sender === 'player') {
+                // Get the current POV entity name
+                const currentPovEntity = Chat.getCurrentPovEntity();
+                if (currentPovEntity) {
+                    const $povTile = $(`.tile[data-coords-id="${currentPovEntity}"]`);
+                    const $nameplate = $povTile.find('.nameplate');
+                    if ($nameplate.length) {
+                        displayName = $nameplate.text();
+                    } else {
+                        displayName = 'You';
+                    }
+                } else {
+                    displayName = 'You';
+                }
+            } else if (sender === 'entity') {
+                // Get the entity being talked to
+                const $entityTile = $(`.tile[data-coords-id="${$('#dialogEntityName').data('entity-id')}"]`);
+                const $nameplate = $entityTile.find('.nameplate');
+                if ($nameplate.length) {
+                    displayName = $nameplate.text();
+                } else {
+                    displayName = 'Entity';
+                }
+            }
+        }
+
+        const messageHtml = `
+      <div class="dialog-chat-message ${type}">
+        <div class="message-sender">${displayName}</div>
+        <div class="message-content">${content}</div>
+        <div class="message-timestamp">${timestamp}</div>
+      </div>
+    `;
+
+        $('#dialogChatMessages').append(messageHtml);
+
+        // Scroll to bottom
+        const $messages = $('#dialogChatMessages');
+        $messages.scrollTop($messages[0].scrollHeight);
+    },
+
     init: function () {
         // Refresh models button
         $("#refresh-models").on("click", function () {

@@ -62,11 +62,11 @@ class EventQueue {
       console.warn('Event queue is full, dropping oldest event');
       this.queue.shift();
     }
-    
+
     if (this.debugMode) {
       console.log(`[EventQueue] Enqueuing event: ${event.type}, queue length: ${this.queue.length + 1}`);
     }
-    
+
     this.queue.push(event);
     this.processNext();
   }
@@ -77,18 +77,18 @@ class EventQueue {
     }
 
     this.processing = true;
-    
+
     while (this.queue.length > 0) {
       const event = this.queue.shift();
       this.processedCount++;
-      
+
       if (this.debugMode) {
         console.log(`[EventQueue] Processing event #${this.processedCount}: ${event.type}, remaining: ${this.queue.length}`);
       }
-      
+
       try {
         await this.processEvent(event);
-        
+
         // Add a small delay between events to ensure smooth visual transitions
         // Especially important for movement events that involve animations
         if (event.type === 'move' && this.queue.length > 0) {
@@ -98,9 +98,9 @@ class EventQueue {
         console.error('Error processing event:', error, event);
       }
     }
-    
+
     this.processing = false;
-    
+
     if (this.debugMode) {
       console.log(`[EventQueue] Processing complete. Total processed: ${this.processedCount}`);
     }
@@ -113,7 +113,7 @@ class EventQueue {
       } else {
         console.log("Processing event:", data);
       }
-      
+
       switch (data.type) {
         case "refresh_map": {
           Utils.refreshTileSet();
@@ -156,7 +156,7 @@ class EventQueue {
             data.message.volume,
             0,
           );
-          
+
           // Update DM Sound Manager state when track changes
           if (typeof DMSoundManager !== 'undefined') {
             DMSoundManager.currentTrackId = data.message.track_id || data.message.id;
@@ -166,7 +166,7 @@ class EventQueue {
               DMSoundManager.updateUI();
             }
           }
-          
+
           resolve();
           break;
         case "prompt": {
@@ -197,7 +197,7 @@ class EventQueue {
           if (active_background_sound) {
             active_background_sound.volume = data.message.volume / 100;
             $(".volume-slider").val(data.message.volume);
-            
+
             // Update DM Sound Manager if volume changed externally
             if (typeof DMSoundManager !== 'undefined' && DMSoundManager.currentTrackId && DMSoundManager.currentTrackId !== "-1") {
               DMSoundManager.setTrackVolume(DMSoundManager.currentTrackId, data.message.volume);
@@ -207,7 +207,7 @@ class EventQueue {
                 DMSoundManager.updateVolumeDisplays();
               }
             }
-            
+
             // Apply user volume control on top of DM volume change
             if (typeof UserVolumeControl !== 'undefined') {
               setTimeout(() => UserVolumeControl.applyUserVolume(), 50);
@@ -242,7 +242,7 @@ class EventQueue {
           break;
         case "switch_map":
           var map_id = data.message.map;
-          Utils.switchMap(map_id, globalCanvas, ()=>{
+          Utils.switchMap(map_id, globalCanvas, () => {
             createGlobalCanvas();
             resolve();
           });
@@ -284,34 +284,34 @@ class EventQueue {
   processConversationEvent(data, resolve) {
     // Handle real-time conversation updates
     const { entity_id, message, targets } = data.message;
-    
+
     // Validate required fields
     if (!entity_id || !message) {
       console.warn('Invalid conversation event received:', data.message);
       resolve();
       return;
     }
-  
+
     // Check if dialog panel is open and if this entity matches the current dialog
     const $dialogPanel = $('#jrpgDialogPanel');
     const currentDialogEntityId = $('#dialogEntityName').data('entity-id');
-    const currentPovEntity = getCurrentPovEntity();
-    
+    const currentPovEntity = Chat.getCurrentPovEntity();
+
     // Check if this message should be shown in dialog panel:
     // 1. Dialog panel is open and this entity matches the current dialog entity
     // 2. OR this message is directed to the current POV entity (targets includes current POV)
     const shouldShowInDialog = $dialogPanel.is(':visible') && (
-      currentDialogEntityId === entity_id || 
+      currentDialogEntityId === entity_id ||
       (targets && Array.isArray(targets) && targets.includes(currentPovEntity))
     );
-    
+
     // Check if this message is directed to the current POV entity (for potential dialog opening)
     const isDirectedToPov = targets && Array.isArray(targets) && targets.includes(currentPovEntity);
 
     if (shouldShowInDialog) {
       // Dialog panel is open and this entity matches - show message in dialog
       console.log('Adding conversation message to dialog panel:', message);
-      
+
       try {
         // Get the entity name for display
         const $entityTile = $(`.tile[data-coords-id="${entity_id}"]`);
@@ -324,13 +324,13 @@ class EventQueue {
             entityName = $entityTile.data('entity-name') || 'Entity';
           }
         }
-        
+
         // Add the message to the dialog chat
-        addDialogMessage('entity', message, 'entity');
+        Chat.addDialogMessage('entity', message, 'entity');
       } catch (error) {
         console.error('Error adding message to dialog modal:', error);
         // Fallback to showing conversation bubble
-        showConversationBubble(entity_id, message);
+        Chat.showConversationBubble(entity_id, message);
       }
     } else if (isDirectedToPov && !$dialogPanel.is(':visible')) {
       // Message is directed to current POV but dialog panel is not open
@@ -339,7 +339,7 @@ class EventQueue {
       showDialogTriggerBubble(entity_id, message);
     } else {
       // Show conversation bubble on tile as before
-      showConversationBubble(entity_id, message);
+      Chat.showConversationBubble(entity_id, message);
     }
     resolve();
   }
@@ -381,14 +381,14 @@ class EventQueue {
           });
         }
       }
-      
+
       // Check if the entity tile exists before proceeding with animation
       if (!$tile.length) {
         console.warn('Entity tile not found, skipping animation for:', entity_uid);
         animateFunction(animationLog, idx + 1);
         return;
       }
-      
+
       const tileRect = $tile[0].getBoundingClientRect();
       const scrollLeft =
         window.pageXOffset || document.documentElement.scrollLeft;
@@ -396,7 +396,7 @@ class EventQueue {
         window.pageYOffset || document.documentElement.scrollTop;
       let prevX = tileRect.left + scrollLeft;
       let prevY = tileRect.top + scrollTop;
-      
+
       const moveFunc = (p, index) => {
         if (index >= p.length) {
           // Clean up transition properties when animation is complete
@@ -409,23 +409,23 @@ class EventQueue {
         const $newTile = $(
           `.tile[data-coords-x="${x}"][data-coords-y="${y}"]`,
         );
-        
+
         // Check if the target tile exists
         if (!$newTile.length) {
           console.warn('Target tile not found, skipping move step:', { x, y, entity_uid });
           moveFunc(p, index + 1);
           return;
         }
-        
+
         const newRect = $newTile[0].getBoundingClientRect();
         const imageContainer = $('.image-container')[0].getBoundingClientRect();
         const tile_size = $('.tiles-container').data('tile-size');
         const newX = newRect.left - imageContainer.left + tile_size;
         const newY = newRect.top - imageContainer.top + tile_size;
-        
+
         // Set initial position if this is the first move
         if (index === 0) {
-          $tile.css({ 
+          $tile.css({
             position: 'absolute',
             top: newY,
             left: newX
@@ -436,19 +436,19 @@ class EventQueue {
           moveFunc(p, index + 1);
           return;
         }
-        
+
         // Clear any existing transition to ensure clean state
         $tile.css('transition', 'none');
-        
+
         // Use requestAnimationFrame to ensure the transition is properly set
         requestAnimationFrame(() => {
-          $tile.css({ 
+          $tile.css({
             position: 'absolute',
             top: newY,
             left: newX,
             transition: 'all 0.3s ease-in-out'
           });
-          
+
           // Listen for the transition end event to ensure precise timing
           const transitionEndHandler = (e) => {
             if (e.target === $tile[0] && (e.propertyName === 'top' || e.propertyName === 'left')) {
@@ -458,9 +458,9 @@ class EventQueue {
               moveFunc(p, index + 1);
             }
           };
-          
+
           $tile.on('transitionend', transitionEndHandler);
-          
+
           // Fallback timeout in case transitionend doesn't fire
           setTimeout(() => {
             $tile.off('transitionend', transitionEndHandler);
@@ -470,7 +470,7 @@ class EventQueue {
           }, 350); // Slightly longer than transition time as fallback
         });
       };
-      
+
       // Start the movement sequence for this entity
       if (path && path.length > 0) {
         moveFunc(path, 0);
@@ -479,7 +479,7 @@ class EventQueue {
         animateFunction(animationLog, idx + 1);
       }
     };
-    
+
     if (animationBuffer && animationBuffer.length > 0) {
       animateFunction(animationBuffer, 0);
     } else {
@@ -504,7 +504,7 @@ class EventQueue {
         active_background_sound.pause();
         active_background_sound = null;
         active_track_id = -1;
-        
+
         // Update DM Sound Manager state
         if (typeof DMSoundManager !== 'undefined') {
           DMSoundManager.currentTrackId = "-1";
@@ -514,7 +514,7 @@ class EventQueue {
             DMSoundManager.updateUI();
           }
         }
-        
+
         resolve();
       });
     } else {
@@ -544,7 +544,7 @@ function createEventQueueDebugPanel() {
       </div>
     </div>
   `);
-  
+
   $('body').append(debugPanel);
 }
 
@@ -567,7 +567,7 @@ setInterval(() => {
 }, 100);
 
 // Add keyboard shortcut to toggle debug panel (Ctrl+Shift+Q)
-$(document).keydown(function(e) {
+$(document).keydown(function (e) {
   if (e.ctrlKey && e.shiftKey && e.keyCode === 81) { // Q key
     if ($('#event-queue-debug').length === 0) {
       createEventQueueDebugPanel();
@@ -613,7 +613,7 @@ const switchPOV = (entity_uid, canvas) => {
       globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
     }
   }
-  
+
   ajaxPost("/switch_pov", { entity_uid }, (data) => {
     console.log("Switched POV:", data);
     if (data.background) {
@@ -657,9 +657,9 @@ const DMSoundManager = {
   trackVolumes: {},
   currentTrackId: null,
   isPlaying: false,
-  
+
   // Load track volumes from localStorage
-  loadTrackVolumes: function() {
+  loadTrackVolumes: function () {
     const saved = localStorage.getItem('dmTrackVolumes');
     if (saved) {
       try {
@@ -670,38 +670,38 @@ const DMSoundManager = {
       }
     }
   },
-  
+
   // Save track volumes to localStorage
-  saveTrackVolumes: function() {
+  saveTrackVolumes: function () {
     try {
       localStorage.setItem('dmTrackVolumes', JSON.stringify(this.trackVolumes));
     } catch (e) {
       console.warn('Failed to save track volumes:', e);
     }
   },
-  
+
   // Get saved volume for a track (default 50)
-  getTrackVolume: function(trackId) {
+  getTrackVolume: function (trackId) {
     return this.trackVolumes[trackId] || 50;
   },
-  
+
   // Set volume for a track
-  setTrackVolume: function(trackId, volume) {
+  setTrackVolume: function (trackId, volume) {
     this.trackVolumes[trackId] = volume;
     this.saveTrackVolumes();
   },
-  
+
   // Switch to a track (one-click switching)
-  switchToTrack: function(trackId) {
+  switchToTrack: function (trackId) {
     if (trackId === this.currentTrackId && this.isPlaying) {
       // Same track and playing - toggle pause
       this.togglePlayPause();
       return;
     }
-    
+
     // Different track or resuming - switch to it
     const volume = this.getTrackVolume(trackId);
-    
+
     // Send track switch request to server
     ajaxPost(
       "/sound",
@@ -710,10 +710,10 @@ const DMSoundManager = {
         console.log("Track switched successfully:", data);
         this.currentTrackId = trackId;
         this.isPlaying = trackId !== "-1";
-        
+
         // Update global state
         active_track_id = trackId;
-        
+
         // If stopping music, clear the audio
         if (trackId === "-1") {
           if (active_background_sound) {
@@ -721,12 +721,12 @@ const DMSoundManager = {
             active_background_sound = null;
           }
         }
-        
+
         this.updateUI();
       },
       true
     );
-    
+
     // Also send volume if not stopping
     if (trackId !== "-1") {
       setTimeout(() => {
@@ -739,9 +739,9 @@ const DMSoundManager = {
       }, 100);
     }
   },
-  
+
   // Toggle play/pause for current track
-  togglePlayPause: function() {
+  togglePlayPause: function () {
     if (this.currentTrackId && this.currentTrackId !== "-1") {
       if (this.isPlaying) {
         // Pause - stop the track
@@ -769,7 +769,7 @@ const DMSoundManager = {
           },
           true
         );
-        
+
         // Set volume
         setTimeout(() => {
           ajaxPost(
@@ -782,9 +782,9 @@ const DMSoundManager = {
       }
     }
   },
-  
+
   // Stop current track
-  stopTrack: function() {
+  stopTrack: function () {
     ajaxPost(
       "/sound",
       { track_id: "-1" },
@@ -793,32 +793,32 @@ const DMSoundManager = {
         this.currentTrackId = "-1";
         this.isPlaying = false;
         active_track_id = -1;
-        
+
         if (active_background_sound) {
           active_background_sound.pause();
           active_background_sound = null;
         }
-        
+
         this.updateUI();
       },
       true
     );
   },
-  
+
   // Update UI elements
-  updateUI: function() {
+  updateUI: function () {
     const currentDisplay = $('#current-track-display');
     const playBtn = $('.play-btn');
     const pauseBtn = $('.pause-btn');
     const stopBtn = $('.stop-btn');
     const volumeSection = $('.volume-controls');
-    
+
     // Update current track display
     if (this.currentTrackId && this.currentTrackId !== "-1") {
       const trackItem = $(`.track-item[data-track-id="${this.currentTrackId}"]`);
       const trackName = trackItem.find('.track-name').text().replace('🎵 ', '');
       currentDisplay.text(trackName);
-      
+
       // Show/hide playback controls
       if (this.isPlaying) {
         playBtn.hide();
@@ -838,19 +838,19 @@ const DMSoundManager = {
       stopBtn.hide();
       volumeSection.hide();
     }
-    
+
     // Update track list highlighting
     $('.track-item').removeClass('active-track');
     if (this.currentTrackId) {
       $(`.track-item[data-track-id="${this.currentTrackId}"]`).addClass('active-track');
     }
-    
+
     // Update volume displays
     this.updateVolumeDisplays();
   },
-  
+
   // Update volume displays for all tracks
-  updateVolumeDisplays: function() {
+  updateVolumeDisplays: function () {
     $('.track-item').each((index, element) => {
       const $element = $(element);
       const trackId = $element.data('track-id');
@@ -860,12 +860,12 @@ const DMSoundManager = {
       }
     });
   },
-  
+
   // Set volume for current track
-  setCurrentVolume: function(volume) {
+  setCurrentVolume: function (volume) {
     if (this.currentTrackId && this.currentTrackId !== "-1") {
       this.setTrackVolume(this.currentTrackId, volume);
-      
+
       // Send to server
       ajaxPost(
         "/volume",
@@ -873,21 +873,21 @@ const DMSoundManager = {
         () => console.log("Volume updated for current track:", volume),
         true
       );
-      
+
       // Update display
       $('.volume-display').text(volume + '%');
       this.updateVolumeDisplays();
     }
   },
-  
+
   // Initialize the sound manager
-  init: function() {
+  init: function () {
     this.loadTrackVolumes();
-    
+
     // Get current state from active_track_id
     this.currentTrackId = active_track_id;
     this.isPlaying = active_background_sound !== null;
-    
+
     this.updateUI();
   }
 };
@@ -911,13 +911,13 @@ const playSound = (url, track_id, volume, time_override = null) => {
   active_track_id = track_id;
   active_background_sound.play();
   $(".volume-slider").val(active_background_sound.volume * 100);
-  
+
   // Update DM Sound Manager state
   if (typeof DMSoundManager !== 'undefined') {
     DMSoundManager.currentTrackId = track_id;
     DMSoundManager.isPlaying = true;
   }
-  
+
   // Apply user volume control if available (for non-DM users)
   if (typeof UserVolumeControl !== 'undefined') {
     setTimeout(() => UserVolumeControl.applyUserVolume(), 100);
@@ -927,56 +927,56 @@ const playSound = (url, track_id, volume, time_override = null) => {
 // User Volume Control System (for non-DM users)
 const UserVolumeControl = {
   // Get user's saved volume preference (0-100)
-  getUserVolume: function() {
+  getUserVolume: function () {
     const saved = localStorage.getItem('userMusicVolume');
     return saved !== null ? parseInt(saved) : 70; // Default to 70%
   },
-  
+
   // Save user's volume preference
-  setUserVolume: function(volume) {
+  setUserVolume: function (volume) {
     localStorage.setItem('userMusicVolume', volume.toString());
   },
-  
+
   // Get user's mute preference
-  getUserMuted: function() {
+  getUserMuted: function () {
     return localStorage.getItem('userMusicMuted') === 'true';
   },
-  
+
   // Save user's mute preference
-  setUserMuted: function(muted) {
+  setUserMuted: function (muted) {
     localStorage.setItem('userMusicMuted', muted.toString());
   },
-  
+
   // Apply user volume on top of DM volume
-  applyUserVolume: function() {
+  applyUserVolume: function () {
     if (active_background_sound) {
       const dmVolume = parseFloat($('body').attr('data-soundtrack-volume')) || 50;
       const userVolume = this.getUserVolume();
       const isMuted = this.getUserMuted();
-      
+
       // Calculate effective volume: DM volume * user volume multiplier
       const effectiveVolume = isMuted ? 0 : (dmVolume / 100) * (userVolume / 100);
       active_background_sound.volume = Math.max(0, Math.min(1, effectiveVolume));
-      
+
       // Update widget display
       this.updateWidget();
     }
   },
-  
+
   // Update the music control widget
-  updateWidget: function() {
+  updateWidget: function () {
     const widget = $('#music-control-widget');
     const userVolume = this.getUserVolume();
     const isMuted = this.getUserMuted();
     const trackName = $('body').attr('data-soundtrack-id') || 'No music playing';
-    
+
     // Update track name
     $('#current-track-name').text(trackName);
-    
+
     // Update volume slider
     $('#user-volume-slider').val(userVolume);
     $('#volume-display').text(userVolume + '%');
-    
+
     // Update mute button
     const muteIcon = $('#mute-icon');
     const muteText = $('#mute-text');
@@ -989,7 +989,7 @@ const UserVolumeControl = {
       muteText.text('Mute');
       $('#mute-toggle').removeClass('btn-warning').addClass('btn-default');
     }
-    
+
     // Show widget if music is playing
     if (active_background_sound && trackName !== 'No music playing') {
       widget.show().addClass('fade-in');
@@ -997,33 +997,33 @@ const UserVolumeControl = {
       widget.hide();
     }
   },
-  
+
   // Initialize the user volume control system
-  init: function() {
+  init: function () {
     const self = this;
-    
+
     // Set up volume slider
-    $('#user-volume-slider').on('input', function() {
+    $('#user-volume-slider').on('input', function () {
       const volume = parseInt($(this).val());
       self.setUserVolume(volume);
       self.applyUserVolume();
     });
-    
+
     // Set up mute toggle
-    $('#mute-toggle').on('click', function() {
+    $('#mute-toggle').on('click', function () {
       const isMuted = !self.getUserMuted();
       self.setUserMuted(isMuted);
       self.applyUserVolume();
     });
-    
+
     // Set up widget collapse/expand
-    $('#toggle-music-widget').on('click', function() {
+    $('#toggle-music-widget').on('click', function () {
       $('#music-control-widget').toggleClass('collapsed');
     });
-    
+
     // Initialize widget state
     this.updateWidget();
-    
+
     // Apply saved volume if music is already playing
     if (active_background_sound) {
       this.applyUserVolume();
@@ -1101,17 +1101,17 @@ function drawLine(ctx, from, to, opts = {}) {
     const $toTile = $(to);
     toCoords = { x: $toTile.data('coords-x'), y: $toTile.data('coords-y') };
   }
-  
+
   // Now get centers
   const fromCenter = getTileCenter($(`.tile[data-coords-x="${fromCoords.x}"][data-coords-y="${fromCoords.y}"]`));
   const toCenter = getTileCenter($(`.tile[data-coords-x="${toCoords.x}"][data-coords-y="${toCoords.y}"]`));
-  
+
   // Check if we successfully got tile centers
   if (!fromCenter || !toCenter) {
     console.warn('drawLine: Could not find valid tile centers', { fromCoords, toCoords });
     return;
   }
-  
+
   ctx.save();
   ctx.lineWidth = lineWidth;
   ctx.strokeStyle = strokeStyle;
@@ -1212,10 +1212,10 @@ const centerOnEntityId = (id) => {
 const showTargetSelectionModal = (targets, position, actionData = null) => {
   const $modal = $('#targetSelectionModal');
   const $targetList = $('#targetList');
-  
+
   // Clear previous content
   $targetList.empty();
-  
+
   // Add target options
   targets.forEach((target, index) => {
     const $targetOption = $(`
@@ -1227,27 +1227,27 @@ const showTargetSelectionModal = (targets, position, actionData = null) => {
         </div>
       </div>
     `);
-    
-    $targetOption.on('click', function() {
+
+    $targetOption.on('click', function () {
       // Remove selection from all options
       $('.target-option').removeClass('selected');
       // Add selection to clicked option
       $(this).addClass('selected');
     });
-    
+
     $targetList.append($targetOption);
   });
-  
+
   // Handle modal confirmation
-  $modal.off('click', '.btn-primary').on('click', '.btn-primary', function() {
+  $modal.off('click', '.btn-primary').on('click', '.btn-primary', function () {
     const $selectedTarget = $('.target-option.selected');
     if ($selectedTarget.length > 0) {
       const targetId = $selectedTarget.data('target-id');
       const targetType = $selectedTarget.data('target-type');
-      
+
       // Close modal
       $modal.modal('hide');
-      
+
       if (actionData) {
         // This is a multiple target case - call the action again with the specific target
         const newActionData = { ...actionData };
@@ -1258,7 +1258,7 @@ const showTargetSelectionModal = (targets, position, actionData = null) => {
           // For entity/object targets, use the target ID
           newActionData.target = targetId;
         }
-        
+
         // Call the action again with the specific target
         ajaxPost("/action", newActionData, (data) => {
           console.log("Action request successful:", data);
@@ -1274,7 +1274,7 @@ const showTargetSelectionModal = (targets, position, actionData = null) => {
           targetModeCallback({ target_id: targetId, x: position.x, y: position.y });
         }
       }
-      
+
       // Reset target mode
       targetMode = false;
       valid_target_cache = {};
@@ -1282,16 +1282,16 @@ const showTargetSelectionModal = (targets, position, actionData = null) => {
       $(".tile").css("border", "none");
     }
   });
-  
+
   // Handle modal cancellation
-  $modal.off('hidden.bs.modal').on('hidden.bs.modal', function() {
+  $modal.off('hidden.bs.modal').on('hidden.bs.modal', function () {
     // Reset target mode if modal is closed without selection
     targetMode = false;
     valid_target_cache = {};
     globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
     $(".tile").css("border", "none");
   });
-  
+
   // Show the modal
   $modal.modal('show');
 };
@@ -1299,7 +1299,7 @@ const showTargetSelectionModal = (targets, position, actionData = null) => {
 // Keyboard movement controls
 function handleKeyboardMovement(key, entity_uid, coordsx, coordsy) {
   console.log("handleKeyboardMovement called with:", { key, entity_uid, coordsx, coordsy });
-  
+
   if (!keyboardMovementMode) {
     // Initialize keyboard movement mode
     console.log("Initializing keyboard movement mode");
@@ -1315,7 +1315,7 @@ function handleKeyboardMovement(key, entity_uid, coordsx, coordsy) {
   let newY = keyboardMovementSource.y;
 
   // Calculate new position based on key
-  switch(key) {
+  switch (key) {
     case 'ArrowUp':
     case 'w':
     case 'W':
@@ -1343,7 +1343,7 @@ function handleKeyboardMovement(key, entity_uid, coordsx, coordsy) {
   // Check if this is a backtracking move
   if (keyboardMovementPath.length > 0) {
     const lastMove = keyboardMovementPath[keyboardMovementPath.length - 1];
-    const isBacktracking = 
+    const isBacktracking =
       (key === 'ArrowUp' || key === 'w' || key === 'W') && lastMove[1] < newY ||
       (key === 'ArrowDown' || key === 's' || key === 'S') && lastMove[1] > newY ||
       (key === 'ArrowLeft' || key === 'a' || key === 'A') && lastMove[0] < newX ||
@@ -1379,15 +1379,15 @@ function handleKeyboardMovement(key, entity_uid, coordsx, coordsy) {
       if (data.cost.budget >= 0 && data.path) {
         // Update source position
         keyboardMovementSource = { x: newX, y: newY };
-        
+
         // Add to path
         if (keyboardMovementPath.length > 0) {
           keyboardMovementPath.pop();
         }
         keyboardMovementPath = [...keyboardMovementPath, ...data.path];
-        
+
         console.log("Updated path:", keyboardMovementPath);
-        
+
         // Draw the path
         Utils.drawMovementPath(globalCtx, keyboardMovementPath, data.cost.budget, data.placeable, data.terrain_info);
       } else {
@@ -1475,12 +1475,12 @@ function isDM() {
 // Update draggable entity classes for proper cursor styling
 function updateDraggableEntityClasses() {
   if (!isDM()) return;
-  
+
   $('.tile').removeClass('has-draggable-entity');
-  $('.tile').each(function() {
+  $('.tile').each(function () {
     const $tile = $(this);
     const entityId = $tile.data("coords-id");
-    
+
     // Add class if tile has an entity or NPC
     if (entityId && $tile.find('.entity, .npc').length) {
       $tile.addClass('has-draggable-entity');
@@ -1508,19 +1508,19 @@ $(document).ready(() => {
 
   // Update draggable entity classes for cursor styling
   updateDraggableEntityClasses();
- 
+
   createGlobalCanvas();
   // Update canvas size on window resize
-  $(window).on('resize', function() {
+  $(window).on('resize', function () {
     globalCanvas.width = window.innerWidth;
     globalCanvas.height = window.innerHeight;
   });
 
   const username = $("body").data("username");
-  
+
   // Determine if we're running in AWS or locally
   const isAWS = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
-  
+
   // Configure Socket.IO client with proper settings
   const socket = io({
     transports: ['websocket'],  // Prefer WebSocket only since we're using eventlet
@@ -1541,7 +1541,7 @@ $(document).ready(() => {
     // Add secure option for HTTPS
     secure: isAWS && window.location.protocol === 'https:'
   });
-  
+
   if ($("body").data("waiting-for-reaction")) {
     $("#reaction-modal").modal("show");
   }
@@ -1550,7 +1550,7 @@ $(document).ready(() => {
     console.log("Connected to the server");
     socket.emit("register", { username });
   });
-  
+
   socket.on('connect_error', (error) => {
     console.log('Connection error:', error);
   });
@@ -1593,7 +1593,7 @@ $(document).ready(() => {
         currentSoundtrackVolume,
       );
       currentSoundtrackId = null;
-      
+
       // Update user volume control widget after music starts
       if (typeof UserVolumeControl !== 'undefined') {
         setTimeout(() => UserVolumeControl.updateWidget(), 200);
@@ -1614,7 +1614,7 @@ $(document).ready(() => {
   $("#modal-1 .modal-content").on("input", ".volume-slider", function () {
     const volume = parseInt($(this).val());
     $('.volume-display').text(volume + '%');
-    
+
     if (active_background_sound) {
       // Update DM Sound Manager volume
       if (typeof DMSoundManager !== 'undefined') {
@@ -1643,7 +1643,7 @@ $(document).ready(() => {
   $("#mapModal").on("change", "#map-select", function (event) {
     event.preventDefault();
     const map_id = $("#map-select").val();
-    Utils.switchMap(map_id, globalCanvas, ()=>{
+    Utils.switchMap(map_id, globalCanvas, () => {
       createGlobalCanvas();
     });
   });
@@ -1667,12 +1667,12 @@ $(document).ready(() => {
     if (targetMode) {
       // Check if there are multiple valid targets at this position
       if (globalActionInfo && (globalActionInfo === 'AttackAction' || globalActionInfo === 'LinkedAttackAction' || globalActionInfo === 'SpellAction')) {
-        Utils.ajaxGet("/targets_at_position", { 
-          entity_id: globalSourceEntity, 
-          x: coordsx, 
-          y: coordsy, 
-          action_info: globalActionInfo, 
-          opts: JSON.stringify(globalOpts || {}) 
+        Utils.ajaxGet("/targets_at_position", {
+          entity_id: globalSourceEntity,
+          x: coordsx,
+          y: coordsy,
+          action_info: globalActionInfo,
+          opts: JSON.stringify(globalOpts || {})
         }, (data) => {
           if (data.success && data.targets && data.targets.length > 1) {
             // Show target selection modal
@@ -1723,7 +1723,7 @@ $(document).ready(() => {
           if (windowRightEdge < tileRightEdge) {
             $menu.css("left", `-=${tileRightEdge - windowRightEdge}`);
           }
-          
+
           // Ensure the popover menu stays on top after being shown
           if (Utils && Utils.ensurePopoverMenusOnTop) {
             Utils.ensurePopoverMenusOnTop();
@@ -1817,7 +1817,7 @@ $(document).ready(() => {
 
 
   // Character switcher
-  $('#floating-entity-portraits').on('click', '.floating-entity-portrait', function() {
+  $('#floating-entity-portraits').on('click', '.floating-entity-portrait', function () {
     const entity_uid = $(this).data('id');
     switchPOV(entity_uid, globalCanvas);
   });
@@ -1858,16 +1858,16 @@ $(document).ready(() => {
             valid_target_cache[`${coordsx}-${coordsy}`] = valid_target;
             drawTargetLine(globalCtx, source, coordsx, coordsy, valid_target);
           }
-            if (adv_info) {
-              adv_info[0].forEach(
-                (value) =>
-                  (tooltip += `<p><span style="color: green;">+${value}</span></p>`),
-              );
-              adv_info[1].forEach(
-                (value) =>
-                  (tooltip += `<p><span style="color: red;">-${value}</span></p>`),
-              );
-            }
+          if (adv_info) {
+            adv_info[0].forEach(
+              (value) =>
+                (tooltip += `<p><span style="color: green;">+${value}</span></p>`),
+            );
+            adv_info[1].forEach(
+              (value) =>
+                (tooltip += `<p><span style="color: red;">-${value}</span></p>`),
+            );
+          }
 
           $("#coords-box").html(
             `<p>X: ${coordsx}</p><p>Y: ${coordsy}</p>${tooltip}`,
@@ -1916,7 +1916,7 @@ $(document).ready(() => {
           if (pathDebounceTimer) {
             clearTimeout(pathDebounceTimer);
           }
-          
+
           // Set a new timer to delay the path request
           pathDebounceTimer = setTimeout(() => {
             // Fetch path data from server
@@ -1940,7 +1940,7 @@ $(document).ready(() => {
   });
 
   // Add mouseout handler to clear the debounce timer
-  $(".tiles-container").on("mouseout", ".tile", function() {
+  $(".tiles-container").on("mouseout", ".tile", function () {
     if (pathDebounceTimer) {
       clearTimeout(pathDebounceTimer);
       pathDebounceTimer = null;
@@ -2114,7 +2114,7 @@ $(document).ready(() => {
     $.get("/tracks", { track_id: active_track_id }, (data) => {
       $("#modal-1 .modal-content").html(data);
       $("#modal-1").modal("show");
-      
+
       // Initialize DM Sound Manager after modal loads
       setTimeout(() => {
         DMSoundManager.init();
@@ -2127,15 +2127,15 @@ $(document).ready(() => {
     const trackId = $(this).data('track-id');
     DMSoundManager.switchToTrack(trackId);
   });
-  
+
   $("#modal-1 .modal-content").on("click", ".play-btn", function () {
     DMSoundManager.togglePlayPause();
   });
-  
+
   $("#modal-1 .modal-content").on("click", ".pause-btn", function () {
     DMSoundManager.togglePlayPause();
   });
-  
+
   $("#modal-1 .modal-content").on("click", ".stop-btn", function () {
     DMSoundManager.stopTrack();
   });
@@ -2246,11 +2246,11 @@ $(document).ready(() => {
         source = { x: coordsx, y: coordsy, entity_uid };
         targetModeMaxRange =
           data.range_max !== undefined ? data.range_max : data.range;
-          coneMode = true
-          targetMode = true;
-          globalActionInfo = action;
-          globalOpts = opts;
-          globalSourceEntity = entity_uid;
+        coneMode = true
+        targetMode = true;
+        globalActionInfo = action;
+        globalOpts = opts;
+        globalSourceEntity = entity_uid;
         targetModeCallback = (target) => {
           ajaxPost(
             "/action",
@@ -2289,7 +2289,7 @@ $(document).ready(() => {
         targetModeCallback = (target) => {
           // Handle both coordinate-based and target_id-based targeting
           const actionData = { id: entity_uid, action, opts };
-          
+
           if (target.target_id) {
             // Use target_id for specific entity/object targeting
             actionData.target = target.target_id;
@@ -2297,14 +2297,14 @@ $(document).ready(() => {
             // Use coordinates for position-based targeting
             actionData.target = target;
           }
-          
+
           ajaxPost(
             "/action",
             actionData,
             (data) => {
               if (data.status === 'multiple_targets') {
                 let target_list = data.entities; // list of [label, entity_uid]
-                
+
                 // Convert the target list to the format expected by showTargetSelectionModal
                 const targets = target_list.map(([label, entity_uid]) => ({
                   id: entity_uid,
@@ -2312,7 +2312,7 @@ $(document).ready(() => {
                   type: 'entity',
                   image: null // Could be enhanced to include entity images
                 }));
-                
+
                 // Show the target selection modal with the original action data
                 showTargetSelectionModal(targets, { x: target.x, y: target.y }, { id: entity_uid, action, opts });
               }
@@ -2447,7 +2447,7 @@ $(document).ready(() => {
   });
 
   // Add keyboard event handler for movement
-  $(document).on("keydown", function(e) {
+  $(document).on("keydown", function (e) {
     // Check for popover menu instead of actions-container
     const $popoverMenu = $(".popover-menu:visible");
     if ($popoverMenu.length) {
@@ -2586,7 +2586,7 @@ $(document).ready(() => {
   });
 
   // Handle Enter key press in command input
-  $("#command-input").on("keypress", function(e) {
+  $("#command-input").on("keypress", function (e) {
     if (e.which === 13) { // Enter key
       $("#command-form").submit();
     }
@@ -2606,21 +2606,21 @@ $(document).ready(() => {
       handleDialogBubbleClick(entityId, 'Entity');
       return;
     }
-    
+
     // Original talk modal behavior
     $('#talkModal').modal('show');
-   
+
     // Get the tile data to access conversation languages
-    const povEntity = getCurrentPovEntity();
+    const povEntity = Chat.getCurrentPovEntity();
     const $tile = $(`.tile[data-coords-id="${povEntity}"]`);
     const languages = $tile.data('conversation-languages');
 
     const languagesArray = languages.split(',');
-   
+
     // Populate language dropdown
     const $languageSelect = $('#languageSelect');
     $languageSelect.empty();
-   
+
     // Add available languages to dropdown
     if (languages && languages.length > 0) {
       languagesArray.forEach(language => {
@@ -2631,7 +2631,7 @@ $(document).ready(() => {
         }
       });
     }
-   
+
     // Get nearby entities within earshot range (30ft)
     $.ajax({
       url: '/nearby_entities',
@@ -2643,7 +2643,7 @@ $(document).ready(() => {
       success: (data) => {
         const $nearbyEntities = $('#nearbyEntities');
         $nearbyEntities.empty();
-       
+
         if (data.entities && data.entities.length > 0) {
           data.entities.forEach(entity => {
             $nearbyEntities.append(`
@@ -2659,19 +2659,19 @@ $(document).ready(() => {
       }
     });
 
-    $('#submitTalk').off('click').on('click', function() {
+    $('#submitTalk').off('click').on('click', function () {
       const message = $('#talkMessage').val().trim();
       if (message) {
         const selectedTargets = [];
-        $('input[name="targets"]:checked').each(function() {
+        $('input[name="targets"]:checked').each(function () {
           selectedTargets.push($(this).val());
         });
-       
+
         const noSpecificTarget = $('#noSpecificTarget').is(':checked');
         const selectedLanguage = $('#languageSelect').val();
         const selectedVolume = $('input[name="speechVolume"]:checked');
         const distance_ft = 10;
-       
+
         $.ajax({
           url: '/talk',
           type: 'POST',
@@ -2698,21 +2698,21 @@ $(document).ready(() => {
   }
 
   // Update the popover menu click handler
-  $(document).on('click', '.talk-action', function(event) {
+  $(document).on('click', '.talk-action', function (event) {
     event.stopPropagation();
     event.preventDefault();
     const $menu = $(this).closest('.popover-menu');
     const $tile = $(this).closest('.tile');
     const entityId = $tile.data('coords-id');
-    
+
     // Ensure we're not in talk to entity mode for regular talk actions
     talkToEntityMode = false;
-    
+
     handleTalk(entityId);
     $menu.hide();
   });
 
-  $(document).on('click', '.conversation-bubble', function(event) {
+  $(document).on('click', '.conversation-bubble', function (event) {
     event.stopPropagation();
     Utils.toggleBubble(this);
   });
@@ -2720,40 +2720,40 @@ $(document).ready(() => {
   // Handle dialog bubble clicks for dialog-capable entities
   function handleDialogBubbleClick(entityId, entityName) {
     console.log('Dialog bubble clicked for entity:', entityId, entityName);
-    
+
     // Set talk to entity mode flag
     talkToEntityMode = true;
-    
+
     // Show the JRPG dialog panel
     $('#jrpgDialogPanel').show();
-    
+
     // Update panel title to indicate talk to entity mode
     $('#jrpgDialogPanelLabel').text('Talk to Entity');
-    
-    
+
+
     // Load entity information for the profile panel
     loadEntityProfile(entityId);
-    
+
     // Load conversation languages
     loadDialogLanguages(entityId);
-    
+
     // Initialize chat interface
     initializeDialogChat(entityId);
-    
+
     // Add welcome message with the provided entity name
-    const currentPovEntity = getCurrentPovEntity();
+    const currentPovEntity = Chat.getCurrentPovEntity();
     if (currentPovEntity) {
-      addDialogMessage('system', `You are now talking to ${entityName || 'this entity'}.`, 'system');
+      Chat.addDialogMessage('system', `You are now talking to ${entityName || 'this entity'}.`, 'system');
     } else {
-      addDialogMessage('system', `Welcome to the conversation with ${entityName || 'this entity'}!`, 'system');
+      Chat.addDialogMessage('system', `Welcome to the conversation with ${entityName || 'this entity'}!`, 'system');
     }
   }
-  
+
   // Load entity profile information
   function loadEntityProfile(entityId) {
     // Get entity information from the tile data
     const $tile = $(`.tile[data-coords-id="${entityId}"]`);
-    
+
     // Get entity name from the tile label or entity name
     let entityName = 'Unknown Entity';
     const $nameplate = $tile.find('.nameplate');
@@ -2763,10 +2763,10 @@ $(document).ready(() => {
       // Try to get from entity data attribute
       entityName = $tile.data('entity-name') || 'Unknown Entity';
     }
-    
+
     // Set entity name initially and store entity ID
     $('#dialogEntityName').text(entityName).data('entity-id', entityId);
-    
+
     // Get entity portrait (use the entity image if available)
     const $entityImg = $tile.find('.npc');
     if ($entityImg.length) {
@@ -2776,7 +2776,7 @@ $(document).ready(() => {
       // Use a default portrait
       $('#dialogEntityPortrait').attr('src', '/static/assets/token_adversary.png');
     }
-    
+
     // Load detailed entity information via AJAX
     $.ajax({
       url: '/entity_info',
@@ -2785,19 +2785,19 @@ $(document).ready(() => {
       success: (data) => {
         if (data.success) {
           const entity = data.entity;
-          
+
           // Update entity name with the proper name from server
           if (entity.name) {
             $('#dialogEntityName').text(entity.name).data('entity-id', entityId);
           }
-          
+
           // Update entity stats
           $('#dialogEntityHP').text(`${entity.hp || 0}/${entity.max_hp || 0}`);
           $('#dialogEntityAC').text(entity.ac || 'Unknown');
           $('#dialogEntityLevel').text(entity.level || 'Unknown');
           $('#dialogEntityRace').text(entity.race || 'Unknown');
           $('#dialogEntityClass').text(entity.class || 'Unknown');
-          
+
           // Update description
           $('#dialogEntityDescription').text(entity.description || 'No description available.');
         } else {
@@ -2821,15 +2821,15 @@ $(document).ready(() => {
       }
     });
   }
-  
+
   // Load available languages for the dialog
   function loadDialogLanguages(entityId) {
-    const $tile = $(`.tile[data-coords-id="${getCurrentPovEntity()}"]`);
+    const $tile = $(`.tile[data-coords-id="${Chat.getCurrentPovEntity()}"]`);
     const languages = $tile.data('conversation-languages');
-    
+
     const $languageSelect = $('#dialogLanguageSelect');
     $languageSelect.empty();
-    
+
     if (languages && languages.length > 0) {
       const languagesArray = languages.split(',');
       languagesArray.forEach(language => {
@@ -2844,116 +2844,116 @@ $(document).ready(() => {
       $languageSelect.append(`<option value="Common" selected>Common</option>`);
     }
   }
-  
+
   // Initialize the dialog chat interface
   function initializeDialogChat(entityId) {
     // Clear previous messages
     $('#dialogChatMessages').empty();
-    
+
     // Handle send message button
-    $('#dialogSendMessage').off('click').on('click', function() {
+    $('#dialogSendMessage').off('click').on('click', function () {
       sendDialogMessage(entityId);
     });
-    
+
     // Handle Enter key in chat input
-    $('#dialogChatInput').off('keypress').on('keypress', function(e) {
+    $('#dialogChatInput').off('keypress').on('keypress', function (e) {
       if (e.which === 13) { // Enter key
         e.preventDefault(); // Prevent default to avoid form submission
         sendDialogMessage(entityId);
       }
     });
-    
+
     // Handle volume button clicks
-    $('.volume-btn').off('click').on('click', function() {
+    $('.volume-btn').off('click').on('click', function () {
       $('.volume-btn').removeClass('active');
       $(this).addClass('active');
     });
-    
+
     loadDialogHistory(entityId);
 
     // Handle mode toggle button
-    $('#toggleTalkMode').off('click').on('click', function() {
+    $('#toggleTalkMode').off('click').on('click', function () {
       talkToEntityMode = !talkToEntityMode;
       updateTalkModeDisplay();
     });
-    
+
     // Focus on input
     $('#dialogChatInput').focus();
   }
-  
+
   // Update the display based on talk mode
   function updateTalkModeDisplay() {
     if (talkToEntityMode) {
       $('#dialogModeIndicator').show();
       $('#jrpgDialogPanelLabel').text('Talk to Entity');
       $('#toggleTalkMode').removeClass('btn-info').addClass('btn-warning').html('<i class="glyphicon glyphicon-comment"></i> Regular Mode');
-      addDialogMessage('system', 'Switched to Talk to Entity mode. You are now talking to the entity.', 'system');
+      Chat.addDialogMessage('system', 'Switched to Talk to Entity mode. You are now talking to the entity.', 'system');
     } else {
       $('#dialogModeIndicator').hide();
       $('#jrpgDialogPanelLabel').text('Dialog');
       $('#toggleTalkMode').removeClass('btn-warning').addClass('btn-info').html('<i class="glyphicon glyphicon-comment"></i> Talk Mode');
-      addDialogMessage('system', 'Switched to Regular Dialog mode.', 'system');
+      Chat.addDialogMessage('system', 'Switched to Regular Dialog mode.', 'system');
     }
   }
-  
+
   // Send a message in the dialog
   function sendDialogMessage(entityId) {
     const message = $('#dialogChatInput').val().trim();
     if (!message) return;
-    
+
     // Prevent multiple messages from being sent simultaneously
     if (dialogMessageProcessing) return;
-    
+
     dialogMessageProcessing = true;
-    
+
     const selectedLanguage = $('#dialogLanguageSelect').val();
     const selectedVolume = $('.volume-btn.active');
     const distance_ft = 10;
-    
+
     // Add player message to chat
-    addDialogMessage('player', message, 'player');
-    
+    Chat.addDialogMessage('player', message, 'player');
+
     // Clear input
     $('#dialogChatInput').val('');
-    
+
     // Disable input and send button while processing
     const $input = $('#dialogChatInput');
     const $sendButton = $('#dialogSendMessage');
     const $languageSelect = $('#dialogLanguageSelect');
     const $inputContainer = $('.chat-input-container');
-    
+
     $input.prop('disabled', true);
     $sendButton.prop('disabled', true).html('<i class="glyphicon glyphicon-refresh spinning"></i> Sending...');
     $languageSelect.prop('disabled', true);
     $inputContainer.addClass('disabled');
-    
+
     // Add waiting indicator
     const waitingId = addWaitingIndicator();
-    
+
     // Set up timeout indicators for longer processing times
     const timeout1 = setTimeout(() => {
       updateWaitingIndicator(waitingId, "Processing your message...");
     }, 2000);
-    
+
     const timeout2 = setTimeout(() => {
       updateWaitingIndicator(waitingId, "Entity is thinking...");
     }, 5000);
-    
+
     const timeout3 = setTimeout(() => {
       updateWaitingIndicator(waitingId, "Almost ready to respond...");
     }, 10000);
-    
+
     // Determine the source entity based on mode
     let sourceEntityId = entityId;
     if (talkToEntityMode) {
       // In talk to entity mode, the POV user is talking to the entity
       // We need to get the current POV user's entity ID
-      const currentPovEntity = getCurrentPovEntity();
+      const currentPovEntity = Chat.getCurrentPovEntity();
       if (currentPovEntity) {
         sourceEntityId = currentPovEntity;
       }
     }
-    
+
     // Send message to server
     $.ajax({
       url: '/talk',
@@ -2972,27 +2972,27 @@ $(document).ready(() => {
         clearTimeout(timeout1);
         clearTimeout(timeout2);
         clearTimeout(timeout3);
-        
+
         // Remove waiting indicator
         removeWaitingIndicator(waitingId);
-        
+
         // Re-enable input and send button
         $input.prop('disabled', false);
         $sendButton.prop('disabled', false).html('<i class="glyphicon glyphicon-send"></i> Send');
         $languageSelect.prop('disabled', false);
         $inputContainer.removeClass('disabled');
         $input.focus();
-        
+
         // Reset processing flag
         dialogMessageProcessing = false;
-        
+
         if (data.success) {
           // Add entity response if provided
           if (data.response) {
-            addDialogMessage('entity', data.response, 'entity');
+            Chat.addDialogMessage('entity', data.response, 'entity');
           }
         } else {
-          addDialogMessage('system', 'Message sent successfully.', 'system');
+          Chat.addDialogMessage('system', 'Message sent successfully.', 'system');
         }
       },
       error: () => {
@@ -3000,77 +3000,29 @@ $(document).ready(() => {
         clearTimeout(timeout1);
         clearTimeout(timeout2);
         clearTimeout(timeout3);
-        
+
         // Remove waiting indicator
         removeWaitingIndicator(waitingId);
-        
+
         // Re-enable input and send button
         $input.prop('disabled', false);
         $sendButton.prop('disabled', false).html('<i class="glyphicon glyphicon-send"></i> Send');
         $languageSelect.prop('disabled', false);
         $inputContainer.removeClass('disabled');
         $input.focus();
-        
+
         // Reset processing flag
         dialogMessageProcessing = false;
-        
-        addDialogMessage('system', 'Failed to send message.', 'system');
+
+        Chat.addDialogMessage('system', 'Failed to send message.', 'system');
       }
     });
   }
 
-  // Helper function to get current POV entity ID
-  function getCurrentPovEntity() {
-    // Try to get from the floating portraits
-    const $currentPov = $('#floating-entity-portraits .floating-entity-portrait.current-pov');
-    if ($currentPov.length) {
-      return $currentPov.data('id');
-    }
 
-    const povEntityId =$('body').data('pov-entity');
-
-    if (povEntityId) {
-      return povEntityId;
-    }
-
-    // If we can't determine POV, return null
-    return null;
-  }
 
   // Helper function to show a regular conversation bubble
-  function showConversationBubble(entity_id, message) {
-    const $tile = $(`.tile[data-coords-id="${entity_id}"]`);
-    if ($tile.length) {
-      // Check if conversation bubble already exists
-      let $bubble = $tile.find('.conversation-bubble');
-    
-      if ($bubble.length) {
-        // Update existing bubble
-        $bubble.find('.bubble-content').text(message);
-        $bubble.removeClass('minimized');
-        $bubble.find('.bubble-content').show();
-        $bubble.find('.bubble-minimized').hide();
-      } else {
-        // Create new bubble
-        $bubble = $(`
-          <div class="conversation-bubble">
-            <div class="bubble-content">${message}</div>
-            <div class="bubble-minimized" style="display: none;">
-              <i class="glyphicon glyphicon-comment"></i>
-            </div>
-            <button class="close-bubble" onclick="Utils.dismissBubble(this.parentElement); event.stopPropagation();">×</button>
-          </div>
-        `);
-        $tile.append($bubble);
-      }
 
-      setTimeout(() => {
-        $tile.find('.conversation-bubble').fadeOut(500, function() {
-          $(this).remove();
-        });
-      }, 10000);
-    }
-  }
 
   // Helper function to show a dialog-trigger conversation bubble
   function showDialogTriggerBubble(entity_id, message) {
@@ -3078,7 +3030,7 @@ $(document).ready(() => {
     if ($tile.length) {
       // Create a special conversation bubble that can open the dialog
       let $bubble = $tile.find('.conversation-bubble');
-    
+
       if ($bubble.length) {
         // Update existing bubble
         $bubble.find('.bubble-content').text(message);
@@ -3099,74 +3051,26 @@ $(document).ready(() => {
             <button class="close-bubble" onclick="Utils.dismissBubble(this.parentElement); event.stopPropagation();">×</button>
           </div>
         `);
-        
+
         // Add click handler to open dialog modal
-        $bubble.on('click', function(e) {
+        $bubble.on('click', function (e) {
           if (!$(e.target).hasClass('close-bubble')) {
             const entityName = $tile.find('.nameplate').text() || $tile.data('entity-name') || 'Entity';
             handleDialogBubbleClick(entity_id, entityName);
           }
         });
-        
+
         $tile.append($bubble);
       }
 
       setTimeout(() => {
-        $tile.find('.conversation-bubble').fadeOut(500, function() {
+        $tile.find('.conversation-bubble').fadeOut(500, function () {
           $(this).remove();
         });
       }, 15000); // Longer timeout for dialog-trigger bubbles
     }
   }
 
-  // Add a message to the dialog chat
-  function addDialogMessage(sender, content, type) {
-    const timestamp = new Date().toLocaleTimeString();
-
-    // Determine the display name based on mode and sender
-    let displayName = sender;
-    if (talkToEntityMode) {
-      if (sender === 'player') {
-        // Get the current POV entity name
-        const currentPovEntity = getCurrentPovEntity();
-        if (currentPovEntity) {
-          const $povTile = $(`.tile[data-coords-id="${currentPovEntity}"]`);
-          const $nameplate = $povTile.find('.nameplate');
-          if ($nameplate.length) {
-            displayName = $nameplate.text();
-          } else {
-            displayName = 'You';
-          }
-        } else {
-          displayName = 'You';
-        }
-      } else if (sender === 'entity') {
-        // Get the entity being talked to
-        const $entityTile = $(`.tile[data-coords-id="${$('#dialogEntityName').data('entity-id')}"]`);
-        const $nameplate = $entityTile.find('.nameplate');
-        if ($nameplate.length) {
-          displayName = $nameplate.text();
-        } else {
-          displayName = 'Entity';
-        }
-      }
-    }
-    
-    const messageHtml = `
-      <div class="dialog-chat-message ${type}">
-        <div class="message-sender">${displayName}</div>
-        <div class="message-content">${content}</div>
-        <div class="message-timestamp">${timestamp}</div>
-      </div>
-    `;
-    
-    $('#dialogChatMessages').append(messageHtml);
-    
-    // Scroll to bottom
-    const $messages = $('#dialogChatMessages');
-    $messages.scrollTop($messages[0].scrollHeight);
-  }
-  
   // Add a waiting indicator to the dialog chat
   function addWaitingIndicator() {
     const waitingId = 'waiting-' + Date.now();
@@ -3179,16 +3083,16 @@ $(document).ready(() => {
         <div class="message-timestamp">${new Date().toLocaleTimeString()}</div>
       </div>
     `;
-    
+
     $('#dialogChatMessages').append(waitingHtml);
-    
+
     // Scroll to bottom
     const $messages = $('#dialogChatMessages');
     $messages.scrollTop($messages[0].scrollHeight);
-    
+
     return waitingId;
   }
-  
+
   // Update the waiting indicator message
   function updateWaitingIndicator(waitingId, message) {
     const $waiting = $(`#${waitingId}`);
@@ -3196,33 +3100,35 @@ $(document).ready(() => {
       $waiting.find('.message-content').html(`<i class="glyphicon glyphicon-refresh spinning"></i> ${message}`);
     }
   }
-  
+
   // Remove the waiting indicator
   function removeWaitingIndicator(waitingId) {
     const $waiting = $(`#${waitingId}`);
     if ($waiting.length) {
-      $waiting.fadeOut(300, function() {
+      $waiting.fadeOut(300, function () {
         $(this).remove();
       });
     }
   }
-  
+
   // Load dialog history
   function loadDialogHistory(entityId) {
     $.ajax({
       url: '/dialog_history',
       type: 'GET',
-      data: { entity_id: entityId,
-              entity_pov: getCurrentPovEntity() },
+      data: {
+        entity_id: entityId,
+        entity_pov: Chat.getCurrentPovEntity()
+      },
       dataType: 'json',
       beforeSend: () => {
         $('#dialogChatMessages').html('<div class="loading">Loading history...</div>');
-       },
+      },
       success: (data) => {
         if (data.success) {
           const $historyContainer = $('#dialogChatMessages');
           $historyContainer.empty();
-          
+
           if (data.history && data.history.length > 0) {
             data.history.forEach(entry => {
               const messageHtml = `
@@ -3250,7 +3156,7 @@ $(document).ready(() => {
 
 
   // Reset talk to entity mode when panel is closed
-  $('#close-dialog').on('click', function() {
+  $('#close-dialog').on('click', function () {
     $('#jrpgDialogPanel').hide();
     talkToEntityMode = false;
     $('#dialogModeIndicator').hide();
@@ -3259,11 +3165,11 @@ $(document).ready(() => {
   });
 
   // Minimize dialog panel
-  $('#minimize-dialog').on('click', function() {
+  $('#minimize-dialog').on('click', function () {
     const $panel = $('#jrpgDialogPanel');
     const $body = $panel.find('.dialog-panel-body');
     const $header = $panel.find('.dialog-panel-header');
-    
+
     if ($body.is(':visible')) {
       $body.hide();
       $panel.css('height', '60px');
@@ -3275,7 +3181,7 @@ $(document).ready(() => {
     }
   });
 
-  $("#turn-order").on("change", ".group-select", function() {
+  $("#turn-order").on("change", ".group-select", function () {
     const $turnOrderItem = $(this).closest(".turn-order-item");
     const entity_uid = $turnOrderItem.data("id");
     console.log("Changing group for entity:", entity_uid); // Debug log
@@ -3290,7 +3196,7 @@ $(document).ready(() => {
     );
   });
 
-  $("#turn-order").on("change", ".controller-select", function() {
+  $("#turn-order").on("change", ".controller-select", function () {
     const $turnOrderItem = $(this).closest(".turn-order-item");
     const entity_uid = $turnOrderItem.data("id");
     console.log("Changing controller for entity:", entity_uid); // Debug log
@@ -3306,7 +3212,7 @@ $(document).ready(() => {
   });
 
 
-  $(".tiles-container").on('click', '.dialog-bubble', function(event) {
+  $(".tiles-container").on('click', '.dialog-bubble', function (event) {
     event.stopPropagation();
     event.preventDefault();
     const entityId = $(this).data('id');
@@ -3322,97 +3228,97 @@ $(document).ready(() => {
   let dragGhost = null;
 
   // Mouse down on entity tile (start drag)
-  $(".tiles-container").on("mousedown", ".tile", function(e) {
+  $(".tiles-container").on("mousedown", ".tile", function (e) {
     // Only allow DMs to drag entities
     if (!isDM()) return;
-    
+
     const $tile = $(this);
     const entityId = $tile.data("coords-id");
-    
+
     // Only allow dragging if there's an entity on this tile
     if (!entityId || !$tile.find('.entity, .npc').length) return;
-    
+
     // Prevent dragging if clicking on action buttons or other interactive elements
     if ($(e.target).closest('.popover-menu, .action-button, .add-to-turn-order, .dialog-bubble').length) {
       return;
     }
-    
+
     e.preventDefault();
     e.stopPropagation();
-    
+
     isDraggingEntity = true;
     draggedEntityId = entityId;
     draggedEntityTile = $tile;
-    
+
     // Calculate offset from mouse to tile center
     const tileRect = $tile[0].getBoundingClientRect();
     const tileSize = $(".tiles-container").data("tile-size");
     const tileCenterX = tileRect.left + tileSize / 2;
     const tileCenterY = tileRect.top + tileSize / 2;
-    
+
     // Store offset from mouse position to tile center
     dragOffset.x = e.clientX - tileCenterX;
     dragOffset.y = e.clientY - tileCenterY;
-    
+
     // Create drag ghost element centered on the tile
     createDragGhost($tile, tileCenterX, tileCenterY);
-    
+
     // Add dragging class for visual feedback
     $tile.addClass('entity-dragging');
     $('body').addClass('entity-dragging-active');
-    
+
     // Hide popover menus during drag
     $('.popover-menu').hide();
   });
 
   // Mouse move (update drag ghost position)
-  $(document).on("mousemove", function(e) {
+  $(document).on("mousemove", function (e) {
     if (!isDraggingEntity || !dragGhost) return;
-    
+
     // Update ghost position - center the ghost on the mouse cursor
     const tileSize = $(".tiles-container").data("tile-size");
     dragGhost.css({
       left: (e.clientX - tileSize / 2) + 'px',
       top: (e.clientY - tileSize / 2) + 'px'
     });
-    
+
     // Highlight target tile
     const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
     const $targetTile = $(elementBelow).closest('.tile');
-    
+
     // Remove previous highlight
     $('.tile').removeClass('drag-target-highlight');
-    
+
     if ($targetTile.length && $targetTile[0] !== draggedEntityTile[0]) {
       $targetTile.addClass('drag-target-highlight');
     }
   });
 
   // Mouse up (complete drag or cancel)
-  $(document).on("mouseup", function(e) {
+  $(document).on("mouseup", function (e) {
     if (!isDraggingEntity) return;
-    
+
     // Find the target tile
     const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
     const $targetTile = $(elementBelow).closest('.tile');
-    
+
     if ($targetTile.length && $targetTile[0] !== draggedEntityTile[0]) {
       // Valid drop target
       const targetX = $targetTile.data("coords-x");
       const targetY = $targetTile.data("coords-y");
-      
+
       if (targetX !== undefined && targetY !== undefined) {
         // Perform the move via API
         moveEntityTo(draggedEntityId, targetX, targetY);
       }
     }
-    
+
     // Clean up drag state
     cleanupDrag();
   });
 
   // Cancel drag on escape key
-  $(document).on("keydown", function(e) {
+  $(document).on("keydown", function (e) {
     if (e.key === "Escape" && isDraggingEntity) {
       cleanupDrag();
     }
@@ -3422,9 +3328,9 @@ $(document).ready(() => {
   function createDragGhost($sourceTile, x, y) {
     const $entity = $sourceTile.find('.entity, .npc').first();
     if (!$entity.length) return;
-    
+
     const tileSize = $(".tiles-container").data("tile-size");
-    
+
     dragGhost = $('<div>')
       .addClass('entity-drag-ghost')
       .css({
@@ -3440,7 +3346,7 @@ $(document).ready(() => {
         borderRadius: '4px',
         backgroundColor: 'rgba(0, 123, 255, 0.1)'
       });
-    
+
     // Clone the entity image
     const $entityClone = $entity.clone();
     $entityClone.css({
@@ -3449,7 +3355,7 @@ $(document).ready(() => {
       left: '0',
       transform: 'none'
     });
-    
+
     dragGhost.append($entityClone);
     $('body').append(dragGhost);
   }
@@ -3458,17 +3364,17 @@ $(document).ready(() => {
   function cleanupDrag() {
     isDraggingEntity = false;
     draggedEntityId = null;
-    
+
     if (draggedEntityTile) {
       draggedEntityTile.removeClass('entity-dragging');
       draggedEntityTile = null;
     }
-    
+
     if (dragGhost) {
       dragGhost.remove();
       dragGhost = null;
     }
-    
+
     // Remove target highlights and global dragging class
     $('.tile').removeClass('drag-target-highlight');
     $('body').removeClass('entity-dragging-active');
@@ -3485,7 +3391,7 @@ $(document).ready(() => {
         x: targetX,
         y: targetY
       }),
-      success: function(response) {
+      success: function (response) {
         if (response.success) {
           console.log(`Entity ${entityId} moved to (${targetX}, ${targetY})`);
           // The server will emit a refresh_map message, so no need to manually refresh
@@ -3493,7 +3399,7 @@ $(document).ready(() => {
           alert('Failed to move entity: ' + (response.error || 'Unknown error'));
         }
       },
-      error: function(xhr, status, error) {
+      error: function (xhr, status, error) {
         console.error('Error moving entity:', error);
         alert('Error moving entity: ' + error);
       }
@@ -3501,11 +3407,11 @@ $(document).ready(() => {
   }
 
   Chat.init();
-  
+
   // Make dialog panel draggable and resizable
   makeDialogPanelDraggable();
   makeDialogPanelResizable();
-  
+
   // Handle window resize to keep panel in bounds
 });
 
@@ -3516,41 +3422,41 @@ function makeDialogPanelDraggable() {
   let isDragging = false;
   let startX, startY, startLeft, startTop;
 
-  $header.on('mousedown', function(e) {
+  $header.on('mousedown', function (e) {
     if (e.target.tagName === 'BUTTON' || $(e.target).closest('button').length) {
       return; // Don't drag if clicking on buttons
     }
-    
+
     isDragging = true;
     startX = e.clientX;
     startY = e.clientY;
     startLeft = parseInt($panel.css('left'));
     startTop = parseInt($panel.css('top'));
-    
+
     $panel.css('cursor', 'grabbing');
     e.preventDefault();
   });
 
-  $(document).on('mousemove', function(e) {
+  $(document).on('mousemove', function (e) {
     if (!isDragging) return;
-    
+
     const deltaX = e.clientX - startX;
     const deltaY = e.clientY - startY;
-    
+
     const newLeft = startLeft + deltaX;
     const newTop = startTop + deltaY;
-    
+
     // Keep panel within window bounds
     const maxLeft = window.innerWidth - $panel.outerWidth();
     const maxTop = window.innerHeight - $panel.outerHeight();
-    
+
     $panel.css({
       left: Math.max(0, Math.min(newLeft, maxLeft)) + 'px',
       top: Math.max(0, Math.min(newTop, maxTop)) + 'px'
     });
   });
 
-  $(document).on('mouseup', function() {
+  $(document).on('mouseup', function () {
     if (isDragging) {
       isDragging = false;
       $panel.css('cursor', 'default');
@@ -3565,44 +3471,44 @@ function makeDialogPanelResizable() {
   let isResizing = false;
   let startX, startY, startWidth, startHeight;
 
-  $resizeHandle.on('mousedown', function(e) {
+  $resizeHandle.on('mousedown', function (e) {
     isResizing = true;
     startX = e.clientX;
     startY = e.clientY;
     startWidth = $panel.outerWidth();
     startHeight = $panel.outerHeight();
-    
+
     e.preventDefault();
     e.stopPropagation();
   });
 
-  $(document).on('mousemove', function(e) {
+  $(document).on('mousemove', function (e) {
     if (!isResizing) return;
-    
+
     const deltaX = e.clientX - startX;
     const deltaY = e.clientY - startY;
-    
+
     const newWidth = startWidth + deltaX;
     const newHeight = startHeight + deltaY;
-    
+
     // Minimum size constraints
     const minWidth = 400;
     const minHeight = 300;
-    
+
     // Maximum size constraints (keep within window)
     const maxWidth = window.innerWidth - parseInt($panel.css('left'));
     const maxHeight = window.innerHeight - parseInt($panel.css('top'));
-    
+
     const finalWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
     const finalHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
-    
+
     $panel.css({
       width: finalWidth + 'px',
       height: finalHeight + 'px'
     });
   });
 
-  $(document).on('mouseup', function() {
+  $(document).on('mouseup', function () {
     if (isResizing) {
       isResizing = false;
     }
