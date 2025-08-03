@@ -2351,6 +2351,83 @@ def update_controller():
 
     return jsonify(status='ok')
 
+@app.route('/update_hp', methods=['POST'])
+def update_hp():
+    """Update HP values for an entity (DM only)."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    
+    if not request.is_json:
+        return jsonify({'success': False, 'error': 'Request must be JSON'}), 400
+    
+    data = request.get_json()
+    if not data or 'entity_id' not in data or 'hp_type' not in data or 'value' not in data:
+        return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+
+    entity_id = data['entity_id']
+    hp_type = data['hp_type']
+    value = data['value']
+    
+    # Validate hp_type
+    if hp_type not in ['max_hp', 'current_hp', 'temp_hp']:
+        return jsonify({'success': False, 'error': 'Invalid HP type'}), 400
+    
+    # Validate value
+    try:
+        value = int(value)
+        if value < 0:
+            return jsonify({'success': False, 'error': 'HP value cannot be negative'}), 400
+        if hp_type == 'max_hp' and value < 1:
+            return jsonify({'success': False, 'error': 'Max HP must be at least 1'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'HP value must be a number'}), 400
+
+    # Find the entity
+    battle_map = current_game.get_map_for_user(session['username'])
+    entity = battle_map.entity_by_uid(entity_id)
+    if not entity:
+        return jsonify({'success': False, 'error': 'Entity not found'}), 404
+
+    try:
+        if hp_type == 'max_hp':
+            # Update max HP - need to handle player characters properly
+            if hasattr(entity, 'properties') and isinstance(entity.properties, dict):
+                # For player characters, we need to set the base max_hp in properties
+                # The max_hp() method will add class features like dwarven_toughness
+                if hasattr(entity, 'class_feature') and entity.class_feature('dwarven_toughness'):
+                    # If they have dwarven toughness, the base max_hp should exclude the level bonus
+                    entity.properties['max_hp'] = value - entity.level()
+                else:
+                    # Normal case - set the max_hp directly
+                    entity.properties['max_hp'] = value
+                
+                # Adjust current HP if it exceeds new max
+                if entity.hp() > value:
+                    entity.attributes['hp'] = value
+            else:
+                # For NPCs or other entities without properties
+                entity.attributes['max_hp'] = value
+                if entity.hp() > value:
+                    entity.attributes['hp'] = value
+                    
+        elif hp_type == 'current_hp':
+            # Validate current HP doesn't exceed max HP
+            max_hp = entity.max_hp()
+            if value > max_hp:
+                return jsonify({'success': False, 'error': f'Current HP cannot exceed Max HP ({max_hp})'}), 400
+            entity.attributes['hp'] = value
+            
+        elif hp_type == 'temp_hp':
+            entity._temp_hp = value
+
+        # Emit update to refresh the UI for all connected clients
+        socketio.emit('message', {'type': 'refresh_map'})
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Failed to update HP: {str(e)}'}), 500
+
 @app.route('/get_users')
 def get_users():
     query = request.args.get('query', '').lower()
