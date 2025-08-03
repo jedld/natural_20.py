@@ -27,15 +27,186 @@ const Utils = {
       })
     });
   },
+  
+  // OPTIMIZED VERSION: Only update tiles that have changed
+  // This prevents interactive elements (action menus, die rolls, etc.) from being 
+  // removed while players are actively using them
   refreshTileSet: function(is_setup = false, pov = false, x = 0, y = 0, entity_uid= null, callback = null)  {
+    // For initial setup, use the full update to avoid complexity
+    if (is_setup) {
+      Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) => {
+        lastMovedEntityBeforeRefresh = null;
+        $('.tiles-container').html(data);
+        // Refresh portraits when tiles are refreshed
+        Utils.refreshPortraits();
+        if (callback) callback();
+      });
+      return;
+    }
+    
+    // For regular updates, use optimized approach
     Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) => {
       lastMovedEntityBeforeRefresh = null;
-      $('.tiles-container').html(data);
+      
+      // Parse the HTML to extract individual tiles
+      const $newContent = $('<div>').html(data);
+      const $newTiles = $newContent.find('.tile');
+      
+      // Update only changed tiles
+      Utils.updateChangedTilesOptimized($newTiles);
+      
       // Refresh portraits when tiles are refreshed
       Utils.refreshPortraits();
       if (callback) callback();
     });
   },
+  
+  // Optimized tile update that preserves interactive elements
+  updateChangedTilesOptimized: function($newTiles) {
+    let tilesUpdated = 0;
+    let tilesPreserved = 0;
+    
+    $newTiles.each(function() {
+      const $newTile = $(this);
+      const x = $newTile.data('coords-x');
+      const y = $newTile.data('coords-y');
+      
+      if (x === undefined || y === undefined) return;
+      
+      const $existingTile = $('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]');
+      
+      if ($existingTile.length === 0) {
+        // New tile - just add it
+        $('.tiles-container').append($newTile);
+        tilesUpdated++;
+        return;
+      }
+      
+      // Check if tile has actually changed by comparing key attributes
+      if (Utils.tilesAreEqual($existingTile, $newTile)) {
+        tilesPreserved++;
+        return; // No change needed - preserve interactive elements
+      }
+      
+      // Preserve any active interactive elements
+      const preservedElements = Utils.preserveInteractiveElements($existingTile);
+      
+      // Replace the tile
+      $existingTile.replaceWith($newTile);
+      tilesUpdated++;
+      
+      // Restore preserved elements
+      Utils.restoreInteractiveElements($('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]'), preservedElements);
+    });
+    
+    // Debug logging to show optimization effectiveness
+    if (console && console.log) {
+      console.log('Tile update optimization: ' + tilesUpdated + ' updated, ' + tilesPreserved + ' preserved');
+    }
+    
+    // Re-initialize die roll components on updated tiles
+    if (Utils.autoInsertDieRoll) { Utils.autoInsertDieRoll(); }
+    if (Utils.initDieRollComponent) { Utils.initDieRollComponent(); }
+  },
+  
+  // Compare tiles to see if they need updating
+  tilesAreEqual: function($tile1, $tile2) {
+    // Compare key attributes that would indicate a meaningful change
+    const attrs = ['data-coords-id', 'data-light', 'data-difficult', 'data-darkvision'];
+    
+    for (let attr of attrs) {
+      if ($tile1.attr(attr) !== $tile2.attr(attr)) {
+        return false;
+      }
+    }
+    
+    // Compare entity presence and ID
+    const entity1Id = $tile1.find('.entity').data('id');
+    const entity2Id = $tile2.find('.entity').data('id');
+    if (entity1Id !== entity2Id) {
+      return false;
+    }
+    
+    // Compare health bar if present
+    const health1 = $tile1.find('.health-bar').attr('style');
+    const health2 = $tile2.find('.health-bar').attr('style');
+    if (health1 !== health2) {
+      return false;
+    }
+    
+    // Compare nameplate
+    const name1 = $tile1.find('.nameplate').text();
+    const name2 = $tile2.find('.nameplate').text();
+    if (name1 !== name2) {
+      return false;
+    }
+    
+    // Compare effects
+    const effects1 = $tile1.find('.effect img').length;
+    const effects2 = $tile2.find('.effect img').length;
+    if (effects1 !== effects2) {
+      return false;
+    }
+    
+    // Compare conversation bubbles (but not the preserved interactive ones)
+    const bubble1 = $tile1.find('.conversation-bubble .bubble-content').text();
+    const bubble2 = $tile2.find('.conversation-bubble .bubble-content').text();
+    if (bubble1 !== bubble2) {
+      return false;
+    }
+    
+    // Compare fog of war
+    const fog1 = $tile1.find('.fog-of-war').length;
+    const fog2 = $tile2.find('.fog-of-war').length;
+    if (fog1 !== fog2) {
+      return false;
+    }
+    
+    return true; // Tiles are effectively the same
+  },
+  
+  // Preserve interactive elements that shouldn't be removed
+  preserveInteractiveElements: function($tile) {
+    const preserved = {};
+    
+    // Preserve visible action menus
+    const $actionMenus = $tile.find('.popover-menu:visible, .popover-menu-2:visible');
+    if ($actionMenus.length > 0) {
+      preserved.actionMenus = $actionMenus.clone(true);
+    }
+    
+    // Preserve visible die roll components
+    const $dieRolls = $tile.find('.die-roll-component:visible');
+    if ($dieRolls.length > 0) {
+      preserved.dieRolls = $dieRolls.clone(true);
+    }
+    
+    // Preserve any other active interactive elements
+    const $interactive = $tile.find('.target-selection:visible, .active-selection:visible');
+    if ($interactive.length > 0) {
+      preserved.interactive = $interactive.clone(true);
+    }
+    
+    return preserved;
+  },
+  
+  // Restore preserved interactive elements
+  restoreInteractiveElements: function($tile, preserved) {
+    if (preserved.actionMenus) {
+      // Remove any new action menus and replace with preserved ones
+      $tile.find('.popover-menu, .popover-menu-2').remove();
+      $tile.append(preserved.actionMenus);
+    }
+    
+    if (preserved.dieRolls) {
+      $tile.append(preserved.dieRolls);
+    }
+    
+    if (preserved.interactive) {
+      $tile.append(preserved.interactive);
+    }
+  },
+  
   ajaxGet: function (url, data, onSuccess) {
     $.ajax({
       url,
@@ -43,7 +214,7 @@ const Utils = {
       data,
       success: onSuccess,
       error: (jqXHR, textStatus, errorThrown) => {
-        console.error(`Error with GET ${url}:`, textStatus, errorThrown);
+        console.error('Error with GET ' + url + ':', textStatus, errorThrown);
       }
     });
   },
@@ -122,31 +293,12 @@ const Utils = {
         var safeDescription = $('<div>').text(description).html();
         
         if (compact) {
-          $container.append(`
-            <button class="die-roll-toggle">Roll</button>
-            <div class="die-roll-component" style="display: none;">
-              <span class="rollable-die" data-roll="${rollStr}" data-entity="${entityId}" data-description="${safeDescription}">Roll!</span>
-              <div class="roll-switch">
-                <button type="button" class="roll-mode" data-mode="normal" label="Normal">&nbsp;</button>
-                <button type="button" class="roll-mode" data-mode="advantage" label="Advantage">+</button>
-                <button type="button" class="roll-mode" data-mode="disadvantage" label="Disadvantage">-</button>
-              </div>
-            </div>
-          `);
+          $container.append('<button class="die-roll-toggle">Roll</button><div class="die-roll-component" style="display: none;"><span class="rollable-die" data-roll="' + rollStr + '" data-entity="' + entityId + '" data-description="' + safeDescription + '">Roll!</span><div class="roll-switch"><button type="button" class="roll-mode" data-mode="normal" label="Normal">&nbsp;</button><button type="button" class="roll-mode" data-mode="advantage" label="Advantage">+</button><button type="button" class="roll-mode" data-mode="disadvantage" label="Disadvantage">-</button></div></div>');
           $container.find('.die-roll-toggle').click(function() {
             $container.find('.die-roll-component').toggle();
           });
         } else {
-          $container.append(`
-            <div class="die-roll-component">
-              <span class="rollable-die" data-roll="${rollStr}" data-entity="${entityId}" data-description="${safeDescription}">Roll!</span>
-              <div class="roll-switch">
-                <button type="button" class="roll-mode" data-mode="normal">&nbsp;</button>
-                <button type="button" class="roll-mode" data-mode="advantage">+</button>
-                <button type="button" class="roll-mode" data-mode="disadvantage">-</button>
-              </div>
-            </div>
-          `);
+          $container.append('<div class="die-roll-component"><span class="rollable-die" data-roll="' + rollStr + '" data-entity="' + entityId + '" data-description="' + safeDescription + '">Roll!</span><div class="roll-switch"><button type="button" class="roll-mode" data-mode="normal">&nbsp;</button><button type="button" class="roll-mode" data-mode="advantage">+</button><button type="button" class="roll-mode" data-mode="disadvantage">-</button></div></div>');
         }
       }
     });
@@ -184,7 +336,7 @@ const Utils = {
     const terrainLookup = {};
     if (terrainInfo) {
       terrainInfo.forEach(info => {
-        terrainLookup[`${info.x},${info.y}`] = info.difficult;
+        terrainLookup[info.x + ',' + info.y] = info.difficult;
       });
     }
     
@@ -194,7 +346,7 @@ const Utils = {
     
     movePath.forEach((coords, index) => {
       const [x, y] = coords;
-      const rect = $(`.tile[data-coords-x="${x}"][data-coords-y="${y}"]`)[0].getBoundingClientRect();
+      const rect = $('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]')[0].getBoundingClientRect();
       const centerX = rect.left + rect.width / 2 + scrollLeft;
       const centerY = rect.top + rect.height / 2 + scrollTop;
       
@@ -205,7 +357,7 @@ const Utils = {
         prevY = centerY;
       } else {
         // Check if this segment goes through difficult terrain
-        const isDifficult = terrainLookup[`${x},${y}`] || false;
+        const isDifficult = terrainLookup[x + ',' + y] || false;
         
         // Start a new path segment with appropriate line style
         ctx.beginPath();
@@ -236,7 +388,7 @@ const Utils = {
           // Use the direction from the previous segment
           const prevCoords = movePath[index - 1];
           const [prevTileX, prevTileY] = prevCoords;
-          const prevRect = $(`.tile[data-coords-x="${prevTileX}"][data-coords-y="${prevTileY}"]`)[0].getBoundingClientRect();
+          const prevRect = $('.tile[data-coords-x="' + prevTileX + '"][data-coords-y="' + prevTileY + '"]')[0].getBoundingClientRect();
           const prevCenterX = prevRect.left + prevRect.width / 2 + scrollLeft;
           const prevCenterY = prevRect.top + prevRect.height / 2 + scrollTop;
           angle = Math.atan2(centerY - prevCenterY, centerX - prevCenterX);
@@ -268,7 +420,7 @@ const Utils = {
         ctx.font = "20px Arial";
         ctx.fillStyle = "green";
         ctx.fillText(
-          `${available_cost}ft`,
+          available_cost + 'ft',
           centerX,
           centerY + $(".tile").height() / 2,
         );
@@ -302,12 +454,12 @@ const Utils = {
     
     // Update image container and image
     $("#main-map-area .image-container img").css({
-      width: `${data.width}px`,
+      width: data.width + 'px',
       objectFit: 'cover',
       objectPosition: 'top',
     });
     $("#main-map-area .image-container").css({
-      height: `${data.height}px`,
+      height: data.height + 'px',
     });
     
     // Update image container position with consistent offset handling
@@ -316,8 +468,8 @@ const Utils = {
     // Update tiles container
     $("#main-map-area .tiles-container").css({
       position: 'absolute',
-      top: `-${tile_size}px`,
-      left: `-${tile_size}px`,
+      top: '-' + tile_size + 'px',
+      left: '-' + tile_size + 'px',
       width: data.width,
       height: data.height,
     });
@@ -337,8 +489,8 @@ const Utils = {
     // Update canvas
     canvas.width = data.width + tile_size;
     canvas.height = data.height + tile_size;
-    canvas.style.top = `-${tile_size}px`;
-    canvas.style.left = `-${tile_size}px`;
+    canvas.style.top = '-' + tile_size + 'px';
+    canvas.style.left = '-' + tile_size + 'px';
 
     // Update background and map name
     $("#main-map-area .image-container img").attr("src", data.background);
