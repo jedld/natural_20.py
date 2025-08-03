@@ -50,6 +50,8 @@ const Utils = {
           window.lastAppliedSequence = currentSequence;
           // Refresh portraits when tiles are refreshed
           Utils.refreshPortraits();
+          // Ensure popover menus stay on top after full refresh
+          Utils.ensurePopoverMenusOnTop();
         } else {
           console.log('Ignoring out-of-order tile update (full): ' + currentSequence + ' < ' + window.lastAppliedSequence);
         }
@@ -126,6 +128,9 @@ const Utils = {
         
         // Refresh portraits when tiles are refreshed
         Utils.refreshPortraits();
+        
+        // Ensure popover menus stay on top after optimized updates
+        Utils.ensurePopoverMenusOnTop();
       } else {
         console.log('Ignoring out-of-order tile update (optimized): ' + currentSequence + ' < ' + window.lastAppliedSequence);
       }
@@ -187,6 +192,9 @@ const Utils = {
     // Re-initialize die roll components on updated tiles
     if (Utils.autoInsertDieRoll) { Utils.autoInsertDieRoll(); }
     if (Utils.initDieRollComponent) { Utils.initDieRollComponent(); }
+    
+    // Ensure popover menus stay on top after tile updates
+    Utils.ensurePopoverMenusOnTop();
   },
   
   // Compare tiles to see if they need updating
@@ -314,6 +322,14 @@ const Utils = {
     
     if (preserved.interactive) {
       $tile.append(preserved.interactive);
+    }
+    
+    // Ensure restored popover menus have correct z-index
+    if (preserved.actionMenus && Utils.ensurePopoverMenusOnTop) {
+      // Small delay to ensure DOM is updated
+      setTimeout(function() {
+        Utils.ensurePopoverMenusOnTop();
+      }, 10);
     }
   },
   
@@ -559,6 +575,65 @@ const Utils = {
   closeNoteModal: function() {
     $('#noteModal').hide();
   },
+  
+  // Ensure popover menus always stay on top of other elements
+  ensurePopoverMenusOnTop: function() {
+    $('.popover-menu:visible, .popover-menu-2:visible').each(function() {
+      const $menu = $(this);
+      // Force the z-index to be very high to stay above tiles, fog of war, etc.
+      $menu.css('z-index', '10001');
+      
+      // Also ensure the parent tile doesn't interfere
+      const $parentTile = $menu.closest('.tile');
+      if ($parentTile.length > 0) {
+        // Save original z-index if it exists
+        if (!$parentTile.data('original-z-index')) {
+          $parentTile.data('original-z-index', $parentTile.css('z-index') || 'auto');
+        }
+        // Set tile z-index to be just below the menu
+        $parentTile.css('z-index', '10000');
+      }
+    });
+    
+    // Debug log when fixing z-index issues
+    const visibleMenus = $('.popover-menu:visible, .popover-menu-2:visible').length;
+    if (visibleMenus > 0 && console && console.log) {
+      console.log('Ensured ' + visibleMenus + ' popover menus stay on top');
+    }
+  },
+  
+  // Utility function to close all interactive UI elements when switching characters
+  closeAllInteractiveElements: function() {
+    // Close any open action bars/menus
+    $(".popover-menu, .popover-menu-2").hide();
+    
+    // Close target selection modal if open
+    $('#targetSelectionModal').modal('hide');
+    
+    // Hide any other floating UI elements
+    $(".add-to-target").hide();
+    
+    // Clear any highlighted tiles or selections
+    $(".highlighted").removeClass("highlighted");
+    $(".target-selection, .active-selection").hide();
+    
+    // Hide any visible die roll components that might be open
+    $(".die-roll-component:visible").hide();
+    
+    // Clear any canvas drawings (movement paths, targeting lines, etc.)
+    if (typeof globalCanvas !== 'undefined' && globalCanvas && typeof globalCtx !== 'undefined' && globalCtx) {
+      globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+    }
+    
+    // Reset all interactive modes if variables are defined
+    if (typeof targetMode !== 'undefined') targetMode = false;
+    if (typeof multiTargetMode !== 'undefined') multiTargetMode = false;
+    if (typeof moveMode !== 'undefined') moveMode = false;
+    if (typeof coneMode !== 'undefined') coneMode = false;
+    
+    console.log('Closed all interactive elements for character switch');
+  },
+  
   updateMapDisplay: function(data, canvas) {
     const tile_size = $('.tiles-container').data('tile-size');
     
@@ -612,4 +687,16 @@ $(document).ready(function() {
   // ...existing code...
   if (Utils.autoInsertDieRoll) { Utils.autoInsertDieRoll(); }
   if (Utils.initDieRollComponent) { Utils.initDieRollComponent(); }
+  
+  // Ensure popover menus stay on top when page loads
+  if (Utils.ensurePopoverMenusOnTop) { 
+    Utils.ensurePopoverMenusOnTop(); 
+    
+    // Also set up a periodic check to maintain z-index (every 2 seconds)
+    setInterval(function() {
+      if ($('.popover-menu:visible, .popover-menu-2:visible').length > 0) {
+        Utils.ensurePopoverMenusOnTop();
+      }
+    }, 2000);
+  }
 });

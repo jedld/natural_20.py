@@ -533,6 +533,23 @@ let backgroundSoundStartTime = null;
 let pageRenderTime = null;
 
 const switchPOV = (entity_uid, canvas) => {
+  // Close all interactive UI elements before switching characters
+  if (Utils && Utils.closeAllInteractiveElements) {
+    Utils.closeAllInteractiveElements();
+  } else {
+    // Fallback for older versions or if Utils is not available
+    $(".popover-menu, .popover-menu-2").hide();
+    $('#targetSelectionModal').modal('hide');
+    targetMode = multiTargetMode = moveMode = coneMode = false;
+    $(".add-to-target").hide();
+    $(".highlighted").removeClass("highlighted");
+    $(".target-selection, .active-selection").hide();
+    $(".die-roll-component:visible").hide();
+    if (globalCanvas && globalCtx) {
+      globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+    }
+  }
+  
   ajaxPost("/switch_pov", { entity_uid }, (data) => {
     console.log("Switched POV:", data);
     if (data.background) {
@@ -1241,6 +1258,11 @@ $(document).ready(() => {
           if (windowRightEdge < tileRightEdge) {
             $menu.css("left", `-=${tileRightEdge - windowRightEdge}`);
           }
+          
+          // Ensure the popover menu stays on top after being shown
+          if (Utils && Utils.ensurePopoverMenusOnTop) {
+            Utils.ensurePopoverMenusOnTop();
+          }
         });
       }
     }
@@ -1711,6 +1733,10 @@ $(document).ready(() => {
           { id: entity_uid, action, opts },
           (data) => {
             $entity_tile.find(".popover-menu").html(data);
+            // Ensure the popover menu stays on top after content update
+            if (Utils && Utils.ensurePopoverMenusOnTop) {
+              Utils.ensurePopoverMenusOnTop();
+            }
           },
         );
         break;
