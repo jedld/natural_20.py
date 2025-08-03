@@ -643,7 +643,22 @@
                         <div class="spell-level-header">Cantrips</div>
                         {% else %}
                         <div class="spell-level-header">
-                            Level {{ level }} - {{ entity.spell_slots_count(level, klass) }}/{{ entity.max_spell_slots(level, klass)}} Slots
+                            Level {{ level }} - 
+                            {% if 'dm' in role %}
+                                <span class="editable-spell-slots" data-entity-id="{{ entity.entity_uid }}" data-class="{{ klass }}" data-level="{{ level }}">
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="adjustSpellSlots('{{ entity.entity_uid }}', '{{ klass }}', {{ level }}, 'subtract', 1)">-</button>
+                                    <input type="number" min="0" max="{{ entity.max_spell_slots(level, klass) }}" 
+                                           value="{{ entity.spell_slots_count(level, klass) }}" 
+                                           class="spell-slot-input form-control d-inline" 
+                                           style="width: 60px; display: inline-block; text-align: center; margin: 0 5px;"
+                                           data-entity-id="{{ entity.entity_uid }}" data-class="{{ klass }}" data-level="{{ level }}"
+                                           onchange="updateSpellSlots('{{ entity.entity_uid }}', '{{ klass }}', {{ level }}, this.value)">
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="adjustSpellSlots('{{ entity.entity_uid }}', '{{ klass }}', {{ level }}, 'add', 1)">+</button>
+                                    /{{ entity.max_spell_slots(level, klass) }} Slots
+                                </span>
+                            {% else %}
+                                {{ entity.spell_slots_count(level, klass) }}/{{ entity.max_spell_slots(level, klass) }} Slots
+                            {% endif %}
                         </div>
                         {% endif %}
                         <div class="spells-container-sheet">
@@ -948,6 +963,118 @@
             });
         }
 
+        // Spell Slot Update Functions for DM
+        function updateSpellSlots(entityId, characterClass, level, value) {
+            const input = document.querySelector(`input[data-entity-id="${entityId}"][data-class="${characterClass}"][data-level="${level}"]`);
+            if (!input) return;
+            
+            const numValue = parseInt(value);
+            const maxValue = parseInt(input.max);
+            
+            if (isNaN(numValue) || numValue < 0) {
+                alert('Spell slot value must be 0 or greater');
+                input.value = input.defaultValue; // Reset to previous value
+                return;
+            }
+            
+            if (numValue > maxValue) {
+                alert(`Spell slots cannot exceed maximum (${maxValue})`);
+                input.value = maxValue;
+                return;
+            }
+            
+            fetch('/update_spell_slots', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    entity_id: entityId,
+                    character_class: characterClass,
+                    level: parseInt(level),
+                    value: numValue,
+                    operation: 'set'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update the input value to reflect the actual saved value
+                    input.value = data.new_value;
+                    input.defaultValue = data.new_value;
+                    
+                    // Show brief success feedback
+                    const originalBg = input.style.backgroundColor;
+                    input.style.backgroundColor = '#d4edda';
+                    setTimeout(() => {
+                        input.style.backgroundColor = originalBg;
+                    }, 1000);
+                } else {
+                    alert('Failed to update spell slots: ' + (data.error || 'Unknown error'));
+                    input.value = input.defaultValue; // Reset to previous value
+                }
+            })
+            .catch(error => {
+                alert('Error updating spell slots: ' + error);
+                input.value = input.defaultValue; // Reset to previous value
+            });
+        }
+        
+        function adjustSpellSlots(entityId, characterClass, level, operation, amount) {
+            const input = document.querySelector(`input[data-entity-id="${entityId}"][data-class="${characterClass}"][data-level="${level}"]`);
+            if (!input) return;
+            
+            const currentValue = parseInt(input.value) || 0;
+            const maxValue = parseInt(input.max);
+            let newValue;
+            
+            if (operation === 'add') {
+                newValue = Math.min(currentValue + amount, maxValue);
+            } else if (operation === 'subtract') {
+                newValue = Math.max(currentValue - amount, 0);
+            } else {
+                return;
+            }
+            
+            if (newValue === currentValue) {
+                return; // No change needed
+            }
+            
+            fetch('/update_spell_slots', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    entity_id: entityId,
+                    character_class: characterClass,
+                    level: parseInt(level),
+                    value: newValue,
+                    operation: 'set'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update the input value to reflect the actual saved value
+                    input.value = data.new_value;
+                    input.defaultValue = data.new_value;
+                    
+                    // Show brief success feedback
+                    const originalBg = input.style.backgroundColor;
+                    input.style.backgroundColor = '#d4edda';
+                    setTimeout(() => {
+                        input.style.backgroundColor = originalBg;
+                    }, 1000);
+                } else {
+                    alert('Failed to update spell slots: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                alert('Error updating spell slots: ' + error);
+            });
+        }
+
         // Add Enter key support for HP inputs
         document.addEventListener('DOMContentLoaded', function() {
             const maxHPInput = document.getElementById('max-hp-input');
@@ -1006,6 +1133,22 @@
                     }
                 });
             }
+            
+            // Add Enter key support for spell slot inputs
+            const spellSlotInputs = document.querySelectorAll('.spell-slot-input');
+            spellSlotInputs.forEach(input => {
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        const entityId = this.dataset.entityId;
+                        const characterClass = this.dataset.class;
+                        const level = this.dataset.level;
+                        updateSpellSlots(entityId, characterClass, level, this.value);
+                    }
+                });
+                
+                // Store the default value for reset purposes
+                input.defaultValue = input.value;
+            });
         });
     </script>
     <script>
