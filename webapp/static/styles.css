@@ -386,6 +386,76 @@ input.initiative-text {
   top: 10px;
 }
 
+/* NPC Spawner Styles */
+#npc-spawner {
+  max-height: 70vh;
+}
+
+.npc-item {
+  display: flex;
+  align-items: center;
+  padding: 5px;
+  margin-bottom: 5px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  cursor: move;
+  transition: background-color 0.2s ease;
+  user-select: none;
+}
+
+.npc-item:hover {
+  background-color: #f5f5f5;
+  border-color: #999;
+}
+
+.npc-item.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+}
+
+.npc-item-image {
+  width: 32px;
+  height: 32px;
+  margin-right: 10px;
+  border-radius: 3px;
+}
+
+.npc-item-info {
+  flex: 1;
+}
+
+.npc-item-name {
+  font-weight: bold;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.npc-item-type {
+  font-size: 10px;
+  color: #666;
+}
+
+.battlefield-drop-zone {
+  position: relative;
+}
+
+.battlefield-drop-zone.drag-over {
+  background-color: rgba(92, 184, 92, 0.3) !important;
+  border: 2px dashed #5cb85c !important;
+  box-shadow: inset 0 0 10px rgba(92, 184, 92, 0.5);
+}
+
+/* Visual feedback for empty tiles when dragging NPCs */
+.npc-drag-active .tile:not(.has-entity) {
+  border: 1px dashed #ccc;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.npc-drag-active .tile:not(.has-entity):hover {
+  border-color: #5cb85c;
+  background-color: rgba(92, 184, 92, 0.1);
+}
+
 .token-image {
   max-width: 100%;
   height: auto;

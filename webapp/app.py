@@ -1424,6 +1424,101 @@ def reorder_initiative():
         logger.error(f"Unexpected error reordering initiative: {str(e)}")
         return jsonify(error='Internal server error'), 500
 
+@app.route('/available_npcs', methods=['GET'])
+def get_available_npcs():
+    """Get list of available NPCs for spawning"""
+    global current_game
+    
+    # Check if user is DM
+    if 'dm' not in user_role():
+        return jsonify(error='Only DMs can access NPC list'), 403
+    
+    try:
+        # Use session.load_npcs() to get actual NPC instances with full data
+        npcs = game_session.load_npcs()
+        
+        # Convert to list and sort alphabetically by label
+        npc_list = []
+        for npc in npcs:
+            npc_list.append({
+                'id': npc.npc_type if hasattr(npc, 'npc_type') else npc.properties.get('id', 'unknown'),
+                'name': npc.label() if hasattr(npc, 'label') else npc.properties.get('label', npc.name),
+                'type': npc.properties.get('type', 'Unknown'),
+                'image': npc.token_image() if hasattr(npc, 'token_image') else npc.properties.get('token', f'{npc.name}.png'),
+                'cr': npc.properties.get('cr', 'Unknown'),
+                'size': npc.properties.get('size', 'Medium'),
+                'ac': npc.armor_class() if hasattr(npc, 'armor_class') else npc.properties.get('ac', 'Unknown'),
+                'hp': npc.max_hp() if hasattr(npc, 'max_hp') else npc.properties.get('hp', 'Unknown')
+            })
+        
+        # Sort alphabetically by name
+        npc_list.sort(key=lambda x: x['name'].lower())
+        
+        return jsonify(npcs=npc_list)
+        
+    except Exception as e:
+        logger.error(f"Error getting available NPCs: {str(e)}")
+        return jsonify(error='Failed to load NPCs'), 500
+
+@app.route('/spawn_npc', methods=['POST'])
+def spawn_npc():
+    """Spawn an NPC at the specified coordinates"""
+    global current_game
+    
+    # Check if user is DM
+    if 'dm' not in user_role():
+        return jsonify(error='Only DMs can spawn NPCs'), 403
+    
+    if not request.json:
+        return jsonify(error='No data provided'), 400
+    
+    npc_type = request.json.get('npc_type')
+    x = request.json.get('x')
+    y = request.json.get('y')
+    
+    if not npc_type or x is None or y is None:
+        return jsonify(error='Missing required parameters'), 400
+    
+    try:
+        battle_map = current_game.get_map_for_user(session['username'])
+        
+        # Check if the position is within map bounds
+        if (x < 0 or y < 0 or x >= battle_map.size[1] or y >= battle_map.size[0]):
+            return jsonify(error='Position is outside map bounds'), 400
+        
+        # Check if the position is occupied by an entity
+        if battle_map.entity_at(x, y):
+            return jsonify(error='Position is occupied'), 400
+        
+        # Create the NPC
+        try:
+            npc = game_session.npc(npc_type, {"rand_life": True})
+        except FileNotFoundError:
+            return jsonify(error=f'NPC type "{npc_type}" not found'), 400
+        except Exception as e:
+            return jsonify(error=f'Failed to create NPC: {str(e)}'), 400
+        
+        # Add to map using the add method (which handles placement and group assignment)
+        battle_map.add(npc, x, y, group='b')
+        
+        # If there's an active battle, optionally add to initiative
+        battle = current_game.get_current_battle()
+        if battle:
+            # For now, don't automatically add to initiative
+            # The DM can manually add them if needed
+            pass
+        
+        logger.info(f"DM {session['username']} spawned {npc_type} at ({x}, {y})")
+        
+        # Notify all clients of the map update
+        socketio.emit('message', {'type': 'refresh_map'})
+        
+        return jsonify(status='ok', entity_uid=npc.entity_uid)
+        
+    except Exception as e:
+        logger.error(f"Error spawning NPC: {str(e)}")
+        return jsonify(error=f'Failed to spawn NPC: {str(e)}'), 500
+
 @app.route('/update')
 def update():
     global current_game, logger
