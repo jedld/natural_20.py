@@ -117,6 +117,7 @@ class EventQueue {
       switch (data.type) {
         case "refresh_map": {
           Utils.refreshTileSet();
+          updateDraggableEntityClasses();
           resolve();
           break;
         }
@@ -1484,6 +1485,8 @@ $(document).ready(() => {
   // --- Canvas Setup ---
   const tile_size = $(".tiles-container").data("tile-size");
 
+  // Update draggable entity classes for cursor styling
+  updateDraggableEntityClasses();
  
   createGlobalCanvas();
   // Update canvas size on window resize
@@ -3285,6 +3288,213 @@ $(document).ready(() => {
     const entityName = $(this).data('name');
     handleDialogBubbleClick(entityId, entityName);
   });
+
+  // DM Entity Drag and Drop functionality
+  let isDraggingEntity = false;
+  let draggedEntityId = null;
+  let draggedEntityTile = null;
+  let dragOffset = { x: 0, y: 0 };
+  let dragGhost = null;
+
+  // Check if user is DM
+  function isDM() {
+    return $('body').data('role') && $('body').data('role').includes('dm');
+  }
+
+  // Update draggable entity classes for proper cursor styling
+  function updateDraggableEntityClasses() {
+    if (!isDM()) return;
+    
+    $('.tile').removeClass('has-draggable-entity');
+    $('.tile').each(function() {
+      const $tile = $(this);
+      const entityId = $tile.data("coords-id");
+      
+      // Add class if tile has an entity or NPC
+      if (entityId && $tile.find('.entity, .npc').length) {
+        $tile.addClass('has-draggable-entity');
+      }
+    });
+  }
+
+  // Mouse down on entity tile (start drag)
+  $(".tiles-container").on("mousedown", ".tile", function(e) {
+    // Only allow DMs to drag entities
+    if (!isDM()) return;
+    
+    const $tile = $(this);
+    const entityId = $tile.data("coords-id");
+    
+    // Only allow dragging if there's an entity on this tile
+    if (!entityId || !$tile.find('.entity, .npc').length) return;
+    
+    // Prevent dragging if clicking on action buttons or other interactive elements
+    if ($(e.target).closest('.popover-menu, .action-button, .add-to-turn-order, .dialog-bubble').length) {
+      return;
+    }
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    isDraggingEntity = true;
+    draggedEntityId = entityId;
+    draggedEntityTile = $tile;
+    
+    // Calculate offset from mouse to tile center
+    const tileRect = $tile[0].getBoundingClientRect();
+    const tileSize = $(".tiles-container").data("tile-size");
+    const tileCenterX = tileRect.left + tileSize / 2;
+    const tileCenterY = tileRect.top + tileSize / 2;
+    
+    // Store offset from mouse position to tile center
+    dragOffset.x = e.clientX - tileCenterX;
+    dragOffset.y = e.clientY - tileCenterY;
+    
+    // Create drag ghost element centered on the tile
+    createDragGhost($tile, tileCenterX, tileCenterY);
+    
+    // Add dragging class for visual feedback
+    $tile.addClass('entity-dragging');
+    $('body').addClass('entity-dragging-active');
+    
+    // Hide popover menus during drag
+    $('.popover-menu').hide();
+  });
+
+  // Mouse move (update drag ghost position)
+  $(document).on("mousemove", function(e) {
+    if (!isDraggingEntity || !dragGhost) return;
+    
+    // Update ghost position - center the ghost on the mouse cursor
+    const tileSize = $(".tiles-container").data("tile-size");
+    dragGhost.css({
+      left: (e.clientX - tileSize / 2) + 'px',
+      top: (e.clientY - tileSize / 2) + 'px'
+    });
+    
+    // Highlight target tile
+    const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
+    const $targetTile = $(elementBelow).closest('.tile');
+    
+    // Remove previous highlight
+    $('.tile').removeClass('drag-target-highlight');
+    
+    if ($targetTile.length && $targetTile[0] !== draggedEntityTile[0]) {
+      $targetTile.addClass('drag-target-highlight');
+    }
+  });
+
+  // Mouse up (complete drag or cancel)
+  $(document).on("mouseup", function(e) {
+    if (!isDraggingEntity) return;
+    
+    // Find the target tile
+    const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
+    const $targetTile = $(elementBelow).closest('.tile');
+    
+    if ($targetTile.length && $targetTile[0] !== draggedEntityTile[0]) {
+      // Valid drop target
+      const targetX = $targetTile.data("coords-x");
+      const targetY = $targetTile.data("coords-y");
+      
+      if (targetX !== undefined && targetY !== undefined) {
+        // Perform the move via API
+        moveEntityTo(draggedEntityId, targetX, targetY);
+      }
+    }
+    
+    // Clean up drag state
+    cleanupDrag();
+  });
+
+  // Cancel drag on escape key
+  $(document).on("keydown", function(e) {
+    if (e.key === "Escape" && isDraggingEntity) {
+      cleanupDrag();
+    }
+  });
+
+  // Create drag ghost element
+  function createDragGhost($sourceTile, x, y) {
+    const $entity = $sourceTile.find('.entity, .npc').first();
+    if (!$entity.length) return;
+    
+    const tileSize = $(".tiles-container").data("tile-size");
+    
+    dragGhost = $('<div>')
+      .addClass('entity-drag-ghost')
+      .css({
+        position: 'fixed',
+        left: (x - tileSize / 2) + 'px',
+        top: (y - tileSize / 2) + 'px',
+        width: tileSize + 'px',
+        height: tileSize + 'px',
+        zIndex: 10000,
+        pointerEvents: 'none',
+        opacity: 0.7,
+        border: '2px solid #007bff',
+        borderRadius: '4px',
+        backgroundColor: 'rgba(0, 123, 255, 0.1)'
+      });
+    
+    // Clone the entity image
+    const $entityClone = $entity.clone();
+    $entityClone.css({
+      position: 'relative',
+      top: '0',
+      left: '0',
+      transform: 'none'
+    });
+    
+    dragGhost.append($entityClone);
+    $('body').append(dragGhost);
+  }
+
+  // Clean up drag state
+  function cleanupDrag() {
+    isDraggingEntity = false;
+    draggedEntityId = null;
+    
+    if (draggedEntityTile) {
+      draggedEntityTile.removeClass('entity-dragging');
+      draggedEntityTile = null;
+    }
+    
+    if (dragGhost) {
+      dragGhost.remove();
+      dragGhost = null;
+    }
+    
+    // Remove target highlights and global dragging class
+    $('.tile').removeClass('drag-target-highlight');
+    $('body').removeClass('entity-dragging-active');
+  }
+
+  // Move entity to target position
+  function moveEntityTo(entityId, targetX, targetY) {
+    $.ajax({
+      url: '/dm_move_entity',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({
+        entity_id: entityId,
+        x: targetX,
+        y: targetY
+      }),
+      success: function(response) {
+        if (response.success) {
+          console.log(`Entity ${entityId} moved to (${targetX}, ${targetY})`);
+          // The server will emit a refresh_map message, so no need to manually refresh
+        } else {
+          alert('Failed to move entity: ' + (response.error || 'Unknown error'));
+        }
+      },
+      error: function(xhr, status, error) {
+        console.error('Error moving entity:', error);
+        alert('Error moving entity: ' + error);
+      }
+    });
+  }
 
   Chat.init();
   
