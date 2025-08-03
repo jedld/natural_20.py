@@ -237,9 +237,9 @@ class EventManager:
 
         def ability_check(event):
             if event["success"]:
-                self.output_logger.log(f"{self.show_target_name(event)}: {self.show_name(event)} makes a successfull {event['ability']} check and rolls {event['roll']} = {event['roll'].result()} >= DC {event['dc']}")
+                self.output_logger.log(f"{self.show_target_name(event)} {self.show_name(event)} makes a successfull {event['ability']} check and rolls {event['roll']} = {event['roll'].result()} >= DC {event['dc']}")
             else:
-                self.output_logger.log(f"{self.show_target_name(event)}: {self.show_name(event)} makes a failed {event['ability']} check and rolls {event['roll']} = {event['roll'].result()} < DC {event['dc']}")
+                self.output_logger.log(f"{self.show_target_name(event)} {self.show_name(event)} makes a failed {event['ability']} check and rolls {event['roll']} = {event['roll'].result()} < DC {event['dc']}")
 
         def death_save(event):
             if event['roll'].nat_20():
