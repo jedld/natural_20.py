@@ -9,6 +9,7 @@ import click
 from PIL import Image
 import logging
 import importlib
+import pdb
 
 # Load environment variables from .env file if it exists
 try:
@@ -429,6 +430,20 @@ def commit_and_update(action):
     else:
         current_game.loop_environment()
         socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
+        
+        # Check if the action affects visibility (doors, lighting, etc.) and emit refresh_map
+        if hasattr(action, 'result') and action.result:
+            for result_item in action.result:
+                if (result_item.get('type') == 'interact' and 
+                    result_item.get('action') in ['open', 'close']):
+                    # Door open/close affects line of sight, refresh the map
+                    socketio.emit('message', {'type': 'refresh_map'})
+                    break
+                elif result_item.get('type') == 'look':
+                    # Look action can reveal notes and concealed entities, refresh the map
+                    socketio.emit('message', {'type': 'refresh_map'})
+                    break
+    
     socketio.emit('message', {'type': 'turn', 'message': {}})
 
     if AUTOSAVE:
@@ -1391,19 +1406,21 @@ def update():
 
     # Get current POV entity
     pov_entity = current_game.get_pov_entity_for_user(session['username'])
-    _pov_entities = [pov_entity]
+    _pov_entities = pov_entities()  # Use the same function as the main index route
+    
     # Handle POV changes
     if entity and ('dm' in user_role() or entity in entities_controlled_by(session['username'], battle_map)):
         # Set new POV to selected entity
         current_game.set_pov_entity_for_user(session['username'], entity)
-        _pov_entities = [entity]
+        _pov_entities = pov_entities()  # Refresh the list after POV change
     elif is_pov and not entity:
         current_game.set_pov_entity_for_user(session['username'], None)
         pov_entity = None
         _pov_entities = None
 
-    if not 'dm' in user_role() and pov_entity is None:
-        _pov_entities = [entities_controlled_by(session['username'], battle_map)[0]]
+    if not 'dm' in user_role() and pov_entity is None and (_pov_entities is None or len(_pov_entities) == 0):
+        user_entities = entities_controlled_by(session['username'], battle_map)
+        _pov_entities = user_entities if user_entities else []
 
     logger.info(f"entity: {entity}, pov_entity: {pov_entity}, _pov_entities: {_pov_entities}")
     my_2d_array = [renderer.render(entity_pov=_pov_entities)]
@@ -3109,6 +3126,5 @@ if __name__ == '__main__':
         allow_unsafe_werkzeug=True,
         # Add ngrok-specific settings
         use_reloader=False,  # Disable reloader for ngrok
-        threaded=True,  # Enable threading
         log_output=True
     )
