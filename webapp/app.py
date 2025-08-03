@@ -1407,7 +1407,13 @@ def update():
 
     logger.info(f"entity: {entity}, pov_entity: {pov_entity}, _pov_entities: {_pov_entities}")
     my_2d_array = [renderer.render(entity_pov=_pov_entities)]
-    return render_template('map.html', pov_entity=pov_entity, tiles=my_2d_array, tile_size_px=TILE_PX, random=random, is_setup=(request.args.get('is_setup') == 'true'))
+    return render_template('map.html', 
+                         pov_entity=pov_entity, 
+                         tiles=my_2d_array, 
+                         tile_size_px=TILE_PX, 
+                         random=random, 
+                         is_setup=(request.args.get('is_setup') == 'true'),
+                         current_map_name=battle_map.name)
 
 @app.route('/actions', methods=['GET'])
 def get_actions():

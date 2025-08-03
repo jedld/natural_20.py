@@ -32,13 +32,27 @@ const Utils = {
   // This prevents interactive elements (action menus, die rolls, etc.) from being 
   // removed while players are actively using them
   refreshTileSet: function(is_setup = false, pov = false, x = 0, y = 0, entity_uid= null, callback = null)  {
-    // For initial setup, use the full update to avoid complexity
-    if (is_setup) {
+    // Initialize update sequence counter if not exists
+    if (!window.tileUpdateSequence) {
+      window.tileUpdateSequence = 0;
+    }
+    
+    // Increment sequence for this update
+    const currentSequence = ++window.tileUpdateSequence;
+    
+    // Check if optimization is disabled (for debugging)
+    if (window.disableTileOptimization || is_setup) {
       Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) => {
-        lastMovedEntityBeforeRefresh = null;
-        $('.tiles-container').html(data);
-        // Refresh portraits when tiles are refreshed
-        Utils.refreshPortraits();
+        // Only apply if this is still the most recent request
+        if (currentSequence >= (window.lastAppliedSequence || 0)) {
+          lastMovedEntityBeforeRefresh = null;
+          $('.tiles-container').html(data);
+          window.lastAppliedSequence = currentSequence;
+          // Refresh portraits when tiles are refreshed
+          Utils.refreshPortraits();
+        } else {
+          console.log('Ignoring out-of-order tile update (full): ' + currentSequence + ' < ' + window.lastAppliedSequence);
+        }
         if (callback) callback();
       });
       return;
@@ -48,15 +62,74 @@ const Utils = {
     Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) => {
       lastMovedEntityBeforeRefresh = null;
       
-      // Parse the HTML to extract individual tiles
+      // Get current map from body attribute
+      const currentMap = $('body').attr('data-current-map');
+      
+      // Parse the HTML to extract individual tiles and check for map info
       const $newContent = $('<div>').html(data);
       const $newTiles = $newContent.find('.tile');
       
-      // Update only changed tiles
-      Utils.updateChangedTilesOptimized($newTiles);
+      // Check if this update is for the current map
+      if ($newTiles.length > 0) {
+        // Look for the map metadata div
+        const $mapMetadata = $newContent.find('.map-metadata[data-map-name]').first();
+        
+        if ($mapMetadata.length > 0) {
+          const updateMapName = $mapMetadata.data('map-name');
+          
+          if (updateMapName && currentMap && updateMapName !== currentMap) {
+            console.warn('Ignoring tile update - for map "' + updateMapName + '" but current map is "' + currentMap + '"');
+            if (callback) callback();
+            return;
+          }
+        }
+        
+        // Additional coordinate-based validation
+        const existingTilesCount = $('.tiles-container .tile').length;
+        
+        if (existingTilesCount > 0) {
+          // Sample a few tiles to check if they belong to the current map context
+          let mapMismatch = false;
+          $newTiles.slice(0, 3).each(function() {
+            const $newTile = $(this);
+            const x = $newTile.data('coords-x');
+            const y = $newTile.data('coords-y');
+            
+            if (x !== undefined && y !== undefined) {
+              const $existingTile = $('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]');
+              // If this coordinate should exist but doesn't, we might have a map mismatch
+              if ($existingTile.length === 0) {
+                const tilesContainer = $('.tiles-container');
+                const containerWidth = tilesContainer.data('width') || 0;
+                const containerHeight = tilesContainer.data('height') || 0;
+                // Check if coordinates are way outside expected bounds
+                if (x < -10 || y < -10 || x > containerWidth + 10 || y > containerHeight + 10) {
+                  mapMismatch = true;
+                  return false; // Break out of each loop
+                }
+              }
+            }
+          });
+          
+          if (mapMismatch) {
+            console.warn('Ignoring tile update - coordinates appear to be for a different map');
+            if (callback) callback();
+            return;
+          }
+        }
+      }
       
-      // Refresh portraits when tiles are refreshed
-      Utils.refreshPortraits();
+      // Update only changed tiles
+      if (currentSequence >= (window.lastAppliedSequence || 0)) {
+        Utils.updateChangedTilesOptimized($newTiles);
+        window.lastAppliedSequence = currentSequence;
+        
+        // Refresh portraits when tiles are refreshed
+        Utils.refreshPortraits();
+      } else {
+        console.log('Ignoring out-of-order tile update (optimized): ' + currentSequence + ' < ' + window.lastAppliedSequence);
+      }
+      
       if (callback) callback();
     });
   },
@@ -86,6 +159,13 @@ const Utils = {
       if (Utils.tilesAreEqual($existingTile, $newTile)) {
         tilesPreserved++;
         return; // No change needed - preserve interactive elements
+      }
+      
+      // Debug logging for fog of war changes
+      const oldFog = $existingTile.find('.fog-of-war').length;
+      const newFog = $newTile.find('.fog-of-war').length;
+      if (oldFog !== newFog && console && console.log) {
+        console.log('Fog of war change detected at (' + x + ',' + y + '): ' + oldFog + ' -> ' + newFog);
       }
       
       // Preserve any active interactive elements
@@ -155,10 +235,40 @@ const Utils = {
       return false;
     }
     
-    // Compare fog of war
+    // Compare fog of war - this is critical for line of sight changes!
     const fog1 = $tile1.find('.fog-of-war').length;
     const fog2 = $tile2.find('.fog-of-war').length;
     if (fog1 !== fog2) {
+      return false;
+    }
+    
+    // Also compare fog of war styling if present (opacity, visibility changes)
+    if (fog1 > 0 && fog2 > 0) {
+      const fog1Style = $tile1.find('.fog-of-war').attr('style') || '';
+      const fog2Style = $tile2.find('.fog-of-war').attr('style') || '';
+      if (fog1Style !== fog2Style) {
+        return false;
+      }
+    }
+    
+    // Compare brightness overlay for lighting changes
+    const brightness1 = $tile1.find('.brightness-overlay').attr('style') || '';
+    const brightness2 = $tile2.find('.brightness-overlay').attr('style') || '';
+    if (brightness1 !== brightness2) {
+      return false;
+    }
+    
+    // Compare objects on the tile
+    const objects1 = $tile1.find('.object-container').length;
+    const objects2 = $tile2.find('.object-container').length;
+    if (objects1 !== objects2) {
+      return false;
+    }
+    
+    // Compare ground items
+    const items1 = $tile1.find('.item-container').length;
+    const items2 = $tile2.find('.item-container').length;
+    if (items1 !== items2) {
       return false;
     }
     
