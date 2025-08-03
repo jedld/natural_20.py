@@ -136,6 +136,44 @@
             left: 50%;
             transform: translate(-50%, -50%);
         }
+
+        /* Editable HP fields for DM */
+        .hp-editable {
+            display: inline-block;
+            min-width: 60px;
+            border: 1px solid #ddd;
+            padding: 2px 6px;
+            background: #f9f9f9;
+            border-radius: 3px;
+            font-family: inherit;
+            font-size: inherit;
+            text-align: center;
+        }
+        .hp-editable:focus {
+            outline: none;
+            border-color: #8b0000;
+            background: white;
+        }
+        .hp-editable:hover {
+            border-color: #999;
+        }
+        .hp-save-btn {
+            margin-left: 10px;
+            padding: 2px 8px;
+            background: #8b0000;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .hp-save-btn:hover {
+            background: #660000;
+        }
+        .hp-save-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
     </style>
 
 </head>
@@ -287,15 +325,36 @@
                     <table>
                         <tr>
                             <th>Max HP</th>
-                            <td>{{ entity.max_hp() }}</td>
+                            <td>
+                                {% if 'dm' in role %}
+                                <input type="number" class="hp-editable" id="max-hp-input" value="{{ entity.max_hp() }}" min="1" max="999">
+                                <button class="hp-save-btn" onclick="updateMaxHP()" id="save-max-hp-btn">Save</button>
+                                {% else %}
+                                {{ entity.max_hp() }}
+                                {% endif %}
+                            </td>
                         </tr>
                         <tr>
                             <th>Current HP</th>
-                            <td>{{ entity.hp() }}</td>
+                            <td>
+                                {% if 'dm' in role %}
+                                <input type="number" class="hp-editable" id="current-hp-input" value="{{ entity.hp() }}" min="0" max="{{ entity.max_hp() }}">
+                                <button class="hp-save-btn" onclick="updateCurrentHP()" id="save-current-hp-btn">Save</button>
+                                {% else %}
+                                {{ entity.hp() }}
+                                {% endif %}
+                            </td>
                         </tr>
                         <tr>
                             <th>Temporary HP</th>
-                            <td>{{ entity.temp_hp() }}</td>
+                            <td>
+                                {% if 'dm' in role %}
+                                <input type="number" class="hp-editable" id="temp-hp-input" value="{{ entity.temp_hp() }}" min="0" max="999">
+                                <button class="hp-save-btn" onclick="updateTempHP()" id="save-temp-hp-btn">Save</button>
+                                {% else %}
+                                {{ entity.temp_hp() }}
+                                {% endif %}
+                            </td>
                         </tr>
                     </table>
                     {% if entity.death_saves > 0 or entity.death_fails > 0 %}
@@ -568,6 +627,185 @@
     </div>
     <script src="/sheet.js?salt={{ salt }}"></script>
     <script src="/utils.js?salt={{ salt }}"></script>
+    <script>
+        // HP Update Functions for DM
+        function updateMaxHP() {
+            const input = document.getElementById('max-hp-input');
+            const button = document.getElementById('save-max-hp-btn');
+            const value = parseInt(input.value);
+            
+            if (isNaN(value) || value < 1) {
+                alert('Max HP must be a positive number');
+                return;
+            }
+            
+            button.disabled = true;
+            button.textContent = 'Saving...';
+            
+            fetch('/update_hp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    entity_id: document.body.dataset.id,
+                    hp_type: 'max_hp',
+                    value: value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    button.textContent = 'Saved!';
+                    setTimeout(() => {
+                        button.textContent = 'Save';
+                        button.disabled = false;
+                    }, 1000);
+                    // Update current HP max constraint
+                    const currentHPInput = document.getElementById('current-hp-input');
+                    if (currentHPInput) {
+                        currentHPInput.max = value;
+                    }
+                } else {
+                    alert('Failed to update Max HP: ' + (data.error || 'Unknown error'));
+                    button.textContent = 'Save';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                alert('Error updating Max HP: ' + error);
+                button.textContent = 'Save';
+                button.disabled = false;
+            });
+        }
+        
+        function updateCurrentHP() {
+            const input = document.getElementById('current-hp-input');
+            const button = document.getElementById('save-current-hp-btn');
+            const value = parseInt(input.value);
+            const maxHP = parseInt(document.getElementById('max-hp-input')?.value || input.max);
+            
+            if (isNaN(value) || value < 0) {
+                alert('Current HP must be 0 or greater');
+                return;
+            }
+            
+            if (value > maxHP) {
+                alert('Current HP cannot exceed Max HP (' + maxHP + ')');
+                return;
+            }
+            
+            button.disabled = true;
+            button.textContent = 'Saving...';
+            
+            fetch('/update_hp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    entity_id: document.body.dataset.id,
+                    hp_type: 'current_hp',
+                    value: value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    button.textContent = 'Saved!';
+                    setTimeout(() => {
+                        button.textContent = 'Save';
+                        button.disabled = false;
+                    }, 1000);
+                } else {
+                    alert('Failed to update Current HP: ' + (data.error || 'Unknown error'));
+                    button.textContent = 'Save';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                alert('Error updating Current HP: ' + error);
+                button.textContent = 'Save';
+                button.disabled = false;
+            });
+        }
+        
+        function updateTempHP() {
+            const input = document.getElementById('temp-hp-input');
+            const button = document.getElementById('save-temp-hp-btn');
+            const value = parseInt(input.value);
+            
+            if (isNaN(value) || value < 0) {
+                alert('Temporary HP must be 0 or greater');
+                return;
+            }
+            
+            button.disabled = true;
+            button.textContent = 'Saving...';
+            
+            fetch('/update_hp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    entity_id: document.body.dataset.id,
+                    hp_type: 'temp_hp',
+                    value: value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    button.textContent = 'Saved!';
+                    setTimeout(() => {
+                        button.textContent = 'Save';
+                        button.disabled = false;
+                    }, 1000);
+                } else {
+                    alert('Failed to update Temporary HP: ' + (data.error || 'Unknown error'));
+                    button.textContent = 'Save';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                alert('Error updating Temporary HP: ' + error);
+                button.textContent = 'Save';
+                button.disabled = false;
+            });
+        }
+
+        // Add Enter key support for HP inputs
+        document.addEventListener('DOMContentLoaded', function() {
+            const maxHPInput = document.getElementById('max-hp-input');
+            const currentHPInput = document.getElementById('current-hp-input');
+            const tempHPInput = document.getElementById('temp-hp-input');
+            
+            if (maxHPInput) {
+                maxHPInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        updateMaxHP();
+                    }
+                });
+            }
+            
+            if (currentHPInput) {
+                currentHPInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        updateCurrentHP();
+                    }
+                });
+            }
+            
+            if (tempHPInput) {
+                tempHPInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        updateTempHP();
+                    }
+                });
+            }
+        });
+    </script>
     <script>
         // Add collapsible section functionality
         document.addEventListener('DOMContentLoaded', function() {
