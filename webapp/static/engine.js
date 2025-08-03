@@ -2237,6 +2237,149 @@ $(document).ready(() => {
     });
   });
 
+  // NPC Spawner functionality
+  $("#toggle-npc-spawner").click(() => {
+    const $npcSpawner = $("#npc-spawner");
+    if ($npcSpawner.is(":visible")) {
+      $npcSpawner.hide();
+    } else {
+      loadAvailableNPCs();
+      $npcSpawner.show();
+    }
+  });
+
+  $("#close-npc-spawner").click(() => {
+    $("#npc-spawner").hide();
+  });
+
+  // Load available NPCs function
+  function loadAvailableNPCs() {
+    $.get("/available_npcs", (data) => {
+      if (data.npcs) {
+        displayNPCs(data.npcs);
+      }
+    }).fail((jqXHR) => {
+      console.error("Failed to load NPCs:", jqXHR.responseJSON ? jqXHR.responseJSON.error : jqXHR.statusText);
+      $("#npc-list").html('<div class="alert alert-danger">Failed to load NPCs</div>');
+    });
+  }
+
+  // Display NPCs in the spawner window
+  function displayNPCs(npcs) {
+    const $npcList = $("#npc-list");
+    $npcList.empty();
+
+    npcs.forEach((npc) => {
+      const $npcItem = $(`
+        <div class="npc-item" draggable="true" data-npc-type="${npc.id}" title="AC: ${npc.ac}, HP: ${npc.hp}">
+          <img class="npc-item-image" src="/assets/${npc.image}" alt="${npc.name}" onerror="this.src='/assets/token_adversary.png'">
+          <div class="npc-item-info">
+            <div class="npc-item-name">${npc.name}</div>
+            <div class="npc-item-type">CR ${npc.cr} • ${npc.size} • AC ${npc.ac}</div>
+          </div>
+        </div>
+      `);
+      $npcList.append($npcItem);
+    });
+  }
+
+  // NPC search functionality
+  $("#npc-search-input").on("input", function() {
+    const searchTerm = $(this).val().toLowerCase();
+    $(".npc-item").each(function() {
+      const npcName = $(this).find(".npc-item-name").text().toLowerCase();
+      if (npcName.includes(searchTerm)) {
+        $(this).show();
+      } else {
+        $(this).hide();
+      }
+    });
+  });
+
+  // NPC drag and drop functionality
+  let draggedNPC = null;
+
+  $("#npc-list").on("dragstart", ".npc-item", function(e) {
+    draggedNPC = $(this).data("npc-type");
+    $(this).addClass("dragging");
+    e.originalEvent.dataTransfer.effectAllowed = "copy";
+    e.originalEvent.dataTransfer.setData("text/plain", draggedNPC);
+    
+    // Add visual feedback for empty tiles
+    $("body").addClass("npc-drag-active");
+    $(".tile").each(function() {
+      if ($(this).find(".entity").length === 0) {
+        $(this).addClass("empty-tile-highlight");
+      }
+    });
+    
+    console.log("Started dragging NPC:", draggedNPC);
+  });
+
+  $("#npc-list").on("dragend", ".npc-item", function(e) {
+    $(this).removeClass("dragging");
+    $(".tile").removeClass("battlefield-drop-zone drag-over empty-tile-highlight");
+    $("body").removeClass("npc-drag-active");
+    draggedNPC = null;
+  });
+
+  // Battlefield drop zone functionality
+  $(".tiles-container").on("dragover", ".tile", function(e) {
+    if (draggedNPC) {
+      e.preventDefault();
+      e.originalEvent.dataTransfer.dropEffect = "copy";
+      
+      // Only show drop zone if tile is empty
+      const $tile = $(this);
+      const hasEntity = $tile.find(".entity").length > 0;
+      
+      if (!hasEntity) {
+        $(".tile").removeClass("drag-over");
+        $tile.addClass("battlefield-drop-zone drag-over");
+      }
+    }
+  });
+
+  $(".tiles-container").on("dragleave", ".tile", function(e) {
+    if (draggedNPC) {
+      $(this).removeClass("drag-over");
+    }
+  });
+
+  $(".tiles-container").on("drop", ".tile", function(e) {
+    if (draggedNPC) {
+      e.preventDefault();
+      
+      const $tile = $(this);
+      const hasEntity = $tile.find(".entity").length > 0;
+      
+      if (!hasEntity) {
+        const x = parseInt($tile.data("coords-x"));
+        const y = parseInt($tile.data("coords-y"));
+        
+        console.log(`Spawning ${draggedNPC} at (${x}, ${y})`);
+        
+        // Spawn the NPC
+        ajaxPost("/spawn_npc", {
+          npc_type: draggedNPC,
+          x: x,
+          y: y
+        }, (data) => {
+          if (data.status === 'ok') {
+            console.log("NPC spawned successfully:", data.entity_uid);
+            // The map will be updated via socket message
+          } else {
+            alert("Failed to spawn NPC: " + (data.error || "Unknown error"));
+          }
+        }, true);
+      } else {
+        console.log("Cannot spawn NPC: position is occupied");
+      }
+      
+      $(".tile").removeClass("battlefield-drop-zone drag-over");
+    }
+  });
+
   // DM Sound Manager Event Handlers
   $("#modal-1 .modal-content").on("click", ".track-item", function () {
     const trackId = $(this).data('track-id');
@@ -3526,6 +3669,9 @@ $(document).ready(() => {
   // Make dialog panel draggable and resizable
   makeDialogPanelDraggable();
   makeDialogPanelResizable();
+  
+  // Make floating windows draggable
+  makeFloatingWindowsDraggable();
 
   // Handle window resize to keep panel in bounds
 });
@@ -3627,5 +3773,56 @@ function makeDialogPanelResizable() {
     if (isResizing) {
       isResizing = false;
     }
+  });
+}
+
+// Function to make floating windows draggable
+function makeFloatingWindowsDraggable() {
+  $('.floating-window').each(function() {
+    const $panel = $(this);
+    const $header = $panel.find('.header');
+    let isDragging = false;
+    let startX, startY, startLeft, startTop;
+
+    $header.on('mousedown', function (e) {
+      if (e.target.tagName === 'BUTTON' || $(e.target).closest('button').length) {
+        return; // Don't drag if clicking on buttons
+      }
+
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = parseInt($panel.css('left')) || 0;
+      startTop = parseInt($panel.css('top')) || 0;
+
+      $panel.css('cursor', 'grabbing');
+      e.preventDefault();
+    });
+
+    $(document).on('mousemove', function (e) {
+      if (!isDragging) return;
+
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+
+      const newLeft = startLeft + deltaX;
+      const newTop = startTop + deltaY;
+
+      // Keep panel within window bounds
+      const maxLeft = window.innerWidth - $panel.outerWidth();
+      const maxTop = window.innerHeight - $panel.outerHeight();
+
+      $panel.css({
+        left: Math.max(0, Math.min(newLeft, maxLeft)) + 'px',
+        top: Math.max(0, Math.min(newTop, maxTop)) + 'px'
+      });
+    });
+
+    $(document).on('mouseup', function () {
+      if (isDragging) {
+        isDragging = false;
+        $panel.css('cursor', 'default');
+      }
+    });
   });
 }
