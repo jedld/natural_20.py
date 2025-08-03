@@ -6,6 +6,7 @@ from natural20.battle import Battle
 import random
 import numpy as np
 import pdb
+from natural20.die_roll import DieRoll
 
 class TestMagicalEquipment(unittest.TestCase):
     def make_session(self):
@@ -59,9 +60,11 @@ class TestMagicalEquipment(unittest.TestCase):
     def test_cloak_of_protection(self):
         player = self.load_mage_character()
         player.inventory['cloak_of_protection'] = { 'qty' : 1 }
-
         self.assertEqual(player.armor_class(), 12)
         self.assertEqual(str(player.save_throw('constitution', None)), "d20(2) + 2")
         player.equip('cloak_of_protection')
         self.assertEqual(player.armor_class(), 13)
         self.assertEqual(str(player.save_throw('constitution', None)), "d20(11) + 2 + 1")
+        player.unequip('cloak_of_protection')
+        self.assertEqual(player.armor_class(), 12)
+        self.assertEqual(str(player.save_throw('constitution', None)), "d20(19) + 2")

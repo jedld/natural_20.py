@@ -31,7 +31,10 @@ class GenericEventHandler:
         if self.properties.get('teleport'):
             def handle_teleport(teleport_properties):
                 only_alive = teleport_properties.get('only_alive', False)
-                entity_uid = teleport_properties['id']
+                entity_uid = teleport_properties.get('id')
+
+                if entity_uid is None:
+                    entity_uid = opts['source'].entity_uid if 'source' in opts else entity.entity_uid
 
                 target_map_name = teleport_properties.get('map', None)
                 source_map_name = teleport_properties.get('source_map', None)
@@ -66,8 +69,9 @@ class GenericEventHandler:
                 if target_map.entity_at(*target_pos):
                     target_pos = target_map.find_empty_placeable_position(target_entity, *target_pos)
 
-                target_map.add(target_entity, *target_pos)
                 source_map.remove(target_entity)
+                target_map.add(target_entity, *target_pos)
+
 
             teleport_properties = self.properties['teleport']
             if isinstance(teleport_properties, list):
