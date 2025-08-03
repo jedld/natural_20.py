@@ -323,6 +323,7 @@ class EventQueue {
     const animationBuffer = data.message.animation_log;
     const animateFunction = (animationLog, idx) => {
       if (idx >= animationLog.length) {
+        console.log('Animation sequence complete, refreshing tile set');
         Utils.refreshTileSet();
         resolve();
         return;
@@ -457,7 +458,8 @@ class EventQueue {
     if (animationBuffer && animationBuffer.length > 0) {
       animateFunction(animationBuffer, 0);
     } else {
-      Utils.refreshTileSet();
+      // console.log('>>>>>>>>>>>>>>>>>>>>');
+      // Utils.refreshTileSet();
       resolve();
     }
   }

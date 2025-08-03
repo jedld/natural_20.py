@@ -28,16 +28,13 @@ const Utils = {
     });
   },
   
-  // OPTIMIZED VERSION: Only update tiles that have changed
-  // This prevents interactive elements (action menus, die rolls, etc.) from being 
-  // removed while players are actively using them
+
   refreshTileSet: function(is_setup = false, pov = false, x = 0, y = 0, entity_uid= null, callback = null)  {
-    // Initialize update sequence counter if not exists
     if (!window.tileUpdateSequence) {
       window.tileUpdateSequence = 0;
     }
     
-    // Increment sequence for this update
+
     const currentSequence = ++window.tileUpdateSequence;
     
     // Check if optimization is disabled (for debugging)
