@@ -202,6 +202,44 @@ class Battle():
 
         self.current_turn_index = self.combat_order.index(entity)
 
+    def reorder_initiative(self, entity_uids):
+        """
+        Reorder the combat initiative based on a list of entity UIDs.
+        
+        :param entity_uids: List of entity UIDs in the desired order
+        """
+        if not entity_uids:
+            return False
+            
+        # Get current turn entity to preserve it
+        current_entity = self.current_turn() if self.combat_order else None
+        
+        # Create a mapping of UIDs to entities
+        uid_to_entity = {entity.entity_uid: entity for entity in self.combat_order}
+        
+        # Validate that all provided UIDs exist in combat order
+        for uid in entity_uids:
+            if uid not in uid_to_entity:
+                raise ValueError(f"Entity UID {uid} not found in combat order")
+        
+        # Validate that all entities in combat order are represented
+        if len(entity_uids) != len(self.combat_order):
+            raise ValueError("Number of entities in new order doesn't match combat order")
+        
+        # Reorder the combat order
+        new_combat_order = [uid_to_entity[uid] for uid in entity_uids]
+        self.combat_order = new_combat_order
+        
+        # Restore the current turn index if there was a current entity
+        if current_entity:
+            try:
+                self.current_turn_index = self.combat_order.index(current_entity)
+            except ValueError:
+                # If the current entity is no longer in the order, reset to 0
+                self.current_turn_index = 0
+        
+        return True
+
     def check_combat(self):
         if not self.started and not self.battle_ends():
             self.start()
