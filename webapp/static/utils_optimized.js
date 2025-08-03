@@ -29,32 +29,16 @@ const Utils = {
   },
   
   // OPTIMIZED VERSION: Only update tiles that have changed
-  // This prevents interactive elements (action menus, die rolls, etc.) from being 
-  // removed while players are actively using them
   refreshTileSet: function(is_setup = false, pov = false, x = 0, y = 0, entity_uid= null, callback = null)  {
-    // Initialize update sequence counter if not exists
-    if (!window.tileUpdateSequence) {
-      window.tileUpdateSequence = 0;
-    }
-    
-    // Increment sequence for this update
-    const currentSequence = ++window.tileUpdateSequence;
-    
-    // Check if optimization is disabled (for debugging)
-    if (window.disableTileOptimization || is_setup) {
+    // For initial setup, use the full update to avoid complexity
+    if (is_setup) {
       Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) => {
-        // Only apply if this is still the most recent request
-        if (currentSequence >= (window.lastAppliedSequence || 0)) {
-          lastMovedEntityBeforeRefresh = null;
-          $('.tiles-container').html(data);
-          window.lastAppliedSequence = currentSequence;
-          // Refresh portraits when tiles are refreshed
-          Utils.refreshPortraits();
-          // Ensure popover menus stay on top after full refresh
-          Utils.ensurePopoverMenusOnTop();
-        } else {
-          console.log('Ignoring out-of-order tile update (full): ' + currentSequence + ' < ' + window.lastAppliedSequence);
-        }
+        lastMovedEntityBeforeRefresh = null;
+        $('.tiles-container').html(data);
+        // Refresh portraits when tiles are refreshed
+        Utils.refreshPortraits();
+        // Ensure popover menus stay on top after full refresh
+        Utils.ensurePopoverMenusOnTop();
         if (callback) callback();
       });
       return;
@@ -64,86 +48,24 @@ const Utils = {
     Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) => {
       lastMovedEntityBeforeRefresh = null;
       
-      // Get current map from body attribute
-      const currentMap = $('body').attr('data-current-map');
-      
-      // Parse the HTML to extract individual tiles and check for map info
+      // Parse the HTML to extract individual tiles
       const $newContent = $('<div>').html(data);
       const $newTiles = $newContent.find('.tile');
       
-      // Check if this update is for the current map
-      if ($newTiles.length > 0) {
-        // Look for the map metadata div
-        const $mapMetadata = $newContent.find('.map-metadata[data-map-name]').first();
-        
-        if ($mapMetadata.length > 0) {
-          const updateMapName = $mapMetadata.data('map-name');
-          
-          if (updateMapName && currentMap && updateMapName !== currentMap) {
-            console.warn('Ignoring tile update - for map "' + updateMapName + '" but current map is "' + currentMap + '"');
-            if (callback) callback();
-            return;
-          }
-        }
-        
-        // Additional coordinate-based validation
-        const existingTilesCount = $('.tiles-container .tile').length;
-        
-        if (existingTilesCount > 0) {
-          // Sample a few tiles to check if they belong to the current map context
-          let mapMismatch = false;
-          $newTiles.slice(0, 3).each(function() {
-            const $newTile = $(this);
-            const x = $newTile.data('coords-x');
-            const y = $newTile.data('coords-y');
-            
-            if (x !== undefined && y !== undefined) {
-              const $existingTile = $('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]');
-              // If this coordinate should exist but doesn't, we might have a map mismatch
-              if ($existingTile.length === 0) {
-                const tilesContainer = $('.tiles-container');
-                const containerWidth = tilesContainer.data('width') || 0;
-                const containerHeight = tilesContainer.data('height') || 0;
-                // Check if coordinates are way outside expected bounds
-                if (x < -10 || y < -10 || x > containerWidth + 10 || y > containerHeight + 10) {
-                  mapMismatch = true;
-                  return false; // Break out of each loop
-                }
-              }
-            }
-          });
-          
-          if (mapMismatch) {
-            console.warn('Ignoring tile update - coordinates appear to be for a different map');
-            if (callback) callback();
-            return;
-          }
-        }
-      }
-      
       // Update only changed tiles
-      if (currentSequence >= (window.lastAppliedSequence || 0)) {
-        Utils.updateChangedTilesOptimized($newTiles);
-        window.lastAppliedSequence = currentSequence;
-        
-        // Refresh portraits when tiles are refreshed
-        Utils.refreshPortraits();
-        
-        // Ensure popover menus stay on top after optimized updates
-        Utils.ensurePopoverMenusOnTop();
-      } else {
-        console.log('Ignoring out-of-order tile update (optimized): ' + currentSequence + ' < ' + window.lastAppliedSequence);
-      }
+      Utils.updateChangedTilesOptimized($newTiles);
       
+      // Refresh portraits when tiles are refreshed
+      Utils.refreshPortraits();
+      
+      // Ensure popover menus stay on top after optimized updates
+      Utils.ensurePopoverMenusOnTop();
       if (callback) callback();
     });
   },
   
   // Optimized tile update that preserves interactive elements
   updateChangedTilesOptimized: function($newTiles) {
-    let tilesUpdated = 0;
-    let tilesPreserved = 0;
-    
     $newTiles.each(function() {
       const $newTile = $(this);
       const x = $newTile.data('coords-x');
@@ -156,21 +78,12 @@ const Utils = {
       if ($existingTile.length === 0) {
         // New tile - just add it
         $('.tiles-container').append($newTile);
-        tilesUpdated++;
         return;
       }
       
       // Check if tile has actually changed by comparing key attributes
       if (Utils.tilesAreEqual($existingTile, $newTile)) {
-        tilesPreserved++;
-        return; // No change needed - preserve interactive elements
-      }
-      
-      // Debug logging for fog of war changes
-      const oldFog = $existingTile.find('.fog-of-war').length;
-      const newFog = $newTile.find('.fog-of-war').length;
-      if (oldFog !== newFog && console && console.log) {
-        console.log('Fog of war change detected at (' + x + ',' + y + '): ' + oldFog + ' -> ' + newFog);
+        return; // No change needed
       }
       
       // Preserve any active interactive elements
@@ -178,16 +91,10 @@ const Utils = {
       
       // Replace the tile
       $existingTile.replaceWith($newTile);
-      tilesUpdated++;
       
       // Restore preserved elements
       Utils.restoreInteractiveElements($('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]'), preservedElements);
     });
-    
-    // Debug logging to show optimization effectiveness
-    if (console && console.log) {
-      console.log('Tile update optimization: ' + tilesUpdated + ' updated, ' + tilesPreserved + ' preserved');
-    }
     
     // Re-initialize die roll components on updated tiles
     if (Utils.autoInsertDieRoll) { Utils.autoInsertDieRoll(); }
@@ -200,7 +107,7 @@ const Utils = {
   // Compare tiles to see if they need updating
   tilesAreEqual: function($tile1, $tile2) {
     // Compare key attributes that would indicate a meaningful change
-    const attrs = ['data-coords-id', 'data-light', 'data-difficult', 'data-darkvision'];
+    const attrs = ['data-coords-id', 'data-light', 'data-difficult'];
     
     for (let attr of attrs) {
       if ($tile1.attr(attr) !== $tile2.attr(attr)) {
@@ -208,75 +115,19 @@ const Utils = {
       }
     }
     
-    // Compare entity presence and ID
-    const entity1Id = $tile1.find('.entity').data('id');
-    const entity2Id = $tile2.find('.entity').data('id');
-    if (entity1Id !== entity2Id) {
+    // Compare entity content
+    const entity1 = $tile1.find('.entity').html();
+    const entity2 = $tile2.find('.entity').html();
+    
+    if (entity1 !== entity2) {
       return false;
     }
     
-    // Compare health bar if present
-    const health1 = $tile1.find('.health-bar').attr('style');
-    const health2 = $tile2.find('.health-bar').attr('style');
-    if (health1 !== health2) {
-      return false;
-    }
+    // Compare conversation bubbles
+    const bubble1 = $tile1.find('.conversation-bubble').text();
+    const bubble2 = $tile2.find('.conversation-bubble').text();
     
-    // Compare nameplate
-    const name1 = $tile1.find('.nameplate').text();
-    const name2 = $tile2.find('.nameplate').text();
-    if (name1 !== name2) {
-      return false;
-    }
-    
-    // Compare effects
-    const effects1 = $tile1.find('.effect img').length;
-    const effects2 = $tile2.find('.effect img').length;
-    if (effects1 !== effects2) {
-      return false;
-    }
-    
-    // Compare conversation bubbles (but not the preserved interactive ones)
-    const bubble1 = $tile1.find('.conversation-bubble .bubble-content').text();
-    const bubble2 = $tile2.find('.conversation-bubble .bubble-content').text();
     if (bubble1 !== bubble2) {
-      return false;
-    }
-    
-    // Compare fog of war - this is critical for line of sight changes!
-    const fog1 = $tile1.find('.fog-of-war').length;
-    const fog2 = $tile2.find('.fog-of-war').length;
-    if (fog1 !== fog2) {
-      return false;
-    }
-    
-    // Also compare fog of war styling if present (opacity, visibility changes)
-    if (fog1 > 0 && fog2 > 0) {
-      const fog1Style = $tile1.find('.fog-of-war').attr('style') || '';
-      const fog2Style = $tile2.find('.fog-of-war').attr('style') || '';
-      if (fog1Style !== fog2Style) {
-        return false;
-      }
-    }
-    
-    // Compare brightness overlay for lighting changes
-    const brightness1 = $tile1.find('.brightness-overlay').attr('style') || '';
-    const brightness2 = $tile2.find('.brightness-overlay').attr('style') || '';
-    if (brightness1 !== brightness2) {
-      return false;
-    }
-    
-    // Compare objects on the tile
-    const objects1 = $tile1.find('.object-container').length;
-    const objects2 = $tile2.find('.object-container').length;
-    if (objects1 !== objects2) {
-      return false;
-    }
-    
-    // Compare ground items
-    const items1 = $tile1.find('.item-container').length;
-    const items2 = $tile2.find('.item-container').length;
-    if (items1 !== items2) {
       return false;
     }
     
@@ -330,6 +181,32 @@ const Utils = {
       setTimeout(function() {
         Utils.ensurePopoverMenusOnTop();
       }, 10);
+    }
+  },
+  
+  // Ensure popover menus always stay on top of other elements  
+  ensurePopoverMenusOnTop: function() {
+    $('.popover-menu:visible, .popover-menu-2:visible').each(function() {
+      const $menu = $(this);
+      // Force the z-index to be very high to stay above tiles, fog of war, etc.
+      $menu.css('z-index', '10001');
+      
+      // Also ensure the parent tile doesn't interfere
+      const $parentTile = $menu.closest('.tile');
+      if ($parentTile.length > 0) {
+        // Save original z-index if it exists
+        if (!$parentTile.data('original-z-index')) {
+          $parentTile.data('original-z-index', $parentTile.css('z-index') || 'auto');
+        }
+        // Set tile z-index to be just below the menu
+        $parentTile.css('z-index', '10000');
+      }
+    });
+    
+    // Debug log when fixing z-index issues
+    const visibleMenus = $('.popover-menu:visible, .popover-menu-2:visible').length;
+    if (visibleMenus > 0 && console && console.log) {
+      console.log('Ensured ' + visibleMenus + ' popover menus stay on top');
     }
   },
   
@@ -575,65 +452,6 @@ const Utils = {
   closeNoteModal: function() {
     $('#noteModal').hide();
   },
-  
-  // Ensure popover menus always stay on top of other elements
-  ensurePopoverMenusOnTop: function() {
-    $('.popover-menu:visible, .popover-menu-2:visible').each(function() {
-      const $menu = $(this);
-      // Force the z-index to be very high to stay above tiles, fog of war, etc.
-      $menu.css('z-index', '10001');
-      
-      // Also ensure the parent tile doesn't interfere
-      const $parentTile = $menu.closest('.tile');
-      if ($parentTile.length > 0) {
-        // Save original z-index if it exists
-        if (!$parentTile.data('original-z-index')) {
-          $parentTile.data('original-z-index', $parentTile.css('z-index') || 'auto');
-        }
-        // Set tile z-index to be just below the menu
-        $parentTile.css('z-index', '10000');
-      }
-    });
-    
-    // Debug log when fixing z-index issues
-    const visibleMenus = $('.popover-menu:visible, .popover-menu-2:visible').length;
-    if (visibleMenus > 0 && console && console.log) {
-      console.log('Ensured ' + visibleMenus + ' popover menus stay on top');
-    }
-  },
-  
-  // Utility function to close all interactive UI elements when switching characters
-  closeAllInteractiveElements: function() {
-    // Close any open action bars/menus
-    $(".popover-menu, .popover-menu-2").hide();
-    
-    // Close target selection modal if open
-    $('#targetSelectionModal').modal('hide');
-    
-    // Hide any other floating UI elements
-    $(".add-to-target").hide();
-    
-    // Clear any highlighted tiles or selections
-    $(".highlighted").removeClass("highlighted");
-    $(".target-selection, .active-selection").hide();
-    
-    // Hide any visible die roll components that might be open
-    $(".die-roll-component:visible").hide();
-    
-    // Clear any canvas drawings (movement paths, targeting lines, etc.)
-    if (typeof globalCanvas !== 'undefined' && globalCanvas && typeof globalCtx !== 'undefined' && globalCtx) {
-      globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
-    }
-    
-    // Reset all interactive modes if variables are defined
-    if (typeof targetMode !== 'undefined') targetMode = false;
-    if (typeof multiTargetMode !== 'undefined') multiTargetMode = false;
-    if (typeof moveMode !== 'undefined') moveMode = false;
-    if (typeof coneMode !== 'undefined') coneMode = false;
-    
-    console.log('Closed all interactive elements for character switch');
-  },
-  
   updateMapDisplay: function(data, canvas) {
     const tile_size = $('.tiles-container').data('tile-size');
     
