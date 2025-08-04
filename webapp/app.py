@@ -1519,6 +1519,215 @@ def spawn_npc():
         logger.error(f"Error spawning NPC: {str(e)}")
         return jsonify(error=f'Failed to spawn NPC: {str(e)}'), 500
 
+@app.route('/delete_entity', methods=['POST'])
+def delete_entity():
+    """Delete an entity from the battlefield"""
+    global current_game
+    
+    # Check if user is DM
+    if 'dm' not in user_role():
+        return jsonify(error='Only DMs can delete entities'), 403
+    
+    if not request.json:
+        return jsonify(error='No data provided'), 400
+    
+    entity_uid = request.json.get('entity_uid')
+    
+    if not entity_uid:
+        return jsonify(error='Missing entity_uid parameter'), 400
+    
+    try:
+        # Find the entity across all maps
+        entity = current_game.get_entity_by_uid(entity_uid)
+        if not entity:
+            return jsonify(error='Entity not found'), 404
+        
+        # Find which map contains the entity
+        battle_map = None
+        for map_obj in current_game.maps.values():
+            if map_obj.entity_by_uid(entity_uid):
+                battle_map = map_obj
+                break
+        
+        if not battle_map:
+            return jsonify(error='Entity not found on any map'), 404
+        
+        # Remove from battle if it exists
+        battle = current_game.get_current_battle()
+        if battle and entity in battle.combat_order:
+            battle.remove(entity, from_map=False)
+        
+        # Remove from map
+        battle_map.remove(entity)
+        
+        logger.info(f"DM {session['username']} deleted entity {entity.label()} ({entity_uid})")
+        
+        # Notify all clients of the map update
+        socketio.emit('message', {'type': 'refresh_map'})
+        
+        return jsonify(status='ok', entity_uid=entity_uid)
+        
+    except Exception as e:
+        logger.error(f"Error deleting entity: {str(e)}")
+        return jsonify(error=f'Failed to delete entity: {str(e)}'), 500
+
+@app.route('/move_entity', methods=['POST'])
+def move_entity():
+    """Move an existing entity to a new position (for PCs that already exist)"""
+    global current_game
+    
+    # Check if user is DM
+    if 'dm' not in user_role():
+        return jsonify(error='Only DMs can move entities'), 403
+    
+    if not request.json:
+        return jsonify(error='No data provided'), 400
+    
+    entity_uid = request.json.get('entity_uid')
+    x = request.json.get('x')
+    y = request.json.get('y')
+    
+    if not entity_uid or x is None or y is None:
+        return jsonify(error='Missing required parameters'), 400
+    
+    try:
+        # Find the entity across all maps
+        entity = current_game.get_entity_by_uid(entity_uid)
+        if not entity:
+            return jsonify(error='Entity not found'), 404
+        
+        # Get the target map (current map for user)
+        target_map = current_game.get_map_for_user(session['username'])
+        
+        # Check if the position is within map bounds
+        if (x < 0 or y < 0 or x >= target_map.size[1] or y >= target_map.size[0]):
+            return jsonify(error='Position is outside map bounds'), 400
+        
+        # Check if the position is occupied by another entity
+        if target_map.entity_at(x, y):
+            return jsonify(error='Position is occupied'), 400
+        
+        # Find current map containing the entity
+        current_map = None
+        for map_obj in current_game.maps.values():
+            if map_obj.entity_by_uid(entity_uid):
+                current_map = map_obj
+                break
+        
+        # Remove from current map if it's on a different map
+        if current_map and current_map != target_map:
+            current_map.remove(entity)
+        elif current_map == target_map:
+            # Just move within the same map
+            current_map.remove(entity)
+        
+        # Add to target map at new position
+        target_map.add(entity, x, y, entity.group)
+        
+        logger.info(f"DM {session['username']} moved entity {entity.label()} to ({x}, {y})")
+        
+        # Notify all clients of the map update
+        socketio.emit('message', {'type': 'refresh_map'})
+        
+        return jsonify(status='ok', entity_uid=entity_uid)
+        
+    except Exception as e:
+        logger.error(f"Error moving entity: {str(e)}")
+        return jsonify(error=f'Failed to move entity: {str(e)}'), 500
+
+@app.route('/available_pcs', methods=['GET'])
+def available_pcs():
+    """Get available player characters for spawning"""
+    global current_game
+    
+    # Check if user is DM
+    if 'dm' not in user_role():
+        return jsonify(error='Only DMs can access player characters'), 403
+    
+    try:
+        # Load all characters from the session
+        characters = game_session.load_characters()
+        
+        # Convert to list of dictionaries for JSON response
+        pc_list = []
+        for char in characters:
+            pc_list.append({
+                'entity_uid': char.entity_uid,
+                'name': char.name,
+                'label': char.label(),
+                'token_image': char.token_image(),
+                'class_and_level': char.class_and_level() if hasattr(char, 'class_and_level') else [],
+                'race': char.race() if hasattr(char, 'race') else 'Unknown'
+            })
+        
+        # Sort alphabetically by name
+        pc_list.sort(key=lambda x: x['name'])
+        
+        return jsonify(status='ok', pcs=pc_list)
+        
+    except Exception as e:
+        logger.error(f"Error loading player characters: {str(e)}")
+        return jsonify(error=f'Failed to load player characters: {str(e)}'), 500
+
+@app.route('/update_npc', methods=['POST'])
+def update_npc():
+    """Update NPC properties (name, group, description, backstory)"""
+    global current_game
+    
+    # Check if user is DM
+    if 'dm' not in user_role():
+        return jsonify(error='Only DMs can update NPCs'), 403
+    
+    if not request.json:
+        return jsonify(error='No data provided'), 400
+    
+    entity_id = request.json.get('entity_id')
+    name = request.json.get('name')
+    group = request.json.get('group')
+    description = request.json.get('description')
+    backstory = request.json.get('backstory')
+    
+    if not entity_id:
+        return jsonify(error='Missing entity_id parameter'), 400
+    
+    try:
+        battle_map = current_game.get_map_for_user(session['username'])
+        entity = battle_map.entity_by_uid(entity_id)
+        
+        if not entity:
+            return jsonify(error='Entity not found'), 404
+        
+        if not entity.is_npc():
+            return jsonify(error='Can only update NPCs'), 400
+        
+        # Update properties
+        if name is not None:
+            if name.strip():
+                entity.properties['label'] = name.strip()
+            elif 'label' in entity.properties:
+                del entity.properties['label']  # Remove custom label to fall back to original name
+        
+        if group is not None and group in ['a', 'b', 'c']:
+            entity.group = group
+            entity.properties['group'] = group
+        
+        if description is not None:
+            entity.properties['description'] = description.strip()
+        
+        if backstory is not None:
+            entity.properties['backstory'] = backstory.strip()
+        
+        logger.info(f"DM {session['username']} updated NPC {entity_id}: name='{name}', group='{group}'")
+        
+        # Notify all clients of the entity update (in case name/group affects display)
+        socketio.emit('message', {'type': 'refresh_map'})
+        
+        return jsonify(success=True)
+        
+    except Exception as e:
+        logger.error(f"Error updating NPC: {str(e)}")
+        return jsonify(error=f'Failed to update NPC: {str(e)}'), 500
+
 @app.route('/update')
 def update():
     global current_game, logger

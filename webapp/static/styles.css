@@ -51,6 +51,42 @@
   z-index: 2;
 }
 
+/* DM hover delete button for entities on map */
+body[data-role*="dm"] .tile .entity {
+  position: relative;
+}
+
+body[data-role*="dm"] .tile .entity-delete-hover {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  background-color: #d9534f;
+  color: white;
+  border: 1px solid white;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+body[data-role*="dm"] .tile:hover .entity-delete-hover {
+  opacity: 1;
+  visibility: visible;
+}
+
+body[data-role*="dm"] .tile .entity-delete-hover:hover {
+  background-color: #c9302c;
+  transform: scale(1.1);
+}
+
 .image-container {
   z-index: 0;
 }
@@ -454,6 +490,69 @@ input.initiative-text {
 .npc-drag-active .tile:not(.has-entity):hover {
   border-color: #5cb85c;
   background-color: rgba(92, 184, 92, 0.1);
+}
+
+/* PC Spawner Styles */
+#pc-spawner {
+  z-index: 1001;
+}
+
+.pc-item {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  margin-bottom: 5px;
+  background: white;
+  border: 1px solid #0275d8;
+  border-radius: 4px;
+  cursor: move;
+  transition: all 0.2s ease;
+}
+
+.pc-item:hover {
+  background-color: #e6f2ff;
+  border-color: #004085;
+  transform: translateX(2px);
+}
+
+.pc-item.dragging {
+  opacity: 0.7;
+  transform: rotate(2deg);
+}
+
+.pc-item-image {
+  width: 32px;
+  height: 32px;
+  margin-right: 8px;
+  border-radius: 50%;
+  border: 2px solid #0275d8;
+}
+
+.pc-item-info {
+  flex: 1;
+}
+
+.pc-item-name {
+  font-weight: bold;
+  font-size: 12px;
+  color: #004085;
+}
+
+.pc-item-type {
+  font-size: 10px;
+  color: #666;
+  margin-top: 2px;
+}
+
+/* Visual feedback for empty tiles when dragging PCs */
+.pc-drag-active .tile:not(.has-entity) {
+  border: 1px dashed #ccc;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.pc-drag-active .tile:not(.has-entity):hover {
+  border-color: #0275d8;
+  background-color: rgba(2, 117, 216, 0.1);
 }
 
 .token-image {
@@ -1158,6 +1257,82 @@ input.initiative-input.form-control {
     padding: 2px 8px;
     font-size: 16px;
     line-height: 1;
+}
+
+/* NPC Customization Styles */
+.npc-customization {
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 5px;
+}
+
+.npc-customization .form-group {
+    margin-bottom: 15px;
+}
+
+.npc-customization label {
+    font-weight: bold;
+    margin-bottom: 5px;
+    display: block;
+    color: #333;
+}
+
+.npc-customization input[type="text"],
+.npc-customization select,
+.npc-customization textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    background: white;
+    transition: border-color 0.3s ease;
+}
+
+.npc-customization input[type="text"]:focus,
+.npc-customization select:focus,
+.npc-customization textarea:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.npc-customization textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.npc-customization .btn {
+    padding: 8px 16px;
+    margin-right: 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+}
+
+.npc-customization .btn-primary {
+    background-color: #007bff;
+    color: white;
+}
+
+.npc-customization .btn-primary:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+
+.npc-customization .btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.npc-customization .btn-secondary:hover {
+    background-color: #545b62;
+}
+
+.npc-customization .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 /* AI Chatbot Interface Styles */
