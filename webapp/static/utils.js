@@ -128,6 +128,11 @@ const Utils = {
         
         // Ensure popover menus stay on top after optimized updates
         Utils.ensurePopoverMenusOnTop();
+        
+        // Add entity delete buttons for DMs (if function exists)
+        if (typeof window.addEntityDeleteButtons === 'function') {
+          setTimeout(window.addEntityDeleteButtons, 100);
+        }
       } else {
         console.log('Ignoring out-of-order tile update (optimized): ' + currentSequence + ' < ' + window.lastAppliedSequence);
       }
