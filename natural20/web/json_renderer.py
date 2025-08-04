@@ -177,7 +177,7 @@ class JsonRenderer:
                     'entity_size': entity.size(),
                     'dialog': entity.dialog,
                     'conversation_buffer': entity.conversation(listener_languages=listener_languages),
-                    'conversation_languages': ",".join(entity.languages())
+                    'conversation_languages': ",".join(entity.languages() if entity.languages() and hasattr(entity.languages(), '__iter__') and not isinstance(entity.languages(), str) else ['common'])
                     })
                     assert entity.languages() is not None
                     if m_x == x and m_y == y:
