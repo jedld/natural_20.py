@@ -180,6 +180,7 @@
                     <li id="reload-map" data-toggle="modal" data-target="#reloadModal">Reload Map</li>
                     <li id="send-command" data-toggle="modal" data-target="#commandModal">Send Command</li>
                     <li id="toggle-npc-spawner">NPC Spawner</li>
+                    <li id="toggle-pc-spawner">PC Spawner</li>
                 {% endif %}
                 <li id="open-console">Open Console</li>
                 <li>
@@ -315,6 +316,22 @@
             </div>
             <div id="npc-list">
                 <!-- NPCs will be loaded here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- PC Spawner Window -->
+    <div id="pc-spawner" class="floating-window" style="display: none; position: fixed; top: 350px; left: 320px; width: 300px; height: 400px;">
+        <div class="header" style="cursor: move; background-color: #0275d8; color: white; text-align: center; padding: 5px;">
+            <span>PC Spawner</span>
+            <button id="close-pc-spawner" style="float: right; background: none; border: none; color: white; font-size: 16px;">&times;</button>
+        </div>
+        <div class="pc-spawner-content" style="padding: 10px; height: calc(100% - 35px); overflow-y: auto;">
+            <div class="pc-search" style="margin-bottom: 10px;">
+                <input type="text" id="pc-search-input" class="form-control" placeholder="Search PCs..." style="font-size: 12px;">
+            </div>
+            <div id="pc-list">
+                <!-- PCs will be loaded here -->
             </div>
         </div>
     </div>
@@ -768,5 +785,32 @@
       <i class="glyphicon glyphicon-comment"></i>
     </button>
     {% endif %}
+
+    <!-- Entity Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteEntityModal" tabindex="-1" role="dialog" aria-labelledby="deleteEntityModalLabel">
+      <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+            <h4 class="modal-title" id="deleteEntityModalLabel">
+              <i class="glyphicon glyphicon-warning-sign text-danger"></i>
+              Confirm Deletion
+            </h4>
+          </div>
+          <div class="modal-body">
+            <p>Are you sure you want to delete <strong id="entityToDeleteName">this entity</strong> from the battlefield?</p>
+            <p class="text-muted small">This action cannot be undone.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirmDeleteEntity">
+              <i class="glyphicon glyphicon-trash"></i> Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 </body>
 </html>
