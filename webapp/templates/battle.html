@@ -52,8 +52,13 @@
           <input class="initiative-input form-control" type="text" value="{{ battle.entities[entity].initiative }}" name="initiative[{{ loop.index }}]">
         </div>
         <div class="col-xs-1">
-          <button class="remove-turn-order-item btn btn-danger btn-sm">
+          <button class="remove-turn-order-item btn btn-danger btn-sm" title="Remove from initiative">
             <span class="glyphicon glyphicon-remove"></span>
+          </button>
+        </div>
+        <div class="col-xs-1">
+          <button class="delete-entity-btn btn btn-danger btn-sm" title="Delete from battlefield" data-entity-uid="{{ entity.entity_uid }}">
+            <span class="glyphicon glyphicon-trash"></span>
           </button>
         </div>
       </form>

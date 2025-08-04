@@ -2347,19 +2347,19 @@ $(document).ready(() => {
   });
 
   $(".tiles-container").on("drop", ".tile", function(e) {
-    if (draggedNPC) {
-      e.preventDefault();
+    e.preventDefault();
+    
+    const $tile = $(this);
+    const hasEntity = $tile.find(".entity").length > 0;
+    
+    if (!hasEntity) {
+      const x = parseInt($tile.data("coords-x"));
+      const y = parseInt($tile.data("coords-y"));
       
-      const $tile = $(this);
-      const hasEntity = $tile.find(".entity").length > 0;
-      
-      if (!hasEntity) {
-        const x = parseInt($tile.data("coords-x"));
-        const y = parseInt($tile.data("coords-y"));
-        
+      if (draggedNPC) {
+        // Handle NPC spawning
         console.log(`Spawning ${draggedNPC} at (${x}, ${y})`);
         
-        // Spawn the NPC
         ajaxPost("/spawn_npc", {
           npc_type: draggedNPC,
           x: x,
@@ -2367,17 +2367,229 @@ $(document).ready(() => {
         }, (data) => {
           if (data.status === 'ok') {
             console.log("NPC spawned successfully:", data.entity_uid);
-            // The map will be updated via socket message
           } else {
             alert("Failed to spawn NPC: " + (data.error || "Unknown error"));
           }
         }, true);
-      } else {
-        console.log("Cannot spawn NPC: position is occupied");
+      } else if ($('body').hasClass('pc-drag-active')) {
+        // Handle PC placement/movement
+        const draggedData = e.originalEvent.dataTransfer.getData('text/plain');
+        if (draggedData) {
+          console.log(`Moving PC ${draggedData} to (${x}, ${y})`);
+          
+          ajaxPost("/move_entity", {
+            entity_uid: draggedData,
+            x: x,
+            y: y
+          }, (data) => {
+            if (data.status === 'ok') {
+              console.log("PC moved successfully:", data.entity_uid);
+            } else {
+              alert("Failed to move PC: " + (data.error || "Unknown error"));
+            }
+          }, true);
+        }
       }
-      
-      $(".tile").removeClass("battlefield-drop-zone drag-over");
+    } else {
+      console.log("Cannot place entity: position is occupied");
     }
+    
+    $(".tile").removeClass("battlefield-drop-zone drag-over");
+  });
+
+  // PC Spawner functionality
+  $("#toggle-pc-spawner").click(() => {
+    const $pcSpawner = $("#pc-spawner");
+    if ($pcSpawner.is(":visible")) {
+      $pcSpawner.hide();
+    } else {
+      loadPCs();
+      $pcSpawner.show();
+    }
+  });
+
+  $("#close-pc-spawner").click(() => {
+    $("#pc-spawner").hide();
+  });
+
+  // Load PCs from server
+  function loadPCs() {
+    Utils.ajaxGet("/available_pcs", {}, (data) => {
+      if (data.status === 'ok') {
+        displayPCs(data.pcs);
+      } else {
+        console.error("Failed to load PCs:", data.error);
+        $("#pc-list").html('<div class="alert alert-danger">Failed to load PCs</div>');
+      }
+    });
+  }
+
+  // Display PCs in the spawner window
+  function displayPCs(pcs) {
+    const $pcList = $("#pc-list");
+    $pcList.empty();
+
+    if (!pcs || pcs.length === 0) {
+      $pcList.append('<div class="alert alert-info">No player characters available</div>');
+      return;
+    }
+
+    pcs.forEach((pc) => {
+      const classInfo = pc.class_and_level.length > 0 ? `Lvl ${pc.class_and_level[0][1] || '?'} ${pc.class_and_level[0][0] || 'Unknown'}` : 'Unknown Class';
+      
+      const $pcItem = $(`
+        <div class="pc-item" draggable="true" data-entity-uid="${pc.entity_uid}" title="${pc.race} ${classInfo}">
+          <img class="pc-item-image" src="/assets/${pc.token_image}" alt="${pc.name}" onerror="this.src='/assets/token_player.png'">
+          <div class="pc-item-info">
+            <div class="pc-item-name">${pc.label}</div>
+            <div class="pc-item-type">${pc.race} ${classInfo}</div>
+          </div>
+        </div>
+      `);
+      
+      // Add drag event handlers for PCs
+      $pcItem.on('dragstart', (e) => {
+        e.originalEvent.dataTransfer.setData('text/plain', pc.entity_uid);
+        e.originalEvent.dataTransfer.effectAllowed = 'move';
+        $(e.currentTarget).addClass('dragging');
+        $('body').addClass('pc-drag-active');
+        
+        // Add visual feedback for empty tiles
+        $(".tile").each(function() {
+          if ($(this).find(".entity").length === 0) {
+            $(this).addClass("empty-tile-highlight");
+          }
+        });
+      });
+
+      $pcItem.on('dragend', (e) => {
+        $(e.currentTarget).removeClass('dragging');
+        $('body').removeClass('pc-drag-active');
+        $(".tile").removeClass("battlefield-drop-zone drag-over empty-tile-highlight");
+      });
+
+      $pcList.append($pcItem);
+    });
+
+    // Add search functionality for PCs
+    $("#pc-search-input").off('input').on('input', function() {
+      const searchTerm = $(this).val().toLowerCase();
+      $(".pc-item").each(function() {
+        const pcName = $(this).find('.pc-item-name').text().toLowerCase();
+        const pcType = $(this).find('.pc-item-type').text().toLowerCase();
+        if (pcName.includes(searchTerm) || pcType.includes(searchTerm)) {
+          $(this).show();
+        } else {
+          $(this).hide();
+        }
+      });
+    });
+  }
+
+  // Entity deletion functionality
+  $(document).on('click', '.delete-entity-btn', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const entityUid = $(this).data('entity-uid');
+    const entityName = $(this).closest('.turn-order-item').find('.entity-label').text();
+    
+    if (confirm(`Are you sure you want to delete "${entityName}" from the battlefield?`)) {
+      ajaxPost("/delete_entity", {
+        entity_uid: entityUid
+      }, (data) => {
+        if (data.status === 'ok') {
+          console.log("Entity deleted successfully:", data.entity_uid);
+          // The map will be updated via socket message
+        } else {
+          alert("Failed to delete entity: " + (data.error || "Unknown error"));
+        }
+      }, true);
+    }
+  });
+
+  // Map entity hover delete functionality
+  function addEntityDeleteButtons() {
+    // Only add for DMs
+    if (!$('body').data('role') || !$('body').data('role').includes('dm')) {
+      return;
+    }
+
+    $('.tile .entity').each(function() {
+      const $entity = $(this);
+      const $tile = $entity.closest('.tile');
+      
+      // Skip if delete button already exists
+      if ($entity.find('.entity-delete-hover').length > 0) {
+        return;
+      }
+
+      // Get entity data
+      const entityUid = $tile.data('coords-id');
+      
+      if (entityUid) {
+        // Create delete button
+        const $deleteBtn = $('<span class="entity-delete-hover" title="Delete Entity">×</span>');
+        $deleteBtn.data('entity-uid', entityUid);
+        
+        $entity.append($deleteBtn);
+      }
+    });
+  }
+
+  // Expose function globally for utils.js
+  window.addEntityDeleteButtons = addEntityDeleteButtons;
+
+  // Handle map entity delete button clicks
+  $(document).on('click', '.entity-delete-hover', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const entityUid = $(this).data('entity-uid');
+    
+    // Find entity info for display
+    let entityName = 'Unknown Entity';
+    const $tile = $(this).closest('.tile');
+    
+    // Try to get entity name from various sources
+    if ($tile.find('img').length > 0) {
+      entityName = $tile.find('img').attr('alt') || $tile.find('img').attr('title') || entityName;
+    }
+    
+    // Set modal content and show
+    $('#entityToDeleteName').text(entityName);
+    $('#deleteEntityModal').modal('show');
+    
+    // Store entity UID for confirmation
+    $('#confirmDeleteEntity').data('entity-uid', entityUid);
+  });
+
+  // Handle confirmation modal delete button
+  $('#confirmDeleteEntity').click(function() {
+    const entityUid = $(this).data('entity-uid');
+    
+    if (entityUid) {
+      ajaxPost("/delete_entity", {
+        entity_uid: entityUid
+      }, (data) => {
+        if (data.status === 'ok') {
+          console.log("Entity deleted successfully:", data.entity_uid);
+          $('#deleteEntityModal').modal('hide');
+          // The map will be updated via socket message
+        } else {
+          alert("Failed to delete entity: " + (data.error || "Unknown error"));
+        }
+      }, true);
+    }
+  });
+
+  // Call addEntityDeleteButtons when map updates
+  $(document).ready(function() {
+    // Add delete buttons on initial load
+    setTimeout(addEntityDeleteButtons, 500);
+    
+    // Re-add delete buttons when map refreshes
+    $(document).on('mapUpdated', addEntityDeleteButtons);
   });
 
   // DM Sound Manager Event Handlers

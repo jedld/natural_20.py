@@ -323,6 +323,51 @@
                     </div>
                 </div>
             </div>
+
+            {% if entity.is_npc() %}
+            <div class="section">
+                <div class="section-header">
+                    <h2>NPC Customization</h2>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content">
+                    <div class="npc-customization">
+                        <div class="form-group">
+                            <label for="npc-name">Display Name:</label>
+                            <input type="text" id="npc-name" class="form-control" 
+                                   value="{{ entity.label() }}" 
+                                   placeholder="Enter custom name...">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="npc-group">Group/Faction:</label>
+                            <select id="npc-group" class="form-control">
+                                <option value="a" {% if entity.group == 'a' %}selected{% endif %}>Group A - Allies of PCs</option>
+                                <option value="b" {% if entity.group == 'b' %}selected{% endif %}>Group B - Enemies of PCs</option>
+                                <option value="c" {% if entity.group == 'c' %}selected{% endif %}>Group C - Neutral</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="npc-description">Description:</label>
+                            <textarea id="npc-description" class="form-control" rows="3" 
+                                      placeholder="Enter character description...">{{ entity.description() }}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="npc-backstory">Backstory:</label>
+                            <textarea id="npc-backstory" class="form-control" rows="4" 
+                                      placeholder="Enter character backstory...">{{ entity.properties.get('backstory', '') }}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <button id="save-npc-changes" class="btn btn-primary">Save Changes</button>
+                            <button id="reset-npc-changes" class="btn btn-secondary">Reset</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
             {% endif %}
 
             {% if not entity.object() %}
@@ -1149,6 +1194,79 @@
                 // Store the default value for reset purposes
                 input.defaultValue = input.value;
             });
+        });
+    </script>
+    <script>
+        // NPC Customization functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const saveButton = document.getElementById('save-npc-changes');
+            const resetButton = document.getElementById('reset-npc-changes');
+            
+            if (saveButton) {
+                saveButton.addEventListener('click', function() {
+                    const entityId = document.body.dataset.id;
+                    const name = document.getElementById('npc-name').value.trim();
+                    const group = document.getElementById('npc-group').value;
+                    const description = document.getElementById('npc-description').value.trim();
+                    const backstory = document.getElementById('npc-backstory').value.trim();
+                    
+                    saveButton.disabled = true;
+                    saveButton.textContent = 'Saving...';
+                    
+                    fetch('/update_npc', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            entity_id: entityId,
+                            name: name,
+                            group: group,
+                            description: description,
+                            backstory: backstory
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            saveButton.textContent = 'Saved!';
+                            setTimeout(() => {
+                                saveButton.textContent = 'Save Changes';
+                                saveButton.disabled = false;
+                            }, 1000);
+                            
+                            // Update the page title and main heading if name changed
+                            if (name) {
+                                document.title = `${name}'s Character Sheet`;
+                                const heading = document.querySelector('h1');
+                                if (heading) {
+                                    heading.textContent = `${name}'s Character Sheet`;
+                                }
+                            }
+                        } else {
+                            alert('Failed to update NPC: ' + (data.error || 'Unknown error'));
+                            saveButton.textContent = 'Save Changes';
+                            saveButton.disabled = false;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error updating NPC:', error);
+                        alert('Error updating NPC. Please try again.');
+                        saveButton.textContent = 'Save Changes';
+                        saveButton.disabled = false;
+                    });
+                });
+            }
+            
+            if (resetButton) {
+                resetButton.addEventListener('click', function() {
+                    // Reset to original values
+                    document.getElementById('npc-name').value = '{{ entity.label() }}';
+                    document.getElementById('npc-group').value = '{{ entity.group }}';
+                    document.getElementById('npc-description').value = '{{ entity.description() }}';
+                    document.getElementById('npc-backstory').value = '{{ entity.properties.get("backstory", "") }}';
+                });
+            }
         });
     </script>
     <script>
