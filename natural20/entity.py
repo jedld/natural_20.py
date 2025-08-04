@@ -440,7 +440,11 @@ class Entity(EntityStateEvaluator, Notable):
             raise ValueError(f"invalid size {square_size}")
 
     def languages(self):
-        return self.properties.get('languages', [])
+        languages = self.properties.get('languages', [])
+        # Ensure we always return a list, never None
+        if languages is None:
+            return []
+        return languages
 
     def long_jump_distance(self):
         if not self.ability_scores.get('str'):
