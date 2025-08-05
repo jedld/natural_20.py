@@ -2332,6 +2332,7 @@ $(document).ready(() => {
 
   // NPC drag and drop functionality
   let draggedNPC = null;
+  let draggedObject = null;
 
   $("#npc-list").on("dragstart", ".npc-item", function(e) {
     draggedNPC = $(this).data("npc-type");
@@ -2359,15 +2360,21 @@ $(document).ready(() => {
 
   // Battlefield drop zone functionality
   $(".tiles-container").on("dragover", ".tile", function(e) {
-    if (draggedNPC) {
+    if (draggedNPC || draggedObject) {
       e.preventDefault();
       e.originalEvent.dataTransfer.dropEffect = "copy";
       
-      // Only show drop zone if tile is empty
       const $tile = $(this);
-      const hasEntity = $tile.find(".entity").length > 0;
       
-      if (!hasEntity) {
+      if (draggedNPC) {
+        // Only show drop zone for NPCs if tile is empty
+        const hasEntity = $tile.find(".entity").length > 0;
+        if (!hasEntity) {
+          $(".tile").removeClass("drag-over");
+          $tile.addClass("battlefield-drop-zone drag-over");
+        }
+      } else if (draggedObject) {
+        // Objects can be placed anywhere, so always show drop zone
         $(".tile").removeClass("drag-over");
         $tile.addClass("battlefield-drop-zone drag-over");
       }
@@ -2375,7 +2382,7 @@ $(document).ready(() => {
   });
 
   $(".tiles-container").on("dragleave", ".tile", function(e) {
-    if (draggedNPC) {
+    if (draggedNPC || draggedObject) {
       $(this).removeClass("drag-over");
     }
   });
@@ -2384,14 +2391,13 @@ $(document).ready(() => {
     e.preventDefault();
     
     const $tile = $(this);
-    const hasEntity = $tile.find(".entity").length > 0;
+    const x = parseInt($tile.data("coords-x"));
+    const y = parseInt($tile.data("coords-y"));
     
-    if (!hasEntity) {
-      const x = parseInt($tile.data("coords-x"));
-      const y = parseInt($tile.data("coords-y"));
-      
-      if (draggedNPC) {
-        // Handle NPC spawning
+    if (draggedNPC) {
+      // Handle NPC spawning (only on empty tiles)
+      const hasEntity = $tile.find(".entity").length > 0;
+      if (!hasEntity) {
         console.log(`Spawning ${draggedNPC} at (${x}, ${y})`);
         
         ajaxPost("/spawn_npc", {
@@ -2405,8 +2411,28 @@ $(document).ready(() => {
             alert("Failed to spawn NPC: " + (data.error || "Unknown error"));
           }
         }, true);
-      } else if ($('body').hasClass('pc-drag-active')) {
-        // Handle PC placement/movement
+      } else {
+        console.log("Cannot place NPC: position is occupied");
+      }
+    } else if (draggedObject) {
+      // Handle object spawning (can be placed anywhere)
+      console.log(`Spawning ${draggedObject} at (${x}, ${y})`);
+      
+      ajaxPost("/spawn_object", {
+        object_type: draggedObject,
+        x: x,
+        y: y
+      }, (data) => {
+        if (data.status === 'ok') {
+          console.log("Object spawned successfully:", data.entity_uid);
+        } else {
+          alert("Failed to spawn object: " + (data.error || "Unknown error"));
+        }
+      }, true);
+    } else if ($('body').hasClass('pc-drag-active')) {
+      // Handle PC placement/movement (only on empty tiles)
+      const hasEntity = $tile.find(".entity").length > 0;
+      if (!hasEntity) {
         const draggedData = e.originalEvent.dataTransfer.getData('text/plain');
         if (draggedData) {
           console.log(`Moving PC ${draggedData} to (${x}, ${y})`);
@@ -2423,9 +2449,9 @@ $(document).ready(() => {
             }
           }, true);
         }
+      } else {
+        console.log("Cannot place PC: position is occupied");
       }
-    } else {
-      console.log("Cannot place entity: position is occupied");
     }
     
     $(".tile").removeClass("battlefield-drop-zone drag-over");
@@ -2512,6 +2538,98 @@ $(document).ready(() => {
         const pcName = $(this).find('.pc-item-name').text().toLowerCase();
         const pcType = $(this).find('.pc-item-type').text().toLowerCase();
         if (pcName.includes(searchTerm) || pcType.includes(searchTerm)) {
+          $(this).show();
+        } else {
+          $(this).hide();
+        }
+      });
+    });
+  }
+
+  // Object Spawner functionality
+  $("#toggle-object-spawner").click(() => {
+    const $objectSpawner = $("#object-spawner");
+    if ($objectSpawner.is(":visible")) {
+      $objectSpawner.hide();
+    } else {
+      loadAvailableObjects();
+      $objectSpawner.show();
+    }
+  });
+
+  $("#close-object-spawner").click(() => {
+    $("#object-spawner").hide();
+  });
+
+  // Load available objects function
+  function loadAvailableObjects() {
+    $.get("/available_objects", (data) => {
+      if (data.objects) {
+        displayObjects(data.objects);
+      }
+    }).fail((jqXHR) => {
+      console.error("Failed to load objects:", jqXHR.responseJSON ? jqXHR.responseJSON.error : jqXHR.statusText);
+      $("#object-list").html('<div class="alert alert-danger">Failed to load objects</div>');
+    });
+  }
+
+  // Display objects in the spawner window
+  function displayObjects(objects) {
+    const $objectList = $("#object-list");
+    $objectList.empty();
+
+    if (!objects || objects.length === 0) {
+      $objectList.append('<div class="alert alert-info">No objects available</div>');
+      return;
+    }
+
+    objects.forEach((object) => {
+      const passableText = object.passable ? "Passable" : "Blocks Movement";
+      const opaqueText = object.opaque ? "Opaque" : "Transparent";
+      
+      const $objectItem = $(`
+        <div class="object-item" draggable="true" data-object-type="${object.id}" title="${object.description || object.name}">
+          <img class="object-item-image" src="/assets/objects/${object.image}" alt="${object.name}" onerror="this.src='/assets/token_object.png'">
+          <div class="object-item-info">
+            <div class="object-item-name">${object.name}</div>
+            <div class="object-item-type">AC ${object.ac} • HP ${object.hp} • ${passableText}</div>
+          </div>
+        </div>
+      `);
+      
+      // Add drag event handlers for objects
+      $objectItem.on('dragstart', (e) => {
+        draggedObject = $(e.currentTarget).data('object-type');
+        $(e.currentTarget).addClass('dragging');
+        e.originalEvent.dataTransfer.effectAllowed = 'copy';
+        e.originalEvent.dataTransfer.setData('text/plain', draggedObject);
+        
+        // Add visual feedback for tiles
+        $('body').addClass('object-drag-active');
+        $(".tile").each(function() {
+          $(this).addClass("empty-tile-highlight");
+        });
+        
+        console.log("Started dragging object:", draggedObject);
+      });
+
+      $objectItem.on('dragend', (e) => {
+        $(e.currentTarget).removeClass('dragging');
+        $('body').removeClass('object-drag-active');
+        $(".tile").removeClass("battlefield-drop-zone drag-over empty-tile-highlight");
+        draggedObject = null;
+      });
+
+      $objectList.append($objectItem);
+    });
+
+    // Add search functionality for objects
+    $("#object-search-input").off('input').on('input', function() {
+      const searchTerm = $(this).val().toLowerCase();
+      $(".object-item").each(function() {
+        const objectName = $(this).find('.object-item-name').text().toLowerCase();
+        const objectType = $(this).find('.object-item-type').text().toLowerCase();
+        if (objectName.includes(searchTerm) || objectType.includes(searchTerm)) {
           $(this).show();
         } else {
           $(this).hide();
