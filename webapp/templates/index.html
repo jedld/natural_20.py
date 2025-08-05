@@ -194,6 +194,7 @@
                     <li id="send-command" data-toggle="modal" data-target="#commandModal">Send Command</li>
                     <li id="toggle-npc-spawner">NPC Spawner</li>
                     <li id="toggle-pc-spawner">PC Spawner</li>
+                    <li id="toggle-object-spawner">Object Spawner</li>
                 {% endif %}
                 <li id="game-time-display" style="border-top: 1px solid #ccc; padding-top: 5px; margin-top: 5px;" title="Game world time that advances based on player and NPC actions (not real time)">
                     <strong>Game World Time:</strong><br>
@@ -350,6 +351,22 @@
             </div>
             <div id="pc-list">
                 <!-- PCs will be loaded here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Object Spawner Window -->
+    <div id="object-spawner" class="floating-window" style="display: none; position: fixed; top: 350px; left: 640px; width: 300px; height: 400px;">
+        <div class="header" style="cursor: move; background-color: #f0ad4e; color: white; text-align: center; padding: 5px;">
+            <span>Object Spawner</span>
+            <button id="close-object-spawner" style="float: right; background: none; border: none; color: white; font-size: 16px;">&times;</button>
+        </div>
+        <div class="object-spawner-content" style="padding: 10px; height: calc(100% - 35px); overflow-y: auto;">
+            <div class="object-search" style="margin-bottom: 10px;">
+                <input type="text" id="object-search-input" class="form-control" placeholder="Search Objects..." style="font-size: 12px;">
+            </div>
+            <div id="object-list">
+                <!-- Objects will be loaded here -->
             </div>
         </div>
     </div>

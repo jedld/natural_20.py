@@ -6,6 +6,7 @@ from flask_cors import CORS  # Add CORS support
 import json
 import os
 import click
+import uuid
 from PIL import Image
 import logging
 import importlib
@@ -1408,6 +1409,48 @@ def get_available_npcs():
         logger.error(f"Error getting available NPCs: {str(e)}")
         return jsonify(error='Failed to load NPCs'), 500
 
+@app.route('/available_objects', methods=['GET'])
+def get_available_objects():
+    """Get list of available objects for spawning"""
+    global current_game
+    
+    # Check if user is DM
+    if 'dm' not in user_role():
+        return jsonify(error='Only DMs can access object list'), 403
+    
+    try:
+        # Load all objects from the objects.yml file
+        all_objects = game_session.load_yaml_file('items', 'objects')
+        
+        # Convert to list and filter placeable objects
+        object_list = []
+        for object_id, object_data in all_objects.items():
+            # Only include objects that are placeable (can be spawned by DM)
+            if object_data.get('placeable', True):  # Default to True if not specified
+                # Get token image, fallback to object id + .png
+                token_image = object_data.get('token_image', f'{object_id}.png')
+                
+                object_list.append({
+                    'id': object_id,
+                    'name': object_data.get('name', object_id.replace('_', ' ').title()),
+                    'description': object_data.get('description', ''),
+                    'image': token_image,
+                    'ac': object_data.get('default_ac', 'N/A'),
+                    'hp': object_data.get('max_hp', 'N/A'),
+                    'passable': object_data.get('passable', False),
+                    'opaque': object_data.get('opaque', True),
+                    'color': object_data.get('color', 'brown')
+                })
+        
+        # Sort alphabetically by name
+        object_list.sort(key=lambda x: x['name'])
+        
+        return jsonify(objects=object_list)
+        
+    except Exception as e:
+        logger.error(f"Error loading objects: {str(e)}")
+        return jsonify(error=f'Failed to load objects: {str(e)}'), 500
+
 @app.route('/spawn_npc', methods=['POST'])
 def spawn_npc():
     """Spawn an NPC at the specified coordinates"""
@@ -1466,6 +1509,74 @@ def spawn_npc():
     except Exception as e:
         logger.error(f"Error spawning NPC: {str(e)}")
         return jsonify(error=f'Failed to spawn NPC: {str(e)}'), 500
+
+@app.route('/spawn_object', methods=['POST'])
+def spawn_object():
+    """Spawn an object at the specified coordinates"""
+    global current_game
+    
+    # Check if user is DM
+    if 'dm' not in user_role():
+        return jsonify(error='Only DMs can spawn objects'), 403
+    
+    if not request.json:
+        return jsonify(error='No data provided'), 400
+    
+    object_type = request.json.get('object_type')
+    x = request.json.get('x')
+    y = request.json.get('y')
+    
+    if not object_type or x is None or y is None:
+        return jsonify(error='Missing required parameters'), 400
+    
+    try:
+        battle_map = current_game.get_map_for_user(session['username'])
+        
+        # Check if the position is within map bounds
+        if (x < 0 or y < 0 or x >= battle_map.size[1] or y >= battle_map.size[0]):
+            return jsonify(error='Position is outside map bounds'), 400
+        
+        # For objects, we allow placement on occupied squares (unlike NPCs)
+        # Objects can be placed on top of terrain or other non-entity objects
+        
+        # Create the object
+        try:
+            # Load object properties from objects.yml
+            object_properties = game_session.load_object(object_type)
+            if not object_properties:
+                return jsonify(error=f'Object type "{object_type}" not found'), 400
+            
+            # Check if object is placeable
+            if not object_properties.get('placeable', True):
+                return jsonify(error=f'Object type "{object_type}" is not placeable'), 400
+            
+            # Create object instance
+            object_instance = Object(game_session, battle_map, {
+                **object_properties,
+                'type': object_type,
+                'entity_uid': str(uuid.uuid4())
+            })
+            
+        except Exception as e:
+            return jsonify(error=f'Failed to create object: {str(e)}'), 400
+        
+        # Add object to the map
+        battle_map.place_object(object_instance, x, y)
+        
+        # Also add to interactable_objects if it has interactions
+        if hasattr(object_instance, 'available_interactions') and object_instance.available_interactions(object_instance, None, admin=True):
+            battle_map.interactable_objects[object_instance] = [x, y]
+        
+        logger.info(f"DM {session['username']} spawned {object_type} at ({x}, {y})")
+        
+        # Notify all clients of the map update
+        socketio.emit('message', {'type': 'refresh_map'})
+        
+        return jsonify(status='ok', entity_uid=object_instance.entity_uid)
+        
+    except Exception as e:
+        logger.error(f"Error spawning object: {str(e)}")
+        return jsonify(error=f'Failed to spawn object: {str(e)}'), 500
 
 @app.route('/delete_entity', methods=['POST'])
 def delete_entity():
