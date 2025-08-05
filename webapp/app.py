@@ -372,84 +372,6 @@ def user_role():
     login_info = next((login for login in LOGINS if login["name"].lower() == session['username']), None)
     return login_info["role"] if login_info else []
 
-# Add a global lock for game state operations
-game_state_lock = threading.Lock()
-
-def check_and_notify_map_change(pov_map, pov_entity):
-    global logger, current_game, username_to_sid
-
-    # Use the lock to make the operation atomic
-    with game_state_lock:
-        new_battle_map = current_game.get_map_for_entity(pov_entity)
-        if pov_map is None:
-            return
-        if new_battle_map is None:
-            return
-        logger.info(f"pov_map: {pov_map.name} new_battle_map: {new_battle_map.name}")
-
-        if new_battle_map != pov_map:
-            current_game.switch_map_for_user(session['username'], new_battle_map.name)
-            sids = username_to_sid.get(session['username'], [])
-            for sid in sids:
-                socketio.emit('message', {'type': 'switch_map', 'message': {'map': new_battle_map.name}}, to=sid)
-
-def commit_and_update(action):
-    global current_game, logger
-
-    # Use the lock to make the operation atomic
-    with game_state_lock:
-        battle = current_game.get_current_battle()
-
-        pov_entity = current_game.get_pov_entity_for_user(session['username'])
-
-        if not pov_entity:
-            pov_entities = entities_controlled_by(session['username'])
-            pov_entity = pov_entities[0] if pov_entities else None
-
-        pov_map = current_game.get_map_for_entity(pov_entity)
-
-        if battle:
-            battle.action(action)
-            battle.commit(action)
-            if battle.battle_ends():
-                current_game.end_current_battle()
-        else:
-            action_battle_map = current_game.get_map_for_entity(action.source)
-            action.resolve(session, action_battle_map)
-
-            for item in action.result:
-                for klass in Action.__subclasses__():
-                    klass.apply(None, item, session=game_session)
-
-    # did the map change for the current pov?
-    check_and_notify_map_change(pov_map, pov_entity)
-
-    if battle:
-        socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
-        battle.clear_animation_logs()
-    else:
-        current_game.loop_environment()
-        socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
-        
-        # Check if the action affects visibility (doors, lighting, etc.) and emit refresh_map
-        if hasattr(action, 'result') and action.result:
-            for result_item in action.result:
-                if (result_item.get('type') == 'interact' and 
-                    result_item.get('action') in ['open', 'close']):
-                    # Door open/close affects line of sight, refresh the map
-                    socketio.emit('message', {'type': 'refresh_map'})
-                    break
-                elif result_item.get('type') == 'look':
-                    # Look action can reveal notes and concealed entities, refresh the map
-                    socketio.emit('message', {'type': 'refresh_map'})
-                    break
-    
-    socketio.emit('message', {'type': 'turn', 'message': {}})
-
-    if AUTOSAVE:
-        print("autosave")
-        current_game.save_game()
-    return True
 
 def controller_of(entity_uid, username):
     if username == 'dm':
@@ -594,6 +516,31 @@ def casting_time(casting_time):
         raise ValueError(f"Invalid casting time: {casting_time}")
     return f"{qty}{r_str}"
 app.add_template_filter(casting_time, name='casting_time')
+
+def format_game_time(total_seconds):
+    """Format game time in seconds to a human-readable format."""
+    if total_seconds is None:
+        return "0 seconds"
+    
+    total_seconds = int(total_seconds)
+    days = total_seconds // (24 * 60 * 60)
+    hours = (total_seconds % (24 * 60 * 60)) // (60 * 60)
+    minutes = (total_seconds % (60 * 60)) // 60
+    seconds = total_seconds % 60
+    
+    parts = []
+    if days > 0:
+        parts.append(f"{days} day{'s' if days != 1 else ''}")
+    if hours > 0:
+        parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+    if minutes > 0:
+        parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+    if seconds > 0 or not parts:
+        parts.append(f"{seconds} second{'s' if seconds != 1 else ''}")
+    
+    return ', '.join(parts)
+
+app.add_template_filter(format_game_time, name='format_game_time')
 
 def entity_owners(entity):
     if isinstance(entity, Entity):
@@ -1006,6 +953,7 @@ def index():
                            user_entity_ids=[e.entity_uid for e in entities_controlled_by(session['username'])],
                            pov_entities=pov_entities(),
                            current_pov=current_pov[0] if current_pov else None,
+                           game_session=current_game.game_session,
                            username=session['username'], role=user_role())
 eval_context = {}
 
@@ -1203,17 +1151,17 @@ def require_login():
     if not logged_in() and (path not in ALLOWED_PATHS and not any(path.startswith(prefix) for prefix in ALLOWED_PREFIXES)):
         return redirect(url_for('login'))
 
-username_to_sid = {}
+
 
 @socketio.on('register')
 def handle_connect(data):
-    global current_game, first_connect, username_to_sid
+    global current_game, first_connect
     username = data.get('username')
     ws = request.sid
     if ws:
-        sids = username_to_sid.get(username, [])
+        sids = current_game.username_to_sid.get(username, [])
         sids.append(ws)
-        username_to_sid[username] = sids
+        current_game.username_to_sid[username] = sids
         logger.info(f"open connection {ws} for {username}")
         emit('info', {'type': 'info', 'message': ''})
 
@@ -1247,14 +1195,14 @@ def handle_message(data):
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    global current_game, username_to_sid
+    global current_game
     ws = request.sid
     username = session.get('username')
     if ws and username:
-        sids = username_to_sid.get(username, [])
+        sids = current_game.username_to_sid.get(username, [])
         if ws in sids:  # Only remove if the sid exists in the list
             sids.remove(ws)
-            username_to_sid[username] = sids
+            current_game.username_to_sid[username] = sids
             logger.info(f"close connection {ws} for {username}")
 
 @app.route('/health', methods=['GET'])
@@ -2097,7 +2045,7 @@ def read_letter():
 @app.route('/action', methods=['POST'])
 def action():
     global current_game
-   
+
     battle = current_game.get_current_battle()
     action_request = request.json
     entity_id = action_request['id']
@@ -2109,7 +2057,7 @@ def action():
     choice = action_request.get('choice', opts.get('choice'))
     entity = current_game.get_entity_by_uid(entity_id)
     battle_map = current_game.get_map_for_entity(entity)
-
+    pov_entities = entities_controlled_by(session['username'])
     action_info = {}
     action_hash = None
     target_coords = action_request.get('target', None)
@@ -2148,11 +2096,12 @@ def action():
                 move_path = [coords for _, coords in move_path]
                 action.move_path = move_path
                 if battle:
-                    return jsonify(commit_and_update(action))
+                    return jsonify(current_game.commit_and_update(session['username'], action, pov_entities))
                 else:
                     last_coords = move_path[-1]
                     if battle_map.placeable(entity, last_coords[0], last_coords[1]):
-                        commit_and_update(action)
+
+                        current_game.commit_and_update(session['username'], action, pov_entities)
                         if battle:
                             socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1],
                                                                                 'animation_log': battle.get_animation_logs()}})
@@ -2198,7 +2147,7 @@ def action():
 
                 if target and valid_targets.get(target.entity_uid):
                     action.target = target
-                    return jsonify(commit_and_update(action))
+                    return jsonify(current_game.commit_and_update(session['username'], action, pov_entities))
                 else:
                     return jsonify(status='error', message=f"Invalid Target {target_coords}")
             else:
@@ -2310,7 +2259,7 @@ def action():
                             interact = InteractAction(game_session, gm, 'interact')
                             interact.object_action = object_action_a
                             interact.target = entity
-                            return jsonify(commit_and_update(interact))
+                            return jsonify(current_game.commit_and_update(session['username'], interact, pov_entities))
                         else:
                             interact = InteractAction(game_session, entity, 'interact')
                             object =  battle_map.entity_by_uid(opts.get('target'))
@@ -2341,7 +2290,7 @@ def action():
             if len(action.errors) > 0:
                 return jsonify(status='error', errors=action.errors)
 
-            commit_and_update(action)
+            current_game.commit_and_update(session['username'], action, pov_entities)
             return jsonify(status='ok')
         return jsonify(action_info)
     except AsyncReactionHandler as e:
@@ -2419,11 +2368,16 @@ def get_turn():
     if battle:
         print(f"current turn: {battle.current_turn().entity_uid} {session['username']}")
         if 'dm' in user_role() or controller_of(battle.current_turn().entity_uid, session['username']):
-            return render_template('turn.jinja', battle=battle, username=session['username'])
+            return render_template('turn.jinja', battle=battle, game_session=current_game.game_session, username=session['username'])
         else:
-            return render_template('turn.jinja', battle=battle, username=session['username'], readonly=True)
+            return render_template('turn.jinja', battle=battle, game_session=current_game.game_session, username=session['username'], readonly=True)
     else:
         return jsonify(error="No battle in progress"), 400
+
+@app.route('/game_time')
+def get_game_time():
+    global current_game
+    return jsonify({'game_time': current_game.game_session.game_time})
 
 
 @app.route('/add', methods=['GET'])
@@ -2562,7 +2516,7 @@ def dialog_history():
 
 @app.route('/talk', methods=['POST'])
 def talk():
-    global llm_conversation_handler
+    global llm_conversation_handler, current_game
     global CONVERSATION_SYSTEM_PROMPT
     data = request.get_json()
     entity_id = data.get('entity_id')
@@ -2576,6 +2530,10 @@ def talk():
     entity = current_game.get_entity_by_uid(entity_id)
     if not entity:
         return jsonify({'error': 'Entity not found'}), 404
+
+    if isinstance(entity, PlayerCharacter):
+        current_game.increment_game_time(entity)
+
     # Create conversation message
     # Add message to entity's conversation history
     entity_targets = []
@@ -2583,7 +2541,7 @@ def talk():
         for _entity_uid in primary_targets:
             entity_targets.append(game_session.entity_by_uid(_entity_uid))
     processed_conversations = entity.send_conversation(message, distance_ft=distance_ft, targets=entity_targets, language=language)
-    current_sids = username_to_sid.get(session['username'], [])
+    current_sids = current_game.username_to_sid.get(session['username'], [])
     for sid in current_sids:
         socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': entity_id, 'message': message}}, to=sid)
 
@@ -2613,7 +2571,7 @@ def talk():
                     receiver.send_conversation(response, targets=[entity], language=language)
                     owners = entity_owners(entity)
                     for owner in owners:
-                        sids = username_to_sid.get(owner, [])
+                        sids = current_game.username_to_sid.get(owner, [])
                         for sid in sids:
                             socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': receiver.entity_uid, 'message': response, 'targets': [entity.entity_uid]}}, to=sid)
 
@@ -3022,13 +2980,14 @@ def dm_move_entity():
 
 @app.route('/get_users')
 def get_users():
+    global current_game
     query = request.args.get('query', '').lower()
     if not query:
         return jsonify([])
     
     # Get all users from username_to_sid
     users = []
-    for username in username_to_sid.keys():
+    for username in current_game.username_to_sid.keys():
         if query in username.lower():
             users.append(username)
     

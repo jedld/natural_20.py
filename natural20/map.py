@@ -14,6 +14,7 @@ from natural20.item_library.trap_door import TrapDoor
 from natural20.item_library.proximity_trigger import ProximityTrigger
 from natural20.item_library.multi_switch import MultiSwitch
 from natural20.player_character import PlayerCharacter
+from natural20.serializable_object import SerializableObject
 from natural20.npc import Npc
 from natural20.weapons import compute_max_weapon_range
 from natural20.utils.list_utils import remove_duplicates, bresenham_line_of_sight
@@ -38,7 +39,7 @@ class Terrain():
 def dirt():
     return Terrain("dirt", True, 1.0)
 
-class Map():
+class Map(SerializableObject):
     def __init__(self, session, map_file_path, name=None, properties=None, skip_setup=False):
         self.name = name
         self.session = session
@@ -122,7 +123,7 @@ class Map():
         else:
             self.meta_map = None
 
-        self.light_builder = StaticLightBuilder(self)
+        self._light_builder = StaticLightBuilder(self)
         self.triggers = self.properties.get('triggers', {})
         self._compute_lights()
 
@@ -142,7 +143,7 @@ class Map():
         return iter(self.entities.keys())
 
     def _compute_lights(self):
-        self.light_map = self.light_builder.build_map()
+        self._light_map = self._light_builder.build_map()
 
     def _setup_objects(self):
         for pos_x in range(self.size[0]):
@@ -1081,10 +1082,10 @@ class Map():
         if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
             return 0.0
 
-        if self.light_map is not None:
-            return self.light_map[pos_x][pos_y] + self.light_builder.light_at(pos_x, pos_y)
+        if self._light_map is not None:
+            return self._light_map[pos_x][pos_y] + self._light_builder.light_at(pos_x, pos_y)
         else:
-            return self.light_builder.light_at(pos_x, pos_y)
+            return self._light_builder.light_at(pos_x, pos_y)
 
     def light_at_entity(self, entity, pos_override=None):
         intensities = []
@@ -1233,6 +1234,7 @@ class Map():
                                 effect.target = battle_map.entity_by_uid(effect.target)
 
         return battle_map
+
 
 
     def to_dict(self)->dict:

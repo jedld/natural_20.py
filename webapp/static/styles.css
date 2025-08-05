@@ -17,6 +17,27 @@
   padding-left: 0;
 }
 
+/* Game Time Display Styles */
+#game-time-display {
+  font-size: 11px;
+  color: #333;
+  padding: 5px !important;
+  background-color: #f8f9fa;
+  border-radius: 3px;
+  margin: 2px 0 !important;
+}
+
+#game-time-display strong {
+  color: #2c3e50;
+  font-size: 12px;
+}
+
+#game-time-text {
+  color: #27ae60;
+  font-weight: bold;
+  font-family: monospace;
+}
+
 .tiles-container {
   position: absolute;
   top: 0;

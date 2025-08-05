@@ -15,6 +15,9 @@ import logging
 from mutagen.mp3 import MP3
 from natural20.utils.serialization import Serialization
 import gzip
+import threading
+from natural20.action import Action
+from natural20.session import Session
 
 class SocketIOOutputLogger:
     """
@@ -45,10 +48,11 @@ class SocketIOOutputLogger:
 
 # Defines a class for high level game management
 class GameManagement:
-    def __init__(self, game_session, map_location, other_maps, socketio, output_logger, tile_px, controllers,
+    def __init__(self, game_session: Session, map_location, other_maps, socketio, output_logger, tile_px, controllers,
                  npc_controller = None,
                  autosave = False,
-                 auto_battle=True, system_logger=None,  soundtrack=None):
+                 auto_battle=True,
+                 system_logger=None,  soundtrack=None):
         """
         Initialize the game management
 
@@ -77,11 +81,13 @@ class GameManagement:
         self.max_save_states = 10
         self.pov_entity_for_user = {}
         self.current_map_for_user = {}
+        self.username_to_sid = {}
         self.save_states = []
         self.soundtracks = soundtrack
         self.current_soundtrack = None
         self.autosave = autosave
         self.gzip = False
+        self.game_state_lock = threading.Lock()
 
         if not system_logger:
             self.logger = logging.getLogger(__name__)
@@ -98,6 +104,8 @@ class GameManagement:
         self.trigger_handlers = {}
         self.callbacks = {}
         self.current_save_index = 0
+        self.previous_time = 0
+        self.player_character_game_times = {}
 
         if self.soundtracks:
             # load each soundtrack and determine its duration
@@ -336,6 +344,10 @@ class GameManagement:
                                     continue
 
                                 if entity2.passive():
+                                    continue
+
+                                # if it is only the player character that can see the enemy, skip it
+                                if isinstance(entity2, PlayerCharacter):
                                     continue
 
                                 if battle_map.can_see(entity2, entity1):
@@ -609,3 +621,90 @@ class GameManagement:
                 return f"Unknown command: {cmd}. Type 'help' for available commands."
         except Exception as e:
             return f"Error executing command: {str(e)}"
+
+    def increment_game_time(self, player_character: PlayerCharacter):
+        # Update the game time for the player character
+        if player_character not in self.player_character_game_times:
+            self.player_character_game_times[player_character] = 0
+        self.player_character_game_times[player_character] += 6
+
+        max_player_time = max(self.player_character_game_times.values(), default=0)
+
+        if max_player_time > self.previous_time:
+            self.previous_time = max_player_time
+            self.game_session.increment_game_time()
+
+    def commit_and_update(self, username, action, pov_entities):
+        # Use the lock to make the operation atomic
+        with self.game_state_lock:
+            battle = self.get_current_battle()
+
+            pov_entity = self.get_pov_entity_for_user(username)
+
+            if not pov_entity:
+                pov_entity = pov_entities[0] if pov_entities else None
+
+            pov_map = self.get_map_for_entity(pov_entity)
+
+            if battle:
+                battle.action(action)
+                battle.commit(action)
+                if battle.battle_ends():
+                    self.end_current_battle()
+            else:
+                action_battle_map = self.get_map_for_entity(action.source)
+                action.resolve(self.game_session, action_battle_map)
+
+                for item in action.result:
+                    for klass in Action.__subclasses__():
+                        klass.apply(None, item, session=self.game_session)
+
+                # handle game time for out of battle actions
+                if isinstance(action.source, PlayerCharacter):
+                    self.increment_game_time(action.source)
+
+        # did the map change for the current pov?
+        self.check_and_notify_map_change(pov_map, pov_entity, username)
+
+        if battle:
+            self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
+            battle.clear_animation_logs()
+        else:
+            self.loop_environment()
+            self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
+
+            # Check if the action affects visibility (doors, lighting, etc.) and emit refresh_map
+            if hasattr(action, 'result') and action.result:
+                for result_item in action.result:
+                    if (result_item.get('type') == 'interact' and 
+                        result_item.get('action') in ['open', 'close']):
+                        # Door open/close affects line of sight, refresh the map
+                        self.socketio.emit('message', {'type': 'refresh_map'})
+                        break
+                    elif result_item.get('type') == 'look':
+                        # Look action can reveal notes and concealed entities, refresh the map
+                        self.socketio.emit('message', {'type': 'refresh_map'})
+                        break
+
+        self.socketio.emit('message', {'type': 'turn', 'message': { 'game_time': self.game_session.game_time }})
+
+        if self.autosave:
+            print("autosave")
+            self.save_game()
+        return True
+    
+    def check_and_notify_map_change(self, pov_map, pov_entity, username):
+        # Use the lock to make the operation atomic
+        with self.game_state_lock:
+            new_battle_map = self.get_map_for_entity(pov_entity)
+            if pov_map is None:
+                return
+            if new_battle_map is None:
+                return
+            self.logger.info(f"pov_map: {pov_map.name} new_battle_map: {new_battle_map.name}")
+
+            if new_battle_map != pov_map:
+                self.switch_map_for_user(username, new_battle_map.name)
+                sids = self.username_to_sid.get(username, [])
+                for sid in sids:
+                    self.socketio.emit('message', {'type': 'switch_map', 'message': {'map': new_battle_map.name}}, to=sid)

@@ -1,5 +1,26 @@
 // --- Global Helpers & Utilities ---
 
+// Game Time Formatting Functions
+function formatGameTime(totalSeconds) {
+  const days = Math.floor(totalSeconds / (24 * 60 * 60));
+  const hours = Math.floor((totalSeconds % (24 * 60 * 60)) / (60 * 60));
+  const minutes = Math.floor((totalSeconds % (60 * 60)) / 60);
+  const seconds = totalSeconds % 60;
+  
+  const parts = [];
+  if (days > 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`);
+  if (hours > 0) parts.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
+  if (minutes > 0) parts.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
+  if (seconds > 0 || parts.length === 0) parts.push(`${seconds} second${seconds !== 1 ? 's' : ''}`);
+  
+  return parts.join(', ');
+}
+
+function updateGameTimeDisplay(gameTimeSeconds) {
+  const formattedTime = formatGameTime(gameTimeSeconds);
+  $('#game-time-text').text(formattedTime);
+}
+
 let scale = 1;
 let keyboardMovementMode = false;
 let keyboardMovementSource = null;
@@ -184,6 +205,10 @@ class EventQueue {
         }
         case "turn":
           refreshTurn();
+          // Update game time if provided in the message
+          if (data.message && data.message.game_time !== undefined) {
+            updateGameTimeDisplay(data.message.game_time);
+          }
           resolve();
           break;
         case "focus":
@@ -1497,6 +1522,15 @@ $(document).ready(() => {
   // Initialize global variables
   backgroundSoundStartTime = $("body").data("soundtrack-time");
   pageRenderTime = new Date().getTime();
+
+  // Initialize game time display
+  const gameTimeElement = $('#game-time-text');
+  if (gameTimeElement.length > 0) {
+    const initialGameTime = gameTimeElement.data('seconds');
+    if (initialGameTime !== undefined) {
+      updateGameTimeDisplay(initialGameTime);
+    }
+  }
 
   // Initialize user volume control for non-DM users
   if (typeof UserVolumeControl !== 'undefined' && $('#music-control-widget').length > 0) {
