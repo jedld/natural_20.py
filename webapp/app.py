@@ -644,6 +644,17 @@ def serve_object_image(filename):
     else:
         objects_directory = os.path.join(game_session.root_path, "assets", "objects")
         return send_from_directory(objects_directory, filename)
+
+@app.route('/assets/editor/<filename>')
+def serve_editor_image(filename):
+    if not filename.endswith('.png'):
+        filename = f"{filename}.png"
+
+    if os.path.exists(os.path.join("static", "assets", "editor", filename)):
+        return send_file(os.path.join("static", "assets", "editor", filename))
+    else:
+        objects_directory = os.path.join(game_session.root_path, "assets", "editor")
+        return send_from_directory(objects_directory, filename)
    
 @app.route('/assets/items/<filename>')
 def serve_item_image(filename):
@@ -1425,22 +1436,23 @@ def get_available_objects():
         # Convert to list and filter placeable objects
         object_list = []
         for object_id, object_data in all_objects.items():
-            # Only include objects that are placeable (can be spawned by DM)
-            if object_data.get('placeable', True):  # Default to True if not specified
-                # Get token image, fallback to object id + .png
-                token_image = object_data.get('token_image', f'{object_id}.png')
-                
-                object_list.append({
-                    'id': object_id,
-                    'name': object_data.get('name', object_id.replace('_', ' ').title()),
-                    'description': object_data.get('description', ''),
-                    'image': token_image,
-                    'ac': object_data.get('default_ac', 'N/A'),
-                    'hp': object_data.get('max_hp', 'N/A'),
-                    'passable': object_data.get('passable', False),
-                    'opaque': object_data.get('opaque', True),
-                    'color': object_data.get('color', 'brown')
-                })
+            # Get token image, fallback to object id + .png
+            if object_data.get('token_editor_image'):
+                token_image = object_data['token_editor_image']
+            else:
+                token_image = f'{object_id}.png'
+            
+            object_list.append({
+                'id': object_id,
+                'name': object_data.get('name', object_id.replace('_', ' ').title()),
+                'description': object_data.get('description', ''),
+                'image': token_image,
+                'ac': object_data.get('default_ac', 'N/A'),
+                'hp': object_data.get('max_hp', 'N/A'),
+                'passable': object_data.get('passable', False),
+                'opaque': object_data.get('opaque', True),
+                'color': object_data.get('color', 'brown')
+            })
         
         # Sort alphabetically by name
         object_list.sort(key=lambda x: x['name'])
@@ -1533,7 +1545,7 @@ def spawn_object():
         battle_map = current_game.get_map_for_user(session['username'])
         
         # Check if the position is within map bounds
-        if (x < 0 or y < 0 or x >= battle_map.size[1] or y >= battle_map.size[0]):
+        if (x < 0 or y < 0 or x >= battle_map.size[0] or y >= battle_map.size[1]):
             return jsonify(error='Position is outside map bounds'), 400
         
         # For objects, we allow placement on occupied squares (unlike NPCs)
@@ -1551,6 +1563,7 @@ def spawn_object():
                 return jsonify(error=f'Object type "{object_type}" is not placeable'), 400
             
             # Create object instance
+            
             object_instance = Object(game_session, battle_map, {
                 **object_properties,
                 'type': object_type,
