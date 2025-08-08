@@ -2589,7 +2589,7 @@ $(document).ready(() => {
       
       const $objectItem = $(`
         <div class="object-item" draggable="true" data-object-type="${object.id}" title="${object.description || object.name}">
-          <img class="object-item-image" src="/assets/objects/${object.image}" alt="${object.name}" onerror="this.src='/assets/token_object.png'">
+          <img class="object-item-image" src="/assets/editor/${object.image}" alt="${object.name}">
           <div class="object-item-info">
             <div class="object-item-name">${object.name}</div>
             <div class="object-item-type">AC ${object.ac} • HP ${object.hp} • ${passableText}</div>

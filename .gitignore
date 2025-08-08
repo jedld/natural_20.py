@@ -1,5 +1,6 @@
 __pycache__
 .vscode
+example_tiles/
 samples/*.pt
 output_*/
 samples/.ipynb_checkpoints
