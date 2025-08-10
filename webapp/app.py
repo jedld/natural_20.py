@@ -87,6 +87,7 @@ from webapp.game_context import GameContextProvider
 from webapp.entity_rag_handler import EntityRAGHandler
 import requests
 import re
+from PIL import Image, ImageDraw
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 
@@ -626,6 +627,79 @@ app.add_template_global(process_action_hash, name='process_action_hash')
 def serve_map_image(filename):
     maps_directory = os.path.join(game_session.root_path, "assets", "maps")
     return send_from_directory(maps_directory, filename)
+
+@app.route('/create_map', methods=['POST'])
+def create_map():
+    """Create a new empty map in the current game's maps folder and register it.
+    Expects form data: name (map id). Creates:
+      - assets/maps/<name>.yml (basic empty map)
+      - assets/maps/<name>.png (placeholder image)
+    """
+    try:
+        name = request.form.get('name') or ''
+        name = name.strip().lower()
+        if not name or not re.match(r'^[a-z0-9_\-]+$', name):
+            return jsonify(error='Invalid map name'), 400
+
+        # Dimensions (optional)
+        try:
+            width = int(request.form.get('width') or 16)
+            height = int(request.form.get('height') or 8)
+        except ValueError:
+            return jsonify(error='Invalid dimensions'), 400
+        width = max(2, min(width, 100))
+        height = max(2, min(height, 100))
+
+        # YAML lives in <root>/maps, PNG lives in <root>/assets/maps
+        maps_yml_dir = os.path.join(game_session.root_path, 'maps')
+        maps_png_dir = os.path.join(game_session.root_path, 'assets', 'maps')
+        os.makedirs(maps_yml_dir, exist_ok=True)
+        os.makedirs(maps_png_dir, exist_ok=True)
+
+        yml_path = os.path.join(maps_yml_dir, f'{name}.yml')
+        png_path = os.path.join(maps_png_dir, f'{name}.png')
+
+        if os.path.exists(yml_path) or os.path.exists(png_path):
+            return jsonify(error='Map already exists'), 400
+
+        # Generate a small empty map template
+        empty_map = {
+            'name': name,
+            'description': f'Empty map {name}',
+            'map': {
+                'illumination': 1.0,
+                'base': ['.' * width for _ in range(height)],
+            },
+            'legend': {},
+            'player': [],
+        }
+
+        # Save YAML
+        with open(yml_path, 'w') as f:
+            import yaml as _yaml
+            _yaml.safe_dump(empty_map, f, sort_keys=False)
+
+        # Create a placeholder PNG thumbnail
+        img = Image.new('RGB', (max(160, width * 10), max(100, height * 10)), color=(230, 233, 237))
+        d = ImageDraw.Draw(img)
+        d.text((10, 10), name, fill=(90, 90, 90))
+        img.save(png_path)
+
+        # Register into current session maps if needed
+        map_id = name
+        relative_map_ref = f'maps/{name}'
+        if map_id not in game_session.maps:
+            game_session.register_map(map_id, relative_map_ref)
+            current_game.maps = game_session.maps
+
+        # Ensure available for switching/reloading
+        OTHERMAPS[map_id] = relative_map_ref
+        current_game.other_maps[map_id] = relative_map_ref
+
+        return jsonify(status='ok', name=map_id)
+    except Exception as e:
+        logger.exception('Failed to create map')
+        return jsonify(error=str(e)), 500
 
 @app.route('/assets/sounds/<filename>')
 def serve_sound_file(filename):
