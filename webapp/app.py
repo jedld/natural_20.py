@@ -958,7 +958,7 @@ def serve_item_image(filename):
         items_directory = os.path.join(game_session.root_path, "assets", "items")
         return send_from_directory(items_directory, filename)
 
-@app.route('/assets/<asset_name>')
+@app.route('/assets/<path:asset_name>')
 def get_asset(asset_name):
     file_path = os.path.join(LEVEL, "assets", asset_name)
     if os.path.exists(file_path):
@@ -969,6 +969,22 @@ def get_asset(asset_name):
             return send_from_directory(resolved_path, asset_name)
 
         return jsonify(error="File not found"), 404
+
+@app.route('/character_builder', methods=['GET'])
+def character_builder():
+    if not logged_in():
+        return redirect(url_for('login'))
+
+    try:
+        races = game_session.load_races()
+        classes = game_session.load_classes()
+        return render_template('character_builder.html',
+                               title=TITLE,
+                               races=races,
+                               classes=classes)
+    except Exception as e:
+        logger.exception('Failed to load character builder')
+        return jsonify(error='Failed to load character builder'), 500
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -1015,6 +1031,227 @@ def character_selection():
                          background=CHARACTER_SELECTION_BACKGROUND,
                          selectable_characters=selectable_characters,
                          taken_characters=taken_characters)
+
+@app.route('/create_character', methods=['POST'])
+def create_character():
+    if not logged_in():
+        return jsonify(error="Not logged in"), 401
+
+    try:
+        name = (request.form.get('name') or '').strip()
+        pronoun = (request.form.get('pronoun') or '').strip()
+        race = (request.form.get('race') or '').strip()
+        subrace = (request.form.get('subrace') or '').strip()
+        klass = (request.form.get('klass') or '').strip()
+        try:
+            level = int(request.form.get('level') or 1)
+            if level not in (1,2):
+                level = 1
+        except Exception:
+            level = 1
+
+        try:
+            ability = {
+                'str': int(request.form.get('str') or 8),
+                'dex': int(request.form.get('dex') or 8),
+                'con': int(request.form.get('con') or 8),
+                'int': int(request.form.get('int') or 8),
+                'wis': int(request.form.get('wis') or 8),
+                'cha': int(request.form.get('cha') or 8),
+            }
+        except ValueError:
+            return jsonify(error='Invalid ability values'), 400
+
+        if not name or not race or not klass:
+            return jsonify(error='Name, race, and class are required'), 400
+
+        # Parse optional structured selections
+        def _parse_json_list(key):
+            val = request.form.get(key)
+            if not val:
+                return []
+            try:
+                data = json.loads(val)
+                if isinstance(data, list):
+                    return [str(x) for x in data]
+            except Exception:
+                pass
+            return []
+        selected_skills = _parse_json_list('skills')
+        selected_cantrips = _parse_json_list('cantrips')
+        selected_level1 = _parse_json_list('level1_spells')
+
+        # Build PC YAML compatible with existing templates
+        # Basic defaults: level 1, hit_die inherit, simple equipment empty
+        entity_uid = re.sub(r'[^a-zA-Z0-9_\-]', '_', name).lower()
+        pc = {
+            'name': name,
+            'race': race,
+            'classes': { klass: level },
+            'level': level,
+            'hit_die': 'inherit',
+            'max_hp': 8,  # coarse default; real HP will be class-based later
+            'ability': ability,
+            'equipped': [],
+            'inventory': [],
+            'token': [ name[:1].upper() ],
+            'description': f"A newly forged {race} {klass}.",
+            'entity_uid': entity_uid,
+            'token_image': f"token_{entity_uid}.png",
+            'profile_image': f"characters/{entity_uid}.png",
+        }
+        if pronoun:
+            pc['pronoun'] = pronoun
+        if subrace:
+            pc['subrace'] = subrace
+
+        # Validate and apply class choices from templates
+        try:
+            classes_def = game_session.load_classes() or {}
+            cdef = classes_def.get(klass, {})
+            # Skills
+            max_skills = int(cdef.get('available_skills_choices', 0))
+            available_skills = cdef.get('available_skills', []) or []
+            if max_skills and available_skills:
+                valid_skills = [s for s in selected_skills if s in available_skills][:max_skills]
+                if valid_skills:
+                    pc['skills'] = valid_skills
+
+            # Spells and early-class specifics
+            spell_list = cdef.get('spell_list', {}) or {}
+            if spell_list:
+                can_list = spell_list.get('cantrip', []) or []
+                lvl1_list = spell_list.get('level_1', []) or []
+                # Very light SRD-based counts for level 1/2
+                klass_lower = klass.lower()
+                cantrip_cap = 0
+                lvl1_cap = 0
+                spellbook_cap = 0
+                if klass_lower == 'wizard':
+                    cantrip_cap = 3
+                    lvl1_cap = 2
+                    spellbook_cap = 6 if level==1 else 8
+                elif klass_lower == 'cleric':
+                    cantrip_cap = 3
+                    lvl1_cap = 2 if level==1 else 3
+                elif klass_lower == 'bard':
+                    cantrip_cap = 2
+                    lvl1_cap = 4 if level==1 else 5
+
+                cantrips = [s for s in selected_cantrips if s in can_list][:cantrip_cap]
+                if cantrips:
+                    # store within prepared_spells for compatibility
+                    pc.setdefault('prepared_spells', [])
+                    pc['prepared_spells'].extend(cantrips)
+
+                lvl1_spells = [s for s in selected_level1 if s in lvl1_list][:lvl1_cap]
+                if lvl1_spells:
+                    pc.setdefault('prepared_spells', [])
+                    # For wizard, also seed spellbook
+                    if klass_lower == 'wizard':
+                        # prepared spells include cantrips + a couple level1
+                        pc['prepared_spells'].extend(lvl1_spells)
+                        # Seed spellbook up to cap
+                        book = list(dict.fromkeys(lvl1_spells))
+                        # add more randomly if needed
+                        import random as _r
+                        pool = [s for s in lvl1_list if s not in book]
+                        while len(book) < spellbook_cap and pool:
+                            pick = _r.choice(pool)
+                            pool.remove(pick)
+                            book.append(pick)
+                        pc['spellbook'] = book
+                    else:
+                        pc['prepared_spells'].extend(lvl1_spells)
+        except Exception:
+            logger.exception('Failed to apply class choices')
+
+    # Save to templates/characters
+        chars_dir = os.path.join(game_session.root_path, 'characters')
+        os.makedirs(chars_dir, exist_ok=True)
+        safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', name)
+        yml_path = os.path.join(chars_dir, f"{safe_name}.yml")
+        if os.path.exists(yml_path):
+            return jsonify(error='A character with that name already exists'), 400
+
+        import yaml as _yaml
+        with open(yml_path, 'w') as f:
+            _yaml.safe_dump(pc, f, sort_keys=False)
+
+        # Save uploaded images, if any
+        try:
+            assets_dir = os.path.join(game_session.root_path, 'assets')
+            os.makedirs(assets_dir, exist_ok=True)
+            # Profile portrait: assets/characters/<entity_uid>.png
+            profile_file = request.files.get('profile_image')
+            if profile_file and profile_file.filename:
+                profiles_dir = os.path.join(assets_dir, 'characters')
+                os.makedirs(profiles_dir, exist_ok=True)
+                profile_path = os.path.join(profiles_dir, f"{entity_uid}.png")
+                img = Image.open(profile_file.stream).convert('RGBA')
+                img.save(profile_path, format='PNG')
+            # Token image: assets/token_<entity_uid>.png
+            token_file = request.files.get('token_image')
+            if token_file and token_file.filename:
+                token_path = os.path.join(assets_dir, f"token_{entity_uid}.png")
+                timg = Image.open(token_file.stream).convert('RGBA')
+                timg.save(token_path, format='PNG')
+        except Exception:
+            logger.exception('Failed to save uploaded character images')
+
+    # Load into current session and place on a map (default to 'index')
+        try:
+            pc_entity = PlayerCharacter.load(game_session, f'characters/{safe_name}.yml')
+            target_map = game_session.maps.get('index') or next(iter(game_session.maps.values()))
+            # find a free tile
+            width, height = target_map.size
+            pos = None
+            for y in range(height):
+                for x in range(width):
+                    if not target_map.entity_at(x, y):
+                        pos = (x, y); break
+                if pos: break
+            if not pos:
+                pos = (0, 0)
+            target_map.add(pc_entity, pos[0], pos[1], group='a')
+        except Exception:
+            logger.exception('Failed to place new character on map')
+
+        # Update index.json selectable_characters so it shows in selection page
+        try:
+            index_json_path = os.path.join(game_session.root_path, 'index.json')
+            if os.path.exists(index_json_path):
+                with open(index_json_path, 'r') as jf:
+                    idx = json.load(jf)
+            else:
+                idx = {}
+            selectable = idx.get('selectable_characters') or []
+            # If not present, add basic entry (use entity_uid for consistency)
+            lower = entity_uid
+            if not any(c.get('name','').lower()==lower for c in selectable):
+                selectable.append({
+                    'name': lower,
+                    'file': f'characters/{lower}.png',
+                    'description': pc.get('description', lower)
+                })
+            idx['selectable_characters'] = selectable
+            with open(index_json_path, 'w') as jf:
+                json.dump(idx, jf, indent=2)
+            # Also update in-memory index_data so UI sees it immediately
+            try:
+                global index_data
+                index_data['selectable_characters'] = selectable
+            except Exception:
+                logger.exception('Failed to update in-memory selectable_characters')
+        except Exception:
+            logger.exception('Failed to update index.json with new character')
+
+        # Optionally redirect to selection if a player
+        redirect_to = '/character_selection' if 'dm' not in user_role() else '/'
+        return jsonify(status='ok', redirect=redirect_to)
+    except Exception as e:
+        logger.exception('Failed to create character')
+        return jsonify(error='Failed to create character'), 500
 
 @app.route('/select_character', methods=['POST'])
 def select_character():

@@ -948,10 +948,10 @@
                     </div>
                     
                     <div class="character-content">
-                        <img src="{{ url_for('static', filename='assets/token_' ~ character.name ~ '.png') }}" 
-                             alt="{{ character.name }}" 
-                             class="character-image"
-                             onerror="this.src='{{ url_for('static', filename='assets/goblin_ambush_login.png') }}';">
+                    <img src="/assets/{{ character.file }}" 
+                        alt="{{ character.name }}" 
+                        class="character-image"
+                        onerror="this.onerror=null; this.src='/static/assets/goblin_ambush_login.png'">
                         
                         <div class="character-info">
                             <h3 class="character-name">{{ character.name.title() }}</h3>
@@ -965,6 +965,21 @@
                     </div>
                 </div>
                 {% endfor %}
+                <!-- New Character tile -->
+                <a href="/character_builder" style="text-decoration:none;">
+                <div class="character-card" data-character-name="__new__">
+                    <div class="character-status status-available">Create</div>
+                    <div class="character-content">
+                        <img src="{{ url_for('static', filename='assets/goblin_ambush_login.png') }}" 
+                             alt="New Character" 
+                             class="character-image">
+                        <div class="character-info">
+                            <h3 class="character-name">New Character</h3>
+                            <p class="character-description">Build a brand new hero</p>
+                        </div>
+                    </div>
+                </div>
+                </a>
                 
                 <div class="action-buttons">
                     <button type="button" id="confirmButton" class="btn-dnd" disabled>
