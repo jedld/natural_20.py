@@ -3,6 +3,7 @@ from flask_socketio import SocketIO, emit
 from flask_session import Session
 from flask import send_from_directory
 from flask_cors import CORS  # Add CORS support
+from natural20.utils.serialization import  object_type_to_klass
 import json
 import os
 import click
@@ -1305,8 +1306,9 @@ def end_turn():
 
 
 def continue_game():
+    global current_game
     # Use the lock to make the operation atomic
-    with game_state_lock:
+    with current_game.game_state_lock:
         battle = current_game.get_current_battle()
         current_game.game_loop()
 
@@ -1328,7 +1330,7 @@ def next_turn():
     battle = current_game.get_current_battle()
     if battle:
         # Use the lock to make the operation atomic
-        with game_state_lock:
+        with current_game.game_state_lock:
             current_turn = battle.current_turn()
             if current_game.waiting_for_user_input():
                 current_game.set_waiting_for_user_input(False)
@@ -1368,7 +1370,7 @@ def reorder_initiative():
     
     try:
         # Use the lock to make the operation atomic
-        with game_state_lock:
+        with current_game.game_state_lock:
             battle.reorder_initiative(entity_order)
         
         # Notify all clients of the initiative update
@@ -1563,8 +1565,8 @@ def spawn_object():
                 return jsonify(error=f'Object type "{object_type}" is not placeable'), 400
             
             # Create object instance
-            
-            object_instance = Object(game_session, battle_map, {
+            object_klass = object_type_to_klass(object_properties['item_class'])
+            object_instance = object_klass(game_session, battle_map, {
                 **object_properties,
                 'type': object_type,
                 'entity_uid': str(uuid.uuid4())
@@ -2081,7 +2083,7 @@ def handle_reaction():
     current_game.clear_reaction_input()
     try:
         # Use the lock to make the operation atomic
-        with game_state_lock:
+        with current_game.game_state_lock:
             battle.action(handler.action)
             battle.commit(handler.action)
         socketio.emit('message', {'type': 'dismiss_reaction', 'message': {}})
