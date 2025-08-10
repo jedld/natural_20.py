@@ -511,7 +511,8 @@ class GameManagement:
     """
     def play_soundtrack(self, track_id):
         if track_id == "-1":
-            current_soundtrack = None
+            # Clear current soundtrack and notify clients to stop
+            self.current_soundtrack = None
             self.socketio.emit('message', {'type': 'stoptrack', 'message': {}})
         else:
             for soundtrack in self.soundtracks:
@@ -523,20 +524,19 @@ class GameManagement:
                 if self.current_soundtrack:
                     if self.current_soundtrack['name'] != soundtrack['name']:
                         current_time_in_seconds = int(time.time())
-                        current_soundtrack = {'url': url, 'id': track_id, 'start_time': current_time_in_seconds}
+                        current_soundtrack = {'url': url, 'id': track_id, 'start_time': current_time_in_seconds, 'duration': soundtrack.get('duration', 0)}
                         soundtrack['time'] = 0
                         self.logger.info(f"Playing soundtrack {current_soundtrack}")
                         self.socketio.emit('message', { 'type': 'track', 'message': current_soundtrack })
                         self.current_soundtrack = soundtrack
                         break
                     else:
-                        time_s = (time.time() - self.current_soundtrack
-                        ['start_time']) % self.current_soundtrack['duration']
+                        time_s = (time.time() - self.current_soundtrack['start_time']) % self.current_soundtrack['duration']
                         self.current_soundtrack['time'] = time_s
                         self.logger.info(f"Playing soundtrack {self.current_soundtrack}")
                         self.socketio.emit('message', { 'type': 'track', 'message': self.current_soundtrack})
                 else:
-                    current_soundtrack = {'url': url, 'id': track_id, 'start_time': time.time()}
+                    current_soundtrack = {'url': url, 'id': track_id, 'start_time': time.time(), 'duration': soundtrack.get('duration', 0)}
                     self.logger.info(f"Playing soundtrack {current_soundtrack}")
                     self.socketio.emit('message', {'type': 'track', 'message': current_soundtrack})
                     self.current_soundtrack = soundtrack

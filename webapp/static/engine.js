@@ -515,18 +515,19 @@ class EventQueue {
   }
 
   processStopTrackEvent(data, resolve) {
-    if (active_background_sound) {
-      const audioCtx = new AudioContext();
-      const source = audioCtx.createMediaElementSource(
-        active_background_sound,
-      );
-      const gainNode = audioCtx.createGain();
-      source.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 2);
-      gainNode.addEventListener("ended", () => {
-        active_background_sound.pause();
+    if (!active_background_sound) { resolve(); return; }
+
+    // Simple fade-out using element volume, then stop and resolve
+    let steps = 10;
+    const originalVolume = active_background_sound.volume;
+    const stepDown = originalVolume / steps;
+    const interval = setInterval(() => {
+      if (!active_background_sound) { clearInterval(interval); resolve(); return; }
+      const nextVol = Math.max(0, active_background_sound.volume - stepDown);
+      active_background_sound.volume = nextVol;
+      if (nextVol <= 0) {
+        clearInterval(interval);
+        try { active_background_sound.pause(); } catch (e) {}
         active_background_sound = null;
         active_track_id = -1;
 
@@ -534,17 +535,13 @@ class EventQueue {
         if (typeof DMSoundManager !== 'undefined') {
           DMSoundManager.currentTrackId = "-1";
           DMSoundManager.isPlaying = false;
-          // Update UI if the modal is open
           if ($('#modal-1').hasClass('in') || $('#modal-1').is(':visible')) {
             DMSoundManager.updateUI();
           }
         }
-
         resolve();
-      });
-    } else {
-      resolve();
-    }
+      }
+    }, 50);
   }
 }
 
