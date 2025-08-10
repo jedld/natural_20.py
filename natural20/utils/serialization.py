@@ -31,6 +31,7 @@ import pdb
 import uuid
 import numpy as np
 import importlib
+import re
 
 def represent_uuid(dumper, data):
     # Store the UUID value in a scalar node
@@ -81,6 +82,18 @@ CLASS_TAG_MAPPING = {
     AttackAction: '!attack_action',
     MultiSwitch: '!multi_switch'
 }
+def snake_case(str):
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', str)
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
+def object_type_to_klass(obj_type):
+    # snake case and add the exclamation
+    obj_type = f"!{snake_case(obj_type)}"
+
+    for cls, tag in CLASS_TAG_MAPPING.items():
+        if tag == obj_type:
+            return cls
+    raise ValueError(f"Unknown object type: {obj_type}")
 
 def generic_constructor(loader, node):
     # Handle UUID specially.
