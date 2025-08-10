@@ -2403,6 +2403,11 @@ $(document).ready(() => {
     });
   });
 
+  // Character Builder menu entry
+  $(document).on('click', '#character-builder', function() {
+    window.location.href = '/character_builder';
+  });
+
   // NPC Spawner functionality
   $("#toggle-npc-spawner").click(() => {
     const $npcSpawner = $("#npc-spawner");

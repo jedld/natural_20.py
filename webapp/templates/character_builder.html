@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1" name="viewport">
+  <title>{{ title }} - Character Builder</title>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  <style>
+    body { background: #1b1b1b; color: #eee; }
+    .builder-container { max-width: 960px; margin: 20px auto; }
+    .panel-dnd { background: #2a2a2a; border: 1px solid #444; }
+    .panel-dnd>.panel-heading { background: #3a2a1a; color: #f5deb3; border-color: #70532f; }
+    .ability-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+    .ability-card { background: #333; border: 1px solid #555; border-radius: 6px; padding: 10px; text-align: center; }
+    .ability-name { font-weight: bold; color: #d4af37; }
+    .ability-value { font-size: 24px; margin: 5px 0; }
+    .ability-controls .btn { padding: 2px 8px; }
+    .points-remaining { font-weight: bold; color: #9cdcfe; }
+    .form-inline .form-control { min-width: 180px; }
+    .helper { color: #bbb; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="builder-container">
+    <div class="panel panel-dnd">
+      <div class="panel-heading">
+        <h3 class="panel-title">New Character</h3>
+      </div>
+      <div class="panel-body">
+  <form id="character-form" class="form" enctype="multipart/form-data">
+          <div class="row">
+            <div class="col-sm-6">
+              <div class="form-group">
+                <label for="name">Name</label>
+                <input type="text" class="form-control" id="name" name="name" placeholder="Enter character name" required>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="form-group">
+                <label for="pronoun">Pronoun (optional)</label>
+                <input type="text" class="form-control" id="pronoun" name="pronoun" placeholder="e.g., she/her, he/him, they/them">
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-sm-4">
+              <div class="form-group">
+                <label for="race">Race</label>
+                <select class="form-control" id="race" name="race" required>
+                  <option value="">-- Select Race --</option>
+                  {% for rname, rprops in races.items() %}
+                    <option value="{{ rname }}">{{ rname|capitalize }}</option>
+                  {% endfor %}
+                </select>
+                <div class="helper">Subrace may appear after selecting race.</div>
+              </div>
+            </div>
+            <div class="col-sm-4">
+              <div class="form-group">
+                <label for="subrace">Subrace</label>
+                <select class="form-control" id="subrace" name="subrace" disabled>
+                  <option value="">-- None --</option>
+                </select>
+              </div>
+            </div>
+            <div class="col-sm-4">
+              <div class="form-group">
+                <label for="klass">Class</label>
+                <select class="form-control" id="klass" name="klass" required>
+                  <option value="">-- Select Class --</option>
+                  {% for cname, cprops in classes.items() %}
+                    <option value="{{ cname }}">{{ cname|capitalize }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-sm-4">
+              <div class="form-group">
+                <label for="level">Level</label>
+                <select class="form-control" id="level" name="level" required>
+                  <option value="1" selected>1</option>
+                  <option value="2">2</option>
+                </select>
+                <div class="helper">Some choices change with level.</div>
+              </div>
+            </div>
+            <div class="col-sm-8">
+              <div id="class-options" class="panel panel-dnd" style="display:none; margin-top:2px;">
+                <div class="panel-heading"><strong>Class &amp; Level Options</strong></div>
+                <div class="panel-body" id="class-options-body">
+                  <!-- Dynamic skill/spell options render here -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <hr>
+
+          <div class="row">
+            <div class="col-sm-6">
+              <div class="form-group">
+                <label for="profile_image">Profile Image (portrait)</label>
+                <input type="file" class="form-control" id="profile_image" name="profile_image" accept="image/*">
+                <div class="helper">Saved to assets/characters/&lt;name&gt;.png; shown on selection screens.</div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="form-group">
+                <label for="token_image">Token Image (map token)</label>
+                <input type="file" class="form-control" id="token_image" name="token_image" accept="image/*">
+                <div class="helper">Saved to assets/token_&lt;name&gt;.png; used on the map.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-sm-6">
+              <label>Ability Generation</label>
+              <div class="form-inline">
+                <label class="radio-inline"><input type="radio" name="ability_mode" value="pointbuy" checked> Point Buy</label>
+                <label class="radio-inline"><input type="radio" name="ability_mode" value="random"> Random (4d6 drop lowest)</label>
+                <button type="button" id="roll-abilities" class="btn btn-default btn-sm" style="margin-left:10px; display:none;">Roll</button>
+              </div>
+              <div class="helper">Point Buy: Spend up to 27 points. Scores range 8–15; costs escalate.</div>
+            </div>
+            <div class="col-sm-6 text-right">
+              <div>Points remaining: <span id="points-remaining" class="points-remaining">27</span></div>
+            </div>
+          </div>
+
+          <div class="ability-grid" style="margin-top:10px;">
+            {% set abilities = ["str","dex","con","int","wis","cha"] %}
+            {% for ab in abilities %}
+            <div class="ability-card" data-ability="{{ ab }}">
+              <div class="ability-name">{{ ab.upper() }}</div>
+              <div class="ability-value" id="val-{{ ab }}">8</div>
+              <div class="ability-controls">
+                <button type="button" class="btn btn-xs btn-default dec" data-ab="{{ ab }}">-</button>
+                <button type="button" class="btn btn-xs btn-default inc" data-ab="{{ ab }}">+</button>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <input type="hidden" name="str" id="input-str" value="8">
+          <input type="hidden" name="dex" id="input-dex" value="8">
+          <input type="hidden" name="con" id="input-con" value="8">
+          <input type="hidden" name="int" id="input-int" value="8">
+          <input type="hidden" name="wis" id="input-wis" value="8">
+          <input type="hidden" name="cha" id="input-cha" value="8">
+
+          <div class="text-right" style="margin-top:15px;">
+            <button type="button" class="btn btn-default" id="cancel-btn">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create Character</button>
+          </div>
+        </form>
+
+        <div id="builder-msg" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script id="races-data" type="application/json">{{ races|tojson|safe }}</script>
+  <script id="classes-data" type="application/json">{{ classes|tojson|safe }}</script>
+  <script src="/js/character_builder.js"></script>
+</body>
+</html>
