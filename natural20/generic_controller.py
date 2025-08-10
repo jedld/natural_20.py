@@ -11,12 +11,25 @@ from natural20.action import Action
 from natural20.controller import Controller
 from natural20.ai.path_compute import PathCompute
 from natural20.utils.movement import retrieve_opportunity_attacks
+from natural20.item_library.door_object import DoorObject
+from natural20.item_library.trap_door import TrapDoor
 import math
 import copy
 import pdb
 
 class GenericController(Controller):
-    VALID_AI_MOVE_TYPES = ["attack", "move"]
+    # Consider a broader set so AI can open doors, reposition, or defend
+    VALID_AI_MOVE_TYPES = [
+        "attack",
+        "spell",
+        "move",
+        "interact",
+        "dash",
+        "disengage",
+        "dodge",
+        "hide",
+        "look"
+    ]
 
     def __init__(self, session, valid_move_types=None):
         self.state = {}
@@ -147,9 +160,37 @@ class GenericController(Controller):
             if not object.conscious():
                 continue
             if battle.opposing(entity, object):
-                path = PathCompute(battle, current_map, entity, ignore_opposing=True).compute_path(entity_x, entity_y,
-                location[0], location[1])
+                path = PathCompute(battle, current_map, entity, ignore_opposing=True).compute_path(
+                    entity_x, entity_y, location[0], location[1]
+                )
                 enemy_positions[object] = (location, path)
+
+        # Update memory: track last known enemy locations and investigation targets
+        battle_data = self._battle_data(battle, entity)
+        known_positions = battle_data['known_enemy_positions']
+        investigate_location = battle_data['investigate_location']
+
+        # Record current sightings
+        for enemy, (loc, _path) in enemy_positions.items():
+            known_positions[enemy] = tuple(loc)
+            # Seeing an enemy clears any investigate marker at that exact location
+            if tuple(loc) in investigate_location:
+                investigate_location.pop(tuple(loc), None)
+
+        # If we previously saw enemies that are no longer visible, mark their last known
+        # position as an investigation target (if still reachable on this map)
+        invisible_known = [e for e in list(known_positions.keys()) if e not in enemy_positions]
+        for e in invisible_known:
+            try:
+                last_loc = known_positions.get(e)
+                if last_loc is None:
+                    continue
+                # Only keep markers on same map
+                if battle.map_for(e) == current_map:
+                    investigate_location.setdefault(tuple(last_loc), {"priority": 1.0, "age": 0})
+            except Exception:
+                # If entity e no longer exists on map, discard
+                known_positions.pop(e, None)
 
     def _initialize_battle_data(self, battle, entity):
         if battle not in self.battle_data:
@@ -175,11 +216,18 @@ class GenericController(Controller):
         # generate available targets
         valid_actions = []
 
-        # check if enemy positions is empty
+        # Proactive look when we can't see enemies
+        # - If we have no targets in sight and no investigation leads and can't move, use Look
+        look_added = False
         if len(enemy_positions.keys()) == 0 and len(investigate_location) == 0 and \
             available_movement == 0 and LookAction.can(entity, battle):
-            action = LookAction(self.session, entity, "look")
-            valid_actions.append(action)
+            valid_actions.append(LookAction(self.session, entity, "look"))
+            look_added = True
+
+        # If we have no visible enemies but we can move, also allow Look as an option
+        if len(enemy_positions.keys()) == 0 and LookAction.can(entity, battle) and not look_added:
+            valid_actions.append(LookAction(self.session, entity, "look"))
+            look_added = True
 
         if len(enemy_positions.keys()) == 0 and entity.available_movement(battle) == 0 and DodgeAction.can(entity, battle):
             valid_actions.append(DodgeAction(None, entity, "dodge"))
@@ -190,6 +238,11 @@ class GenericController(Controller):
 
         for action in available_actions:
             if action.action_type in self.valid_moves_types:
+                # Avoid appending duplicate LookActions
+                if isinstance(action, LookAction) and look_added:
+                    continue
+                if isinstance(action, LookAction):
+                    look_added = True
                 valid_actions.append(action)
 
         return valid_actions
@@ -219,25 +272,103 @@ class GenericController(Controller):
         - Move towards the closest enemy
         """
 
+        current_map = battle.map_for(entity)
         enemy_positions = self._get_enemy_positions(battle, entity)
+        battle_data = self._battle_data(battle, entity)
+        investigate_location = battle_data['investigate_location']
+        visited_location = battle_data['visited_location']
 
-        move_square_score = {}
-        for _, location_pair in enemy_positions.items():
-            _, path = location_pair
+        # Build target-driven movement scores
+        def build_move_scores():
+            scores = {}
+            targets = []
+            # Visible enemies first
+            for _, (loc, path) in enemy_positions.items():
+                if path is None or len(path) < 2:
+                    continue
+                targets.append(tuple(loc))
+            # Then investigation spots if no visible enemies
+            if not targets and len(investigate_location) > 0:
+                targets = list(investigate_location.keys())
+            # If still nothing to go on, head to doors we can potentially open
+            if not targets:
+                door_adjacents = []
+                for obj, pos in current_map.interactable_objects.items():
+                    if not isinstance(obj, (DoorObject, TrapDoor)):
+                        continue
+                    # Consider only closed, visible doors
+                    try:
+                        is_closed = hasattr(obj, 'closed') and obj.closed()
+                    except Exception:
+                        is_closed = False
+                    if not is_closed:
+                        continue
+                    if not current_map.can_see(entity, obj):
+                        continue
+                    dx, dy = pos
+                    # Candidate squares where inside_range_for_opening would be true
+                    facing = getattr(obj, 'facing', lambda: 'up')()
+                    offsets = {
+                        'up': [(0, -1), (0, 1)],
+                        'down': [(0, 1), (0, -1)],
+                        'left': [(-1, 0), (1, 0)],
+                        'right': [(1, 0), (-1, 0)]
+                    }.get(facing, [(0, -1), (0, 1), (-1, 0), (1, 0)])
+                    for ox, oy in offsets:
+                        tx, ty = dx + ox, dy + oy
+                        # Only consider tiles on the map, passable and placeable
+                        if 0 <= tx < current_map.size[0] and 0 <= ty < current_map.size[1]:
+                            if current_map.bidirectionally_passable(entity, tx, ty, (dx, dy), battle, allow_squeeze=False) and \
+                               current_map.placeable(entity, tx, ty, battle, squeeze=False):
+                                door_adjacents.append((tx, ty))
+                # Deduplicate
+                targets = list({t for t in door_adjacents}) if door_adjacents else targets
 
-            if path is None:
-                continue
+            # Precompute path to each target and score the first step towards the closest one
+            if not targets:
+                return scores
 
-            distance = len(path)
-            square_key = (path[1][0], path[1][1])
-            move_square_score[square_key] = 1.0 / distance
+            ex, ey = current_map.position_of(entity)
+            path_compute = PathCompute(battle, current_map, entity, ignore_opposing=True)
+            # Compute to multiple destinations
+            paths = path_compute.compute_paths_to_multiple_destinations(ex, ey, targets)
+            for dest, path in paths.items():
+                if not path or len(path) < 2:
+                    continue
+                first_step = tuple(path[1])
+                distance = len(path)
+                # Prefer shorter paths
+                base = 1.0 / max(1, distance)
+                # Exploration bonus: prefer unvisited squares
+                if first_step not in visited_location:
+                    base += 0.1
+                # Age-based investigate boost
+                if dest in investigate_location:
+                    base += 0.2 + 0.05 * investigate_location[dest].get('age', 0)
+                scores[first_step] = max(scores.get(first_step, 0), base)
+            return scores
 
+        move_square_score = build_move_scores()
+
+        def score_interact(action):
+            # Favor opening doors when no enemies are visible or target investigation requires it
+            if not hasattr(action, 'target') or action.target is None:
+                return 0
+            target = action.target
+            act_name = action.object_action_name() if hasattr(action, 'object_action_name') else None
+            score = 0
+            if isinstance(target, (DoorObject, TrapDoor)):
+                # Opening a closed door is valuable for exploration or chasing last-known positions
+                if act_name == 'open' or act_name == 'unlock' or act_name == 'lockpick':
+                    score = 0.6
+                    # If we have investigate targets on the other side (rough heuristic: door blocks LOS now)
+                    if len(enemy_positions) == 0 and len(investigate_location) > 0:
+                        score += 0.3
+            return score
 
         sorted_actions = []
         for action in available_actions:
             if isinstance(action, AttackAction) or isinstance(action, SpellAction):
-                if isinstance(action, AttackAction):
-                    attack_available = True
                 base_score = action.compute_hit_probability(battle) * action.avg_damage(battle)
                 sorted_actions.append((action, base_score))
             elif isinstance(action, MoveAction):
@@ -247,13 +378,26 @@ class GenericController(Controller):
 
                 # avoid opportunity attacks
                 opportunity_list = retrieve_opportunity_attacks(entity, action.move_path, battle)
-
                 if len(opportunity_list) > 0:
-                    continue
+                    # Strongly deprioritize; keep as last resort if truly stuck
+                    score -= 1.0
 
                 sorted_actions.append((action, score))
+            elif action.action_type == 'interact':
+                sorted_actions.append((action, score_interact(action)))
+            elif action.action_type == 'look':
+                # Look is useful when we can't see anyone
+                score = 0.3 if len(enemy_positions) == 0 else 0.0
+                sorted_actions.append((action, score))
+            elif action.action_type in ('dash', 'disengage', 'dodge', 'hide'):
+                # Mild default value; will be preferred only when other options are poor
+                sorted_actions.append((action, 0.1))
             else:
                 sorted_actions.append((action, 0))
+
+        # Sort by score desc
         sorted_actions.sort(key=lambda a: a[1], reverse=True)
-        sorted_actions = [a[0] for a in sorted_actions]
-        return sorted_actions
+        # Age investigation markers to decay/boost choices over time
+        for k in list(investigate_location.keys()):
+            investigate_location[k]['age'] = investigate_location[k].get('age', 0) + 1
+        return [a[0] for a in sorted_actions]
