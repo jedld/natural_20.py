@@ -1719,6 +1719,15 @@ $(document).ready(() => {
         if ($grid.length && $grid.find(`.map-card[data-map-name='${mapName}']`).length === 0) {
           const tileHtml = `
             <div class="map-card" data-map-name="${mapName}">
+              <div class="upload-overlay">
+                <button class="btn btn-xs btn-default upload-map-bg" title="Upload background" data-map-name="${mapName}">
+                  <span class="glyphicon glyphicon-upload"></span>
+                </button>
+                <button class="btn btn-xs btn-danger delete-map" title="Delete map" data-map-name="${mapName}">
+                  <span class="glyphicon glyphicon-trash"></span>
+                </button>
+                <input type="file" class="map-bg-input" data-map-name="${mapName}" accept="image/*" style="display:none;" />
+              </div>
               <img class="map-thumb" src="/assets/maps/${mapName}.png" alt="${mapName}" onerror="this.onerror=null;this.src='/static/info.png';">
               <div class="map-name">${mapName}</div>
             </div>`;
@@ -1730,6 +1739,82 @@ $(document).ready(() => {
         });
       }
     );
+  });
+
+  // Trigger file chooser for upload button
+  $("#mapModal").on("click", ".upload-map-bg", function (e) {
+    e.stopPropagation();
+    const mapName = $(this).data('map-name');
+    $(this).closest('.map-card').find(`.map-bg-input[data-map-name='${mapName}']`).trigger('click');
+  });
+
+  // Handle delete map with warnings
+  $("#mapModal").on("click", ".delete-map", function (e) {
+    e.stopPropagation();
+    const mapName = $(this).data('map-name');
+    if (!mapName) return;
+    // Show warnings
+    const warn1 = `Delete map "${mapName}"? This will remove its YAML and background image.`;
+    const warn2 = 'This action cannot be undone. Are you sure?';
+    if (!window.confirm(warn1)) return;
+    if (!window.confirm(warn2)) return;
+
+    ajaxPost('/delete_map', { name: mapName }, (resp) => {
+      if (resp && resp.error) {
+        alert(resp.error);
+        return;
+      }
+      // Remove tile from UI
+      $(`.map-card[data-map-name='${mapName}']`).remove();
+
+      // If current map deleted, switch to index or any remaining map
+      const currentMap = $('body').attr('data-current-map');
+      if (currentMap === mapName) {
+        const $first = $("#map-grid .map-card[data-map-name]").first();
+        const target = $first.data('map-name') || 'index';
+        Utils.switchMap(target, globalCanvas, () => {
+          createGlobalCanvas();
+        });
+      }
+    });
+  });
+
+  // Handle image file selection and upload
+  $("#mapModal").on("change", ".map-bg-input", function () {
+    const input = this;
+    const files = input.files;
+    const mapName = $(this).data('map-name');
+    if (!files || files.length === 0) return;
+    const formData = new FormData();
+    formData.append('map', mapName);
+    formData.append('image', files[0]);
+
+    $.ajax({
+      url: '/upload_map_background',
+      type: 'POST',
+      data: formData,
+      processData: false,
+      contentType: false,
+      success: (data) => {
+        if (data && data.error) {
+          alert(data.error);
+          return;
+        }
+        // Refresh tile thumbnail
+        const $tile = $(`.map-card[data-map-name='${mapName}'] .map-thumb`);
+        $tile.attr('src', `/assets/maps/${mapName}.png?ts=${Date.now()}`);
+
+        // If currently on this map, update background immediately
+        const currentMap = $('body').attr('data-current-map');
+        if (currentMap === mapName && data.background) {
+          const resp = { background: data.background, name: mapName, width: $("#tiles-area").data('width'), height: $("#tiles-area").data('height'), image_offset_px: [0,0] };
+          Utils.updateMapDisplay(resp, globalCanvas);
+        }
+      },
+      error: (jqXHR) => {
+        alert('Upload failed');
+      }
+    });
   });
 
   // --- Tile & Action Event Handlers ---
@@ -2356,7 +2441,7 @@ $(document).ready(() => {
     npcs.forEach((npc) => {
       const $npcItem = $(`
         <div class="npc-item" draggable="true" data-npc-type="${npc.id}" title="AC: ${npc.ac}, HP: ${npc.hp}">
-          <img class="npc-item-image" src="/assets/${npc.image}" alt="${npc.name}" onerror="this.src='/assets/token_adversary.png'">
+          <img class="npc-item-image" src="/assets/${npc.image}" alt="${npc.name}" onerror="this.onerror=null;this.src='/static/assets/token_player.png'">
           <div class="npc-item-info">
             <div class="npc-item-name">${npc.name}</div>
             <div class="npc-item-type">CR ${npc.cr} • ${npc.size} • AC ${npc.ac}</div>
@@ -2549,7 +2634,7 @@ $(document).ready(() => {
       
       const $pcItem = $(`
         <div class="pc-item" draggable="true" data-entity-uid="${pc.entity_uid}" title="${pc.race} ${classInfo}">
-          <img class="pc-item-image" src="/assets/${pc.token_image}" alt="${pc.name}" onerror="this.src='/assets/token_player.png'">
+          <img class="pc-item-image" src="/assets/${pc.token_image}" alt="${pc.name}" onerror="this.onerror=null;this.src='/static/assets/token_player.png'">
           <div class="pc-item-info">
             <div class="pc-item-name">${pc.label}</div>
             <div class="pc-item-type">${pc.race} ${classInfo}</div>
@@ -3445,8 +3530,10 @@ $(document).ready(() => {
       const portraitSrc = $entityImg.attr('src');
       $('#dialogEntityPortrait').attr('src', portraitSrc);
     } else {
-      // Use a default portrait
-      $('#dialogEntityPortrait').attr('src', '/static/assets/token_adversary.png');
+      // Use a default portrait and prevent repeated load attempts
+      const $portrait = $('#dialogEntityPortrait');
+      $portrait.attr('onerror', "this.onerror=null;this.src='/static/assets/token_player.png'");
+      $portrait.attr('src', '/static/assets/token_player.png');
     }
 
     // Load detailed entity information via AJAX

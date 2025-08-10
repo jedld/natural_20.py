@@ -88,6 +88,7 @@ from webapp.entity_rag_handler import EntityRAGHandler
 import requests
 import re
 from PIL import Image, ImageDraw
+import io
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 
@@ -696,9 +697,224 @@ def create_map():
         OTHERMAPS[map_id] = relative_map_ref
         current_game.other_maps[map_id] = relative_map_ref
 
+        # Persist to game.yml so maps load after restart
+        try:
+            import yaml as _yaml
+            game_yml_path = os.path.join(game_session.root_path, 'game.yml')
+            if os.path.exists(game_yml_path):
+                with open(game_yml_path, 'r') as f:
+                    props = _yaml.safe_load(f) or {}
+            else:
+                props = {}
+            maps_dict = props.get('maps') or {}
+            maps_dict[map_id] = f'maps/{map_id}'
+            props['maps'] = maps_dict
+            with open(game_yml_path, 'w') as f:
+                _yaml.safe_dump(props, f, sort_keys=False)
+            # update in-memory
+            game_session.game_properties = props
+        except Exception:
+            logger.exception('Failed to persist new map to game.yml')
+
+        # Persist to index.json other_maps for auxiliary use
+        try:
+            index_json_path = os.path.join(game_session.root_path, 'index.json')
+            if os.path.exists(index_json_path):
+                with open(index_json_path, 'r') as jf:
+                    idx = json.load(jf)
+            else:
+                idx = {}
+            other_maps = idx.get('other_maps') or {}
+            other_maps[map_id] = f'maps/{map_id}'
+            idx['other_maps'] = other_maps
+            with open(index_json_path, 'w') as jf:
+                json.dump(idx, jf, indent=2)
+        except Exception:
+            logger.exception('Failed to persist new map to index.json')
+
         return jsonify(status='ok', name=map_id)
     except Exception as e:
         logger.exception('Failed to create map')
+        return jsonify(error=str(e)), 500
+
+@app.route('/upload_map_background', methods=['POST'])
+def upload_map_background():
+    """Upload and set a map's background image. Expects form fields:
+    - map: map name
+    - image: file upload
+    Saves to assets/maps/<map>.png and updates maps/<map>.yml background_image.
+    """
+    try:
+        map_name = request.form.get('map') or ''
+        if not map_name or map_name not in game_session.maps:
+            return jsonify(error='Unknown map'), 400
+
+        if 'image' not in request.files:
+            return jsonify(error='No file provided'), 400
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify(error='Empty filename'), 400
+
+        # Save PNG (force .png extension)
+        maps_png_dir = os.path.join(game_session.root_path, 'assets', 'maps')
+        os.makedirs(maps_png_dir, exist_ok=True)
+        png_path = os.path.join(maps_png_dir, f'{map_name}.png')
+
+        # Convert to PNG if needed using PIL
+        try:
+            image = Image.open(file.stream).convert('RGBA')
+            image.save(png_path, format='PNG')
+        except Exception:
+            # Fallback: save directly (may already be PNG)
+            file.stream.seek(0)
+            file.save(png_path)
+
+        # Update in-memory properties
+        _map = game_session.maps.get(map_name)
+        if _map:
+            _map.properties['background_image'] = f'{map_name}.png'
+
+        # Persist to YAML
+        maps_ref = game_session.game_properties.get('maps', {})
+        rel_ref = maps_ref.get(map_name, f'maps/{map_name}')
+        if not rel_ref.endswith('.yml'):
+            rel_ref += '.yml'
+        yml_path = os.path.join(game_session.root_path, rel_ref)
+        try:
+            import yaml as _yaml
+            if os.path.exists(yml_path):
+                with open(yml_path, 'r') as f:
+                    content = _yaml.safe_load(f) or {}
+            else:
+                content = {}
+            content['background_image'] = f'{map_name}.png'
+            with open(yml_path, 'w') as f:
+                _yaml.safe_dump(content, f, sort_keys=False)
+        except Exception as e:
+            logger.exception('Failed to update YAML with background_image')
+
+        return jsonify(status='ok', name=map_name, background=f'assets/maps/{map_name}.png')
+    except Exception as e:
+        logger.exception('Failed to upload map background')
+        return jsonify(error=str(e)), 500
+
+@app.route('/delete_map', methods=['POST'])
+def delete_map():
+    """Delete an existing map safely.
+    Expects form data: name
+    Removes maps/<name>.yml and assets/maps/<name>.png if present,
+    unregisters from session, updates game.yml maps and index.json other_maps.
+    Prevent deleting 'index' or the only remaining map.
+    """
+    try:
+        # Only DMs can delete maps
+        if 'dm' not in user_role():
+            return jsonify(error='Forbidden'), 403
+        map_name = request.form.get('name') or ''
+        map_name = map_name.strip()
+        if not map_name:
+            return jsonify(error='No map specified'), 400
+
+        # Safety checks
+        if map_name == 'index':
+            return jsonify(error='Cannot delete the default index map'), 400
+        if map_name not in game_session.maps:
+            return jsonify(error='Unknown map'), 404
+        if len(game_session.maps) <= 1:
+            return jsonify(error='Cannot delete the only remaining map'), 400
+
+        # File paths
+        # Resolve YAML reference via game.yml maps entry if available
+        maps_ref = game_session.game_properties.get('maps', {})
+        rel_ref = maps_ref.get(map_name, f'maps/{map_name}')
+        if not rel_ref.endswith('.yml'):
+            rel_ref += '.yml'
+        yml_path = os.path.join(game_session.root_path, rel_ref)
+        png_path = os.path.join(game_session.root_path, 'assets', 'maps', f'{map_name}.png')
+
+        # If deleting current map for this user, switch to another map first
+        try:
+            current_for_user = current_game.get_map_for_user(session['username']).name
+        except Exception:
+            current_for_user = None
+        if current_for_user == map_name:
+            # pick any other map (prefer 'index' if exists)
+            fallback = 'index' if 'index' in game_session.maps and map_name != 'index' else None
+            if not fallback:
+                # pick first key that's not the one being deleted
+                fallback = next((k for k in game_session.maps.keys() if k != map_name), None)
+            if fallback:
+                current_game.switch_map_for_user(session['username'], fallback)
+
+        # Remove from in-memory maps and current_game references
+        if map_name in current_game.other_maps:
+            try:
+                del current_game.other_maps[map_name]
+            except Exception:
+                pass
+        try:
+            global OTHERMAPS
+            OTHERMAPS.pop(map_name, None)
+        except Exception:
+            pass
+        if map_name in game_session.maps:
+            try:
+                del game_session.maps[map_name]
+            except Exception:
+                pass
+        # Keep current_game maps reference aligned
+        current_game.maps = game_session.maps
+
+        # Update game.yml: remove from maps
+        try:
+            import yaml as _yaml
+            game_yml_path = os.path.join(game_session.root_path, 'game.yml')
+            if os.path.exists(game_yml_path):
+                with open(game_yml_path, 'r') as f:
+                    props = _yaml.safe_load(f) or {}
+            else:
+                props = {}
+            maps_dict = props.get('maps') or {}
+            if map_name in maps_dict:
+                maps_dict.pop(map_name, None)
+            props['maps'] = maps_dict
+            with open(game_yml_path, 'w') as f:
+                _yaml.safe_dump(props, f, sort_keys=False)
+            game_session.game_properties = props
+        except Exception:
+            logger.exception('Failed to update game.yml while deleting map')
+
+        # Update index.json other_maps
+        try:
+            index_json_path = os.path.join(game_session.root_path, 'index.json')
+            if os.path.exists(index_json_path):
+                with open(index_json_path, 'r') as jf:
+                    idx = json.load(jf)
+            else:
+                idx = {}
+            other_maps = idx.get('other_maps') or {}
+            other_maps.pop(map_name, None)
+            idx['other_maps'] = other_maps
+            with open(index_json_path, 'w') as jf:
+                json.dump(idx, jf, indent=2)
+        except Exception:
+            logger.exception('Failed to update index.json while deleting map')
+
+        # Delete files last
+        try:
+            if os.path.exists(yml_path):
+                os.remove(yml_path)
+        except Exception:
+            logger.exception('Failed to delete map YAML')
+        try:
+            if os.path.exists(png_path):
+                os.remove(png_path)
+        except Exception:
+            logger.exception('Failed to delete map image')
+
+        return jsonify(status='ok', name=map_name)
+    except Exception as e:
+        logger.exception('Failed to delete map')
         return jsonify(error=str(e)), 500
 
 @app.route('/assets/sounds/<filename>')
