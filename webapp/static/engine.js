@@ -1682,6 +1682,56 @@ $(document).ready(() => {
     });
   });
 
+  // Handle tile-based map selection
+  $("#mapModal").on("click", ".map-card", function (event) {
+    const mapName = $(this).data("map-name");
+    if (!mapName) return; // ignore non-map tiles (e.g., create-new)
+    Utils.switchMap(mapName, globalCanvas, () => {
+      createGlobalCanvas();
+    });
+  });
+
+  // Handle create new map tile
+  $("#mapModal").on("click", "#create-new-map", function () {
+    // simple prompt for map name
+    let mapName = window.prompt("Enter a name for the new map (letters, numbers, underscores):", "new_map");
+    if (!mapName) return;
+    mapName = (mapName || "").trim().toLowerCase().replace(/[^a-z0-9_\-]/g, "_");
+    if (!mapName) {
+      alert("Invalid map name.");
+      return;
+    }
+    let width = parseInt(window.prompt("Map width (tiles)", "16"), 10);
+    let height = parseInt(window.prompt("Map height (tiles)", "8"), 10);
+    if (isNaN(width) || isNaN(height)) { width = 16; height = 8; }
+    width = Math.max(2, Math.min(100, width));
+    height = Math.max(2, Math.min(100, height));
+    ajaxPost(
+      "/create_map",
+      { name: mapName, width, height },
+      (data) => {
+        if (data && data.error) {
+          alert(data.error);
+          return;
+        }
+        // Add the new tile to the grid if not present
+        const $grid = $("#map-grid");
+        if ($grid.length && $grid.find(`.map-card[data-map-name='${mapName}']`).length === 0) {
+          const tileHtml = `
+            <div class="map-card" data-map-name="${mapName}">
+              <img class="map-thumb" src="/assets/maps/${mapName}.png" alt="${mapName}" onerror="this.onerror=null;this.src='/static/info.png';">
+              <div class="map-name">${mapName}</div>
+            </div>`;
+          $(tileHtml).insertBefore($("#create-new-map"));
+        }
+        // Switch to the new map
+        Utils.switchMap(mapName, globalCanvas, () => {
+          createGlobalCanvas();
+        });
+      }
+    );
+  });
+
   // --- Tile & Action Event Handlers ---
   $(".tiles-container").on("click", ".execute-action", (e) => {
     targetModeCallback(multiTargetList);
