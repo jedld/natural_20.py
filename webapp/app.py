@@ -1683,6 +1683,54 @@ def compute_path():
     return jsonify(path_data)
 
 
+@app.route('/jump_info', methods=['GET'])
+def jump_info():
+    """Return jump distance information for an entity.
+    Query params:
+      - id or entity_id: the entity UID
+      - running: '1' or '0' (optional). If provided, compute the jump grids for that context.
+    Response:
+      { 'feet_per_grid': int, 'standing_grids': int, 'running_grids': int, 'grids': int }
+    """
+    global current_game
+    try:
+        entity_id = request.args.get('id') or request.args.get('entity_id')
+        if not entity_id:
+            return jsonify(error='Missing entity id'), 400
+        entity = current_game.get_entity_by_uid(entity_id)
+        if not entity:
+            return jsonify(error='Entity not found'), 404
+
+        battle_map = current_game.get_map_for_entity(entity)
+        feet_per_grid = getattr(battle_map, 'feet_per_grid', 5)
+        # Compute grids for standing and running jumps
+        try:
+            standing_grids = int(entity.standing_jump_distance() / feet_per_grid)
+        except Exception:
+            standing_grids = 0
+        try:
+            running_grids = int(entity.long_jump_distance() / feet_per_grid)
+        except Exception:
+            running_grids = standing_grids
+
+        running_flag = request.args.get('running')
+        if running_flag is not None:
+            running_flag = running_flag in ('1', 'true', 'True')
+            grids = running_grids if running_flag else standing_grids
+        else:
+            grids = running_grids  # default to the more permissive value if not specified
+
+        return jsonify({
+            'feet_per_grid': feet_per_grid,
+            'standing_grids': standing_grids,
+            'running_grids': running_grids,
+            'grids': grids
+        })
+    except Exception as e:
+        logger.exception('Failed to compute jump info')
+        return jsonify(error=str(e)), 500
+
+
 # Configure paths that don't require login
 ALLOWED_PATHS = ['/login', '/health']
 ALLOWED_PREFIXES = ['/favicon.ico', '/static/assets', '/assets/']
@@ -2748,11 +2796,25 @@ def action():
     try:
         if action_type == 'MoveAction':
             path = action_request.get('path', None)
+            manual_jump = action_request.get('manual_jump') or []
             action = MoveAction(game_session, entity, 'move')
             if path:
                 move_path = sorted([(int(index), [int(coord[0]), int(coord[1])]) for index, coord in enumerate(path)])
                 move_path = [coords for _, coords in move_path]
                 action.move_path = move_path
+                # store jump indices for backend computation if provided
+                try:
+                    if isinstance(manual_jump, list) and len(manual_jump) == 2:
+                        # indices are inclusive of path indexes
+                        start_i, end_i = int(manual_jump[0]), int(manual_jump[1])
+                        if 0 <= start_i <= end_i < len(move_path):
+                            action.jump_index = list(range(start_i, end_i + 1))
+                    elif isinstance(manual_jump, list):
+                        # already a list of indices
+                        action.jump_index = [int(i) for i in manual_jump if 0 <= int(i) < len(move_path)]
+                except Exception:
+                    # ignore malformed manual_jump to remain backwards compatible
+                    pass
                 if battle:
                     return jsonify(current_game.commit_and_update(session['username'], action, pov_entities))
                 else:
