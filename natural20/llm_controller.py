@@ -13,6 +13,15 @@ from natural20.actions.spell_action import SpellAction
 from natural20.actions.look_action import LookAction
 from natural20.map_renderer import MapRenderer
 
+# Optional import of webapp LLM provider abstraction; keep controller decoupled if unavailable
+try:
+	# Using provider interface from web layer without importing the entire app
+	from webapp.llm_handler import OllamaProvider, OpenAIProvider, AnthropicProvider  # type: ignore
+except Exception:
+	OllamaProvider = None  # type: ignore
+	OpenAIProvider = None  # type: ignore
+	AnthropicProvider = None  # type: ignore
+
 
 class LlmMcpController(GenericController):
 	"""
@@ -25,11 +34,54 @@ class LlmMcpController(GenericController):
 	- If anything fails, gracefully falls back to GenericController's heuristic ranking.
 	"""
 
-	def __init__(self, session, valid_move_types=None, llm_client=None, model: Optional[str] = None, use_tools: bool = True):
+	def __init__(self, session, valid_move_types=None, llm_client=None, model: Optional[str] = None, use_tools: bool = True, llm_provider=None):
 		super().__init__(session, valid_move_types)
 		self.client = llm_client  # expected to be OpenAI-like client; optional
 		self.model = model or os.getenv("N20_LLM_MODEL", "gpt-4o-mini")
 		self.use_tools = use_tools
+		# Generic LLMProvider backend (e.g., OllamaProvider). If none provided, try to wire Ollama by default.
+		self.llm_provider = llm_provider or self._default_provider()
+
+	def _default_provider(self):
+		"""
+		Construct a default provider from environment variables.
+		Respects LLM_PROVIDER in [ollama|openai|anthropic], defaulting to ollama.
+		Returns an initialized provider or None on failure.
+		"""
+		try:
+			provider_name = os.getenv("LLM_PROVIDER", "ollama").lower()
+			if provider_name == "openai" and OpenAIProvider is not None:
+				api_key = os.getenv("OPENAI_API_KEY")
+				model = os.getenv("OPENAI_MODEL", os.getenv("N20_LLM_MODEL", "gpt-4o-mini"))
+				if not api_key:
+					return None
+				prov = OpenAIProvider()
+				ok = prov.initialize({"api_key": api_key, "model": model})
+				return prov if ok else None
+			elif provider_name == "anthropic" and AnthropicProvider is not None:
+				api_key = os.getenv("ANTHROPIC_API_KEY")
+				model = os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
+				if not api_key:
+					return None
+				prov = AnthropicProvider()
+				ok = prov.initialize({"api_key": api_key, "model": model})
+				return prov if ok else None
+			# default to ollama
+			if OllamaProvider is None:
+				return None
+			base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+			model = os.getenv("OLLAMA_MODEL", os.getenv("N20_LLM_MODEL", "gemma3:27b"))
+			prov = OllamaProvider({"base_url": base_url})
+			ok = prov.initialize({"base_url": base_url, "model": model})
+			if not ok:
+				return None
+			try:
+				prov.set_model(model)
+			except Exception:
+				pass
+			return prov
+		except Exception:
+			return None
 
 	# --- Public API ---
 	def select_action(self, battle, entity, available_actions: Optional[List[Action]] = None) -> Optional[Action]:
@@ -63,7 +115,26 @@ class LlmMcpController(GenericController):
 		if mcp_idx is not None:
 			return mcp_idx
 
-		# If no client configured, we can't call out—do a lightweight random/heuristic mix
+		# If an LLMProvider backend exists (e.g., Ollama), use it first
+		if getattr(self, "llm_provider", None) is not None:
+			try:
+				instructions = (
+					"You are a tactical assistant. Given a list of actions indexed from 0, choose the single best index. "
+					"Respond with ONLY the integer index (no text)."
+				)
+				messages = [
+					{"role": "system", "content": instructions},
+					{"role": "user", "content": prompt},
+				]
+				text = self.llm_provider.send_message(messages)
+				idx = self._local_parse_choice_from_text(text, len(available_actions))
+				if idx is not None:
+					return idx
+			except Exception:
+				# fall through to other options
+				pass
+
+		# If no OpenAI-style client configured, do a lightweight heuristic mix
 		if self.client is None:
 			return self._local_parse_choice_from_text(self._local_greedy_simulation(prompt), len(available_actions))
 

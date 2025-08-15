@@ -166,9 +166,14 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
             acrobatics_check_locations.append(m)
         jump_locations.remove(actual_moves[-1])
 
-    while test_placement and not map.placeable(entity, *actual_moves[-1], battle):
-        impediment = 'not_placeable'
-        jump_locations.remove(actual_moves[-1])
+    while test_placement and actual_moves and not map.placeable(entity, *actual_moves[-1], battle):
+        if impediment is None:
+            impediment = 'not_placeable'
+        if actual_moves[-1] in jump_locations:
+            try:
+                jump_locations.remove(actual_moves[-1])
+            except ValueError:
+                pass
         actual_moves.pop()
 
     return Movement(actual_moves, original_budget, acrobatics_check_locations, athletics_check_locations, jump_locations, jump_start_locations, land_locations, jump_budget,

@@ -6,6 +6,7 @@ from natural20.map import Map
 from natural20.entity import Entity
 from natural20.battle import Battle
 from natural20.generic_controller import GenericController
+from natural20.llm_controller import LlmMcpController
 from natural20.web.web_controller import WebController, ManualControl
 from natural20.player_character import PlayerCharacter
 import uuid
@@ -378,6 +379,14 @@ class GameManagement:
                         web_controllers = WebController(self.game_session, None)
                         web_controllers.add_user("dm")
                         return web_controllers
+                elif self.npc_controller == 'llm':
+                    try:
+                        # Import lazily to avoid circulars
+                        from webapp.app import llm_handler as _llm_handler  # type: ignore
+                        provider = getattr(_llm_handler, 'current_provider', None)
+                    except Exception:
+                        provider = None
+                    return LlmMcpController(self.game_session, llm_provider=provider)
                 return GenericController(self.game_session)
             battle_music = 'battle'
             if not self.battle:

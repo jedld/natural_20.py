@@ -8,6 +8,7 @@ from natural20.player_character import PlayerCharacter
 from natural20.utils.movement import opportunity_attack_list
 from natural20.utils.action_builder import autobuild
 from natural20.map_renderer import MapRenderer
+from natural20.utils.movement import compute_actual_moves
 import pdb
 import random
 
@@ -128,53 +129,100 @@ class TestMoveAction(unittest.TestCase):
     #     self.assertEqual(self.fighter.hp, 63)
     #     self.assertEqual(self.map.position_of(self.fighter), [1, 3])
 
-    # def test_jumps(self):
-    #     self.map = Natural20.BattleMap(self.session, 'fixtures/battle_sim_objects')
-    #     Natural20.EventManager.standard_cli()
-    #     self.battle = Natural20.Battle(self.session, self.map)
-    #     self.fighter = Natural20.PlayerCharacter.load(self.session, 'fixtures/high_elf_fighter.yml')
-    #     self.battle.add(self.fighter, 'a', position=[0, 6], token='G')
-    #     self.fighter.reset_turn(self.battle)
-    #     self.assertEqual(Natural20.MapRenderer(self.map).render(), '')
-    #     movement = self.fighter.compute_actual_moves([[0, 6], [1, 6], [2, 6]], self.map, self.battle, 6)
-    #     self.assertEqual(movement.movement, [[0, 6], [1, 6]])
-    #     movement = self.fighter.compute_actual_moves([[0, 6], [1, 6], [2, 6], [3, 6]], self.map, self.battle, 6)
-    #     self.assertEqual(movement.movement, [[0, 6], [1, 6], [2, 6], [3, 6]])
-    #     movement = self.fighter.compute_actual_moves([[0, 6], [1, 6], [2, 6], [3, 6], [4, 6], [5, 6]], self.map, self.battle, 6)
-    #     self.assertEqual(movement.movement, [[0, 6], [1, 6], [2, 6], [3, 6], [4, 6]])
-    #     movement = self.fighter.compute_actual_moves([[1, 6], [2, 6], [3, 6], [4, 6], [5, 6], [6, 6], [7, 6]], self.map, self.battle, 6)
-    #     self.assertEqual(movement.impediment, 'movement_budget')
-    #     self.assertEqual(movement.movement, [[1, 6], [2, 6], [3, 6], [4, 6]])
-    #     self.assertEqual(movement.acrobatics_check_locations, [[3, 6]])
-    #     self.assertEqual(movement.jump_locations, [[2, 6], [5, 6], [6, 6]])
-    #     self.assertEqual(movement.jump_start_locations, [[2, 6], [5, 6]])
-    #     self.assertEqual(movement.land_locations, [[3, 6]])
+    def test_jumps(self):
+        # Use map with pits and water to exercise jump rules
+        battle_map = Map(self.session, 'battle_sim_objects')
+        battle = Battle(self.session, battle_map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        # Start at [1,6] to avoid the chest at [1,6] blocking initial movement
+        battle.add(fighter, 'a', position=[1, 6], token='G')
+        fighter.reset_turn(battle)
 
-    # def test_manual_jumps(self):
-    #     self.map = Natural20.BattleMap(self.session, 'fixtures/battle_sim_objects')
-    #     Natural20.EventManager.standard_cli()
-    #     self.battle = Natural20.Battle(self.session, self.map)
-    #     self.fighter = Natural20.PlayerCharacter.load(self.session, 'fixtures/high_elf_fighter.yml')
-    #     self.battle.add(self.fighter, 'a', position=[0, 6], token='G')
-    #     self.fighter.reset_turn(self.battle)
-    #     self.assertEqual(Natural20.MapRenderer(self.map).render(), '')
-    #     movement = self.fighter.compute_actual_moves([[0, 6], [1, 6], [2, 6], [3, 6], [4, 6]], self.map, self.battle, 6, manual_jump=[2, 3])
-    #     self.assertIsNone(movement.impediment)
-    #     self.assertEqual(movement.movement, [[0, 6], [1, 6], [2, 6], [3, 6], [4, 6]])
-    #     self.assertEqual(movement.budget, 2)
+        # Moving onto (2,6) requires a jump over a pit; ending on a pit is allowed (triggers handled elsewhere).
+        movement = compute_actual_moves(fighter, [[1, 6], [2, 6]], battle_map, battle, 6)
+        self.assertEqual(movement.movement, [[1, 6], [2, 6]])
 
-    # def test_handle_acrobatics_during_jumps(self):
-    #     self.map.move_to(self.fighter, 1, 6, self.battle)
-    #     self.assertEqual(Natural20.MapRenderer(self.map).render(), '')
-    #     self.assertEqual(self.fighter.available_movement(self.battle), 30)
-    #     action = self.battle.action(self.fighter, 'move', move_path=[[1, 6], [2, 6], [3, 6], [4, 6], [5, 6], [6, 6], [7, 6]])
-    #     self.battle.commit(action)
-    #     self.assertEqual(self.map.position_of(self.fighter), [4, 6])
+        # With a landing square after the pit, the jump is valid and we include the jump square + landing.
+        movement = compute_actual_moves(fighter, [[1, 6], [2, 6], [3, 6]], battle_map, battle, 6)
+        self.assertEqual(movement.movement, [[1, 6], [2, 6], [3, 6]])
 
-    # def test_handles_prone_condition(self):
-    #     self.fighter.prone()
-    #     movement = self.fighter.compute_actual_moves([[0, 6], [1, 6], [2, 6], [3, 6]], self.map, self.battle, 6)
-    #     self.assertEqual(movement.movement, [[0, 6], [1, 6]])
+        # Ending on a pit is allowed; path includes pit as landing.
+        movement = compute_actual_moves(fighter, [[1, 6], [2, 6], [3, 6], [4, 6], [5, 6]], battle_map, battle, 6)
+        self.assertEqual(movement.movement, [[1, 6], [2, 6], [3, 6], [4, 6], [5, 6]])
+
+        # Longer path shows budget and check/jump markers
+        movement = compute_actual_moves(fighter, [[1, 6], [2, 6], [3, 6], [4, 6], [5, 6], [6, 6], [7, 6]], battle_map, battle, 6)
+        self.assertEqual(movement.impediment, 'movement_budget')
+        self.assertEqual(movement.movement, [[1, 6], [2, 6], [3, 6], [4, 6], [5, 6], [6, 6]])
+        self.assertEqual(movement.acrobatics_check_locations, [[3, 6]])
+        self.assertEqual(movement.jump_locations, [[2, 6], [5, 6]])
+        self.assertEqual(movement.jump_start_locations, [[2, 6], [5, 6]])
+        self.assertEqual(movement.land_locations, [[3, 6], [6, 6]])
+
+    def test_manual_jumps(self):
+        battle_map = Map(self.session, 'battle_sim_objects')
+        battle = Battle(self.session, battle_map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position=[1, 6], token='G')
+        fighter.reset_turn(battle)
+
+        # manual_jump indices specify inclusive start/end in the path to treat as a jump
+        # [1,2] is too short and should fail with jump_distance_not_enough
+        movement = compute_actual_moves(
+            fighter,
+            [[1, 6], [2, 6], [3, 6], [4, 6]],
+            battle_map,
+            battle,
+            6,
+            manual_jump=[1, 2],
+        )
+        self.assertEqual(movement.impediment, 'jump_distance_not_enough')
+        self.assertEqual(movement.movement, [[1, 6], [2, 6]])
+
+        # Valid manual jump from index 1 to 3 should succeed and consume budget accordingly
+        movement = compute_actual_moves(
+            fighter,
+            [[1, 6], [2, 6], [3, 6], [4, 6]],
+            battle_map,
+            battle,
+            6,
+            manual_jump=[1, 3],
+        )
+        self.assertIsNone(movement.impediment)
+        self.assertEqual(movement.movement, [[1, 6], [2, 6], [3, 6], [4, 6]])
+
+    def test_handle_acrobatics_during_jumps(self):
+        # Start the fighter just before the pit and attempt a long jump over water
+        battle_map = Map(self.session, 'battle_sim_objects')
+        battle = Battle(self.session, battle_map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position=[1, 6], token='G')
+        fighter.reset_turn(battle)
+        # Build and commit a move action across pit -> water -> pits
+        action_map = MoveAction.build(self.session, fighter)
+        path = [[[1, 6], [2, 6], [3, 6], [4, 6], [5, 6], [6, 6], [7, 6]], []]
+        while isinstance(action_map, dict):
+            params = []
+            for p in action_map['param']:
+                if p['type'] == 'movement':
+                    params.append(path)
+            action_map = action_map['next'](*params)
+        action = action_map
+        battle.action(action)
+        battle.commit(action)
+        # With the fixed seed, the acrobatics check succeeds and the fighter reaches [6,6]
+        self.assertEqual(battle_map.position_of(fighter), [6, 6])
+
+    def test_handles_prone_condition(self):
+        battle_map = Map(self.session, 'battle_sim_objects')
+        battle = Battle(self.session, battle_map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position=[0, 6], token='G')
+        fighter.reset_turn(battle)
+        fighter.do_prone()
+        movement = compute_actual_moves(fighter, [[0, 6], [1, 6]], battle_map, battle, 6)
+        # Cannot end on chest at [1,6], so no movement when prone
+        self.assertEqual(movement.movement, [[0, 6]])
 
 if __name__ == '__main__':
     unittest.main()

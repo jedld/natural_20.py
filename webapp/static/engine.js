@@ -3964,9 +3964,22 @@ $(document).ready(() => {
     const new_controller = $(this).val();
     ajaxPost(
       "/update_controller",
-      { entity_uid, controller: new_controller },
+      { entity_uid, controller: new_controller, action: "set" },
       (data) => {
         console.log("Controller updated successfully:", data);
+      },
+      true
+    );
+  });
+
+  // DM can change default NPC controller from AI tab
+  $(document).on("change", "#default-npc-controller", function () {
+    const value = $(this).val();
+    ajaxPost(
+      "/update_npc_default_controller",
+      { value },
+      (data) => {
+        console.log("Default NPC controller set to:", data);
       },
       true
     );
