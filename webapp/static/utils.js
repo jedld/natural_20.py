@@ -469,7 +469,8 @@ const Utils = {
       });
     });
   },
-  drawMovementPath: function(ctx, movePath, available_cost, placeable, terrainInfo) {
+  drawMovementPath: function(ctx, movePath, available_cost, placeable, terrainInfo, options) {
+    const suppressArrow = options && options.suppressArrow === true;
     const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -519,8 +520,8 @@ const Utils = {
         prevY = centerY;
       }
       
-      // Draw arrow at the end
-      if (index === movePath.length - 1) {
+  // Draw arrow at the end (unless suppressed)
+  if (!suppressArrow && index === movePath.length - 1) {
         ctx.beginPath();
         ctx.setLineDash([]); // Reset to solid line for arrow
         const arrowSize = 10;
