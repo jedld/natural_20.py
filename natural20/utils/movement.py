@@ -81,12 +81,15 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
             continue
         
         incorporeal_movement = False
-        if not map.passable(entity, *m, battle):
-            if entity.class_feature('incorporeal_movement') and map.passable(entity, *m, battle, True):
+        # When this step is a jump segment, allow passing through opposing creatures
+        is_jump_step = (not fixed_movement) and (map.jump_required(entity, *m) or (manual_jump and index in manual_jump))
+        ignore_opposing = True if is_jump_step else False
+        if not map.passable(entity, *m, battle, True, None, ignore_opposing):
+            if entity.class_feature('incorporeal_movement') and map.passable(entity, *m, battle, True, None, ignore_opposing):
                 incorporeal_movement = True
             else:
                 impediment = 'path_blocked'
-            break
+                break
 
         if fixed_movement:
             movement_budget -= 1
