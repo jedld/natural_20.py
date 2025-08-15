@@ -1,92 +1,115 @@
 {
-  "tile_size" : 75,
-  "height" : 17,
-  "width" : 22,
-  "title" : "The Goblin Ambush",
-  "login_background" : "goblin_ambush_login.png",
-  "character_selection_background" : "goblin_ambush.png",
-  "map" : "maps/goblin_cave",
-  "autosave" : false,
-  "soundtracks" : [
+  "tile_size": 75,
+  "height": 17,
+  "width": 22,
+  "title": "The Goblin Ambush",
+  "login_background": "goblin_ambush_login.png",
+  "character_selection_background": "goblin_ambush.png",
+  "map": "maps/goblin_cave",
+  "autosave": false,
+  "soundtracks": [
     {
-      "name" : "battle",
-      "file" : "sounds/goblin_ambush.mp3",
-      "volume" : 20
+      "name": "battle",
+      "file": "sounds/goblin_ambush.mp3",
+      "volume": 20
     }
   ],
-  "selectable_characters" : [
+  "selectable_characters": [
     {
-      "name" : "gomerin",
-      "file" : "characters/gomerin.png",
-      "description" : "A brave warrior with a heart of gold."
+      "name": "gomerin",
+      "file": "characters/gomerin.png",
+      "description": "A brave warrior with a heart of gold."
     },
     {
-      "name" : "crysania",
-      "file" : "characters/crysania.png",
-      "description" : "A skilled mage with a mysterious past."
+      "name": "crysania",
+      "file": "characters/crysania.png",
+      "description": "A skilled mage with a mysterious past."
     },
     {
-      "name" : "rumblebelly",
-      "file" : "characters/rumblebelly.png",
-      "description" : "A rogue with a knack for getting into trouble."
+      "name": "rumblebelly",
+      "file": "characters/rumblebelly.png",
+      "description": "A rogue with a knack for getting into trouble."
     },
     {
-      "name" : "shorvalu",
-      "file" : "characters/shorvalu.png",
-      "description" : "A paladin sworn to uphold justice."
+      "name": "shorvalu",
+      "file": "characters/shorvalu.png",
+      "description": "A paladin sworn to uphold justice."
+    },
+    {
+      "name": "gomeran",
+      "file": "characters/gomeran.png",
+      "description": "A newly forged gnome cleric."
     }
   ],
-  "logins" : [
+  "logins": [
     {
-      "name" : "gomerin",
-      "password" : "gomerin",
-      "role" : ["player"]
+      "name": "gomerin",
+      "password": "gomerin",
+      "role": [
+        "player"
+      ]
     },
     {
-      "name" : "crysania",
-      "password" : "crysania",
-      "role" : ["player"]
+      "name": "crysania",
+      "password": "crysania",
+      "role": [
+        "player"
+      ]
     },
     {
-      "name" : "rumblebelly",
-      "password" : "rumblebelly",
-      "role" : ["player"]
+      "name": "rumblebelly",
+      "password": "rumblebelly",
+      "role": [
+        "player"
+      ]
     },
     {
-      "name" : "keo",
-      "password" : "keo",
-      "role" : ["player"]
+      "name": "keo",
+      "password": "keo",
+      "role": [
+        "player"
+      ]
     },
     {
-      "name" : "jm",
-      "password" : "jm",
-      "role" : ["player"]
+      "name": "jm",
+      "password": "jm",
+      "role": [
+        "player"
+      ]
     },
     {
-      "name" : "leandro",
-      "password" : "leandro",
-      "role" : ["player"]
+      "name": "leandro",
+      "password": "leandro",
+      "role": [
+        "player"
+      ]
     },
     {
-      "name" : "shorvalu",
-      "password" : "shorvalu",
-      "role" : ["player"]
+      "name": "shorvalu",
+      "password": "shorvalu",
+      "role": [
+        "player"
+      ]
     },
     {
-      "name" : "dm",
-      "password" : "admin",
-      "role" : ["dm"]
+      "name": "dm",
+      "password": "admin",
+      "role": [
+        "dm"
+      ]
     },
     {
-      "name" : "party",
-      "password" : "party",
-      "role" : ["player"]
+      "name": "party",
+      "password": "party",
+      "role": [
+        "player"
+      ]
     }
   ],
   "default_controllers": [
     {
-      "entity_uid" : "gomerin",
-      "controllers" : []
+      "entity_uid": "gomerin",
+      "controllers": []
     },
     {
       "entity_uid": "crysania",

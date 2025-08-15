@@ -1,0 +1,32 @@
+name: Gomeran
+race: gnome
+classes:
+  cleric: 1
+level: 1
+hit_die: inherit
+max_hp: 8
+ability:
+  str: 12
+  dex: 10
+  con: 11
+  int: 15
+  wis: 9
+  cha: 13
+equipped: []
+inventory: []
+token:
+- G
+description: A newly forged gnome cleric.
+entity_uid: gomeran
+token_image: token_gomeran.png
+profile_image: characters/gomeran.png
+subrace: forest_gnome
+skills:
+- history
+- insight
+prepared_spells:
+- guidance
+- light
+- mending
+- inflict_wounds
+- shield_of_faith
