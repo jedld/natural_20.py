@@ -623,7 +623,9 @@ class Map(SerializableObject):
             r_x, r_y = pos
             if self.tokens[r_x][r_y] and self.tokens[r_x][r_y]['entity'] == entity:
                 continue
-            if self.object_at(r_x, r_y) and self.object_at(r_x, r_y).jump_required() and not entity.flying():
+            # Require a jump if the destination square contains an object marked as requiring a jump
+            # and the entity is not currently flying.
+            if self.object_at(r_x, r_y) and self.object_at(r_x, r_y).jump_required() and not entity.is_flying():
                 return True
         return False
     
@@ -746,7 +748,8 @@ class Map(SerializableObject):
 
     def entity_squares_at_pos(self, entity, pos1_x, pos1_y, squeeze=False):
         entity_1_squares = []
-        token_size = entity.token_size() - 1 if squeeze else entity.token_size()
+        # Do not let squeezing reduce occupied footprint below 1x1
+        token_size = max(1, entity.token_size() - 1) if squeeze else entity.token_size()
         for ofs_x in range(token_size):
             for ofs_y in range(token_size):
                 if pos1_x + ofs_x >= self.size[0] or pos1_y + ofs_y >= self.size[1]:
@@ -887,7 +890,8 @@ class Map(SerializableObject):
             return []
         pos1_x, pos1_y = _position
         entity_1_squares = []
-        token_size = entity.token_size() - 1 if squeeze else entity.token_size()
+        # Do not let squeezing reduce occupied footprint below 1x1
+        token_size = max(1, entity.token_size() - 1) if squeeze else entity.token_size()
         for ofs_x in range(token_size):
             for ofs_y in range(token_size):
                 if pos1_x + ofs_x >= self.size[0] or pos1_y + ofs_y >= self.size[1]:
@@ -963,8 +967,12 @@ class Map(SerializableObject):
                 return False
             if self.object_at(p_x, p_y) and not self.object_at(p_x, p_y).passable():
                 return False
-            if self.object_at(p_x, p_y) and not self.object_at(p_x, p_y).placeable():
-                return False
+            if self.object_at(p_x, p_y):
+                obj = self.object_at(p_x, p_y)
+                # Allow ending on squares that require a jump (e.g., pits/traps);
+                # these will be handled by area triggers or effects.
+                if not obj.placeable() and not obj.jump_required():
+                    return False
 
         return True
 
