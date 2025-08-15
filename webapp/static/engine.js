@@ -44,6 +44,10 @@ let moveMode = false,
   multiTargetModeUnique = false;
 let movePath = [],
   multiTargetList = [];
+// Jump UI state for movement
+let jumpMode = false;          // toggled within movement to mark a jump segment
+let jumpStartIndex = null;     // index within movePath where jump starts (inclusive)
+let lastPathForJump = null;    // cache the last data.path returned while hovering
 let max_targets = 1;
 let targetModeCallback = null,
   moveModeCallback = null;
@@ -1138,21 +1142,27 @@ function drawLine(ctx, from, to, opts = {}) {
   ctx.lineWidth = lineWidth;
   ctx.strokeStyle = strokeStyle;
 
-  let angle = Math.atan2(toCenter.y - fromCenter.y, toCenter.x - fromCenter.x);
+  const dx = toCenter.x - fromCenter.x;
+  const dy = toCenter.y - fromCenter.y;
+  let angle = Math.atan2(dy, dx);
 
   // Draw the main line
   ctx.beginPath();
   if (randomCurve) {
-    const randomAngle = (Math.random() * (90 - 20) + 20) * (Math.PI / 180);
-    const controlX =
-      (fromCenter.x + toCenter.x) / 2 +
-      (Math.cos(randomAngle) * (toCenter.y - fromCenter.y)) / 2;
-    const controlY =
-      (fromCenter.y + toCenter.y) / 2 +
-      (Math.sin(randomAngle) * (toCenter.y - fromCenter.y)) / 2;
+    // Create a nice curve by offsetting control point along the perpendicular
+    const midX = (fromCenter.x + toCenter.x) / 2;
+    const midY = (fromCenter.y + toCenter.y) / 2;
+    const len = Math.hypot(dx, dy) || 1;
+    // Perpendicular unit vector
+    const nx = -dy / len;
+    const ny = dx / len;
+    // Offset magnitude: 25% of segment length with slight randomness
+    const mag = Math.max(20, len * (0.25 + Math.random() * 0.1));
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const controlX = midX + nx * mag * dir;
+    const controlY = midY + ny * mag * dir;
     ctx.moveTo(fromCenter.x, fromCenter.y);
     ctx.quadraticCurveTo(controlX, controlY, toCenter.x, toCenter.y);
-    angle = randomAngle; // update angle for arrow/text placement
   } else {
     ctx.moveTo(fromCenter.x, fromCenter.y);
     ctx.lineTo(toCenter.x, toCenter.y);
@@ -2066,11 +2076,45 @@ $(document).ready(() => {
               cost: available_cost,
               path: data.path
             };
+            lastPathForJump = data.path;
 
             // Add the new path segment to the movement path
             movePath = [...movePath, ...data.path];
-            // Draw the complete path
-            Utils.drawMovementPath(globalCtx, movePath, available_cost, data.placeable, data.terrain_info);
+            // Draw the complete path; if jumpMode, suppress base arrow to avoid double arrows
+            Utils.drawMovementPath(
+              globalCtx,
+              movePath,
+              available_cost,
+              data.placeable,
+              data.terrain_info,
+              { suppressArrow: jumpMode }
+            );
+
+            // If in jump mode, draw a curved green segment preview and enforce jump range limit
+            if (jumpMode && movePath.length > 1) {
+              const entity_uid = $("body").attr('data-pov-entity');
+              // Decide running vs standing: if we moved at least 2 tiles before the jump start, it's running
+              const preJumpLen = jumpStartIndex !== null ? Math.max(0, jumpStartIndex) : movePath.length - 1;
+              const running = preJumpLen >= 1; // running if we had at least one step before jump start
+              Utils.ajaxGet('/jump_info', { id: entity_uid, running: running ? 1 : 0 }, (jdata) => {
+                const grids = jdata.grids || jdata.running_grids || 0;
+                // Determine start and end indices for the jump segment
+                const startIdx = (jumpStartIndex !== null) ? jumpStartIndex : (movePath.length - 2);
+                let maxEndIdx = Math.min(movePath.length - 1, startIdx + grids);
+                // Draw curved line from start to clamped end
+                const from = { x: movePath[startIdx][0], y: movePath[startIdx][1] };
+                const to = { x: movePath[maxEndIdx][0], y: movePath[maxEndIdx][1] };
+                // Always render a smooth curve even for straight (horizontal/vertical) jumps by forcing a control offset
+                drawLine(globalCtx, from, to, { lineWidth: 4, withArrow: true, randomCurve: true, strokeStyle: 'green', text: 'Jump' });
+
+                // Optionally visualize disallowed further squares beyond maxEndIdx by marking borders
+                $(".tile").css("border", "none");
+                for (let i = maxEndIdx + 1; i < movePath.length; i++) {
+                  const x = movePath[i][0], y = movePath[i][1];
+                  $(`.tile[data-coords-x="${x}"][data-coords-y="${y}"]`).css('border', '2px solid #999');
+                }
+              });
+            }
           }
         };
 
@@ -2134,6 +2178,9 @@ $(document).ready(() => {
         valid_target_cache = {};
         move_path_cache = {};
         multiTargetList = [];
+  jumpMode = false;
+  jumpStartIndex = null;
+  lastPathForJump = null;
         globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
         $(".tile").css("border", "none");
         globalActionInfo = globalOpts = null;
@@ -2153,6 +2200,24 @@ $(document).ready(() => {
         }
       }
     }
+    // Toggle jump mode with 'J' key
+    if (event.key && event.key.toLowerCase() === 'j') {
+      if (moveMode) {
+        // Toggle
+        jumpMode = !jumpMode;
+        if (!jumpMode) {
+          jumpStartIndex = null;
+          // clear any jump overlay by redrawing base path
+          if (movePath && movePath.length > 1 && typeof Utils.drawMovementPath === 'function') {
+            Utils.drawMovementPath(globalCtx, movePath, currentPosition ? currentPosition.cost : 0, true, null, { suppressArrow: false });
+            $(".tile").css("border", "none");
+          }
+        } else {
+          // entering jump mode: mark current end as start
+          jumpStartIndex = (movePath && movePath.length > 0) ? (movePath.length - 1) : null;
+        }
+      }
+    }
   });
 
   // Cancel interactions on right-click.
@@ -2164,6 +2229,9 @@ $(document).ready(() => {
       pivotPoints = [];
       valid_target_cache = {};
       move_path_cache = {};
+  jumpMode = false;
+  jumpStartIndex = null;
+  lastPathForJump = null;
       globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
       $(".tile").css("border", "none");
       $(".add-to-target, .popover-menu-2").hide();
@@ -2919,15 +2987,30 @@ $(document).ready(() => {
     switch (data.param[0].type) {
       case "movement":
         moveModeCallback = (path) => {
+          // If a jump segment was marked, compute manual_jump indices
+          let manual_jump = null;
+          if (Array.isArray(path) && jumpStartIndex !== null && jumpStartIndex >= 0) {
+            // end index defaults to the last element in path when jump mode was active
+            const _endIndex = (lastPathForJump && lastPathForJump.length > 0)
+              ? (path.length - 1) // last segment end
+              : (path.length - 1);
+            if (_endIndex >= jumpStartIndex) {
+              manual_jump = [jumpStartIndex, _endIndex];
+            }
+          }
           ajaxPost(
             "/action",
-            { id: entity_uid, action, opts, path },
+            { id: entity_uid, action, opts, path, manual_jump },
             (data) => {
               console.log("Action request successful:", data);
               refreshTurn();
             },
             true,
           );
+          // reset jump UI state after commit
+          jumpMode = false;
+          jumpStartIndex = null;
+          lastPathForJump = null;
         };
         $(".popover-menu").hide();
         moveMode = true;
