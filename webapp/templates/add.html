@@ -7,8 +7,9 @@
       <option value="c">Group C</option>
     </select>
     <select class="controller-select form-control" style="width: 100px;">
-      <option value="manual" {% if is_pc %}selected{% endif %}>Manual</option>
-      <option value="ai" {% if not is_pc%}selected{% endif %}>AI</option>
+      <option value="manual" {% if default_controller == 'manual' %}selected{% endif %}>Manual</option>
+      <option value="ai" {% if default_controller == 'ai' %}selected{% endif %}>AI</option>
+      <option value="llm" {% if default_controller == 'llm' %}selected{% endif %}>LLM</option>
     </select>
     <button class="remove-turn-order-item btn btn-danger" style="width: 100px; margin-left: 10px;">Remove</button>
   </form>

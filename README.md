@@ -22,6 +22,7 @@ AI related research on the Dungeons and Dragons 5th edition RPGs.
 - [Running Tests](#running-tests)
 - [Observation and Action Spaces](#observation-and-action-spaces)
 - [Environment Initialization Options](#environment-initialization-options)
+ - [LLM NPC Controller (MCP)](#llm-npc-controller-mcp)
 
 Disclaimer
 ==========
@@ -299,6 +300,43 @@ export CORS_ORIGINS="http://localhost:5000,https://myapp.com"
 | `OPENAI_BASE_URL` | Custom OpenAI endpoint | `https://api.openai.com/v1` | No |
 | `ANTHROPIC_API_KEY` | Anthropic API key | - | Yes (for Anthropic) |
 | `ANTHROPIC_MODEL` | Anthropic model name | `claude-3-5-sonnet-20241022` | No |
+
+LLM NPC Controller (MCP)
+========================
+
+You can drive NPCs with a language model via the built-in LLM controller. This works both in auto battles and manual initiative using the web UI.
+
+- In the initiative window, each entity has a Controller dropdown with: Manual, AI (heuristic), and LLM.
+- To make LLM the default for NPCs added automatically, set this in your level config (`templates/index.json`):
+
+```json
+{
+  "npc_default_controller": "llm"
+}
+```
+
+Optional: MCP bridge
+--------------------
+
+The LLM controller supports an optional MCP-style HTTP tool to choose among enumerated actions. Set this env var for the webapp:
+
+```bash
+export N20_MCP_URL="http://localhost:3000/mcp/choose_action"
+```
+
+Expected request body:
+
+```json
+{ "prompt": "...state and actions...", "n_actions": 7 }
+```
+
+Expected response:
+
+```json
+{ "index": 2 }
+```
+
+When not configured, the controller tries local LLMs (if configured elsewhere) or falls back to the built-in heuristic safely.
 | `OLLAMA_BASE_URL` | Ollama server URL | `http://localhost:11434` | No |
 | `OLLAMA_MODEL` | Ollama model name | `gemma3:27b` | No |
 

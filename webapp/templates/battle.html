@@ -42,10 +42,11 @@
           </select>
         </div>
         <div class="col-xs-1">
-          {% set entity_controller = battle.entities[entity].get('controller', 'manual') %}
+          {% set ctrl_obj = battle.controller_for(entity) %}
           <select class="controller-select form-control">
-            <option value="manual" {% if entity_controller == 'manual' %}selected{% endif %}>Manual</option>
-            <option value="ai" {% if entity_controller == 'ai' %}selected{% endif %}>AI</option>
+            <option value="manual" {% if ctrl_obj and ctrl_obj.__class__.__name__ == 'WebController' %}selected{% endif %}>Manual</option>
+            <option value="ai" {% if ctrl_obj and ctrl_obj.__class__.__name__ == 'GenericController' %}selected{% endif %}>AI</option>
+            <option value="llm" {% if ctrl_obj and ctrl_obj.__class__.__name__ == 'LlmMcpController' %}selected{% endif %}>LLM</option>
           </select>
         </div>
         <div class="col-xs-1">
