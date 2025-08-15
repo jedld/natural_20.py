@@ -479,6 +479,16 @@
                     </div>
                     <div class="col-md-6">
                       <div class="form-group">
+                        <label for="default-npc-controller">Default NPC Controller</label>
+                        <select class="form-control" id="default-npc-controller">
+                          <option value="manual" {% if DEFAULT_NPC_CONTROLLER == 'manual' %}selected{% endif %}>Manual</option>
+                          <option value="ai" {% if DEFAULT_NPC_CONTROLLER == 'ai' %}selected{% endif %}>AI</option>
+                          <option value="llm" {% if DEFAULT_NPC_CONTROLLER == 'llm' %}selected{% endif %}>LLM</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-group">
                         <label for="ai-api-key">API Key / URL</label>
                         <input type="text" class="form-control" id="ai-api-key" placeholder="Enter API key or Ollama URL">
                         <small class="form-text text-muted">For Ollama, leave empty for localhost:11434 or enter custom URL</small>

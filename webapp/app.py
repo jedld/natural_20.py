@@ -60,6 +60,7 @@ from natural20.battle import Battle
 from natural20.item_library.object import Object
 from natural20.utils.movement import Movement
 from natural20.generic_controller import GenericController
+from natural20.llm_controller import LlmMcpController
 import natural20.session as GameSession
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
@@ -1494,7 +1495,8 @@ def index():
                            pov_entities=pov_entities(),
                            current_pov=current_pov[0] if current_pov else None,
                            game_session=current_game.game_session,
-                           username=session['username'], role=user_role())
+                           username=session['username'], role=user_role(),
+                           DEFAULT_NPC_CONTROLLER=current_game.npc_controller)
 eval_context = {}
 
 @app.route('/command', methods=['POST'])
@@ -1792,8 +1794,12 @@ def start_battle_with_initiative():
         for param_item in request.json['battle_turn_order']:
             entity = current_game.get_entity_by_uid(param_item['id'])
 
-            if param_item['controller'] == 'ai':
+            ctrl_kind = param_item.get('controller')
+            if ctrl_kind == 'ai':
                 controller = GenericController(game_session)
+            elif ctrl_kind == 'llm':
+                # Use the same LLM provider configured for the webapp (e.g., Ollama)
+                controller = LlmMcpController(game_session, llm_provider=llm_handler.current_provider)
             else:
                 controller = current_game.get_controller_for_entity(entity)
 
@@ -3031,6 +3037,22 @@ def get_game_time():
     global current_game
     return jsonify({'game_time': current_game.game_session.game_time})
 
+@app.route('/update_npc_default_controller', methods=['POST'])
+def update_npc_default_controller():
+    global current_game
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    try:
+        data = request.get_json() if request.is_json else request.form
+        new_value = data.get('value')
+        if new_value not in ['manual', 'ai', 'llm']:
+            return jsonify({'success': False, 'error': 'Invalid controller value'}), 400
+        current_game.npc_controller = new_value
+        return jsonify({'success': True, 'npc_default_controller': current_game.npc_controller})
+    except Exception as e:
+        logger.error(f"Failed to update npc_default_controller: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/add', methods=['GET'])
 def add():
@@ -3045,7 +3067,9 @@ def add():
         battle.add(entity, default_group)
         return ""
     else:
-        return render_template('add.html', entity=entity, is_pc=isinstance(entity, PlayerCharacter))
+        is_pc = isinstance(entity, PlayerCharacter)
+        default_controller = 'manual' if is_pc else DEFAULT_NPC_CONTROLLER
+        return render_template('add.html', entity=entity, is_pc=is_pc, default_controller=default_controller)
 
 @app.route('/tracks', methods=['GET'])
 def get_tracks():
@@ -3303,14 +3327,33 @@ def update_controller():
     if not entity:
         return jsonify(error='Entity not found'), 404
 
-    # Get the web controller for this entity
+    battle = current_game.get_current_battle()
+
+    # Handle setting engine-side controller kinds
+    if action == 'set':
+        engine_controller = None
+        if new_controller == 'manual':
+            engine_controller = WebController(game_session, None)
+            engine_controller.add_user("dm")
+            current_game.web_controllers[entity] = engine_controller
+        elif new_controller == 'ai':
+            engine_controller = GenericController(game_session)
+        elif new_controller == 'llm':
+            from natural20.llm_controller import LlmMcpController
+            engine_controller = LlmMcpController(game_session, llm_provider=llm_handler.current_provider)
+
+        if engine_controller and battle:
+            engine_controller.register_handlers_on(entity)
+            battle.set_controller_for(entity, engine_controller)
+        return jsonify(status='ok')
+
+    # Backward-compatible: maintain web controller user sets
     controller = current_game.get_controller_for_entity(entity)
     if not controller:
         controller = WebController(game_session, None)
         controller.add_user("dm")
         current_game.web_controllers[entity] = controller
 
-    # Add or remove the user from the controller
     if action == 'add':
         controller.add_user(new_controller)
     elif action == 'remove':
