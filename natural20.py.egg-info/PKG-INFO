@@ -1,4 +1,4 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: natural20.py
 Version: 0.1
 License-File: LICENSE.md
@@ -6,3 +6,5 @@ Requires-Dist: pyyaml
 Requires-Dist: dndice
 Requires-Dist: python-i18n
 Requires-Dist: fantasynames
+Dynamic: license-file
+Dynamic: requires-dist
