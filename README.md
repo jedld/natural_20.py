@@ -489,6 +489,9 @@ This repo includes a small Jest suite for `webapp/static/engine.js`.
 CI
 --
 
-This repo includes a GitHub Actions workflow that runs the JS tests with coverage on pushes and pull requests. Coverage reports are uploaded as build artifacts.
+This repo includes GitHub Actions workflows for both JS and Python tests:
 
-The tests use a lightweight DOM/jQuery stub to exercise pure functions and the event queue without starting the full UI.
+- JS: runs Jest with coverage on pushes and pull requests. Coverage reports are uploaded as build artifacts.
+- Python: runs the unittest suite with `python -m unittest discover tests` on pushes and pull requests.
+
+The JS tests use a lightweight DOM/jQuery stub to exercise pure functions and the event queue without starting the full UI.
