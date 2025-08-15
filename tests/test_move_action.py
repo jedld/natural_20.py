@@ -224,5 +224,68 @@ class TestMoveAction(unittest.TestCase):
         # Cannot end on chest at [1,6], so no movement when prone
         self.assertEqual(movement.movement, [[0, 6]])
 
+    def test_jump_over_enemy_traversal_allowed(self):
+        """
+        When a step requires a jump (e.g., a pit), the engine should allow
+        traversing a square even if it is occupied by an opposing creature.
+        Landing square must still be free.
+        """
+        battle_map = Map(self.session, 'battle_sim_objects')
+        battle = Battle(self.session, battle_map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        goblin = self.session.npc('goblin')
+
+        # Start at [1,6]; the square [2,6] is a pit (jump-required)
+        battle.add(fighter, 'a', position=[1, 6], token='G')
+        # Place an enemy on the pit square being jumped over
+        battle.add(goblin, 'b', position=[2, 6], token='g')
+        fighter.reset_turn(battle)
+        goblin.reset_turn(battle)
+
+        # Attempt to move across the pit and land on [3,6] which is empty
+        movement = compute_actual_moves(
+            fighter,
+            [[1, 6], [2, 6], [3, 6]],
+            battle_map,
+            battle,
+            6,
+        )
+
+        # Should succeed: include the jump square [2,6] despite enemy there, and land on [3,6]
+        self.assertIsNone(movement.impediment)
+        self.assertEqual(movement.movement, [[1, 6], [2, 6], [3, 6]])
+        self.assertIn([2, 6], movement.jump_locations)
+        self.assertIn([3, 6], movement.land_locations)
+
+    def test_jump_cannot_land_on_enemy(self):
+        """
+        Traversal over an enemy during a jump is allowed, but landing on an
+        occupied square isn't: the path should be blocked/trimmed.
+        """
+        battle_map = Map(self.session, 'battle_sim_objects')
+        battle = Battle(self.session, battle_map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        goblin = self.session.npc('goblin')
+
+        # Start at [1,6]; put the goblin on intended landing square [3,6]
+        battle.add(fighter, 'a', position=[1, 6], token='G')
+        battle.add(goblin, 'b', position=[3, 6], token='g')
+        fighter.reset_turn(battle)
+        goblin.reset_turn(battle)
+
+        # Try to jump across [2,6] (pit) and land on [3,6] (occupied)
+        movement = compute_actual_moves(
+            fighter,
+            [[1, 6], [2, 6], [3, 6]],
+            battle_map,
+            battle,
+            6,
+        )
+
+        # Path should not allow landing on [3,6]
+        self.assertEqual(movement.impediment, 'path_blocked')
+        # The final placeable location should not be the occupied square
+        self.assertNotEqual(movement.movement[-1], [3, 6])
+
 if __name__ == '__main__':
     unittest.main()
