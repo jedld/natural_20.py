@@ -1,0 +1,36 @@
+{
+  "name": "natural-20-js-tests",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "test": "jest --runInBand",
+    "test:coverage": "jest --coverage --runInBand",
+    "ci:test": "jest --coverage --runInBand"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+  "setupFiles": ["<rootDir>/jest.setup.js"],
+  "coverageProvider": "v8",
+    "collectCoverage": true,
+    "collectCoverageFrom": [
+      "webapp/static/**/*.js",
+      "!webapp/static/**/*.test.js",
+      "!**/node_modules/**"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "text",
+      "lcov"
+    ],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "webapp/static/libs/"
+    ]
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "jest-environment-jsdom": "^30.0.5",
+    "jquery": "^3.7.0",
+    "jsdom": "^21.0.0"
+  }
+}

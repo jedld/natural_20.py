@@ -464,3 +464,31 @@ The `dndenv` environment can be initialized with various options to customize th
 - `custom_session`: A custom session to use.
 - `reactions_callback`: A callback function for reactions.
 
+## JavaScript tests
+
+This repo includes a small Jest suite for `webapp/static/engine.js`.
+
+- Install dev deps (Node 18+ recommended):
+
+  ```bash
+  npm install --no-audit --no-fund
+  ```
+
+- Run tests:
+
+  ```bash
+  npx jest --runInBand --colors
+  ```
+
+- Run with coverage:
+
+  ```bash
+  npm run test:coverage
+  ```
+
+CI
+--
+
+This repo includes a GitHub Actions workflow that runs the JS tests with coverage on pushes and pull requests. Coverage reports are uploaded as build artifacts.
+
+The tests use a lightweight DOM/jQuery stub to exercise pure functions and the event queue without starting the full UI.
