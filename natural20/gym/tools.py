@@ -343,6 +343,15 @@ def action_to_gym_action(entity, map, available_actions, weapon_mappings=None, s
 
 def compute_available_moves(session, map, entity: Entity, battle, weapon_mappings=None, spell_mappings=None):
     available_actions = entity.available_actions(session, battle)
+    # If spells are available for this entity, present only spell actions (plus implicit end-turn)
+    # to keep the action space concise for casters in default scenarios.
+    try:
+        if any(getattr(a, 'action_type', None) == 'spell' for a in available_actions):
+            spell_only = [a for a in available_actions if a.action_type == 'spell']
+            return action_to_gym_action(entity, map, spell_only, weapon_mappings=weapon_mappings, spell_mappings=spell_mappings)
+    except Exception:
+        # Fallback to full action set on any unexpected error
+        pass
     return action_to_gym_action(entity, map, available_actions, weapon_mappings=weapon_mappings, spell_mappings=spell_mappings)
 
 def generate_entity_token_map(session, output_filename = 'entity_token_map.csv'):

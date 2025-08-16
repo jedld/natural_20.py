@@ -619,7 +619,14 @@ class TwoWeaponAttackAction(AttackAction):
 
         session = options.get('session', battle.session)
 
-        return battle and (entity.total_bonus_actions(battle) > 0 and battle.two_weapon_attack(entity) and (options.get('weapon') != battle.first_hand_weapon(entity) or len([a for a in entity.equipped_weapons(session) if a == battle.first_hand_weapon(entity)]) >= 2))
+        return battle and (
+            entity.total_bonus_actions(battle) > 0
+            and battle.two_weapon_attack(entity)
+            and (
+                options.get('weapon') != battle.first_hand_weapon(entity)
+                or len([a for a in entity.equipped_weapons(session) if a == battle.first_hand_weapon(entity)]) >= 1
+            )
+        )
 
     def second_hand(self):
         return True
