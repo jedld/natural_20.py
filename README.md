@@ -387,20 +387,22 @@ For the list of usernames/passwords you may checkout the natural_20.py/samples/m
 Running Tests
 =============
 
-```bash
-python -m unittest discover tests
-```
-
-Run specific tests
+Use pytest as the unified test runner:
 
 ```bash
-python -m unittest tests.test_gym.TestGym.test_reset
-python -m unittest tests.test_map.TestMap.test_line_of_sight
+pytest
 ```
 
-Or run tests in parallel:
+Run specific tests:
 
+```bash
+pytest tests/test_gym.py::TestGym::test_reset
+pytest tests/test_map.py::TestMap::test_line_of_sight
 ```
+
+Run tests in parallel:
+
+```bash
 pytest -n auto
 ```
 
@@ -492,6 +494,6 @@ CI
 This repo includes GitHub Actions workflows for both JS and Python tests:
 
 - JS: runs Jest with coverage on pushes and pull requests. Coverage reports are uploaded as build artifacts.
-- Python: runs the unittest suite with `python -m unittest discover tests` on pushes and pull requests.
+- Python: runs the test suite with `pytest` on pushes and pull requests.
 
 The JS tests use a lightweight DOM/jQuery stub to exercise pure functions and the event queue without starting the full UI.
