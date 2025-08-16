@@ -403,6 +403,125 @@ def within_talking_distance(entity_uid):
     return current_map.distance(pov_entity.entity_uid, entity_uid) <= 2 and current_map.can_see(pov_entity, entity_uid)
 app.add_template_global(within_talking_distance, name='within_talking_distance')
 
+# -----------------------
+# Admin save/load endpoints (DM only)
+# -----------------------
+
+@app.route('/admin/saves', methods=['GET'])
+def list_saves():
+    if not session.get('username'):
+        return jsonify(error='Unauthorized'), 401
+    if 'dm' not in user_role():
+        return jsonify(error='Forbidden'), 403
+    saves = []
+    try:
+        save_dir = getattr(current_game, 'save_dir', os.getcwd())
+        for fname in current_game.list_states():
+            try:
+                path = fname if os.path.isabs(fname) else os.path.join(save_dir, fname)
+                mtime = os.path.getmtime(path)
+                size = os.path.getsize(path)
+            except Exception:
+                mtime = None
+                size = None
+            saves.append({
+                'filename': fname,
+                'mtime': mtime,
+                'size': size,
+            })
+        # Include any additional save_* files not in list_states, for named saves
+        try:
+            for f in os.listdir(save_dir):
+                if f.startswith('save_') and (f.endswith('.yml') or f.endswith('.yml.gz')) and f not in [s['filename'] for s in saves]:
+                    try:
+                        mtime = os.path.getmtime(os.path.join(save_dir, f))
+                        size = os.path.getsize(os.path.join(save_dir, f))
+                    except Exception:
+                        mtime = None
+                        size = None
+                    saves.append({'filename': f, 'mtime': mtime, 'size': size})
+        except Exception:
+            pass
+        # Sort by mtime desc if available
+        saves.sort(key=lambda x: (x['mtime'] is not None, x['mtime']), reverse=True)
+        return jsonify(saves=saves)
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
+@app.route('/admin/save', methods=['POST'])
+def admin_save():
+    if not session.get('username'):
+        return jsonify(error='Unauthorized'), 401
+    if 'dm' not in user_role():
+        return jsonify(error='Forbidden'), 403
+    payload = request.get_json(silent=True) or {}
+    name = payload.get('name')
+    try:
+        with current_game.game_state_lock:
+            current_game.save_game(name=name)
+        return jsonify(status='ok')
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
+@app.route('/admin/load', methods=['POST'])
+def admin_load():
+    if not session.get('username'):
+        return jsonify(error='Unauthorized'), 401
+    if 'dm' not in user_role():
+        return jsonify(error='Forbidden'), 403
+    payload = request.get_json(silent=True) or {}
+    filename = payload.get('filename')
+    index = payload.get('index')
+    try:
+        # Load under lock to avoid race with in-flight actions
+        with current_game.game_state_lock:
+            if filename:
+                # Pass through as relative; GameManagement.resolve will join with save_dir
+                current_game.load_save(filename=filename)
+            elif index is not None:
+                try:
+                    idx = int(index)
+                except Exception:
+                    return jsonify(error='index must be integer'), 400
+                current_game.load_save(index=idx)
+            else:
+                # Load latest
+                current_game.load_save()
+
+        # Notify clients to refresh
+        try:
+            # Ensure all users reference the newly loaded battle map instance
+            current_game.set_current_battle_map(current_game.get_current_battle_map())
+        except Exception:
+            pass
+        # Update module-level session reference used by many routes
+        try:
+            global game_session
+            game_session = current_game.game_session
+        except Exception:
+            pass
+        try:
+            current_game.refresh_client_map()
+        except Exception:
+            pass
+        # Ensure any tile/object overlays are rebuilt
+        socketio.emit('message', {'type': 'refresh_map'})
+        socketio.emit('message', {'type': 'turn', 'message': {'game_time': current_game.game_session.game_time}})
+        return jsonify(status='ok')
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
+@app.route('/admin/manage_saves', methods=['GET'])
+def admin_manage_saves():
+    if not session.get('username'):
+        return redirect(url_for('login'))
+    if 'dm' not in user_role():
+        return jsonify(error='Forbidden'), 403
+    return render_template('manage_saves.html', title='Manage Saves')
+
 def t(key):
     return i18n.t(key)
 app.add_template_global(t, name='t')

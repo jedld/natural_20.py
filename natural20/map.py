@@ -16,6 +16,7 @@ from natural20.item_library.multi_switch import MultiSwitch
 from natural20.player_character import PlayerCharacter
 from natural20.serializable_object import SerializableObject
 from natural20.npc import Npc
+from natural20.uid_containers import EntitiesUIDMap, ObjectsGrid, TokensGrid
 from natural20.weapons import compute_max_weapon_range
 from natural20.utils.list_utils import remove_duplicates, bresenham_line_of_sight
 from natural20.utils.movement import Movement, compute_actual_moves
@@ -24,7 +25,7 @@ from typing import List, Tuple, Set
 import math
 import pdb
 import os
-import numpy as np
+# numpy not required; use built-in max instead of np.max
 
 class Terrain():
     def __init__(self, name, passable, movement_cost, symbol=None):
@@ -59,15 +60,16 @@ class Map(SerializableObject):
         self.base_map = []
         self.base_map_1 = []
         self.base_map_2 = []
+        # UID-backed grids (initialized after size is known)
         self.objects = []
         self.tokens = []
         self.unaware_npcs = []
-        self.entities = {}  # Assuming entities is a dictionary
-        self.interactable_objects = {}
+        # UID-backed maps for entities and interactables (keys as object, stored by uid)
+        self.entities = EntitiesUIDMap(self.session)
+        self.interactable_objects = EntitiesUIDMap(self.session)
         self.legend = self.properties.get('legend', {})
         self.linked_maps = {}
         self.image_offset_px = self.properties.get('image_offset_px', [0, 0])
-
 
         for _ in range(self.size[0]):
             row = []
@@ -87,31 +89,27 @@ class Map(SerializableObject):
                 row.append(None)
             self.base_map_2.append(row)
 
-        for _ in range(self.size[0]):
-            row = []
-            for _ in range(self.size[1]):
-                row.append([])
-            self.objects.append(row)
+        # Objects and tokens as UID-backed grids
+        self.objects = ObjectsGrid(self.session, self.size[0], self.size[1])
+        self.tokens = TokensGrid(self.session, self.size[0], self.size[1])
 
-        for _ in range(self.size[0]):
-            row = []
-            for _ in range(self.size[1]):
-                row.append([])
-            self.tokens.append(row)
+        # Shared inventories for copy-on-write terrain (ground/water)
+        self._shared_ground_inventory = {}
+        self._shared_water_inventory = {}
 
         for cur_y, lines in enumerate(self.properties.get('map', {}).get('base', [])):
             for cur_x, c in enumerate(lines):
-                if not c=='_':
+                if not c == '_':
                     self.base_map[cur_x][cur_y] = c
 
         for cur_y, lines in enumerate(self.properties.get('map', {}).get('base_1', [])):
             for cur_x, c in enumerate(lines):
-                if not c=='.':
+                if not c == '.':
                     self.base_map_1[cur_x][cur_y] = c
 
         for cur_y, lines in enumerate(self.properties.get('map', {}).get('base_2', [])):
             for cur_x, c in enumerate(lines):
-                if not c=='.':
+                if not c == '.':
                     self.base_map_2[cur_x][cur_y] = c
 
         if self.properties.get('map', {}).get('meta'):
@@ -163,8 +161,12 @@ class Map(SerializableObject):
                     elif token == '?':
                         pass
                     elif token == '.':
-                        object_info = self.session.load_object('ground')
+                        # Use shared prototype to minimize per-instance duplication
+                        object_info = self.session.get_object_prototype('ground')
                         obj = Ground(self.session, self, object_info)
+                        # All ground tiles start with a shared inventory reference; lazily detached on first write
+                        if hasattr(obj, 'set_inventory_reference'):
+                            obj.set_inventory_reference(self._shared_ground_inventory, shared=True)
                         self.place_object(obj, pos_x, pos_y)
                         self.interactable_objects[obj] = [pos_x, pos_y]
                     elif token == '-' or token == '|':
@@ -185,10 +187,11 @@ class Map(SerializableObject):
         for trigger_name, trigger in self.triggers.items():
             if trigger.get('type') == 'area':
                 self.area_triggers[trigger_name] = trigger
-        for row in self.objects:
-            for objects in row:
-                for obj in objects:
-                    obj.after_setup()
+        for x in range(self.size[0]):
+            for y in range(self.size[1]):
+                for obj in self.objects[x][y]:
+                    if obj:
+                        obj.after_setup()
     
     def _setup_npcs(self):
         for player in self.properties.get('player', []):
@@ -229,11 +232,19 @@ class Map(SerializableObject):
         self.linked_maps[name] = map
 
     def entity_by_uid(self, uid) -> Entity:
+        # Prefer session registry for consistency and speed
+        ent = self.session.entity_registry.get(uid)
+        if ent is not None and (ent in self.entities or ent in self.interactable_objects):
+            return ent
+        # Fallback for legacy states where registry may not have been populated
         for entity in self.entities.keys():
-            if entity.entity_uid == uid:
+            if str(getattr(entity, 'entity_uid', '')) == str(uid):
+                # backfill registry lazily
+                self.session.register_entity(entity)
                 return entity
         for entity in self.interactable_objects.keys():
-            if str(entity.entity_uid) == uid:
+            if str(getattr(entity, 'entity_uid', '')) == str(uid):
+                self.session.register_entity(entity)
                 return entity
         return None
 
@@ -246,8 +257,13 @@ class Map(SerializableObject):
         return None
 
     def object_by_uid(self, uid):
+        # Prefer central registry
+        obj = self.session.entity_registry.get(uid)
+        if obj is not None and obj in self.interactable_objects:
+            return obj
         for obj in self.interactable_objects.keys():
-            if str(obj.entity_uid) == uid:
+            if str(obj.entity_uid) == str(uid):
+                self.session.register_entity(obj)
                 return obj
         return None
 
@@ -267,6 +283,8 @@ class Map(SerializableObject):
     def add(self, entity, pos_x, pos_y, group='b'):
         self.unaware_npcs.append({'group': group if group else 'b', 'entity': entity})
         self.entities[entity] = [pos_x, pos_y]
+        # Ensure entity is registered for UID-based lookups
+        self.session.register_entity(entity)
         self.place((pos_x, pos_y), entity, None)
 
     def remove(self, entity, battle=None, move_to_object_layer=False):
@@ -285,6 +303,7 @@ class Map(SerializableObject):
         elif entity in self.interactable_objects:
             self.interactable_objects.pop(entity)
             self.objects[pos_x][pos_y].remove(entity)
+        # Keep registry entry; entities may still be referenced by UID in logs/saves
         
 
     def load(self, map_file_path):
@@ -358,9 +377,9 @@ class Map(SerializableObject):
 
         entity_data = {'entity': entity, 'token': token or entity.name}
 
-
-
         self.entities[entity] = [pos_x, pos_y]
+        # Ensure entity is in the registry
+        self.session.register_entity(entity)
 
         source_token_size = entity.token_size()
         self.tokens[pos_x][pos_y] = entity_data
@@ -424,14 +443,18 @@ class Map(SerializableObject):
             self.area_triggers[obj] = {}
 
         self.interactable_objects[obj] = [pos_x, pos_y]
+        # Register and pin interactable object for UID-based lookups (kept strongly by map)
+        self.session.entity_registry.pin(obj)
 
         if isinstance(obj.token, list):
             for y, line in enumerate(obj.token):
                 for x, t in enumerate(line):
                     if t == '.':
                         continue
+                    self.session.entity_registry.pin(obj)
                     self.objects[pos_x + x][pos_y + y].append(obj)
         else:
+            self.session.entity_registry.pin(obj)
             self.objects[pos_x][pos_y].append(obj)
 
         return obj
@@ -537,7 +560,8 @@ class Map(SerializableObject):
             if not objects_at_pos:
                 return False
 
-            max_movement_cost = np.max([obj.movement_cost() for obj in objects_at_pos])
+            costs = [obj.movement_cost() for obj in objects_at_pos]
+            max_movement_cost = max(costs) if costs else 1
 
             # If movement cost is normal, it's not difficult terrain
             if max_movement_cost <= 1:
@@ -745,6 +769,16 @@ class Map(SerializableObject):
                     raise ValueError(f'entity {entity} not found')
                 return self.entities[_entity]
             return self.entities[entity]
+
+    def position_of_uid(self, uid):
+        """Return [x,y] position for an entity or object by UID, or raise if not found."""
+        ent = self.entity_by_uid(uid)
+        if ent and ent in self.entities:
+            return self.entities[ent]
+        obj = self.object_by_uid(uid)
+        if obj and obj in self.interactable_objects:
+            return self.interactable_objects[obj]
+        raise ValueError(f'entity/object with uid {uid} not found on this map')
 
     def entity_squares_at_pos(self, entity, pos1_x, pos1_y, squeeze=False):
         entity_1_squares = []
@@ -1204,27 +1238,75 @@ class Map(SerializableObject):
     def from_dict(data):
         session = data['session']
         battle_map = Map(session, None, properties=data['properties'], skip_setup=True)
-        battle_map.entities = data['entities']
-        battle_map.tokens = data['tokens']
+        # Pre-register entity instances from original mapping before wrapping
+        try:
+            for ent in list(data['entities'].keys()):
+                session.register_entity(ent)
+        except Exception:
+            pass
+        # Entities/interactables as UID-backed maps (accepting object-keyed dicts)
+        battle_map.entities = EntitiesUIDMap(session, data['entities'])
+        # Tokens grid reconstructed cell-by-cell
+        battle_map.tokens = TokensGrid(session, battle_map.size[0], battle_map.size[1])
         battle_map.base_map = data['base_map']
         battle_map.base_map_1 = data['base_map_1']
         battle_map.base_map_2 = data['base_map_2']
-        battle_map.objects = data['objects']
+        # Rebuild objects grid and set map on contained objects
+        battle_map.objects = ObjectsGrid(session, battle_map.size[0], battle_map.size[1])
         battle_map.legend = data['legend']
         battle_map.name = data['name']
         battle_map.area_triggers = data['area_triggers']
 
         for row in range(battle_map.size[0]):
             for column in range(battle_map.size[1]):
+                # tokens
+                token_cell = None
+                try:
+                    token_cell = data['tokens'][row][column]
+                except Exception:
+                    token_cell = None
+                if token_cell:
+                    # Accept either {'entity': ent, 'token': t} or proxy-like
+                    battle_map.tokens[row][column] = {
+                        'entity': token_cell.get('entity'),
+                        'token': token_cell.get('token')
+                    }
+                # objects
                 for obj in data['objects'][row][column]:
                     obj.map = battle_map
+                    battle_map.objects[row][column].append(obj)
 
         interactable_objects = data['interactable_objects']
         for obj in interactable_objects:
             obj.map = battle_map
-        battle_map.interactable_objects = interactable_objects
+            try:
+                session.register_entity(obj)
+            except Exception:
+                pass
+        battle_map.interactable_objects = EntitiesUIDMap(session, interactable_objects)
         battle_map.meta_map = data['meta_map']
         battle_map._compute_lights()
+
+        # Populate central registry for UID-based lookup after deserialization (redundant but safe)
+        try:
+            for entity in list(data['entities'].keys()):
+                session.register_entity(entity)
+        except Exception:
+            pass
+        try:
+            for obj in list(interactable_objects):
+                session.register_entity(obj)
+        except Exception:
+            pass
+
+        # Optionally backfill objects present in the object grid
+        try:
+            for x in range(battle_map.size[0]):
+                for y in range(battle_map.size[1]):
+                    for obj in battle_map.objects[x][y]:
+                        session.register_entity(obj)
+        except Exception:
+            pass
 
         # lazy resolve
         for entity in battle_map.entities:
@@ -1246,6 +1328,23 @@ class Map(SerializableObject):
 
 
     def to_dict(self)->dict:
+        # Build UID-indexed helper maps for future-proof serialization
+        try:
+            entities_uid = {str(getattr(ent, 'entity_uid', self.session.uid_for(ent))): pos for ent, pos in self.entities.items()}
+        except Exception:
+            entities_uid = {}
+        try:
+            interactable_objects_uid = {str(getattr(obj, 'entity_uid', self.session.uid_for(obj))): pos for obj, pos in self.interactable_objects.items()}
+        except Exception:
+            interactable_objects_uid = {}
+
+        # Backward-compatible shapes for objects and tokens
+        objects_grid = [[list(self.objects[x][y]) for y in range(self.size[1])] for x in range(self.size[0])]
+        tokens_grid = [[
+            ({'entity': self.tokens[x][y]['entity'], 'token': self.tokens[x][y]['token']} if self.tokens[x][y] else None)
+            for y in range(self.size[1])
+        ] for x in range(self.size[0])]
+
         map_hash = {
             'name': self.name,
             'size': self.size,
@@ -1253,13 +1352,15 @@ class Map(SerializableObject):
             'legend': self.legend,
             'properties': self.properties,
             'session': self.session,
-            'entities': self.entities,
-            'interactable_objects': self.interactable_objects,
+            'entities': {ent: pos for ent, pos in self.entities.items()},
+            'entities_uid': entities_uid,
+            'interactable_objects': {obj: pos for obj, pos in self.interactable_objects.items()},
+            'interactable_objects_uid': interactable_objects_uid,
             'base_map': self.base_map,
             'base_map_1': self.base_map_1,
             'base_map_2': self.base_map_2,
-            'objects': self.objects,
-            'tokens': self.tokens,
+            'objects': objects_grid,
+            'tokens': tokens_grid,
             'meta_map': self.meta_map,
             'area_triggers': self.area_triggers
         }

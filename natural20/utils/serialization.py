@@ -157,4 +157,12 @@ class Serialization:
         SafeLoaderWithConstructors.add_constructor(None, no_undefined_constructor)
 
         state = yaml.load(yaml_data, Loader=SafeLoaderWithConstructors)
+        # Ensure registry is populated for the restored session
+        try:
+            session = state['session']
+            battle = state.get('battle')
+            maps = state.get('maps')
+            session.rebuild_entity_registry(maps=maps, battle=battle)
+        except Exception:
+            pass
         return state['session'], state['battle'], state['maps']
