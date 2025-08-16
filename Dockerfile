@@ -23,9 +23,9 @@ COPY . .
 RUN pip install --no-cache-dir -e .
 
 # Create and set permissions for flask_session directory
-RUN mkdir -p /app/webapp/flask_session && \
-    chown -R appuser:appuser /app/webapp/flask_session && \
-    chmod 755 /app/webapp/flask_session
+RUN mkdir -p /app/webapp/flask_session /app/webapp/saves && \
+    chown -R appuser:appuser /app/webapp/flask_session /app/webapp/saves && \
+    chmod 755 /app/webapp/flask_session /app/webapp/saves
 
 # Set default port (can be overridden during container start)
 ENV PORT=80
@@ -38,6 +38,7 @@ ENV FLASK_ENV=production
 ENV TEMPLATE_DIR=/app/templates
 ENV FLASK_APP=webapp/app.py
 ENV AWS_ENVIRONMENT=true
+ENV SAVE_DIR=/app/webapp/saves
 
 # CORS Configuration:
 # ENV CORS_ORIGINS=https://myapp.com,https://www.myapp.com  # Comma-separated list of allowed origins

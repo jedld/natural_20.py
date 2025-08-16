@@ -25,13 +25,18 @@ class PathCompute:
             A list of (x, y) for the path or None if no path exists.
             If available_movement_cost is given, trims path that exceeds the cost in feet.
         """
+        # Validate and clamp coordinates to avoid out-of-bounds access
+        if not (0 <= source_x < self.max_x and 0 <= source_y < self.max_y):
+            return None
+        # Clamp destination to map bounds
+        destination_x = max(0, min(destination_x, self.max_x - 1))
+        destination_y = max(0, min(destination_y, self.max_y - 1))
+
         # Initialize arrays
         distances = [[MAX_DISTANCE] * self.max_y for _ in range(self.max_x)]  # g-cost
         parents   = [[None]         * self.max_y for _ in range(self.max_x)]  # store parents to reconstruct path
 
         # Priority queue items: (f_cost, g_cost, (x, y))
-        #  - f_cost = g_cost + heuristic(x,y)
-        #  - g_cost = actual distance from source
         pq = []
 
         # Calculate initial cost from accumulated path if provided
@@ -83,13 +88,13 @@ class PathCompute:
         while node is not None:
             path.append(node)
             node = parents[node[0]][node[1]]
-        
+
         path.reverse()  # get source -> destination
 
         # If we have a movement budget, trim
         if available_movement_cost is not None:
             path = self.trim_path_by_movement(path, distances, available_movement_cost)
-        
+
         return path
 
     def compute_paths_to_multiple_destinations(self, source_x, source_y, destinations, available_movement_cost=None, accumulated_path=None):
@@ -107,12 +112,22 @@ class PathCompute:
             If a destination is unreachable, its path will be None.
             If available_movement_cost is given, paths are trimmed to not exceed the cost in feet.
         """
+        # Validate source and filter destinations to map bounds
+        if not (0 <= source_x < self.max_x and 0 <= source_y < self.max_y):
+            return {dest: None for dest in destinations}
+        in_bounds = []
+        for dx, dy in destinations:
+            if 0 <= dx < self.max_x and 0 <= dy < self.max_y:
+                in_bounds.append((dx, dy))
+        if not in_bounds:
+            return {dest: None for dest in destinations}
+
         # Initialize arrays
         distances = [[MAX_DISTANCE] * self.max_y for _ in range(self.max_x)]  # g-cost
         parents   = [[None]         * self.max_y for _ in range(self.max_x)]  # store parents to reconstruct path
 
         # Track which destinations we've found paths for
-        destinations_set = set(destinations)
+        destinations_set = set(in_bounds)
         found_destinations = set()
 
         # Priority queue items: (f_cost, g_cost, (x, y))
@@ -133,7 +148,7 @@ class PathCompute:
 
         # For multiple destinations, we need a heuristic that considers all destinations
         # We'll use the minimum heuristic to any destination
-        min_heuristic = min(self.heuristic(source_x, source_y, dx, dy) for dx, dy in destinations)
+        min_heuristic = min(self.heuristic(source_x, source_y, dx, dy) for dx, dy in destinations_set)
         heapq.heappush(pq, (min_heuristic, 0, (source_x, source_y)))
 
         # A* main loop
@@ -166,8 +181,8 @@ class PathCompute:
                         break
 
         # Reconstruct paths for all destinations
-        result = {}
-        for dest_x, dest_y in destinations:
+        result = {dest: None for dest in destinations}
+        for dest_x, dest_y in destinations_set:
             # If destination is unreachable
             if distances[dest_x][dest_y] == MAX_DISTANCE:
                 result[(dest_x, dest_y)] = None

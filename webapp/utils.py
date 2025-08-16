@@ -18,6 +18,7 @@ from natural20.utils.serialization import Serialization
 import gzip
 import threading
 from natural20.action import Action
+from typing import Optional
 from natural20.session import Session
 
 class SocketIOOutputLogger:
@@ -89,6 +90,25 @@ class GameManagement:
         self.autosave = autosave
         self.gzip = False
         self.game_state_lock = threading.Lock()
+        # Centralize save directory (writable in Docker). Can be absolute or relative.
+        self.save_dir = os.environ.get('SAVE_DIR', os.path.join(os.getcwd(), 'saves'))
+        try:
+            os.makedirs(self.save_dir, exist_ok=True)
+        except Exception:
+            # Fallback to CWD if configured path is invalid
+            self.save_dir = os.getcwd()
+        # If directory exists but is not writable, fallback to a tmp dir unique per process
+        try:
+            test_path = os.path.join(self.save_dir, '.write_test')
+            with open(test_path, 'w') as _f:
+                _f.write('ok')
+            os.remove(test_path)
+        except Exception:
+            import tempfile
+            tmpdir = os.path.join(tempfile.gettempdir(), f"natural20_saves_{os.getpid()}")
+            os.makedirs(tmpdir, exist_ok=True)
+            self.save_dir = tmpdir
+            self.logger.warning(f"SAVE_DIR not writable. Falling back to {self.save_dir}")
 
         if not system_logger:
             self.logger = logging.getLogger(__name__)
@@ -130,21 +150,35 @@ class GameManagement:
                     self.current_soundtrack = track
         self._setup_controllers()
         if autosave:
-           available_files = []
-           for file in os.listdir('.'):
-               if file.startswith('save_'):
-                   index = file.split('_')[1].split('.')[0]
-                   available_files.append((int(index), file))
+            # Build an initial save list from files present
+            available_files = []
+            try:
+                for file in os.listdir(self.save_dir):
+                    if file.startswith('save_') and (file.endswith('.yml') or file.endswith('.yml.gz')):
+                        try:
+                            index = int(file.split('_')[1].split('.')[0])
+                            available_files.append((index, file))
+                        except Exception:
+                            # Named saves without numeric index
+                            available_files.append((10**9, file))
+            except FileNotFoundError:
+                pass
 
-           self.save_states = [file for index, file in sorted(available_files, key=lambda x: x[0])]
-           if os.path.exists('last_save.txt'):
-               with open('last_save.txt', 'r') as f:
-                   last_save = f.read().strip()
-                   if last_save:
-                       save_file, index = last_save.split(',')
-                       print(f"Loading save {save_file} {index}")
-                       self.current_save_index = int(index)
-                       self.load_save(int(index))
+            self.save_states = [file for index, file in sorted(available_files, key=lambda x: x[0])]
+            # Attempt to autoload the last save if recorded
+            last_save_path = os.path.join(self.save_dir, 'last_save.txt')
+            if os.path.exists(last_save_path):
+                with open(last_save_path, 'r') as f:
+                    last_save = f.read().strip()
+                    if last_save:
+                        save_file, index = last_save.split(',')
+                        try:
+                            self.current_save_index = int(index)
+                        except Exception:
+                            self.current_save_index = 0
+                        print(f"Loading save {save_file} {index}")
+                        # Prefer loading by filename to avoid index/position ambiguity
+                        self.load_save(filename=save_file)
 
     def _setup_controllers(self):
         for controller in self.controllers:
@@ -554,35 +588,114 @@ class GameManagement:
     def list_states(self):
         return self.save_states
 
-    def save_game(self):
-        index = self.current_save_index % self.max_save_states
-        file_name = f"save_{index}.yml"
+    def save_game(self, name: Optional[str] = None):
         serializer = Serialization()
         yaml_str = serializer.serialize(self.game_session, self.battle, self.maps)
-        if self.gzip:
-            with gzip.open(f"{file_name}.gz", 'wb') as f:
-                f.write(yaml_str.encode('utf-8'))
+
+        # Determine filename
+        if name:
+            # Sanitize name to a safe slug
+            import re
+            slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", name).strip("-_ ")
+            ts = time.strftime('%Y%m%d-%H%M%S')
+            base_name = f"save_{ts}_{slug}.yml" if slug else f"save_{ts}.yml"
+            index_for_record = -1
         else:
-            with open(file_name, 'w') as f:
-                f.write(yaml_str)
+            index = self.current_save_index % self.max_save_states
+            base_name = f"save_{index}.yml"
+            index_for_record = index
 
-        self.save_states.append(file_name)
-        with open('last_save.txt', 'w') as f:
-            f.write(f"{file_name},{index}")
-        self.current_save_index += 1
+        target_file = base_name + ('.gz' if self.gzip and not base_name.endswith('.gz') else '')
+        abs_target = os.path.join(self.save_dir, target_file)
 
-    def load_save(self, index=None):
-        if index is None:
-            index = len(self.save_states) - 1
-            if index < 0:
+        # Write file atomically via temp + replace to avoid permission issues on existing files
+        import tempfile
+        tmp_dir = self.save_dir
+        try:
+            if abs_target.endswith('.gz'):
+                fd, tmp_path = tempfile.mkstemp(prefix='.save_', suffix='.yml.gz', dir=tmp_dir)
+                with os.fdopen(fd, 'wb') as f:
+                    f.write(yaml_str.encode('utf-8'))
+            else:
+                fd, tmp_path = tempfile.mkstemp(prefix='.save_', suffix='.yml', dir=tmp_dir)
+                with os.fdopen(fd, 'w') as f:
+                    f.write(yaml_str)
+            os.replace(tmp_path, abs_target)
+        except PermissionError:
+            # Fall back to temp directory and update save_dir if needed
+            import tempfile as _tempfile
+            fallback_dir = os.path.join(_tempfile.gettempdir(), f"natural20_saves_{os.getpid()}")
+            os.makedirs(fallback_dir, exist_ok=True)
+            self.logger.warning(f"Permission denied writing to {self.save_dir}. Falling back to {fallback_dir}")
+            self.save_dir = fallback_dir
+            abs_target = os.path.join(self.save_dir, target_file)
+            if abs_target.endswith('.gz'):
+                with gzip.open(abs_target, 'wb') as f:
+                    f.write(yaml_str.encode('utf-8'))
+            else:
+                with open(abs_target, 'w') as f:
+                    f.write(yaml_str)
+
+        # Rebuild the save list to keep it consistent and deduplicated
+        available_files = []
+        try:
+            for file in os.listdir(self.save_dir):
+                if file.startswith('save_') and (file.endswith('.yml') or file.endswith('.yml.gz')):
+                    try:
+                        idx = int(file.split('_')[1].split('.')[0])
+                        available_files.append((idx, file))
+                    except Exception:
+                        # Named saves with timestamps may not have numeric index; include them with idx=10**9 for sorting last
+                        available_files.append((10**9, file))
+        except FileNotFoundError:
+            pass
+        self.save_states = [file for idx, file in sorted(available_files, key=lambda x: x[0])]
+        with open(os.path.join(self.save_dir, 'last_save.txt'), 'w') as f:
+            f.write(f"{target_file},{index_for_record}")
+        if name is None:
+            self.current_save_index += 1
+
+    def load_save(self, index=None, filename=None):
+        """
+        Load a save by filename or identifier.
+        - If filename is provided, load that file directly.
+        - If index is provided, first try save_{index}.yml(.gz); otherwise treat as positional index into self.save_states.
+        - If neither provided, load the latest (last in sorted list).
+        """
+        target_file = None
+        if filename:
+            # Trust provided filename as-is
+            target_file = filename
+        elif index is not None:
+            # Try id-based file first
+            candidate_yml = f"save_{index}.yml"
+            candidate_gz = f"save_{index}.yml.gz"
+            if os.path.exists(os.path.join(self.save_dir, candidate_yml)):
+                target_file = candidate_yml
+            elif os.path.exists(os.path.join(self.save_dir, candidate_gz)):
+                target_file = candidate_gz
+            else:
+                # Fallback to positional within current list
+                try:
+                    target_file = self.save_states[index]
+                except Exception:
+                    return
+        else:
+            # Default to latest known
+            if not self.save_states:
                 return
+            target_file = self.save_states[-1]
 
-        save_state = self.save_states[index]
-        if self.gzip:
-            with gzip.open(f"{save_state}.gz", 'rb') as f:
+        # Read the state content
+        # Resolve to absolute path under save_dir if not absolute
+        abs_path = target_file
+        if not os.path.isabs(abs_path):
+            abs_path = os.path.join(self.save_dir, target_file)
+        if abs_path.endswith('.gz'):
+            with gzip.open(abs_path, 'rb') as f:
                 state = f.read().decode('utf-8')
         else:
-            with open(save_state, 'r') as f:
+            with open(abs_path, 'r') as f:
                 state = f.read()
         serializer = Serialization()
         new_session, new_battle, new_maps = serializer.deserialize(state)
@@ -591,7 +704,7 @@ class GameManagement:
 
         self.battle_map = new_maps['index']
         self.maps = new_maps
-        self.save_states.pop(index)
+        # Do not mutate the save list on load; keep history intact
 
 
     def end_current_battle(self):
