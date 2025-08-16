@@ -2,6 +2,7 @@ from natural20.item_library.object import Object
 from typing import Optional
 from natural20.concern.container import Container
 from natural20.concern.lootable import Lootable
+from natural20.utils.cow import CopyOnWriteDict, CopyOnWriteList
 import pdb
 
 class StoneWall(Object):
@@ -147,6 +148,13 @@ class Ground(Object, Lootable):
         self.state = self.properties.get('state', 'open')
         self.locked = None
         self.key_name = None
+        # When True, self.inventory is a shared reference and must be detached on first write
+        self._shared_inventory = False
+        # Wrap commonly-duplicated structures with copy-on-write containers to save memory
+        self.properties = CopyOnWriteDict(self.properties)
+        self.attributes = CopyOnWriteDict(self.attributes)
+        self.ability_scores = CopyOnWriteDict(self.ability_scores)
+        self.statuses = CopyOnWriteList(self.statuses)
 
     def opaque(self, origin=None):
         return False
@@ -216,12 +224,46 @@ class Ground(Object, Lootable):
         pass
 
     def setup_other_attributes(self):
+        # Default empty inventory; Map may override with a shared reference for CoW
         self.inventory = {}
+        self._shared_inventory = False
+
+    # ---- Copy-on-Write inventory helpers ----
+    def set_inventory_reference(self, inventory_ref: dict, shared: bool = True):
+        """Assign an inventory reference. If shared=True, first mutation will deep-copy it."""
+        self.inventory = inventory_ref
+        self._shared_inventory = bool(shared)
+
+    def _ensure_unshared(self):
+        if self._shared_inventory:
+            # Detach by deep-copying to a new dict so this cell becomes independent
+            self.inventory = {k: dict(v) for k, v in self.inventory.items()}
+            self._shared_inventory = False
+
+    # Override inventory mutations to apply CoW lazily
+    def add_item(self, ammo_type, amount=1, source_item=None):
+        self._ensure_unshared()
+        return super().add_item(ammo_type, amount, source_item)
+
+    def deduct_item(self, ammo_type, amount=1):
+        self._ensure_unshared()
+        return super().deduct_item(ammo_type, amount)
 
     def to_dict(self):
         h_dict = super().to_dict()
-        h_dict['session'] = self.session
-        h_dict['inventory'] = self.inventory
+        # Coerce CopyOnWrite containers to builtins for clean serialization
+        props = self.properties.data if isinstance(self.properties, CopyOnWriteDict) else self.properties
+        attrs = self.attributes.data if isinstance(self.attributes, CopyOnWriteDict) else self.attributes
+        abils = self.ability_scores.data if isinstance(self.ability_scores, CopyOnWriteDict) else self.ability_scores
+        stats = list(self.statuses.data) if isinstance(self.statuses, CopyOnWriteList) else list(self.statuses)
+        h_dict.update({
+            'session': self.session,
+            'inventory': self.inventory,
+            'properties': dict(props) if props is not None else None,
+            'attributes': dict(attrs) if attrs is not None else None,
+            'ability_scores': dict(abils) if abils is not None else None,
+            'statuses': stats,
+        })
         return h_dict
 
 
