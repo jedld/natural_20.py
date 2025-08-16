@@ -10,8 +10,10 @@ from natural20.entity import Entity
 from natural20.die_roll import DieRoll
 from natural20.spell.effects.stench_effect import StenchEffect
 import pdb
+from natural20.uid_containers import EntitiesUIDMap
+
 class Battle():
-    def __init__(self, session: Session, maps: Map, standard_controller = None, animation_log_enabled=False):
+    def __init__(self, session: Session, maps: Map, standard_controller=None, animation_log_enabled=False):
         if isinstance(maps, list):
             self.maps = maps
         elif isinstance(maps, dict):
@@ -20,12 +22,14 @@ class Battle():
             self.maps = [maps]
         else:
             self.maps = None
+
         self.session = session
         self.combat_order = []
         self.current_turn_index = 0
         self.battle_field_events = {}
         self.round = 0
-        self.entities = {}
+        # Store entity states in a UID-backed map for robust serialization and lookups
+        self.entities = EntitiesUIDMap(session)
         self.started = False
         self.groups = {}
         self.late_comers = []
@@ -39,10 +43,10 @@ class Battle():
             self.standard_controller = standard_controller
         self.event_manager = session.event_manager
         self.opposing_groups = {
-        'a': ['b'],
-        'b': ['a'],
-        'c': ['c']
-      }
+            'a': ['b'],
+            'b': ['a'],
+            'c': ['c']
+        }
 
     def current_round(self):
         return self.round
@@ -73,7 +77,7 @@ class Battle():
 
         if entity is None:
             raise ValueError('entity cannot be nil')
-        
+
         if entity.properties.get('spiritual'):
             return
 
@@ -97,6 +101,8 @@ class Battle():
         }
 
         self.entities[entity] = state
+        # Ensure entity is registered for UID-based operations
+        self.session.register_entity(entity)
         self.groups.setdefault(group, set()).add(entity)
 
         if add_to_initiative:
@@ -116,7 +122,7 @@ class Battle():
         if position is None or self.maps is None:
             return
 
-        if isinstance(position, list) or isinstance(position, tuple):
+        if isinstance(position, (list, tuple)):
             self.maps[index].place(position, entity, token, self)
         else:
             self.maps[index].place_at_spawn_point(position, entity, token)
@@ -376,6 +382,11 @@ class Battle():
                 return result
 
     def entity_by_uid(self, entity_uid):
+        # Prefer the session-level registry for O(1) lookup
+        ent = self.session.entity_registry.get(entity_uid)
+        if ent is not None:
+            return ent
+        # Fallback to checking maps for legacy states
         for map in self.maps:
             entity = map.entity_by_uid(entity_uid)
             if entity:
@@ -737,11 +748,35 @@ class Battle():
         return None
 
     def to_dict(self):
+        # Prefer UID-friendly serialization. Keep legacy keys for backward compatibility.
+        try:
+            entities_uid = self.entities.as_uid_dict()
+        except Exception:
+            entities_uid = {}
+
+        def _uids_for_group_map(groups):
+            out = {}
+            for g, ents in (groups or {}).items():
+                uids = []
+                for e in list(ents):
+                    uid = getattr(e, 'entity_uid', None) or self.session.uid_for(e)
+                    if uid is not None:
+                        uids.append(str(uid))
+                out[g] = uids
+            return out
+
         return {
+            # New UID-first entries
+            'combat_order_uid': [getattr(e, 'entity_uid', None) for e in self.combat_order],
+            'entities_uid': entities_uid,
+            'groups_uid': _uids_for_group_map(self.groups),
+            'late_comers_uid': [getattr(e, 'entity_uid', None) for e in self.late_comers],
+            # Legacy fields (object-bearing) kept for compatibility with older loaders
             'combat_order': self.combat_order,
             'current_turn_index': self.current_turn_index,
             'round': self.round,
-            'entities': self.entities,
+            # Convert UID map to a normal dict for YAML
+            'entities': {e: self.entities[e] for e in self.entities},
             'groups': self.groups,
             'late_comers': self.late_comers,
             'battle_log': self.battle_log,
@@ -752,12 +787,67 @@ class Battle():
 
     def from_dict(data):
         battle = Battle(data['session'], data['maps'])
-        battle.combat_order = data['combat_order']
+        # Restore combat order (prefer UID-based if present)
+        combat_order_uid = data.get('combat_order_uid')
+        if combat_order_uid:
+            battle.combat_order = [battle.session.entity_registry.get(uid) for uid in combat_order_uid if battle.session.entity_registry.get(uid)]
+        else:
+            battle.combat_order = data.get('combat_order', [])
+
         battle.current_turn_index = data['current_turn_index']
         battle.round = data['round']
-        battle.entities = data['entities']
-        battle.groups = data['groups']
-        battle.late_comers = data['late_comers']
-        battle.battle_log = data['battle_log']
-        battle.animation_log = data['animation_log']
+
+        # Restore entities state via UID map when available
+        entities_uid = data.get('entities_uid')
+        if entities_uid:
+            # entities_uid is mapping of uid -> state
+            for uid, state in entities_uid.items():
+                ent = battle.session.entity_registry.get(uid)
+                if ent is not None:
+                    battle.entities[ent] = state
+        else:
+            # Legacy path: may be a plain dict keyed by live objects
+            legacy_entities = data.get('entities', {})
+            try:
+                for ent, state in legacy_entities.items():
+                    if ent is not None:
+                        battle.session.register_entity(ent)
+                        battle.entities[ent] = state
+            except Exception:
+                pass
+
+        # Restore groups
+        groups_uid = data.get('groups_uid')
+        if groups_uid:
+            restored = {}
+            for g, uids in groups_uid.items():
+                ents = set()
+                for uid in (uids or []):
+                    ent = battle.session.entity_registry.get(uid)
+                    if ent is not None:
+                        ents.add(ent)
+                restored[g] = ents
+            battle.groups = restored
+        else:
+            battle.groups = data.get('groups', {})
+
+        # Late comers
+        late_uids = data.get('late_comers_uid')
+        if late_uids:
+            battle.late_comers = [battle.session.entity_registry.get(uid) for uid in late_uids if battle.session.entity_registry.get(uid)]
+        else:
+            battle.late_comers = data.get('late_comers', [])
+
+        battle.battle_log = data.get('battle_log', [])
+        battle.animation_log = data.get('animation_log', [])
+
+        # Backfill entity registry for quick UID lookups
+        try:
+            for ent in list(battle.entities.keys()):
+                battle.session.register_entity(ent)
+            for ent in battle.combat_order:
+                if ent is not None:
+                    battle.session.register_entity(ent)
+        except Exception:
+            pass
         return battle

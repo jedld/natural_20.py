@@ -5,6 +5,7 @@ from natural20.npc import Npc
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
 from natural20.map import Map
+from natural20.entity_registry import EntityRegistry
 import i18n
 from copy import deepcopy
 import pdb
@@ -39,6 +40,8 @@ class Session:
         self.default_locale = 'en'
         self.event_manager = event_manager
         self.conversation_handlers = conversation_handlers or {}
+        # Centralized entity registry for UID-based lookup/serialization
+        self.entity_registry = EntityRegistry()
         i18n.load_path.append(os.path.join(self.root_path, 'locales'))
         i18n.set('filename_format', '{locale}.{format}')
         game_file = os.path.join(self.root_path, 'game.yml')
@@ -69,7 +72,8 @@ class Session:
     def map_for_entity(self, entity):
         for _, map_obj in self.maps.items():
             if isinstance(entity, str):
-                _entity = map_obj.get_entity_by_uid(entity)
+                # Resolve by UID on the map (fallback to session registry)
+                _entity = map_obj.entity_by_uid(entity) or self.entity_registry.get(entity)
             else:
                 _entity = entity
 
@@ -81,11 +85,87 @@ class Session:
         return None
 
     def entity_by_uid(self, entity_uid):
+        # Prefer centralized registry for O(1) lookup
+        ent = self.entity_registry.get(entity_uid)
+        if ent is not None:
+            return ent
+        # Fallback: scan maps (helps with legacy states during migration)
         for _, map_obj in self.maps.items():
             entity = map_obj.entity_by_uid(entity_uid)
             if entity:
                 return entity
-        return None        
+        return None
+
+    # Convenience helpers for registry usage
+    def register_entity(self, entity):
+        return self.entity_registry.register(entity)
+
+    def uid_for(self, entity):
+        return self.entity_registry.get_uid(entity)
+
+    def rebuild_entity_registry(self, maps=None, battle=None):
+        """Rebuild the central entity registry by scanning maps and (optionally) battle.
+
+        Args:
+            maps: Iterable of maps to scan; defaults to self.maps.values() if None.
+            battle: Optional Battle to include for entity registration.
+        """
+    # Do not clear here to preserve entities already registered by deserializers
+        # Collect maps to scan
+        to_scan = []
+        if maps is None:
+            if hasattr(self, 'maps') and isinstance(self.maps, dict):
+                to_scan = list(self.maps.values())
+        else:
+            to_scan = list(maps)
+
+        for m in to_scan:
+            # Entities and their positions
+            try:
+                for ent in list(m.entities.keys()):
+                    self.register_entity(ent)
+            except Exception:
+                pass
+            # Interactable objects
+            try:
+                for obj in list(m.interactable_objects.keys()):
+                    self.register_entity(obj)
+            except Exception:
+                pass
+            # Grid objects
+            try:
+                for x in range(m.size[0]):
+                    for y in range(m.size[1]):
+                        # objects grid
+                        try:
+                            for obj in m.objects[x][y]:
+                                self.register_entity(obj)
+                        except Exception:
+                            pass
+                        # tokens grid
+                        try:
+                            cell = m.tokens[x][y]
+                            # Access via proxy API to avoid sequence-style membership checks
+                            ent = None
+                            try:
+                                ent = cell['entity']
+                            except Exception:
+                                ent = None
+                            if ent is not None:
+                                self.register_entity(ent)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+        if battle is not None:
+            try:
+                for ent in list(getattr(battle, 'entities', {}).keys()):
+                    self.register_entity(ent)
+                for ent in getattr(battle, 'combat_order', []) :
+                    self.register_entity(ent)
+            except Exception:
+                pass
 
     def _load_all_maps(self, game_file):
         self.maps = {}
@@ -316,6 +396,17 @@ class Session:
             self.objects[object_name] = objects.get(object_name)
             assert self.objects[object_name], f'Object {object_name} not found'
         return deepcopy(self.objects[object_name])
+
+    def get_object_prototype(self, object_name):
+        """Return the shared, canonical object definition without deepcopy.
+        Useful for copy-on-write patterns where instances should not mutate
+        the prototype. Callers must treat the returned dict as read-only.
+        """
+        if object_name not in self.objects:
+            objects = self.load_yaml_file('items', 'objects')
+            self.objects.update(objects)
+        assert self.objects.get(object_name), f'Object {object_name} not found'
+        return self.objects[object_name]
 
     def t(self, token, options=None):
         if options is None:
