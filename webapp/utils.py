@@ -104,21 +104,41 @@ class GameManagement:
         self._save_thread = threading.Thread(target=self._save_worker, name="save-worker", daemon=True)
         self._save_thread.start()
         # Centralize save directory (writable in Docker). Can be absolute or relative.
-        self.save_dir = os.environ.get('SAVE_DIR', os.path.join(os.getcwd(), 'saves'))
+        base_save_dir = os.environ.get('SAVE_DIR', os.path.join(os.getcwd(), 'saves'))
+
+        # Namespace saves by game to avoid collisions when multiple games use the same SAVE_DIR.
+        try:
+            game_props = getattr(self.game_session, 'game_properties', {}) or {}
+        except Exception:
+            game_props = {}
+
+        # Prefer an explicit game name/id from game properties, else fall back to the root_path folder name
+        game_name_raw = game_props.get('name') or game_props.get('id') or os.path.basename(os.path.abspath(self.game_session.root_path)) or 'game'
+        import re, tempfile
+        game_ns = re.sub(r'[^a-zA-Z0-9_-]+', '-', str(game_name_raw)).strip('-_ ').lower() or 'game'
+
+        self.save_dir = os.path.join(base_save_dir, game_ns)
         try:
             os.makedirs(self.save_dir, exist_ok=True)
         except Exception:
-            # Fallback to CWD if configured path is invalid
-            self.save_dir = os.getcwd()
-        # If directory exists but is not writable, fallback to a tmp dir unique per process
+            # Fallback to a local namespaced saves dir inside CWD
+            try:
+                self.save_dir = os.path.join(os.getcwd(), 'saves', game_ns)
+                os.makedirs(self.save_dir, exist_ok=True)
+            except Exception:
+                # Last resort: a tmp dir unique per process and game
+                tmpdir = os.path.join(tempfile.gettempdir(), f"natural20_saves_{os.getpid()}_{game_ns}")
+                os.makedirs(tmpdir, exist_ok=True)
+                self.save_dir = tmpdir
+
+        # If directory exists but is not writable, fallback to a tmp dir unique per process + game
         try:
             test_path = os.path.join(self.save_dir, '.write_test')
             with open(test_path, 'w') as _f:
                 _f.write('ok')
             os.remove(test_path)
         except Exception:
-            import tempfile
-            tmpdir = os.path.join(tempfile.gettempdir(), f"natural20_saves_{os.getpid()}")
+            tmpdir = os.path.join(tempfile.gettempdir(), f"natural20_saves_{os.getpid()}_{game_ns}")
             os.makedirs(tmpdir, exist_ok=True)
             self.save_dir = tmpdir
             self.logger.warning(f"SAVE_DIR not writable. Falling back to {self.save_dir}")
@@ -409,60 +429,61 @@ class GameManagement:
                                     start_battle = True
         add_to_initiative = list(add_to_initiative_set)
 
-        if start_battle and add_to_initiative:
-            # Helper to select the correct controller for an entity
-            def get_controller(entity):
-                if isinstance(entity, PlayerCharacter):
-                    return self.get_controller_for_entity(entity)
-                if entity.familiar():
-                    return self.get_controller_for_entity(entity.owner)
-                elif self.npc_controller == 'manual':
-                        web_controllers = WebController(self.game_session, None)
-                        web_controllers.add_user("dm")
-                        return web_controllers
-                elif self.npc_controller == 'llm':
-                    try:
-                        # Import lazily to avoid circulars
-                        from webapp.app import llm_handler as _llm_handler  # type: ignore
-                        provider = getattr(_llm_handler, 'current_provider', None)
-                    except Exception:
-                        provider = None
-                    return LlmMcpController(self.game_session, llm_provider=provider)
-                return GenericController(self.game_session)
-            battle_music = 'battle'
-            if not self.battle:
-                self.battle = Battle(self.game_session, self.maps, animation_log_enabled=True)
-                for entity, group in add_to_initiative:
+        if add_to_initiative:
+            if start_battle:
+                # Helper to select the correct controller for an entity
+                def get_controller(entity):
+                    if isinstance(entity, PlayerCharacter):
+                        return self.get_controller_for_entity(entity)
+                    if entity.familiar():
+                        return self.get_controller_for_entity(entity.owner)
+                    elif self.npc_controller == 'manual':
+                            web_controllers = WebController(self.game_session, None)
+                            web_controllers.add_user("dm")
+                            return web_controllers
+                    elif self.npc_controller == 'llm':
+                        try:
+                            # Import lazily to avoid circulars
+                            from webapp.app import llm_handler as _llm_handler  # type: ignore
+                            provider = getattr(_llm_handler, 'current_provider', None)
+                        except Exception:
+                            provider = None
+                        return LlmMcpController(self.game_session, llm_provider=provider)
+                    return GenericController(self.game_session)
+                battle_music = 'battle'
+                if not self.battle:
+                    self.battle = Battle(self.game_session, self.maps, animation_log_enabled=True)
+                    for entity, group in add_to_initiative:
 
-                    # For bosses, use their battle music
-                    if entity.battle_music:
-                        battle_music = entity.battle_music
-                        self.logger.info(f"Using battle music {battle_music} for {entity.name}")
-                    controller = get_controller(entity)
-                    if not controller:
-                        self.logger.error(f"Controller not found for {entity}")
-                        controller = GenericController(self.game_session)
+                        # For bosses, use their battle music
+                        if entity.battle_music:
+                            battle_music = entity.battle_music
+                            self.logger.info(f"Using battle music {battle_music} for {entity.name}")
+                        controller = get_controller(entity)
+                        if not controller:
+                            self.logger.error(f"Controller not found for {entity}")
+                            controller = GenericController(self.game_session)
 
-                    controller.register_handlers_on(entity)
-                    self.battle.add(entity, group, controller=controller)
-                self.output_logger.log("Battle started.")
+                        controller.register_handlers_on(entity)
+                        self.battle.add(entity, group, controller=controller)
+                    self.output_logger.log("Battle started.")
 
-                # if battle sound is present, start playing it
-                for soundtrack in self.soundtracks:
-                    if battle_music.lower()==soundtrack['name'].lower():
-                        self.play_soundtrack(soundtrack['name'])
-                        break
+                    # if battle sound is present, start playing it
+                    for soundtrack in self.soundtracks:
+                        if battle_music.lower()==soundtrack['name'].lower():
+                            self.play_soundtrack(soundtrack['name'])
+                            break
 
-                self.battle.start()
-                self.execute_game_loop()
-            else:
-                for entity, group in add_to_initiative:
-                    controller = get_controller(entity)
-                    controller.register_handlers_on(entity)
-                    self.battle.add(entity, group, add_to_initiative=True, controller=controller)
+                    self.battle.start()
+                    self.execute_game_loop()
+                else:
+                    for entity, group in add_to_initiative:
+                        controller = get_controller(entity)
+                        controller.register_handlers_on(entity)
+                        self.battle.add(entity, group, add_to_initiative=True, controller=controller)
 
-            self.socketio.emit('message', { 'type': 'initiative','message': {'index': self.battle.current_turn_index}})
-            self.socketio.emit('message', { 'type': 'turn', 'message': {}})
+                self.socketio.emit('message', { 'type': 'initiative','message': {'index': self.battle.current_turn_index}})
+                self.socketio.emit('message', { 'type': 'turn', 'message': {}})
 
 
     def get_controller_for_entity(self, entity):

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghost Token Test</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="webapp/static/styles.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 60px);
+            grid-template-rows: repeat(5, 60px);
+            gap: 2px;
+            margin: 20px 0;
+        }
+        .tile {
+            width: 60px;
+            height: 60px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .entity, .npc {
+            width: 50px;
+            height: 50px;
+            background-color: #007bff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .npc {
+            background-color: #dc3545;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .log {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ghost Token Test</h1>
+    <p>Test the ghost token functionality for entity movement</p>
+    
+    <div class="controls">
+        <button onclick="testDMMove()">Test DM Move (Entity 1 → Bottom Right)</button>
+        <button onclick="testPCMove()">Test PC Move (Entity 2 → Bottom Left)</button>
+        <button onclick="clearGhosts()">Clear All Ghosts</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div class="test-grid">
+        <!-- Row 1 -->
+        <div class="tile" data-coords-x="0" data-coords-y="0" data-coords-id="entity1">
+            <div class="entity">1</div>
+        </div>
+        <div class="tile" data-coords-x="1" data-coords-y="0"></div>
+        <div class="tile" data-coords-x="2" data-coords-y="0"></div>
+        <div class="tile" data-coords-x="3" data-coords-y="0"></div>
+        <div class="tile" data-coords-x="4" data-coords-y="0"></div>
+        
+        <!-- Row 2 -->
+        <div class="tile" data-coords-x="0" data-coords-y="1"></div>
+        <div class="tile" data-coords-x="1" data-coords-y="1" data-coords-id="pc1">
+            <div class="npc">2</div>
+        </div>
+        <div class="tile" data-coords-x="2" data-coords-y="1"></div>
+        <div class="tile" data-coords-x="3" data-coords-y="1"></div>
+        <div class="tile" data-coords-x="4" data-coords-y="1"></div>
+        
+        <!-- Row 3 -->
+        <div class="tile" data-coords-x="0" data-coords-y="2"></div>
+        <div class="tile" data-coords-x="1" data-coords-y="2"></div>
+        <div class="tile" data-coords-x="2" data-coords-y="2"></div>
+        <div class="tile" data-coords-x="3" data-coords-y="2"></div>
+        <div class="tile" data-coords-x="4" data-coords-y="2"></div>
+        
+        <!-- Row 4 -->
+        <div class="tile" data-coords-x="0" data-coords-y="3"></div>
+        <div class="tile" data-coords-x="1" data-coords-y="3"></div>
+        <div class="tile" data-coords-x="2" data-coords-y="3"></div>
+        <div class="tile" data-coords-x="3" data-coords-y="3"></div>
+        <div class="tile" data-coords-x="4" data-coords-y="3"></div>
+        
+        <!-- Row 5 -->
+        <div class="tile" data-coords-x="0" data-coords-y="4"></div>
+        <div class="tile" data-coords-x="1" data-coords-y="4"></div>
+        <div class="tile" data-coords-x="2" data-coords-y="4"></div>
+        <div class="tile" data-coords-x="3" data-coords-y="4"></div>
+        <div class="tile" data-coords-x="4" data-coords-y="4"></div>
+    </div>
+
+    <div class="log" id="log">
+        <h3>Log:</h3>
+    </div>
+
+    <script>
+        // Mock implementations of the ghost token system
+        let pendingMoves = new Map();
+        let moveRequestTimeouts = new Map();
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += '<div>' + new Date().toLocaleTimeString() + ': ' + message + '</div>';
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '<h3>Log:</h3>';
+        }
+
+        // Mock AJAX functions
+        function mockAjaxPost(url, data, callback) {
+            log(`Mock AJAX POST to ${url} with data: ${JSON.stringify(data)}`);
+            
+            // Simulate network delay
+            setTimeout(() => {
+                callback({ status: 'ok', success: true, entity_uid: data.entity_id || data.entity_uid });
+                log(`Mock AJAX response: success`);
+            }, 2000);
+        }
+
+        // Copy the ghost token functions from engine.js - Updated for coords-id system
+        function createGhostToken(entityId, sourceX, sourceY, targetX, targetY, $sourceEntity) {
+            // Don't create ghost if target is same as source
+            if (sourceX === targetX && sourceY === targetY) {
+                log('Target is same as source, skipping ghost token creation');
+                return;
+            }
+
+            const $targetTile = $(`.tile[data-coords-x="${targetX}"][data-coords-y="${targetY}"]`);
+            if (!$targetTile.length) {
+                log(`Could not find target tile at (${targetX}, ${targetY})`);
+                return;
+            }
+
+            // Clone the entity for the ghost
+            const $ghost = $sourceEntity.clone();
+            $ghost.removeClass('entity npc').addClass('entity-move-ghost');
+            $ghost.removeAttr('data-entity-id');
+            $ghost.removeAttr('data-entity-uid');
+            $ghost.removeAttr('data-entityId');
+            
+            // Add ghost to target tile
+            $targetTile.append($ghost);
+            log(`Created ghost token for entity ${entityId} at (${targetX}, ${targetY})`);
+            
+            // Store pending move info
+            pendingMoves.set(entityId, {
+                sourceX: sourceX,
+                sourceY: sourceY, 
+                targetX: targetX,
+                targetY: targetY,
+                ghostElement: $ghost
+            });
+
+            // Set up timeout to clean up ghost if request takes too long
+            const timeoutId = setTimeout(() => {
+                log(`Move request for entity ${entityId} timed out, cleaning up ghost`);
+                cleanupPendingMove(entityId);
+            }, 10000);
+            
+            moveRequestTimeouts.set(entityId, timeoutId);
+        }
+
+        function cleanupPendingMove(entityId) {
+            log(`Cleaning up pending move for entity: ${entityId}`);
+            const pendingMove = pendingMoves.get(entityId);
+            if (pendingMove) {
+                if (pendingMove.ghostElement) {
+                    pendingMove.ghostElement.remove();
+                    log(`Removed ghost token for entity: ${entityId}`);
+                }
+                pendingMoves.delete(entityId);
+            }
+
+            const timeoutId = moveRequestTimeouts.get(entityId);
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                moveRequestTimeouts.delete(entityId);
+            }
+
+            // Remove pending move styling using coords-id
+            const $sourceTile = $(`.tile[data-coords-id="${entityId}"]`);
+            if ($sourceTile.length) {
+                $sourceTile.find('.entity, .npc').removeClass('entity-pending-move');
+            }
+        }
+
+        function testDMMove() {
+            const entityId = 'entity1';
+            
+            if (pendingMoves.has(entityId)) {
+                log(`Entity ${entityId} already has a pending move, ignoring new request`);
+                return;
+            }
+
+            // Find source tile using coords-id (like the real system)
+            const $sourceTile = $(`.tile[data-coords-id="${entityId}"]`);
+            
+            if (!$sourceTile.length) {
+                log(`Could not find source tile for entity with ID: ${entityId}`);
+                return;
+            }
+
+            const sourceX = $sourceTile.data('coords-x');
+            const sourceY = $sourceTile.data('coords-y');
+            const $sourceEntity = $sourceTile.find('.entity, .npc').first();
+            
+            if (!$sourceEntity.length) {
+                log(`No entity found in source tile`);
+                return;
+            }
+
+            const targetX = 4, targetY = 4;
+            log(`Creating ghost token for entity ${entityId} moving from (${sourceX}, ${sourceY}) to (${targetX}, ${targetY})`);
+            
+            createGhostToken(entityId, sourceX, sourceY, targetX, targetY, $sourceEntity);
+            $sourceEntity.addClass('entity-pending-move');
+
+            // Mock the AJAX call
+            mockAjaxPost('/dm_move_entity', {
+                entity_id: entityId,
+                x: targetX,
+                y: targetY
+            }, (response) => {
+                if (response.success) {
+                    log(`Entity ${entityId} moved successfully`);
+                    cleanupPendingMove(entityId);
+                } else {
+                    log('Failed to move entity');
+                    cleanupPendingMove(entityId);
+                }
+            });
+        }
+
+        function testPCMove() {
+            const entityUid = 'pc1';
+            
+            if (pendingMoves.has(entityUid)) {
+                log(`PC ${entityUid} already has a pending move, ignoring new request`);
+                return;
+            }
+
+            // Find source tile using coords-id (like the real system)
+            const $sourceTile = $(`.tile[data-coords-id="${entityUid}"]`);
+            
+            if (!$sourceTile.length) {
+                log(`Could not find source tile for PC entity with UID: ${entityUid}`);
+                return;
+            }
+
+            const sourceX = $sourceTile.data('coords-x');
+            const sourceY = $sourceTile.data('coords-y');
+            const $sourceEntity = $sourceTile.find('.entity, .npc').first();
+            
+            if (!$sourceEntity.length) {
+                log(`No entity found in source tile`);
+                return;
+            }
+
+            const targetX = 0, targetY = 4;
+            log(`Creating ghost token for PC ${entityUid} moving from (${sourceX}, ${sourceY}) to (${targetX}, ${targetY})`);
+            
+            createGhostToken(entityUid, sourceX, sourceY, targetX, targetY, $sourceEntity);
+            $sourceEntity.addClass('entity-pending-move');
+
+            // Mock the AJAX call
+            mockAjaxPost('/move_entity', {
+                entity_uid: entityUid,
+                x: targetX,
+                y: targetY
+            }, (data) => {
+                if (data.status === 'ok') {
+                    log(`PC moved successfully: ${data.entity_uid}`);
+                    cleanupPendingMove(entityUid);
+                } else {
+                    log('Failed to move PC');
+                    cleanupPendingMove(entityUid);
+                }
+            });
+        }
+
+        function clearGhosts() {
+            log('Clearing all ghost tokens');
+            for (const entityId of pendingMoves.keys()) {
+                cleanupPendingMove(entityId);
+            }
+        }
+
+        $(document).ready(() => {
+            log('Ghost token test page loaded');
+        });
+    </script>
+</body>
+</html>
