@@ -53,8 +53,12 @@ class Map(SerializableObject):
         else:
             self.properties = self.load(map_file_path)
         base = self.properties.get('map', {}).get('base', [])
+        manual_map_size = self.properties.get('map', {}).get('size', None)
 
-        self.size = [len(base[0]), len(base)]
+        if manual_map_size:
+            self.size = manual_map_size
+        else:
+            self.size = [len(base[0]), len(base)]
         # print(f"map size: {self.size}")
         self.feet_per_grid = self.properties.get('grid_size', 5)
         self.base_map = []
@@ -128,6 +132,7 @@ class Map(SerializableObject):
         if not skip_setup:
             self._setup_objects()
             self._setup_npcs()
+            self._setup_entities()
             self._trigger_after_setup()
 
     def background_image(self):
@@ -139,6 +144,17 @@ class Map(SerializableObject):
         By default, it iterates over the entities property.
         """
         return iter(self.entities.keys())
+
+    def _setup_entities(self):
+        entity_list = self.properties.get('map', {}).get('entities', [])
+        for entity_property in entity_list:
+            token  = entity_property.get('token', None)
+            pos = entity_property.get('pos', None)
+            layer_type = entity_property.get('layer', None)
+            if layer_type == 'object':
+                self._setup_object_with_token(token, pos)
+            else:
+                self._add_token_to_map(token, pos)
 
     def _compute_lights(self):
         self._light_map = self._light_builder.build_map()
@@ -153,35 +169,41 @@ class Map(SerializableObject):
                     continue
 
                 for token in tokens:
-                    if token == '#':
-                        object_info = self.session.load_object('stone_wall')
-                        obj = StoneWall(self.session, self, object_info)
-                        self.interactable_objects[obj] = [pos_x, pos_y]
-                        self.place_object(obj, pos_x, pos_y)
-                    elif token == '?':
-                        pass
-                    elif token == '.':
-                        # Use shared prototype to minimize per-instance duplication
-                        object_info = self.session.get_object_prototype('ground')
-                        obj = Ground(self.session, self, object_info)
-                        # All ground tiles start with a shared inventory reference; lazily detached on first write
-                        if hasattr(obj, 'set_inventory_reference'):
-                            obj.set_inventory_reference(self._shared_ground_inventory, shared=True)
-                        self.place_object(obj, pos_x, pos_y)
-                        self.interactable_objects[obj] = [pos_x, pos_y]
-                    elif token == '-' or token == '|':
-                        object_info = self.session.load_object('door')
-                        obj = DoorObject(self.session, self, object_info, token)
-                        self.interactable_objects[obj] = [pos_x, pos_y]
-                        self.place_object(obj, pos_x, pos_y)
-                    else:
-                        object_meta = self.legend[token]
-                        if object_meta is None:
-                            raise Exception(f"unknown object token {token}")
-                        if object_meta['type'] == 'mask':
-                            continue
-                        object_info = self.session.load_object(object_meta['type'])
-                        self.place_object(object_info, pos_x, pos_y, deepcopy(object_meta))
+                    if self._setup_object_with_token(token, (pos_x, pos_y)):
+                        continue
+
+    def _setup_object_with_token(self, token, pos):
+        pos_x, pos_y = pos
+        if token == '#':
+            object_info = self.session.load_object('stone_wall')
+            obj = StoneWall(self.session, self, object_info)
+            self.interactable_objects[obj] = [pos_x, pos_y]
+            self.place_object(obj, pos_x, pos_y)
+        elif token == '?':
+            pass
+        elif token == '.':
+            # Use shared prototype to minimize per-instance duplication
+            object_info = self.session.get_object_prototype('ground')
+            obj = Ground(self.session, self, object_info)
+            # All ground tiles start with a shared inventory reference; lazily detached on first write
+            if hasattr(obj, 'set_inventory_reference'):
+                obj.set_inventory_reference(self._shared_ground_inventory, shared=True)
+            self.place_object(obj, pos_x, pos_y)
+            self.interactable_objects[obj] = [pos_x, pos_y]
+        elif token == '-' or token == '|':
+            object_info = self.session.load_object('door')
+            obj = DoorObject(self.session, self, object_info, token)
+            self.interactable_objects[obj] = [pos_x, pos_y]
+            self.place_object(obj, pos_x, pos_y)
+        else:
+            object_meta = self.legend[token]
+            if object_meta is None:
+                raise Exception(f"unknown object token {token}")
+            if object_meta['type'] == 'mask':
+                return True
+            object_info = self.session.load_object(object_meta['type'])
+            self.place_object(object_info, pos_x, pos_y, deepcopy(object_meta))
+        return False
 
     def _trigger_after_setup(self):
         for trigger_name, trigger in self.triggers.items():
@@ -192,7 +214,7 @@ class Map(SerializableObject):
                 for obj in self.objects[x][y]:
                     if obj:
                         obj.after_setup()
-    
+
     def _setup_npcs(self):
         for player in self.properties.get('player', []):
             column_index, row_index = player['position']
@@ -213,20 +235,22 @@ class Map(SerializableObject):
         if self.meta_map:
             for column_index, meta_row in enumerate(self.meta_map):
                 for row_index, token in enumerate(meta_row):
-                    token_type = self.legend.get(token, {}).get('type')
+                    self._add_token_to_map(token, (column_index, row_index))
 
-                    if token_type == 'npc':
-                        npc_meta = self.legend.get(token)
-                        if not npc_meta['sub_type']:
-                            raise Exception('npc type requires sub_type as well')
+    def _add_token_to_map(self, token, position):
+        token_type = self.legend.get(token, {}).get('type')
+        if token_type == 'npc':
+            npc_meta = self.legend.get(token)
+            if not npc_meta['sub_type']:
+                raise Exception('npc type requires sub_type as well')
 
-                        entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta['name'], "overrides" : npc_meta.get('overrides', {}), "rand_life" : True })
+            entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta['name'], "overrides" : npc_meta.get('overrides', {}), "rand_life" : True })
 
-                        self.add(entity, column_index, row_index, group=npc_meta.get('group', None))
-                    elif token_type == 'spawn_point':
-                        self.spawn_points[self.legend.get(token, {}).get('name')] = {
-                            'location': [column_index, row_index]
-                        }
+            self.add(entity, *position, group=npc_meta.get('group', None))
+        elif token_type == 'spawn_point':
+            self.spawn_points[self.legend.get(token, {}).get('name')] = {
+                'location': position
+            }
 
     def add_linked_map(self, name, map):
         self.linked_maps[name] = map
