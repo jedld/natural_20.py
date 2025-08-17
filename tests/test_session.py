@@ -1,3 +1,4 @@
+# Cleaned test file - removed stray markdown markers
 import unittest
 import random
 from natural20.session import Session
@@ -14,6 +15,7 @@ from natural20.utils.action_builder import autobuild
 import uuid
 import yaml
 import os
+
 
 class TestSession(unittest.TestCase):
     def make_session(self):

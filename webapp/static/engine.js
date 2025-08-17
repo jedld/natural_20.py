@@ -31,6 +31,10 @@ let globalCtx = null;
 let talkToEntityMode = false; // Flag to track when user is talking to an entity
 let dialogMessageProcessing = false; // Flag to track if a dialog message is being processed
 
+// Ghost token system for pending moves
+let pendingMoves = new Map(); // entityId -> { sourceX, sourceY, targetX, targetY, ghostElement }
+let moveRequestTimeouts = new Map(); // entityId -> timeoutId for cleanup
+
 // Mode & State Variables (global scope for access by functions)
 let valid_target_cache = {};
 let move_path_cache = {};
@@ -143,6 +147,8 @@ class EventQueue {
         case "refresh_map": {
           Utils.refreshTileSet();
           updateDraggableEntityClasses();
+          // Clean up any pending moves since map is refreshing
+          cleanupAllPendingMoves();
           resolve();
           break;
         }
@@ -1520,6 +1526,181 @@ function updateDraggableEntityClasses() {
   });
 }
 
+// --- Ghost Token System Functions ---
+// Move entity to target position
+function moveEntityTo(entityId, targetX, targetY) {
+  // Check if there's already a pending move for this entity
+  if (pendingMoves.has(entityId)) {
+    console.log(`Entity ${entityId} already has a pending move, ignoring new request`);
+    return;
+  }
+
+  // Find the source tile using coords-id
+  const $sourceTile = $(`.tile[data-coords-id="${entityId}"]`);
+  
+  if (!$sourceTile.length) {
+    console.error(`Could not find source tile for entity with ID: ${entityId}`);
+  } else {
+    const sourceX = $sourceTile.data('coords-x');
+    const sourceY = $sourceTile.data('coords-y');
+    const $sourceEntity = $sourceTile.find('.entity, .npc').first();
+    
+    if ($sourceEntity.length) {
+      console.log(`Creating ghost token for entity ${entityId} moving from (${sourceX}, ${sourceY}) to (${targetX}, ${targetY})`);
+      // Create ghost token at target position
+      createGhostToken(entityId, sourceX, sourceY, targetX, targetY, $sourceEntity);
+      
+      // Mark source entity as pending move
+      $sourceEntity.addClass('entity-pending-move');
+    }
+  }
+
+  $.ajax({
+    url: '/dm_move_entity',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({
+      entity_id: entityId,
+      x: targetX,
+      y: targetY
+    }),
+    success: function (response) {
+      if (response.success) {
+        console.log(`Entity ${entityId} moved to (${targetX}, ${targetY})`);
+        // Clean up ghost token and pending state
+        cleanupPendingMove(entityId);
+        // The server will emit a refresh_map message, so no need to manually refresh
+      } else {
+        alert('Failed to move entity: ' + (response.error || 'Unknown error'));
+        cleanupPendingMove(entityId);
+      }
+    },
+    error: function (xhr, status, error) {
+      console.error('Error moving entity:', error);
+      alert('Error moving entity: ' + error);
+      cleanupPendingMove(entityId);
+    }
+  });
+}
+
+// Create a ghost token at the target location
+function createGhostToken(entityId, sourceX, sourceY, targetX, targetY, $sourceEntity) {
+  // Don't create ghost if target is same as source
+  if (sourceX === targetX && sourceY === targetY) {
+    console.log('Target is same as source, skipping ghost token creation');
+    return;
+  }
+
+  const $targetTile = $(`.tile[data-coords-x="${targetX}"][data-coords-y="${targetY}"]`);
+  if (!$targetTile.length) {
+    console.error(`Could not find target tile at (${targetX}, ${targetY})`);
+    return;
+  }
+
+  // Clone the entity for the ghost
+  const $ghost = $sourceEntity.clone();
+  $ghost.removeClass('entity npc').addClass('entity-move-ghost');
+  $ghost.removeAttr('data-entity-id'); // Remove ID to avoid conflicts
+  $ghost.removeAttr('data-entity-uid');
+  $ghost.removeAttr('data-entityId');
+  
+  // Add ghost to target tile
+  $targetTile.append($ghost);
+  
+  // Store pending move info
+  pendingMoves.set(entityId, {
+    sourceX: sourceX,
+    sourceY: sourceY, 
+    targetX: targetX,
+    targetY: targetY,
+    ghostElement: $ghost
+  });
+
+  // Set up timeout to clean up ghost if request takes too long (30 seconds)
+  const timeoutId = setTimeout(() => {
+    console.warn(`Move request for entity ${entityId} timed out, cleaning up ghost`);
+    cleanupPendingMove(entityId);
+  }, 30000);
+  
+  moveRequestTimeouts.set(entityId, timeoutId);
+}
+
+// Clean up pending move state and ghost token
+function cleanupPendingMove(entityId) {
+  console.log(`Cleaning up pending move for entity: ${entityId}`);
+  const pendingMove = pendingMoves.get(entityId);
+  if (pendingMove) {
+    // Remove ghost token
+    if (pendingMove.ghostElement) {
+      pendingMove.ghostElement.remove();
+      console.log(`Removed ghost token for entity: ${entityId}`);
+    }
+    pendingMoves.delete(entityId);
+  }
+
+  // Clear timeout
+  const timeoutId = moveRequestTimeouts.get(entityId);
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+    moveRequestTimeouts.delete(entityId);
+  }
+
+  // Remove pending move styling from source entity using coords-id
+  const $sourceTile = $(`.tile[data-coords-id="${entityId}"]`);
+  if ($sourceTile.length) {
+    $sourceTile.find('.entity, .npc').removeClass('entity-pending-move');
+  }
+}
+
+// Clean up all pending moves (useful for page refresh or errors)
+function cleanupAllPendingMoves() {
+  for (const entityId of pendingMoves.keys()) {
+    cleanupPendingMove(entityId);
+  }
+}
+
+// Move PC entity to target position (with ghost token support)
+function movePCEntityTo(entityUid, targetX, targetY) {
+  // Check if there's already a pending move for this entity
+  if (pendingMoves.has(entityUid)) {
+    console.log(`PC ${entityUid} already has a pending move, ignoring new request`);
+    return;
+  }
+
+  // Find the source tile using coords-id
+  const $sourceTile = $(`.tile[data-coords-id="${entityUid}"]`);
+  
+  if (!$sourceTile.length) {
+    console.log(`Could not find source tile for PC entity with UID: ${entityUid}, proceeding with move anyway`);
+  } else {
+    const sourceX = $sourceTile.data('coords-x');
+    const sourceY = $sourceTile.data('coords-y');
+    const $sourceEntity = $sourceTile.find('.entity, .npc').first();
+    
+    if ($sourceEntity.length) {
+      console.log(`Creating ghost token for PC ${entityUid} moving from (${sourceX}, ${sourceY}) to (${targetX}, ${targetY})`);
+      // Create ghost token at target position
+      createGhostToken(entityUid, sourceX, sourceY, targetX, targetY, $sourceEntity);
+      
+      // Mark source entity as pending move
+      $sourceEntity.addClass('entity-pending-move');
+    }
+  }
+
+  ajaxPost("/move_entity", {
+    entity_uid: entityUid,
+    x: targetX,
+    y: targetY
+  }, (data) => {
+    if (data.status === 'ok') {
+      console.log("PC moved successfully:", data.entity_uid);
+      cleanupPendingMove(entityUid);
+    } else {
+      alert("Failed to move PC: " + (data.error || "Unknown error"));
+      cleanupPendingMove(entityUid);
+    }
+  }, true);
+}
 
 // --- Document Ready: Event Bindings & Main Logic ---
 $(document).ready(() => {
@@ -2642,17 +2823,8 @@ $(document).ready(() => {
         if (draggedData) {
           console.log(`Moving PC ${draggedData} to (${x}, ${y})`);
           
-          ajaxPost("/move_entity", {
-            entity_uid: draggedData,
-            x: x,
-            y: y
-          }, (data) => {
-            if (data.status === 'ok') {
-              console.log("PC moved successfully:", data.entity_uid);
-            } else {
-              alert("Failed to move PC: " + (data.error || "Unknown error"));
-            }
-          }, true);
+          // Use ghost token for PC moves too
+          movePCEntityTo(draggedData, x, y);
         }
       } else {
         console.log("Cannot place PC: position is occupied");
@@ -4178,32 +4350,6 @@ $(document).ready(() => {
     $('body').removeClass('entity-dragging-active');
   }
 
-  // Move entity to target position
-  function moveEntityTo(entityId, targetX, targetY) {
-    $.ajax({
-      url: '/dm_move_entity',
-      method: 'POST',
-      contentType: 'application/json',
-      data: JSON.stringify({
-        entity_id: entityId,
-        x: targetX,
-        y: targetY
-      }),
-      success: function (response) {
-        if (response.success) {
-          console.log(`Entity ${entityId} moved to (${targetX}, ${targetY})`);
-          // The server will emit a refresh_map message, so no need to manually refresh
-        } else {
-          alert('Failed to move entity: ' + (response.error || 'Unknown error'));
-        }
-      },
-      error: function (xhr, status, error) {
-        console.error('Error moving entity:', error);
-        alert('Error moving entity: ' + error);
-      }
-    });
-  }
-
   Chat.init();
 
   // Make dialog panel draggable and resizable
@@ -4214,6 +4360,11 @@ $(document).ready(() => {
   makeFloatingWindowsDraggable();
 
   // Handle window resize to keep panel in bounds
+  
+  // Clean up ghost tokens on page unload
+  $(window).on('beforeunload', function() {
+    cleanupAllPendingMoves();
+  });
 });
 
 // Function to make dialog panel draggable
