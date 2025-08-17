@@ -36,6 +36,13 @@
         <img src="{{ url_for('static', filename='info.png') }}" style="width: 50px; height: 50px;">
       </button>
     </td>
+    {% if is_dm %}
+    <td>
+      <button class="delete-entity-btn btn btn-danger btn-sm" title="Delete from battlefield" data-entity-uid="{{ entity.entity_uid }}">
+        <i class="glyphicon glyphicon-trash"></i>
+      </button>
+    </td>
+    {% endif %}
     {% if entity.allow_talk() and entity.conscious() %}
     <td>
       <button class="talk-action button text-center">

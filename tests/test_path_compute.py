@@ -1,15 +1,16 @@
 import unittest
-from natural20.ai.path_compute import PathCompute
 from natural20.session import Session
+from natural20.map import Map
 from natural20.player_character import PlayerCharacter
 from natural20.map_renderer import MapRenderer
 from natural20.map import Map
+from natural20.ai.path_compute import PathCompute
+import pdb
 
 class TestPathCompute(unittest.TestCase):
     def setUp(self):
         self.session = Session(root_path='tests/fixtures')
         self.map = Map(self.session, 'path_finding_test')
-        self.map.size = (8, 7)  # Example size, adjust as necessary
         self.fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
         self.path_compute = PathCompute(self.session, self.map, self.fighter)
         self.map_renderer = MapRenderer(self.map)
@@ -27,8 +28,10 @@ class TestPathCompute(unittest.TestCase):
         )
         expected_path = [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 4), (6, 4), (7, 5), (6, 6)]
         self.assertEqual(self.path_compute.compute_path(0, 0, 6, 6), expected_path)
+        rendered_path = self.map_renderer.render(path=self.path_compute.compute_path(0, 0, 6, 6), path_char='+')
+        print(rendered_path)
         self.assertEqual(
-            self.map_renderer.render(path=self.path_compute.compute_path(0, 0, 6, 6), path_char='+'),
+            rendered_path,
             "········\n" +
             "·+··#···\n" +
             "··+##···\n" +
@@ -123,6 +126,48 @@ class TestPathCompute(unittest.TestCase):
             "#######\n"
         )
         self.assertIsNone(self.path_compute.compute_path(0, 1, 0, 4))
+
+    def test_door_navigation_truncates_at_first_door(self):
+        # Setup map and open the door at (2,5)
+        test_map = Map(self.session, 'tests/fixtures/maps/thinwall_map_doors.yml')
+        # Find and open the door object on (2,5)
+        from natural20.item_library.door_object import DoorObject, DoorObjectWall
+        
+        # Place a PC and compute a path through the now-open door
+        pc = PlayerCharacter.load(self.session, 'characters/dwarf_cleric.yml')
+        test_map.place((0, 6), pc)
+        pc_path = PathCompute(self.session, test_map, pc)
+        dest = (2, 3)
+        path = pc_path.compute_path(0, 6, *dest, door_navigation=True)
+        self.assertIsNotNone(path)
+
+        map_render = MapRenderer(test_map)
+        pdb.set_trace()  # Debugging breakpoint
+        self.assertEqual(path[-1], (2, 6))
+
+    def test_door_navigation_does_not_truncate_when_door_open(self):
+        # Setup map and open the door at (2,5)
+        test_map = Map(self.session, 'tests/fixtures/maps/thinwall_map_doors.yml')
+        # Find and open the door object on (2,5)
+        from natural20.item_library.door_object import DoorObject, DoorObjectWall
+        door_objs = [o for o in test_map.objects_at(2, 5) if isinstance(o, (DoorObject, DoorObjectWall))]
+        self.assertTrue(len(door_objs) > 0)
+        door_objs[0].open()
+        self.assertTrue(door_objs[0].opened())  # Ensure the door is open
+        
+        # Place a PC and compute a path through the now-open door
+        pc = PlayerCharacter.load(self.session, 'characters/dwarf_cleric.yml')
+        test_map.place((1, 6), pc)
+        pc_path = PathCompute(self.session, test_map, pc)
+        dest = (2, 3)
+        path = pc_path.compute_path(1, 6, *dest, door_navigation=True)
+        self.assertIsNotNone(path)
+        # Since the door at (2,5) is open and passable, door-navigation must NOT truncate at that tile.
+        # If (2,5) is in the path, it must not be the final step.
+        map_render = MapRenderer(test_map)
+        res = map_render.render(path=path, path_char='+')
+        if (2, 5) in path:
+            self.assertNotEqual(path[-1], (2, 5))
 
 if __name__ == '__main__':
     unittest.main()

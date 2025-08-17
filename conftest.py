@@ -6,7 +6,6 @@ import pytest
 _TEMP_XFAIL = {
     # Core engine assertions to revisit
     "tests/test_cleric_spell_action.py::TestClericSpellAction::test_autobuild",
-    "tests/test_interact_action.py::TestInteractAction::test_player_item_transfer",
     "tests/test_json_renderer.py::TestMap::test_controller",
     "tests/test_player_character.py::TestPlayerCharacter::test_fighter_to_h",
 
