@@ -2843,81 +2843,31 @@ $(document).ready(() => {
     });
   }
 
-  // Entity deletion functionality
+  // (Deprecated confirm-based handler removed; see unified modal-based handler below)
+
+  // Handle action-bar delete button clicks (also used in turn order)
   $(document).on('click', '.delete-entity-btn', function(e) {
     e.preventDefault();
     e.stopPropagation();
     
     const entityUid = $(this).data('entity-uid');
-    const entityName = $(this).closest('.turn-order-item').find('.entity-label').text();
+    let entityName = 'this entity';
     
-    if (confirm(`Are you sure you want to delete "${entityName}" from the battlefield?`)) {
-      ajaxPost("/delete_entity", {
-        entity_uid: entityUid
-      }, (data) => {
-        if (data.status === 'ok') {
-          console.log("Entity deleted successfully:", data.entity_uid);
-          // The map will be updated via socket message
-        } else {
-          alert("Failed to delete entity: " + (data.error || "Unknown error"));
-        }
-      }, true);
-    }
-  });
-
-  // Map entity hover delete functionality
-  function addEntityDeleteButtons() {
-    // Only add for DMs
-    if (!$('body').data('role') || !$('body').data('role').includes('dm')) {
-      return;
-    }
-
-    $('.tile .entity').each(function() {
-      const $entity = $(this);
-      const $tile = $entity.closest('.tile');
-      
-      // Skip if delete button already exists
-      if ($entity.find('.entity-delete-hover').length > 0) {
-        return;
+    // Try to find a nearby name label if in turn order
+    const $row = $(this).closest('.turn-order-item');
+    if ($row.length) {
+      entityName = $row.find('.entity-label').text() || entityName;
+    } else {
+      // If triggered from tile action bar, try to infer from nameplate in tile
+      const $tile = $(this).closest('.tile');
+      const $nameplate = $tile.find('.nameplate');
+      if ($nameplate.length) {
+        entityName = $nameplate.text();
       }
-
-      // Get entity data
-      const entityUid = $tile.data('coords-id');
-      
-      if (entityUid) {
-        // Create delete button
-        const $deleteBtn = $('<span class="entity-delete-hover" title="Delete Entity">×</span>');
-        $deleteBtn.data('entity-uid', entityUid);
-        
-        $entity.append($deleteBtn);
-      }
-    });
-  }
-
-  // Expose function globally for utils.js
-  window.addEntityDeleteButtons = addEntityDeleteButtons;
-
-  // Handle map entity delete button clicks
-  $(document).on('click', '.entity-delete-hover', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const entityUid = $(this).data('entity-uid');
-    
-    // Find entity info for display
-    let entityName = 'Unknown Entity';
-    const $tile = $(this).closest('.tile');
-    
-    // Try to get entity name from various sources
-    if ($tile.find('img').length > 0) {
-      entityName = $tile.find('img').attr('alt') || $tile.find('img').attr('title') || entityName;
     }
     
-    // Set modal content and show
     $('#entityToDeleteName').text(entityName);
     $('#deleteEntityModal').modal('show');
-    
-    // Store entity UID for confirmation
     $('#confirmDeleteEntity').data('entity-uid', entityUid);
   });
 
@@ -2938,15 +2888,6 @@ $(document).ready(() => {
         }
       }, true);
     }
-  });
-
-  // Call addEntityDeleteButtons when map updates
-  $(document).ready(function() {
-    // Add delete buttons on initial load
-    setTimeout(addEntityDeleteButtons, 500);
-    
-    // Re-add delete buttons when map refreshes
-    $(document).on('mapUpdated', addEntityDeleteButtons);
   });
 
   // DM Sound Manager Event Handlers
