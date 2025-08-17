@@ -72,41 +72,7 @@
   z-index: 2;
 }
 
-/* DM hover delete button for entities on map */
-body[data-role*="dm"] .tile .entity {
-  position: relative;
-}
-
-body[data-role*="dm"] .tile .entity-delete-hover {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 20px;
-  height: 20px;
-  background-color: #d9534f;
-  color: white;
-  border: 1px solid white;
-  border-radius: 50%;
-  font-size: 12px;
-  line-height: 18px;
-  text-align: center;
-  cursor: pointer;
-  opacity: 0;
-  visibility: hidden;
-  transition: all 0.2s ease;
-  z-index: 10;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-}
-
-body[data-role*="dm"] .tile:hover .entity-delete-hover {
-  opacity: 1;
-  visibility: visible;
-}
-
-body[data-role*="dm"] .tile .entity-delete-hover:hover {
-  background-color: #c9302c;
-  transform: scale(1.1);
-}
+/* removed: DM hover delete button for entities on map (moved to action bar) */
 
 .image-container {
   z-index: 0;

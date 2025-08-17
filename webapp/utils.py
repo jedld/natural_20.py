@@ -17,6 +17,7 @@ from mutagen.mp3 import MP3
 from natural20.utils.serialization import Serialization
 import gzip
 import threading
+import queue
 from natural20.action import Action
 from typing import Optional
 from natural20.session import Session
@@ -90,6 +91,18 @@ class GameManagement:
         self.autosave = autosave
         self.gzip = False
         self.game_state_lock = threading.Lock()
+        # Initialize logger as early as possible so subsequent setup can log safely
+        if not system_logger:
+            self.logger = logging.getLogger(__name__)
+            self.logger.setLevel(logging.INFO)
+        else:
+            self.logger = system_logger
+        # Initialize async save worker
+        self._save_queue = queue.Queue(maxsize=50)
+        # Sentinel object to signal orderly shutdown of the save worker
+        self._SAVE_SENTINEL = object()
+        self._save_thread = threading.Thread(target=self._save_worker, name="save-worker", daemon=True)
+        self._save_thread.start()
         # Centralize save directory (writable in Docker). Can be absolute or relative.
         self.save_dir = os.environ.get('SAVE_DIR', os.path.join(os.getcwd(), 'saves'))
         try:
@@ -109,12 +122,6 @@ class GameManagement:
             os.makedirs(tmpdir, exist_ok=True)
             self.save_dir = tmpdir
             self.logger.warning(f"SAVE_DIR not writable. Falling back to {self.save_dir}")
-
-        if not system_logger:
-            self.logger = logging.getLogger(__name__)
-            self.logger.setLevel(logging.INFO)
-        else:
-            self.logger = system_logger
 
 
         self.logger.info(f"Loading map from {self.map_location}")
@@ -589,32 +596,88 @@ class GameManagement:
         return self.save_states
 
     def save_game(self, name: Optional[str] = None):
-        serializer = Serialization()
-        yaml_str = serializer.serialize(self.game_session, self.battle, self.maps)
+        # Snapshot state and determine filename under lock, then write outside the lock
+        yaml_str, target_file, index_for_record = self._prepare_save(name)
+        self._write_save_file(yaml_str, target_file, index_for_record)
 
-        # Determine filename
-        if name:
-            # Sanitize name to a safe slug
-            import re
-            slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", name).strip("-_ ")
-            ts = time.strftime('%Y%m%d-%H%M%S')
-            base_name = f"save_{ts}_{slug}.yml" if slug else f"save_{ts}.yml"
-            index_for_record = -1
-        else:
-            index = self.current_save_index % self.max_save_states
-            base_name = f"save_{index}.yml"
-            index_for_record = index
+    def save_game_async(self, name: Optional[str] = None):
+        """Queue a save request to be processed by the background save worker."""
+        try:
+            # Coalesce: if queue is full, drop older requests
+            if self._save_queue.full():
+                try:
+                    _ = self._save_queue.get_nowait()
+                except Exception:
+                    pass
+            self._save_queue.put_nowait(name)
+        except Exception as e:
+            # Fallback to synchronous save if queueing fails
+            self.logger.warning(f"Falling back to sync save due to queue error: {e}")
+            self.save_game(name=name)
 
-        target_file = base_name + ('.gz' if self.gzip and not base_name.endswith('.gz') else '')
+    def _save_worker(self):
+        """Background worker that processes save requests, coalescing bursts."""
+        while True:
+            try:
+                name = self._save_queue.get()  # block
+                stop_after = False
+                if name is self._SAVE_SENTINEL:
+                    # Nothing pending before sentinel, exit immediately
+                    break
+                # Drain to last request to coalesce rapid bursts. If we encounter sentinel while
+                # draining, process the last non-sentinel request and then stop.
+                while not self._save_queue.empty():
+                    try:
+                        next_item = self._save_queue.get_nowait()
+                        if next_item is self._SAVE_SENTINEL:
+                            stop_after = True
+                            break
+                        name = next_item
+                    except Exception:
+                        break
+                yaml_str, target_file, index_for_record = self._prepare_save(name)
+                self._write_save_file(yaml_str, target_file, index_for_record)
+                if stop_after:
+                    break
+            except Exception as e:
+                try:
+                    self.logger.error(f"Async save failed: {e}")
+                except Exception:
+                    pass
+
+    def _prepare_save(self, name: Optional[str]):
+        """Prepare YAML string and decide target filename/index under lock."""
+        with self.game_state_lock:
+            serializer = Serialization()
+            yaml_str = serializer.serialize(self.game_session, self.battle, self.maps)
+
+            # Determine filename
+            if name:
+                import re
+                slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", name).strip("-_ ")
+                ts = time.strftime('%Y%m%d-%H%M%S')
+                base_name = f"save_{ts}_{slug}.yml" if slug else f"save_{ts}.yml"
+                index_for_record = -1
+            else:
+                index = self.current_save_index % self.max_save_states
+                base_name = f"save_{index}.yml"
+                index_for_record = index
+                # Advance index to avoid race while writing
+                self.current_save_index += 1
+
+            target_file = base_name + ('.gz' if self.gzip and not base_name.endswith('.gz') else '')
+            return yaml_str, target_file, index_for_record
+
+    def _write_save_file(self, yaml_str: str, target_file: str, index_for_record: int):
+        """Write the given YAML string to disk atomically and update indices/state."""
         abs_target = os.path.join(self.save_dir, target_file)
-
-        # Write file atomically via temp + replace to avoid permission issues on existing files
         import tempfile
         tmp_dir = self.save_dir
         try:
             if abs_target.endswith('.gz'):
                 fd, tmp_path = tempfile.mkstemp(prefix='.save_', suffix='.yml.gz', dir=tmp_dir)
-                with os.fdopen(fd, 'wb') as f:
+                os.close(fd)
+                with gzip.open(tmp_path, 'wb') as f:
                     f.write(yaml_str.encode('utf-8'))
             else:
                 fd, tmp_path = tempfile.mkstemp(prefix='.save_', suffix='.yml', dir=tmp_dir)
@@ -622,7 +685,6 @@ class GameManagement:
                     f.write(yaml_str)
             os.replace(tmp_path, abs_target)
         except PermissionError:
-            # Fall back to temp directory and update save_dir if needed
             import tempfile as _tempfile
             fallback_dir = os.path.join(_tempfile.gettempdir(), f"natural20_saves_{os.getpid()}")
             os.makedirs(fallback_dir, exist_ok=True)
@@ -636,7 +698,7 @@ class GameManagement:
                 with open(abs_target, 'w') as f:
                     f.write(yaml_str)
 
-        # Rebuild the save list to keep it consistent and deduplicated
+        # Rebuild save list
         available_files = []
         try:
             for file in os.listdir(self.save_dir):
@@ -645,15 +707,16 @@ class GameManagement:
                         idx = int(file.split('_')[1].split('.')[0])
                         available_files.append((idx, file))
                     except Exception:
-                        # Named saves with timestamps may not have numeric index; include them with idx=10**9 for sorting last
                         available_files.append((10**9, file))
         except FileNotFoundError:
             pass
         self.save_states = [file for idx, file in sorted(available_files, key=lambda x: x[0])]
-        with open(os.path.join(self.save_dir, 'last_save.txt'), 'w') as f:
-            f.write(f"{target_file},{index_for_record}")
-        if name is None:
-            self.current_save_index += 1
+        try:
+            with open(os.path.join(self.save_dir, 'last_save.txt'), 'w') as f:
+                f.write(f"{target_file},{index_for_record}")
+        except Exception:
+            # Non-fatal if we can't write last_save.txt
+            pass
 
     def load_save(self, index=None, filename=None):
         """
@@ -811,9 +874,29 @@ class GameManagement:
         self.socketio.emit('message', {'type': 'turn', 'message': { 'game_time': self.game_session.game_time }})
 
         if self.autosave:
-            print("autosave")
-            self.save_game()
+            self.save_game_async()
         return True
+
+    def shutdown_save_worker(self, timeout: float = 5.0):
+        """Request the background save worker to flush any pending saves and stop.
+        Blocks up to `timeout` seconds waiting for the thread to exit.
+        Safe to call multiple times.
+        """
+        try:
+            # If thread already not alive, nothing to do
+            if not getattr(self, "_save_thread", None) or not self._save_thread.is_alive():
+                return
+            # Enqueue sentinel; block if needed to preserve ordering
+            self._save_queue.put(self._SAVE_SENTINEL)
+            self._save_thread.join(timeout)
+            if self._save_thread.is_alive():
+                try:
+                    self.logger.warning("Save worker did not stop within timeout; proceeding with shutdown.")
+                except Exception:
+                    pass
+        except Exception:
+            # Best-effort shutdown; never raise during app teardown
+            pass
     
     def check_and_notify_map_change(self, pov_map, pov_entity, username):
         # Use the lock to make the operation atomic

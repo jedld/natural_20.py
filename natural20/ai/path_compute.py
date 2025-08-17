@@ -1,6 +1,7 @@
 import heapq
 import math
 import copy
+from natural20.item_library.door_object import DoorObject, DoorObjectWall
 MAX_DISTANCE = 4_000_000
 
 class PathCompute:
@@ -11,7 +12,10 @@ class PathCompute:
         self.ignore_opposing = ignore_opposing
         self.max_x, self.max_y = self.map.size
    
-    def compute_path(self, source_x, source_y, destination_x, destination_y, available_movement_cost=None, accumulated_path=None):
+    def compute_path(self, source_x, source_y, destination_x, destination_y,
+                     available_movement_cost=None,
+                     accumulated_path=None,
+                     door_navigation=False):
         """
         A* search from (source_x, source_y) to (destination_x, destination_y).
 
@@ -20,6 +24,7 @@ class PathCompute:
             destination_x, destination_y: Target coordinates
             available_movement_cost: Optional movement cost budget in feet
             accumulated_path: Optional list of (x,y) coordinates representing previous path segments
+            door_navigation: Whether to enable door navigation, allowing the path to pass through doors.
 
         Returns:
             A list of (x, y) for the path or None if no path exists.
@@ -67,7 +72,7 @@ class PathCompute:
                 break
 
             # Explore neighbors
-            for (nx, ny), move_cost in self.get_neighbors(cx, cy):
+            for (nx, ny), move_cost in self.get_neighbors(cx, cy, door_navigation=door_navigation):
                 new_g = current_g + move_cost
                 if new_g < distances[nx][ny]:
                     distances[nx][ny] = new_g
@@ -94,6 +99,20 @@ class PathCompute:
         # If we have a movement budget, trim
         if available_movement_cost is not None:
             path = self.trim_path_by_movement(path, distances, available_movement_cost)
+
+        # If door navigation is enabled, truncate only at the first NON-PASSABLE door encountered
+        # (i.e., skip truncation when the door is already open/passable).
+        if door_navigation and len(path) > 1:
+            for i in range(1, len(path)):
+                px, py = path[i]
+                if self._is_door_tile(px, py):
+                    prev = path[i - 1]
+                    # If we cannot legally move from prev -> (px, py) under normal rules,
+                    # then this door is effectively closed/blocking. Truncate here.
+                    if not self.map.bidirectionally_passable(self.entity, px, py, prev, self.battle, False,
+                                                             ignore_opposing=self.ignore_opposing):
+                        path = path[: i]
+                        break
 
         return path
 
@@ -205,13 +224,49 @@ class PathCompute:
 
         return result
 
-    def get_neighbors(self, x, y):
+    def _is_door_tile(self, x, y) -> bool:
+        try:
+            objs = self.map.objects_at(x, y)
+        except Exception:
+            return False
+        for obj in objs:
+            if isinstance(obj, (DoorObject, DoorObjectWall)):
+                return True
+            # Fallback: some door variants may expose kind_of_door
+            if hasattr(obj, 'kind_of_door') and obj.kind_of_door():
+                return True
+        return False
+
+    def get_neighbors(self, x, y, door_navigation: bool = False):
         """
         Return a list of tuples: [((nx, ny), move_cost), ...].
         Similar to Dijkstra code, but we don't need separate 'squeeze' vs. normal
         calls; we can decide the cost or if passable inside here.
         """
         neighbors = []
+
+        def diagonal_clear(dx, dy, allow_squeeze: bool) -> bool:
+            """
+            For diagonal steps, ensure we don't slip through solid corners.
+            Allow the diagonal if at least one of the orthogonal adjacents is traversable
+            under the same squeeze rule.
+            """
+            if abs(dx) != 1 or abs(dy) != 1:
+                return True
+            ax, ay = x + dx, y          # horizontal neighbor
+            bx, by = x, y + dy    # vertical neighbor
+            adj1_ok = self.map.bidirectionally_passable(self.entity, ax, ay, (x, y), self.battle, allow_squeeze,
+                                                        ignore_opposing=self.ignore_opposing)
+            adj2_ok = self.map.bidirectionally_passable(self.entity, bx, by, (x, y), self.battle, allow_squeeze,
+                                                        ignore_opposing=self.ignore_opposing)
+            # If door navigation is on, treat door tiles as acceptable for the orthogonal clearance
+            if door_navigation:
+                if not adj1_ok and self._is_door_tile(ax, ay):
+                    adj1_ok = True
+                if not adj2_ok and self._is_door_tile(bx, by):
+                    adj2_ok = True
+            return adj1_ok or adj2_ok
+
         for dx in (-1, 0, 1):
             for dy in (-1, 0, 1):
                 if dx == 0 and dy == 0:
@@ -222,28 +277,36 @@ class PathCompute:
                     continue
 
                 # Try normal passable
-                if self.map.bidirectionally_passable(self.entity, nx, ny, (x, y), self.battle, False,
-                                    ignore_opposing=self.ignore_opposing):
-                    move_cost = self.base_move_cost(nx, ny)
+                if diagonal_clear(dx, dy, allow_squeeze=False) and \
+                   (self.map.bidirectionally_passable(self.entity, nx, ny, (x, y), self.battle, False,
+                                    ignore_opposing=self.ignore_opposing) or
+                    (door_navigation and self._is_door_tile(nx, ny))):
+                    move_cost = self.base_move_cost(nx, ny, src = (x, y))
                     neighbors.append(((nx, ny), move_cost))
                 # Otherwise, if not normal passable, check if passable with squeeze
-                elif self.map.bidirectionally_passable(self.entity, nx, ny, (x, y), self.battle, True,
-                                    ignore_opposing=self.ignore_opposing):
+                elif diagonal_clear(dx, dy, allow_squeeze=True) and \
+                     (self.map.bidirectionally_passable(self.entity, nx, ny, (x, y), self.battle, True,
+                                    ignore_opposing=self.ignore_opposing) or
+                      (door_navigation and self._is_door_tile(nx, ny))):
                     # e.g., let's define squeeze cost = 2
-                    move_cost = 2
+                    move_cost = self.base_move_cost(nx, ny, src = (x, y)) + 1
                     if self.entity.prone():
                         move_cost += 1
                     neighbors.append(((nx, ny), move_cost))
 
         return neighbors
 
-    def base_move_cost(self, x, y):
+    def base_move_cost(self, x, y, src=None):
         """
         If the terrain is difficult or the entity is prone, adjust cost accordingly.
         """
         cost = 2 if self.map.difficult_terrain(self.entity, x, y, self.battle) and not self.entity.is_flying() else 1
         if self.entity.prone():
             cost += 1
+        if src:
+            # if diagonal add 0.5 to the cost
+            if (src[0] != x and src[1] != y):
+                cost += 0.1
         return cost
 
     def heuristic(self, cx, cy, dx, dy):
