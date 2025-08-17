@@ -3,8 +3,7 @@ class StaticLightBuilder:
     def __init__(self, battlemap):
         self.map = battlemap
         self.properties = battlemap.properties
-        base = self.properties.get('map', {}).get('base', [])
-        self.size = [len(base[0]), len(base)]
+        self.size = battlemap.size
         self.light_properties = self.properties.get('lights')
         self.light_map = self.properties.get('map', {}).get('light')
         self.base_illumination = self.properties.get('map', {}).get('illumination', 1.0)
