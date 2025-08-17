@@ -293,6 +293,14 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Lootable,
             for y_pos in range(-1, 2):
               if x_pos == 0 and y_pos == 0:
                 continue
+              # Prevent corner cutting on diagonals: both adjacent orthogonals must be free
+              if abs(x_pos) == 1 and abs(y_pos) == 1:
+                adj1_ok = map.bidirectionally_passable(self, cur_x + x_pos, cur_y, (cur_x, cur_y), battle, allow_squeeze=False) and \
+                          map.placeable(self, cur_x + x_pos, cur_y, battle, squeeze=False)
+                adj2_ok = map.bidirectionally_passable(self, cur_x, cur_y + y_pos, (cur_x, cur_y), battle, allow_squeeze=False) and \
+                          map.placeable(self, cur_x, cur_y + y_pos, battle, squeeze=False)
+                if not (adj1_ok and adj2_ok):
+                  continue
               if map.bidirectionally_passable(self, cur_x + x_pos, cur_y + y_pos, (cur_x, cur_y), battle, allow_squeeze=False) and map.placeable(self, cur_x + x_pos, cur_y + y_pos, battle, squeeze=False):
                 chosen_path = [[cur_x, cur_y], [cur_x + x_pos, cur_y + y_pos]]
                 actual_movement = compute_actual_moves(self, chosen_path, map, battle, self.available_movement(battle) // 5)

@@ -12,6 +12,7 @@ from PIL import Image
 import logging
 import importlib
 import pdb
+import atexit
 
 # Load environment variables from .env file if it exists
 try:
@@ -202,6 +203,11 @@ if 'extensions' in index_data:
 sockets = []
 MAP_PADDING = [6, 15]
 
+# Health check endpoint for container orchestration
+@app.route('/health')
+def health():
+    return jsonify({"status": "ok"}), 200
+
 output_logger = SocketIOOutputLogger(socketio)
 output_logger.log("Server started")
 
@@ -224,6 +230,15 @@ current_game = GameManagement(game_session=game_session,
                               autosave=AUTOSAVE,
                               system_logger=logger,
                               soundtrack=SOUNDTRACKS)
+
+# Ensure pending saves are flushed on process exit
+def _shutdown_flush():
+    try:
+        getattr(current_game, 'shutdown_save_worker', lambda timeout=2.0: None)(timeout=3.0)
+    except Exception:
+        pass
+
+atexit.register(_shutdown_flush)
 
 # Initialize game context provider for LLM RAG
 game_context_provider = GameContextProvider(game_session, current_game)
@@ -458,9 +473,9 @@ def admin_save():
     payload = request.get_json(silent=True) or {}
     name = payload.get('name')
     try:
-        with current_game.game_state_lock:
-            current_game.save_game(name=name)
-        return jsonify(status='ok')
+        # Queue async save to avoid blocking request handler
+        current_game.save_game_async(name=name)
+        return jsonify(status='queued')
     except Exception as e:
         return jsonify(error=str(e)), 500
 
@@ -1744,7 +1759,7 @@ def compute_path():
         'x': request.args.get('to[x]'),
         'y': request.args.get('to[y]')
     }
-
+    dest = (int(destination['x']), int(destination['y']))
     entity_x = int(source['x'])
     entity_y = int(source['y'])
 
@@ -1768,12 +1783,24 @@ def compute_path():
         available_movement = entity.available_movement(battle)
     else:
         available_movement = None
-    path = PathCompute(battle, battle_map, entity).compute_path(int(source['x']),
-                                                                int(source['y']),
-                                                                int(destination['x']),
-                                                                int(destination['y']),
-                                                                accumulated_path=accumulated_path,
-                                                                available_movement_cost=available_movement)
+    path_compute = PathCompute(battle, battle_map, entity)
+    path1 = path_compute.compute_path(int(source['x']),
+                                    int(source['y']),
+                                    int(destination['x']),
+                                    int(destination['y']),
+                                    accumulated_path=accumulated_path,
+                                    available_movement_cost=available_movement)
+    if path1 and dest in path1:
+        path = path1
+    else:
+        path = path_compute.compute_path(int(source['x']),
+                                    int(source['y']),
+                                    int(destination['x']),
+                                    int(destination['y']),
+                                    accumulated_path=accumulated_path,
+                                    available_movement_cost=available_movement,
+                                    door_navigation=True)
+
     if accumulated_path:
         accumulated_path.extend(path[1:])
     else:
@@ -2562,7 +2589,7 @@ def get_actions():
             available_actions = entity.available_actions(session, battle, auto_target=False, map=battle_map, interact_only=True, admin_actions='dm' in user_role())
             # Create entity map for looking up target entities
             entity_map = battle_map.entities
-            return render_template('actions.html', entity=entity, battle=battle, session=game_session, map=battle_map, available_actions=available_actions, entity_map=entity_map)
+            return render_template('actions.html', entity=entity, battle=battle, session=game_session, map=battle_map, available_actions=available_actions, entity_map=entity_map, is_dm=('dm' in user_role()))
         else:
             return jsonify(error="Forbidden"), 403
     object_ = battle_map.object_by_uid(id)
@@ -2571,7 +2598,7 @@ def get_actions():
         available_actions = object_.available_actions(session, battle, auto_target=False, map=battle_map, interact_only=True, admin_actions=True)
         # Create entity map for looking up target entities
         entity_map = battle_map.entities
-        return render_template('actions.html', entity=object_, battle=battle, session=game_session, map=battle_map, available_actions=available_actions, entity_map=entity_map)
+    return render_template('actions.html', entity=object_, battle=battle, session=game_session, map=battle_map, available_actions=available_actions, entity_map=entity_map, is_dm=('dm' in user_role()))
 
     return jsonify(error="Entity not found"), 404
 
