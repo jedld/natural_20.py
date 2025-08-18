@@ -251,6 +251,24 @@
               <label>Vertical Falloff</label>
               <input id="fog-falloff" type="range" min="0" max="2" step="0.05" value="1.0" class="form-control">
             </div>
+            <div id="rain-config" style="display:none; margin-top:8px;">
+              <label>Intensity</label>
+              <input id="rain-intensity" type="range" min="0" max="1" step="0.01" value="0.6" class="form-control">
+              <label>Wind (left -1 → right +1)</label>
+              <input id="rain-wind" type="range" min="-1" max="1" step="0.01" value="0.0" class="form-control">
+              <label>Speed</label>
+              <input id="rain-speed" type="range" min="0" max="5" step="0.1" value="1.0" class="form-control">
+              <label>Color</label>
+              <input id="rain-color" type="color" value="#a8c0e6" class="form-control">
+              <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+                <input id="rain-lightning" type="checkbox">
+                <label for="rain-lightning" style="margin:0;">Enable Lightning</label>
+              </div>
+              <label>Lightning Frequency (chance/sec)</label>
+              <input id="rain-lightning-freq" type="range" min="0" max="1" step="0.001" value="0.01" class="form-control">
+              <label>Lightning Intensity</label>
+              <input id="rain-lightning-intensity" type="range" min="0" max="2" step="0.05" value="1.0" class="form-control">
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -299,7 +317,9 @@
       (function(){
         function showConfigFor(effect) {
           $('#fog-config').hide();
+          $('#rain-config').hide();
           if (effect === 'fog') $('#fog-config').show();
+          if (effect === 'rain') $('#rain-config').show();
         }
 
         $('#effect-type').on('change', function(){ showConfigFor($(this).val()); });
@@ -343,6 +363,15 @@
             config.contrast = parseFloat($('#fog-contrast').val());
             config.grain = parseFloat($('#fog-grain').val());
             config.falloff = parseFloat($('#fog-falloff').val());
+          }
+          if (effect === 'rain') {
+            config.intensity = parseFloat($('#rain-intensity').val());
+            config.wind = parseFloat($('#rain-wind').val());
+            config.speed = parseFloat($('#rain-speed').val());
+            config.color = $('#rain-color').val();
+            config.lightning = !!$('#rain-lightning').prop('checked');
+            config.lightningFreq = parseFloat($('#rain-lightning-freq').val());
+            config.lightningIntensity = parseFloat($('#rain-lightning-intensity').val());
           }
           // POST to server endpoint (DM-only)
           $.ajax({
