@@ -2,7 +2,6 @@ import json
 import os
 import random
 import re
-import requests
 from typing import List, Optional, Tuple
 
 from natural20.generic_controller import GenericController
@@ -116,7 +115,8 @@ class LlmMcpController(GenericController):
 			return mcp_idx
 
 		# If an LLMProvider backend exists (e.g., Ollama), use it first
-		if getattr(self, "llm_provider", None) is not None:
+		prov = getattr(self, "llm_provider", None)
+		if prov is not None and hasattr(prov, "send_message"):
 			try:
 				instructions = (
 					"You are a tactical assistant. Given a list of actions indexed from 0, choose the single best index. "
@@ -126,7 +126,7 @@ class LlmMcpController(GenericController):
 					{"role": "system", "content": instructions},
 					{"role": "user", "content": prompt},
 				]
-				text = self.llm_provider.send_message(messages)
+				text = prov.send_message(messages)  # type: ignore[attr-defined]
 				idx = self._local_parse_choice_from_text(text, len(available_actions))
 				if idx is not None:
 					return idx
@@ -193,22 +193,130 @@ class LlmMcpController(GenericController):
 		renderer = MapRenderer(current_map, battle)
 		map_text = renderer.render(entity=entity, line_of_sight=entity)
 
+		# Strip ANSI color codes to keep the prompt clean for LLMs
+		map_text = self._strip_ansi(map_text)
+
+		feet_per = getattr(current_map, 'feet_per_grid', 5) or 5
+
+		def _dist_ft(src, tgt) -> Optional[int]:
+			try:
+				m = battle.map_for(src)
+				if not m:
+					return None
+				return int(round(m.distance(src, tgt) * m.feet_per_grid))
+			except Exception:
+				return None
+
 		def action_label(a: Action, idx: int) -> str:
 			try:
 				if isinstance(a, MoveAction):
 					if a.move_path:
 						end = a.move_path[-1]
-						return f"{idx}. move to {tuple(end)}"
+						steps = max(0, len(a.move_path) - 1)
+						ft = steps * feet_per
+						# Simulate OA risk along path
+						oa = "; OA risk" if self._move_triggers_oa(battle, entity, a.move_path) else ""
+						return f"{idx}. move to {tuple(end)} (~{ft} ft{oa})"
 					return f"{idx}. move"
 				if isinstance(a, AttackAction):
 					target = getattr(a, "target", None)
 					tname = getattr(target, "name", None) if target else None
-					weap = a.npc_action['name'] if getattr(a, 'npc_action', None) else a.using
-					return f"{idx}. attack {tname or 'enemy'} with {weap}"
+					weap = None
+					try:
+						npc_action = getattr(a, 'npc_action', None)
+						if isinstance(npc_action, dict):
+							weap = npc_action.get('name')
+						if not weap:
+							weap = getattr(a, 'using', None)
+					except Exception:
+						weap = getattr(a, 'using', None)
+					# Try to enrich with hit chance and avg damage
+					info = []
+					try:
+						if target:
+							prob = a.compute_hit_probability(battle)
+							if prob is not None:
+								info.append(f"hit {int(round(prob*100))}%")
+							avg = a.avg_damage(battle)
+							if avg is not None:
+								info.append(f"avg dmg {int(round(avg))}")
+							d = _dist_ft(entity, target)
+							if d is not None:
+								info.append(f"dist {d} ft")
+							# Range band and cover hints
+							try:
+								from natural20.weapons import compute_max_weapon_range
+								from natural20.utils.ac_utils import effective_ac
+								rmax = compute_max_weapon_range(self.session, a)
+								if rmax:
+									if d and d > rmax:
+										info.append("long")
+									else:
+										info.append("normal")
+								# cover bonus if any
+								_, cov = effective_ac(battle, entity, target)
+								if cov in (2, 5):
+									info.append(f"cover +{cov}")
+							except Exception:
+								pass
+						# Advantage/disadvantage marker
+						try:
+							adv_mod, _adv_info, _atk_mod = a.compute_advantage_info(battle)
+							if adv_mod > 0:
+								info.append("adv")
+							elif adv_mod < 0:
+								info.append("dis")
+						except Exception:
+							pass
+					except Exception:
+						pass
+					metrics = f" ({', '.join(info)})" if info else ""
+					return f"{idx}. attack {tname or 'enemy'} with {weap or 'weapon'}{metrics}"
 				if isinstance(a, SpellAction):
 					sp = getattr(a, 'spell', None) or (a.opts or {}).get('spell')
 					t = getattr(a, 'target', None)
-					return f"{idx}. cast {sp or 'a spell'} on {getattr(t, 'name', 'target')}"
+					info = []
+					try:
+						prob = a.compute_hit_probability(battle)
+						if prob not in (None, 0):
+							info.append(f"hit {int(round(prob*100))}%")
+						avg = a.avg_damage(battle)
+						if avg not in (None, 0):
+							info.append(f"avg dmg {int(round(avg))}")
+						if t:
+							d = _dist_ft(entity, t)
+							if d is not None:
+								info.append(f"dist {d} ft")
+								# Range band/cover hints (spells have a single range)
+								try:
+									from natural20.weapons import compute_max_weapon_range
+									from natural20.utils.ac_utils import effective_ac
+									rmax = compute_max_weapon_range(self.session, a)
+									if rmax:
+										if d and d > rmax:
+											info.append("long")
+										else:
+											info.append("normal")
+									_, cov = effective_ac(battle, entity, t)
+									if cov in (2, 5):
+										info.append(f"cover +{cov}")
+								except Exception:
+									pass
+						# Advantage/disadvantage marker, if any
+						try:
+							adv_info = a.compute_advantage_info(battle)
+							if adv_info is not None:
+								adv_mod = adv_info[0]
+								if adv_mod > 0:
+									info.append("adv")
+								elif adv_mod < 0:
+									info.append("dis")
+						except Exception:
+							pass
+					except Exception:
+						pass
+					metrics = f" ({', '.join(info)})" if info else ""
+					return f"{idx}. cast {sp or 'a spell'} on {getattr(t, 'name', 'target')}{metrics}"
 				if isinstance(a, LookAction):
 					return f"{idx}. look around"
 				# Generic fallback
@@ -218,34 +326,157 @@ class LlmMcpController(GenericController):
 
 		action_lines = [action_label(a, i) for i, a in enumerate(available_actions)]
 
-		hp = f"{entity.hp()}/{entity.max_hp()}"
+		hp_val = entity.hp()
+		max_hp_val = entity.max_hp()
+		hp = f"{hp_val}/{max_hp_val}"
 		cond = []
 		if entity.prone():
 			cond.append("prone")
-		if hasattr(entity, 'dodging') and entity.dodging:
-			cond.append("dodging")
+		# Dodge is tracked in battle state statuses
+		try:
+			st = battle.entity_state_for(entity)
+			if st and 'dodge' in st.get('statuses', set()):
+				cond.append("dodging")
+		except Exception:
+			pass
 		cond_text = ", ".join(cond) if cond else "none"
 
 		# Nearby enemies summary
 		enemies = battle.opponents_of(entity)
 		vis_enemies = [e for e in enemies if battle.can_see(entity, e)]
-		enemy_summ = ", ".join(f"{e.name}({e.hp()}/{e.max_hp()})" for e in vis_enemies) or "(none visible)"
+		def enemy_line(e):
+			d = _dist_ft(entity, e)
+			return f"{e.name}({e.hp()}/{e.max_hp()}{'' if d is None else f', {d} ft'})"
+		enemy_summ = ", ".join(enemy_line(e) for e in vis_enemies) or "(none visible)"
+
+		# Engagement and resources
+		engaged = False
+		try:
+			engaged = bool(battle.enemy_in_melee_range(entity))
+		except Exception:
+			engaged = False
+		state = battle.entity_state_for(entity) or {}
+		movement_left = state.get('movement', getattr(entity, 'speed', lambda: 0)())
+		resources = f"action={state.get('action', 0)}, bonus={state.get('bonus_action', 0)}, reaction={state.get('reaction', 0)}, movement={movement_left} ft"
+		hp_pct = (hp_val / max_hp_val) if (hp_val is not None and max_hp_val) else 1.0
+		concentration = self._concentration_label(entity)
+		# Nearest enemy distance
+		nearest_ft = None
+		try:
+			if enemies:
+				dists = [v for v in (_dist_ft(entity, e) for e in enemies) if v is not None]
+				if dists:
+					nearest_ft = min(dists)
+		except Exception:
+			nearest_ft = None
+
+		# Spell slot summary (levels with slots only)
+		slot_summary = self._spell_slots_summary(entity)
 
 		instructions = (
 			"You're an NPC tactician in a D&D-like tactical sim. Choose the single best action for this turn. "
-			"Prefer actions that increase win odds: secure lethal hits, avoid unnecessary opportunity attacks, "
-			"use movement intelligently to engage or gain line of sight, and conserve scarce resources unless impactful."
+			"Guidelines: prefer lethal or high-impact attacks when safe; avoid provoking opportunity attacks unless payoff is high; "
+			"use movement to get line of sight or optimal range; conserve limited resources when impact is low; "
+			"if HP is low, favor defensive options like disengage/dodge/hide; maintain concentration on valuable effects. "
+			"Only pick from the provided actions."
 		)
 
-		prompt = (
-			f"Map (visible):\n{map_text}\n"
-			f"You are: {entity.name} HP {hp}, conditions: {cond_text}\n"
-			f"Visible enemies: {enemy_summ}\n\n"
-			f"Available actions (index: description):\n" + "\n".join(action_lines) + "\n\n"
-			f"{instructions}\n"
-			"Return either a single integer index (0-based) or call choose_action with that index."
-		)
+		parts = [
+			f"Map (visible):\n{map_text}\n",
+			f"Round: {battle.current_round()} | You: {entity.name} HP {hp} ({int(hp_pct*100)}%), conditions: {cond_text}\n",
+			f"Resources: {resources} | Engaged in melee: {'yes' if engaged else 'no'} | Concentration: {concentration} | Nearest enemy: {nearest_ft if nearest_ft is not None else 'n/a'} ft\n",
+		]
+		if slot_summary:
+			parts.append(f"Slots: {slot_summary}\n")
+		parts.extend([
+			f"Visible enemies: {enemy_summ}\n\n",
+			f"Available actions (index: description):\n" + "\n".join(action_lines) + "\n\n",
+			f"{instructions}\n",
+			"Return either a single integer index (0-based) or call choose_action with that index.",
+		])
+		prompt = "".join(parts)
 		return prompt
+
+	def _move_triggers_oa(self, battle, entity, path: List[Tuple[int, int]]) -> bool:
+		"""Estimate OA risk: if leaving any enemy's melee reach along the path without disengage."""
+		try:
+			if entity.disengage(battle):
+				return False
+			m = battle.map_for(entity)
+			if not m or not path:
+				return False
+			# Build positions including current start
+			start_pos = m.entity_or_object_pos(entity)
+			positions = [start_pos] + [tuple(p) for p in path[1:]] if path[0] == start_pos else [start_pos] + [tuple(p) for p in path]
+			enemies = [e for e in battle.opponents_of(entity) if e.conscious()]
+			if not enemies:
+				return False
+			feet_per = getattr(m, 'feet_per_grid', 5) or 5
+			# For each enemy, track adjacency over positions and detect leaving reach
+			for foe in enemies:
+				reach_grids = (foe.melee_distance() or 5) / feet_per
+				in_melee_prev = None
+				for pos in positions:
+					dist = m.distance(entity, foe, entity_1_pos=pos)
+					in_melee = dist <= reach_grids
+					if in_melee_prev is True and in_melee is False:
+						return True
+					in_melee_prev = in_melee if in_melee_prev is None else in_melee
+			return False
+		except Exception:
+			return False
+
+	def _strip_ansi(self, s: str) -> str:
+		"""Remove ANSI escape sequences for clean LLM prompts."""
+		if not s:
+			return s
+		ansi_re = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+		return ansi_re.sub('', s)
+
+	def _spell_slots_summary(self, entity) -> str:
+		"""Return a compact spell slots summary like 'L1 3/4, L2 1/2'. Empty string if none."""
+		parts = []
+		try:
+			get_max = getattr(entity, 'max_spell_slots', None)
+			get_cur = getattr(entity, 'spell_slots_count', None)
+			if not callable(get_max) or not callable(get_cur):
+				return ""
+			for lvl in range(1, 10):
+				try:
+					max_slots = get_max(lvl)
+					if not max_slots:
+						continue
+					cur = get_cur(lvl)
+					parts.append(f"L{lvl} {cur}/{max_slots}")
+				except Exception:
+					continue
+			return ", ".join(parts)
+		except Exception:
+			return ""
+
+	def _concentration_label(self, entity) -> str:
+		"""Return 'none' or a friendly effect name for current concentration."""
+		eff = getattr(entity, 'concentration', None)
+		if not eff:
+			return 'none'
+		# Prefer an explicit label/id if present
+		name = None
+		try:
+			name = getattr(eff, 'label', None)
+			if callable(name):
+				name = name()
+			if not name:
+				name = getattr(eff, 'id', None)
+			if not name and hasattr(eff, 'action') and getattr(eff.action, 'spell_action', None):
+				try:
+					name = eff.action.spell_action.short_name()
+				except Exception:
+					pass
+			if not name:
+				name = eff.__class__.__name__
+		except Exception:
+			name = eff.__class__.__name__ if eff else 'none'
+		return str(name)
 
 	# --- Utilities ---
 	def _local_greedy_simulation(self, _prompt: str) -> str:
@@ -283,6 +514,15 @@ class LlmMcpController(GenericController):
 			if targets:
 				action = action.clone()
 				action.target = targets[0]
+		elif isinstance(action, SpellAction) and not getattr(action, "target", None):
+			# Assign a reasonable default spell target if any
+			try:
+				targets = battle.valid_targets_for(entity, action)
+				if targets:
+					action = action.clone()
+					action.target = targets[0]
+			except Exception:
+				pass
 		elif isinstance(action, MoveAction) and not action.move_path:
 			# No path precomputed; just fallback to heuristic ranking overall
 			pass
@@ -296,6 +536,10 @@ class LlmMcpController(GenericController):
 		"""
 		url = os.getenv("N20_MCP_URL")
 		if not url:
+			return None
+		try:
+			import requests  # type: ignore
+		except Exception:
 			return None
 		try:
 			resp = requests.post(url, json={"prompt": prompt, "n_actions": n_actions}, timeout=8)
