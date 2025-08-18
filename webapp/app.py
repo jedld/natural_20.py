@@ -171,6 +171,20 @@ socketio = SocketIO(app,
 )
 Session(app)
 
+
+@socketio.on('connect')
+def _on_connect():
+    # When a client connects, send any active effects for the current game so
+    # a page refresh or new client receives the same visual state.
+    try:
+        game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
+        effects = active_effects.get(game_key, {})
+        for payload in effects.values():
+            # emit to this client only
+            emit('effect:set', payload)
+    except Exception:
+        pass
+
 LEVEL = os.getenv('TEMPLATE_DIR', "../templates")
 
 # Load level settings from JSON file
@@ -202,6 +216,9 @@ if 'extensions' in index_data:
 
 sockets = []
 MAP_PADDING = [6, 15]
+
+# Persistent in-memory active effects per game key. Keyed by game_session.root_path to scope per-game.
+active_effects = {}
 
 # Health check endpoint for container orchestration
 @app.route('/health')
@@ -536,6 +553,42 @@ def admin_manage_saves():
     if 'dm' not in user_role():
         return jsonify(error='Forbidden'), 403
     return render_template('manage_saves.html', title='Manage Saves')
+
+
+@app.route('/admin/effect', methods=['POST'])
+def admin_effect():
+    """DM-only endpoint to broadcast visual effects to connected clients.
+    Expects JSON: { effect: 'fog'|'rain'|'snow', action: 'start'|'stop'|'update', config: {...} }
+    """
+    if not session.get('username'):
+        return jsonify(error='Unauthorized'), 401
+    if 'dm' not in user_role():
+        return jsonify(error='Forbidden'), 403
+    payload = request.get_json(silent=True) or {}
+    effect = payload.get('effect')
+    action = payload.get('action')
+    config = payload.get('config') or {}
+    if not effect or not action:
+        return jsonify(error='effect and action required'), 400
+    try:
+        # Broadcast to all connected clients
+        payload = {'effect': effect, 'action': action, 'config': config}
+        socketio.emit('effect:set', payload)
+        # persist effect state per game so new clients or refreshed pages will re-apply the effect
+        try:
+            game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
+            if action == 'stop':
+                if game_key in active_effects and effect in active_effects[game_key]:
+                    del active_effects[game_key][effect]
+            else:
+                # ensure dict
+                active_effects.setdefault(game_key, {})[effect] = {'effect': effect, 'action': 'start', 'config': config}
+        except Exception:
+            # non-fatal; proceed
+            pass
+        return jsonify(status='ok')
+    except Exception as e:
+        return jsonify(error=str(e)), 500
 
 def t(key):
     return i18n.t(key)

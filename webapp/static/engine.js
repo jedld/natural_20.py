@@ -1764,6 +1764,15 @@ $(document).ready(() => {
     secure: isAWS && window.location.protocol === 'https:'
   });
 
+  // Initialize effects socket handlers if Effects exists
+  if (typeof Effects !== 'undefined' && Effects.initSocketHandlers) {
+    try {
+      Effects.initSocketHandlers(socket);
+    } catch (e) {
+      console.warn('Failed to init Effects socket handlers', e);
+    }
+  }
+
   if ($("body").data("waiting-for-reaction")) {
     $("#reaction-modal").modal("show");
   }
