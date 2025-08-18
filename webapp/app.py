@@ -179,9 +179,32 @@ def _on_connect():
     try:
         game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
         effects = active_effects.get(game_key, {})
-        for payload in effects.values():
-            # emit to this client only
-            emit('effect:set', payload)
+        if effects:
+            # If the DM has persisted effects for this game, re-emit them to the client
+            for payload in effects.values():
+                emit('effect:set', payload)
+        else:
+            # No DM-persisted effects for this game — attempt to emit the current
+            # map's default effect for this connecting user so a refresh applies it.
+            try:
+                username = session.get('username')
+                # If session username isn't available (refresh or anonymous socket),
+                # fall back to the server's default map for users by passing None
+                # into get_map_for_user which will return the 'index' map as a default.
+                if username:
+                    cur_map = current_game.get_map_for_user(username)
+                else:
+                    try:
+                        cur_map = current_game.get_map_for_user(None)
+                    except Exception:
+                        cur_map = current_game.get_current_battle_map()
+                    props = getattr(cur_map, 'properties', {}) or {}
+                    map_def = props.get('default_effect')
+                    if map_def:
+                        emit('effect:set', map_def)
+            except Exception:
+                # non-fatal; ignore
+                pass
     except Exception:
         pass
 
@@ -474,11 +497,41 @@ def list_saves():
                     saves.append({'filename': f, 'mtime': mtime, 'size': size})
         except Exception:
             pass
+
         # Sort by mtime desc if available
         saves.sort(key=lambda x: (x['mtime'] is not None, x['mtime']), reverse=True)
         return jsonify(saves=saves)
     except Exception as e:
         return jsonify(error=str(e)), 500
+
+
+@socketio.on('request_effects')
+def _on_request_effects():
+    # Mirror connect behavior: emit active DM effects or the current map default to the requesting client
+    try:
+        game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
+        effects = active_effects.get(game_key, {})
+        if effects:
+            for payload in effects.values():
+                emit('effect:set', payload)
+        else:
+            try:
+                username = session.get('username')
+                if username:
+                    cur_map = current_game.get_map_for_user(username)
+                else:
+                    try:
+                        cur_map = current_game.get_map_for_user(None)
+                    except Exception:
+                        cur_map = current_game.get_current_battle_map()
+                props = getattr(cur_map, 'properties', {}) or {}
+                map_def = props.get('default_effect')
+                if map_def:
+                    emit('effect:set', map_def)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 
 @app.route('/admin/save', methods=['POST'])
@@ -577,12 +630,33 @@ def admin_effect():
         # persist effect state per game so new clients or refreshed pages will re-apply the effect
         try:
             game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
-            if action == 'stop':
-                if game_key in active_effects and effect in active_effects[game_key]:
-                    del active_effects[game_key][effect]
+            # Special handling: DM chose to revert to the map default
+            if effect == 'map_default' and action == 'start':
+                # remove any DM-persisted effects for this game
+                prev = active_effects.pop(game_key, {})
+                # notify clients to stop any DM effects that were active
+                for ef_name in list(prev.keys()):
+                    try:
+                        socketio.emit('effect:set', {'effect': ef_name, 'action': 'stop'})
+                    except Exception:
+                        pass
+                # attempt to apply the current map's default effect immediately
+                try:
+                    # determine current map for the session and broadcast its default if present
+                    cur_map = current_game.get_map_for_user(session['username'])
+                    map_def = getattr(cur_map, 'properties', {}) or {}
+                    map_def = map_def.get('default_effect')
+                    if map_def:
+                        socketio.emit('effect:set', map_def)
+                except Exception:
+                    pass
             else:
-                # ensure dict
-                active_effects.setdefault(game_key, {})[effect] = {'effect': effect, 'action': 'start', 'config': config}
+                if action == 'stop':
+                    if game_key in active_effects and effect in active_effects[game_key]:
+                        del active_effects[game_key][effect]
+                else:
+                    # ensure dict
+                    active_effects.setdefault(game_key, {})[effect] = {'effect': effect, 'action': 'start', 'config': config}
         except Exception:
             # non-fatal; proceed
             pass
@@ -1768,11 +1842,30 @@ def switch_map():
     map_width, map_height = battle_map.size
     tiles_dimension_height = map_height * TILE_PX
     tiles_dimension_width = map_width * TILE_PX
+    # Check for a map-default effect defined in the map properties
+    map_default = None
+    try:
+        # map properties live in the Map object
+        props = getattr(battle_map, 'properties', {}) or {}
+        map_default = props.get('default_effect')
+    except Exception:
+        map_default = None
+
+    # Determine whether a DM-initiated effect is currently active for this game
+    dm_active = False
+    try:
+        game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
+        dm_active = bool(active_effects.get(game_key))
+    except Exception:
+        dm_active = False
+
     return jsonify(background=f"assets/{background}",
                    name=map_name,
                    image_offset_px=battle_map.image_offset_px,
                    height=tiles_dimension_height,
-                   width=tiles_dimension_width)
+                   width=tiles_dimension_width,
+                   map_default_effect=map_default,
+                   dm_active=dm_active)
 
 #                 // Fetch combat log messages from the server
 # $.get('/api/combat-log', function(data) {
@@ -2918,11 +3011,26 @@ def switch_pov():
         map_width, map_height = entity_battle_map.size
         tiles_dimension_height = map_height * TILE_PX
         tiles_dimension_width = map_width * TILE_PX
+        # Include map default effect and whether DM has an active override
+        map_default = None
+        try:
+            props = getattr(entity_battle_map, 'properties', {}) or {}
+            map_default = props.get('default_effect')
+        except Exception:
+            map_default = None
+        dm_active = False
+        try:
+            game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
+            dm_active = bool(active_effects.get(game_key))
+        except Exception:
+            dm_active = False
         return jsonify(background=f"assets/{background}",
                     name=entity_battle_map.name,
                     image_offset_px=entity_battle_map.image_offset_px,
                     height=tiles_dimension_height,
-                    width=tiles_dimension_width)
+                    width=tiles_dimension_width,
+                    map_default_effect=map_default,
+                    dm_active=dm_active)
 
     return jsonify(status='ok', pov_entity=entity_id)
 

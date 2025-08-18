@@ -36,6 +36,33 @@ const Effects = {
     });
   },
 
+  // Apply an effect locally (used for map-default effects)
+  applyEffect: function(data) {
+    // data = { effect: 'fog'|'rain', action: 'start'|'stop'|'update', config: {...} }
+    if (!data || !data.effect || !data.action) return;
+    if (data.action === 'start') {
+      // stop others
+      Object.keys(Effects._instances).forEach(function(k){ try{ if (k !== data.effect && Effects._instances[k]) Effects._instances[k].stop(); }catch(e){} try{ delete Effects._instances[k]; }catch(e){} });
+      if (data.effect === 'fog') Effects._instances.fog = Effects.createFogEffect(data.config || {});
+      if (data.effect === 'rain') Effects._instances.rain = Effects.createRainEffect(data.config || {});
+    } else if (data.action === 'stop') {
+      if (Effects._instances[data.effect]) { Effects._instances[data.effect].stop(); delete Effects._instances[data.effect]; }
+    } else if (data.action === 'update') {
+      if (data.effect === 'fog' && Effects._instances.fog) Effects._instances.fog.updateConfig(data.config || {});
+      if (data.effect === 'rain' && Effects._instances.rain) Effects._instances.rain.updateConfig(data.config || {});
+    }
+  },
+
+  // Stop and remove all active effects
+  stopAll: function() {
+    try {
+      Object.keys(Effects._instances).forEach(function(k){
+        try { if (Effects._instances[k]) Effects._instances[k].stop(); } catch(e) {}
+        try { delete Effects._instances[k]; } catch(e) {}
+      });
+    } catch (e) { /* no-op */ }
+  },
+
   createRainEffect: function (config) {
     config = config || {};
     var intensity = config.intensity != null ? config.intensity : 0.6; // 0..1

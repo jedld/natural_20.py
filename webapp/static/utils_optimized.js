@@ -23,6 +23,18 @@ const Utils = {
         Utils.updateMapDisplay(data, canvas);
         // Refresh portraits when map is switched
         Utils.refreshPortraits();
+        // Apply map-default effect if provided and DM has no active override
+        try {
+          if (!data.dm_active && typeof Effects !== 'undefined') {
+            if (data.map_default_effect && Effects.applyEffect) {
+              Effects.applyEffect(data.map_default_effect);
+            } else if (Effects.stopAll) {
+              Effects.stopAll();
+            }
+          }
+        } catch (e) { console.warn('Failed to apply map default effect', e); }
+  // Ask server to (re)send effects after map switch in case client missed anything
+  try { if (typeof socket !== 'undefined' && socket && socket.emit) socket.emit('request_effects'); } catch (e) {}
         if (first_callback) first_callback();
       })
     });
