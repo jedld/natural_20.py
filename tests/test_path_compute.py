@@ -141,8 +141,7 @@ class TestPathCompute(unittest.TestCase):
         path = pc_path.compute_path(0, 6, *dest, door_navigation=True)
         self.assertIsNotNone(path)
 
-        map_render = MapRenderer(test_map)
-        pdb.set_trace()  # Debugging breakpoint
+        map_render = MapRenderer(test_map) # Debugging breakpoint
         self.assertEqual(path[-1], (2, 6))
 
     def test_door_navigation_does_not_truncate_when_door_open(self):

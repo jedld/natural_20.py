@@ -473,7 +473,7 @@ class GameManagement:
                         if battle_music.lower()==soundtrack['name'].lower():
                             self.play_soundtrack(soundtrack['name'])
                             break
-
+                    pdb.set_trace()  # Debugging breakpoint
                     self.battle.start()
                     self.execute_game_loop()
                 else:
