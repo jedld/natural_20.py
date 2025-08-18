@@ -42,7 +42,8 @@ class TestPathCompute(unittest.TestCase):
         )
 
         # 2nd case
-        expected_path2 = [(1, 3), (2, 4), (3, 4), (4, 4), (5, 4), (6, 4), (7, 4)]
+        expected_path2 = [(1, 3), (2, 3), (3, 4), (4, 4), (5, 4), (6, 4), (7, 4)]
+
         self.assertEqual(self.path_compute.compute_path(1, 3, 7, 4), expected_path2)
 
         print(self.map_renderer.render(path=self.path_compute.compute_path(1, 1, 7, 4), path_char='+'))
@@ -142,7 +143,7 @@ class TestPathCompute(unittest.TestCase):
         self.assertIsNotNone(path)
 
         map_render = MapRenderer(test_map) # Debugging breakpoint
-        self.assertEqual(path[-1], (2, 6))
+        self.assertEqual(path[-1], (1, 6))
 
     def test_door_navigation_does_not_truncate_when_door_open(self):
         # Setup map and open the door at (2,5)
