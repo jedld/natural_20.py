@@ -465,6 +465,7 @@ class GameManagement:
                             controller = GenericController(self.game_session)
 
                         controller.register_handlers_on(entity)
+                        self.logger.info(f"Adding {entity.name} to battle with group {group}")
                         self.battle.add(entity, group, controller=controller)
                     self.output_logger.log("Battle started.")
 
@@ -473,7 +474,6 @@ class GameManagement:
                         if battle_music.lower()==soundtrack['name'].lower():
                             self.play_soundtrack(soundtrack['name'])
                             break
-                    pdb.set_trace()  # Debugging breakpoint
                     self.battle.start()
                     self.execute_game_loop()
                 else:
