@@ -2174,7 +2174,7 @@ def end_turn():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
             current_game.waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
             current_game.end_turn_state = end_turn_state
-        socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
+            socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
         return jsonify(status='ok')
 
 
