@@ -650,6 +650,19 @@ const switchPOV = (entity_uid, canvas) => {
     console.log("Switched POV:", data);
     if (data.background) {
       Utils.updateMapDisplay(data, canvas);
+      // Apply map-default effect if provided and DM has no active override.
+      // If no default and no DM override, clear any previous effects.
+      try {
+        if (!data.dm_active && typeof Effects !== 'undefined') {
+          if (data.map_default_effect && Effects.applyEffect) {
+            Effects.applyEffect(data.map_default_effect);
+          } else if (Effects.stopAll) {
+            Effects.stopAll();
+          }
+        }
+      } catch (e) { console.warn('Failed to apply/clear effect on POV switch', e); }
+      // Ask server to (re)send effects after map switch in case client missed anything
+      try { if (typeof socket !== 'undefined' && socket && socket.emit) socket.emit('request_effects'); } catch (e) {}
     }
     // update the pov entity id in the body data
     $('body').attr('data-pov-entity', data.pov_entity);
@@ -1768,6 +1781,8 @@ $(document).ready(() => {
   if (typeof Effects !== 'undefined' && Effects.initSocketHandlers) {
     try {
       Effects.initSocketHandlers(socket);
+  // Ask the server to resend any active or map-default effects now that handlers are registered
+  try { socket.emit('request_effects'); } catch (e) { console.warn('Failed to request effects', e); }
     } catch (e) {
       console.warn('Failed to init Effects socket handlers', e);
     }
