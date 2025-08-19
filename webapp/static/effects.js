@@ -3,6 +3,8 @@ const Effects = {
   _instances: {},
   // global enable/disable flag
   _enabled: true,
+  // Remember last seen effect payloads (by effect name) so we can reapply on enable
+  _lastSeen: {},
 
   // Check if effects are enabled
   isEnabled: function() { return !!Effects._enabled; },
@@ -13,12 +15,48 @@ const Effects = {
     Effects._enabled = on;
     if (!on) {
       try { Effects.stopAll(); } catch (e) {}
+    } else {
+      // Re-apply remembered effects when turning back on
+      try {
+        var list = Object.keys(Effects._lastSeen).map(function(k){ return Effects._lastSeen[k]; });
+        if (list && list.length) {
+          // Apply non-exclusively in order (payload.exclusive respected per entry)
+          for (var i=0;i<list.length;i++) {
+            var p = list[i];
+            if (!p || p.action !== 'start' || !p.effect) continue;
+            // Avoid double-start if already active
+            if (Effects._instances[p.effect]) continue;
+            try { Effects.applyEffect(p); } catch(e) {}
+          }
+        }
+      } catch (e) {}
     }
+  },
+
+  // internal: remember last state for an effect
+  _remember: function(payload) {
+    try {
+      if (!payload || !payload.effect) return;
+      var eff = payload.effect;
+      if (payload.action === 'stop') {
+        delete Effects._lastSeen[eff];
+      } else if (payload.action === 'start') {
+        // Normalize a shallow clone to avoid accidental mutations
+        Effects._lastSeen[eff] = { effect: eff, action: 'start', config: (payload.config ? Object.assign({}, payload.config) : {}), exclusive: (payload.exclusive !== undefined ? payload.exclusive : true) };
+      } else if (payload.action === 'update') {
+        if (Effects._lastSeen[eff]) {
+          var cur = Effects._lastSeen[eff];
+          cur.config = Object.assign({}, cur.config || {}, payload.config || {});
+        }
+      }
+    } catch(e) {}
   },
 
   // Broadcast handler registration
   initSocketHandlers: function (socket) {
     socket.on('effect:set', function (data) {
+  // Always remember the latest state so we can reapply when re-enabled
+  try { Effects._remember(data); } catch(e) {}
   // When disabled, ignore start/update (but allow explicit stop to clear any leftovers)
   if (!Effects._enabled && data && data.action !== 'stop') return;
       // data = { effect: 'fog', action: 'start'|'stop'|'update', config: {...} }
@@ -76,6 +114,14 @@ const Effects = {
   applyEffect: function(data) {
     // If globally disabled, ignore start/update; allow stop to clear
     if (!Effects._enabled) {
+      try {
+        // Remember what was requested so it can be re-applied when re-enabled
+        if (Array.isArray(data)) {
+          for (var j=0;j<data.length;j++) Effects._remember(data[j]);
+        } else {
+          Effects._remember(data);
+        }
+      } catch(e) {}
       if (data && data.action === 'stop') {
         if (data.effect && Effects._instances[data.effect]) {
           try { Effects._instances[data.effect].stop(); } catch(e) {}
@@ -95,12 +141,14 @@ const Effects = {
         if (!d) continue;
         var payload = Object.assign({}, d);
         if (payload.exclusive === undefined) payload.exclusive = false;
+        try { Effects._remember(payload); } catch(e) {}
         Effects.applyEffect(payload);
       }
       return;
     }
     // data = { effect: 'fog'|'rain'|..., action: 'start'|'stop'|'update', config: {...}, exclusive?: boolean }
     if (!data.effect || !data.action) return;
+    try { Effects._remember(data); } catch(e) {}
     if (data.action === 'start') {
       var exclusive = (data.exclusive !== false);
       if (exclusive) {
