@@ -74,12 +74,13 @@ const Effects = {
   // Internal helper: build a fog-of-war visibility mask for a given overlay.
   // White (opaque) where tiles are visible, transparent where fog-of-war hides tiles.
   // The mask automatically updates on tile/size changes and window resizes.
-  _buildFoWMaskForOverlay: function(overlay) {
+  _buildFoWMaskForOverlay: function(overlay, options) {
     var canvas = document.createElement('canvas');
     var ctx = canvas.getContext('2d');
     var tilesRoot = document.querySelector('.tiles-container');
     var container = document.querySelector('.image-container') || document.body;
     var mo = null; var ro = null; var dirty = true;
+    var _opts = options || {}; // { featherPx?: number }
 
     function markDirty(){ dirty = true; }
 
@@ -96,9 +97,14 @@ const Effects = {
   var scaleX = ow / Math.max(1, overlayRect.width || 1);
   var scaleY = oh / Math.max(1, overlayRect.height || 1);
 
+        // Draw onto an offscreen canvas to allow feathered edges
+        var off = document.createElement('canvas');
+        off.width = ow; off.height = oh;
+        var octx = off.getContext('2d');
+        octx.clearRect(0,0,ow,oh);
         // Fill visible tiles (no .fog-of-war child) as white
         var tiles = document.querySelectorAll('.tile');
-        ctx.fillStyle = '#ffffff';
+        octx.fillStyle = '#ffffff';
         for (var i=0; i<tiles.length; i++){
           var tile = tiles[i];
           if (tile.querySelector('.fog-of-war')) continue; // hidden
@@ -107,10 +113,15 @@ const Effects = {
           var y = (r.top - overlayRect.top) * scaleY;
           var w = r.width * scaleX;
           var h = r.height * scaleY;
-          // Skip if fully outside
           if (x > ow || y > oh || x + w < 0 || y + h < 0) continue;
-          ctx.fillRect(Math.round(x), Math.round(y), Math.ceil(w), Math.ceil(h));
+          octx.fillRect(Math.round(x), Math.round(y), Math.ceil(w), Math.ceil(h));
         }
+        // Composite with optional blur for smoother transition
+        var feather = Math.max(0, _opts.featherPx || 0);
+        ctx.clearRect(0,0,ow,oh);
+        if (feather > 0) ctx.filter = 'blur(' + feather + 'px)';
+        ctx.drawImage(off, 0, 0);
+        if (feather > 0) ctx.filter = 'none';
         dirty = false;
       } catch(e) {
         // On any failure, keep mask fully opaque rather than breaking effects
@@ -131,10 +142,125 @@ const Effects = {
     window.addEventListener('resize', markDirty);
 
     return {
+      setOptions: function(newOpts){ _opts = newOpts || {}; dirty = true; },
       update: function(){ if (dirty) rebuild(); return { canvas: canvas, changed: dirty === false }; },
       // Slightly different contract: call force to guarantee rebuild next read
       force: function(){ dirty = true; },
       destroy: function(){ try{ if (mo) mo.disconnect(); }catch(e){} try{ if (ro) ro.disconnect(); }catch(e){} window.removeEventListener('resize', markDirty); }
+    };
+  },
+
+  // Internal helper: build a manual mask from config.mask_layers (grid-based shapes).
+  // Currently supports type: 'rectangle' with position [x,y] and size [w,h] in tile units.
+  _buildManualMaskForOverlay: function(overlay, layers, options) {
+    var canvas = document.createElement('canvas');
+    var ctx = canvas.getContext('2d');
+    var tilesRoot = document.querySelector('.tiles-container');
+    var container = document.querySelector('.image-container') || document.body;
+    var _layers = Array.isArray(layers) ? layers.slice() : (layers ? [layers] : []);
+    var mo = null; var ro = null; var dirty = true;
+    var _opts = options || {}; // { featherPx?: number }
+
+    function setLayers(newLayers){ _layers = Array.isArray(newLayers) ? newLayers.slice() : (newLayers ? [newLayers] : []); dirty = true; }
+    function setOptions(newOpts){ _opts = newOpts || {}; dirty = true; }
+    function markDirty(){ dirty = true; }
+
+    function fillTileRect(tile, overlayRect, scaleX, scaleY){
+      var r = tile.getBoundingClientRect();
+      var x = (r.left - overlayRect.left) * scaleX;
+      var y = (r.top - overlayRect.top) * scaleY;
+      var w = r.width * scaleX;
+      var h = r.height * scaleY;
+      if (!(x > canvas.width || y > canvas.height || x + w < 0 || y + h < 0))
+        ctx.fillRect(Math.round(x), Math.round(y), Math.ceil(w), Math.ceil(h));
+    }
+
+    function rebuild(){
+      var ow = Math.max(1, overlay.width || overlay.clientWidth || 1);
+      var oh = Math.max(1, overlay.height || overlay.clientHeight || 1);
+      canvas.width = ow; canvas.height = oh;
+      ctx.clearRect(0,0,ow,oh);
+      if (!_layers || _layers.length === 0) { // no restriction, full pass-through
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0,0,ow,oh);
+        dirty = false; return;
+      }
+      var overlayRect = overlay.getBoundingClientRect();
+      var scaleX = ow / Math.max(1, overlayRect.width || 1);
+      var scaleY = oh / Math.max(1, overlayRect.height || 1);
+      // draw union of shapes to offscreen for optional feather
+      var off = document.createElement('canvas');
+      off.width = ow; off.height = oh;
+      var octx = off.getContext('2d');
+      octx.fillStyle = '#ffffff';
+      // draw union of shapes by tile lookup
+      try {
+        for (var li=0; li<_layers.length; li++){
+          var L = _layers[li] || {};
+          if ((L.type || L.kind) === 'rectangle'){
+            var pos = L.position || L.pos || [0,0];
+            var size = L.size || [0,0];
+            var x0 = pos[0]||0, y0 = pos[1]||0;
+            var w = size[0]||0, h = size[1]||0;
+            for (var y=y0; y<y0+h; y++){
+              for (var x=x0; x<x0+w; x++){
+                var sel = '.tile[data-coords-x="'+x+'"][data-coords-y="'+y+'"]';
+                var tile = document.querySelector(sel);
+                if (tile) {
+                  var r = tile.getBoundingClientRect();
+                  var px = (r.left - overlayRect.left) * scaleX;
+                  var py = (r.top - overlayRect.top) * scaleY;
+                  var pw = r.width * scaleX;
+                  var ph = r.height * scaleY;
+                  octx.fillRect(Math.round(px), Math.round(py), Math.ceil(pw), Math.ceil(ph));
+                }
+              }
+            }
+          } else if ((L.type || L.kind) === 'polygon' || (L.type || L.kind) === 'poly') {
+            var pts = L.points || L.vertices || [];
+            if (pts.length >= 3) {
+              octx.beginPath();
+              for (var pi=0; pi<pts.length; pi++){
+                var pt = pts[pi] || [0,0];
+                var tx = pt[0], ty = pt[1];
+                var sel = '.tile[data-coords-x="'+tx+'"][data-coords-y="'+ty+'"]';
+                var tile = document.querySelector(sel);
+                if (!tile) continue;
+                var r = tile.getBoundingClientRect();
+                var cx = (r.left - overlayRect.left) * scaleX + (r.width * scaleX) / 2;
+                var cy = (r.top - overlayRect.top) * scaleY + (r.height * scaleY) / 2;
+                if (pi === 0) octx.moveTo(cx, cy); else octx.lineTo(cx, cy);
+              }
+              octx.closePath();
+              octx.fill();
+            }
+          }
+        }
+      } catch(e) {
+        // on error, default to full pass-through rather than hide all
+        ctx.clearRect(0,0,ow,oh);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0,0,ow,oh);
+      }
+      // Composite with optional feather blur
+      var feather = Math.max(0, _opts.featherPx || 0);
+      if (feather > 0) ctx.filter = 'blur(' + feather + 'px)';
+      ctx.drawImage(off, 0, 0);
+      if (feather > 0) ctx.filter = 'none';
+      dirty = false;
+    }
+
+    // watch tiles and overlay/container for changes
+    if (tilesRoot) { try { mo = new MutationObserver(markDirty); mo.observe(tilesRoot, { childList:true, attributes:true, subtree:true }); } catch(e) {} }
+    try { var ro = new ResizeObserver(markDirty); ro.observe(overlay); if (container) ro.observe(container); } catch(e) {}
+    window.addEventListener('resize', markDirty);
+
+    return {
+      setLayers: setLayers,
+      setOptions: setOptions,
+      update: function(){ if (dirty) rebuild(); return { canvas: canvas, changed: dirty === false }; },
+      force: function(){ dirty = true; },
+      destroy: function(){ try{ mo && mo.disconnect(); }catch(e){} try{ ro && ro.disconnect(); }catch(e){} window.removeEventListener('resize', markDirty); }
     };
   },
 
@@ -144,9 +270,12 @@ const Effects = {
     var wind = config.wind != null ? config.wind : 0.0; // -1..1 horizontal drift
     var speed = config.speed != null ? config.speed : 1.0;
     var color = config.color || '#a8c0e6';
-    var lightning = config.lightning || false;
+  var lightning = config.lightning || false;
     var lightningFreq = config.lightningFreq || 0.01; // chance per second
     var lightningIntensity = config.lightningIntensity || 1.0;
+  var useManualMask = !!config.mask;
+  var manualMaskLayers = config.mask_layers || config.mask_layer || [];
+  var maskFeatherPx = Math.max(0, config.mask_feather || 0);
 
     // Attach overlay to the battlemap container so effect aligns to the map image
     var container = document.querySelector('.image-container') || document.body;
@@ -212,7 +341,8 @@ const Effects = {
       uniform float u_speed;
       uniform vec3 u_color;
       uniform float u_lightning;
-      uniform sampler2D u_map;
+  uniform sampler2D u_map;
+  uniform sampler2D u_manual;
   uniform sampler2D u_fow;
 
       // simple hash / random
@@ -297,10 +427,16 @@ const Effects = {
   #else
   fowA = texture(u_fow, v_uv).a;
   #endif
+  float manualA = 1.0;
+  #ifdef GL_ES
+  manualA = texture2D(u_manual, v_uv).a;
+  #else
+  manualA = texture(u_manual, v_uv).a;
+  #endif
 
         // final color: base color plus white highlights
         vec3 col = baseCol * accum + vec3(1.0) * highlight * 0.6 + vec3(lightningBoost);
-  float alpha = clamp(accum * mapA * fowA, 0.0, 0.95);
+  float alpha = clamp(accum * mapA * fowA * manualA, 0.0, 0.95);
         gl_FragColor = vec4(col, alpha);
       }
       `;
@@ -328,6 +464,7 @@ const Effects = {
       var lightningLoc = gl.getUniformLocation(program, 'u_lightning');
   var mapLoc = gl.getUniformLocation(program, 'u_map');
   var fowLoc = gl.getUniformLocation(program, 'u_fow');
+  var manualLoc = gl.getUniformLocation(program, 'u_manual');
 
       var buffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -374,9 +511,18 @@ const Effects = {
       var lightningStrength = 0.0;
       var lastLightning = 0;
   var _lastOverlayW = overlay.width, _lastOverlayH = overlay.height;
+  var manualHelper = Effects._buildManualMaskForOverlay(overlay, manualMaskLayers, { featherPx: maskFeatherPx });
+  var manualTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, manualTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1,1,0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255,255,255,255]));
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.bindTexture(gl.TEXTURE_2D, null);
 
   // FoW mask resources
-  var fowHelper = Effects._buildFoWMaskForOverlay(overlay);
+  var fowHelper = Effects._buildFoWMaskForOverlay(overlay, { featherPx: maskFeatherPx });
   var fowTexture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, fowTexture);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255,255,255,255]));
@@ -439,6 +585,20 @@ const Effects = {
             gl.uniform1i(fowLoc, 1);
           }
         } catch(e) {}
+        // Update and bind Manual mask (unit 2)
+        try {
+          manualHelper.setLayers(manualMaskLayers);
+          if (manualHelper.setOptions) manualHelper.setOptions({ featherPx: maskFeatherPx });
+          if (fowHelper.setOptions) fowHelper.setOptions({ featherPx: maskFeatherPx });
+          var updM = manualHelper.update();
+          if (updM && updM.canvas) {
+            gl.activeTexture(gl.TEXTURE2);
+            gl.bindTexture(gl.TEXTURE_2D, manualTexture);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, updM.canvas);
+            gl.uniform1i(manualLoc, 2);
+          }
+        } catch(e) {}
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         requestAnimationFrame(frame);
@@ -447,8 +607,8 @@ const Effects = {
       requestAnimationFrame(frame);
 
       return {
-  stop: function(){ running = false; try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fowHelper && fowHelper.destroy(); }catch(e){} },
-        updateConfig: function(c){ intensity = c.intensity != null ? c.intensity : intensity; wind = c.wind != null ? c.wind : wind; speed = c.speed != null ? c.speed : speed; color = c.color || color; lightning = c.lightning != null ? c.lightning : lightning; lightningFreq = c.lightningFreq || lightningFreq; lightningIntensity = c.lightningIntensity || lightningIntensity; }
+  stop: function(){ running = false; try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fowHelper && fowHelper.destroy(); }catch(e){} try{ manualHelper && manualHelper.destroy(); }catch(e){} },
+  updateConfig: function(c){ intensity = c.intensity != null ? c.intensity : intensity; wind = c.wind != null ? c.wind : wind; speed = c.speed != null ? c.speed : speed; color = c.color || color; lightning = c.lightning != null ? c.lightning : lightning; lightningFreq = c.lightningFreq || lightningFreq; lightningIntensity = c.lightningIntensity || lightningIntensity; useManualMask = c.mask != null ? !!c.mask : useManualMask; manualMaskLayers = c.mask_layers || manualMaskLayers; maskFeatherPx = Math.max(0, (c.mask_feather != null ? c.mask_feather : maskFeatherPx)); manualHelper.setLayers(manualMaskLayers); if (manualHelper.setOptions) manualHelper.setOptions({ featherPx: maskFeatherPx }); if (fowHelper.setOptions) fowHelper.setOptions({ featherPx: maskFeatherPx }); }
       };
     }
 
@@ -457,7 +617,8 @@ const Effects = {
     var running = true;
     var drops = [];
   // FoW mask (2D path)
-  var fow2D = Effects._buildFoWMaskForOverlay(overlay);
+  var fow2D = Effects._buildFoWMaskForOverlay(overlay, { featherPx: maskFeatherPx });
+  var manual2D = Effects._buildManualMaskForOverlay(overlay, manualMaskLayers, { featherPx: maskFeatherPx });
     var W = overlay.width, H = overlay.height;
     function makeDrop() {
       // tapered drop: head is brighter and slightly larger
@@ -553,6 +714,20 @@ const Effects = {
         }
       }
 
+      // Apply Manual mask (2D)
+      if (useManualMask) {
+        try {
+          if (manual2D.setLayers) manual2D.setLayers(manualMaskLayers);
+          if (manual2D.setOptions) manual2D.setOptions({ featherPx: maskFeatherPx });
+          var man = manual2D.update();
+          if (man && man.canvas) {
+            ctx.globalCompositeOperation = 'destination-in';
+            ctx.drawImage(man.canvas, 0, 0);
+            ctx.globalCompositeOperation = 'source-over';
+          }
+        } catch(e) {}
+      }
+
       // Apply FoW mask to hide hidden tiles
       try {
         var upd = fow2D.update();
@@ -592,6 +767,9 @@ const Effects = {
   var accumulationRate = config.accumulationRate != null ? config.accumulationRate : 0.02; // per second
   var accumulationMax = config.accumulationMax != null ? config.accumulationMax : 0.35; // 0..1
   var accumulationColor = config.accumulationColor || '#ffffff';
+  var useManualMaskSnow = !!config.mask;
+  var manualMaskLayersSnow = config.mask_layers || config.mask_layer || [];
+  var maskFeatherPxSnow = Math.max(0, config.mask_feather || 0);
 
     // Attach overlay to the battlemap container
     var container = document.querySelector('.image-container') || document.body;
@@ -662,7 +840,8 @@ const Effects = {
         uniform float u_dof;
         uniform vec3 u_color;
         uniform sampler2D u_map;
-        uniform sampler2D u_fow;
+  uniform sampler2D u_fow;
+  uniform sampler2D u_manual;
         uniform float u_accumLevel;
         uniform vec3 u_accumColor;
 
@@ -724,7 +903,13 @@ const Effects = {
           #endif
 
           vec3 col = baseCol * clamp(accum, 0.0, 1.2);
-          float alpha = clamp(accum * 0.8, 0.0, 0.9) * mapA * fowA;
+          float manualA = 1.0;
+          #ifdef GL_ES
+          manualA = texture2D(u_manual, v_uv).a;
+          #else
+          manualA = texture(u_manual, v_uv).a;
+          #endif
+          float alpha = clamp(accum * 0.8, 0.0, 0.9) * mapA * fowA * manualA;
 
           // accumulation tint near bottom
           float gy = 1.0 - v_uv.y;
@@ -761,6 +946,7 @@ const Effects = {
       var colorLoc = gl.getUniformLocation(program, 'u_color');
   var mapLoc = gl.getUniformLocation(program, 'u_map');
   var fowLoc = gl.getUniformLocation(program, 'u_fow');
+  var manualLoc = gl.getUniformLocation(program, 'u_manual');
   var gustWindLoc = gl.getUniformLocation(program, 'u_gustWind');
   var gustTurbLoc = gl.getUniformLocation(program, 'u_gustTurb');
   var dofLoc = gl.getUniformLocation(program, 'u_dof');
@@ -824,9 +1010,19 @@ const Effects = {
   var gustActive = false; var gustEnd = 0; var gustWindVal = 0.0; var gustTurbVal = 0.0;
 
   // FoW mask resources
-  var fowHelper = Effects._buildFoWMaskForOverlay(overlay);
+  var fowHelper = Effects._buildFoWMaskForOverlay(overlay, { featherPx: maskFeatherPxSnow });
   var fowTexture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, fowTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255,255,255,255]));
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  // Manual mask resources
+  var manualHelperSnow = Effects._buildManualMaskForOverlay(overlay, manualMaskLayersSnow, { featherPx: maskFeatherPxSnow });
+  var manualTextureSnow = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, manualTextureSnow);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255,255,255,255]));
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -895,13 +1091,25 @@ const Effects = {
             gl.uniform1i(fowLoc, 1);
           }
         } catch(e) {}
+        // Update and bind Manual mask (unit 2)
+        try {
+          manualHelperSnow.setLayers(manualMaskLayersSnow);
+          var updM2 = manualHelperSnow.update();
+          if (updM2 && updM2.canvas) {
+            gl.activeTexture(gl.TEXTURE2);
+            gl.bindTexture(gl.TEXTURE_2D, manualTextureSnow);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, updM2.canvas);
+            gl.uniform1i(manualLoc, 2);
+          }
+        } catch(e) {}
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         requestAnimationFrame(frame);
       }
       requestAnimationFrame(frame);
 
       return {
-  stop: function(){ running = false; try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fowHelper && fowHelper.destroy(); }catch(e){} },
+  stop: function(){ running = false; try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fowHelper && fowHelper.destroy(); }catch(e){} try{ manualHelperSnow && manualHelperSnow.destroy(); }catch(e){} },
         updateConfig: function(c){
           intensity = c.intensity != null ? c.intensity : intensity;
           wind = c.wind != null ? c.wind : wind;
@@ -918,6 +1126,12 @@ const Effects = {
           accumulationRate = c.accumulationRate != null ? c.accumulationRate : accumulationRate;
           accumulationMax = c.accumulationMax != null ? c.accumulationMax : accumulationMax;
           accumulationColor = c.accumulationColor || accumulationColor;
+          useManualMaskSnow = c.mask != null ? !!c.mask : useManualMaskSnow;
+          manualMaskLayersSnow = c.mask_layers || manualMaskLayersSnow;
+          maskFeatherPxSnow = Math.max(0, (c.mask_feather != null ? c.mask_feather : maskFeatherPxSnow));
+          try{ manualHelperSnow.setLayers(manualMaskLayersSnow); }catch(e){}
+          try{ if (manualHelperSnow.setOptions) manualHelperSnow.setOptions({ featherPx: maskFeatherPxSnow }); }catch(e){}
+          try{ if (fowHelper.setOptions) fowHelper.setOptions({ featherPx: maskFeatherPxSnow }); }catch(e){}
         }
       };
     }
@@ -927,7 +1141,8 @@ const Effects = {
   ctx.imageSmoothingEnabled = true;
     var running2D = true;
   // FoW mask for 2D path
-  var fow2D = Effects._buildFoWMaskForOverlay(overlay);
+  var fow2D = Effects._buildFoWMaskForOverlay(overlay, { featherPx: maskFeatherPxSnow });
+  var manual2DSnow = Effects._buildManualMaskForOverlay(overlay, manualMaskLayersSnow, { featherPx: maskFeatherPxSnow });
   var W = overlay.clientWidth, H = overlay.clientHeight;
   function updateLogicalSize(){ var rect = getMapRect(); W = rect.width; H = rect.height; }
   function setDPRTransform(){ var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1)); ctx.setTransform(dpr,0,0,dpr,0,0); }
@@ -1015,6 +1230,15 @@ const Effects = {
         ctx.fillStyle = g;
         ctx.fillRect(0, Math.max(0, H - H*0.4), W, H*0.4);
       }
+      // Apply Manual mask then FoW mask on 2D (destination-in)
+      try {
+        var man2 = manual2DSnow.update();
+        if (man2 && man2.canvas) {
+          ctx.globalCompositeOperation = 'destination-in';
+          ctx.drawImage(man2.canvas, 0, 0);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+      } catch(e) {}
       // Apply FoW mask on 2D (destination-in)
       try {
         var upd2 = fow2D.update();
@@ -1029,7 +1253,7 @@ const Effects = {
     requestAnimationFrame(draw2D);
 
     return {
-  stop: function(){ running2D = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fow2D && fow2D.destroy(); }catch(e){} },
+  stop: function(){ running2D = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fow2D && fow2D.destroy(); }catch(e){} try{ manual2DSnow && manual2DSnow.destroy(); }catch(e){} },
       updateConfig: function(c){
         intensity = c.intensity != null ? c.intensity : intensity;
         wind = c.wind != null ? c.wind : wind;
@@ -1046,6 +1270,12 @@ const Effects = {
   accumulationRate = c.accumulationRate != null ? c.accumulationRate : accumulationRate;
   accumulationMax = c.accumulationMax != null ? c.accumulationMax : accumulationMax;
   accumulationColor = c.accumulationColor || accumulationColor;
+  useManualMaskSnow = c.mask != null ? !!c.mask : useManualMaskSnow;
+  manualMaskLayersSnow = c.mask_layers || manualMaskLayersSnow;
+  maskFeatherPxSnow = Math.max(0, (c.mask_feather != null ? c.mask_feather : maskFeatherPxSnow));
+  try{ manual2DSnow.setLayers(manualMaskLayersSnow); }catch(e){}
+  try{ if (manual2DSnow.setOptions) manual2DSnow.setOptions({ featherPx: maskFeatherPxSnow }); }catch(e){}
+  try{ if (fow2D.setOptions) fow2D.setOptions({ featherPx: maskFeatherPxSnow }); }catch(e){}
       }
     };
   }
@@ -1057,6 +1287,9 @@ Effects.createFogEffect = function (config) {
   var density = config.density != null ? config.density : 0.45;
   var speed = config.speed != null ? config.speed : 0.7;
   var color = config.color || '#cfcfd6';
+  var useManualMask = !!config.mask;
+  var manualMaskLayers = config.mask_layers || config.mask_layer || [];
+  var maskFeatherPx = Math.max(0, config.mask_feather || 0);
 
   // Attach overlay aligned to the actual map image rect (to avoid offset issues)
   var container = document.querySelector('.image-container') || document.body;
@@ -1118,8 +1351,9 @@ Effects.createFogEffect = function (config) {
       uniform float u_grain;
       uniform float u_falloff;
       uniform vec3 u_color;
-      uniform sampler2D u_map;
-      uniform sampler2D u_fow;
+  uniform sampler2D u_map;
+  uniform sampler2D u_fow;
+  uniform sampler2D u_manual;
 
       // value noise helpers
       float hash(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123); }
@@ -1181,7 +1415,13 @@ Effects.createFogEffect = function (config) {
   #else
   fowA = texture(u_fow, v_uv).a;
   #endif
-  float outAlpha = clamp(fog * 0.85 * mapAlpha * fowA, 0.0, 0.95);
+  float manualA = 1.0;
+  #ifdef GL_ES
+  manualA = texture2D(u_manual, v_uv).a;
+  #else
+  manualA = texture(u_manual, v_uv).a;
+  #endif
+  float outAlpha = clamp(fog * 0.85 * mapAlpha * fowA * manualA, 0.0, 0.95);
   gl_FragColor = vec4(col, outAlpha);
       }
     `;
@@ -1210,6 +1450,7 @@ Effects.createFogEffect = function (config) {
   var colorLoc = gl.getUniformLocation(program, 'u_color');
   var mapLoc = gl.getUniformLocation(program, 'u_map');
   var fowLoc = gl.getUniformLocation(program, 'u_fow');
+  var manualLoc = gl.getUniformLocation(program, 'u_manual');
 
     var buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -1275,9 +1516,20 @@ Effects.createFogEffect = function (config) {
   var _lastOverlayW = overlay.width, _lastOverlayH = overlay.height;
 
   // FoW mask resources
-  var fowHelper = Effects._buildFoWMaskForOverlay(overlay);
+  var fowHelper = Effects._buildFoWMaskForOverlay(overlay, { featherPx: maskFeatherPx });
   var fowTexture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, fowTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255,255,255,255]));
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+
+  // Manual mask resources
+  var manualHelper = Effects._buildManualMaskForOverlay(overlay, manualMaskLayers, { featherPx: maskFeatherPx });
+  var manualTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, manualTexture);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255,255,255,255]));
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -1324,6 +1576,18 @@ Effects.createFogEffect = function (config) {
           gl.uniform1i(fowLoc, 1);
         }
       } catch(e) {}
+      // Update and bind Manual mask (unit 2)
+      try {
+        manualHelper.setLayers(manualMaskLayers);
+        var updM = manualHelper.update();
+        if (updM && updM.canvas) {
+          gl.activeTexture(gl.TEXTURE2);
+          gl.bindTexture(gl.TEXTURE_2D, manualTexture);
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, updM.canvas);
+          gl.uniform1i(manualLoc, 2);
+        }
+      } catch(e) {}
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       requestAnimationFrame(frame);
     }
@@ -1338,8 +1602,19 @@ Effects.createFogEffect = function (config) {
         if (ro) try { ro.disconnect(); } catch (e) {}
         if (imgResizeObserver) try { imgResizeObserver.disconnect(); } catch (e) {}
         try{ fowHelper && fowHelper.destroy(); }catch(e){}
+        try{ manualHelper && manualHelper.destroy(); }catch(e){}
       },
-      updateConfig: function (c) { density = c.density != null ? c.density : density; speed = c.speed != null ? c.speed : speed; color = c.color || color; }
+      updateConfig: function (c) {
+        density = c.density != null ? c.density : density;
+        speed = c.speed != null ? c.speed : speed;
+        color = c.color || color;
+        useManualMask = c.mask != null ? !!c.mask : useManualMask;
+        manualMaskLayers = c.mask_layers || manualMaskLayers;
+        maskFeatherPx = Math.max(0, (c.mask_feather != null ? c.mask_feather : maskFeatherPx));
+        try{ manualHelper.setLayers(manualMaskLayers);}catch(e){}
+        try{ if (manualHelper.setOptions) manualHelper.setOptions({ featherPx: maskFeatherPx }); }catch(e){}
+        try{ if (fowHelper.setOptions) fowHelper.setOptions({ featherPx: maskFeatherPx }); }catch(e){}
+      }
     };
   }
 
@@ -1348,7 +1623,8 @@ Effects.createFogEffect = function (config) {
   var running = true;
   var t = 0;
   // FoW mask for 2D path
-  var fow2D = Effects._buildFoWMaskForOverlay(overlay);
+  var fow2D = Effects._buildFoWMaskForOverlay(overlay, { featherPx: maskFeatherPx });
+  var manual2D = Effects._buildManualMaskForOverlay(overlay, manualMaskLayers, { featherPx: maskFeatherPx });
 
   function draw() {
     if (!running) return;
@@ -1384,6 +1660,15 @@ Effects.createFogEffect = function (config) {
       ctx.drawImage(tx, 0, 0);
       ctx.globalCompositeOperation = 'source-over';
     }
+    // Apply Manual mask (2D)
+    try {
+      var man = manual2D.update();
+      if (man && man.canvas) {
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.drawImage(man.canvas, 0, 0);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    } catch(e) {}
     // Apply FoW mask (2D)
     try {
       var upd = fow2D.update();
@@ -1400,7 +1685,17 @@ Effects.createFogEffect = function (config) {
   requestAnimationFrame(draw);
 
   return {
-  stop: function () { running = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fow2D && fow2D.destroy(); }catch(e){} },
-    updateConfig: function (c) { density = c.density != null ? c.density : density; speed = c.speed != null ? c.speed : speed; color = c.color || color; }
+  stop: function () { running = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fow2D && fow2D.destroy(); }catch(e){} try{ manual2D && manual2D.destroy(); }catch(e){} },
+    updateConfig: function (c) {
+      density = c.density != null ? c.density : density;
+      speed = c.speed != null ? c.speed : speed;
+      color = c.color || color;
+      useManualMask = c.mask != null ? !!c.mask : useManualMask;
+      manualMaskLayers = c.mask_layers || manualMaskLayers;
+      maskFeatherPx = Math.max(0, (c.mask_feather != null ? c.mask_feather : maskFeatherPx));
+      try{ manual2D.setLayers(manualMaskLayers);}catch(e){}
+      try{ if (manual2D.setOptions) manual2D.setOptions({ featherPx: maskFeatherPx }); }catch(e){}
+      try{ if (fow2D.setOptions) fow2D.setOptions({ featherPx: maskFeatherPx }); }catch(e){}
+    }
   };
 };
