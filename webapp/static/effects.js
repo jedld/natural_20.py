@@ -23,6 +23,9 @@ const Effects = {
         if (data.effect === 'snow') {
           Effects._instances.snow = Effects.createSnowEffect(data.config || {});
         }
+        if (data.effect === 'water') {
+          Effects._instances.water = Effects.createWaterEffect(data.config || {});
+        }
       } else if (data.action === 'stop') {
         if (Effects._instances[data.effect]) {
           Effects._instances[data.effect].stop();
@@ -38,6 +41,9 @@ const Effects = {
         if (data.effect === 'snow' && Effects._instances.snow) {
           Effects._instances.snow.updateConfig(data.config || {});
         }
+        if (data.effect === 'water' && Effects._instances.water) {
+          Effects._instances.water.updateConfig(data.config || {});
+        }
       }
     });
   },
@@ -52,12 +58,14 @@ const Effects = {
   if (data.effect === 'fog') Effects._instances.fog = Effects.createFogEffect(data.config || {});
   if (data.effect === 'rain') Effects._instances.rain = Effects.createRainEffect(data.config || {});
   if (data.effect === 'snow') Effects._instances.snow = Effects.createSnowEffect(data.config || {});
+  if (data.effect === 'water') Effects._instances.water = Effects.createWaterEffect(data.config || {});
     } else if (data.action === 'stop') {
       if (Effects._instances[data.effect]) { Effects._instances[data.effect].stop(); delete Effects._instances[data.effect]; }
     } else if (data.action === 'update') {
       if (data.effect === 'fog' && Effects._instances.fog) Effects._instances.fog.updateConfig(data.config || {});
       if (data.effect === 'rain' && Effects._instances.rain) Effects._instances.rain.updateConfig(data.config || {});
   if (data.effect === 'snow' && Effects._instances.snow) Effects._instances.snow.updateConfig(data.config || {});
+  if (data.effect === 'water' && Effects._instances.water) Effects._instances.water.updateConfig(data.config || {});
     }
   },
 
@@ -276,6 +284,7 @@ const Effects = {
   var useManualMask = !!config.mask;
   var manualMaskLayers = config.mask_layers || config.mask_layer || [];
   var maskFeatherPx = Math.max(0, config.mask_feather || 0);
+  var reflection = (config.reflection != null ? config.reflection : 0.6); // 0..1
 
     // Attach overlay to the battlemap container so effect aligns to the map image
     var container = document.querySelector('.image-container') || document.body;
@@ -1280,6 +1289,365 @@ const Effects = {
     };
   }
 }
+
+// Water implementation: animated ripples with subtle specular highlights.
+Effects.createWaterEffect = function(config) {
+  config = config || {};
+  var speed = config.speed != null ? config.speed : 0.8;
+  var amplitude = config.amplitude != null ? config.amplitude : 0.8; // visual strength 0..1
+  var distortion = config.distortion != null ? config.distortion : 0.015; // UV warp scale
+  var brightness = config.brightness != null ? config.brightness : 0.9; // highlight boost
+  var color = config.color || '#3aa1c7'; // water tint
+  var reflection = (config.reflection != null ? config.reflection : 0.6); // reflection strength 0..1
+  var useManualMask = !!config.mask;
+  var manualMaskLayers = config.mask_layers || config.mask_layer || [];
+  var maskFeatherPx = Math.max(0, config.mask_feather || 0);
+
+  // Align overlay to map image rect
+  var container = document.querySelector('.image-container') || document.body;
+  var overlay = container.querySelector('#effects-overlay-water');
+  if (!overlay) {
+    overlay = document.createElement('canvas');
+    overlay.id = 'effects-overlay-water';
+    overlay.style.position = 'absolute';
+    overlay.style.left = '0';
+    overlay.style.top = '0';
+    overlay.style.pointerEvents = 'none';
+    // place just above the background image and below tokens (tiles-container z-index: 1)
+    overlay.style.zIndex = 0;
+    container.appendChild(overlay);
+  }
+
+  function getMapElement(){ return document.querySelector('.image-container img.background-image, .image-container img'); }
+  function getMapRect(){
+    var img = getMapElement();
+    var cRect = container.getBoundingClientRect();
+    if (img) {
+      var r = img.getBoundingClientRect();
+      return { left: Math.round(r.left - cRect.left), top: Math.round(r.top - cRect.top), width: Math.round(r.width), height: Math.round(r.height) };
+    }
+    return { left: 0, top: 0, width: container.clientWidth, height: container.clientHeight };
+  }
+
+  function resize(){
+    var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    var rect = getMapRect();
+    overlay.style.left = rect.left + 'px';
+    overlay.style.top = rect.top + 'px';
+    overlay.style.width = rect.width + 'px';
+    overlay.style.height = rect.height + 'px';
+    overlay.width = Math.floor(rect.width * dpr);
+    overlay.height = Math.floor(rect.height * dpr);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  var ro = new ResizeObserver(resize);
+  try { ro.observe(container); } catch(e) {}
+
+  function rgbFromHex(hex){ var r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255; return [r,g,b]; }
+
+  var gl = null;
+  try { gl = overlay.getContext('webgl', { antialias:true, alpha:true, premultipliedAlpha:true }) || overlay.getContext('experimental-webgl', { antialias:true, alpha:true, premultipliedAlpha:true }); } catch(e) { gl = null; }
+
+  if (gl) {
+    var vertexSrc = 'attribute vec2 a_position; varying vec2 v_uv; void main(){ v_uv = a_position*0.5+0.5; gl_Position = vec4(a_position,0.0,1.0);}';
+    var fragSrc = `
+      precision mediump float;
+      varying vec2 v_uv;
+      uniform vec2 u_resolution;
+      uniform float u_time;
+      uniform float u_speed;
+      uniform float u_amp;
+      uniform float u_distort;
+      uniform float u_brightness;
+      uniform float u_reflect;
+      uniform vec3 u_color;
+      uniform sampler2D u_map;
+      uniform sampler2D u_fow;
+      uniform sampler2D u_manual;
+
+      // pseudo-random
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }
+      float noise(vec2 p){ vec2 i=floor(p); vec2 f=fract(p); vec2 u=f*f*(3.0-2.0*f); float a=hash(i); float b=hash(i+vec2(1.0,0.0)); float c=hash(i+vec2(0.0,1.0)); float d=hash(i+vec2(1.0,1.0)); return mix(mix(a,b,u.x), mix(c,d,u.x), u.y); }
+      float fbm(vec2 p){ float v=0.0; float a=0.5; mat2 m=mat2(1.6,1.2,-1.2,1.6); for(int i=0;i<4;i++){ v += a*noise(p); p = m*p*1.8; a*=0.5;} return v; }
+
+      float heightField(vec2 uv, float t){
+        float h = 0.0;
+        h += sin(uv.x*18.0 + t*0.9) * 0.35;
+        h += sin(uv.y*22.0 - t*1.1) * 0.35;
+        h += sin((uv.x+uv.y)*12.0 + t*0.7) * 0.25;
+        h += fbm(uv*3.0 + vec2(t*0.08, -t*0.06)) * 0.6;
+        return h;
+      }
+
+      void main(){
+        vec2 res = u_resolution; 
+        vec2 uv = v_uv * (res / min(res.x,res.y));
+        float t = u_time * 0.001 * u_speed;
+        // warp uv by subtle flow
+        vec2 flow = vec2(sin(t*0.4), cos(t*0.33));
+        vec2 wuv = v_uv + (flow*0.02 + vec2(fbm(uv*1.2), fbm(uv*1.2+11.0))*0.015) * u_distort * 8.0;
+
+        // compute height and approximate gradient for highlights
+        float eps = 1.0 / min(res.x, res.y);
+        float h = heightField(uv + flow*0.05, t) * u_amp;
+        float hx = heightField(uv + vec2(eps,0.0) + flow*0.05, t) * u_amp;
+        float hy = heightField(uv + vec2(0.0,eps) + flow*0.05, t) * u_amp;
+        vec3 n = normalize(vec3(h - hx, h - hy, 0.5));
+        vec3 L = normalize(vec3(0.3, 0.5, 0.8));
+        float spec = pow(max(0.0, dot(n, L)), 18.0) * 1.4;
+        float rim = smoothstep(0.2, 0.8, h);
+
+        // base water tint + specular
+        vec3 base = u_color * (0.7 + 0.3*rim);
+        base += vec3(0.9,0.95,1.0) * spec * u_brightness;
+
+        // Fresnel-based reflection sampling of underlying map
+        vec3 V = normalize(vec3(0.0, 0.0, 1.0));
+        float NoV = clamp(dot(n, V), 0.0, 1.0);
+        float fresnel = pow(1.0 - NoV, 5.0); // Schlick approx without F0
+        // use normal to offset reflection lookup to mimic environment reflection
+        vec2 reflUV = v_uv + n.xy * 0.04 * u_distort + flow * 0.01;
+        // slight scroll to avoid static look
+        reflUV += vec2(t*0.01, -t*0.007);
+        vec3 mapCol = texture2D(u_map, clamp(reflUV, 0.0, 1.0)).rgb;
+        // boost highlights, blend by fresnel and user reflection strength
+        vec3 reflectCol = mix(base, mapCol, clamp(u_reflect * (0.3 + 0.7*fresnel), 0.0, 1.0));
+
+        float mapA = 1.0;
+        #ifdef GL_ES
+          mapA = texture2D(u_map, v_uv).a;
+        #else
+          mapA = texture(u_map, v_uv).a;
+        #endif
+        float fowA = 1.0;
+        #ifdef GL_ES
+          fowA = texture2D(u_fow, v_uv).a;
+        #else
+          fowA = texture(u_fow, v_uv).a;
+        #endif
+        float manualA = 1.0;
+        #ifdef GL_ES
+          manualA = texture2D(u_manual, v_uv).a;
+        #else
+          manualA = texture(u_manual, v_uv).a;
+        #endif
+        float alpha = clamp(0.30 + 0.35*rim + 0.25*spec, 0.0, 0.9) * mapA * fowA * manualA;
+        gl_FragColor = vec4(reflectCol, alpha);
+      }
+    `;
+
+    function compileShader(src, type){ var s=gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.warn(gl.getShaderInfoLog(s)); return s; }
+    var program = gl.createProgram();
+    gl.attachShader(program, compileShader(vertexSrc, gl.VERTEX_SHADER));
+    gl.attachShader(program, compileShader(fragSrc, gl.FRAGMENT_SHADER));
+    gl.linkProgram(program);
+
+    var positionLoc = gl.getAttribLocation(program, 'a_position');
+    var resLoc = gl.getUniformLocation(program, 'u_resolution');
+    var timeLoc = gl.getUniformLocation(program, 'u_time');
+    var speedLoc = gl.getUniformLocation(program, 'u_speed');
+    var ampLoc = gl.getUniformLocation(program, 'u_amp');
+    var distLoc = gl.getUniformLocation(program, 'u_distort');
+  var brightLoc = gl.getUniformLocation(program, 'u_brightness');
+  var reflectLoc = gl.getUniformLocation(program, 'u_reflect');
+    var colorLoc = gl.getUniformLocation(program, 'u_color');
+    var mapLoc = gl.getUniformLocation(program, 'u_map');
+    var fowLoc = gl.getUniformLocation(program, 'u_fow');
+    var manualLoc = gl.getUniformLocation(program, 'u_manual');
+
+    var buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    gl.useProgram(program);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    // Map texture handling
+    var mapTexture = null;
+    var mapImageEl = getMapElement();
+    var imgResizeObserver = null;
+    function createMapTexture(){
+      if (!gl || !mapImageEl || !mapImageEl.complete) return;
+      if (!mapTexture) mapTexture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, mapTexture);
+      try {
+        var c = document.createElement('canvas'); c.width = overlay.width; c.height = overlay.height; var ctx2 = c.getContext('2d'); ctx2.drawImage(mapImageEl, 0, 0, c.width, c.height);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      } catch(e) {
+        // Fallback: still try canvas copy
+        var c2 = document.createElement('canvas'); c2.width = overlay.width; c2.height = overlay.height; var ctx3 = c2.getContext('2d'); ctx3.drawImage(mapImageEl, 0, 0, c2.width, c2.height);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c2);
+      }
+      gl.bindTexture(gl.TEXTURE_2D, null);
+    }
+    if (mapImageEl) {
+      if (mapImageEl.complete) createMapTexture(); else mapImageEl.addEventListener('load', createMapTexture);
+      try { imgResizeObserver = new ResizeObserver(function(){ createMapTexture(); }); imgResizeObserver.observe(mapImageEl); } catch(e) {}
+    }
+
+    // FoW & Manual masks
+    var fowHelper = Effects._buildFoWMaskForOverlay(overlay, { featherPx: maskFeatherPx });
+    var fowTexture = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, fowTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255,255,255,255]));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+
+    var manualHelper = Effects._buildManualMaskForOverlay(overlay, manualMaskLayers, { featherPx: maskFeatherPx });
+    var manualTexture = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, manualTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255,255,255,255]));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+
+    var start = Date.now();
+    var running = true;
+    var _lastOverlayW = overlay.width, _lastOverlayH = overlay.height;
+
+    function frame(){
+      if (!running) return;
+      gl.viewport(0, 0, overlay.width, overlay.height);
+      gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(program);
+      gl.enableVertexAttribArray(positionLoc);
+      gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+      gl.uniform2f(resLoc, overlay.width, overlay.height);
+      gl.uniform1f(timeLoc, Date.now() - start);
+      gl.uniform1f(speedLoc, speed);
+      gl.uniform1f(ampLoc, amplitude);
+      gl.uniform1f(distLoc, distortion);
+      gl.uniform1f(brightLoc, brightness);
+  var rgb = rgbFromHex(color); gl.uniform3f(colorLoc, rgb[0], rgb[1], rgb[2]);
+  gl.uniform1f(reflectLoc, reflection);
+
+      if (mapTexture) {
+        if (overlay.width !== _lastOverlayW || overlay.height !== _lastOverlayH) { _lastOverlayW = overlay.width; _lastOverlayH = overlay.height; try{ createMapTexture(); }catch(e){} }
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, mapTexture); gl.uniform1i(mapLoc, 0);
+      }
+      // FoW
+      try { var upd = fowHelper.update(); if (upd && upd.canvas) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, fowTexture); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, upd.canvas); gl.uniform1i(fowLoc, 1); } } catch(e) {}
+      // Manual
+      try { manualHelper.setLayers(manualMaskLayers); var updM = manualHelper.update(); if (updM && updM.canvas) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, manualTexture); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, updM.canvas); gl.uniform1i(manualLoc, 2); } } catch(e) {}
+
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    return {
+      stop: function(){
+        running = false;
+        try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){}
+        if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        if (ro) try{ ro.disconnect(); }catch(e){}
+        if (imgResizeObserver) try{ imgResizeObserver.disconnect(); }catch(e){}
+        try{ fowHelper && fowHelper.destroy(); }catch(e){}
+        try{ manualHelper && manualHelper.destroy(); }catch(e){}
+      },
+      updateConfig: function(c){
+        speed = c.speed != null ? c.speed : speed;
+        amplitude = c.amplitude != null ? c.amplitude : amplitude;
+        distortion = c.distortion != null ? c.distortion : distortion;
+        brightness = c.brightness != null ? c.brightness : brightness;
+  color = c.color || color;
+        useManualMask = c.mask != null ? !!c.mask : useManualMask;
+        manualMaskLayers = c.mask_layers || manualMaskLayers;
+        maskFeatherPx = Math.max(0, (c.mask_feather != null ? c.mask_feather : maskFeatherPx));
+  reflection = (c.reflection != null ? c.reflection : reflection);
+        try{ manualHelper.setLayers(manualMaskLayers); }catch(e){}
+        try{ if (manualHelper.setOptions) manualHelper.setOptions({ featherPx: maskFeatherPx }); }catch(e){}
+        try{ if (fowHelper.setOptions) fowHelper.setOptions({ featherPx: maskFeatherPx }); }catch(e){}
+      }
+    };
+  }
+
+  // Canvas fallback
+  var ctx = overlay.getContext('2d');
+  var running2D = true;
+  var t0 = Date.now();
+  var fow2D = Effects._buildFoWMaskForOverlay(overlay, { featherPx: maskFeatherPx });
+  var manual2D = Effects._buildManualMaskForOverlay(overlay, manualMaskLayers, { featherPx: maskFeatherPx });
+
+  function draw2D(){
+    if (!running2D) return;
+    // ensure backing store matches DPR and rect
+    var rect = getMapRect();
+    var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    var targetW = Math.floor(rect.width * dpr), targetH = Math.floor(rect.height * dpr);
+    if (overlay.width !== targetW || overlay.height !== targetH) { overlay.width = targetW; overlay.height = targetH; overlay.style.width = rect.width + 'px'; overlay.style.height = rect.height + 'px'; }
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,rect.width, rect.height);
+
+    var now = Date.now();
+    var t = (now - t0) * 0.001 * speed;
+    var rgb = rgbFromHex(color);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.6 * amplitude;
+    ctx.fillStyle = 'rgba(' + Math.floor(rgb[0]*255) + ',' + Math.floor(rgb[1]*255) + ',' + Math.floor(rgb[2]*255) + ',0.35)';
+    // draw horizontal wave bands
+    var W = rect.width, H = rect.height;
+    var bands = 16;
+    for (var i=0; i<bands; i++){
+      var y = (i + 0.5) * H / bands;
+      var ampPx = 6 + 12*amplitude;
+      var freq = 0.012 + 0.02*(i/bands);
+      ctx.beginPath();
+      for (var x=0; x<=W; x+=4){
+        var yy = y + Math.sin(x*freq + t*2.0 + i)*ampPx;
+        if (x===0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+      }
+      ctx.lineWidth = 2.0;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.08 + 0.08*brightness) + ')';
+      ctx.stroke();
+    }
+    // soft tint overlay
+    ctx.globalAlpha = 0.12 * amplitude;
+    ctx.fillStyle = 'rgba(' + Math.floor(rgb[0]*255) + ',' + Math.floor(rgb[1]*255) + ',' + Math.floor(rgb[2]*255) + ',1)';
+    ctx.fillRect(0,0,W,H);
+
+    // mask by map alpha
+    var mapEl = getMapElement();
+    if (mapEl && mapEl.complete){
+      var tx = document.createElement('canvas'); tx.width = overlay.width; tx.height = overlay.height; var tctx = tx.getContext('2d'); tctx.drawImage(mapEl, 0, 0, overlay.width, overlay.height);
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.drawImage(tx, 0, 0);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    // Manual then FoW masks
+    try { var man = manual2D.update(); if (man && man.canvas){ ctx.globalCompositeOperation='destination-in'; ctx.drawImage(man.canvas, 0, 0); ctx.globalCompositeOperation='source-over'; } } catch(e) {}
+    try { var upd = fow2D.update(); if (upd && upd.canvas){ ctx.globalCompositeOperation='destination-in'; ctx.drawImage(upd.canvas, 0, 0); ctx.globalCompositeOperation='source-over'; } } catch(e) {}
+
+    requestAnimationFrame(draw2D);
+  }
+  requestAnimationFrame(draw2D);
+
+  return {
+    stop: function(){ running2D = false; if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fow2D && fow2D.destroy(); }catch(e){} try{ manual2D && manual2D.destroy(); }catch(e){} },
+    updateConfig: function(c){
+      speed = c.speed != null ? c.speed : speed;
+      amplitude = c.amplitude != null ? c.amplitude : amplitude;
+      distortion = c.distortion != null ? c.distortion : distortion;
+      brightness = c.brightness != null ? c.brightness : brightness;
+      color = c.color || color;
+      useManualMask = c.mask != null ? !!c.mask : useManualMask;
+      manualMaskLayers = c.mask_layers || manualMaskLayers;
+      maskFeatherPx = Math.max(0, (c.mask_feather != null ? c.mask_feather : maskFeatherPx));
+      try{ manual2D.setLayers(manualMaskLayers); }catch(e){}
+      try{ if (manual2D.setOptions) manual2D.setOptions({ featherPx: maskFeatherPx }); }catch(e){}
+      try{ if (fow2D.setOptions) fow2D.setOptions({ featherPx: maskFeatherPx }); }catch(e){}
+    }
+  };
+};
 
 // Fog implementation: WebGL accelerated if available, canvas fallback otherwise.
 Effects.createFogEffect = function (config) {
