@@ -1,19 +1,37 @@
 const Effects = {
   // store active effect instances
   _instances: {},
+  // global enable/disable flag
+  _enabled: true,
+
+  // Check if effects are enabled
+  isEnabled: function() { return !!Effects._enabled; },
+  // Enable/disable all effects. Disabling stops any running effects.
+  setEnabled: function(flag) {
+    var on = !!flag;
+    if (on === Effects._enabled) return;
+    Effects._enabled = on;
+    if (!on) {
+      try { Effects.stopAll(); } catch (e) {}
+    }
+  },
 
   // Broadcast handler registration
   initSocketHandlers: function (socket) {
     socket.on('effect:set', function (data) {
+  // When disabled, ignore start/update (but allow explicit stop to clear any leftovers)
+  if (!Effects._enabled && data && data.action !== 'stop') return;
       // data = { effect: 'fog', action: 'start'|'stop'|'update', config: {...} }
       console.log('effect:set', data);
       if (data.action === 'start') {
-        // When starting a new effect, stop any other active effects so switching
-        // effects disables the previous ones (fog <-> rain exclusive behavior).
-        Object.keys(Effects._instances).forEach(function(k){
-          try { if (k !== data.effect && Effects._instances[k]) Effects._instances[k].stop(); } catch(e){}
-          try { delete Effects._instances[k]; } catch(e){}
-        });
+        // By default, effects are exclusive. If data.exclusive === false, allow stacking.
+        var exclusive = (data.exclusive !== false);
+        if (exclusive) {
+          Object.keys(Effects._instances).forEach(function(k){
+            try { if (k !== data.effect && Effects._instances[k]) Effects._instances[k].stop(); } catch(e){}
+            try { delete Effects._instances[k]; } catch(e){}
+          });
+        }
         if (data.effect === 'fog') {
           Effects._instances.fog = Effects.createFogEffect(data.config || {});
         }
@@ -25,6 +43,9 @@ const Effects = {
         }
         if (data.effect === 'water') {
           Effects._instances.water = Effects.createWaterEffect(data.config || {});
+        }
+        if (data.effect === 'point_fire') {
+          Effects._instances.point_fire = Effects.createPointFireEffect(data.config || {});
         }
       } else if (data.action === 'stop') {
         if (Effects._instances[data.effect]) {
@@ -44,28 +65,61 @@ const Effects = {
         if (data.effect === 'water' && Effects._instances.water) {
           Effects._instances.water.updateConfig(data.config || {});
         }
+        if (data.effect === 'point_fire' && Effects._instances.point_fire) {
+          Effects._instances.point_fire.updateConfig(data.config || {});
+        }
       }
     });
   },
 
   // Apply an effect locally (used for map-default effects)
   applyEffect: function(data) {
-    // data = { effect: 'fog'|'rain', action: 'start'|'stop'|'update', config: {...} }
-    if (!data || !data.effect || !data.action) return;
+    // If globally disabled, ignore start/update; allow stop to clear
+    if (!Effects._enabled) {
+      if (data && data.action === 'stop') {
+        if (data.effect && Effects._instances[data.effect]) {
+          try { Effects._instances[data.effect].stop(); } catch(e) {}
+          try { delete Effects._instances[data.effect]; } catch(e) {}
+        } else {
+          try { Effects.stopAll(); } catch(e) {}
+        }
+      }
+      return;
+    }
+    // data can be a single payload or an array of payloads
+    if (!data) return;
+    if (Array.isArray(data)) {
+      // Apply each with stacking enabled unless explicitly overridden
+      for (var i=0;i<data.length;i++) {
+        var d = data[i];
+        if (!d) continue;
+        var payload = Object.assign({}, d);
+        if (payload.exclusive === undefined) payload.exclusive = false;
+        Effects.applyEffect(payload);
+      }
+      return;
+    }
+    // data = { effect: 'fog'|'rain'|..., action: 'start'|'stop'|'update', config: {...}, exclusive?: boolean }
+    if (!data.effect || !data.action) return;
     if (data.action === 'start') {
-      // stop others
-      Object.keys(Effects._instances).forEach(function(k){ try{ if (k !== data.effect && Effects._instances[k]) Effects._instances[k].stop(); }catch(e){} try{ delete Effects._instances[k]; }catch(e){} });
+      var exclusive = (data.exclusive !== false);
+      if (exclusive) {
+        Object.keys(Effects._instances).forEach(function(k){ try{ if (k !== data.effect && Effects._instances[k]) Effects._instances[k].stop(); }catch(e){} try{ delete Effects._instances[k]; }catch(e){} });
+      }
   if (data.effect === 'fog') Effects._instances.fog = Effects.createFogEffect(data.config || {});
   if (data.effect === 'rain') Effects._instances.rain = Effects.createRainEffect(data.config || {});
   if (data.effect === 'snow') Effects._instances.snow = Effects.createSnowEffect(data.config || {});
   if (data.effect === 'water') Effects._instances.water = Effects.createWaterEffect(data.config || {});
+  if (data.effect === 'point_fire') Effects._instances.point_fire = Effects.createPointFireEffect(data.config || {});
     } else if (data.action === 'stop') {
       if (Effects._instances[data.effect]) { Effects._instances[data.effect].stop(); delete Effects._instances[data.effect]; }
     } else if (data.action === 'update') {
+  if (!Effects._enabled) return;
       if (data.effect === 'fog' && Effects._instances.fog) Effects._instances.fog.updateConfig(data.config || {});
       if (data.effect === 'rain' && Effects._instances.rain) Effects._instances.rain.updateConfig(data.config || {});
   if (data.effect === 'snow' && Effects._instances.snow) Effects._instances.snow.updateConfig(data.config || {});
   if (data.effect === 'water' && Effects._instances.water) Effects._instances.water.updateConfig(data.config || {});
+  if (data.effect === 'point_fire' && Effects._instances.point_fire) Effects._instances.point_fire.updateConfig(data.config || {});
     }
   },
 
@@ -77,6 +131,297 @@ const Effects = {
         try { delete Effects._instances[k]; } catch(e) {}
       });
     } catch (e) { /* no-op */ }
+  },
+
+  // Point Fire effect: renders flickering fire glows at specific tile centers.
+  // config: { points: [ { pos:[x,y], intensity:0..1, color:'#ffb347', size_px?:number, speed?:number, turbulence?:number, offset_px?:[dx,dy] }, ... ] }
+  createPointFireEffect: function(config){
+    config = config || {};
+    var points = Array.isArray(config.points) ? config.points.slice() : [];
+
+    // Canvas overlay aligned to the map image (below tokens)
+    var container = document.querySelector('.image-container') || document.body;
+    var overlay = container.querySelector('#effects-overlay-pointfire');
+    if (!overlay) {
+      overlay = document.createElement('canvas');
+      overlay.id = 'effects-overlay-pointfire';
+      overlay.style.position = 'absolute';
+      overlay.style.left = '0';
+      overlay.style.top = '0';
+      overlay.style.pointerEvents = 'none';
+      overlay.style.zIndex = 0; // under tokens
+      container.appendChild(overlay);
+    }
+
+    function getMapElement(){ return document.querySelector('.image-container img.background-image, .image-container img'); }
+    function getMapRect(){
+      var img = getMapElement();
+      var cRect = container.getBoundingClientRect();
+      if (img) {
+        var r = img.getBoundingClientRect();
+        return { left: Math.round(r.left - cRect.left), top: Math.round(r.top - cRect.top), width: Math.round(r.width), height: Math.round(r.height) };
+      }
+      return { left: 0, top: 0, width: container.clientWidth, height: container.clientHeight };
+    }
+
+    var ctx = overlay.getContext('2d');
+    var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    function resize(){
+      dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      var rect = getMapRect();
+      overlay.style.left = rect.left + 'px';
+      overlay.style.top = rect.top + 'px';
+      overlay.style.width = rect.width + 'px';
+      overlay.style.height = rect.height + 'px';
+      overlay.width = Math.floor(rect.width * dpr);
+      overlay.height = Math.floor(rect.height * dpr);
+      markDirty();
+      if (fowHelper) fowHelper.force();
+    }
+    resize();
+    window.addEventListener('resize', resize);
+    var ro = null; try { ro = new ResizeObserver(resize); ro.observe(container); } catch(e) {}
+
+    // Prepare FoW mask
+    var fowHelper = Effects._buildFoWMaskForOverlay(overlay, { featherPx: 0 });
+
+    // Utility: tile center in overlay pixel space
+    function getTileCenterPx(tx, ty){
+      var sel = '.tile[data-coords-x="'+tx+'\"][data-coords-y="'+ty+'\"]';
+      var tile = document.querySelector(sel);
+      if (!tile) return null;
+      var r = tile.getBoundingClientRect();
+      var o = overlay.getBoundingClientRect();
+      var scaleX = (overlay.width||1) / Math.max(1, o.width || 1);
+      var scaleY = (overlay.height||1) / Math.max(1, o.height || 1);
+      var cx = (r.left - o.left) * scaleX + (r.width * scaleX)/2;
+      var cy = (r.top - o.top) * scaleY + (r.height * scaleY)/2;
+      return { x: cx, y: cy, w: r.width * scaleX, h: r.height * scaleY };
+    }
+
+    function hexToRgb(hex){
+      try { var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16); return [r,g,b]; } catch(e) { return [255,160,64]; }
+    }
+
+    var running = true;
+    var dirty = true;
+    function markDirty(){ dirty = true; }
+
+    // Watch tiles for layout changes (moving tokens/tiles)
+    var tilesRoot = document.querySelector('.tiles-container');
+    var mo = null; try { mo = new MutationObserver(markDirty); mo.observe(tilesRoot, { attributes:true, childList:true, subtree:true }); } catch(e) {}
+
+    // Precompute per-point jitter offsets
+    points.forEach(function(p, i){ if (p) p._seed = (Math.random()*10000)|0; });
+
+    // Shape variants
+    function drawCircularGlow(cx, cy, sizePx, rgb, intensity, flick) {
+      var rGlow = sizePx * (1.3 + 0.6*intensity) * flick;
+      var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rGlow);
+      grad.addColorStop(0.0, 'rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+','+(0.35+0.35*intensity)+')');
+      grad.addColorStop(0.6, 'rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+','+(0.16+0.20*intensity)+')');
+      grad.addColorStop(1.0, 'rgba(0,0,0,0)');
+      ctx.globalCompositeOperation = 'screen';
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(cx, cy, rGlow, 0, Math.PI*2); ctx.fill();
+    }
+    function drawElongatedFlame(cx, cy, sizePx, rgb, intensity, flick) {
+      var up = -1;
+      var rCoreX = sizePx * 0.35 * (0.9 + 0.2*intensity) * flick;
+      var rCoreY = sizePx * (0.9 + 0.5*intensity) * flick; // taller core
+      var cGrad = ctx.createRadialGradient(cx, cy + up* rCoreY*0.35, 0, cx, cy + up* rCoreY*0.35, Math.max(rCoreX, rCoreY));
+      cGrad.addColorStop(0.0, 'rgba(255, 230, 150,'+(0.5+0.35*intensity)+')');
+      cGrad.addColorStop(0.6, 'rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+','+(0.25+0.2*intensity)+')');
+      cGrad.addColorStop(1.0, 'rgba(0,0,0,0)');
+      ctx.fillStyle = cGrad;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + up* rCoreY*0.2, rCoreX, rCoreY, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+    // Plasma-like blobby core using time-varying pseudo-noise over angle
+    function drawPlasmaCore(cx, cy, sizePx, rgb, intensity, seed, speed){
+      var segs = 54; // detail
+      var baseR = sizePx * (0.55 + 0.35*intensity);
+      var distort = 0.28 + 0.25*intensity; // how wobbly the edge is
+      var t = Date.now() * 0.001 * (speed != null ? speed : 1.0);
+      // Simple hash-based noise
+      function n(a){ return Math.sin(a*3.17 + Math.sin(a*1.23 + seed) + t*2.1 + seed*0.01) * 0.5 + 0.5; }
+      ctx.save();
+      ctx.beginPath();
+      for (var i=0;i<=segs;i++){
+        var a = (i/segs) * Math.PI * 2;
+        var rVar = (n(a) * 2.0 + n(a*0.7) + n(a*1.7)*0.7) / (2.0+1.0+0.7);
+        var r = baseR * (1.0 + distort * (rVar - 0.5) * 2.0);
+        var x = cx + Math.cos(a) * r;
+        var y = cy + Math.sin(a) * r * (0.9 + 0.15*intensity); // slight vertical squeeze
+        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.closePath();
+      // Fill with a hot center gradient
+      var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR * (1.25 + 0.25*intensity));
+      grad.addColorStop(0.0, 'rgba(255, 235, 160,'+(0.55+0.35*intensity)+')');
+      grad.addColorStop(0.5, 'rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+','+(0.35+0.25*intensity)+')');
+      grad.addColorStop(1.0, 'rgba(0,0,0,0)');
+      ctx.globalCompositeOperation = 'screen';
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.restore();
+    }
+    function drawFireAt(cx, cy, pxPerTile, opts){
+      var intensity = (opts.intensity != null ? opts.intensity : 0.7);
+      var baseColor = opts.color || '#ffb347';
+      var rgb = hexToRgb(baseColor);
+      var speed = (opts.speed != null ? opts.speed : 1.0);
+      var turbulence = (opts.turbulence != null ? opts.turbulence : 0.6);
+      var shape = (opts.shape || opts.characteristics || opts.kind || opts.type || '').toString().toLowerCase();
+      // Base size: scale with tile size and intensity
+      var baseSize = Math.max(18, Math.min(64, (pxPerTile||32) * (0.5 + 0.6*intensity)));
+      // Shape multipliers
+      var sizeMul = 1.0;
+      if (shape.includes('bonfire')) sizeMul = 1.4;
+      else if (shape.includes('campfire') || shape.includes('circular')) sizeMul = 1.0;
+      else if (shape.includes('candle')) sizeMul = 0.7;
+      var sizePx = (opts.size_px != null ? opts.size_px : Math.floor(baseSize * sizeMul));
+
+      // Flicker
+      var t = Date.now() * 0.001 * speed;
+      var flick = 0.85 + 0.3 * Math.sin(t*9.1 + (opts._seed||0)) + 0.15 * Math.sin(t*4.7 + (opts._seed||0)*1.37);
+      flick += (Math.random()-0.5) * 0.08 * turbulence; // subtle randomness
+      flick = Math.max(0.6, Math.min(1.4, flick));
+
+      // Draw outer/circular glow for most shapes
+      drawCircularGlow(cx, cy, sizePx, rgb, intensity, flick);
+      // Decide core style
+      var plasmaFlag = !!opts.plasma || (''+(opts.core||'')).toLowerCase()==='plasma' || (''+(opts.core_style||'')).toLowerCase()==='plasma' || shape.includes('plasma');
+      if (shape.includes('candle') && !plasmaFlag) {
+        drawElongatedFlame(cx, cy, sizePx * 0.9, rgb, intensity, flick);
+      } else if (plasmaFlag) {
+        drawPlasmaCore(cx, cy, sizePx, rgb, intensity, (opts._seed||0), (opts.speed||1.0));
+      } else {
+        // Default flame core (moderately elongated)
+        var up = -1;
+        var rCoreX = sizePx * 0.45 * flick;
+        var rCoreY = sizePx * (0.60 + 0.4*intensity) * flick * (shape.includes('bonfire') ? 1.15 : 1.0);
+        var cGrad = ctx.createRadialGradient(cx, cy + up* rCoreY*0.4, 0, cx, cy + up* rCoreY*0.4, Math.max(rCoreX, rCoreY));
+        cGrad.addColorStop(0.0, 'rgba(255, 220, 120,'+(0.45+0.35*intensity)+')');
+        cGrad.addColorStop(0.6, 'rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+','+(0.25+0.2*intensity)+')');
+        cGrad.addColorStop(1.0, 'rgba(0,0,0,0)');
+        ctx.fillStyle = cGrad;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + up* rCoreY*0.2, rCoreX, rCoreY, 0, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+
+    function ensureFirefliesInit(p, pxPerTile){
+      if (!p._flies) {
+        var count = Math.max(3, Math.min(20, p.fly_count != null ? p.fly_count : 7));
+        var spread = (p.spread_px != null ? p.spread_px : Math.max(12, (pxPerTile||32) * 0.6));
+        p._flies = [];
+        for (var i=0;i<count;i++) {
+          p._flies.push({
+            a: Math.random()*Math.PI*2,
+            r: Math.random()*spread*0.7 + spread*0.3,
+            z: Math.random()*Math.PI*2,
+            seed: (Math.random()*10000)|0,
+            on: Math.random() < 0.7
+          });
+        }
+      }
+    }
+    function drawFireflies(cx, cy, pxPerTile, p){
+      var baseColor = p.color || '#ffd86b';
+      var rgb = hexToRgb(baseColor);
+      var speed = (p.speed != null ? p.speed : 0.5);
+      var intensity = (p.intensity != null ? p.intensity : 0.6);
+      ensureFirefliesInit(p, pxPerTile);
+      var t = Date.now() * 0.001 * speed;
+      var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      var sizeBase = (p.size_px != null ? p.size_px : 3) * dpr;
+      for (var i=0;i<p._flies.length;i++){
+        var f = p._flies[i];
+        // gentle orbit + vertical bob
+        var a = f.a + Math.sin(t*0.4 + f.seed)*0.3;
+        var r = f.r + Math.sin(t*0.9 + f.seed)*2.0;
+        var x = cx + Math.cos(a)*r;
+        var y = cy + Math.sin(a)*r + Math.sin(t*1.7 + f.seed)*2.0;
+        // twinkle
+        var tw = 0.5 + 0.5 * Math.sin(t*5.0 + f.seed);
+        var on = (Math.sin(t*2.7 + f.seed*1.3) > -0.2);
+        if (!on) continue;
+        var rGlow = sizeBase * (1.0 + 1.3*tw) * (0.8 + 0.6*intensity);
+        var grad = ctx.createRadialGradient(x, y, 0, x, y, rGlow);
+        grad.addColorStop(0.0, 'rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+',0.9)');
+        grad.addColorStop(0.6, 'rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+',0.35)');
+        grad.addColorStop(1.0, 'rgba(0,0,0,0)');
+        ctx.globalCompositeOperation = 'screen';
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(x, y, rGlow, 0, Math.PI*2); ctx.fill();
+      }
+    }
+
+    function frame(){
+      if (!running) return;
+      // Build FoW mask (if changed)
+      var mask = fowHelper.update();
+
+      // Clear and redraw
+      ctx.clearRect(0,0,overlay.width, overlay.height);
+      var oRect = overlay.getBoundingClientRect();
+      var scaleX = (overlay.width||1) / Math.max(1, oRect.width || 1);
+      var pxPerTile = 32; // default; refine from a tile if exists
+      var anyTile = document.querySelector('.tile');
+      if (anyTile) {
+        var tr = anyTile.getBoundingClientRect();
+        pxPerTile = tr.width * scaleX;
+      }
+
+      points.forEach(function(p){
+        if (!p || !Array.isArray(p.pos) || p.pos.length < 2) return;
+        var center = getTileCenterPx(p.pos[0], p.pos[1]);
+        if (!center) return;
+        var dx = 0, dy = 0;
+        if (Array.isArray(p.offset_px) && p.offset_px.length>=2) { dx = p.offset_px[0] * dpr; dy = p.offset_px[1] * dpr; }
+        var shape = (p.shape || p.characteristics || p.kind || p.type || '').toString().toLowerCase();
+        if (shape.includes('fireflies')) {
+          drawFireflies(center.x + dx, center.y + dy, pxPerTile, p);
+        } else {
+          // default: bonfire/campfire/circular/candle variants
+          drawFireAt(center.x + dx, center.y + dy, pxPerTile, p);
+        }
+      });
+
+      // Apply FoW mask so hidden areas don't render the glow
+      try {
+        if (mask && mask.canvas) {
+          ctx.globalCompositeOperation = 'destination-in';
+          ctx.drawImage(mask.canvas, 0, 0);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+      } catch(e) {}
+
+      if (running) requestAnimationFrame(frame);
+    }
+
+    var raf = requestAnimationFrame(frame);
+
+    function updateConfig(newCfg){
+      config = newCfg || {};
+      points = Array.isArray(config.points) ? config.points.slice() : [];
+      points.forEach(function(p){ if (p && p._seed == null) p._seed = (Math.random()*10000)|0; });
+      markDirty(); if (fowHelper) fowHelper.force();
+    }
+    function stop(){
+      try { running = false; } catch(e) {}
+      try { cancelAnimationFrame(raf); } catch(e) {}
+      try { window.removeEventListener('resize', resize); } catch(e) {}
+      try { ro && ro.disconnect(); } catch(e) {}
+      try { mo && mo.disconnect(); } catch(e) {}
+      try { fowHelper && fowHelper.destroy && fowHelper.destroy(); } catch(e) {}
+      try { overlay && overlay.parentNode && overlay.parentNode.removeChild(overlay); } catch(e) {}
+    }
+
+    return { updateConfig: updateConfig, stop: stop };
   },
 
   // Internal helper: build a fog-of-war visibility mask for a given overlay.

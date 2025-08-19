@@ -104,6 +104,78 @@ Samples
 
 Please see the samples directory for more samples. In particular, the notebook at samples/dnd_dqn.ipynb illustrates how to train an agent using Reinforcement Learning against a Rules-based AI (see generic_controller.py)
 
+Visual Effects and Map-defined Point Fires
+=========================================
+
+The web client supports map-wide effects (fog, rain, snow, water) and per-tile fire emitters defined in your map YAML.
+
+Point Fire emitters can be used for candles, bonfires, fireplaces, etc. Define them in your map YAML at the root level:
+
+```
+point_fires:
+  - pos: [x, y]            # required tile coordinates
+    intensity: 0.0..1.0    # optional, default 0.7 (brightness/size)
+    color: "#ffb347"       # optional hex color, default warm amber
+    size_px: 18..48        # optional pixel size of core flame; auto-scales if omitted
+    speed: 0.5..2.0        # optional flicker speed, default 1.0
+    turbulence: 0.0..1.0   # optional randomness in flicker, default 0.6
+    offset_px: [dx, dy]    # optional pixel offset relative to tile center
+```
+
+Example:
+
+```
+point_fires:
+  - pos: [9, 8]
+    intensity: 0.9
+    color: "#ff7a2b"
+    size_px: 40
+  - pos: [2, 3]
+    intensity: 0.3
+    size_px: 18
+
+Shapes
+------
+Use `shape` to control flame characteristics:
+
+- `bonfire` – larger, hotter core and glow
+- `campfire` or `circular` – round campfire glow
+- `candle` – tall, thin flame
+- `fireflies` – a small cluster of flickering fireflies around the point
+
+Example with shapes:
+
+```
+point_fires:
+  - pos: [9, 8]
+    shape: bonfire
+    intensity: 1.0
+    color: "#ff7a2b"
+  - pos: [2, 3]
+    shape: candle
+    intensity: 0.3
+  - pos: [6, 4]
+    shape: fireflies
+    intensity: 0.6
+    color: "#ffe99a"
+    spread_px: 28
+    fly_count: 8
+```
+```
+
+Notes:
+- Point fires are automatically sent to clients on map load/switch based on the YAML; no DM toggle needed.
+- They render relative to the center of the specified tiles and respect Fog of War.
+- They appear under tokens/objects and above the background image.
+
+Performance and Disabling Effects
+---------------------------------
+On lower-end machines or mobile, you can disable visual effects:
+
+- In the web client, use the small “Effects: On/Off” button at the top-right to toggle.
+- Your preference is saved in the browser (localStorage) under key `vtt.effects.enabled`.
+- When disabled, currently running effects are stopped and future effects are ignored until re-enabled.
+
 Environment and Setup
 =====================
 
