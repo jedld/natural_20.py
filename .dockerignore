@@ -6,4 +6,5 @@ __pycache__
 samples/*
 output_*/
 webapp/flask_session/
+user_levels/
 llm_logs/
