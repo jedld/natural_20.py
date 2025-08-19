@@ -998,6 +998,62 @@ def serve_map_image(filename):
     maps_directory = os.path.join(game_session.root_path, "assets", "maps")
     return send_from_directory(maps_directory, filename)
 
+@app.route('/assets/sounds/<filename>')
+def serve_sound_file(filename):
+    secondary_path = os.path.join(game_session.root_path, "assets", "sounds", filename)
+    if os.path.exists(secondary_path):
+        return send_file(secondary_path)
+    else:
+        return jsonify(error="File not found"), 404
+   
+@app.route('/assets/objects/<filename>')
+def serve_object_image(filename):
+    if not filename.endswith('.png'):
+        filename = f"{filename}.png"
+
+    if os.path.exists(os.path.join("static", "assets", "objects", filename)):
+        return send_file(os.path.join("static", "assets", "objects", filename))
+    else:
+        objects_directory = os.path.join(game_session.root_path, "assets", "objects")
+        return send_from_directory(objects_directory, filename)
+
+@app.route('/assets/editor/<filename>')
+def serve_editor_image(filename):
+    if not filename.endswith('.png'):
+        filename = f"{filename}.png"
+
+    if os.path.exists(os.path.join("static", "assets", "editor", filename)):
+        return send_file(os.path.join("static", "assets", "editor", filename))
+    else:
+        objects_directory = os.path.join(game_session.root_path, "assets", "editor")
+        return send_from_directory(objects_directory, filename)
+   
+@app.route('/assets/items/<filename>')
+def serve_item_image(filename):
+    if not filename.endswith('.png'):
+        filename = f"{filename}.png"
+
+    if os.path.exists(os.path.join("static", "assets", "items", filename)):
+        return send_file(os.path.join("static", "assets", "items", filename))
+    else:
+        items_directory = os.path.join(game_session.root_path, "assets", "items")
+        return send_from_directory(items_directory, filename)
+
+@app.route('/assets/<path:asset_name>')
+def get_asset(asset_name):
+    """Serve asset files from multiple possible locations."""
+    asset_paths = [
+        os.path.join(LEVEL, "assets", asset_name),
+        os.path.join(game_session.root_path, "assets", asset_name),
+        os.path.join("static", "assets", asset_name)
+    ]
+
+    for file_path in asset_paths:
+        if os.path.exists(file_path):
+            return send_file(file_path)
+
+    return jsonify(error="File not found"), 404
+
 @app.route('/create_map', methods=['POST'])
 def create_map():
     """Create a new empty map in the current game's maps folder and register it.
@@ -1285,59 +1341,6 @@ def delete_map():
     except Exception as e:
         logger.exception('Failed to delete map')
         return jsonify(error=str(e)), 500
-
-@app.route('/assets/sounds/<filename>')
-def serve_sound_file(filename):
-    secondary_path = os.path.join(game_session.root_path, "assets", "sounds", filename)
-    if os.path.exists(secondary_path):
-        return send_file(secondary_path)
-    else:
-        return jsonify(error="File not found"), 404
-   
-@app.route('/assets/objects/<filename>')
-def serve_object_image(filename):
-    if not filename.endswith('.png'):
-        filename = f"{filename}.png"
-
-    if os.path.exists(os.path.join("static", "assets", "objects", filename)):
-        return send_file(os.path.join("static", "assets", "objects", filename))
-    else:
-        objects_directory = os.path.join(game_session.root_path, "assets", "objects")
-        return send_from_directory(objects_directory, filename)
-
-@app.route('/assets/editor/<filename>')
-def serve_editor_image(filename):
-    if not filename.endswith('.png'):
-        filename = f"{filename}.png"
-
-    if os.path.exists(os.path.join("static", "assets", "editor", filename)):
-        return send_file(os.path.join("static", "assets", "editor", filename))
-    else:
-        objects_directory = os.path.join(game_session.root_path, "assets", "editor")
-        return send_from_directory(objects_directory, filename)
-   
-@app.route('/assets/items/<filename>')
-def serve_item_image(filename):
-    if not filename.endswith('.png'):
-        filename = f"{filename}.png"
-
-    if os.path.exists(os.path.join("static", "assets", "items", filename)):
-        return send_file(os.path.join("static", "assets", "items", filename))
-    else:
-        items_directory = os.path.join(game_session.root_path, "assets", "items")
-        return send_from_directory(items_directory, filename)
-
-@app.route('/assets/<path:asset_name>')
-def get_asset(asset_name):
-    file_path = os.path.join(LEVEL, "assets", asset_name)
-    if os.path.exists(file_path):
-        return send_file(file_path)
-    else:
-        resolved_path = os.path.join(game_session.root_path, "assets")
-        if os.path.exists(resolved_path):
-            return send_from_directory(resolved_path, asset_name)
-
-        return jsonify(error="File not found"), 404
 
 @app.route('/character_builder', methods=['GET'])
 def character_builder():
