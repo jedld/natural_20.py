@@ -23,11 +23,14 @@ const Utils = {
         Utils.updateMapDisplay(data, canvas);
         // Refresh portraits when map is switched
         Utils.refreshPortraits();
-        // Apply map-default effect if provided and DM has no active override
+        // Apply map-default effects if provided and DM has no active override
         try {
           if (!data.dm_active && typeof Effects !== 'undefined') {
-            if (data.map_default_effect && Effects.applyEffect) {
-              Effects.applyEffect(data.map_default_effect);
+            var arr = Array.isArray(data.map_default_effects) ? data.map_default_effects.slice() : [];
+            if (!arr.length && data.map_default_effect) arr = [data.map_default_effect];
+            if (arr.length && Effects.applyEffect) {
+              arr = arr.map(function(p){ try{ if (p && typeof p === 'object' && p.exclusive === undefined) p.exclusive = false; }catch(e){} return p; });
+              Effects.applyEffect(arr);
             } else if (Effects.stopAll) {
               Effects.stopAll();
             }
