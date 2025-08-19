@@ -200,9 +200,29 @@ def _on_connect():
                         emit('effect:set', payload)
                 else:
                     props = getattr(cur_map, 'properties', {}) or {}
-                    map_def = props.get('default_effect')
-                    if map_def:
-                        emit('effect:set', map_def)
+                    # Support plural 'default_effects' or a single 'default_effect'
+                    map_defs = []
+                    try:
+                        if isinstance(props.get('default_effects'), (list, tuple)):
+                            map_defs.extend(props.get('default_effects') or [])
+                    except Exception:
+                        pass
+                    try:
+                        de = props.get('default_effect')
+                        if de:
+                            if isinstance(de, (list, tuple)):
+                                map_defs.extend(list(de))
+                            else:
+                                map_defs.append(de)
+                    except Exception:
+                        pass
+                    for md in map_defs:
+                        try:
+                            payload = dict(md)
+                            payload['exclusive'] = False
+                            emit('effect:set', payload)
+                        except Exception:
+                            pass
             except Exception:
                 pass
     except Exception:
@@ -511,20 +531,27 @@ def _on_request_effects():
     # Mirror connect behavior: emit active DM effects or the current map default to the requesting client
     try:
         game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
+
+        # Determine current map early so we can also emit map-defined point fires alongside other effects
+        cur_map = None
+        try:
+            username = session.get('username')
+            if username:
+                cur_map = current_game.get_map_for_user(username)
+            else:
+                try:
+                    cur_map = current_game.get_map_for_user(None)
+                except Exception:
+                    cur_map = current_game.get_current_battle_map()
+        except Exception:
+            cur_map = None
+
         effects = active_effects.get(game_key, {})
         if effects:
             for payload in effects.values():
                 emit('effect:set', payload)
         else:
             try:
-                username = session.get('username')
-                if username:
-                    cur_map = current_game.get_map_for_user(username)
-                else:
-                    try:
-                        cur_map = current_game.get_map_for_user(None)
-                    except Exception:
-                        cur_map = current_game.get_current_battle_map()
                 cur_name = getattr(cur_map, 'name', None)
                 map_overrides = active_effects_map.get(game_key, {}).get(cur_name, {})
                 if map_overrides:
@@ -532,11 +559,50 @@ def _on_request_effects():
                         emit('effect:set', payload)
                 else:
                     props = getattr(cur_map, 'properties', {}) or {}
-                    map_def = props.get('default_effect')
-                    if map_def:
-                        emit('effect:set', map_def)
+                    map_defs = []
+                    try:
+                        if isinstance(props.get('default_effects'), (list, tuple)):
+                            map_defs.extend(props.get('default_effects') or [])
+                    except Exception:
+                        pass
+                    try:
+                        de = props.get('default_effect')
+                        if de:
+                            if isinstance(de, (list, tuple)):
+                                map_defs.extend(list(de))
+                            else:
+                                map_defs.append(de)
+                    except Exception:
+                        pass
+                    for md in map_defs:
+                        try:
+                            payload = dict(md)
+                            payload['exclusive'] = False
+                            emit('effect:set', payload)
+                        except Exception:
+                            pass
             except Exception:
                 pass
+
+        # Emit map-defined point fires separately (independent of DM overlay effects)
+        try:
+            props = getattr(cur_map, 'properties', {}) or {}
+            point_fires = props.get('point_fires') or props.get('point_fire')
+            if point_fires and isinstance(point_fires, (list, tuple)):
+                emit('effect:set', {
+                    'effect': 'point_fire',
+                    'action': 'start',
+                    'config': { 'points': point_fires },
+                    'exclusive': False
+                })
+            else:
+                # Explicitly stop any prior point fire effect if present
+                emit('effect:set', {
+                    'effect': 'point_fire',
+                    'action': 'stop'
+                })
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -1954,10 +2020,27 @@ def switch_map():
     tiles_dimension_width = map_width * TILE_PX
     # Check for a map-default effect defined in the map properties
     map_default = None
+    map_defaults = []
     try:
         # map properties live in the Map object
         props = getattr(battle_map, 'properties', {}) or {}
-        map_default = props.get('default_effect')
+        # Accept plural list or single
+        try:
+            if isinstance(props.get('default_effects'), (list, tuple)):
+                map_defaults.extend(props.get('default_effects') or [])
+        except Exception:
+            pass
+        try:
+            de = props.get('default_effect')
+            if de:
+                if isinstance(de, (list, tuple)):
+                    map_defaults.extend(list(de))
+                else:
+                    map_defaults.append(de)
+        except Exception:
+            pass
+        # also keep first as legacy single
+        map_default = map_defaults[0] if map_defaults else None
     except Exception:
         map_default = None
 
@@ -1980,6 +2063,7 @@ def switch_map():
                    height=tiles_dimension_height,
                    width=tiles_dimension_width,
                    map_default_effect=map_default,
+                   map_default_effects=[dict(e, **{'exclusive': False}) if isinstance(e, dict) else e for e in map_defaults],
                    dm_active=dm_active)
 
 #                 // Fetch combat log messages from the server
@@ -3127,9 +3211,24 @@ def switch_pov():
         tiles_dimension_width = map_width * TILE_PX
         # Include map default effect and whether DM has an active override
         map_default = None
+        map_defaults = []
         try:
             props = getattr(entity_battle_map, 'properties', {}) or {}
-            map_default = props.get('default_effect')
+            try:
+                if isinstance(props.get('default_effects'), (list, tuple)):
+                    map_defaults.extend(props.get('default_effects') or [])
+            except Exception:
+                pass
+            try:
+                de = props.get('default_effect')
+                if de:
+                    if isinstance(de, (list, tuple)):
+                        map_defaults.extend(list(de))
+                    else:
+                        map_defaults.append(de)
+            except Exception:
+                pass
+            map_default = map_defaults[0] if map_defaults else None
         except Exception:
             map_default = None
         dm_active = False
@@ -3142,12 +3241,13 @@ def switch_pov():
                 pass
         except Exception:
             dm_active = False
-        return jsonify(background=f"assets/{background}",
+    return jsonify(background=f"assets/{background}",
                     name=entity_battle_map.name,
                     image_offset_px=entity_battle_map.image_offset_px,
                     height=tiles_dimension_height,
                     width=tiles_dimension_width,
-                    map_default_effect=map_default,
+            map_default_effect=map_default,
+            map_default_effects=[dict(e, **{'exclusive': False}) if isinstance(e, dict) else e for e in map_defaults],
                     dm_active=dm_active)
 
     return jsonify(status='ok', pov_entity=entity_id)
