@@ -2,7 +2,7 @@ import json
 import os
 import random
 import re
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Any
 
 from natural20.generic_controller import GenericController
 from natural20.action import Action
@@ -207,16 +207,20 @@ class LlmMcpController(GenericController):
 			except Exception:
 				return None
 
-		def action_label(a: Action, idx: int) -> str:
+		def action_label(a: Action, idx: int, compact: bool = False) -> str:
 			try:
 				if isinstance(a, MoveAction):
 					if a.move_path:
 						end = a.move_path[-1]
-						steps = max(0, len(a.move_path) - 1)
-						ft = steps * feet_per
-						# Simulate OA risk along path
-						oa = "; OA risk" if self._move_triggers_oa(battle, entity, a.move_path) else ""
-						return f"{idx}. move to {tuple(end)} (~{ft} ft{oa})"
+						if compact:
+							return f"{idx}. move to {tuple(end)}"
+						else:
+							steps = max(0, len(a.move_path) - 1)
+							ft = steps * feet_per
+							# Simulate OA risk along path and include foe name when possible
+							triggers, foe = self._move_oa_info(battle, entity, a.move_path)
+							oa = f"; OA risk{f' (leaving {foe})' if foe else ''}" if triggers else ""
+							return f"{idx}. move to {tuple(end)} (~{ft} ft{oa})"
 					return f"{idx}. move"
 				if isinstance(a, AttackAction):
 					target = getattr(a, "target", None)
@@ -233,7 +237,7 @@ class LlmMcpController(GenericController):
 					# Try to enrich with hit chance and avg damage
 					info = []
 					try:
-						if target:
+						if target and not compact:
 							prob = a.compute_hit_probability(battle)
 							if prob is not None:
 								info.append(f"hit {int(round(prob*100))}%")
@@ -256,7 +260,8 @@ class LlmMcpController(GenericController):
 								# cover bonus if any
 								_, cov = effective_ac(battle, entity, target)
 								if cov in (2, 5):
-									info.append(f"cover +{cov}")
+									cov_label = 'half' if cov == 2 else 'three-quarter'
+									info.append(f"{cov_label} cover (+{cov})")
 							except Exception:
 								pass
 						# Advantage/disadvantage marker
@@ -277,13 +282,14 @@ class LlmMcpController(GenericController):
 					t = getattr(a, 'target', None)
 					info = []
 					try:
-						prob = a.compute_hit_probability(battle)
-						if prob not in (None, 0):
-							info.append(f"hit {int(round(prob*100))}%")
-						avg = a.avg_damage(battle)
-						if avg not in (None, 0):
-							info.append(f"avg dmg {int(round(avg))}")
-						if t:
+						if not compact:
+							prob = a.compute_hit_probability(battle)
+							if prob not in (None, 0):
+								info.append(f"hit {int(round(prob*100))}%")
+							avg = a.avg_damage(battle)
+							if avg not in (None, 0):
+								info.append(f"avg dmg {int(round(avg))}")
+						if t and not compact:
 							d = _dist_ft(entity, t)
 							if d is not None:
 								info.append(f"dist {d} ft")
@@ -299,7 +305,8 @@ class LlmMcpController(GenericController):
 											info.append("normal")
 									_, cov = effective_ac(battle, entity, t)
 									if cov in (2, 5):
-										info.append(f"cover +{cov}")
+										cov_label = 'half' if cov == 2 else 'three-quarter'
+										info.append(f"{cov_label} cover (+{cov})")
 								except Exception:
 									pass
 						# Advantage/disadvantage marker, if any
@@ -324,7 +331,7 @@ class LlmMcpController(GenericController):
 			except Exception:
 				return f"{idx}. {getattr(a, 'action_type', 'action')}"
 
-		action_lines = [action_label(a, i) for i, a in enumerate(available_actions)]
+		action_lines = [action_label(a, i, False) for i, a in enumerate(available_actions)]
 
 		hp_val = entity.hp()
 		max_hp_val = entity.max_hp()
@@ -344,10 +351,13 @@ class LlmMcpController(GenericController):
 		# Nearby enemies summary
 		enemies = battle.opponents_of(entity)
 		vis_enemies = [e for e in enemies if battle.can_see(entity, e)]
-		def enemy_line(e):
+		def enemy_line(e, compact=False):
 			d = _dist_ft(entity, e)
+			if compact:
+				return f"{e.name}"
 			return f"{e.name}({e.hp()}/{e.max_hp()}{'' if d is None else f', {d} ft'})"
-		enemy_summ = ", ".join(enemy_line(e) for e in vis_enemies) or "(none visible)"
+		enemy_summ_full = ", ".join(enemy_line(e, False) for e in vis_enemies) or "(none visible)"
+		enemy_summ_compact = ", ".join(enemy_line(e, True) for e in vis_enemies) or "(none visible)"
 
 		# Engagement and resources
 		engaged = False
@@ -388,29 +398,91 @@ class LlmMcpController(GenericController):
 		]
 		if slot_summary:
 			parts.append(f"Slots: {slot_summary}\n")
+		low_slots = self._low_slots_note(entity)
+		if low_slots:
+			parts.append(f"{low_slots}\n")
+
+		# Recent actions by you/allies/enemies
+		recent_you = self._recent_actions(battle, entity, n=5)
+		allies = []
+		try:
+			if hasattr(battle, 'allies_of'):
+				allies = [a for a in battle.allies_of(entity) if a is not entity]
+			else:
+				# Fallback: same group as you
+				grp = battle.entity_group_for(entity)
+				allies = [a for a in getattr(battle, 'entities', {}).keys() if battle.entity_group_for(a) == grp and a is not entity]
+		except Exception:
+			allies = []
+		recent_allies = self._recent_actions_for(battle, allies, n=5)
+		recent_enemies = self._recent_actions_for(battle, enemies, n=5)
+
+		parts.append("Recent actions (you):\n" + ("\n".join(f"- {r}" for r in recent_you) if recent_you else "(none yet)") + "\n")
+		parts.append("Recent actions (allies):\n" + ("\n".join(f"- {r}" for r in recent_allies) if recent_allies else "(none)\n"))
+		parts.append("Recent actions (enemies):\n" + ("\n".join(f"- {r}" for r in recent_enemies) if recent_enemies else "(none)\n"))
 		parts.extend([
-			f"Visible enemies: {enemy_summ}\n\n",
+			f"Visible enemies: {enemy_summ_full}\n\n",
 			f"Available actions (index: description):\n" + "\n".join(action_lines) + "\n\n",
 			f"{instructions}\n",
 			"Return either a single integer index (0-based) or call choose_action with that index.",
 		])
 		prompt = "".join(parts)
+
+		# If prompt is too long, build a compact version
+		try:
+			max_chars = int(os.getenv("N20_LLM_PROMPT_MAX_CHARS", "12000"))
+		except Exception:
+			max_chars = 12000
+		if len(prompt) > max_chars:
+			# Rebuild with compact info
+			action_lines_compact = [action_label(a, i, True) for i, a in enumerate(available_actions)]
+			recent_you_c = self._recent_actions(battle, entity, n=3)
+			recent_allies_c = self._recent_actions_for(battle, allies, n=3)
+			recent_enemies_c = self._recent_actions_for(battle, enemies, n=3)
+			parts_c = [
+				f"Map (visible):\n{map_text}\n",
+				f"Round: {battle.current_round()} | You: {entity.name} HP {hp} ({int(hp_pct*100)}%), conditions: {cond_text}\n",
+				f"Resources: {resources} | Engaged in melee: {'yes' if engaged else 'no'} | Concentration: {concentration} | Nearest enemy: {nearest_ft if nearest_ft is not None else 'n/a'} ft\n",
+			]
+			if slot_summary:
+				parts_c.append(f"Slots: {slot_summary}\n")
+			if low_slots:
+				parts_c.append(f"{low_slots}\n")
+			parts_c.append("Recent actions (you):\n" + ("\n".join(f"- {r}" for r in recent_you_c) if recent_you_c else "(none yet)\n"))
+			parts_c.append("Recent actions (allies):\n" + ("\n".join(f"- {r}" for r in recent_allies_c) if recent_allies_c else "(none)\n"))
+			parts_c.append("Recent actions (enemies):\n" + ("\n".join(f"- {r}" for r in recent_enemies_c) if recent_enemies_c else "(none)\n"))
+			parts_c.extend([
+				f"Visible enemies: {enemy_summ_compact}\n\n",
+				f"Available actions (index: description):\n" + "\n".join(action_lines_compact) + "\n\n",
+				f"{instructions}\n",
+				"Return either a single integer index (0-based) or call choose_action with that index.",
+			])
+			prompt = "".join(parts_c)
+
 		return prompt
 
 	def _move_triggers_oa(self, battle, entity, path: List[Tuple[int, int]]) -> bool:
 		"""Estimate OA risk: if leaving any enemy's melee reach along the path without disengage."""
 		try:
+			triggers, _ = self._move_oa_info(battle, entity, path)
+			return triggers
+		except Exception:
+			return False
+
+	def _move_oa_info(self, battle, entity, path: List[Tuple[int, int]]) -> Tuple[bool, Optional[str]]:
+		"""Return whether OA is triggered along the path and the first foe name causing it."""
+		try:
 			if entity.disengage(battle):
-				return False
+				return False, None
 			m = battle.map_for(entity)
 			if not m or not path:
-				return False
+				return False, None
 			# Build positions including current start
 			start_pos = m.entity_or_object_pos(entity)
 			positions = [start_pos] + [tuple(p) for p in path[1:]] if path[0] == start_pos else [start_pos] + [tuple(p) for p in path]
 			enemies = [e for e in battle.opponents_of(entity) if e.conscious()]
 			if not enemies:
-				return False
+				return False, None
 			feet_per = getattr(m, 'feet_per_grid', 5) or 5
 			# For each enemy, track adjacency over positions and detect leaving reach
 			for foe in enemies:
@@ -420,11 +492,11 @@ class LlmMcpController(GenericController):
 					dist = m.distance(entity, foe, entity_1_pos=pos)
 					in_melee = dist <= reach_grids
 					if in_melee_prev is True and in_melee is False:
-						return True
+						return True, getattr(foe, 'name', None)
 					in_melee_prev = in_melee if in_melee_prev is None else in_melee
-			return False
+			return False, None
 		except Exception:
-			return False
+			return False, None
 
 	def _strip_ansi(self, s: str) -> str:
 		"""Remove ANSI escape sequences for clean LLM prompts."""
@@ -451,6 +523,84 @@ class LlmMcpController(GenericController):
 				except Exception:
 					continue
 			return ", ".join(parts)
+		except Exception:
+			return ""
+
+	def _recent_actions(self, battle, entity, n: int = 5) -> List[str]:
+		"""Return a most-recent-first list of up to n short descriptions of this entity’s past actions."""
+		try:
+			log = list(getattr(battle, 'battle_log', []))
+			mine = [a for a in log if getattr(a, 'source', None) is entity]
+			if not mine:
+				return []
+			last = mine[-n:]
+			last.reverse()  # most recent first
+			return [self._action_short_desc(a) for a in last]
+		except Exception:
+			return []
+
+	def _recent_actions_for(self, battle, entities: List, n: int = 5) -> List[str]:
+		"""Return most-recent-first list of up to n actions by any of the provided entities, with names."""
+		try:
+			if not entities:
+				return []
+			entities_set = set(entities)
+			log = list(getattr(battle, 'battle_log', []))
+			mine = [a for a in log if getattr(a, 'source', None) in entities_set]
+			if not mine:
+				return []
+			last = mine[-n:]
+			last.reverse()
+			def fmt(a):
+				actor = getattr(getattr(a, 'source', None), 'name', None) or str(getattr(a, 'source', None))
+				return f"{actor}: {self._action_short_desc(a)}"
+			return [fmt(a) for a in last]
+		except Exception:
+			return []
+
+	def _action_short_desc(self, action: Action) -> str:
+		"""Best-effort short description for an action."""
+		try:
+			label = None
+			if hasattr(action, 'label') and callable(getattr(action, 'label')):
+				label = action.label()
+			if label:
+				return str(label)
+			# Try __str__ for many actions that implement it
+			s = str(action)
+			if s and s != action.__class__.__name__:
+				return s
+			# Fallback: action type + optional target name
+			tgt = getattr(action, 'target', None)
+			tname = getattr(tgt, 'name', None) if tgt else None
+			return f"{getattr(action, 'action_type', 'action')}{f' {tname}' if tname else ''}"
+		except Exception:
+			return getattr(action, 'action_type', 'action')
+
+	def _low_slots_note(self, entity) -> str:
+		"""Return 'Low slots: L2 L3' if any levels have 1 or fewer slots remaining."""
+		try:
+			get_max = getattr(entity, 'max_spell_slots', None)
+			get_cur = getattr(entity, 'spell_slots_count', None)
+			if not callable(get_max) or not callable(get_cur):
+				return ""
+			low = []
+			for lvl in range(1, 10):
+				try:
+					max_slots = get_max(lvl)
+					if not max_slots:
+						continue
+					cur_any: Any = get_cur(lvl)
+					# Normalize to int if possible for safe comparison
+					try:
+						cur_int = int(cur_any)
+					except Exception:
+						cur_int = None
+					if cur_int is not None and cur_int <= 1:
+						low.append(f"L{lvl}")
+				except Exception:
+					continue
+			return f"Low slots: {' '.join(low)}" if low else ""
 		except Exception:
 			return ""
 

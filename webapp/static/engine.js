@@ -388,7 +388,18 @@ class EventQueue {
         resolve();
         return;
       }
-      const [entity_uid, path, action] = animationLog[idx];
+      const entry = animationLog[idx];
+      // Skip non-array entries (e.g., perception objects) safely
+      if (!Array.isArray(entry)) {
+        if (entry && typeof entry === 'object' && entry.type === 'perception') {
+          // Optionally, we could visualize perception targets here.
+          // For now, just skip to next animation segment.
+          console.debug('Skipping non-movement animation entry:', entry);
+        }
+        animateFunction(animationLog, idx + 1);
+        return;
+      }
+      const [entity_uid, path, action] = entry;
       const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
       if (action && action.target) {
         // Check if both source and target tiles exist before drawing action line
@@ -507,7 +518,7 @@ class EventQueue {
       };
 
       // Start the movement sequence for this entity
-      if (path && path.length > 0) {
+  if (Array.isArray(path) && path.length > 0) {
         moveFunc(path, 0);
       } else {
         // No path to animate, move to next entity immediately
