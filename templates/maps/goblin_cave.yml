@@ -1,6 +1,29 @@
 name: Goblin Cave
 description: A cave inhabited by goblins
-# background_image: index.mp4
+default_effect:
+  effect: fog
+  action: start
+  config:
+    # Fog visual parameters (tweak as desired)
+    color: "#aab4c8"
+    density: 0.9
+    speed: 0.2
+    height: 0.0
+    opacity: 0.8
+    noise_scale: 0.1
+    mask: true
+    mask_feather: 18
+    mask_layers:
+      - type: polygon
+        points: 
+          - [-1, -1]
+          - [6,  -1]
+          - [6, 1]
+          - [5, 1]
+          - [5, 4]
+          - [2, 4]
+          - [2, 5]
+          - [-1, 5]
 map:
   illumination: 0.0
   base:
@@ -63,19 +86,24 @@ lights:
     bright: 5
     dim: 5
 
-# Per-map default visual effect. DM can choose "Map Default" to revert to this.
-default_effect:
-  effect: fog
-  action: start
-  config:
-    # Fog visual parameters (tweak as desired)
-    color: "#aab4c8"
-    density: 0.6
-    speed: 0.12
-    height: 0.0
-    opacity: 0.85
-    noise_scale: 1.5
-    mask: true
+# Example per-tile fire emitters (rendered at tile centers)
+point_fires:
+  - pos: [5, 8]
+    plasma: true
+    shape: campfire
+    intensity: 0.95
+    color: "#ff7a2b"
+    speed: 0.1
+  - pos: [5, 1]
+    shape: candle
+    intensity: 0.35
+    speed: 0.1
+    offset_px: [30, 30]
+  - pos: [2, 4]
+    shape: candle
+    intensity: 0.35
+    speed: 0.1
+    offset_px: [30, 30]
 legend:
   f:
     name: fire

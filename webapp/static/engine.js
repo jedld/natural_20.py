@@ -661,12 +661,15 @@ const switchPOV = (entity_uid, canvas) => {
     console.log("Switched POV:", data);
     if (data.background) {
       Utils.updateMapDisplay(data, canvas);
-      // Apply map-default effect if provided and DM has no active override.
+      // Apply map-default effects if provided and DM has no active override.
       // If no default and no DM override, clear any previous effects.
       try {
         if (!data.dm_active && typeof Effects !== 'undefined') {
-          if (data.map_default_effect && Effects.applyEffect) {
-            Effects.applyEffect(data.map_default_effect);
+          var arr = Array.isArray(data.map_default_effects) ? data.map_default_effects.slice() : [];
+          if (!arr.length && data.map_default_effect) arr = [data.map_default_effect];
+          if (arr.length && Effects.applyEffect) {
+            arr = arr.map(function(p){ try{ if (p && typeof p === 'object' && p.exclusive === undefined) p.exclusive = false; }catch(e){} return p; });
+            Effects.applyEffect(arr);
           } else if (Effects.stopAll) {
             Effects.stopAll();
           }
@@ -1791,9 +1794,17 @@ $(document).ready(() => {
   // Initialize effects socket handlers if Effects exists
   if (typeof Effects !== 'undefined' && Effects.initSocketHandlers) {
     try {
+      // Load persisted effects setting
+      try {
+        var saved = localStorage.getItem('vtt.effects.enabled');
+        if (saved === 'false') { Effects.setEnabled(false); }
+      } catch (e) {}
+
       Effects.initSocketHandlers(socket);
   // Ask the server to resend any active or map-default effects now that handlers are registered
-  try { socket.emit('request_effects'); } catch (e) { console.warn('Failed to request effects', e); }
+  if (Effects.isEnabled()) {
+    try { socket.emit('request_effects'); } catch (e) { console.warn('Failed to request effects', e); }
+  }
     } catch (e) {
       console.warn('Failed to init Effects socket handlers', e);
     }
@@ -1831,6 +1842,45 @@ $(document).ready(() => {
   });
 
   Utils.refreshTileSet();
+
+  // --- Effects Toggle UI (top-right unobtrusive button) ---
+  try {
+    if (typeof Effects !== 'undefined') {
+      var btn = document.getElementById('effects-toggle-btn');
+      if (!btn) {
+        btn = document.createElement('button');
+        btn.id = 'effects-toggle-btn';
+        btn.type = 'button';
+        btn.textContent = Effects.isEnabled() ? 'Effects: On' : 'Effects: Off';
+        btn.style.position = 'fixed';
+        btn.style.top = '8px';
+        btn.style.left = '200px';
+        btn.style.zIndex = 1000;
+        btn.style.padding = '6px 10px';
+        btn.style.fontSize = '12px';
+        btn.style.opacity = '0.75';
+        btn.style.background = '#222';
+        btn.style.color = '#fff';
+        btn.style.border = '1px solid #555';
+        btn.style.borderRadius = '4px';
+        btn.style.cursor = 'pointer';
+        btn.title = 'Toggle visual effects (for performance)';
+        btn.addEventListener('mouseenter', function(){ btn.style.opacity = '1.0'; });
+        btn.addEventListener('mouseleave', function(){ btn.style.opacity = '0.75'; });
+        btn.addEventListener('click', function(){
+          var next = !Effects.isEnabled();
+          Effects.setEnabled(next);
+          btn.textContent = next ? 'Effects: On' : 'Effects: Off';
+          try { localStorage.setItem('vtt.effects.enabled', next ? 'true' : 'false'); } catch(e) {}
+          // When turning on, re-request current effects from server (or map defaults)
+          if (next) {
+            try { if (socket && socket.emit) socket.emit('request_effects'); } catch (e) {}
+          }
+        });
+        document.body.appendChild(btn);
+      }
+    }
+  } catch (e) { console.warn('Failed to setup effects toggle', e); }
 
   // --- Socket Message Handler ---
   socket.on("message", (data) => {
