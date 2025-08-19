@@ -20,6 +20,9 @@ const Effects = {
         if (data.effect === 'rain') {
           Effects._instances.rain = Effects.createRainEffect(data.config || {});
         }
+        if (data.effect === 'snow') {
+          Effects._instances.snow = Effects.createSnowEffect(data.config || {});
+        }
       } else if (data.action === 'stop') {
         if (Effects._instances[data.effect]) {
           Effects._instances[data.effect].stop();
@@ -32,6 +35,9 @@ const Effects = {
         if (data.effect === 'rain' && Effects._instances.rain) {
           Effects._instances.rain.updateConfig(data.config || {});
         }
+        if (data.effect === 'snow' && Effects._instances.snow) {
+          Effects._instances.snow.updateConfig(data.config || {});
+        }
       }
     });
   },
@@ -43,13 +49,15 @@ const Effects = {
     if (data.action === 'start') {
       // stop others
       Object.keys(Effects._instances).forEach(function(k){ try{ if (k !== data.effect && Effects._instances[k]) Effects._instances[k].stop(); }catch(e){} try{ delete Effects._instances[k]; }catch(e){} });
-      if (data.effect === 'fog') Effects._instances.fog = Effects.createFogEffect(data.config || {});
-      if (data.effect === 'rain') Effects._instances.rain = Effects.createRainEffect(data.config || {});
+  if (data.effect === 'fog') Effects._instances.fog = Effects.createFogEffect(data.config || {});
+  if (data.effect === 'rain') Effects._instances.rain = Effects.createRainEffect(data.config || {});
+  if (data.effect === 'snow') Effects._instances.snow = Effects.createSnowEffect(data.config || {});
     } else if (data.action === 'stop') {
       if (Effects._instances[data.effect]) { Effects._instances[data.effect].stop(); delete Effects._instances[data.effect]; }
     } else if (data.action === 'update') {
       if (data.effect === 'fog' && Effects._instances.fog) Effects._instances.fog.updateConfig(data.config || {});
       if (data.effect === 'rain' && Effects._instances.rain) Effects._instances.rain.updateConfig(data.config || {});
+  if (data.effect === 'snow' && Effects._instances.snow) Effects._instances.snow.updateConfig(data.config || {});
     }
   },
 
@@ -88,18 +96,20 @@ const Effects = {
     }
 
     function resize() {
-      overlay.width = container.clientWidth;
-      overlay.height = container.clientHeight;
+      var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      overlay.width = Math.floor(container.clientWidth * dpr);
+      overlay.height = Math.floor(container.clientHeight * dpr);
       overlay.style.width = container.clientWidth + 'px';
       overlay.style.height = container.clientHeight + 'px';
+      // For 2D fallback, set transform on each draw; WebGL uses viewport per frame.
     }
     resize();
     window.addEventListener('resize', resize);
     var ro = new ResizeObserver(resize);
     try { ro.observe(container); } catch (e) {}
 
-    var gl = null;
-    try { gl = overlay.getContext('webgl') || overlay.getContext('experimental-webgl'); } catch (e) { gl = null; }
+  var gl = null;
+  try { gl = overlay.getContext('webgl', { antialias: true, alpha: true, premultipliedAlpha: true }) || overlay.getContext('experimental-webgl', { antialias: true, alpha: true, premultipliedAlpha: true }); } catch (e) { gl = null; }
 
     // helper to parse color
     function rgbFromHex(hex) {
@@ -431,71 +441,432 @@ const Effects = {
     };
   },
   
-  createSnowEffect: function () {
-    // Set up variables
-    var canvas = document.querySelector('canvas');
-    var ctx = canvas.getContext('2d');
-    var w = canvas.width;
-    var h = canvas.height;
-    var flakes = [];
+  createSnowEffect: function (config) {
+    config = config || {};
+    var intensity = config.intensity != null ? config.intensity : 0.6; // 0..1
+    var wind = config.wind != null ? config.wind : 0.0; // -1..1
+    var speed = config.speed != null ? config.speed : 1.0; // 0..2
+    var color = config.color || '#ffffff';
+    var flakeSize = config.flakeSize != null ? config.flakeSize : 1.0; // scales size
+    var turbulence = config.turbulence != null ? config.turbulence : 0.35; // side sway
 
-    // Create flake object
-    function Flake() {
-      this.x = Math.random() * w;
-      this.y = Math.random() * h;
-      this.r = Math.random() * 4 + 1; // thicker lines
-      this.speed = Math.random() * 3 + 1;
-      this.angle = Math.random() * 360;
+  // Optional realism controls
+  var gusts = !!config.gusts; // enable stochastic gusts
+  var gustFreq = config.gustFreq != null ? config.gustFreq : 0.04; // chance per second
+  var gustStrength = config.gustStrength != null ? config.gustStrength : 0.5; // 0..1
+  var gustDuration = config.gustDuration != null ? config.gustDuration : 1.8; // seconds
+  var dof = config.dof != null ? config.dof : 0.35; // depth-of-field amount for distant layers
+  var accumulationEnabled = !!config.accumulationEnabled;
+  var accumulationRate = config.accumulationRate != null ? config.accumulationRate : 0.02; // per second
+  var accumulationMax = config.accumulationMax != null ? config.accumulationMax : 0.35; // 0..1
+  var accumulationColor = config.accumulationColor || '#ffffff';
+
+    // Attach overlay to the battlemap container
+    var container = document.querySelector('.image-container') || document.body;
+    var overlay = container.querySelector('#effects-overlay-snow');
+    if (!overlay) {
+      overlay = document.createElement('canvas');
+      overlay.id = 'effects-overlay-snow';
+      overlay.style.position = 'absolute';
+      overlay.style.left = '0';
+      overlay.style.top = '0';
+      overlay.style.pointerEvents = 'none';
+      overlay.style.zIndex = 2000;
+      container.appendChild(overlay);
     }
 
-    // Create flakes
-    for (var i = 0; i < 100; i++) {
-      flakes.push(new Flake());
-    }
-
-    // Draw flakes
-    function draw() {
-      ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      for (var i = 0; i < flakes.length; i++) {
-        var flake = flakes[i];
-        ctx.moveTo(flake.x, flake.y);
-        ctx.arc(flake.x, flake.y, flake.r, 0, Math.PI * 2, true);
+    function getMapElement(){ return document.querySelector('.image-container img.background-image, .image-container img'); }
+    function getMapRect(){
+      var img = getMapElement();
+      var cRect = container.getBoundingClientRect();
+      if (img) {
+        var r = img.getBoundingClientRect();
+        return { left: Math.round(r.left - cRect.left), top: Math.round(r.top - cRect.top), width: Math.round(r.width), height: Math.round(r.height) };
       }
-      ctx.fill();
-      move();
+      return { left: 0, top: 0, width: container.clientWidth, height: container.clientHeight };
     }
 
-    // Move flakes
-    function move() {
-      for (var i = 0; i < flakes.length; i++) {
-        var flake = flakes[i];
-        flake.y += flake.speed;
-        flake.x += Math.cos(flake.angle) * 2;
-        if (flake.y > h) {
-          flake.y = -25;
+    function resize() {
+      var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      var rect = getMapRect();
+      overlay.style.left = rect.left + 'px';
+      overlay.style.top = rect.top + 'px';
+      overlay.style.width = rect.width + 'px';
+      overlay.style.height = rect.height + 'px';
+      overlay.width = Math.floor(rect.width * dpr);
+      overlay.height = Math.floor(rect.height * dpr);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+    var ro = new ResizeObserver(resize);
+    try { ro.observe(container); } catch (e) {}
+
+  var gl = null;
+  try { gl = overlay.getContext('webgl', { antialias: true, alpha: true, premultipliedAlpha: true }) || overlay.getContext('experimental-webgl', { antialias: true, alpha: true, premultipliedAlpha: true }); } catch (e) { gl = null; }
+
+    // helper to parse color
+    function rgbFromHex(hex) {
+      var r = parseInt(hex.slice(1,3),16)/255;
+      var g = parseInt(hex.slice(3,5),16)/255;
+      var b = parseInt(hex.slice(5,7),16)/255;
+      return [r,g,b];
+    }
+
+    if (gl) {
+      // WebGL snowfall using pseudo-random flake field with depth and sway
+      var vertexSrc = 'attribute vec2 a_position; varying vec2 v_uv; void main(){ v_uv = a_position*0.5+0.5; gl_Position = vec4(a_position,0.0,1.0);}';
+      var fragSrc = `
+        precision highp float;
+        varying vec2 v_uv;
+        uniform vec2 u_resolution;
+        uniform float u_time;
+        uniform float u_intensity;
+        uniform float u_wind;
+        uniform float u_speed;
+        uniform float u_size;
+        uniform float u_turb;
+        uniform float u_gustWind;
+        uniform float u_gustTurb;
+        uniform float u_dof;
+        uniform vec3 u_color;
+        uniform sampler2D u_map;
+        uniform float u_accumLevel;
+        uniform vec3 u_accumColor;
+
+        float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+        float noise(vec2 p){ vec2 i=floor(p); vec2 f=fract(p); float a=hash(i); float b=hash(i+vec2(1.0,0.0)); float c=hash(i+vec2(0.0,1.0)); float d=hash(i+vec2(1.0,1.0)); vec2 u=f*f*(3.0-2.0*f); return mix(a,b,u.x)+ (c-a)*u.y*(1.0-u.x) + (d-b)*u.x*u.y; }
+
+        void main(){
+          vec2 res = u_resolution;
+          vec2 uv = v_uv * (res / min(res.x,res.y));
+          float t = u_time * 0.001 * u_speed;
+          
+          float density = mix(40.0, 140.0, clamp(u_intensity, 0.0, 1.0));
+          vec3 baseCol = u_color;
+          
+          float accum = 0.0;
+          float windAll = u_wind + u_gustWind;
+          float turbAll = max(0.0, u_turb + u_gustTurb);
+          vec2 dir = normalize(vec2(windAll*0.8, 1.0));
+          vec2 perp = vec2(-dir.y, dir.x);
+
+          for (int layer=0; layer<4; layer++){
+            float depth = float(layer)/3.0; // 0..1
+            float layerDensity = density * mix(0.6, 1.3, 1.0 - depth);
+            vec2 p = uv * layerDensity;
+            vec2 cell = floor(p);
+            for (int oy=-1; oy<=1; oy++){
+              for (int ox=-1; ox<=1; ox++){
+                vec2 c = cell + vec2(float(ox), float(oy));
+                float seed = hash(c + float(layer)*13.17);
+                vec2 jitter = vec2(hash(c+1.0), hash(c+2.0)) - 0.5;
+                vec2 flakePos = (c + 0.5 + jitter) / layerDensity;
+                float fall = mod(t * mix(0.4, 0.9, 1.0-depth) + seed*17.0, 1.0);
+                float sway = (noise(vec2(seed*100.0, t*0.1 + seed*5.0)) - 0.5) * turbAll;
+                flakePos += dir * (-fall) + perp * (sway + windAll*0.05*(1.0-depth));
+
+                vec2 d = v_uv - flakePos;
+                float blur = u_dof * depth;
+                float r = mix(0.0015, 0.010, seed) * u_size * mix(1.6, 0.7, depth) * (1.0 + blur*1.2);
+                float dist = length(d);
+                float core = 1.0 - smoothstep(r, r*1.8 + blur*0.02, dist);
+                float halo = 1.0 - smoothstep(r*1.8, r*3.2 + blur*0.04, dist);
+                float a = core + halo * (0.18 + 0.12*blur);
+                accum += a * mix(1.0, 0.6, depth);
+              }
+            }
+          }
+
+          float mapA = 1.0;
+          #ifdef GL_ES
+          mapA = texture2D(u_map, v_uv).a;
+          #else
+          mapA = texture(u_map, v_uv).a;
+          #endif
+
+          vec3 col = baseCol * clamp(accum, 0.0, 1.2);
+          float alpha = clamp(accum * 0.8, 0.0, 0.9) * mapA;
+
+          // accumulation tint near bottom
+          float gy = 1.0 - v_uv.y;
+          float accMask = smoothstep(0.0, 0.6, gy) * u_accumLevel;
+          float n = noise(v_uv * vec2(200.0, 120.0) + vec2(0.0, t*0.15));
+          accMask *= (0.85 + 0.3*(n-0.5));
+          col = mix(col, u_accumColor, clamp(accMask, 0.0, 1.0));
+          alpha = max(alpha, accMask * 0.25);
+          gl_FragColor = vec4(col, alpha);
         }
-        if (flake.x > w) {
-          flake.x = 0;
+      `;
+
+      function compileShader(src, type) {
+        var s = gl.createShader(type);
+        gl.shaderSource(s, src);
+        gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.warn(gl.getShaderInfoLog(s));
+        return s;
+      }
+
+      var program = gl.createProgram();
+      gl.attachShader(program, compileShader(vertexSrc, gl.VERTEX_SHADER));
+      gl.attachShader(program, compileShader(fragSrc, gl.FRAGMENT_SHADER));
+      gl.linkProgram(program);
+
+      var positionLoc = gl.getAttribLocation(program, 'a_position');
+      var resLoc = gl.getUniformLocation(program, 'u_resolution');
+      var timeLoc = gl.getUniformLocation(program, 'u_time');
+      var intensityLoc = gl.getUniformLocation(program, 'u_intensity');
+      var windLoc = gl.getUniformLocation(program, 'u_wind');
+      var speedLoc = gl.getUniformLocation(program, 'u_speed');
+      var sizeLoc = gl.getUniformLocation(program, 'u_size');
+      var turbLoc = gl.getUniformLocation(program, 'u_turb');
+      var colorLoc = gl.getUniformLocation(program, 'u_color');
+      var mapLoc = gl.getUniformLocation(program, 'u_map');
+  var gustWindLoc = gl.getUniformLocation(program, 'u_gustWind');
+  var gustTurbLoc = gl.getUniformLocation(program, 'u_gustTurb');
+  var dofLoc = gl.getUniformLocation(program, 'u_dof');
+  var accumLevelLoc = gl.getUniformLocation(program, 'u_accumLevel');
+  var accumColorLoc = gl.getUniformLocation(program, 'u_accumColor');
+
+      var buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+      gl.useProgram(program);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    // map texture
+  var mapTexture = null;
+  var fallbackTex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, fallbackTex);
+  var whitePixel = new Uint8Array([255,255,255,255]);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, whitePixel);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  var mapImageEl = getMapElement();
+      function createMapTexture() {
+        if (!gl || !mapImageEl || !mapImageEl.complete) return;
+        if (!mapTexture) mapTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, mapTexture);
+        try {
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mapImageEl);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        } catch (e) {
+          var c = document.createElement('canvas');
+          c.width = mapImageEl.naturalWidth || mapImageEl.width;
+          c.height = mapImageEl.naturalHeight || mapImageEl.height;
+          var ctx2 = c.getContext('2d');
+          ctx2.drawImage(mapImageEl, 0, 0, c.width, c.height);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
         }
-        if (flake.x < 0) {
-          flake.x = w;
+        gl.bindTexture(gl.TEXTURE_2D, null);
+      }
+      if (mapImageEl) {
+        if (mapImageEl.complete) createMapTexture();
+        else mapImageEl.addEventListener('load', createMapTexture);
+        try { new ResizeObserver(function(){ createMapTexture(); }).observe(mapImageEl); } catch(e) {}
+      }
+
+  var start = Date.now();
+  var running = true;
+  var lastTime = start;
+  var curAccum = 0.0;
+  var gustActive = false; var gustEnd = 0; var gustWindVal = 0.0; var gustTurbVal = 0.0;
+
+  function frame(){
+        if (!running) return;
+        var now = Date.now();
+        var dt = Math.max(0, (now - lastTime) / 1000.0);
+        lastTime = now;
+        // Update accumulation
+        if (accumulationEnabled) curAccum = Math.min(accumulationMax, curAccum + accumulationRate * dt); else curAccum = 0.0;
+        // Update gusts
+        if (gusts) {
+          if (!gustActive && Math.random() < Math.min(0.9, gustFreq * dt)) {
+            gustActive = true; gustEnd = now + Math.floor(gustDuration*1000);
+            var s = Math.random()<0.5?-1:1;
+            gustWindVal = s * (0.3 + 0.7*Math.random()) * gustStrength;
+            gustTurbVal = (0.3 + 0.7*Math.random()) * gustStrength;
+          } else if (gustActive && now >= gustEnd) {
+            gustActive = false; gustWindVal = 0.0; gustTurbVal = 0.0;
+          } else if (gustActive) {
+            var rem = Math.max(0, gustEnd - now) / (gustDuration*1000.0);
+            gustWindVal *= (0.95 + 0.05*rem);
+            gustTurbVal *= (0.95 + 0.05*rem);
+          }
+        } else { gustWindVal = 0.0; gustTurbVal = 0.0; }
+        gl.viewport(0, 0, overlay.width, overlay.height);
+        gl.clearColor(0,0,0,0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.useProgram(program);
+        gl.enableVertexAttribArray(positionLoc);
+        gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+        gl.uniform2f(resLoc, overlay.width, overlay.height);
+        gl.uniform1f(timeLoc, now - start);
+        gl.uniform1f(intensityLoc, intensity);
+        gl.uniform1f(windLoc, wind);
+        gl.uniform1f(speedLoc, speed);
+        gl.uniform1f(sizeLoc, flakeSize);
+        gl.uniform1f(turbLoc, turbulence);
+        var rgb = rgbFromHex(color);
+        gl.uniform3f(colorLoc, rgb[0], rgb[1], rgb[2]);
+        gl.uniform1f(gustWindLoc, gustWindVal);
+        gl.uniform1f(gustTurbLoc, gustTurbVal);
+        gl.uniform1f(dofLoc, dof);
+        var accRgb = rgbFromHex(accumulationColor);
+        gl.uniform1f(accumLevelLoc, curAccum);
+        gl.uniform3f(accumColorLoc, accRgb[0], accRgb[1], accRgb[2]);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, mapTexture || fallbackTex);
+  gl.uniform1i(mapLoc, 0);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+
+      return {
+        stop: function(){ running = false; try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} },
+        updateConfig: function(c){
+          intensity = c.intensity != null ? c.intensity : intensity;
+          wind = c.wind != null ? c.wind : wind;
+          speed = c.speed != null ? c.speed : speed;
+          color = c.color || color;
+          flakeSize = c.flakeSize != null ? c.flakeSize : flakeSize;
+          turbulence = c.turbulence != null ? c.turbulence : turbulence;
+          gusts = c.gusts != null ? !!c.gusts : gusts;
+          gustFreq = c.gustFreq != null ? c.gustFreq : gustFreq;
+          gustStrength = c.gustStrength != null ? c.gustStrength : gustStrength;
+          gustDuration = c.gustDuration != null ? c.gustDuration : gustDuration;
+          dof = c.dof != null ? c.dof : dof;
+          accumulationEnabled = c.accumulationEnabled != null ? !!c.accumulationEnabled : accumulationEnabled;
+          accumulationRate = c.accumulationRate != null ? c.accumulationRate : accumulationRate;
+          accumulationMax = c.accumulationMax != null ? c.accumulationMax : accumulationMax;
+          accumulationColor = c.accumulationColor || accumulationColor;
+        }
+      };
+    }
+
+    // 2D canvas fallback with parallax layers and turbulence sway
+  var ctx = overlay.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+    var running2D = true;
+  var W = overlay.clientWidth, H = overlay.clientHeight;
+  function updateLogicalSize(){ var rect = getMapRect(); W = rect.width; H = rect.height; }
+  function setDPRTransform(){ var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1)); ctx.setTransform(dpr,0,0,dpr,0,0); }
+
+    function makeFlake(depth){
+      return {
+    x: Math.random()*W,
+    y: Math.random()*H,
+        z: depth, // 0..1, 0 front
+        r: (0.7 + Math.random()*2.2) * (1.6 - depth) * flakeSize,
+        vy: (0.3 + Math.random()*1.2) * (1.0 + speed) * (1.0 - depth*0.3),
+        vx: wind * (0.2 + 0.4*(1.0-depth)) + (Math.random()-0.5)*0.3,
+        seed: Math.random()*1000.0
+      };
+    }
+  var layers = [[],[],[],[]];
+    var counts = [60, 90, 110, 130].map(function(c){ return Math.floor(c*intensity); });
+    for (var li=0; li<4; li++){
+      for (var i=0; i<counts[li]; i++) layers[li].push(makeFlake(li/3));
+    }
+  var curAccum2D = 0.0;
+  var last2D = Date.now();
+  var gustActive2D = false; var gustEnd2D = 0; var gustWind2D = 0.0; var gustTurb2D = 0.0;
+
+    function draw2D(){
+      if (!running2D) return;
+      updateLogicalSize();
+      // ensure backing store matches DPR
+      var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      var targetW = Math.floor(W * dpr), targetH = Math.floor(H * dpr);
+      if (overlay.width !== targetW || overlay.height !== targetH) { overlay.width = targetW; overlay.height = targetH; overlay.style.width = W + 'px'; overlay.style.height = H + 'px'; }
+      setDPRTransform();
+      ctx.clearRect(0,0,W,H);
+      ctx.globalCompositeOperation = 'source-over';
+      var rgb = rgbFromHex(color);
+      var now = Date.now();
+      var dt = Math.max(0, (now - last2D) / 1000.0); last2D = now;
+      if (accumulationEnabled) curAccum2D = Math.min(accumulationMax, curAccum2D + accumulationRate * dt); else curAccum2D = 0.0;
+      if (gusts) {
+        if (!gustActive2D && Math.random() < Math.min(0.9, gustFreq * dt)) {
+          gustActive2D = true; gustEnd2D = now + Math.floor(gustDuration*1000);
+          var s2 = Math.random()<0.5?-1:1; gustWind2D = s2 * (0.3 + 0.7*Math.random()) * gustStrength; gustTurb2D = (0.3 + 0.7*Math.random()) * gustStrength;
+        } else if (gustActive2D && now >= gustEnd2D) {
+          gustActive2D = false; gustWind2D = 0.0; gustTurb2D = 0.0;
+        } else if (gustActive2D) {
+          var rem2 = Math.max(0, gustEnd2D - now) / (gustDuration*1000.0);
+          gustWind2D *= (0.95 + 0.05*rem2);
+          gustTurb2D *= (0.95 + 0.05*rem2);
+        }
+      } else { gustWind2D = 0.0; gustTurb2D = 0.0; }
+      for (var li=0; li<4; li++){
+        var depth = li/3;
+        for (var i=0; i<layers[li].length; i++){
+          var f = layers[li][i];
+          // sway by turbulence and per-flake phase
+          var turbAll2D = Math.max(0, turbulence + gustTurb2D);
+          var sway = (Math.sin((now*0.001 + f.seed) * (0.6 + turbAll2D*1.8)))* (turbAll2D*6.0) * (1.0 - depth*0.6);
+          var windAll2D = wind + gustWind2D;
+          f.x += f.vx + sway*0.02 + windAll2D*0.4*(1.0-depth);
+          f.y += f.vy;
+          // wrap
+          if (f.y > H + 10) { f.y = -10; f.x = Math.random()*W; }
+          if (f.x > W + 10) f.x = -10;
+          if (f.x < -10) f.x = W + 10;
+
+          // render flake as soft circle with slight halo
+          var dofAmt = dof * depth;
+          var grd = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r*(2.6 + 0.8*dofAmt));
+          grd.addColorStop(0.0, 'rgba(255,255,255,' + (0.90 - depth*0.55) + ')');
+          grd.addColorStop(0.6, 'rgba(255,255,255,' + (0.22 - depth*0.16 + 0.1*dofAmt) + ')');
+          grd.addColorStop(1.0, 'rgba(255,255,255,0)');
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.r*(1.2 + 0.25*dofAmt), 0, Math.PI*2);
+          ctx.fill();
         }
       }
-    }
+      // accumulation overlay near bottom
+      if (curAccum2D > 0.0) {
+        var accRgb = rgbFromHex(accumulationColor);
+        var g = ctx.createLinearGradient(0, H, 0, Math.max(0, H - H*0.4));
+        var alphaBase = Math.min(0.35, curAccum2D);
+        g.addColorStop(0.0, 'rgba(' + Math.floor(accRgb[0]*255) + ',' + Math.floor(accRgb[1]*255) + ',' + Math.floor(accRgb[2]*255) + ',' + (alphaBase) + ')');
+        g.addColorStop(1.0, 'rgba(' + Math.floor(accRgb[0]*255) + ',' + Math.floor(accRgb[1]*255) + ',' + Math.floor(accRgb[2]*255) + ',0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, Math.max(0, H - H*0.4), W, H*0.4);
+      }
 
-    // Start animation loop
-    var interval = setInterval(draw, 33);
-
-    // Stop snow effect
-    function stopSnowEffect() {
-      clearInterval(interval);
-      ctx.clearRect(0, 0, w, h);
+      requestAnimationFrame(draw2D);
     }
+    requestAnimationFrame(draw2D);
 
     return {
-      stopSnowEffect: stopSnowEffect
+      stop: function(){ running2D = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} },
+      updateConfig: function(c){
+        intensity = c.intensity != null ? c.intensity : intensity;
+        wind = c.wind != null ? c.wind : wind;
+        speed = c.speed != null ? c.speed : speed;
+        color = c.color || color;
+        flakeSize = c.flakeSize != null ? c.flakeSize : flakeSize;
+  turbulence = c.turbulence != null ? c.turbulence : turbulence;
+  gusts = c.gusts != null ? !!c.gusts : gusts;
+  gustFreq = c.gustFreq != null ? c.gustFreq : gustFreq;
+  gustStrength = c.gustStrength != null ? c.gustStrength : gustStrength;
+  gustDuration = c.gustDuration != null ? c.gustDuration : gustDuration;
+  dof = c.dof != null ? c.dof : dof;
+  accumulationEnabled = c.accumulationEnabled != null ? !!c.accumulationEnabled : accumulationEnabled;
+  accumulationRate = c.accumulationRate != null ? c.accumulationRate : accumulationRate;
+  accumulationMax = c.accumulationMax != null ? c.accumulationMax : accumulationMax;
+  accumulationColor = c.accumulationColor || accumulationColor;
+      }
     };
   }
 }

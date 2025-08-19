@@ -228,11 +228,27 @@
         <div class="modal-body">
           <p>Toggle and configure environmental effects. These are broadcast to all connected clients.</p>
           <div class="form-group">
+            <label for="effect-scope">Scope</label>
+            <select id="effect-scope" class="form-control">
+              <option value="global" selected>Global (all maps)</option>
+              <option value="map">This Map Only</option>
+            </select>
+          </div>
+          <div id="map-scope-group" class="form-group" style="display:none;">
+            <label for="effect-map">Target Map</label>
+            <select id="effect-map" class="form-control">
+              {% for map_name in available_maps %}
+                <option value="{{ map_name }}" {% if map_name == current_map %}selected{% endif %}>{{ map_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
             <label for="effect-type">Effect</label>
             <select id="effect-type" class="form-control">
               <option value="map_default">Map Default</option>
               <option value="fog">Fog</option>
               <option value="rain">Rain</option>
+              <option value="snow">Snow</option>
             </select>
           </div>
           <div id="effect-config">
@@ -268,6 +284,44 @@
               <input id="rain-lightning-freq" type="range" min="0" max="1" step="0.001" value="0.01" class="form-control">
               <label>Lightning Intensity</label>
               <input id="rain-lightning-intensity" type="range" min="0" max="2" step="0.05" value="1.0" class="form-control">
+            </div>
+            <div id="snow-config" style="display:none; margin-top:8px;">
+              <label>Intensity</label>
+              <input id="snow-intensity" type="range" min="0" max="1" step="0.01" value="0.6" class="form-control">
+              <label>Wind (left -1 → right +1)</label>
+              <input id="snow-wind" type="range" min="-1" max="1" step="0.01" value="0.0" class="form-control">
+              <label>Speed</label>
+              <input id="snow-speed" type="range" min="0" max="2" step="0.05" value="1.0" class="form-control">
+              <label>Flake Size</label>
+              <input id="snow-flake-size" type="range" min="0.5" max="2.5" step="0.05" value="1.0" class="form-control">
+              <label>Turbulence</label>
+              <input id="snow-turbulence" type="range" min="0" max="1" step="0.01" value="0.35" class="form-control">
+              <label>Color</label>
+              <input id="snow-color" type="color" value="#ffffff" class="form-control">
+              <hr>
+              <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+                <input id="snow-gusts" type="checkbox">
+                <label for="snow-gusts" style="margin:0;">Enable Gusts</label>
+              </div>
+              <label>Gust Frequency (chance/sec)</label>
+              <input id="snow-gust-freq" type="range" min="0" max="1" step="0.001" value="0.04" class="form-control">
+              <label>Gust Strength</label>
+              <input id="snow-gust-strength" type="range" min="0" max="1" step="0.01" value="0.5" class="form-control">
+              <label>Gust Duration (seconds)</label>
+              <input id="snow-gust-duration" type="range" min="0" max="6" step="0.1" value="1.8" class="form-control">
+              <label>Depth of Field</label>
+              <input id="snow-dof" type="range" min="0" max="1" step="0.01" value="0.35" class="form-control">
+              <hr>
+              <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+                <input id="snow-accumulation-enabled" type="checkbox">
+                <label for="snow-accumulation-enabled" style="margin:0;">Enable Accumulation</label>
+              </div>
+              <label>Accumulation Rate</label>
+              <input id="snow-accumulation-rate" type="range" min="0" max="0.2" step="0.001" value="0.02" class="form-control">
+              <label>Accumulation Max</label>
+              <input id="snow-accumulation-max" type="range" min="0" max="1" step="0.01" value="0.35" class="form-control">
+              <label>Accumulation Color</label>
+              <input id="snow-accumulation-color" type="color" value="#ffffff" class="form-control">
             </div>
           </div>
         </div>
@@ -318,11 +372,27 @@
         function showConfigFor(effect) {
           $('#fog-config').hide();
           $('#rain-config').hide();
+          $('#snow-config').hide();
           if (effect === 'fog') $('#fog-config').show();
           if (effect === 'rain') $('#rain-config').show();
+          if (effect === 'snow') $('#snow-config').show();
         }
 
-        $('#effect-type').on('change', function(){ showConfigFor($(this).val()); });
+  $('#effect-type').on('change', function(){ showConfigFor($(this).val()); });
+  // Initialize panel visibility based on current selection
+  showConfigFor($('#effect-type').val());
+
+        function updateScopeUI(){
+          var scope = $('#effect-scope').val();
+          if (scope === 'map') {
+            $('#map-scope-group').show();
+          } else {
+            $('#map-scope-group').hide();
+          }
+        }
+        $('#effect-scope').on('change', updateScopeUI);
+        // Initialize scope UI
+        updateScopeUI();
 
         // Accessibility helpers: inert polyfill fallback
         function setInertForMain(inert) {
@@ -356,6 +426,8 @@
           var effect = $('#effect-type').val();
           if (effect === 'none') return;
           var config = {};
+          var scope = $('#effect-scope').val();
+          var mapName = scope === 'map' ? $('#effect-map').val() : null;
           if (effect === 'fog') {
             config.density = parseFloat($('#fog-density').val());
             config.speed = parseFloat($('#fog-speed').val());
@@ -373,12 +445,30 @@
             config.lightningFreq = parseFloat($('#rain-lightning-freq').val());
             config.lightningIntensity = parseFloat($('#rain-lightning-intensity').val());
           }
+          if (effect === 'snow') {
+            config.intensity = parseFloat($('#snow-intensity').val());
+            config.wind = parseFloat($('#snow-wind').val());
+            config.speed = parseFloat($('#snow-speed').val());
+            config.flakeSize = parseFloat($('#snow-flake-size').val());
+            config.turbulence = parseFloat($('#snow-turbulence').val());
+            config.color = $('#snow-color').val();
+            // advanced options
+            config.gusts = !!$('#snow-gusts').prop('checked');
+            config.gustFreq = parseFloat($('#snow-gust-freq').val());
+            config.gustStrength = parseFloat($('#snow-gust-strength').val());
+            config.gustDuration = parseFloat($('#snow-gust-duration').val());
+            config.dof = parseFloat($('#snow-dof').val());
+            config.accumulationEnabled = !!$('#snow-accumulation-enabled').prop('checked');
+            config.accumulationRate = parseFloat($('#snow-accumulation-rate').val());
+            config.accumulationMax = parseFloat($('#snow-accumulation-max').val());
+            config.accumulationColor = $('#snow-accumulation-color').val();
+          }
           // POST to server endpoint (DM-only)
           $.ajax({
             url: '/admin/effect',
             method: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify({ effect: effect, action: 'start', config: config }),
+            data: JSON.stringify({ effect: effect, action: 'start', config: config, scope: scope, map: mapName }),
             success: function(resp){
               console.log('effect applied', resp);
               $('#effectsModal').modal('hide');
@@ -390,11 +480,13 @@
         $('#effects-clear').on('click', function(){
           var effect = $('#effect-type').val();
           if (effect === 'none') return;
+          var scope = $('#effect-scope').val();
+          var mapName = scope === 'map' ? $('#effect-map').val() : null;
           $.ajax({
             url: '/admin/effect',
             method: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify({ effect: effect, action: 'stop' }),
+            data: JSON.stringify({ effect: effect, action: 'stop', scope: scope, map: mapName }),
             success: function(resp){
               console.log('effect cleared', resp);
               $('#effectsModal').modal('hide');

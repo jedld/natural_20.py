@@ -180,17 +180,12 @@ def _on_connect():
         game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
         effects = active_effects.get(game_key, {})
         if effects:
-            # If the DM has persisted effects for this game, re-emit them to the client
             for payload in effects.values():
                 emit('effect:set', payload)
         else:
-            # No DM-persisted effects for this game — attempt to emit the current
-            # map's default effect for this connecting user so a refresh applies it.
+            # No global DM override; first try per-map overrides
             try:
                 username = session.get('username')
-                # If session username isn't available (refresh or anonymous socket),
-                # fall back to the server's default map for users by passing None
-                # into get_map_for_user which will return the 'index' map as a default.
                 if username:
                     cur_map = current_game.get_map_for_user(username)
                 else:
@@ -198,12 +193,17 @@ def _on_connect():
                         cur_map = current_game.get_map_for_user(None)
                     except Exception:
                         cur_map = current_game.get_current_battle_map()
+                cur_name = getattr(cur_map, 'name', None)
+                map_overrides = active_effects_map.get(game_key, {}).get(cur_name, {})
+                if map_overrides:
+                    for payload in map_overrides.values():
+                        emit('effect:set', payload)
+                else:
                     props = getattr(cur_map, 'properties', {}) or {}
                     map_def = props.get('default_effect')
                     if map_def:
                         emit('effect:set', map_def)
             except Exception:
-                # non-fatal; ignore
                 pass
     except Exception:
         pass
@@ -240,8 +240,9 @@ if 'extensions' in index_data:
 sockets = []
 MAP_PADDING = [6, 15]
 
-# Persistent in-memory active effects per game key. Keyed by game_session.root_path to scope per-game.
+# Persistent in-memory active effects per game key (global overrides) and per-map overrides
 active_effects = {}
+active_effects_map = {}
 
 # Health check endpoint for container orchestration
 @app.route('/health')
@@ -524,10 +525,16 @@ def _on_request_effects():
                         cur_map = current_game.get_map_for_user(None)
                     except Exception:
                         cur_map = current_game.get_current_battle_map()
-                props = getattr(cur_map, 'properties', {}) or {}
-                map_def = props.get('default_effect')
-                if map_def:
-                    emit('effect:set', map_def)
+                cur_name = getattr(cur_map, 'name', None)
+                map_overrides = active_effects_map.get(game_key, {}).get(cur_name, {})
+                if map_overrides:
+                    for payload in map_overrides.values():
+                        emit('effect:set', payload)
+                else:
+                    props = getattr(cur_map, 'properties', {}) or {}
+                    map_def = props.get('default_effect')
+                    if map_def:
+                        emit('effect:set', map_def)
             except Exception:
                 pass
     except Exception:
@@ -621,42 +628,142 @@ def admin_effect():
     effect = payload.get('effect')
     action = payload.get('action')
     config = payload.get('config') or {}
+    scope = (payload.get('scope') or 'global').lower()  # 'global' or 'map'
+    target_map_name = payload.get('map')  # optional explicit map name
     if not effect or not action:
         return jsonify(error='effect and action required'), 400
     try:
+        # Validate and sanitize config per effect type
+        def _hex_color(c):
+            try:
+                return bool(re.match(r'^#[0-9a-fA-F]{6}$', str(c)))
+            except Exception:
+                return False
+
+        def _clamp(v, lo, hi, cast=float):
+            try:
+                vv = cast(v)
+            except Exception:
+                vv = lo
+            return max(lo, min(hi, vv))
+
+        def validate_effect_config(name, cfg):
+            cfg = dict(cfg or {})
+            if name == 'snow':
+                cfg['intensity'] = _clamp(cfg.get('intensity', 0.6), 0.0, 1.0)
+                cfg['wind'] = _clamp(cfg.get('wind', 0.0), -1.0, 1.0)
+                cfg['speed'] = _clamp(cfg.get('speed', 1.0), 0.0, 3.0)
+                cfg['flakeSize'] = _clamp(cfg.get('flakeSize', 1.0), 0.2, 3.0)
+                cfg['turbulence'] = _clamp(cfg.get('turbulence', 0.35), 0.0, 1.0)
+                cfg['gusts'] = bool(cfg.get('gusts', False))
+                cfg['gustFreq'] = _clamp(cfg.get('gustFreq', 0.04), 0.0, 2.0)
+                cfg['gustStrength'] = _clamp(cfg.get('gustStrength', 0.5), 0.0, 1.0)
+                cfg['gustDuration'] = _clamp(cfg.get('gustDuration', 1.8), 0.0, 10.0)
+                cfg['dof'] = _clamp(cfg.get('dof', 0.35), 0.0, 1.0)
+                cfg['accumulationEnabled'] = bool(cfg.get('accumulationEnabled', False))
+                cfg['accumulationRate'] = _clamp(cfg.get('accumulationRate', 0.02), 0.0, 1.0)
+                cfg['accumulationMax'] = _clamp(cfg.get('accumulationMax', 0.35), 0.0, 1.0)
+                if not _hex_color(cfg.get('accumulationColor', '#ffffff')):
+                    cfg['accumulationColor'] = '#ffffff'
+                if not _hex_color(cfg.get('color', '#ffffff')):
+                    cfg['color'] = '#ffffff'
+            elif name == 'rain':
+                cfg['intensity'] = _clamp(cfg.get('intensity', 0.6), 0.0, 1.0)
+                cfg['wind'] = _clamp(cfg.get('wind', 0.0), -1.0, 1.0)
+                cfg['speed'] = _clamp(cfg.get('speed', 1.0), 0.0, 3.0)
+                cfg['lightning'] = bool(cfg.get('lightning', False))
+                cfg['lightningFreq'] = _clamp(cfg.get('lightningFreq', 0.01), 0.0, 1.0)
+                cfg['lightningIntensity'] = _clamp(cfg.get('lightningIntensity', 1.0), 0.0, 3.0)
+                if not _hex_color(cfg.get('color', '#a8c0e6')):
+                    cfg['color'] = '#a8c0e6'
+            elif name == 'fog':
+                cfg['density'] = _clamp(cfg.get('density', 0.45), 0.0, 2.0)
+                cfg['speed'] = _clamp(cfg.get('speed', 0.7), 0.0, 3.0)
+                cfg['contrast'] = _clamp(cfg.get('contrast', 1.0), 0.2, 3.0)
+                cfg['grain'] = _clamp(cfg.get('grain', 0.15), 0.0, 0.5)
+                cfg['falloff'] = _clamp(cfg.get('falloff', 1.0), 0.0, 3.0)
+                if not _hex_color(cfg.get('color', '#cfcfd6')):
+                    cfg['color'] = '#cfcfd6'
+            else:
+                # unknown effect: keep as-is to avoid breaking custom effects
+                cfg = cfg
+            return cfg
+
+        config = validate_effect_config(effect, config)
+
         # Broadcast to all connected clients
         payload = {'effect': effect, 'action': action, 'config': config}
         socketio.emit('effect:set', payload)
         # persist effect state per game so new clients or refreshed pages will re-apply the effect
         try:
             game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
-            # Special handling: DM chose to revert to the map default
-            if effect == 'map_default' and action == 'start':
-                # remove any DM-persisted effects for this game
-                prev = active_effects.pop(game_key, {})
-                # notify clients to stop any DM effects that were active
-                for ef_name in list(prev.keys()):
+            if scope == 'map':
+                # Determine target map name
+                try:
+                    if not target_map_name:
+                        cur_map = current_game.get_map_for_user(session['username'])
+                        target_map_name = getattr(cur_map, 'name', None)
+                except Exception:
+                    target_map_name = None
+
+                if effect == 'map_default' and action == 'start':
+                    # Clear per-map overrides and broadcast map default
                     try:
-                        socketio.emit('effect:set', {'effect': ef_name, 'action': 'stop'})
+                        if game_key in active_effects_map and target_map_name in active_effects_map[game_key]:
+                            prev = active_effects_map[game_key].pop(target_map_name, {})
+                        else:
+                            prev = {}
+                        for ef_name in list(prev.keys()):
+                            try:
+                                socketio.emit('effect:set', {'effect': ef_name, 'action': 'stop'})
+                            except Exception:
+                                pass
+                        # emit map default
+                        try:
+                            cur_map = current_game.get_map_for_user(session['username'])
+                            props = getattr(cur_map, 'properties', {}) or {}
+                            map_def = props.get('default_effect')
+                            if map_def:
+                                socketio.emit('effect:set', map_def)
+                        except Exception:
+                            pass
                     except Exception:
                         pass
-                # attempt to apply the current map's default effect immediately
-                try:
-                    # determine current map for the session and broadcast its default if present
-                    cur_map = current_game.get_map_for_user(session['username'])
-                    map_def = getattr(cur_map, 'properties', {}) or {}
-                    map_def = map_def.get('default_effect')
-                    if map_def:
-                        socketio.emit('effect:set', map_def)
-                except Exception:
-                    pass
-            else:
-                if action == 'stop':
-                    if game_key in active_effects and effect in active_effects[game_key]:
-                        del active_effects[game_key][effect]
                 else:
-                    # ensure dict
-                    active_effects.setdefault(game_key, {})[effect] = {'effect': effect, 'action': 'start', 'config': config}
+                    # Persist per-map override
+                    active_effects_map.setdefault(game_key, {}).setdefault(target_map_name, {})
+                    if action == 'stop':
+                        # Remove this effect from the map overrides
+                        try:
+                            active_effects_map[game_key][target_map_name].pop(effect, None)
+                        except Exception:
+                            pass
+                    else:
+                        active_effects_map[game_key][target_map_name][effect] = {'effect': effect, 'action': 'start', 'config': config}
+            else:
+                # Global scope (existing behavior)
+                if effect == 'map_default' and action == 'start':
+                    # remove any DM-persisted effects for this game
+                    prev = active_effects.pop(game_key, {})
+                    for ef_name in list(prev.keys()):
+                        try:
+                            socketio.emit('effect:set', {'effect': ef_name, 'action': 'stop'})
+                        except Exception:
+                            pass
+                    try:
+                        cur_map = current_game.get_map_for_user(session['username'])
+                        props = getattr(cur_map, 'properties', {}) or {}
+                        map_def = props.get('default_effect')
+                        if map_def:
+                            socketio.emit('effect:set', map_def)
+                    except Exception:
+                        pass
+                else:
+                    if action == 'stop':
+                        if game_key in active_effects and effect in active_effects[game_key]:
+                            del active_effects[game_key][effect]
+                    else:
+                        active_effects.setdefault(game_key, {})[effect] = {'effect': effect, 'action': 'start', 'config': config}
         except Exception:
             # non-fatal; proceed
             pass
@@ -1856,6 +1963,11 @@ def switch_map():
     try:
         game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
         dm_active = bool(active_effects.get(game_key))
+        # Include per-map overrides
+        try:
+            dm_active = dm_active or bool(active_effects_map.get(game_key, {}).get(map_name))
+        except Exception:
+            pass
     except Exception:
         dm_active = False
 
@@ -3022,6 +3134,10 @@ def switch_pov():
         try:
             game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
             dm_active = bool(active_effects.get(game_key))
+            try:
+                dm_active = dm_active or bool(active_effects_map.get(game_key, {}).get(entity_battle_map.name))
+            except Exception:
+                pass
         except Exception:
             dm_active = False
         return jsonify(background=f"assets/{background}",
