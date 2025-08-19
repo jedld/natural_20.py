@@ -516,7 +516,7 @@ class OllamaProvider(LLMProvider):
     def __init__(self, opts = {}):
         self.base_url = opts.get('base_url', "http://localhost:11434")
         self.model = None
-        self.context_window = opts.get('context_window', 16384)  # Default context window size
+        self.context_window = opts.get('context_window', 8000)  # Default context window size
         self.conversation_history = []
     
     def initialize(self, config: Dict[str, Any]) -> bool:
