@@ -4231,11 +4231,18 @@ $(document).ready(() => {
   let draggedEntityTile = null;
   let dragOffset = { x: 0, y: 0 };
   let dragGhost = null;
+  // Delay actual drag until cursor moves past a small threshold
+  let dragPending = false;
+  let dragStartX = 0, dragStartY = 0;
+  let dragTileCenterX = 0, dragTileCenterY = 0;
 
   // Mouse down on entity tile (start drag)
   $(".tiles-container").on("mousedown", ".tile", function (e) {
     // Only allow DMs to drag entities
     if (!isDM()) return;
+
+    // Only respond to primary button
+    if (e.button !== 0) return;
 
     const $tile = $(this);
     const entityId = $tile.data("coords-id");
@@ -4244,40 +4251,51 @@ $(document).ready(() => {
     if (!entityId || !$tile.find('.entity, .npc').length) return;
 
     // Prevent dragging if clicking on action buttons or other interactive elements
-    if ($(e.target).closest('.popover-menu, .action-button, .add-to-turn-order, .dialog-bubble').length) {
+    if ($(e.target).closest('.popover-menu, .popover-menu-2, .action-button, .add-to-turn-order, .dialog-bubble, .conversation-bubble, .close-bubble, .add-to-target').length) {
       return;
     }
 
-    e.preventDefault();
-    e.stopPropagation();
-
-    isDraggingEntity = true;
+    // Prepare for potential drag (defer actual drag start until movement threshold exceeded)
     draggedEntityId = entityId;
     draggedEntityTile = $tile;
-
-    // Calculate offset from mouse to tile center
     const tileRect = $tile[0].getBoundingClientRect();
     const tileSize = $(".tiles-container").data("tile-size");
-    const tileCenterX = tileRect.left + tileSize / 2;
-    const tileCenterY = tileRect.top + tileSize / 2;
+    dragTileCenterX = tileRect.left + tileSize / 2;
+    dragTileCenterY = tileRect.top + tileSize / 2;
+    dragOffset.x = e.clientX - dragTileCenterX;
+    dragOffset.y = e.clientY - dragTileCenterY;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    dragPending = true;
 
-    // Store offset from mouse position to tile center
-    dragOffset.x = e.clientX - tileCenterX;
-    dragOffset.y = e.clientY - tileCenterY;
-
-    // Create drag ghost element centered on the tile
-    createDragGhost($tile, tileCenterX, tileCenterY);
-
-    // Add dragging class for visual feedback
-    $tile.addClass('entity-dragging');
-    $('body').addClass('entity-dragging-active');
-
-    // Hide popover menus during drag
-    $('.popover-menu').hide();
+    // Prevent text selection from starting
+    e.preventDefault();
+    e.stopPropagation();
   });
 
   // Mouse move (update drag ghost position)
   $(document).on("mousemove", function (e) {
+    // If we have a pending drag but haven't started, check threshold (to avoid accidental clicks)
+    if (dragPending && !isDraggingEntity) {
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance > 5) {
+        // Start the actual drag now
+        isDraggingEntity = true;
+
+        // Create drag ghost element centered on the tile
+        createDragGhost(draggedEntityTile, dragTileCenterX, dragTileCenterY);
+
+        // Add dragging class for visual feedback
+        draggedEntityTile.addClass('entity-dragging');
+        $('body').addClass('entity-dragging-active');
+
+        // Hide popover menus during drag
+        $('.popover-menu').hide();
+      }
+    }
+
     if (!isDraggingEntity || !dragGhost) return;
 
     // Update ghost position - center the ghost on the mouse cursor
@@ -4301,6 +4319,14 @@ $(document).ready(() => {
 
   // Mouse up (complete drag or cancel)
   $(document).on("mouseup", function (e) {
+    // Clear pending drag if not started
+    if (dragPending && !isDraggingEntity) {
+      dragPending = false;
+      draggedEntityId = null;
+      draggedEntityTile = null;
+      return;
+    }
+
     if (!isDraggingEntity) return;
 
     // Find the target tile
@@ -4368,6 +4394,7 @@ $(document).ready(() => {
   // Clean up drag state
   function cleanupDrag() {
     isDraggingEntity = false;
+  dragPending = false;
     draggedEntityId = null;
 
     if (draggedEntityTile) {

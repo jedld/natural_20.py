@@ -206,8 +206,8 @@ class Entity(EntityStateEvaluator, Notable):
             language = "common"
         if directed_to is None:
             directed_to = []
-        self.conversation_buffer.append({ 'source': source, 'directed_to': directed_to, 'message': message, 'target': self, 'language': language, 'time' : self.session.game_time() })
-        self.memory_buffer.append({ 'source': source, 'directed_to': directed_to, 'message': message, 'target': self, 'language': language, 'time' : self.session.game_time() })
+        self.conversation_buffer.append({ 'source': source, 'directed_to': directed_to, 'message': message, 'target': self, 'language': language, 'time' : self.session.game_time })
+        self.memory_buffer.append({ 'source': source, 'directed_to': directed_to, 'message': message, 'target': self, 'language': language, 'time' : self.session.game_time })
         self.resolve_trigger('conversation', { 'source': source, 'message': message, 'memory_buffer': self.memory_buffer,
                                               'target': self, 'language': language })
         if self.conversation_controller:
