@@ -71,6 +71,73 @@ const Effects = {
     } catch (e) { /* no-op */ }
   },
 
+  // Internal helper: build a fog-of-war visibility mask for a given overlay.
+  // White (opaque) where tiles are visible, transparent where fog-of-war hides tiles.
+  // The mask automatically updates on tile/size changes and window resizes.
+  _buildFoWMaskForOverlay: function(overlay) {
+    var canvas = document.createElement('canvas');
+    var ctx = canvas.getContext('2d');
+    var tilesRoot = document.querySelector('.tiles-container');
+    var container = document.querySelector('.image-container') || document.body;
+    var mo = null; var ro = null; var dirty = true;
+
+    function markDirty(){ dirty = true; }
+
+    function rebuild(){
+      try {
+        // Match overlay pixel buffer size
+        var ow = Math.max(1, overlay.width || overlay.clientWidth || 1);
+        var oh = Math.max(1, overlay.height || overlay.clientHeight || 1);
+        canvas.width = ow; canvas.height = oh;
+        ctx.clearRect(0,0,ow,oh);
+
+  // Map DOM pixels to overlay pixels taking DPR and overlay rect into account
+  var overlayRect = overlay.getBoundingClientRect();
+  var scaleX = ow / Math.max(1, overlayRect.width || 1);
+  var scaleY = oh / Math.max(1, overlayRect.height || 1);
+
+        // Fill visible tiles (no .fog-of-war child) as white
+        var tiles = document.querySelectorAll('.tile');
+        ctx.fillStyle = '#ffffff';
+        for (var i=0; i<tiles.length; i++){
+          var tile = tiles[i];
+          if (tile.querySelector('.fog-of-war')) continue; // hidden
+          var r = tile.getBoundingClientRect();
+          var x = (r.left - overlayRect.left) * scaleX;
+          var y = (r.top - overlayRect.top) * scaleY;
+          var w = r.width * scaleX;
+          var h = r.height * scaleY;
+          // Skip if fully outside
+          if (x > ow || y > oh || x + w < 0 || y + h < 0) continue;
+          ctx.fillRect(Math.round(x), Math.round(y), Math.ceil(w), Math.ceil(h));
+        }
+        dirty = false;
+      } catch(e) {
+        // On any failure, keep mask fully opaque rather than breaking effects
+        canvas.width = Math.max(1, overlay.width || 1);
+        canvas.height = Math.max(1, overlay.height || 1);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0,0,canvas.width, canvas.height);
+        dirty = false;
+      }
+    }
+
+    // Observe tile DOM for changes that may affect FoW
+    if (tilesRoot) {
+      try { mo = new MutationObserver(markDirty); mo.observe(tilesRoot, { childList:true, attributes:true, subtree:true }); } catch(e) {}
+    }
+    // Observe overlay/container resizes
+    try { ro = new ResizeObserver(markDirty); ro.observe(overlay); if (container) ro.observe(container); } catch(e) {}
+    window.addEventListener('resize', markDirty);
+
+    return {
+      update: function(){ if (dirty) rebuild(); return { canvas: canvas, changed: dirty === false }; },
+      // Slightly different contract: call force to guarantee rebuild next read
+      force: function(){ dirty = true; },
+      destroy: function(){ try{ if (mo) mo.disconnect(); }catch(e){} try{ if (ro) ro.disconnect(); }catch(e){} window.removeEventListener('resize', markDirty); }
+    };
+  },
+
   createRainEffect: function (config) {
     config = config || {};
     var intensity = config.intensity != null ? config.intensity : 0.6; // 0..1
@@ -81,7 +148,7 @@ const Effects = {
     var lightningFreq = config.lightningFreq || 0.01; // chance per second
     var lightningIntensity = config.lightningIntensity || 1.0;
 
-    // Attach overlay to the battlemap container so effect is masked to the map
+    // Attach overlay to the battlemap container so effect aligns to the map image
     var container = document.querySelector('.image-container') || document.body;
     var overlay = container.querySelector('#effects-overlay-rain');
     if (!overlay) {
@@ -95,13 +162,26 @@ const Effects = {
       container.appendChild(overlay);
     }
 
+    function getMapElement(){ return document.querySelector('.image-container img.background-image, .image-container img'); }
+    function getMapRect(){
+      var img = getMapElement();
+      var cRect = container.getBoundingClientRect();
+      if (img) {
+        var r = img.getBoundingClientRect();
+        return { left: Math.round(r.left - cRect.left), top: Math.round(r.top - cRect.top), width: Math.round(r.width), height: Math.round(r.height) };
+      }
+      return { left: 0, top: 0, width: container.clientWidth, height: container.clientHeight };
+    }
+
     function resize() {
       var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-      overlay.width = Math.floor(container.clientWidth * dpr);
-      overlay.height = Math.floor(container.clientHeight * dpr);
-      overlay.style.width = container.clientWidth + 'px';
-      overlay.style.height = container.clientHeight + 'px';
-      // For 2D fallback, set transform on each draw; WebGL uses viewport per frame.
+      var rect = getMapRect();
+      overlay.style.left = rect.left + 'px';
+      overlay.style.top = rect.top + 'px';
+      overlay.style.width = rect.width + 'px';
+      overlay.style.height = rect.height + 'px';
+      overlay.width = Math.floor(rect.width * dpr);
+      overlay.height = Math.floor(rect.height * dpr);
     }
     resize();
     window.addEventListener('resize', resize);
@@ -122,7 +202,7 @@ const Effects = {
     if (gl) {
       // Vertex + fragment shader: render streaked rain via FBM and directional bias.
       var vertexSrc = '\n      attribute vec2 a_position;\n      varying vec2 v_uv;\n      void main() { v_uv = a_position * 0.5 + 0.5; gl_Position = vec4(a_position, 0.0, 1.0); }\n    ';
-      var fragSrc = `
+  var fragSrc = `
       precision mediump float;
       varying vec2 v_uv;
       uniform vec2 u_resolution;
@@ -133,6 +213,7 @@ const Effects = {
       uniform vec3 u_color;
       uniform float u_lightning;
       uniform sampler2D u_map;
+  uniform sampler2D u_fow;
 
       // simple hash / random
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
@@ -203,17 +284,23 @@ const Effects = {
         // lightning boost
         float lightningBoost = u_lightning;
 
-        // sample map alpha to mask
+  // sample map alpha to mask and FoW to hide hidden tiles
         float mapA = 1.0;
         #ifdef GL_ES
         mapA = texture2D(u_map, v_uv).a;
         #else
         mapA = texture(u_map, v_uv).a;
         #endif
+  float fowA = 1.0;
+  #ifdef GL_ES
+  fowA = texture2D(u_fow, v_uv).a;
+  #else
+  fowA = texture(u_fow, v_uv).a;
+  #endif
 
         // final color: base color plus white highlights
         vec3 col = baseCol * accum + vec3(1.0) * highlight * 0.6 + vec3(lightningBoost);
-        float alpha = clamp(accum * mapA, 0.0, 0.95);
+  float alpha = clamp(accum * mapA * fowA, 0.0, 0.95);
         gl_FragColor = vec4(col, alpha);
       }
       `;
@@ -239,7 +326,8 @@ const Effects = {
       var speedLoc = gl.getUniformLocation(program, 'u_speed');
       var colorLoc = gl.getUniformLocation(program, 'u_color');
       var lightningLoc = gl.getUniformLocation(program, 'u_lightning');
-      var mapLoc = gl.getUniformLocation(program, 'u_map');
+  var mapLoc = gl.getUniformLocation(program, 'u_map');
+  var fowLoc = gl.getUniformLocation(program, 'u_fow');
 
       var buffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -249,26 +337,29 @@ const Effects = {
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
       // map texture
-      var mapTexture = null;
+  var mapTexture = null;
       var mapImageEl = document.querySelector('.image-container img.background-image, .image-container img');
-      function createMapTexture() {
+    function createMapTexture() {
         if (!gl || !mapImageEl || !mapImageEl.complete) return;
         if (!mapTexture) mapTexture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, mapTexture);
         try {
-          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mapImageEl);
+      var c = document.createElement('canvas');
+      c.width = overlay.width; c.height = overlay.height;
+      var ctx2 = c.getContext('2d');
+      ctx2.drawImage(mapImageEl, 0, 0, c.width, c.height);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         } catch (e) {
-          var c = document.createElement('canvas');
-          c.width = mapImageEl.naturalWidth || mapImageEl.width;
-          c.height = mapImageEl.naturalHeight || mapImageEl.height;
-          var ctx2 = c.getContext('2d');
-          ctx2.drawImage(mapImageEl, 0, 0, c.width, c.height);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+      var c2 = document.createElement('canvas');
+      c2.width = overlay.width; c2.height = overlay.height;
+      var ctx3 = c2.getContext('2d');
+      ctx3.drawImage(mapImageEl, 0, 0, c2.width, c2.height);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c2);
         }
         gl.bindTexture(gl.TEXTURE_2D, null);
       }
@@ -278,10 +369,22 @@ const Effects = {
         try { new ResizeObserver(function(){ createMapTexture(); }).observe(mapImageEl); } catch(e) {}
       }
 
-      var start = Date.now();
+  var start = Date.now();
       var running = true;
       var lightningStrength = 0.0;
       var lastLightning = 0;
+  var _lastOverlayW = overlay.width, _lastOverlayH = overlay.height;
+
+  // FoW mask resources
+  var fowHelper = Effects._buildFoWMaskForOverlay(overlay);
+  var fowTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, fowTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255,255,255,255]));
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.bindTexture(gl.TEXTURE_2D, null);
 
       function frame() {
   if (!running) return;
@@ -315,10 +418,27 @@ const Effects = {
         gl.uniform1f(lightningLoc, lightningStrength);
 
         if (mapTexture) {
+          // Recreate map texture if overlay size changed
+          if (overlay.width !== _lastOverlayW || overlay.height !== _lastOverlayH) {
+            _lastOverlayW = overlay.width; _lastOverlayH = overlay.height;
+            try { createMapTexture(); } catch(e) {}
+          }
           gl.activeTexture(gl.TEXTURE0);
           gl.bindTexture(gl.TEXTURE_2D, mapTexture);
           gl.uniform1i(mapLoc, 0);
         }
+
+        // Update and bind FoW texture (unit 1)
+        try {
+          var upd = fowHelper.update();
+          if (upd && upd.canvas) {
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, fowTexture);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, upd.canvas);
+            gl.uniform1i(fowLoc, 1);
+          }
+        } catch(e) {}
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         requestAnimationFrame(frame);
@@ -327,15 +447,17 @@ const Effects = {
       requestAnimationFrame(frame);
 
       return {
-    stop: function(){ running = false; try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} },
+  stop: function(){ running = false; try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fowHelper && fowHelper.destroy(); }catch(e){} },
         updateConfig: function(c){ intensity = c.intensity != null ? c.intensity : intensity; wind = c.wind != null ? c.wind : wind; speed = c.speed != null ? c.speed : speed; color = c.color || color; lightning = c.lightning != null ? c.lightning : lightning; lightningFreq = c.lightningFreq || lightningFreq; lightningIntensity = c.lightningIntensity || lightningIntensity; }
       };
     }
 
     // Canvas fallback: streaked rain + lightning flashes
-    var ctx = overlay.getContext('2d');
+  var ctx = overlay.getContext('2d');
     var running = true;
     var drops = [];
+  // FoW mask (2D path)
+  var fow2D = Effects._buildFoWMaskForOverlay(overlay);
     var W = overlay.width, H = overlay.height;
     function makeDrop() {
       // tapered drop: head is brighter and slightly larger
@@ -431,12 +553,22 @@ const Effects = {
         }
       }
 
+      // Apply FoW mask to hide hidden tiles
+      try {
+        var upd = fow2D.update();
+        if (upd && upd.canvas) {
+          ctx.globalCompositeOperation = 'destination-in';
+          ctx.drawImage(upd.canvas, 0, 0);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+      } catch(e) {}
+
       requestAnimationFrame(draw);
     }
     requestAnimationFrame(draw);
 
     return {
-      stop: function(){ running = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try { ro.disconnect(); } catch(e) {} },
+  stop: function(){ running = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try { ro.disconnect(); } catch(e) {} try{ fow2D && fow2D.destroy(); }catch(e){} },
       updateConfig: function(c){ intensity = c.intensity != null ? c.intensity : intensity; wind = c.wind != null ? c.wind : wind; speed = c.speed != null ? c.speed : speed; color = c.color || color; lightning = c.lightning != null ? c.lightning : lightning; lightningFreq = c.lightningFreq || lightningFreq; lightningIntensity = c.lightningIntensity || lightningIntensity; }
     };
   },
@@ -530,6 +662,7 @@ const Effects = {
         uniform float u_dof;
         uniform vec3 u_color;
         uniform sampler2D u_map;
+        uniform sampler2D u_fow;
         uniform float u_accumLevel;
         uniform vec3 u_accumColor;
 
@@ -583,9 +716,15 @@ const Effects = {
           #else
           mapA = texture(u_map, v_uv).a;
           #endif
+          float fowA = 1.0;
+          #ifdef GL_ES
+          fowA = texture2D(u_fow, v_uv).a;
+          #else
+          fowA = texture(u_fow, v_uv).a;
+          #endif
 
           vec3 col = baseCol * clamp(accum, 0.0, 1.2);
-          float alpha = clamp(accum * 0.8, 0.0, 0.9) * mapA;
+          float alpha = clamp(accum * 0.8, 0.0, 0.9) * mapA * fowA;
 
           // accumulation tint near bottom
           float gy = 1.0 - v_uv.y;
@@ -620,7 +759,8 @@ const Effects = {
       var sizeLoc = gl.getUniformLocation(program, 'u_size');
       var turbLoc = gl.getUniformLocation(program, 'u_turb');
       var colorLoc = gl.getUniformLocation(program, 'u_color');
-      var mapLoc = gl.getUniformLocation(program, 'u_map');
+  var mapLoc = gl.getUniformLocation(program, 'u_map');
+  var fowLoc = gl.getUniformLocation(program, 'u_fow');
   var gustWindLoc = gl.getUniformLocation(program, 'u_gustWind');
   var gustTurbLoc = gl.getUniformLocation(program, 'u_gustTurb');
   var dofLoc = gl.getUniformLocation(program, 'u_dof');
@@ -646,24 +786,27 @@ const Effects = {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.bindTexture(gl.TEXTURE_2D, null);
   var mapImageEl = getMapElement();
-      function createMapTexture() {
+    function createMapTexture() {
         if (!gl || !mapImageEl || !mapImageEl.complete) return;
         if (!mapTexture) mapTexture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, mapTexture);
         try {
-          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mapImageEl);
+      var c = document.createElement('canvas');
+      c.width = overlay.width; c.height = overlay.height;
+      var ctx2 = c.getContext('2d');
+      ctx2.drawImage(mapImageEl, 0, 0, c.width, c.height);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         } catch (e) {
-          var c = document.createElement('canvas');
-          c.width = mapImageEl.naturalWidth || mapImageEl.width;
-          c.height = mapImageEl.naturalHeight || mapImageEl.height;
-          var ctx2 = c.getContext('2d');
-          ctx2.drawImage(mapImageEl, 0, 0, c.width, c.height);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+      var c2 = document.createElement('canvas');
+      c2.width = overlay.width; c2.height = overlay.height;
+      var ctx3 = c2.getContext('2d');
+      ctx3.drawImage(mapImageEl, 0, 0, c2.width, c2.height);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c2);
         }
         gl.bindTexture(gl.TEXTURE_2D, null);
       }
@@ -675,9 +818,21 @@ const Effects = {
 
   var start = Date.now();
   var running = true;
+  var _lastOverlayW = overlay.width, _lastOverlayH = overlay.height;
   var lastTime = start;
   var curAccum = 0.0;
   var gustActive = false; var gustEnd = 0; var gustWindVal = 0.0; var gustTurbVal = 0.0;
+
+  // FoW mask resources
+  var fowHelper = Effects._buildFoWMaskForOverlay(overlay);
+  var fowTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, fowTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255,255,255,255]));
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.bindTexture(gl.TEXTURE_2D, null);
 
   function frame(){
         if (!running) return;
@@ -723,15 +878,30 @@ const Effects = {
         gl.uniform1f(accumLevelLoc, curAccum);
         gl.uniform3f(accumColorLoc, accRgb[0], accRgb[1], accRgb[2]);
   gl.activeTexture(gl.TEXTURE0);
+  if (overlay.width !== _lastOverlayW || overlay.height !== _lastOverlayH) {
+    _lastOverlayW = overlay.width; _lastOverlayH = overlay.height;
+    try { createMapTexture(); } catch(e) {}
+  }
   gl.bindTexture(gl.TEXTURE_2D, mapTexture || fallbackTex);
   gl.uniform1i(mapLoc, 0);
+        // Update and bind FoW texture (unit 1)
+        try {
+          var upd = fowHelper.update();
+          if (upd && upd.canvas) {
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, fowTexture);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, upd.canvas);
+            gl.uniform1i(fowLoc, 1);
+          }
+        } catch(e) {}
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         requestAnimationFrame(frame);
       }
       requestAnimationFrame(frame);
 
       return {
-        stop: function(){ running = false; try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} },
+  stop: function(){ running = false; try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fowHelper && fowHelper.destroy(); }catch(e){} },
         updateConfig: function(c){
           intensity = c.intensity != null ? c.intensity : intensity;
           wind = c.wind != null ? c.wind : wind;
@@ -756,6 +926,8 @@ const Effects = {
   var ctx = overlay.getContext('2d');
   ctx.imageSmoothingEnabled = true;
     var running2D = true;
+  // FoW mask for 2D path
+  var fow2D = Effects._buildFoWMaskForOverlay(overlay);
   var W = overlay.clientWidth, H = overlay.clientHeight;
   function updateLogicalSize(){ var rect = getMapRect(); W = rect.width; H = rect.height; }
   function setDPRTransform(){ var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1)); ctx.setTransform(dpr,0,0,dpr,0,0); }
@@ -843,13 +1015,21 @@ const Effects = {
         ctx.fillStyle = g;
         ctx.fillRect(0, Math.max(0, H - H*0.4), W, H*0.4);
       }
-
+      // Apply FoW mask on 2D (destination-in)
+      try {
+        var upd2 = fow2D.update();
+        if (upd2 && upd2.canvas) {
+          ctx.globalCompositeOperation = 'destination-in';
+          ctx.drawImage(upd2.canvas, 0, 0);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+      } catch(e) {}
       requestAnimationFrame(draw2D);
     }
     requestAnimationFrame(draw2D);
 
     return {
-      stop: function(){ running2D = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} },
+  stop: function(){ running2D = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fow2D && fow2D.destroy(); }catch(e){} },
       updateConfig: function(c){
         intensity = c.intensity != null ? c.intensity : intensity;
         wind = c.wind != null ? c.wind : wind;
@@ -878,7 +1058,7 @@ Effects.createFogEffect = function (config) {
   var speed = config.speed != null ? config.speed : 0.7;
   var color = config.color || '#cfcfd6';
 
-  // Attach overlay to the battlemap container so effect is masked to the map
+  // Attach overlay aligned to the actual map image rect (to avoid offset issues)
   var container = document.querySelector('.image-container') || document.body;
   var overlay = container.querySelector('#effects-overlay');
   if (!overlay) {
@@ -892,12 +1072,26 @@ Effects.createFogEffect = function (config) {
     container.appendChild(overlay);
   }
 
+  function getMapElement(){ return document.querySelector('.image-container img.background-image, .image-container img'); }
+  function getMapRect(){
+    var img = getMapElement();
+    var cRect = container.getBoundingClientRect();
+    if (img) {
+      var r = img.getBoundingClientRect();
+      return { left: Math.round(r.left - cRect.left), top: Math.round(r.top - cRect.top), width: Math.round(r.width), height: Math.round(r.height) };
+    }
+    return { left: 0, top: 0, width: container.clientWidth, height: container.clientHeight };
+  }
+
   function resize() {
-    // size to container's inner dimensions
-    overlay.width = container.clientWidth;
-    overlay.height = container.clientHeight;
-    overlay.style.width = container.clientWidth + 'px';
-    overlay.style.height = container.clientHeight + 'px';
+    var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    var rect = getMapRect();
+    overlay.style.left = rect.left + 'px';
+    overlay.style.top = rect.top + 'px';
+    overlay.style.width = rect.width + 'px';
+    overlay.style.height = rect.height + 'px';
+    overlay.width = Math.floor(rect.width * dpr);
+    overlay.height = Math.floor(rect.height * dpr);
   }
   resize();
   // Listen for window resize and also mutation of container size
@@ -925,6 +1119,7 @@ Effects.createFogEffect = function (config) {
       uniform float u_falloff;
       uniform vec3 u_color;
       uniform sampler2D u_map;
+      uniform sampler2D u_fow;
 
       // value noise helpers
       float hash(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123); }
@@ -980,7 +1175,13 @@ Effects.createFogEffect = function (config) {
   #else
   mapAlpha = texture(u_map, v_uv).a;
   #endif
-  float outAlpha = clamp(fog * 0.85 * mapAlpha, 0.0, 0.95);
+  float fowA = 1.0;
+  #ifdef GL_ES
+  fowA = texture2D(u_fow, v_uv).a;
+  #else
+  fowA = texture(u_fow, v_uv).a;
+  #endif
+  float outAlpha = clamp(fog * 0.85 * mapAlpha * fowA, 0.0, 0.95);
   gl_FragColor = vec4(col, outAlpha);
       }
     `;
@@ -1008,6 +1209,7 @@ Effects.createFogEffect = function (config) {
   var falloffLoc = gl.getUniformLocation(program, 'u_falloff');
   var colorLoc = gl.getUniformLocation(program, 'u_color');
   var mapLoc = gl.getUniformLocation(program, 'u_map');
+  var fowLoc = gl.getUniformLocation(program, 'u_fow');
 
     var buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -1025,28 +1227,33 @@ Effects.createFogEffect = function (config) {
     }
 
     // map texture and image handling for masking
-    var mapTexture = null;
+  var mapTexture = null;
     var mapImageEl = document.querySelector('.image-container img.background-image, .image-container img');
     var imgResizeObserver = null;
-    function createMapTexture() {
+  function createMapTexture() {
       if (!gl || !mapImageEl || !mapImageEl.complete) return;
       if (!mapTexture) mapTexture = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, mapTexture);
       try {
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mapImageEl);
+    // Upload a canvas copy sized to overlay so texture UV matches overlay space
+    var c = document.createElement('canvas');
+    c.width = overlay.width; c.height = overlay.height;
+    var ctx2 = c.getContext('2d');
+    // Draw the map image scaled to overlay size
+    ctx2.drawImage(mapImageEl, 0, 0, c.width, c.height);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       } catch (e) {
-        // fallback: draw to canvas then upload
-        var c = document.createElement('canvas');
-        c.width = mapImageEl.naturalWidth || mapImageEl.width;
-        c.height = mapImageEl.naturalHeight || mapImageEl.height;
-        var ctx2 = c.getContext('2d');
-        ctx2.drawImage(mapImageEl, 0, 0, c.width, c.height);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    // If direct draw fails, still try canvas copy
+    var c2 = document.createElement('canvas');
+    c2.width = overlay.width; c2.height = overlay.height;
+    var ctx3 = c2.getContext('2d');
+    ctx3.drawImage(mapImageEl, 0, 0, c2.width, c2.height);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c2);
       }
       gl.bindTexture(gl.TEXTURE_2D, null);
     }
@@ -1063,8 +1270,20 @@ Effects.createFogEffect = function (config) {
       } catch (e) {}
     }
 
-    var start = Date.now();
+  var start = Date.now();
     var running = true;
+  var _lastOverlayW = overlay.width, _lastOverlayH = overlay.height;
+
+  // FoW mask resources
+  var fowHelper = Effects._buildFoWMaskForOverlay(overlay);
+  var fowTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, fowTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255,255,255,255]));
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.bindTexture(gl.TEXTURE_2D, null);
 
     function frame() {
       if (!running) return;
@@ -1085,10 +1304,26 @@ Effects.createFogEffect = function (config) {
       gl.uniform3f(colorLoc, rgb[0], rgb[1], rgb[2]);
       // bind map texture if present
       if (mapTexture) {
+        // Recreate map texture if overlay size changed
+        if (overlay.width !== _lastOverlayW || overlay.height !== _lastOverlayH) {
+          _lastOverlayW = overlay.width; _lastOverlayH = overlay.height;
+          try { createMapTexture(); } catch(e) {}
+        }
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, mapTexture);
         gl.uniform1i(mapLoc, 0);
       }
+      // Update and bind FoW texture (unit 1)
+      try {
+        var upd = fowHelper.update();
+        if (upd && upd.canvas) {
+          gl.activeTexture(gl.TEXTURE1);
+          gl.bindTexture(gl.TEXTURE_2D, fowTexture);
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, upd.canvas);
+          gl.uniform1i(fowLoc, 1);
+        }
+      } catch(e) {}
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       requestAnimationFrame(frame);
     }
@@ -1102,6 +1337,7 @@ Effects.createFogEffect = function (config) {
         if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
         if (ro) try { ro.disconnect(); } catch (e) {}
         if (imgResizeObserver) try { imgResizeObserver.disconnect(); } catch (e) {}
+        try{ fowHelper && fowHelper.destroy(); }catch(e){}
       },
       updateConfig: function (c) { density = c.density != null ? c.density : density; speed = c.speed != null ? c.speed : speed; color = c.color || color; }
     };
@@ -1111,6 +1347,8 @@ Effects.createFogEffect = function (config) {
   var ctx = overlay.getContext('2d');
   var running = true;
   var t = 0;
+  // FoW mask for 2D path
+  var fow2D = Effects._buildFoWMaskForOverlay(overlay);
 
   function draw() {
     if (!running) return;
@@ -1146,6 +1384,15 @@ Effects.createFogEffect = function (config) {
       ctx.drawImage(tx, 0, 0);
       ctx.globalCompositeOperation = 'source-over';
     }
+    // Apply FoW mask (2D)
+    try {
+      var upd = fow2D.update();
+      if (upd && upd.canvas) {
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.drawImage(upd.canvas, 0, 0);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    } catch(e) {}
     t += speed * 5;
     requestAnimationFrame(draw);
   }
@@ -1153,7 +1400,7 @@ Effects.createFogEffect = function (config) {
   requestAnimationFrame(draw);
 
   return {
-    stop: function () { running = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} },
+  stop: function () { running = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fow2D && fow2D.destroy(); }catch(e){} },
     updateConfig: function (c) { density = c.density != null ? c.density : density; speed = c.speed != null ? c.speed : speed; color = c.color || color; }
   };
 };
