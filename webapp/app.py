@@ -3203,15 +3203,17 @@ def switch_pov():
     entity = current_game.get_entity_by_uid(entity_id)
     entity_battle_map = current_game.get_map_for_entity(entity)
     current_game.set_pov_entity_for_user(session['username'], entity)
+    background = current_game.get_background_image_for_user(session['username'])
+    map_width, map_height = entity_battle_map.size
+    tiles_dimension_height = map_height * TILE_PX
+    tiles_dimension_width = map_width * TILE_PX
+    dm_active = False
+    # Include map default effect and whether DM has an active override
+    map_default = None
+    map_defaults = []
     if battle_map != entity_battle_map:
         current_game.switch_map_for_user(session['username'], entity_battle_map.name)
-        background = current_game.get_background_image_for_user(session['username'])
-        map_width, map_height = entity_battle_map.size
-        tiles_dimension_height = map_height * TILE_PX
-        tiles_dimension_width = map_width * TILE_PX
-        # Include map default effect and whether DM has an active override
-        map_default = None
-        map_defaults = []
+
         try:
             props = getattr(entity_battle_map, 'properties', {}) or {}
             try:
@@ -3231,7 +3233,7 @@ def switch_pov():
             map_default = map_defaults[0] if map_defaults else None
         except Exception:
             map_default = None
-        dm_active = False
+
         try:
             game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
             dm_active = bool(active_effects.get(game_key))
@@ -3242,15 +3244,13 @@ def switch_pov():
         except Exception:
             dm_active = False
     return jsonify(background=f"assets/{background}",
-                    name=entity_battle_map.name,
-                    image_offset_px=entity_battle_map.image_offset_px,
-                    height=tiles_dimension_height,
-                    width=tiles_dimension_width,
-            map_default_effect=map_default,
-            map_default_effects=[dict(e, **{'exclusive': False}) if isinstance(e, dict) else e for e in map_defaults],
-                    dm_active=dm_active)
-
-    return jsonify(status='ok', pov_entity=entity_id)
+        name=entity_battle_map.name,
+        image_offset_px=entity_battle_map.image_offset_px,
+        height=tiles_dimension_height,
+        width=tiles_dimension_width,
+        map_default_effect=map_default,
+        map_default_effects=[dict(e, **{'exclusive': False}) if isinstance(e, dict) else e for e in map_defaults],
+        dm_active=dm_active)
 
 @app.route('/read_letter', methods=['POST'])
 def read_letter():

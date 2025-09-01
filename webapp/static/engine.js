@@ -660,23 +660,28 @@ const switchPOV = (entity_uid, canvas) => {
   ajaxPost("/switch_pov", { entity_uid }, (data) => {
     console.log("Switched POV:", data);
     if (data.background) {
-      Utils.updateMapDisplay(data, canvas);
-      // Apply map-default effects if provided and DM has no active override.
-      // If no default and no DM override, clear any previous effects.
-      try {
-        if (!data.dm_active && typeof Effects !== 'undefined') {
-          var arr = Array.isArray(data.map_default_effects) ? data.map_default_effects.slice() : [];
-          if (!arr.length && data.map_default_effect) arr = [data.map_default_effect];
-          if (arr.length && Effects.applyEffect) {
-            arr = arr.map(function(p){ try{ if (p && typeof p === 'object' && p.exclusive === undefined) p.exclusive = false; }catch(e){} return p; });
-            Effects.applyEffect(arr);
-          } else if (Effects.stopAll) {
-            Effects.stopAll();
+      // Only update the map display and touch effects if the map actually changed
+      const currentMap = $('body').attr('data-current-map');
+      const isMapChange = !currentMap || (data.name && data.name !== currentMap);
+      if (isMapChange) {
+        Utils.updateMapDisplay(data, canvas);
+        // Apply map-default effects if provided and DM has no active override.
+        // If no default and no DM override, clear any previous effects.
+        try {
+          if (!data.dm_active && typeof Effects !== 'undefined') {
+            var arr = Array.isArray(data.map_default_effects) ? data.map_default_effects.slice() : [];
+            if (!arr.length && data.map_default_effect) arr = [data.map_default_effect];
+            if (arr.length && Effects.applyEffect) {
+              arr = arr.map(function(p){ try{ if (p && typeof p === 'object' && p.exclusive === undefined) p.exclusive = false; }catch(e){} return p; });
+              Effects.applyEffect(arr);
+            } else if (Effects.stopAll) {
+              Effects.stopAll();
+            }
           }
-        }
-      } catch (e) { console.warn('Failed to apply/clear effect on POV switch', e); }
-      // Ask server to (re)send effects after map switch in case client missed anything
-      try { if (typeof socket !== 'undefined' && socket && socket.emit) socket.emit('request_effects'); } catch (e) {}
+        } catch (e) { console.warn('Failed to apply/clear effect on POV switch', e); }
+        // Ask server to (re)send effects after map switch in case client missed anything
+        try { if (typeof socket !== 'undefined' && socket && socket.emit) socket.emit('request_effects'); } catch (e) {}
+      }
     }
     // update the pov entity id in the body data
     $('body').attr('data-pov-entity', data.pov_entity);
@@ -687,6 +692,11 @@ const switchPOV = (entity_uid, canvas) => {
       (y = 0),
       (entity_uid = entity_uid),
       () => {
+  // Clean up any pending move ghosts and reset tile positioning to prevent artifacts
+  try { if (typeof cleanupAllPendingMoves === 'function') cleanupAllPendingMoves(); } catch (e) {}
+  // Avoid resetting .tile positioning globally; some layouts rely on absolute positioning per tile
+  // If needed, specific animated tiles should clear transition in the animation handler itself
+  try { updateDraggableEntityClasses(); } catch (e) {}
         const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
         createGlobalCanvas();
         centerOnTile($tile);
@@ -2784,6 +2794,24 @@ $(document).ready(() => {
           </div>
         </div>
       `);
+      $npcItem.on('click', function (e) {
+        e.stopPropagation();
+        const npcType = $(this).data('npc-type');
+        ajaxPost(
+          "/spawn_npc",
+          { npc_type: npcType, x: 0, y: 0 },
+          (data) => {
+            if (data.status === 'ok') {
+              console.log("NPC spawned successfully:", data.entity_uid);
+              // Optionally, center on the new NPC
+              centerOnEntityId(data.entity_uid);
+            } else {
+              alert("Failed to spawn NPC: " + (data.error || "Unknown error"));
+            }
+          },
+          true
+        );
+      });
       $npcList.append($npcItem);
     });
   }
@@ -3536,29 +3564,8 @@ $(document).ready(() => {
 
   //on mouse over an action button if there is a target, highlight the target
   $(".actions-container").on("mouseover", ".action-button", function () {
-    const opts = $(this).data("action-opts");
-    if (
-      opts["target"] !== undefined &&
-      opts["target"] !== "" &&
-      opts["target"] !== null
-    ) {
-      const target = opts["target"];
-      const $tile = $(`.object-container[data-id="${target}"]`);
-      $tile.css("background-color", "rgba(0, 255, 0, 0.5)");
-    }
-  });
-
-  $(".actions-container").on("mouseleave", ".action-button", function () {
-    const opts = $(this).data("action-opts");
-    if (
-      opts["target"] !== undefined &&
-      opts["target"] !== "" &&
-      opts["target"] !== null
-    ) {
-      const target = opts["target"];
-      const $tile = $(`.object-container[data-id="${target}"]`);
-      $tile.css("background-color", "");
-    }
+  const opts = $(this).data("action-opts");
+  // Optionally highlight targets if opts carries target info in the future
   });
 
   $(".actions-container").on("click", ".action-end-turn", function () {
