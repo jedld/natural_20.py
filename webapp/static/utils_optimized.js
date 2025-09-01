@@ -123,29 +123,39 @@ const Utils = {
   tilesAreEqual: function($tile1, $tile2) {
     // Compare key attributes that would indicate a meaningful change
     const attrs = ['data-coords-id', 'data-light', 'data-difficult'];
-    
     for (let attr of attrs) {
       if ($tile1.attr(attr) !== $tile2.attr(attr)) {
         return false;
       }
     }
-    
-    // Compare entity content
-    const entity1 = $tile1.find('.entity').html();
-    const entity2 = $tile2.find('.entity').html();
-    
-    if (entity1 !== entity2) {
+
+    // Compare entity/NPC presence and identity robustly
+    const $ents1 = $tile1.find('.entity, .npc');
+    const $ents2 = $tile2.find('.entity, .npc');
+    if ($ents1.length !== $ents2.length) {
       return false;
     }
-    
-    // Compare conversation bubbles
+    for (let i = 0; i < $ents1.length; i++) {
+      const $e1 = $($ents1[i]);
+      const $e2 = $($ents2[i]);
+      const id1 = $e1.attr('data-entity-id') || $e1.attr('data-entity-uid') || $e1.attr('data-entityId') || $e1.attr('data-id') || '';
+      const id2 = $e2.attr('data-entity-id') || $e2.attr('data-entity-uid') || $e2.attr('data-entityId') || $e2.attr('data-id') || '';
+      if (id1 !== id2) {
+        return false;
+      }
+      if (!id1 && !id2) {
+        const sig1 = ($e1.prop('outerHTML') || '').replace(/\s+/g, ' ');
+        const sig2 = ($e2.prop('outerHTML') || '').replace(/\s+/g, ' ');
+        if (sig1 !== sig2) return false;
+      }
+    }
+
+    // Compare conversation bubbles quickly
     const bubble1 = $tile1.find('.conversation-bubble').text();
     const bubble2 = $tile2.find('.conversation-bubble').text();
-    
     if (bubble1 !== bubble2) {
       return false;
     }
-    
     return true; // Tiles are effectively the same
   },
   
@@ -483,32 +493,39 @@ const Utils = {
     // Update image container position with consistent offset handling
     const imageOffset = data.image_offset_px || [0, 0];
     
-    // Update tiles container
-    $("#main-map-area .tiles-container").css({
-      position: 'absolute',
-      top: '-' + tile_size + 'px',
-      left: '-' + tile_size + 'px',
-      width: data.width,
-      height: data.height,
-    });
+    // Update tiles container and data attributes
+    const $tilesContainer = $("#main-map-area .tiles-container");
+    $tilesContainer
+      .css({
+        position: 'absolute',
+        top: '-' + tile_size + 'px',
+        left: '-' + tile_size + 'px',
+        width: data.width + 'px',
+        height: data.height + 'px',
+      })
+      .data({ width: data.width, height: data.height });
+
+    // Align offsets with initial map load behavior
     $("#tiles-area").css({
-      top: -(tile_size + imageOffset[1]),
-      left: -(tile_size + imageOffset[0]),
+      top: (-tile_size + imageOffset[1]) + 'px',
+      left: (-tile_size + imageOffset[0]) + 'px',
     });
     $('.image-container').css({
-      height: data.height,
-      top: imageOffset[1] + tile_size,
-      left: imageOffset[0] + tile_size
+      height: data.height + 'px',
+      top: (imageOffset[1] + tile_size) + 'px',
+      left: (imageOffset[0] + tile_size) + 'px'
     });
 
     // Update image
-    $(".image-container img").css({ width: data.width });
+    $(".image-container img").css({ width: data.width + 'px' });
 
-    // Update canvas
-    canvas.width = data.width + tile_size;
-    canvas.height = data.height + tile_size;
-    canvas.style.top = '-' + tile_size + 'px';
-    canvas.style.left = '-' + tile_size + 'px';
+    // Do not resize/position the global fixed overlay canvas here; just clear it if available
+    if (canvas && canvas.getContext) {
+      try {
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      } catch (e) { /* noop */ }
+    }
 
     // Update background and map name
     $("#main-map-area .image-container img").attr("src", data.background);
