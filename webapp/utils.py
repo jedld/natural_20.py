@@ -878,6 +878,17 @@ class GameManagement:
         else:
             self.loop_environment()
             self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
+            # check if spell and send animation log
+
+            if action and action.action_type == 'spell' and action.target:
+                def target_id(action):
+                    if action.target:
+                        if isinstance(action.target, list):
+                            return [t.entity_uid for t in action.target]
+                        return action.target.entity_uid
+                    return None
+
+                self.socketio.emit('message', { 'type': 'spell', 'message': { "target" : target_id(action), "source": action.source.entity_uid, "type" : "spell", "label" : action.label() }})
 
             # Check if the action affects visibility (doors, lighting, etc.) and emit refresh_map
             if hasattr(action, 'result') and action.result:

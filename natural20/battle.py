@@ -524,7 +524,7 @@ class Battle():
             if self.animation_log_enabled and len(self.animation_log) > 0:
                 self.animation_log[-1][2] = { "target" : action.target.entity_uid, "type": "attack", "ranged" : action.ranged_attack(), "label": action.label() }
         elif action.action_type == 'spell':
-            if self.animation_log_enabled and action.target and action.avg_damage(self) > 0:
+            if self.animation_log_enabled and action.target:
                 if len(self.animation_log) == 0:
                     self.animation_log.append([action.source.entity_uid, [self.entity_or_object_pos(action.source)], None])
                 self.animation_log[-1][2] = { "target" : action.target.entity_uid, "type" : "spell", "label" : action.label() }
