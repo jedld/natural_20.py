@@ -444,6 +444,95 @@
     });
   });
 
+  // Attack: standard visuals for melee vs ranged
+  register('attack', function(payload){
+    return new Promise((resolve) => {
+      const srcId = payload && payload.source;
+      const tgtId = payload && payload.target;
+      const ranged = !!(payload && (payload.ranged || /shortbow|longbow|bow|crossbow|ranged/i.test(payload.label || '')));
+      const src = srcId ? centerOfEntity(srcId) : null;
+      const tgt = tgtId ? centerOfEntity(tgtId) : null;
+      if (!tgt) return resolve();
+      const { overlay, ctx, destroy } = createOverlay(1102);
+      const start = performance.now();
+      const total = ranged ? 400 : 260;
+      // SFX
+      try {
+        if (window.SFX && SFX.play) SFX.play(ranged ? 'magic_missile_fire' : 'firebolt_fire');
+      } catch(e){}
+      const draw = (now) => {
+        const t = Math.min(1, (now - start)/total);
+        ctx.clearRect(0,0,overlay.width, overlay.height);
+        ctx.save(); ctx.globalCompositeOperation = 'screen';
+        if (ranged && src){
+          // Arrow/bolt tracer with slight arc and fletching spark
+          const ctrl = { x: (src.x + tgt.x)/2, y: Math.min(src.y, tgt.y) - 40 };
+          const x = (1-t)*(1-t)*src.x + 2*(1-t)*t*ctrl.x + t*t*tgt.x;
+          const y = (1-t)*(1-t)*src.y + 2*(1-t)*t*ctrl.y + t*t*tgt.y;
+          ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.quadraticCurveTo(ctrl.x, ctrl.y, x, y); ctx.stroke();
+          // head
+          ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI*2); ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill();
+          // subtle contrail
+          ctx.strokeStyle = 'rgba(200,220,255,0.35)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.quadraticCurveTo(ctrl.x, ctrl.y, x, y); ctx.stroke();
+          if (t >= 1) impact();
+        } else {
+          // Melee: slash arc at target with motion lines from source if available
+          // Slash parameters
+          const radius = 24 + 10*Math.sin(now*0.02);
+          const ang = now*0.015;
+          ctx.strokeStyle = 'rgba(255,80,80,0.85)'; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.arc(tgt.x, tgt.y, radius, ang, ang + Math.PI*0.9);
+          ctx.stroke();
+          // white core
+          ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(tgt.x, tgt.y, radius-2, ang+0.05, ang + Math.PI*0.85);
+          ctx.stroke();
+          // motion line from source
+          if (src){
+            const mix = Math.min(1, t*1.5);
+            const mx = src.x + (tgt.x - src.x)*mix;
+            const my = src.y + (tgt.y - src.y)*mix;
+            ctx.strokeStyle = 'rgba(255,120,120,0.45)'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(mx, my); ctx.stroke();
+          }
+          if (t >= 1) impact();
+        }
+        ctx.restore();
+        if (t < 1) requestAnimationFrame(draw);
+      };
+      function impact(){
+        // SFX impact
+        try { if (window.SFX && SFX.play) SFX.play(ranged ? 'magic_missile_impact' : 'firebolt_impact'); } catch(e){}
+        const t0 = performance.now();
+        const dur = 260;
+        const loop = (now) => {
+          const t = Math.min(1, (now - t0)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          const a = 1 - t;
+          const r = 18 + 20*t;
+          ctx.beginPath(); ctx.arc(tgt.x, tgt.y, r, 0, Math.PI*2);
+          ctx.strokeStyle = ranged ? `rgba(200,220,255,${a.toFixed(2)})` : `rgba(255,120,120,${a.toFixed(2)})`;
+          ctx.lineWidth = 3 - 1.5*t; ctx.stroke();
+          // hit sparks
+          for (let i=0;i<6;i++){
+            const ang = (i/6)*Math.PI*2 + now*0.004;
+            const len = 12 + 10*t;
+            ctx.beginPath();
+            ctx.moveTo(tgt.x, tgt.y);
+            ctx.lineTo(tgt.x + Math.cos(ang)*len, tgt.y + Math.sin(ang)*len);
+            ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.lineWidth = 1.2; ctx.stroke();
+          }
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(loop); else { destroy(); resolve(); }
+        };
+        requestAnimationFrame(loop);
+      }
+      requestAnimationFrame(draw);
+    });
+  });
+
   // Ray of Frost: icy jagged ray, snow drift, crystalline impact
   register('ray_of_frost', function(payload){
     return new Promise((resolve) => {
@@ -637,3 +726,4 @@
   // Expose API
   global.SpellEffects = { register, play };
 })(window);
+
