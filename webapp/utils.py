@@ -4,7 +4,7 @@ import os
 import yaml
 from natural20.map import Map
 from natural20.entity import Entity
-from natural20.battle import Battle
+from natural20.battle import Battle, action_animator
 from natural20.generic_controller import GenericController
 from natural20.llm_controller import LlmMcpController
 from natural20.web.web_controller import WebController, ManualControl
@@ -46,8 +46,6 @@ class SocketIOOutputLogger:
 
         self.logging_queue.append(event_msg)
         self.socketio.emit('message', {'type': 'console', 'message': event_msg})
-
-
 
 # Defines a class for high level game management
 class GameManagement:
@@ -873,48 +871,13 @@ class GameManagement:
         self.check_and_notify_map_change(pov_map, pov_entity, username)
 
         if battle:
-            self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': battle.get_animation_logs()}})
+            self.socketio.emit('message', {'type': 'move', 'message': { 'animation_log': battle.get_animation_logs()}})
             battle.clear_animation_logs()
         else:
             self.loop_environment()
             self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
             # check if spell and send animation log
-
-            if action and action.action_type == 'spell' and action.target:
-                def target_id(action):
-                    if action.target:
-                        if isinstance(action.target, list):
-                            return [t.entity_uid if isinstance(t, Entity) else t for t in action.target]
-                        if isinstance(action.target, Entity):
-                            return action.target.entity_uid
-                        return action.target
-                    return None
-
-                # Try to include the spell short name (e.g., 'bless') for client-side visuals
-                try:
-                    spell_name = None
-                    if getattr(action, 'spell_action', None):
-                        spell_name = action.spell_action.short_name()
-                    elif getattr(action, 'spell_class', None):
-                        spell_name = getattr(action.spell_class, '__name__', None)
-                        if spell_name and spell_name.endswith('Spell'):
-                            spell_name = spell_name[:-5]
-                    if isinstance(spell_name, str):
-                        spell_name = spell_name.lower().replace(' ', '_')
-                except Exception:
-                    spell_name = None
-
-                self.socketio.emit('message', {
-                    'type': 'spell',
-                    'message': {
-                        'target': target_id(action),
-                        'source': action.source.entity_uid,
-                        'type': 'spell',
-                        'label': action.label(),
-                        'spell': spell_name
-                    }
-                })
-
+            self.socketio.emit('message',action_animator(action))
             # Check if the action affects visibility (doors, lighting, etc.) and emit refresh_map
             if hasattr(action, 'result') and action.result:
                 for result_item in action.result:
