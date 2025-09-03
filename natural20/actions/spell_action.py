@@ -18,7 +18,7 @@ class SpellAction(Action):
     casting_time: str
 
     def __init__(self, session, source, action_type, spell=None):
-        super().__init__(session, source, action_type)
+        super().__init__(session, source, 'spell')
         self.spell_class = spell
         self.level = 0  # base spell level
         self.at_level = 0 # cast at level
