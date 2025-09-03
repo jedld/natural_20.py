@@ -164,10 +164,10 @@ class EventQueue {
           this.processMoveEvent(data, resolve);
           break;
         }
-        case "spell":
-          console.log("Casting spell:", data.message);
-          resolve();
+        case "spell": {
+          this.processSpellEvent(data, resolve);
           break;
+        }
         case "message":
           console.log(data.message);
           resolve();
@@ -536,6 +536,24 @@ class EventQueue {
       // console.log('>>>>>>>>>>>>>>>>>>>>');
       // Utils.refreshTileSet();
       resolve();
+    }
+  }
+
+  // Render animated spell effects (e.g., Bless) and resolve when finished
+  processSpellEvent(data, resolve) {
+    try {
+      const msg = data && data.message ? data.message : data;
+      const spellKey = (msg && (msg.spell || msg.label)) || '';
+      if (window.SpellEffects && typeof window.SpellEffects.play === 'function') {
+        window.SpellEffects.play(spellKey, msg).then(() => resolve()).catch(() => resolve());
+        return;
+      }
+      // Fallback: log only if SpellEffects registry isn’t loaded
+      console.log('Casting spell (no SpellEffects registry found):', msg);
+      resolve();
+    } catch (e) {
+      console.warn('processSpellEvent failed', e);
+      try { resolve(); } catch (_) {}
     }
   }
 

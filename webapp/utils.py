@@ -888,7 +888,30 @@ class GameManagement:
                         return action.target.entity_uid
                     return None
 
-                self.socketio.emit('message', { 'type': 'spell', 'message': { "target" : target_id(action), "source": action.source.entity_uid, "type" : "spell", "label" : action.label() }})
+                # Try to include the spell short name (e.g., 'bless') for client-side visuals
+                try:
+                    spell_name = None
+                    if getattr(action, 'spell_action', None):
+                        spell_name = action.spell_action.short_name()
+                    elif getattr(action, 'spell_class', None):
+                        spell_name = getattr(action.spell_class, '__name__', None)
+                        if spell_name and spell_name.endswith('Spell'):
+                            spell_name = spell_name[:-5]
+                    if isinstance(spell_name, str):
+                        spell_name = spell_name.lower().replace(' ', '_')
+                except Exception:
+                    spell_name = None
+
+                self.socketio.emit('message', {
+                    'type': 'spell',
+                    'message': {
+                        'target': target_id(action),
+                        'source': action.source.entity_uid,
+                        'type': 'spell',
+                        'label': action.label(),
+                        'spell': spell_name
+                    }
+                })
 
             # Check if the action affects visibility (doors, lighting, etc.) and emit refresh_map
             if hasattr(action, 'result') and action.result:
