@@ -168,6 +168,10 @@ class EventQueue {
           this.processSpellEvent(data, resolve);
           break;
         }
+        case "attack": {
+          this.processAttackEvent(data, resolve);
+          break;
+        }
         case "message":
           console.log(data.message);
           resolve();
@@ -395,16 +399,16 @@ class EventQueue {
       const entry = animationLog[idx];
       // Skip non-array entries (e.g., perception objects) safely
       if (!Array.isArray(entry)) {
-        this.processSpellEvent(entry, (result) => {
-          if (result) {
-            // If the spell event was processed successfully, continue with the next animation
-            animateFunction(animationLog, idx + 1);
-          } else {
-            // If the spell event failed, we can choose to stop the animation or handle it differently
-            console.error('Failed to process spell event:', entry);
-            animateFunction(animationLog, idx + 1);
-          }
-        });
+        const t = (entry && entry.type) || (entry && entry.message && entry.message.type);
+        if (t === 'spell') {
+          this.processSpellEvent(entry, () => animateFunction(animationLog, idx + 1));
+        } else if (t === 'attack') {
+          this.processAttackEvent(entry, () => animateFunction(animationLog, idx + 1));
+        } else {
+          // Unknown inline event; skip
+          console.warn('Skipping unknown inline animation entry:', entry);
+          animateFunction(animationLog, idx + 1);
+        }
         return;
       }
       const [entity_uid, path, action] = entry;
@@ -557,6 +561,22 @@ class EventQueue {
       resolve();
     } catch (e) {
       console.warn('processSpellEvent failed', e);
+      try { resolve(); } catch (_) {}
+    }
+  }
+
+  // Render animated attack effects (melee/ranged) and resolve when finished
+  processAttackEvent(data, resolve) {
+    try {
+      const msg = data && data.message ? data.message : data;
+      if (window.SpellEffects && typeof window.SpellEffects.play === 'function') {
+        window.SpellEffects.play('attack', msg).then(() => resolve()).catch(() => resolve());
+        return;
+      }
+      console.log('Attack animation (no SpellEffects registry found):', msg);
+      resolve();
+    } catch (e) {
+      console.warn('processAttackEvent failed', e);
       try { resolve(); } catch (_) {}
     }
   }
