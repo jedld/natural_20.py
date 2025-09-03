@@ -164,6 +164,10 @@ class EventQueue {
           this.processMoveEvent(data, resolve);
           break;
         }
+        case "spell":
+          console.log("Casting spell:", data.message);
+          resolve();
+          break;
         case "message":
           console.log(data.message);
           resolve();
