@@ -884,8 +884,10 @@ class GameManagement:
                 def target_id(action):
                     if action.target:
                         if isinstance(action.target, list):
-                            return [t.entity_uid for t in action.target]
-                        return action.target.entity_uid
+                            return [t.entity_uid if isinstance(t, Entity) else t for t in action.target]
+                        if isinstance(action.target, Entity):
+                            return action.target.entity_uid
+                        return action.target
                     return None
 
                 # Try to include the spell short name (e.g., 'bless') for client-side visuals
