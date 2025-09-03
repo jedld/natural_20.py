@@ -12,6 +12,51 @@ from natural20.spell.effects.stench_effect import StenchEffect
 import pdb
 from natural20.uid_containers import EntitiesUIDMap
 
+def action_animator(action):
+    def target_id(action):
+        if action.target:
+            if isinstance(action.target, list):
+                return [t.entity_uid if isinstance(t, Entity) else t for t in action.target]
+            if isinstance(action.target, Entity):
+                return action.target.entity_uid
+            return action.target
+        return None
+    if action and action.action_type == 'attack':
+        return {
+            'type': 'attack',
+            'message': {
+                'target': target_id(action),
+                'source': action.source.entity_uid,
+                'ranged': action.ranged_attack(),
+                'type': 'attack',
+                'label': action.label()
+            }
+        }
+    if action and action.action_type == 'spell' and action.target:
+        # Try to include the spell short name (e.g., 'bless') for client-side visuals
+        try:
+            spell_name = None
+            if getattr(action, 'spell_action', None):
+                spell_name = action.spell_action.short_name()
+            elif getattr(action, 'spell_class', None):
+                spell_name = getattr(action.spell_class, '__name__', None)
+                if spell_name and spell_name.endswith('Spell'):
+                    spell_name = spell_name[:-5]
+            if isinstance(spell_name, str):
+                spell_name = spell_name.lower().replace(' ', '_')
+        except Exception:
+            spell_name = None
+
+        return {
+            'type': 'spell',
+            'message': {
+                'target': target_id(action),
+                'source': action.source.entity_uid,
+                'type': 'spell',
+                'label': action.label(),
+                'spell': spell_name
+            }
+        }
 class Battle():
     def __init__(self, session: Session, maps: Map, standard_controller=None, animation_log_enabled=False):
         if isinstance(maps, list):
@@ -522,12 +567,12 @@ class Battle():
                 self.animation_log.append([action.source.entity_uid, action.move_path, None])
         elif action.action_type == 'attack':
             if self.animation_log_enabled and len(self.animation_log) > 0:
-                self.animation_log[-1][2] = { "target" : action.target.entity_uid, "type": "attack", "ranged" : action.ranged_attack(), "label": action.label() }
+                self.animation_log[-1][2] = { "target" : action.target.entity_uid, "source": action.source.entity_uid, "type": "attack", "ranged" : action.ranged_attack(), "label": action.label() }
+            self.animation_log.append(action_animator(action))
         elif action.action_type == 'spell':
             if self.animation_log_enabled and action.target:
-                if len(self.animation_log) == 0:
-                    self.animation_log.append([action.source.entity_uid, [self.entity_or_object_pos(action.source)], None])
-                self.animation_log[-1][2] = { "target" : action.target.entity_uid, "type" : "spell", "label" : action.label() }
+                animation_payload = action_animator(action)
+                self.animation_log.append(animation_payload)
         elif action.action_type == 'interact':
             self.trigger_event('interact', action)
 

@@ -395,12 +395,16 @@ class EventQueue {
       const entry = animationLog[idx];
       // Skip non-array entries (e.g., perception objects) safely
       if (!Array.isArray(entry)) {
-        if (entry && typeof entry === 'object' && entry.type === 'perception') {
-          // Optionally, we could visualize perception targets here.
-          // For now, just skip to next animation segment.
-          console.debug('Skipping non-movement animation entry:', entry);
-        }
-        animateFunction(animationLog, idx + 1);
+        this.processSpellEvent(entry, (result) => {
+          if (result) {
+            // If the spell event was processed successfully, continue with the next animation
+            animateFunction(animationLog, idx + 1);
+          } else {
+            // If the spell event failed, we can choose to stop the animation or handle it differently
+            console.error('Failed to process spell event:', entry);
+            animateFunction(animationLog, idx + 1);
+          }
+        });
         return;
       }
       const [entity_uid, path, action] = entry;
