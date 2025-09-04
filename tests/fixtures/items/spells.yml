@@ -85,6 +85,23 @@ burning_hands:
     - Sorcerer
     - Wizard
   spell_class: Natural20::BurningHands
+thunderwave:
+  label: Thunderwave
+  casting_time: 1:action
+  damage_type: thunder
+  description: |
+    A wave of thunderous force sweeps out from you. Each creature in a 15-foot cube originating from you must make a Constitution saving throw. On a failed save, a creature takes 2d8 thunder damage and is pushed 10 feet away from you. On a successful save, the creature takes half as much damage and isn't pushed.
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d8 for each slot level above 1st.
+  duration: instant
+  level: 1
+  name: Thunderwave
+  range_cube: 15
+  school: evocation
+  type: area
+  spell_list_classes:
+    - Wizard
+    - Sorcerer
+  spell_class: Natural20::Thunderwave
 ice_knife:
   label: Ice Knife
   casting_time: 1:action
