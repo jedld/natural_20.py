@@ -1343,13 +1343,50 @@ class Entity(EntityStateEvaluator, Notable):
         ofs_x //= map.feet_per_grid
         ofs_y //= map.feet_per_grid
 
-        new_x = x + ofs_x
-        new_y = y + ofs_y
-
-        if map.placeable(self, new_x, new_y):
-            return new_x, new_y
-        else:
-            return None
+        # If no movement is needed, return current position
+        if ofs_x == 0 and ofs_y == 0:
+            return x, y
+        
+        # Find the furthest valid position by stepping along the push direction
+        furthest_x, furthest_y = x, y
+        
+        # Calculate step direction
+        step_x = 1 if ofs_x > 0 else (-1 if ofs_x < 0 else 0)
+        step_y = 1 if ofs_y > 0 else (-1 if ofs_y < 0 else 0)
+        
+        # For straight-line movement (horizontal or vertical), step one square at a time
+        if ofs_x == 0:  # Pure vertical movement
+            for step in range(1, abs(ofs_y) + 1):
+                next_x = x
+                next_y = y + step * step_y
+                if map.placeable(self, next_x, next_y):
+                    furthest_x, furthest_y = next_x, next_y
+                else:
+                    break
+        elif ofs_y == 0:  # Pure horizontal movement
+            for step in range(1, abs(ofs_x) + 1):
+                next_x = x + step * step_x
+                next_y = y
+                if map.placeable(self, next_x, next_y):
+                    furthest_x, furthest_y = next_x, next_y
+                else:
+                    break
+        else:  # Diagonal movement - step along the longer axis and interpolate the shorter
+            max_steps = max(abs(ofs_x), abs(ofs_y))
+            for step in range(1, max_steps + 1):
+                # Calculate interpolated position
+                progress = step / max_steps
+                next_x = x + int(ofs_x * progress)
+                next_y = y + int(ofs_y * progress)
+                
+                if map.placeable(self, next_x, next_y):
+                    furthest_x, furthest_y = next_x, next_y
+                else:
+                    break
+        
+        # If we couldn't move at all from the starting position, return current position
+        # This maintains backward compatibility while allowing entities to "not move" rather than fail completely
+        return furthest_x, furthest_y
 
     def trigger_event(self, event_name, battle, session, map, event):
         if event_name in self.event_handlers:
