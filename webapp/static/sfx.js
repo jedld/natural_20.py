@@ -59,6 +59,30 @@
     node.connect(g); g.connect(master);
     src.start(t0); src.stop(t0 + dur + 0.3);
   }
+  // Flamethrower-style whoosh: layered filtered noise with ignition burst
+  function flameWhoosh(t0, dur=0.5, power=1){
+    // High hiss
+    const nHi = ctx.createBufferSource(); nHi.buffer = noiseBuffer();
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1000; hp.Q.value = 0.7;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2500; bp.Q.value = 0.9;
+    const gHi = envGain(t0, 0.006, Math.max(0,dur-0.08), 0.12, 0.95*power);
+    nHi.connect(hp); hp.connect(bp); bp.connect(gHi); gHi.connect(master);
+    nHi.start(t0); nHi.stop(t0 + dur + 0.2);
+
+    // Low rumble
+    const nLo = ctx.createBufferSource(); nLo.buffer = noiseBuffer();
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 550; lp.Q.value = 0.6;
+    const gLo = envGain(t0, 0.015, Math.max(0,dur-0.1), 0.22, 0.6*power);
+    nLo.connect(lp); lp.connect(gLo); gLo.connect(master);
+    nLo.start(t0); nLo.stop(t0 + dur + 0.3);
+
+    // Ignition burst (bright snap)
+    const ign = ctx.createBufferSource(); ign.buffer = noiseBuffer();
+    const ignHp = ctx.createBiquadFilter(); ignHp.type = 'highpass'; ignHp.frequency.value = 2000; ignHp.Q.value = 0.8;
+    const ignG = envGain(t0, 0.004, 0.05, 0.08, 1.0*power);
+    ign.connect(ignHp); ignHp.connect(ignG); ignG.connect(master);
+    ign.start(t0); ign.stop(t0 + 0.2);
+  }
   function glide(t0, startF, endF, dur, type='sine', peak=0.9){
     const o = osc(type, startF);
     const g = envGain(t0, 0.02, Math.max(0,dur-0.04), 0.1, peak);
@@ -121,6 +145,9 @@
           break;
         case 'ray_of_frost_impact':
           chord(t0, [880, 1175, 1568], 0.5, 'sine', 0.5);
+          break;
+        case 'burning_hands_cast':
+          flameWhoosh(t0, 0.6, 1.0);
           break;
         case 'shield_of_faith_start':
           chord(t0, [440, 660, 880], 0.8, 'triangle', 0.35);
