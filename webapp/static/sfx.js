@@ -149,6 +149,51 @@
         case 'burning_hands_cast':
           flameWhoosh(t0, 0.6, 1.0);
           break;
+        case 'poison_spray_cast':
+          // Wet toxic hiss: layered noise with mid hiss and low rumble
+          // Hiss layer
+          (function(){
+            const n = ctx.createBufferSource(); n.buffer = noiseBuffer();
+            const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 250; hp.Q.value = 0.7;
+            const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 1.1;
+            const g = envGain(t0, 0.01, 0.35, 0.18, 0.65);
+            n.connect(hp); hp.connect(bp); bp.connect(g); g.connect(master);
+            n.start(t0); n.stop(t0 + 0.7);
+          })();
+          // Damp, wet low layer
+          (function(){
+            const n = ctx.createBufferSource(); n.buffer = noiseBuffer();
+            const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320; lp.Q.value = 0.8;
+            const g = envGain(t0+0.01, 0.02, 0.32, 0.22, 0.45);
+            n.connect(lp); lp.connect(g); g.connect(master);
+            n.start(t0); n.stop(t0 + 0.8);
+          })();
+          // Occasional sputter transient
+          (function(){
+            const n = ctx.createBufferSource(); n.buffer = noiseBuffer();
+            const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 1.2;
+            const g = envGain(t0+0.06, 0.005, 0.04, 0.05, 0.8);
+            n.connect(bp); bp.connect(g); g.connect(master);
+            n.start(t0+0.06); n.stop(t0 + 0.2);
+          })();
+          break;
+        case 'poison_spray_hit':
+          // Short toxic puff + splutter
+          (function(){
+            const n = ctx.createBufferSource(); n.buffer = noiseBuffer();
+            const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260; lp.Q.value = 0.7;
+            const g = envGain(t0, 0.004, 0.06, 0.12, 0.7);
+            n.connect(lp); lp.connect(g); g.connect(master);
+            n.start(t0); n.stop(t0 + 0.3);
+          })();
+          (function(){
+            const n = ctx.createBufferSource(); n.buffer = noiseBuffer();
+            const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1200; bp.Q.value = 1.0;
+            const g = envGain(t0+0.02, 0.003, 0.03, 0.05, 0.8);
+            n.connect(bp); bp.connect(g); g.connect(master);
+            n.start(t0+0.02); n.stop(t0 + 0.2);
+          })();
+          break;
         case 'shield_of_faith_start':
           chord(t0, [440, 660, 880], 0.8, 'triangle', 0.35);
           break;
@@ -160,6 +205,14 @@
           break;
         case 'cure_wounds_bloom':
           chord(t0, [659.25, 880], 0.6, 'triangle', 0.5);
+          break;
+        case 'spare_the_dying_cast':
+          // Gentle stabilizing chime
+          chord(t0, [392, 523.25], 0.35, 'sine', 0.35);
+          break;
+        case 'spare_the_dying_bloom':
+          // Soft, reassuring bloom
+          chord(t0, [523.25, 659.25], 0.5, 'triangle', 0.4);
           break;
         case 'inflict_wounds_cast':
           glide(t0, 180, 120, 0.25, 'sine', 0.5); playNoise(t0, 0.22, { band: [200, 1200] });
