@@ -1689,6 +1689,40 @@
     });
   });
 
+  // Bane: brief hex flash on targets and faint caster->target thread
+  register('bane', function(payload){
+    return new Promise((resolve)=>{
+      const targets = Array.isArray(payload?.target) ? payload.target : [payload?.target].filter(Boolean);
+      if (!targets.length) return resolve();
+      const src = payload?.source ? centerOfEntity(payload.source) : null;
+      const { overlay, ctx, destroy } = createOverlay(1105);
+      try { SFX && SFX.play && SFX.play('bane_cast'); } catch(e){}
+      const t0 = performance.now(); const dur = 500;
+      const tileSize = ($('.tiles-container').data('tile-size') || 64);
+      const centers = targets.map(id => centerOfEntity(id)).filter(Boolean);
+      function loop(now){
+        const t = Math.min(1, (now - t0)/dur);
+        ctx.clearRect(0,0,overlay.width, overlay.height);
+        ctx.save();
+        centers.forEach(c => {
+          const r = Math.max(16, tileSize*0.4) * (0.9 + 0.3*Math.sin(t*Math.PI));
+          const g = ctx.createRadialGradient(c.x, c.y, r*0.1, c.x, c.y, r);
+          g.addColorStop(0, `rgba(200,60,60, ${(0.28*(1-t)).toFixed(2)})`);
+          g.addColorStop(1, `rgba(100,20,20, 0)`);
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI*2); ctx.fill();
+          // simple hex glyph
+          ctx.strokeStyle = `rgba(220,80,80, ${(0.6*(1-t)).toFixed(2)})`; ctx.lineWidth = 2;
+          const sides = 6; const rr = r*0.65; ctx.beginPath();
+          for (let i=0;i<sides;i++){ const a = (Math.PI*2)*i/sides; const x = c.x + Math.cos(a)*rr; const y = c.y + Math.sin(a)*rr; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.closePath(); ctx.stroke();
+        });
+        if (src) { centers.forEach(c => { ctx.save(); ctx.globalAlpha = 0.15*(1-t); ctx.strokeStyle = 'rgba(230,200,200,0.25)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(c.x, c.y); ctx.stroke(); ctx.restore(); }); }
+        ctx.restore();
+        if (t < 1) requestAnimationFrame(loop); else { try { SFX && SFX.play && SFX.play('bane_apply'); } catch(e){} destroy(); resolve(); }
+      }
+      requestAnimationFrame(loop);
+    });
+  });
+
   // Expose API
   global.SpellEffects = { register, play };
 })(window);

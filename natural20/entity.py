@@ -1582,6 +1582,10 @@ class Entity(EntityStateEvaluator, Notable):
         if self.has_effect('bless'):
             save_roll += DieRoll.roll("1d4", description="bless", entity=self, battle=battle)
 
+        if self.has_effect('bane'):
+            bane_pen = DieRoll.roll("1d4", description="bane", entity=self, battle=battle)
+            save_roll += DieRoll.roll("-" + str(bane_pen.result()), entity=self, battle=battle)
+
         return save_roll
 
     def skills(self):

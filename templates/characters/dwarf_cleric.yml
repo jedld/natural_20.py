@@ -18,6 +18,7 @@ ability:
   cha: 12
 divine_domain: life
 prepared_spells:
+- bane
 - sacred_flame
 - cure_wounds
 - healing_word
