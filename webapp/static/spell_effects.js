@@ -444,85 +444,249 @@
     });
   });
 
-  // Attack: standard visuals for melee vs ranged
+  // Attack: enhanced visuals parsed from label/type (sword slash, bow arrow, bite/claw, etc.)
   register('attack', function(payload){
     return new Promise((resolve) => {
       const srcId = payload && payload.source;
       const tgtId = payload && payload.target;
-      const ranged = !!(payload && (payload.ranged || /shortbow|longbow|bow|crossbow|ranged/i.test(payload.label || '')));
+      const label = (payload && payload.label) ? String(payload.label) : '';
+      const lower = label.toLowerCase();
       const src = srcId ? centerOfEntity(srcId) : null;
       const tgt = tgtId ? centerOfEntity(tgtId) : null;
       if (!tgt) return resolve();
+
+      // Parse weapon/type from label "attack with X ..."
+      let weapon = '';
+      const m = /attack with\s+([^\->\n]+)/i.exec(label);
+      if (m && m[1]) weapon = m[1].trim().toLowerCase();
+      if (!weapon) weapon = lower;
+
+      // Choose style
+      const isRangedFlag = !!(payload && payload.ranged);
+      const isBow = /\b(shortbow|longbow|bow)\b/.test(weapon);
+      const isXbow = /\b(crossbow)\b/.test(weapon);
+      const isSling = /\b(sling)\b/.test(weapon);
+      const isThrown = /\b(javelin|dart|handaxe|throw|thrown)\b/.test(weapon);
+      const isBite = /\b(bite|beak)\b/.test(weapon);
+      const isClaw = /\b(claw|talon)\b/.test(weapon);
+      const isPunch = /\b(unarmed|punch|fist|kick)\b/.test(weapon);
+      const isAxe = /\b(axe|greataxe|battleaxe)\b/.test(weapon);
+      const isBlunt = /\b(mace|club|hammer|maul|staff)\b/.test(weapon);
+      const isThrust = /\b(rapier|spear|pike|lance|trident|dagger)\b/.test(weapon);
+      const isSword = /\b(sword|scimitar|sabre|saber|katana|greatsword|longsword|shortsword)\b/.test(weapon);
+
+      // default to generic by range, then specialize when known
+      let style = isRangedFlag ? 'ranged_generic' : 'melee_generic';
+      if (isBow || isXbow || isSling || isThrown) {
+        style = isBow ? 'ranged_arrow' : isXbow ? 'ranged_bolt' : isThrown ? 'ranged_thrown' : 'ranged_generic';
+      } else if (isBite) style = 'natural_bite';
+      else if (isClaw) style = 'natural_claw';
+      else if (isPunch) style = 'melee_blunt'; // treat unarmed as blunt-ish
+      else if (isAxe) style = 'melee_chop';
+      else if (isBlunt) style = 'melee_blunt';
+      else if (isThrust) style = 'melee_thrust';
+      else if (isSword) style = 'melee_slash';
+
       const { overlay, ctx, destroy } = createOverlay(1102);
+
+      // Fire SFX per style with generic fallback
+      try { if (window.SFX && SFX.play) {
+        let cue;
+        if (style === 'ranged_arrow') cue = 'attack_arrow';
+        else if (style === 'ranged_bolt') cue = 'attack_bolt';
+        else if (style === 'ranged_thrown') cue = 'attack_thrown';
+        else if (style === 'melee_chop' || style === 'melee_slash') cue = 'attack_slash';
+        else if (style === 'melee_blunt') cue = 'attack_blunt';
+        else if (style === 'melee_thrust') cue = 'attack_thrust';
+        else if (style === 'natural_bite') cue = 'attack_bite';
+        else if (style === 'natural_claw') cue = 'attack_claw';
+        else cue = isRangedFlag ? 'attack_generic_ranged' : 'attack_generic_melee';
+        SFX.play(cue);
+      } }
+      catch(e){}
+
       const start = performance.now();
-      const total = ranged ? 400 : 260;
-      // SFX
-      try {
-        if (window.SFX && SFX.play) SFX.play(ranged ? 'magic_missile_fire' : 'firebolt_fire');
-      } catch(e){}
+      const total = (/ranged_/.test(style) ? 420 : 260);
+
+      function drawArrow(t){
+        if (!src) return;
+        const ctrl = { x: (src.x + tgt.x)/2, y: Math.min(src.y, tgt.y) - 40 };
+        const x = (1-t)*(1-t)*src.x + 2*(1-t)*t*ctrl.x + t*t*tgt.x;
+        const y = (1-t)*(1-t)*src.y + 2*(1-t)*t*ctrl.y + t*t*tgt.y;
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.quadraticCurveTo(ctrl.x, ctrl.y, x, y); ctx.stroke();
+        // arrow head
+        ctx.save(); ctx.translate(x, y);
+        const ang = Math.atan2(y - ctrl.y, x - ctrl.x);
+        ctx.rotate(ang);
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-8, 3); ctx.lineTo(-8, -3); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        // faint contrail
+        ctx.strokeStyle = 'rgba(200,220,255,0.35)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.quadraticCurveTo(ctrl.x, ctrl.y, x, y); ctx.stroke();
+      }
+
+      function drawBolt(t){
+        if (!src) return;
+        const x = src.x + (tgt.x - src.x)*t;
+        const y = src.y + (tgt.y - src.y)*t;
+        ctx.strokeStyle = 'rgba(230,240,255,0.9)'; ctx.lineWidth = 3.5;
+        ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(x, y); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI*2); ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fill();
+      }
+
+      function drawThrown(t){
+        if (!src) return;
+        const ctrl = { x: (src.x + tgt.x)/2, y: Math.min(src.y, tgt.y) - 60 };
+        const x = (1-t)*(1-t)*src.x + 2*(1-t)*t*ctrl.x + t*t*tgt.x;
+        const y = (1-t)*(1-t)*src.y + 2*(1-t)*t*ctrl.y + t*t*tgt.y;
+        ctx.save(); ctx.translate(x, y);
+        ctx.rotate(t*10);
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.beginPath(); ctx.moveTo(0,-3); ctx.lineTo(6,0); ctx.lineTo(0,3); ctx.lineTo(-6,0); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        ctx.strokeStyle = 'rgba(220,230,255,0.35)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.quadraticCurveTo(ctrl.x, ctrl.y, x, y); ctx.stroke();
+      }
+
+      function drawSlash(t){
+        const radius = 24 + 8*Math.sin((start+t*1000)*0.002);
+        const ang = start*0.0015 + t*3.0;
+        ctx.strokeStyle = 'rgba(255,100,100,0.9)'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(tgt.x, tgt.y, radius, ang, ang + Math.PI*0.95);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(tgt.x, tgt.y, radius-2, ang+0.05, ang + Math.PI*0.9); ctx.stroke();
+      }
+
+      function drawGenericMelee(t){
+        // neutral flash cross
+        const len = 18 + 10*t;
+        const alpha = 0.8 * (1 - Math.abs(0.5 - t) * 2);
+        ctx.strokeStyle = `rgba(230,240,255,${alpha.toFixed(2)})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(tgt.x - len, tgt.y); ctx.lineTo(tgt.x + len, tgt.y);
+        ctx.moveTo(tgt.x, tgt.y - len); ctx.lineTo(tgt.x, tgt.y + len);
+        ctx.stroke();
+      }
+
+      function drawChop(t){
+        const ang = start*0.002 + t*4.0;
+        const len = 30;
+        const x0 = tgt.x + Math.cos(ang)*(-len), y0 = tgt.y + Math.sin(ang)*(-len);
+        const x1 = tgt.x + Math.cos(ang)*(len), y1 = tgt.y + Math.sin(ang)*(len);
+        ctx.strokeStyle = 'rgba(255,140,100,0.9)'; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      }
+
+      function drawBlunt(t){
+        const r = 16 + 14*t;
+        ctx.beginPath(); ctx.arc(tgt.x, tgt.y, r, 0, Math.PI*2);
+
+      function drawGenericRanged(t){
+        if (!src) return;
+        const x = src.x + (tgt.x - src.x)*t;
+        const y = src.y + (tgt.y - src.y)*t;
+        ctx.strokeStyle = 'rgba(220,230,255,0.8)'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(x, y); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI*2); ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fill();
+      }
+        ctx.strokeStyle = 'rgba(255,200,120,0.8)'; ctx.lineWidth = 6 - 3*t; ctx.stroke();
+      }
+
+      function drawThrust(t){
+        if (!src) return;
+        const x = src.x + (tgt.x - src.x)*Math.min(1,t*1.2);
+        const y = src.y + (tgt.y - src.y)*Math.min(1,t*1.2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(x, y); ctx.stroke();
+        // tip
+        ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI*2); ctx.fillStyle='rgba(255,255,255,0.95)'; ctx.fill();
+      }
+
+      function drawClaw(t){
+        const off = 10; const sep = 6;
+        for (let i=-1;i<=1;i++){
+          const dx = i*sep;
+          ctx.strokeStyle = 'rgba(255,120,120,0.9)'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(tgt.x - off + dx, tgt.y - off);
+          ctx.lineTo(tgt.x + off + dx, tgt.y + off);
+          ctx.stroke();
+          ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(tgt.x - off + dx, tgt.y - off);
+          ctx.lineTo(tgt.x + off + dx, tgt.y + off);
+          ctx.stroke();
+        }
+      }
+
+      function drawBite(t){
+        const r = 14 + 6*Math.sin(start*0.005);
+        // upper arc teeth
+        ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(tgt.x, tgt.y, r, Math.PI*0.1, Math.PI*0.9); ctx.stroke();
+        // lower arc
+        ctx.beginPath(); ctx.arc(tgt.x, tgt.y, r, -Math.PI*0.9, -Math.PI*0.1); ctx.stroke();
+      }
+
       const draw = (now) => {
         const t = Math.min(1, (now - start)/total);
         ctx.clearRect(0,0,overlay.width, overlay.height);
         ctx.save(); ctx.globalCompositeOperation = 'screen';
-        if (ranged && src){
-          // Arrow/bolt tracer with slight arc and fletching spark
-          const ctrl = { x: (src.x + tgt.x)/2, y: Math.min(src.y, tgt.y) - 40 };
-          const x = (1-t)*(1-t)*src.x + 2*(1-t)*t*ctrl.x + t*t*tgt.x;
-          const y = (1-t)*(1-t)*src.y + 2*(1-t)*t*ctrl.y + t*t*tgt.y;
-          ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2.5;
-          ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.quadraticCurveTo(ctrl.x, ctrl.y, x, y); ctx.stroke();
-          // head
-          ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI*2); ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill();
-          // subtle contrail
-          ctx.strokeStyle = 'rgba(200,220,255,0.35)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.quadraticCurveTo(ctrl.x, ctrl.y, x, y); ctx.stroke();
-          if (t >= 1) impact();
-        } else {
-          // Melee: slash arc at target with motion lines from source if available
-          // Slash parameters
-          const radius = 24 + 10*Math.sin(now*0.02);
-          const ang = now*0.015;
-          ctx.strokeStyle = 'rgba(255,80,80,0.85)'; ctx.lineWidth = 4;
-          ctx.beginPath(); ctx.arc(tgt.x, tgt.y, radius, ang, ang + Math.PI*0.9);
-          ctx.stroke();
-          // white core
-          ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.arc(tgt.x, tgt.y, radius-2, ang+0.05, ang + Math.PI*0.85);
-          ctx.stroke();
-          // motion line from source
-          if (src){
-            const mix = Math.min(1, t*1.5);
-            const mx = src.x + (tgt.x - src.x)*mix;
-            const my = src.y + (tgt.y - src.y)*mix;
-            ctx.strokeStyle = 'rgba(255,120,120,0.45)'; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(mx, my); ctx.stroke();
-          }
-          if (t >= 1) impact();
-        }
+  if (style === 'ranged_arrow') drawArrow(t);
+        else if (style === 'ranged_bolt') drawBolt(t);
+        else if (style === 'ranged_thrown') drawThrown(t);
+  else if (style === 'ranged_generic') drawGenericRanged(t);
+        else if (style === 'melee_slash') drawSlash(t);
+        else if (style === 'melee_chop') drawChop(t);
+        else if (style === 'melee_blunt') drawBlunt(t);
+        else if (style === 'melee_thrust') drawThrust(t);
+        else if (style === 'natural_claw') drawClaw(t);
+        else if (style === 'natural_bite') drawBite(t);
+  else drawGenericMelee(t);
         ctx.restore();
-        if (t < 1) requestAnimationFrame(draw);
+        if (t < 1) requestAnimationFrame(draw); else impact();
       };
+
       function impact(){
-        // SFX impact
-        try { if (window.SFX && SFX.play) SFX.play(ranged ? 'magic_missile_impact' : 'firebolt_impact'); } catch(e){}
+        try { if (window.SFX && SFX.play) {
+          let cue;
+          if (style.startsWith('ranged_')) cue = 'attack_impact_ranged';
+          else if (style === 'melee_blunt') cue = 'attack_blunt';
+          else if (style === 'melee_thrust') cue = 'attack_thrust';
+          else if (style === 'natural_bite') cue = 'attack_bite';
+          else if (style === 'natural_claw') cue = 'attack_claw';
+          else cue = 'attack_impact_melee';
+          SFX.play(cue);
+        } }
+        catch(e){}
         const t0 = performance.now();
         const dur = 260;
         const loop = (now) => {
           const t = Math.min(1, (now - t0)/dur);
           ctx.clearRect(0,0,overlay.width, overlay.height);
           ctx.save(); ctx.globalCompositeOperation = 'screen';
-          const a = 1 - t;
-          const r = 18 + 20*t;
+          const a = 1 - t; const r = 16 + 22*t;
           ctx.beginPath(); ctx.arc(tgt.x, tgt.y, r, 0, Math.PI*2);
-          ctx.strokeStyle = ranged ? `rgba(200,220,255,${a.toFixed(2)})` : `rgba(255,120,120,${a.toFixed(2)})`;
-          ctx.lineWidth = 3 - 1.5*t; ctx.stroke();
-          // hit sparks
-          for (let i=0;i<6;i++){
-            const ang = (i/6)*Math.PI*2 + now*0.004;
-            const len = 12 + 10*t;
-            ctx.beginPath();
-            ctx.moveTo(tgt.x, tgt.y);
-            ctx.lineTo(tgt.x + Math.cos(ang)*len, tgt.y + Math.sin(ang)*len);
-            ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.lineWidth = 1.2; ctx.stroke();
+          const col = style.startsWith('ranged_') ? '200,220,255' : (style==='melee_blunt'?'255,200,120':'255,120,120');
+          ctx.strokeStyle = `rgba(${col},${a.toFixed(2)})`; ctx.lineWidth = 3 - 1.5*t; ctx.stroke();
+          // sparks/cracks for blunt
+          if (style === 'melee_blunt'){
+            for (let i=0;i<8;i++){
+              const ang = (i/8)*Math.PI*2;
+              const len = 8 + 10*t;
+              ctx.beginPath(); ctx.moveTo(tgt.x, tgt.y);
+              ctx.lineTo(tgt.x + Math.cos(ang)*len, tgt.y + Math.sin(ang)*len);
+              ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.4; ctx.stroke();
+            }
+          } else {
+            for (let i=0;i<6;i++){
+              const ang = (i/6)*Math.PI*2 + now*0.004;
+              const len = 12 + 10*t;
+              ctx.beginPath();
+              ctx.moveTo(tgt.x, tgt.y);
+              ctx.lineTo(tgt.x + Math.cos(ang)*len, tgt.y + Math.sin(ang)*len);
+              ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.lineWidth = 1.2; ctx.stroke();
+            }
           }
           ctx.restore();
           if (t < 1) requestAnimationFrame(loop); else { destroy(); resolve(); }
@@ -720,6 +884,162 @@
         requestAnimationFrame(loop);
       }
       ribbon(bloom);
+    });
+  });
+
+  // Inflict Wounds: ominous necrotic tendrils from caster to target with implosive pulse
+  register('inflict_wounds', function(payload){
+    return new Promise((resolve) => {
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      const targets = ensureArray(payload && payload.target);
+      const centers = targets.map(centerOfEntity).filter(Boolean);
+      const target = centers[0];
+      if (!target) return resolve();
+      const { overlay, ctx, destroy } = createOverlay(1103);
+      const nec = [90, 0, 120]; // deep violet
+      const sick = [30, 180, 120]; // sickly green accent
+      const start = performance.now();
+      const total = 900;
+      try { if (window.SFX && SFX.play) SFX.play('inflict_wounds_cast'); } catch(e){}
+      function drawTendril(ax, ay, bx, by, seed, t){
+        const midx = (ax + bx)/2, midy = (ay + by)/2;
+        const nx = by - ay, ny = -(bx - ax);
+        const len = Math.hypot(bx-ax, by-ay);
+        const mag = Math.min(60, 18 + len*0.12);
+        const wob = Math.sin((seed*1.7 + start*0.005) + t*6.0) * mag;
+        const cx = midx + (nx/Math.max(1,len)) * wob;
+        const cy = midy + (ny/Math.max(1,len)) * wob;
+        // progressive draw
+        const px = (1-t)*(1-t)*ax + 2*(1-t)*t*cx + t*t*bx;
+        const py = (1-t)*(1-t)*ay + 2*(1-t)*t*cy + t*t*by;
+        ctx.strokeStyle = `rgba(${nec[0]},${nec[1]},${nec[2]},0.85)`; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(cx, cy, px, py); ctx.stroke();
+        ctx.strokeStyle = `rgba(${sick[0]},${sick[1]},${sick[2]},0.4)`; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(cx, cy, px, py); ctx.stroke();
+      }
+      const loop = (now) => {
+        const t = Math.min(1, (now - start)/total);
+        ctx.clearRect(0,0,overlay.width, overlay.height);
+        ctx.save(); ctx.globalCompositeOperation = 'screen';
+        if (src) {
+          for (let i=0;i<3;i++) drawTendril(src.x, src.y, target.x, target.y, i, t);
+        }
+        // target aura pulsing inward (implosive)
+        const a = 0.9*(1 - Math.abs(0.5 - t)*2);
+        const r = 22 + 10*(1-t);
+        ctx.beginPath(); ctx.arc(target.x, target.y, r, 0, Math.PI*2);
+        ctx.strokeStyle = `rgba(${nec[0]},${nec[1]},${nec[2]},${a.toFixed(2)})`;
+        ctx.lineWidth = 3; ctx.stroke();
+        // vein-like spokes
+        for (let k=0;k<8;k++){
+          const ang = (k/8)*Math.PI*2 + now*0.002;
+          const len = 10 + 16*(1-t);
+          ctx.beginPath(); ctx.moveTo(target.x, target.y);
+          ctx.lineTo(target.x + Math.cos(ang)*len, target.y + Math.sin(ang)*len);
+          ctx.strokeStyle = `rgba(${sick[0]},${sick[1]},${sick[2]},${(0.5*a).toFixed(2)})`;
+          ctx.lineWidth = 1.5; ctx.stroke();
+        }
+        ctx.restore();
+        if (t < 1) requestAnimationFrame(loop); else impact();
+      };
+      function impact(){
+        try { if (window.SFX && SFX.play) SFX.play('inflict_wounds_impact'); } catch(e){}
+        const t0 = performance.now();
+        const dur = 420;
+        const run = (now) => {
+          const t = Math.min(1, (now - t0)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          const fade = 1 - t;
+          // inward ring (reverse aura)
+          const rr = 26 - 16*t;
+          ctx.beginPath(); ctx.arc(target.x, target.y, rr, 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(${nec[0]},${nec[1]},${nec[2]},${(0.9*fade).toFixed(2)})`;
+          ctx.lineWidth = 3; ctx.stroke();
+          // crackle dots
+          for (let i=0;i<14;i++){
+            const ang = (i/14)*Math.PI*2 + now*0.005;
+            const d = rr * (0.5 + Math.random()*0.5);
+            const x = target.x + Math.cos(ang)*d, y = target.y + Math.sin(ang)*d;
+            ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(${sick[0]},${sick[1]},${sick[2]},${(0.7*fade).toFixed(2)})`; ctx.fill();
+          }
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(run); else { destroy(); resolve(); }
+        };
+        requestAnimationFrame(run);
+      }
+      requestAnimationFrame(loop);
+    });
+  });
+
+  // Ice Knife: crystalline shard to target, then cold shatter ring with fragments
+  register('ice_knife', function(payload){
+    return new Promise((resolve) => {
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      const targets = ensureArray(payload && payload.target);
+      const centers = targets.map(centerOfEntity).filter(Boolean);
+      const target = centers[0];
+      if (!src || !target) return resolve();
+      const { overlay, ctx, destroy } = createOverlay(1102);
+      const icy = [160, 220, 255];
+      const start = performance.now();
+      const flyDur = 300;
+      try { if (window.SFX && SFX.play) SFX.play('ice_knife_throw'); } catch(e){}
+      const fly = (now) => {
+        const t = Math.min(1, (now - start)/flyDur);
+        ctx.clearRect(0,0,overlay.width, overlay.height);
+        const x = src.x + (target.x - src.x)*t;
+        const y = src.y + (target.y - src.y)*t;
+        ctx.save(); ctx.globalCompositeOperation = 'screen';
+        // shard body
+        ctx.translate(x, y); ctx.rotate(t*8);
+        ctx.fillStyle = `rgba(${icy[0]},${icy[1]},${icy[2]},0.95)`;
+        ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(10, 0); ctx.lineTo(0, 5); ctx.lineTo(-6, 0); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        // contrail
+        ctx.strokeStyle = `rgba(${icy[0]},${icy[1]},${icy[2]},0.5)`; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(x, y); ctx.stroke();
+        if (t < 1) requestAnimationFrame(fly); else shatter();
+      };
+      function shatter(){
+        try { if (window.SFX && SFX.play) SFX.play('ice_knife_shatter'); } catch(e){}
+        const t0 = performance.now();
+        const dur = 650;
+        const shards = Array.from({length: 18}, (_,i)=>({ a:(i/18)*Math.PI*2, sp: 60 + Math.random()*80 }));
+        const loop = (now) => {
+          const t = Math.min(1, (now - t0)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          const fade = 1 - t;
+          // cold ring
+          ctx.beginPath(); ctx.arc(target.x, target.y, 18 + 28*t, 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(${icy[0]},${icy[1]},${icy[2]},${(0.8*fade).toFixed(2)})`;
+          ctx.lineWidth = 3 - 1.5*t; ctx.stroke();
+          // shards
+          shards.forEach(s=>{
+            const r = 6 + s.sp*t;
+            const x = target.x + Math.cos(s.a)*r;
+            const y = target.y + Math.sin(s.a)*r;
+            ctx.beginPath(); ctx.moveTo(x, y);
+            ctx.lineTo(x + Math.cos(s.a)*8, y + Math.sin(s.a)*8);
+            ctx.strokeStyle = `rgba(255,255,255,${(0.9*fade).toFixed(2)})`;
+            ctx.lineWidth = 1.5; ctx.stroke();
+          });
+          // mist motes
+          for (let i=0;i<12;i++){
+            const ang = (i/12)*Math.PI*2 + now*0.0015;
+            const r = 8 + 20*t + Math.sin(ang*3)*2;
+            const px = target.x + Math.cos(ang)*r, py = target.y + Math.sin(ang)*r;
+            ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(210,235,255,${(0.5*fade).toFixed(2)})`; ctx.fill();
+          }
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(loop); else { destroy(); resolve(); }
+        };
+        requestAnimationFrame(loop);
+      }
+      requestAnimationFrame(fly);
     });
   });
 
