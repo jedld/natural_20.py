@@ -18,6 +18,10 @@
       0% { transform: scale(0.98); opacity: 0.18; }
       100% { transform: scale(1.02); opacity: 0.10; }
     }
+    @keyframes pe-ominous {
+      0% { transform: scale(0.96); opacity: 0.40; }
+      100% { transform: scale(1.04); opacity: 0.18; }
+    }
     @keyframes pe-shimmer {
       0% { box-shadow: 0 0 8px rgba(120,190,255,0.25), inset 0 0 6px rgba(120,190,255,0.2); opacity: 0.25; }
       50% { box-shadow: 0 0 14px rgba(140,210,255,0.40), inset 0 0 10px rgba(140,210,255,0.30); opacity: 0.40; }
@@ -69,9 +73,16 @@
     }
     .pe-bane {
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(180, 60, 60, 0.35) 0%, rgba(130, 30, 30, 0.22) 55%, rgba(120, 20, 20, 0.0) 75%);
-      box-shadow: 0 0 16px rgba(150, 30, 30, 0.35), inset 0 0 10px rgba(150, 30, 30, 0.28);
-      animation: pe-breathe 1.8s ease-in-out infinite alternate;
+      background: radial-gradient(circle, rgba(220, 50, 50, 0.55) 0%, rgba(160, 30, 30, 0.34) 55%, rgba(120, 20, 20, 0.0) 78%);
+      box-shadow: 0 0 18px rgba(160, 30, 30, 0.55), inset 0 0 12px rgba(170, 30, 30, 0.38);
+      animation: pe-ominous 1.6s ease-in-out infinite alternate;
+    }
+    .pe-bane-ring {
+      border-radius: 50%;
+      border: 2px dashed rgba(220, 70, 70, 0.55);
+      box-shadow: 0 0 12px rgba(200, 60, 60, 0.45), inset 0 0 6px rgba(200, 60, 60, 0.30);
+      mix-blend-mode: screen;
+      animation: pe-rotate 3.8s linear infinite;
     }
     `;
     const style = document.createElement('style');
@@ -134,6 +145,10 @@
     // Optional extra layer(s) for certain effects to increase visibility
     if (effKey === 'mage_armor') {
       const $ring = $('<div class="pe-overlay pe-mage-armor-ring">').attr('data-pe', effKey).css({ width: w, height: h, top: 0, left: 0 });
+      $container.append($ring);
+    }
+    if (effKey === 'bane') {
+      const $ring = $('<div class="pe-overlay pe-bane-ring">').attr('data-pe', effKey).css({ width: w, height: h, top: 0, left: 0 });
       $container.append($ring);
     }
 

@@ -1689,7 +1689,7 @@
     });
   });
 
-  // Bane: brief hex flash on targets and faint caster->target thread
+  // Bane: ominous red pulse, clear hex glyph, pulsing ring, and stronger caster->target tethers with impact throb
   register('bane', function(payload){
     return new Promise((resolve)=>{
       const targets = Array.isArray(payload?.target) ? payload.target : [payload?.target].filter(Boolean);
@@ -1697,7 +1697,7 @@
       const src = payload?.source ? centerOfEntity(payload.source) : null;
       const { overlay, ctx, destroy } = createOverlay(1105);
       try { SFX && SFX.play && SFX.play('bane_cast'); } catch(e){}
-      const t0 = performance.now(); const dur = 500;
+      const t0 = performance.now(); const dur = 850;
       const tileSize = ($('.tiles-container').data('tile-size') || 64);
       const centers = targets.map(id => centerOfEntity(id)).filter(Boolean);
       function loop(now){
@@ -1705,19 +1705,59 @@
         ctx.clearRect(0,0,overlay.width, overlay.height);
         ctx.save();
         centers.forEach(c => {
-          const r = Math.max(16, tileSize*0.4) * (0.9 + 0.3*Math.sin(t*Math.PI));
-          const g = ctx.createRadialGradient(c.x, c.y, r*0.1, c.x, c.y, r);
-          g.addColorStop(0, `rgba(200,60,60, ${(0.28*(1-t)).toFixed(2)})`);
-          g.addColorStop(1, `rgba(100,20,20, 0)`);
+          const base = Math.max(18, tileSize*0.46);
+          const puls = 0.5 + 0.5*Math.sin(now*0.012);
+          const r = base * (0.95 + 0.25*Math.sin(t*Math.PI));
+          // darker ominous halo
+          const g = ctx.createRadialGradient(c.x, c.y, r*0.05, c.x, c.y, r);
+          g.addColorStop(0, `rgba(220,50,50, ${(0.42*(1-t)).toFixed(2)})`);
+          g.addColorStop(1, `rgba(90,10,10, 0)`);
           ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI*2); ctx.fill();
-          // simple hex glyph
-          ctx.strokeStyle = `rgba(220,80,80, ${(0.6*(1-t)).toFixed(2)})`; ctx.lineWidth = 2;
-          const sides = 6; const rr = r*0.65; ctx.beginPath();
-          for (let i=0;i<sides;i++){ const a = (Math.PI*2)*i/sides; const x = c.x + Math.cos(a)*rr; const y = c.y + Math.sin(a)*rr; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.closePath(); ctx.stroke();
+          // pulsing dashed ring
+          ctx.setLineDash([6, 6]);
+          ctx.lineDashOffset = -now*0.04;
+          ctx.strokeStyle = `rgba(240,90,90, ${(0.7*(1-t)).toFixed(2)})`;
+          ctx.lineWidth = 2.2;
+          ctx.beginPath(); ctx.arc(c.x, c.y, r*0.9 + puls*2, 0, Math.PI*2); ctx.stroke();
+          ctx.setLineDash([]);
+          // prominent hex glyph
+          ctx.strokeStyle = `rgba(255,110,110, ${(0.8*(1-t)).toFixed(2)})`;
+          ctx.lineWidth = 2.6;
+          const sides = 6; const rr = r*0.68; ctx.beginPath();
+          for (let i=0;i<sides;i++){ const a = (Math.PI*2)*i/sides + 0.1; const x = c.x + Math.cos(a)*rr; const y = c.y + Math.sin(a)*rr; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.closePath(); ctx.stroke();
         });
-        if (src) { centers.forEach(c => { ctx.save(); ctx.globalAlpha = 0.15*(1-t); ctx.strokeStyle = 'rgba(230,200,200,0.25)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(c.x, c.y); ctx.stroke(); ctx.restore(); }); }
+        if (src) {
+          centers.forEach(c => {
+            ctx.save();
+            // stronger tether that fades
+            const a = 0.35*(1-t);
+            const grd = ctx.createLinearGradient(src.x, src.y, c.x, c.y);
+            grd.addColorStop(0, `rgba(255,120,120, ${a.toFixed(2)})`);
+            grd.addColorStop(1, `rgba(160,40,40, 0)`);
+            ctx.strokeStyle = grd; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+            ctx.restore();
+          });
+        }
         ctx.restore();
-        if (t < 1) requestAnimationFrame(loop); else { try { SFX && SFX.play && SFX.play('bane_apply'); } catch(e){} destroy(); resolve(); }
+        if (t < 1) requestAnimationFrame(loop); else {
+          // brief impact throb to signal application
+          const t1 = performance.now();
+          const impact = (now2)=>{
+            const tt = Math.min(1, (now2 - t1)/220);
+            ctx.clearRect(0,0,overlay.width, overlay.height);
+            ctx.save();
+            centers.forEach(c => {
+              const r = Math.max(18, tileSize*0.46) * (1 + 0.25*tt);
+              ctx.strokeStyle = `rgba(255,120,120, ${(0.7*(1-tt)).toFixed(2)})`;
+              ctx.lineWidth = 3 - 1.5*tt;
+              ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI*2); ctx.stroke();
+            });
+            ctx.restore();
+            if (tt < 1) requestAnimationFrame(impact); else { try { SFX && SFX.play && SFX.play('bane_apply'); } catch(e){} destroy(); resolve(); }
+          };
+          requestAnimationFrame(impact);
+        }
       }
       requestAnimationFrame(loop);
     });
