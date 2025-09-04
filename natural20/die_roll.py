@@ -149,9 +149,34 @@ class DieRolls(Rollable):
         return new_die_rolls
 
     def __eq__(self, other):
-        if len(other.rolls) != len(self.rolls):
-            return False
-        return all(r1 == r2 for r1, r2 in zip(self.rolls, other.rolls))
+        # Equality by numeric result when comparing against non-DieRolls collections or numbers
+        if isinstance(other, DieRolls):
+            # Prefer structural equality when both are DieRolls collections and lengths match
+            if len(other.rolls) == len(self.rolls):
+                return all(r1 == r2 for r1, r2 in zip(self.rolls, other.rolls))
+            # Fallback to numeric equality
+            return self.result() == other.result()
+        if isinstance(other, DieRoll):
+            return self.result() == other.result()
+        # numeric fallback
+        return self.result() == other
+
+    # Rich comparisons compare by total numeric result
+    def __lt__(self, other):
+        rhs = other.result() if isinstance(other, (DieRoll, DieRolls)) else other
+        return self.result() < rhs
+
+    def __le__(self, other):
+        rhs = other.result() if isinstance(other, (DieRoll, DieRolls)) else other
+        return self.result() <= rhs
+
+    def __gt__(self, other):
+        rhs = other.result() if isinstance(other, (DieRoll, DieRolls)) else other
+        return self.result() > rhs
+
+    def __ge__(self, other):
+        rhs = other.result() if isinstance(other, (DieRoll, DieRolls)) else other
+        return self.result() >= rhs
 
     def __str__(self):
         parts = []
