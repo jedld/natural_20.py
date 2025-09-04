@@ -1445,6 +1445,233 @@
     });
   });
 
+  // Poison Spray: short-range toxic jet and lingering cloud on target
+  register('poison_spray', function(payload){
+    return new Promise((resolve) => {
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      const tgtId = payload && payload.target;
+      const tgt = tgtId ? centerOfEntity(tgtId) : null;
+      if (!src || !tgt) return resolve();
+
+      const tileSize = ($('.tiles-container').data('tile-size') || 64);
+      const dx = tgt.x - src.x, dy = tgt.y - src.y;
+      const ang = Math.atan2(dy, dx);
+      const maxLen = tileSize * 2.0; // ~10ft range
+      const dist = Math.min(Math.hypot(dx, dy), maxLen);
+
+      const { overlay, ctx, destroy } = createOverlay(1103);
+      try { if (window.SFX && SFX.play) { SFX.play('poison_spray_cast'); } } catch(e){}
+
+      // Local helpers (scoped)
+      const seed = Math.random()*1000;
+      function vnoise(u, t){
+        return (
+          Math.sin(u*2.11 + t*1.73 + seed*0.51) +
+          Math.sin(u*3.97 + t*1.11 + seed*1.27) +
+          Math.sin(u*5.63 + t*0.69 + seed*2.03)
+        ) / 3;
+      }
+
+      // Particles along the jet
+      const particles = [];
+      const jetCount = 120;
+      for (let i=0;i<jetCount;i++){
+        const f = Math.random()*0.25; // start offset along jet
+        const speed = (0.5 + Math.random()*0.7) * (tileSize*3.2);
+        const spread = (Math.PI/18) * (Math.random()*2 - 1); // ~10° spread total
+        particles.push({
+          t: 0,
+          ofs: f*dist,
+          speed,
+          a: ang + spread,
+          r: 1 + Math.random()*2,
+          alpha: 0.8,
+        });
+      }
+
+      const start = performance.now();
+      const jetDur = 520; // ms
+      const cloudDur = 520; // ms
+
+      function drawJet(now){
+        const t = Math.min(1, (now - start)/jetDur);
+        ctx.clearRect(0,0,overlay.width, overlay.height);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+
+        // Soft guide beam (very faint)
+        ctx.save();
+        ctx.translate(src.x, src.y);
+        ctx.rotate(ang);
+        const grad = ctx.createLinearGradient(0,0, dist,0);
+        grad.addColorStop(0, 'rgba(120, 255, 120, 0.15)');
+        grad.addColorStop(1, 'rgba(80, 200, 80, 0.0)');
+        ctx.fillStyle = grad;
+        const beamW = 6;
+        ctx.fillRect(0, -beamW/2, dist, beamW);
+        ctx.restore();
+
+        // Particles
+        const dt = 16;
+        particles.forEach(p => {
+          // small flow wobble
+          const wob = vnoise(p.t*0.01 + p.ofs*0.02, now*0.002) * 0.4;
+          const a = p.a + wob;
+          p.ofs += p.speed * (dt/1000) * (0.4 + 0.6*(1 - 0.5*t));
+          p.t += dt;
+          // clamp to jet length
+          const L = Math.min(p.ofs, dist);
+          const x = src.x + Math.cos(a)*L;
+          const y = src.y + Math.sin(a)*L;
+          const life = Math.min(1, p.t/jetDur);
+          const size = p.r * (1 + 1.2*life);
+          const alpha = p.alpha * (0.9 - 0.7*t) * (0.6 + 0.4*Math.random());
+          // greenish droplet
+          const col = `rgba(${(90+40*Math.random())|0}, ${(200+30*Math.random())|0}, ${(90+20*Math.random())|0}, ${alpha.toFixed(2)})`;
+          ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI*2);
+          ctx.fillStyle = col; ctx.fill();
+        });
+
+        // Misty overlay plume
+        ctx.save();
+        ctx.translate(src.x, src.y); ctx.rotate(ang);
+        const plumeLen = dist * (0.7 + 0.3*t);
+        const plumeW = Math.max(18, tileSize*0.35) * (0.7 + 0.6*t);
+        ctx.globalAlpha = 0.08;
+        for (let i=0;i<6;i++){
+          const yofs = (i-3) * (plumeW/6);
+          ctx.beginPath();
+          ctx.ellipse(plumeLen*0.5, yofs, plumeLen*0.5, plumeW*0.8, 0, 0, Math.PI*2);
+          ctx.fillStyle = 'rgb(90,200,90)'; ctx.fill();
+        }
+        ctx.restore();
+
+        ctx.restore();
+        if (t < 1) requestAnimationFrame(drawJet); else {
+          try { if (window.SFX && SFX.play) { SFX.play('poison_spray_hit'); } } catch(e){}
+          const t0 = performance.now();
+          requestAnimationFrame(function cloudLoop(now2){
+            const tt = Math.min(1, (now2 - t0)/cloudDur);
+            ctx.clearRect(0,0,overlay.width, overlay.height);
+            ctx.save(); ctx.globalCompositeOperation = 'lighter';
+
+            // Lingering cloud at target
+            const cx = src.x + Math.cos(ang)*dist;
+            const cy = src.y + Math.sin(ang)*dist;
+            const baseR = Math.max(tileSize*0.4, 16) * (0.9 + 0.6*tt);
+            for (let i=0;i<10;i++){
+              const rr = baseR * (0.7 + 0.6*Math.random());
+              const a = Math.random()*Math.PI*2;
+              const rad = baseR * (0.2 + 0.6*Math.random());
+              const px = cx + Math.cos(a)*rad;
+              const py = cy + Math.sin(a)*rad;
+              const g = ctx.createRadialGradient(px, py, 2, px, py, rr);
+              g.addColorStop(0, `rgba(190,255,190, ${(0.16*(1-tt)).toFixed(2)})`);
+              g.addColorStop(1, `rgba(60,160,60, ${(0.08*(1-tt)).toFixed(2)})`);
+              ctx.fillStyle = g;
+              ctx.beginPath(); ctx.arc(px, py, rr, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.restore();
+            if (tt < 1) requestAnimationFrame(cloudLoop); else { destroy(); resolve(); }
+          });
+        }
+      }
+      requestAnimationFrame(drawJet);
+    });
+  });
+
+  // Spare the Dying: gentle stabilizing aura and soft pulse on the target
+  register('spare_the_dying', function(payload){
+    return new Promise((resolve) => {
+      const tgtId = payload && payload.target;
+      const target = tgtId ? centerOfEntity(tgtId) : null;
+      if (!target) return resolve();
+
+      const tileSize = ($('.tiles-container').data('tile-size') || 64);
+      const baseR = Math.max(18, tileSize * 0.35);
+
+      const { overlay, ctx, destroy } = createOverlay(1102);
+      try { if (window.SFX && SFX.play) { SFX.play('spare_the_dying_cast'); } } catch(e){}
+
+      const t0 = performance.now();
+      const pulseDur = 520; // ms
+      const fadeDur = 420;  // ms
+
+      function drawCross(cx, cy, size, alpha){
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(255, 240, 200, 0.9)';
+        ctx.lineWidth = Math.max(2, size * 0.12);
+        // simple upright cross
+        ctx.beginPath();
+        ctx.moveTo(cx - size*0.6, cy);
+        ctx.lineTo(cx + size*0.6, cy);
+        ctx.moveTo(cx, cy - size*0.9);
+        ctx.lineTo(cx, cy + size*0.9);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function pulse(now){
+        const t = Math.min(1, (now - t0)/pulseDur);
+        ctx.clearRect(0,0,overlay.width, overlay.height);
+
+        // expanding soft ring
+        const r = baseR * (0.7 + 0.9 * t);
+        const g = ctx.createRadialGradient(target.x, target.y, r*0.1, target.x, target.y, Math.max(r, 1));
+        g.addColorStop(0, `rgba(255, 235, 190, ${(0.35*(1-t)).toFixed(2)})`);
+        g.addColorStop(1, `rgba(120, 220, 160, ${(0.15*(1-t)).toFixed(2)})`);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(target.x, target.y, r, 0, Math.PI*2); ctx.fill();
+
+        // inner bloom
+        const g2 = ctx.createRadialGradient(target.x, target.y, 0, target.x, target.y, r*0.7);
+        g2.addColorStop(0, `rgba(255, 255, 230, ${(0.45*(1-t)).toFixed(2)})`);
+        g2.addColorStop(1, `rgba(200, 255, 220, 0)`);
+        ctx.fillStyle = g2;
+        ctx.beginPath(); ctx.arc(target.x, target.y, r*0.7, 0, Math.PI*2); ctx.fill();
+
+        // subtle cross glyph
+        drawCross(target.x, target.y, r*0.7, 0.6 * (1 - t*0.8));
+
+        // sparkles rising
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        for (let i=0;i<6;i++){
+          const ang = Math.random()*Math.PI*2;
+          const rr = r * (0.2 + 0.7*Math.random());
+          const x = target.x + Math.cos(ang)*rr;
+          const y = target.y + Math.sin(ang)*rr - t*12;
+          const s = 1 + Math.random()*1.5;
+          ctx.fillStyle = `rgba(255, 255, 210, ${(0.25*(1-t)).toFixed(2)})`;
+          ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.restore();
+
+        if (t < 1) requestAnimationFrame(pulse); else {
+          try { if (window.SFX && SFX.play) { SFX.play('spare_the_dying_bloom'); } } catch(e){}
+          const t1 = performance.now();
+          requestAnimationFrame(function fade(now2){
+            const tt = Math.min(1, (now2 - t1)/fadeDur);
+            ctx.clearRect(0,0,overlay.width, overlay.height);
+            // lingering halo
+            const r2 = baseR * (1.1);
+            const gf = ctx.createRadialGradient(target.x, target.y, r2*0.05, target.x, target.y, r2);
+            gf.addColorStop(0, `rgba(255, 250, 220, ${(0.22*(1-tt)).toFixed(2)})`);
+            gf.addColorStop(1, `rgba(140, 230, 180, ${(0.10*(1-tt)).toFixed(2)})`);
+            ctx.fillStyle = gf;
+            ctx.beginPath(); ctx.arc(target.x, target.y, r2, 0, Math.PI*2); ctx.fill();
+
+            // faint cross persists
+            drawCross(target.x, target.y, r2*0.6, 0.25 * (1-tt));
+            if (tt < 1) requestAnimationFrame(fade); else { destroy(); resolve(); }
+          });
+        }
+      }
+
+      requestAnimationFrame(pulse);
+    });
+  });
+
   // Expose API
   global.SpellEffects = { register, play };
 })(window);
