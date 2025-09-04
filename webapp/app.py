@@ -3541,6 +3541,7 @@ def action():
             return jsonify(status='ok')
         return jsonify(action_info)
     except AsyncReactionHandler as e:
+        logger.info(f"AsyncReactionHandler during action: {e}")
         for battle, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
             current_game.set_waiting_for_reaction_input([entity, e, e.resolve(), valid_actions_str])
