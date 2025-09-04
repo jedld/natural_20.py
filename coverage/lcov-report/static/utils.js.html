@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/762</span>
+                <span class='fraction'>0/770</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/762</span>
+                <span class='fraction'>0/770</span>
             </div>
         
             
@@ -825,7 +825,23 @@
 <a name='L760'></a><a href='#L760'>760</a>
 <a name='L761'></a><a href='#L761'>761</a>
 <a name='L762'></a><a href='#L762'>762</a>
-<a name='L763'></a><a href='#L763'>763</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<a name='L763'></a><a href='#L763'>763</a>
+<a name='L764'></a><a href='#L764'>764</a>
+<a name='L765'></a><a href='#L765'>765</a>
+<a name='L766'></a><a href='#L766'>766</a>
+<a name='L767'></a><a href='#L767'>767</a>
+<a name='L768'></a><a href='#L768'>768</a>
+<a name='L769'></a><a href='#L769'>769</a>
+<a name='L770'></a><a href='#L770'>770</a>
+<a name='L771'></a><a href='#L771'>771</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -1645,7 +1661,7 @@
 <span class="cstat-no" title="statement not covered" >    </span>
 <span class="cstat-no" title="statement not covered" >    // Check if optimization is disabled (for debugging)</span>
 <span class="cstat-no" title="statement not covered" >    if (window.disableTileOptimization || is_setup) {</span>
-<span class="cstat-no" title="statement not covered" >      Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) =&gt; {</span>
+<span class="cstat-no" title="statement not covered" >    Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) =&gt; {</span>
 <span class="cstat-no" title="statement not covered" >        // Only apply if this is still the most recent request</span>
 <span class="cstat-no" title="statement not covered" >        if (currentSequence &gt;= (window.lastAppliedSequence || 0)) {</span>
 <span class="cstat-no" title="statement not covered" >          lastMovedEntityBeforeRefresh = null;</span>
@@ -1653,12 +1669,15 @@
 <span class="cstat-no" title="statement not covered" >          window.lastAppliedSequence = currentSequence;</span>
 <span class="cstat-no" title="statement not covered" >          // Refresh portraits when tiles are refreshed</span>
 <span class="cstat-no" title="statement not covered" >          Utils.refreshPortraits();</span>
+<span class="cstat-no" title="statement not covered" >      // Re-apply persistent status overlays (bless/shield/mage armor)</span>
+<span class="cstat-no" title="statement not covered" >      try { if (window.PersistentEffects &amp;&amp; window.PersistentEffects.applyAll) window.PersistentEffects.applyAll(); } catch(e) {}</span>
 <span class="cstat-no" title="statement not covered" >          // Ensure popover menus stay on top after full refresh</span>
 <span class="cstat-no" title="statement not covered" >          Utils.ensurePopoverMenusOnTop();</span>
 <span class="cstat-no" title="statement not covered" >        } else {</span>
 <span class="cstat-no" title="statement not covered" >          console.log('Ignoring out-of-order tile update (full): ' + currentSequence + ' &lt; ' + window.lastAppliedSequence);</span>
 <span class="cstat-no" title="statement not covered" >        }</span>
-<span class="cstat-no" title="statement not covered" >        if (callback) callback();</span>
+<span class="cstat-no" title="statement not covered" >  if (callback) callback();</span>
+<span class="cstat-no" title="statement not covered" >  try { if (window.PersistentEffects &amp;&amp; PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}</span>
 <span class="cstat-no" title="statement not covered" >      });</span>
 <span class="cstat-no" title="statement not covered" >      return;</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
@@ -1725,15 +1744,20 @@
 <span class="cstat-no" title="statement not covered" >      }</span>
 <span class="cstat-no" title="statement not covered" >      </span>
 <span class="cstat-no" title="statement not covered" >      // Update only changed tiles</span>
-<span class="cstat-no" title="statement not covered" >      if (currentSequence &gt;= (window.lastAppliedSequence || 0)) {</span>
+<span class="cstat-no" title="statement not covered" >  if (currentSequence &gt;= (window.lastAppliedSequence || 0)) {</span>
 <span class="cstat-no" title="statement not covered" >        Utils.updateChangedTilesOptimized($newTiles);</span>
 <span class="cstat-no" title="statement not covered" >        window.lastAppliedSequence = currentSequence;</span>
 <span class="cstat-no" title="statement not covered" >        </span>
 <span class="cstat-no" title="statement not covered" >        // Refresh portraits when tiles are refreshed</span>
 <span class="cstat-no" title="statement not covered" >        Utils.refreshPortraits();</span>
+<span class="cstat-no" title="statement not covered" >        // Re-apply persistent status overlays (bless/shield/mage armor)</span>
+<span class="cstat-no" title="statement not covered" >        try { if (window.PersistentEffects &amp;&amp; window.PersistentEffects.applyAll) window.PersistentEffects.applyAll(); } catch(e) {}</span>
 <span class="cstat-no" title="statement not covered" >        </span>
-<span class="cstat-no" title="statement not covered" >        // Ensure popover menus stay on top after optimized updates</span>
+<span class="cstat-no" title="statement not covered" >  // Ensure popover menus stay on top after optimized updates</span>
 <span class="cstat-no" title="statement not covered" >        Utils.ensurePopoverMenusOnTop();</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >  // Re-apply persistent effects overlays after partial updates</span>
+<span class="cstat-no" title="statement not covered" >  try { if (window.PersistentEffects &amp;&amp; PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}</span>
 <span class="cstat-no" title="statement not covered" >        </span>
 <span class="cstat-no" title="statement not covered" >        // Add entity delete buttons for DMs (if function exists)</span>
 <span class="cstat-no" title="statement not covered" >        if (typeof window.addEntityDeleteButtons === 'function') {</span>
@@ -2356,7 +2380,7 @@
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-04T01:19:37.860Z
+                at 2025-09-04T02:03:47.865Z
             </div>
         <script src="../prettify.js"></script>
         <script>

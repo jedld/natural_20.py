@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">14.75% </span>
+                <span class="strong">14.73% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>704/4772</span>
+                <span class='fraction'>704/4777</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">14.75% </span>
+                <span class="strong">14.73% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>704/4772</span>
+                <span class='fraction'>704/4777</span>
             </div>
         
             
@@ -4835,7 +4835,12 @@
 <a name='L4770'></a><a href='#L4770'>4770</a>
 <a name='L4771'></a><a href='#L4771'>4771</a>
 <a name='L4772'></a><a href='#L4772'>4772</a>
-<a name='L4773'></a><a href='#L4773'>4773</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L4773'></a><a href='#L4773'>4773</a>
+<a name='L4774'></a><a href='#L4774'>4774</a>
+<a name='L4775'></a><a href='#L4775'>4775</a>
+<a name='L4776'></a><a href='#L4776'>4776</a>
+<a name='L4777'></a><a href='#L4777'>4777</a>
+<a name='L4778'></a><a href='#L4778'>4778</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">8x</span>
@@ -5591,6 +5596,11 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -10387,7 +10397,9 @@ const switchPOV = <span class="fstat-no" title="function not covered" >(entity_u
 <span class="cstat-no" title="statement not covered" >      const currentMap = $('body').attr('data-current-map');</span>
 <span class="cstat-no" title="statement not covered" >      const isMapChange = !currentMap || (data.name &amp;&amp; data.name !== currentMap);</span>
 <span class="cstat-no" title="statement not covered" >      if (isMapChange) {</span>
-<span class="cstat-no" title="statement not covered" >        Utils.updateMapDisplay(data, canvas);</span>
+<span class="cstat-no" title="statement not covered" >  Utils.updateMapDisplay(data, canvas);</span>
+<span class="cstat-no" title="statement not covered" >  // Re-apply persistent status overlays after map display update</span>
+<span class="cstat-no" title="statement not covered" >  try { if (window.PersistentEffects &amp;&amp; window.PersistentEffects.applyAll) window.PersistentEffects.applyAll(); } catch (e) {}</span>
 <span class="cstat-no" title="statement not covered" >        // Apply map-default effects if provided and DM has no active override.</span>
 <span class="cstat-no" title="statement not covered" >        // If no default and no DM override, clear any previous effects.</span>
 <span class="cstat-no" title="statement not covered" >        try {</span>
@@ -10403,7 +10415,9 @@ const switchPOV = <span class="fstat-no" title="function not covered" >(entity_u
 <span class="cstat-no" title="statement not covered" >          }</span>
 <span class="cstat-no" title="statement not covered" >        } catch (e) { console.warn('Failed to apply/clear effect on POV switch', e); }</span>
 <span class="cstat-no" title="statement not covered" >        // Ask server to (re)send effects after map switch in case client missed anything</span>
-<span class="cstat-no" title="statement not covered" >        try { if (typeof socket !== 'undefined' &amp;&amp; socket &amp;&amp; socket.emit) socket.emit('request_effects'); } catch (e) {}</span>
+<span class="cstat-no" title="statement not covered" >  try { if (typeof socket !== 'undefined' &amp;&amp; socket &amp;&amp; socket.emit) socket.emit('request_effects'); } catch (e) {}</span>
+<span class="cstat-no" title="statement not covered" >  // Re-apply persistent status overlays on map change</span>
+<span class="cstat-no" title="statement not covered" >  try { if (window.PersistentEffects &amp;&amp; PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" >    // update the pov entity id in the body data</span>
@@ -10423,6 +10437,7 @@ const switchPOV = <span class="fstat-no" title="function not covered" >(entity_u
 <span class="cstat-no" title="statement not covered" >        const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);</span>
 <span class="cstat-no" title="statement not covered" >        createGlobalCanvas();</span>
 <span class="cstat-no" title="statement not covered" >        centerOnTile($tile);</span>
+<span class="cstat-no" title="statement not covered" >  try { if (window.PersistentEffects &amp;&amp; PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}</span>
 <span class="cstat-no" title="statement not covered" >      },</span>
 <span class="cstat-no" title="statement not covered" >    );</span>
 <span class="cstat-no" title="statement not covered" >  });</span>
@@ -14386,7 +14401,7 @@ $(document).ready(() =&gt; {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-04T01:19:37.860Z
+                at 2025-09-04T02:03:47.865Z
             </div>
         <script src="../prettify.js"></script>
         <script>

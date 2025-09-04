@@ -887,6 +887,108 @@
     });
   });
 
+  // Cure Wounds: warm ribbon from caster's touch to target, radiant healing bloom and uplifting motes
+  register('cure_wounds', function(payload){
+    return new Promise((resolve) => {
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      const targets = ensureArray(payload && payload.target);
+      const centers = targets.map(centerOfEntity).filter(Boolean);
+      if (!centers.length) return resolve();
+      const { overlay, ctx, destroy } = createOverlay(1101);
+      const green = [120, 255, 180];
+      const gold = [255, 220, 140];
+
+      function ribbonTo(target, done){
+        try { if (window.SFX && SFX.play) SFX.play('cure_wounds_cast'); } catch(e){}
+        if (!src) return done();
+        const start = performance.now();
+        const dur = 420;
+        const ctrl = { x: (src.x + target.x)/2, y: Math.min(src.y, target.y) - 60 };
+        const dash = 10;
+        const draw = (now) => {
+          const t = Math.min(1, (now - start)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          // gradient ribbon
+          const grad = ctx.createLinearGradient(src.x, src.y, target.x, target.y);
+          grad.addColorStop(0, `rgba(${green[0]},${green[1]},${green[2]},0.95)`);
+          grad.addColorStop(1, `rgba(${gold[0]},${gold[1]},${gold[2]},0.9)`);
+          ctx.lineWidth = 5; ctx.strokeStyle = grad;
+          ctx.setLineDash([dash, dash]); ctx.lineDashOffset = (1-t)*dash*4;
+          const x = (1-t)*(1-t)*src.x + 2*(1-t)*t*ctrl.x + t*t*target.x;
+          const y = (1-t)*(1-t)*src.y + 2*(1-t)*t*ctrl.y + t*t*target.y;
+          ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.quadraticCurveTo(ctrl.x, ctrl.y, x, y); ctx.stroke();
+          // head glow
+          ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill();
+          // gentle leaf motes along the path
+          for (let i=0;i<6;i++){
+            const pt = Math.random()*t; const px = src.x + (x - src.x)*pt; const py = src.y + (y - src.y)*pt - 6*(1-pt);
+            ctx.save(); ctx.translate(px, py); ctx.rotate(now*0.002 + i);
+            ctx.fillStyle = `rgba(${green[0]},${green[1]},${green[2]},0.6)`;
+            ctx.beginPath(); ctx.ellipse(0, 0, 2.4, 1.2, 0, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+          }
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(draw); else done();
+        };
+        requestAnimationFrame(draw);
+      }
+
+      function bloomAt(target, done){
+        try { if (window.SFX && SFX.play) SFX.play('cure_wounds_bloom'); } catch(e){}
+        const t0 = performance.now();
+        const total = 800;
+        const draw = (now) => {
+          const t = Math.min(1, (now - t0)/total);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          const r = 14 + 26*t; const a = 0.9*(1 - t);
+          // dual-color halo
+          ctx.beginPath(); ctx.arc(target.x, target.y, r, 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(${gold[0]},${gold[1]},${gold[2]},${(0.55*a).toFixed(2)})`; ctx.lineWidth = 4 - 2*t; ctx.stroke();
+          ctx.beginPath(); ctx.arc(target.x, target.y, r-3, 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(${green[0]},${green[1]},${green[2]},${(0.65*a).toFixed(2)})`; ctx.lineWidth = 2.5 - 1.2*t; ctx.stroke();
+          // petal cross (four ovals)
+          const petals = 4; const pr = 10 + 14*t;
+          for (let i=0;i<petals;i++){
+            const ang = (i/petals)*Math.PI*0.5 + now*0.001;
+            ctx.beginPath();
+            ctx.ellipse(target.x, target.y, pr, pr*0.55, ang, 0, Math.PI*2);
+            ctx.strokeStyle = `rgba(255,255,255,${(0.4*a).toFixed(2)})`;
+            ctx.lineWidth = 1.2; ctx.stroke();
+          }
+          // uplifting motes
+          for (let i=0;i<12;i++){
+            const px = target.x + (Math.random()*2-1)*(8 + 10*t);
+            const py = target.y - 6 - 36*t + Math.random()*10;
+            ctx.beginPath(); ctx.arc(px, py, 1.6, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(255,255,255,${(0.55*a).toFixed(2)})`; ctx.fill();
+          }
+          // subtle heartbeat flash
+          const beat = Math.max(0, Math.sin((now - t0)*0.01));
+          if (beat > 0.9) {
+            ctx.beginPath(); ctx.arc(target.x, target.y, 10 + 20*t, 0, Math.PI*2);
+            ctx.strokeStyle = `rgba(${gold[0]},${gold[1]},${gold[2]},0.25)`; ctx.lineWidth = 2; ctx.stroke();
+          }
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(draw); else done();
+        };
+        requestAnimationFrame(draw);
+      }
+
+      // Support multiple targets by animating sequentially to keep the scene readable.
+      let i = 0;
+      function next(){
+        if (i >= centers.length) { destroy(); resolve(); return; }
+        const tgt = centers[i++];
+        const goBloom = () => bloomAt(tgt, next);
+        if (src) ribbonTo(tgt, goBloom); else goBloom();
+      }
+      next();
+    });
+  });
+
   // Inflict Wounds: ominous necrotic tendrils from caster to target with implosive pulse
   register('inflict_wounds', function(payload){
     return new Promise((resolve) => {
@@ -1040,6 +1142,158 @@
         requestAnimationFrame(loop);
       }
       requestAnimationFrame(fly);
+    });
+  });
+
+  // Chill Touch: spectral skeletal hand rushes to target and grasps with necrotic chill
+  register('chill_touch', function(payload){
+    return new Promise((resolve) => {
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      const targets = ensureArray(payload && payload.target);
+      const centers = targets.map(centerOfEntity).filter(Boolean);
+      const target = centers[0];
+      if (!target) return resolve();
+      const { overlay, ctx, destroy } = createOverlay(1103);
+      const cold = [160, 230, 255]; // ghostly cyan
+      const nec = [120, 60, 180];   // necrotic violet
+      try { if (window.SFX && SFX.play) SFX.play('chill_touch_cast'); } catch(e){}
+
+      // Draw a simple skeletal hand composed of a palm and 5 finger segments.
+      function drawHand(x, y, scale, rot, open){
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(rot || 0);
+        ctx.scale(scale, scale);
+        ctx.globalCompositeOperation = 'screen';
+        // Palm glow
+        ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI*2);
+        ctx.strokeStyle = `rgba(${cold[0]},${cold[1]},${cold[2]},0.85)`; ctx.lineWidth = 2; ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI*2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1; ctx.stroke();
+        // Fingers: 4 upwards, one thumb angled
+        function finger(baseX, baseY, baseAng, lengths){
+          let bx = baseX, by = baseY, ang = baseAng;
+          lengths.forEach((len, idx)=>{
+            const curl = (1 - open) * (0.35 + idx*0.18);
+            const segAng = ang + curl;
+            const nx = bx + Math.cos(segAng)*len;
+            const ny = by + Math.sin(segAng)*len;
+            ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(nx, ny);
+            ctx.strokeStyle = `rgba(${cold[0]},${cold[1]},${cold[2]},0.9)`; ctx.lineWidth = Math.max(1, 2 - idx*0.3); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(nx, ny);
+            ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = Math.max(0.8, 1.5 - idx*0.3); ctx.stroke();
+            bx = nx; by = ny; ang = segAng + 0.12*(1 - open);
+          });
+        }
+        // four fingers
+        const fingerXs = [-6, -2, 2, 6];
+        fingerXs.forEach((fx, i)=> finger(fx, -4, -Math.PI/2 + (i-1.5)*0.08, [6,5,4]));
+        // thumb
+        finger(-7, 2, -2.2, [6,5]);
+        ctx.restore();
+      }
+
+      // Stage 1: brief spectral charge at caster (if available)
+      function charge(next){
+        if (!src) return next();
+        const t0 = performance.now();
+        const dur = 240;
+        const loop = (now) => {
+          const t = Math.min(1, (now - t0)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          const a = 0.8 * (1 - Math.abs(0.5 - t)*2);
+          // swirl at source
+          for (let i=0;i<8;i++){
+            const ang = (i/8)*Math.PI*2 + now*0.004;
+            const r = 8 + 10*t;
+            const x = src.x + Math.cos(ang)*r, y = src.y + Math.sin(ang)*r;
+            ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(${cold[0]},${cold[1]},${cold[2]},${(0.7*a).toFixed(2)})`; ctx.fill();
+          }
+          drawHand(src.x, src.y, 1.0 + 0.2*t, now*0.005, 1);
+          if (t < 1) requestAnimationFrame(loop); else next();
+        };
+        requestAnimationFrame(loop);
+      }
+
+      // Stage 2: hand flies to target along a bezier with wispy trail
+      function fly(next){
+        const t0 = performance.now();
+        const dur = 380;
+        const from = src || { x: target.x - 140, y: target.y - 120 };
+        const ctrl = { x: (from.x + target.x)/2 + (Math.random()<0.5?-1:1)*40, y: (from.y + target.y)/2 - 60 };
+        const trail = [];
+        const loop = (now) => {
+          const t = Math.min(1, (now - t0)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          const x = (1-t)*(1-t)*from.x + 2*(1-t)*t*ctrl.x + t*t*target.x;
+          const y = (1-t)*(1-t)*from.y + 2*(1-t)*t*ctrl.y + t*t*target.y;
+          const rot = Math.atan2(y - ctrl.y, x - ctrl.x);
+          // keep short trail of positions
+          trail.push({x,y,ts: now});
+          while (trail.length > 12) trail.shift();
+          trail.forEach((p, idx)=>{
+            const age = Math.min(1, (now - p.ts)/300);
+            const r = 6 + 10*(1 - age);
+            ctx.beginPath(); ctx.arc(p.x, p.y, r*0.35, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(${cold[0]},${cold[1]},${cold[2]},${(0.25*(1-age)).toFixed(2)})`; ctx.fill();
+          });
+          drawHand(x, y, 1.0, rot + Math.PI/2, 0.95);
+          if (t < 1) requestAnimationFrame(loop); else next();
+        };
+        requestAnimationFrame(loop);
+      }
+
+      // Stage 3: grasp and necrotic chill pulse
+      function grasp(next){
+        try { if (window.SFX && SFX.play) SFX.play('chill_touch_grab'); } catch(e){}
+        const t0 = performance.now();
+        const dur = 560;
+        const loop = (now) => {
+          const t = Math.min(1, (now - t0)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          // hand closes from open->closed on the target
+          const open = 1 - Math.min(1, t*1.2);
+          drawHand(target.x, target.y, 1.15, 0, open);
+          // necrotic ring with icy edge
+          const fade = 1 - Math.abs(0.5 - t)*2; // peaks mid
+          const rr = 18 + 20*t;
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          ctx.beginPath(); ctx.arc(target.x, target.y, rr, 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(${nec[0]},${nec[1]},${nec[2]},${(0.55*fade).toFixed(2)})`; ctx.lineWidth = 3 - 1.2*t; ctx.stroke();
+          ctx.beginPath(); ctx.arc(target.x, target.y, rr+2, 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(${cold[0]},${cold[1]},${cold[2]},${(0.45*fade).toFixed(2)})`; ctx.lineWidth = 1.5; ctx.stroke();
+          // frost cracks
+          for (let i=0;i<10;i++){
+            const ang = (i/10)*Math.PI*2 + now*0.003;
+            const len = 10 + 16*(1 - t);
+            ctx.beginPath(); ctx.moveTo(target.x, target.y);
+            ctx.lineTo(target.x + Math.cos(ang)*len, target.y + Math.sin(ang)*len);
+            ctx.strokeStyle = `rgba(${cold[0]},${cold[1]},${cold[2]},${(0.5*fade).toFixed(2)})`; ctx.lineWidth = 1.2; ctx.stroke();
+          }
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(loop); else next();
+        };
+        requestAnimationFrame(loop);
+      }
+
+      // Stage 4: lingering ghostly imprint that fades
+      function linger(done){
+        const t0 = performance.now();
+        const dur = 350;
+        const loop = (now) => {
+          const t = Math.min(1, (now - t0)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          const a = 1 - t;
+          ctx.save(); ctx.globalAlpha = 0.8*a;
+          drawHand(target.x, target.y, 1.0, 0, 0.2);
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(loop); else done();
+        };
+        requestAnimationFrame(loop);
+      }
+
+      charge(()=> fly(()=> grasp(()=> linger(()=> { destroy(); resolve(); }))));
     });
   });
 

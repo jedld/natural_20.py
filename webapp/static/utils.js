@@ -56,7 +56,7 @@ const Utils = {
     
     // Check if optimization is disabled (for debugging)
     if (window.disableTileOptimization || is_setup) {
-      Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) => {
+    Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) => {
         // Only apply if this is still the most recent request
         if (currentSequence >= (window.lastAppliedSequence || 0)) {
           lastMovedEntityBeforeRefresh = null;
@@ -64,12 +64,15 @@ const Utils = {
           window.lastAppliedSequence = currentSequence;
           // Refresh portraits when tiles are refreshed
           Utils.refreshPortraits();
+      // Re-apply persistent status overlays (bless/shield/mage armor)
+      try { if (window.PersistentEffects && window.PersistentEffects.applyAll) window.PersistentEffects.applyAll(); } catch(e) {}
           // Ensure popover menus stay on top after full refresh
           Utils.ensurePopoverMenusOnTop();
         } else {
           console.log('Ignoring out-of-order tile update (full): ' + currentSequence + ' < ' + window.lastAppliedSequence);
         }
-        if (callback) callback();
+  if (callback) callback();
+  try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
       });
       return;
     }
@@ -136,15 +139,20 @@ const Utils = {
       }
       
       // Update only changed tiles
-      if (currentSequence >= (window.lastAppliedSequence || 0)) {
+  if (currentSequence >= (window.lastAppliedSequence || 0)) {
         Utils.updateChangedTilesOptimized($newTiles);
         window.lastAppliedSequence = currentSequence;
         
         // Refresh portraits when tiles are refreshed
         Utils.refreshPortraits();
+        // Re-apply persistent status overlays (bless/shield/mage armor)
+        try { if (window.PersistentEffects && window.PersistentEffects.applyAll) window.PersistentEffects.applyAll(); } catch(e) {}
         
-        // Ensure popover menus stay on top after optimized updates
+  // Ensure popover menus stay on top after optimized updates
         Utils.ensurePopoverMenusOnTop();
+
+  // Re-apply persistent effects overlays after partial updates
+  try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
         
         // Add entity delete buttons for DMs (if function exists)
         if (typeof window.addEntityDeleteButtons === 'function') {

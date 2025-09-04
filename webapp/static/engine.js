@@ -411,6 +411,7 @@ class EventQueue {
       if (idx >= animationLog.length) {
         console.log('Animation sequence complete, refreshing tile set');
         Utils.refreshTileSet();
+  try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
         resolve();
         return;
       }
@@ -611,6 +612,7 @@ class EventQueue {
     } else {
       // console.log('>>>>>>>>>>>>>>>>>>>>');
       // Utils.refreshTileSet();
+  try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
       resolve();
     }
   }
@@ -621,7 +623,7 @@ class EventQueue {
       const msg = data && data.message ? data.message : data;
       const spellKey = (msg && (msg.spell || msg.label)) || '';
       if (window.SpellEffects && typeof window.SpellEffects.play === 'function') {
-        window.SpellEffects.play(spellKey, msg).then(() => resolve()).catch(() => resolve());
+  window.SpellEffects.play(spellKey, msg).then(() => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); }).catch(() => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); });
         return;
       }
       // Fallback: log only if SpellEffects registry isn’t loaded
@@ -638,7 +640,7 @@ class EventQueue {
     try {
       const msg = data && data.message ? data.message : data;
       if (window.SpellEffects && typeof window.SpellEffects.play === 'function') {
-        window.SpellEffects.play('attack', msg).then(() => resolve()).catch(() => resolve());
+  window.SpellEffects.play('attack', msg).then(() => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); }).catch(() => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); });
         return;
       }
       console.log('Attack animation (no SpellEffects registry found):', msg);
@@ -778,7 +780,9 @@ const switchPOV = (entity_uid, canvas) => {
       const currentMap = $('body').attr('data-current-map');
       const isMapChange = !currentMap || (data.name && data.name !== currentMap);
       if (isMapChange) {
-        Utils.updateMapDisplay(data, canvas);
+  Utils.updateMapDisplay(data, canvas);
+  // Re-apply persistent status overlays after map display update
+  try { if (window.PersistentEffects && window.PersistentEffects.applyAll) window.PersistentEffects.applyAll(); } catch (e) {}
         // Apply map-default effects if provided and DM has no active override.
         // If no default and no DM override, clear any previous effects.
         try {
@@ -794,7 +798,9 @@ const switchPOV = (entity_uid, canvas) => {
           }
         } catch (e) { console.warn('Failed to apply/clear effect on POV switch', e); }
         // Ask server to (re)send effects after map switch in case client missed anything
-        try { if (typeof socket !== 'undefined' && socket && socket.emit) socket.emit('request_effects'); } catch (e) {}
+  try { if (typeof socket !== 'undefined' && socket && socket.emit) socket.emit('request_effects'); } catch (e) {}
+  // Re-apply persistent status overlays on map change
+  try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
       }
     }
     // update the pov entity id in the body data
@@ -814,6 +820,7 @@ const switchPOV = (entity_uid, canvas) => {
         const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
         createGlobalCanvas();
         centerOnTile($tile);
+  try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
       },
     );
   });
