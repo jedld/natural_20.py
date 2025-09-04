@@ -98,7 +98,7 @@
           
           {# --- Render entity on the tile --- #}
           {% else %}
-          {% if tile.conversation_buffer and tile.conversation_buffer|length > 0 %}
+          {% if not tile['dead'] and not tile['unconcious'] and tile.conversation_buffer and tile.conversation_buffer|length > 0 %}
           <div class="conversation-bubble">
             <div class="bubble-content">
               {{ tile.conversation_buffer[-1] }}

@@ -187,7 +187,8 @@ class JsonRenderer:
                             'label': entity.label(),
                             'hiding' : entity.hidden(),
                             'prone': entity.prone(),
-                            'dead': entity.dead(), 'unconscious': entity.unconscious(),
+                            'dead': entity.dead(),
+                            'unconscious': entity.unconscious(),
                             'effects' : [str(effect['effect']) for effect in entity.current_effects()]
                         })
                     result_row.append(attributes)
