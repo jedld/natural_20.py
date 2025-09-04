@@ -87,6 +87,11 @@ class EventQueue {
   }
 
   enqueue(event) {
+    // Drop invalid events early to avoid breaking the queue
+    if (!event || typeof event !== 'object') {
+      console.warn('[EventQueue] Ignoring invalid event:', event);
+      return;
+    }
     if (this.queue.length >= this.maxQueueSize) {
       console.warn('Event queue is full, dropping oldest event');
       this.queue.shift();
@@ -101,9 +106,7 @@ class EventQueue {
   }
 
   async processNext() {
-    if (this.processing || this.queue.length === 0) {
-      return;
-    }
+    if (this.processing || this.queue.length === 0) { return; }
 
     this.processing = true;
 
@@ -117,9 +120,7 @@ class EventQueue {
 
       try {
         await this.processEvent(event);
-
-        // Add a small delay between events to ensure smooth visual transitions
-        // Especially important for movement events that involve animations
+        // Small delay between move events to smooth visuals
         if (event.type === 'move' && this.queue.length > 0) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
@@ -137,13 +138,25 @@ class EventQueue {
 
   async processEvent(data) {
     return new Promise((resolve) => {
+      // Validate event payload
+      if (!data || typeof data !== 'object') {
+        console.warn('[EventQueue] Skipping invalid event payload:', data);
+        resolve();
+        return;
+      }
+      const evtType = data.type;
       if (this.debugMode) {
-        console.log(`[EventQueue] Processing event: ${data.type}`, data);
+        console.log(`[EventQueue] Processing event: ${evtType}`, data);
       } else {
-        console.log("Processing event:", data);
+        console.log('Processing event:', data);
+      }
+      if (!evtType) {
+        console.warn('[EventQueue] Event missing type, skipping:', data);
+        resolve();
+        return;
       }
 
-      switch (data.type) {
+      switch (evtType) {
         case "refresh_map": {
           Utils.refreshTileSet();
           updateDraggableEntityClasses();
@@ -213,8 +226,8 @@ class EventQueue {
           ajaxPost(
             "/response",
             { response: "", callback: data.callback },
-            (resp) => {
-              console.log("Response sent successfully:", resp);
+            () => {
+              console.log("Response sent successfully");
               resolve();
             },
             true,
@@ -273,8 +286,8 @@ class EventQueue {
           resolve();
           break;
         case "reaction":
-          Utils.ajaxGet("/reaction", {}, (data) => {
-            $("#reaction-modal .reaction-content").html(data);
+          Utils.ajaxGet("/reaction", {}, (dataHtml) => {
+            $("#reaction-modal .reaction-content").html(dataHtml);
             $("#reaction-modal").modal("show");
             resolve();
           });
@@ -389,6 +402,11 @@ class EventQueue {
 
   processMoveEvent(data, resolve) {
     const animationBuffer = data.message.animation_log;
+  // Track entities whose tiles are missing to avoid repeated retries and warnings
+  const missingEntities = new Set();
+  const warnedMissingEntities = new Set();
+  const refreshedEntities = new Set();
+  const lastTargetCoords = new Map(); // entity_uid -> [x, y]
     const animateFunction = (animationLog, idx) => {
       if (idx >= animationLog.length) {
         console.log('Animation sequence complete, refreshing tile set');
@@ -412,130 +430,180 @@ class EventQueue {
         return;
       }
       const [entity_uid, path, action] = entry;
-      const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
-      if (action && action.target) {
-        // Check if both source and target tiles exist before drawing action line
-        const $targetTile = $(`.tile[data-coords-id="${action.target}"]`);
-        if ($tile.length > 0 && $targetTile.length > 0) {
-          const opts = {
-            lineWidth: 3,
-            withArrow: true,
-            randomCurve: true,
-            strokeStyle: action.type === "attack" ? "red" : "blue",
-            text: action.label,
-          };
-          drawLine(
-            globalCtx,
-            { x: $tile.data("coords-x"), y: $tile.data("coords-y") },
-            `.tile[data-coords-id="${action.target}"]`,
-            opts,
-          );
-        } else {
-          console.warn('Action line drawing skipped: source or target tile not found', {
-            entity_uid,
-            target: action.target,
-            sourceFound: $tile.length > 0,
-            targetFound: $targetTile.length > 0
-          });
+
+      // Record the last intended position for this entry so we can request a targeted refresh if needed
+      if (Array.isArray(path) && path.length > 0) {
+        const last = path[path.length - 1];
+        if (Array.isArray(last) && last.length === 2) {
+          lastTargetCoords.set(entity_uid, last);
         }
       }
 
-      // Check if the entity tile exists before proceeding with animation
-      if (!$tile.length) {
-        console.warn('Entity tile not found, skipping animation for:', entity_uid);
+      // If we've already established this entity has no tile in the DOM for this event,
+      // skip quickly without retrying again to reduce noise and wasted time.
+      if (missingEntities.has(entity_uid)) {
         animateFunction(animationLog, idx + 1);
         return;
       }
 
-      const tileRect = $tile[0].getBoundingClientRect();
-      const scrollLeft =
-        window.pageXOffset || document.documentElement.scrollLeft;
-      const scrollTop =
-        window.pageYOffset || document.documentElement.scrollTop;
-      let prevX = tileRect.left + scrollLeft;
-      let prevY = tileRect.top + scrollTop;
-
-      const moveFunc = (p, index) => {
-        if (index >= p.length) {
-          // Clean up transition properties when animation is complete
-          $tile.css('transition', '');
-          // Animation for this entity is complete, move to next entity
-          animateFunction(animationLog, idx + 1);
-          return;
-        }
-        const [x, y] = p[index];
-        const $newTile = $(
-          `.tile[data-coords-x="${x}"][data-coords-y="${y}"]`,
-        );
-
-        // Check if the target tile exists
-        if (!$newTile.length) {
-          console.warn('Target tile not found, skipping move step:', { x, y, entity_uid });
-          moveFunc(p, index + 1);
-          return;
-        }
-
-        const newRect = $newTile[0].getBoundingClientRect();
-        const imageContainer = $('.image-container')[0].getBoundingClientRect();
-        const tile_size = $('.tiles-container').data('tile-size');
-        const newX = newRect.left - imageContainer.left + tile_size;
-        const newY = newRect.top - imageContainer.top + tile_size;
-
-        // Set initial position if this is the first move
-        if (index === 0) {
-          $tile.css({
-            position: 'absolute',
-            top: newY,
-            left: newX
-          });
-          prevX = newX;
-          prevY = newY;
-          // Continue immediately to next step
-          moveFunc(p, index + 1);
-          return;
+      const startForTile = ($tile) => {
+        if (action && action.target) {
+          // Check if both source and target tiles exist before drawing action line
+          const $targetTile = $(`.tile[data-coords-id="${action.target}"]`);
+          if ($tile.length > 0 && $targetTile.length > 0) {
+            const opts = {
+              lineWidth: 3,
+              withArrow: true,
+              randomCurve: true,
+              strokeStyle: action.type === "attack" ? "red" : "blue",
+              text: action.label,
+            };
+            drawLine(
+              globalCtx,
+              { x: $tile.data("coords-x"), y: $tile.data("coords-y") },
+              `.tile[data-coords-id="${action.target}"]`,
+              opts,
+            );
+          } else {
+            console.warn('Action line drawing skipped: source or target tile not found', {
+              entity_uid,
+              target: action.target,
+              sourceFound: $tile.length > 0,
+              targetFound: $targetTile.length > 0
+            });
+          }
         }
 
-        // Clear any existing transition to ensure clean state
-        $tile.css('transition', 'none');
+        const tileRect = $tile[0].getBoundingClientRect();
+        const scrollLeft =
+          window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollTop =
+          window.pageYOffset || document.documentElement.scrollTop;
+        let prevX = tileRect.left + scrollLeft;
+        let prevY = tileRect.top + scrollTop;
 
-        // Use requestAnimationFrame to ensure the transition is properly set
-        requestAnimationFrame(() => {
-          $tile.css({
-            position: 'absolute',
-            top: newY,
-            left: newX,
-            transition: 'all 0.3s ease-in-out'
-          });
+        const moveFunc = (p, index) => {
+          if (index >= p.length) {
+            // Clean up transition properties when animation is complete
+            $tile.css('transition', '');
+            // Animation for this entity is complete, move to next entity
+            animateFunction(animationLog, idx + 1);
+            return;
+          }
+          const [x, y] = p[index];
+          const $newTile = $(
+            `.tile[data-coords-x="${x}"][data-coords-y="${y}"]`,
+          );
 
-          // Listen for the transition end event to ensure precise timing
-          const transitionEndHandler = (e) => {
-            if (e.target === $tile[0] && (e.propertyName === 'top' || e.propertyName === 'left')) {
+          // Check if the target tile exists
+          if (!$newTile.length) {
+            console.warn('Target tile not found, skipping move step:', { x, y, entity_uid });
+            moveFunc(p, index + 1);
+            return;
+          }
+
+          const newRect = $newTile[0].getBoundingClientRect();
+          const imageContainer = $('.image-container')[0].getBoundingClientRect();
+          const tile_size = $('.tiles-container').data('tile-size');
+          const newX = newRect.left - imageContainer.left + tile_size;
+          const newY = newRect.top - imageContainer.top + tile_size;
+
+          // Set initial position if this is the first move
+          if (index === 0) {
+            $tile.css({
+              position: 'absolute',
+              top: newY,
+              left: newX
+            });
+            prevX = newX;
+            prevY = newY;
+            // Continue immediately to next step
+            moveFunc(p, index + 1);
+            return;
+          }
+
+          // Clear any existing transition to ensure clean state
+          $tile.css('transition', 'none');
+
+          // Use requestAnimationFrame to ensure the transition is properly set
+          requestAnimationFrame(() => {
+            $tile.css({
+              position: 'absolute',
+              top: newY,
+              left: newX,
+              transition: 'all 0.3s ease-in-out'
+            });
+
+            // Listen for the transition end event to ensure precise timing
+            const transitionEndHandler = (e) => {
+              if (e.target === $tile[0] && (e.propertyName === 'top' || e.propertyName === 'left')) {
+                $tile.off('transitionend', transitionEndHandler);
+                prevX = newX;
+                prevY = newY;
+                moveFunc(p, index + 1);
+              }
+            };
+
+            $tile.on('transitionend', transitionEndHandler);
+
+            // Fallback timeout in case transitionend doesn't fire
+            setTimeout(() => {
               $tile.off('transitionend', transitionEndHandler);
               prevX = newX;
               prevY = newY;
               moveFunc(p, index + 1);
-            }
-          };
+            }, 350); // Slightly longer than transition time as fallback
+          });
+        };
 
-          $tile.on('transitionend', transitionEndHandler);
-
-          // Fallback timeout in case transitionend doesn't fire
-          setTimeout(() => {
-            $tile.off('transitionend', transitionEndHandler);
-            prevX = newX;
-            prevY = newY;
-            moveFunc(p, index + 1);
-          }, 350); // Slightly longer than transition time as fallback
-        });
+        // Start the movement sequence for this entity
+        if (Array.isArray(path) && path.length > 0) {
+          moveFunc(path, 0);
+        } else {
+          // No path to animate, move to next entity immediately
+          animateFunction(animationLog, idx + 1);
+        }
       };
 
-      // Start the movement sequence for this entity
-  if (Array.isArray(path) && path.length > 0) {
-        moveFunc(path, 0);
-      } else {
-        // No path to animate, move to next entity immediately
-        animateFunction(animationLog, idx + 1);
-      }
+      // Try to resolve the entity tile with a brief retry window to tolerate DOM refresh/map switches
+      const tryResolveTile = (attemptsLeft = 6) => {
+        // Primary: tile is indexed by coords-id matching entity uid (usual case)
+        let $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
+        // Fallback: find the entity DOM and climb to its containing tile
+        if (!$tile.length) {
+          const $entityNode = $(`.entity[data-id="${entity_uid}"]`).closest('.tile');
+          if ($entityNode && $entityNode.length) {
+            $tile = $entityNode;
+          }
+        }
+        if ($tile.length) {
+          startForTile($tile);
+        } else if (attemptsLeft > 0) {
+          setTimeout(() => tryResolveTile(attemptsLeft - 1), 100);
+        } else {
+          if (!warnedMissingEntities.has(entity_uid)) {
+            console.warn('Entity tile not found, skipping animation for:', entity_uid);
+            warnedMissingEntities.add(entity_uid);
+          }
+          // Ask backend to refresh around the last intended position so newly visible tiles are fetched
+          if (!refreshedEntities.has(entity_uid)) {
+            const last = lastTargetCoords.get(entity_uid);
+            if (last && Array.isArray(last)) {
+              try {
+                Utils.refreshTileSet(false, true, last[0], last[1], entity_uid);
+                refreshedEntities.add(entity_uid);
+              } catch (e) {
+                console.warn('Failed to request targeted tile refresh for', entity_uid, e);
+              }
+            }
+          }
+          // Mark this entity as missing so subsequent entries in the same event skip immediately
+          missingEntities.add(entity_uid);
+          animateFunction(animationLog, idx + 1);
+        }
+      };
+
+      tryResolveTile();
     };
 
     if (animationBuffer && animationBuffer.length > 0) {
@@ -3249,14 +3317,30 @@ $(document).ready(() => {
   });
 
   function handleAction(entity_uid, action, opts, coordsx, coordsy, data) {
-    if (data.status === 'ok') {
+    if (data && data.status === 'ok') {
       refreshTurn();
       // hide the popover menu
       $(".popover-menu").hide();
       return;
     }
+    // Basic validation and graceful fallback
+    if (!data || typeof data !== 'object') {
+      console.warn('handleAction: invalid response payload', data);
+      return;
+    }
+    if (data.error) {
+      console.error('handleAction: server error', data.error);
+      // Optionally surface to user
+      try { alert(data.error); } catch (e) {}
+      return;
+    }
+    const param0 = (Array.isArray(data.param) && data.param.length > 0) ? data.param[0] : null;
+    if (!param0 || !param0.type) {
+      console.warn('handleAction: missing param/type in response', data);
+      return;
+    }
 
-    switch (data.param[0].type) {
+    switch (param0.type) {
       case "movement":
         moveModeCallback = (path) => {
           // If a jump segment was marked, compute manual_jump indices
@@ -3312,7 +3396,11 @@ $(document).ready(() => {
         break;
       }
       case "select_choice": {
-        const choices = data.param[0].choices;
+        const choices = (param0 && Array.isArray(param0.choices)) ? param0.choices : [];
+        if (!choices || choices.length === 0) {
+          console.warn('handleAction: select_choice without choices', data);
+          return;
+        }
         // create a modal with a list of choices
         const $modal = $(
           '<div class="modal fade" id="select-choice-modal" tabindex="-1" role="dialog" aria-labelledby="select-choice-modal-label" aria-hidden="true">',
@@ -3520,7 +3608,7 @@ $(document).ready(() => {
         initiateTransfer();
         break;
       default:
-        console.log("Unknown action type:", data.param[0].type);
+  console.log("Unknown action type:", param0.type);
     }
     console.log("Action request successful:", data);
   }
