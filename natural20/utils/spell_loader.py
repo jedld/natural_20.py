@@ -25,6 +25,7 @@ def load_spell_class(spell_name):
     from natural20.spell.poison_spray_spell import PoisonSpraySpell
     from natural20.spell.burning_hands_spell import BurningHandsSpell
     from natural20.spell.bane_spell import BaneSpell
+    from natural20.spell.resistance_spell import ResistanceSpell
     # Create a mapping of spell names to spell classes
     spell_classes = {
         'ShockingGraspSpell': ShockingGraspSpell,
@@ -51,7 +52,8 @@ def load_spell_class(spell_name):
         'TrueStrikeSpell': TrueStrikeSpell,
         'PoisonSpraySpell': PoisonSpraySpell,
     'BurningHandsSpell': BurningHandsSpell,
-    'BaneSpell': BaneSpell
+    'BaneSpell': BaneSpell,
+    'ResistanceSpell': ResistanceSpell
     }
 
     if spell_name not in spell_classes:

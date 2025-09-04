@@ -18,12 +18,14 @@ ability:
   cha: 12
 divine_domain: life
 prepared_spells:
+- resistance
 - bane
 - sacred_flame
 - cure_wounds
 - healing_word
 - guiding_bolt
 - bless
+- resistance
 - toll_the_dead
 - inflict_wounds
 - spare_the_dying

@@ -1763,6 +1763,45 @@
     });
   });
 
+  // Resistance: brief protective shimmer on target with teal ring and a soft tether from caster
+  register('resistance', function(payload){
+    return new Promise((resolve)=>{
+      const targets = Array.isArray(payload?.target) ? payload.target : [payload?.target].filter(Boolean);
+      if (!targets.length) return resolve();
+      const src = payload?.source ? centerOfEntity(payload.source) : null;
+      const { overlay, ctx, destroy } = createOverlay(1104);
+  try { SFX && SFX.play && SFX.play('resistance_cast'); } catch(e){}
+      const t0 = performance.now(); const dur = 700;
+      const tileSize = ($('.tiles-container').data('tile-size') || 64);
+      const centers = targets.map(id => centerOfEntity(id)).filter(Boolean);
+      function loop(now){
+        const t = Math.min(1, (now - t0)/dur);
+        ctx.clearRect(0,0,overlay.width, overlay.height);
+        ctx.save(); ctx.globalCompositeOperation = 'screen';
+        centers.forEach(c => {
+          const base = Math.max(18, tileSize*0.5);
+          const r = base * (0.9 + 0.2*Math.sin(t*Math.PI));
+          const g = ctx.createRadialGradient(c.x, c.y, r*0.05, c.x, c.y, r);
+          g.addColorStop(0, `rgba(120, 200, 255, ${(0.42*(1-t)).toFixed(2)})`);
+          g.addColorStop(1, `rgba(60, 140, 220, 0)`);
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI*2); ctx.fill();
+          ctx.strokeStyle = `rgba(140, 220, 255, ${(0.85*(1-t)).toFixed(2)})`;
+          ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(c.x, c.y, r*0.9, 0, Math.PI*2); ctx.stroke();
+        });
+        if (src) {
+          centers.forEach(c => {
+            const a = 0.28*(1-t);
+            ctx.strokeStyle = `rgba(140, 220, 255, ${a.toFixed(2)})`;
+            ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+          });
+        }
+        ctx.restore();
+  if (t < 1) requestAnimationFrame(loop); else { try { SFX && SFX.play && SFX.play('resistance_apply'); } catch(e){} destroy(); resolve(); }
+      }
+      requestAnimationFrame(loop);
+    });
+  });
+
   // Expose API
   global.SpellEffects = { register, play };
 })(window);
