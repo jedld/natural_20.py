@@ -14,7 +14,7 @@ from natural20.uid_containers import EntitiesUIDMap
 
 def action_animator(action):
     def target_id(action):
-        if action.target:
+        if hasattr(action, 'target') and action.target:
             if isinstance(action.target, list):
                 return [t.entity_uid if isinstance(t, Entity) else t for t in action.target]
             if isinstance(action.target, Entity):
@@ -58,6 +58,18 @@ def action_animator(action):
                 'spell': spell_name
             }
         }
+    else:
+        return {
+            'type': 'spell',
+            'message': {
+                'target': target_id(action),
+                'source': action.source.entity_uid,
+                'type': action.action_type,
+                'label': action.label(),
+                'spell': action.action_type
+            }
+        }
+
 class Battle():
     def __init__(self, session: Session, maps: Map, standard_controller=None, animation_log_enabled=False):
         if isinstance(maps, list):
