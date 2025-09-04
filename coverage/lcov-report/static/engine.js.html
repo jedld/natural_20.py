@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">14.73% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>704/4777</span>
+                <span class='fraction'>704/4779</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">14.73% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>704/4777</span>
+                <span class='fraction'>704/4779</span>
             </div>
         
             
@@ -4840,7 +4840,9 @@
 <a name='L4775'></a><a href='#L4775'>4775</a>
 <a name='L4776'></a><a href='#L4776'>4776</a>
 <a name='L4777'></a><a href='#L4777'>4777</a>
-<a name='L4778'></a><a href='#L4778'>4778</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L4778'></a><a href='#L4778'>4778</a>
+<a name='L4779'></a><a href='#L4779'>4779</a>
+<a name='L4780'></a><a href='#L4780'>4780</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">8x</span>
@@ -5243,6 +5245,8 @@
 <span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -10030,6 +10034,7 @@ class EventQueue {
 <span class="cstat-no" title="statement not covered" >      if (idx &gt;= animationLog.length) {</span>
 <span class="cstat-no" title="statement not covered" >        console.log('Animation sequence complete, refreshing tile set');</span>
 <span class="cstat-no" title="statement not covered" >        Utils.refreshTileSet();</span>
+<span class="cstat-no" title="statement not covered" >  try { if (window.PersistentEffects &amp;&amp; PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}</span>
 <span class="cstat-no" title="statement not covered" >        resolve();</span>
 <span class="cstat-no" title="statement not covered" >        return;</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
@@ -10230,6 +10235,7 @@ class EventQueue {
 <span class="cstat-no" title="statement not covered" >    } else {</span>
 <span class="cstat-no" title="statement not covered" >      // console.log('&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;');</span>
 <span class="cstat-no" title="statement not covered" >      // Utils.refreshTileSet();</span>
+<span class="cstat-no" title="statement not covered" >  try { if (window.PersistentEffects &amp;&amp; PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}</span>
 <span class="cstat-no" title="statement not covered" >      resolve();</span>
 <span class="cstat-no" title="statement not covered" >    }</span>
 <span class="cstat-no" title="statement not covered" >  }</span>
@@ -10240,7 +10246,7 @@ class EventQueue {
 <span class="cstat-no" title="statement not covered" >      const msg = data &amp;&amp; data.message ? data.message : data;</span>
 <span class="cstat-no" title="statement not covered" >      const spellKey = (msg &amp;&amp; (msg.spell || msg.label)) || '';</span>
 <span class="cstat-no" title="statement not covered" >      if (window.SpellEffects &amp;&amp; typeof window.SpellEffects.play === 'function') {</span>
-<span class="cstat-no" title="statement not covered" >        window.SpellEffects.play(spellKey, msg).then(() =&gt; resolve()).catch(() =&gt; resolve());</span>
+<span class="cstat-no" title="statement not covered" >  window.SpellEffects.play(spellKey, msg).then(() =&gt; { try { if (window.PersistentEffects &amp;&amp; PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); }).catch(() =&gt; { try { if (window.PersistentEffects &amp;&amp; PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); });</span>
 <span class="cstat-no" title="statement not covered" >        return;</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
 <span class="cstat-no" title="statement not covered" >      // Fallback: log only if SpellEffects registry isn’t loaded</span>
@@ -10257,7 +10263,7 @@ class EventQueue {
 <span class="cstat-no" title="statement not covered" >    try {</span>
 <span class="cstat-no" title="statement not covered" >      const msg = data &amp;&amp; data.message ? data.message : data;</span>
 <span class="cstat-no" title="statement not covered" >      if (window.SpellEffects &amp;&amp; typeof window.SpellEffects.play === 'function') {</span>
-<span class="cstat-no" title="statement not covered" >        window.SpellEffects.play('attack', msg).then(() =&gt; resolve()).catch(() =&gt; resolve());</span>
+<span class="cstat-no" title="statement not covered" >  window.SpellEffects.play('attack', msg).then(() =&gt; { try { if (window.PersistentEffects &amp;&amp; PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); }).catch(() =&gt; { try { if (window.PersistentEffects &amp;&amp; PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); });</span>
 <span class="cstat-no" title="statement not covered" >        return;</span>
 <span class="cstat-no" title="statement not covered" >      }</span>
 <span class="cstat-no" title="statement not covered" >      console.log('Attack animation (no SpellEffects registry found):', msg);</span>
@@ -14401,7 +14407,7 @@ $(document).ready(() =&gt; {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-04T02:03:47.865Z
+                at 2025-09-04T06:28:04.377Z
             </div>
         <script src="../prettify.js"></script>
         <script>

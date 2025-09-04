@@ -43,7 +43,6 @@ class BurningHandsSpell(Spell):
     def avg_damage(self, battle, opts=None):
         return self._damage(battle, opts).expected()
 
-
     def compute_hit_probability(self, battle, opts=None):
         """
         Compute the hit probability for the spell
@@ -59,10 +58,10 @@ class BurningHandsSpell(Spell):
 
         target = spell_action.target
 
-    
         source_pos = battle_map.position_of(entity)
         squares = battle_map.squares_in_cone(source_pos, target, self.properties['range_cone'] // battle_map.feet_per_grid, require_los=True)
         entity_targets = []
+
         for square in squares:
             _entity = battle_map.entity_at(square[0], square[1])
             if _entity is not None:
