@@ -881,13 +881,16 @@ class GameManagement:
             # Check if the action affects visibility (doors, lighting, etc.) and emit refresh_map
             if hasattr(action, 'result') and action.result:
                 for result_item in action.result:
-                    if (result_item.get('type') == 'interact' and 
+                    if (result_item.get('type') == 'interact' and
                         result_item.get('action') in ['open', 'close']):
                         # Door open/close affects line of sight, refresh the map
                         self.socketio.emit('message', {'type': 'refresh_map'})
                         break
                     elif result_item.get('type') == 'look':
                         # Look action can reveal notes and concealed entities, refresh the map
+                        self.socketio.emit('message', {'type': 'refresh_map'})
+                        break
+                    elif result_item.get('refresh_map'):
                         self.socketio.emit('message', {'type': 'refresh_map'})
                         break
 

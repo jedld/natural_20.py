@@ -32,7 +32,7 @@ class IceKnifeSpell(AttackSpell):
     def avg_damage(self, battle, opts=None):
         return self._damage(battle, opts).expected()
 
-    def resolve(self, entity, battle, spell_action, _battle_map):
+    def resolve(self, entity, battle, spell_action, battle_map):
         target = spell_action.target
         results = []
         hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events_info = evaluate_spell_attack(self.session, entity, target, self.properties, battle=battle, opts={"action": spell_action})
@@ -56,6 +56,7 @@ class IceKnifeSpell(AttackSpell):
             results.append({
                 'source': entity,
                 'target': target,
+                'map': battle_map,
                 'type': 'ice_knife',
                 'at_level': self.action.at_level,
                 'effect': self,
@@ -87,7 +88,7 @@ class IceKnifeSpell(AttackSpell):
     @staticmethod
     def apply(battle, item, session=None):
         if item['type'] == 'ice_knife':
-            map = battle.map_for(item['source'])
+            map = item.get('map') or battle.map_for(item['source'])
 
             # On hit, the target and all creatures within 5 feet of the target must make a Dexterity saving throw.
             affected_entities = [item['target']] + map.entities_in_range(item['target'], 5)
