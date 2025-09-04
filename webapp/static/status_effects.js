@@ -112,6 +112,7 @@
     shield: 'pe-shield',
     mage_armor: 'pe-mage-armor',
   bane: 'pe-bane',
+  resistance: 'pe-bless',
   };
 
   function createOverlayFor($tile, effKey){
