@@ -67,6 +67,12 @@
       mix-blend-mode: screen;
       animation: pe-shimmer 1.4s ease-in-out infinite;
     }
+    .pe-bane {
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(180, 60, 60, 0.35) 0%, rgba(130, 30, 30, 0.22) 55%, rgba(120, 20, 20, 0.0) 75%);
+      box-shadow: 0 0 16px rgba(150, 30, 30, 0.35), inset 0 0 10px rgba(150, 30, 30, 0.28);
+      animation: pe-breathe 1.8s ease-in-out infinite alternate;
+    }
     `;
     const style = document.createElement('style');
     style.id = 'persistent-effects-style';
@@ -94,6 +100,7 @@
     bless: 'pe-bless',
     shield: 'pe-shield',
     mage_armor: 'pe-mage-armor',
+  bane: 'pe-bane',
   };
 
   function createOverlayFor($tile, effKey){

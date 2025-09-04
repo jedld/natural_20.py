@@ -31,6 +31,9 @@ def evaluate_spell_attack(session, entity, target, spell_properties, battle=None
         if entity.has_effect('bless'):
             bless_roll = DieRoll.roll("1d4", description='dice_roll.bless', entity=entity, battle=battle)
             attack_roll += bless_roll
+        if entity.has_effect('bane'):
+            bane_roll = DieRoll.roll("1d4", description='dice_roll.bane', entity=entity, battle=battle)
+            attack_roll += DieRoll.roll("-" + str(bane_roll.result()), battle=battle, entity=entity)
         
         if action:
             action.attack_roll = attack_roll
