@@ -68,6 +68,24 @@ bane:
   spell_list_classes:
     - Cleric
   spell_class: Natural20::Bane
+resistance:
+  label: Resistance
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  description: |
+    You touch one willing creature. Once before the spell ends, the target can roll a d4 and add the number rolled to one saving throw of its choice. It can roll the die before or after making the saving throw. The spell then ends.
+  duration: 1m
+  level: 0
+  name: Resistance
+  range: 5
+  school: abjuration
+  type: buff
+  concentration: true
+  spell_list_classes:
+    - Cleric
+  spell_class: Natural20::Resistance
 burning_hands:
   label: Burning Hands
   casting_time: 1:action
