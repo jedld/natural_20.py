@@ -1131,9 +1131,14 @@
         // Default facing to the right if no target
         angle = 0;
       }
-  const range = tileSize * 3.2; // ~15 ft reach
   // Match backend cone half-aperture: atan(0.5) ≈ 26.565° (distance equals width)
   const halfAngle = Math.atan(0.5);
+  // Use range in squares if provided; default 3 (15 ft). Add sqrt(2)/2 buffer like backend.
+  const squaresRange = (payload && (payload.range_squares || payload.range || payload.range_cone)) || 3;
+  const pxRange = squaresRange * tileSize;
+  const pxBufferR = tileSize * Math.SQRT2 / 2; // partial-overlap buffer
+  const baseMaxR = pxRange + pxBufferR;
+  const maskHalfAngle = halfAngle + 0.02; // tiny epsilon to better cover boundary squares
 
       const { overlay, ctx, destroy } = createOverlay(1103);
       try { if (window.SFX && SFX.play) { SFX.play('burning_hands_cast'); } } catch(e){}
@@ -1150,16 +1155,17 @@
 
       // Build a softly jittered cone-like mask
       function jitteredPath(now, baseR){
-        const a0 = angle - halfAngle*1.1;
-        const a1 = angle + halfAngle*1.1;
-        const steps = 30;
+        const a0 = angle - maskHalfAngle;
+        const a1 = angle + maskHalfAngle;
+        const steps = 34;
+        const ampPx = Math.max(2, tileSize * 0.12); // keep jitter small to not undercut coverage
         ctx.beginPath();
         ctx.moveTo(src.x, src.y);
         for (let i=0; i<=steps; i++){
           const f = i/steps;
           const aa = a0 + (a1 - a0)*f;
           const n = vnoise(aa*0.9, now*0.002);
-          const r = baseR * (0.86 + 0.13*n);
+          const r = baseR + n * ampPx;
           const x = src.x + Math.cos(aa)*r;
           const y = src.y + Math.sin(aa)*r;
           ctx.lineTo(x, y);
@@ -1198,7 +1204,7 @@
         ctx.clearRect(0,0,overlay.width, overlay.height);
         ctx.save(); ctx.globalCompositeOperation = 'screen';
         const ease = 1 - Math.pow(1 - t, 3);
-        const r = range * (0.8 + 0.2*ease);
+  const r = baseMaxR * (0.85 + 0.15*ease);
         if (!particles.length) initParticles(r);
 
         // Masked plasma body
@@ -1223,7 +1229,7 @@
         }
 
         // Flowing veins
-        const veins = 9;
+  const veins = 9;
         for (let i=0;i<veins;i++){
           const frac = (i+1)/(veins+1);
           const base = r * frac;
@@ -1259,7 +1265,7 @@
 
         // Edge glow hint (not a hard wedge)
         jitteredPath(now, r);
-        ctx.strokeStyle = `rgba(${colEdge[0]},${colEdge[1]},${colEdge[2]},${(0.45*ease).toFixed(2)})`;
+  ctx.strokeStyle = `rgba(${colEdge[0]},${colEdge[1]},${colEdge[2]},${(0.45*ease).toFixed(2)})`;
         ctx.lineWidth = 1.8;
         ctx.stroke();
 
@@ -1271,9 +1277,9 @@
             const tt = Math.min(1, (now2 - t0)/280);
             ctx.clearRect(0,0,overlay.width, overlay.height);
             ctx.save(); ctx.globalCompositeOperation = 'screen';
-            jitteredPath(now2, range*0.7);
+            jitteredPath(now2, baseMaxR*0.7);
             ctx.clip();
-            const g = ctx.createRadialGradient(src.x, src.y, 6, src.x, src.y, range*0.7);
+            const g = ctx.createRadialGradient(src.x, src.y, 6, src.x, src.y, baseMaxR*0.7);
             g.addColorStop(0, `rgba(${colCore[0]},${colCore[1]},${colCore[2]},${(0.14*(1-tt)).toFixed(2)})`);
             g.addColorStop(1, `rgba(${colBody[0]},${colBody[1]},${colBody[2]},${(0.08*(1-tt)).toFixed(2)})`);
             ctx.fillStyle = g; ctx.fillRect(0,0,overlay.width, overlay.height);
