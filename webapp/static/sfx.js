@@ -82,6 +82,16 @@
         case 'bless_cast':
           chord(t0, [660, 990, 1320], 0.5, 'sine', 0.4);
           break;
+        case 'chill_touch_cast':
+          // eerie spectral swell
+          glide(t0, 660, 440, 0.22, 'sine', 0.35);
+          playNoise(t0, 0.25, { band: [700, 2000] });
+          break;
+        case 'chill_touch_grab':
+          // cold snap + low hum
+          chord(t0, [196, 261.6], 0.25, 'triangle', 0.5);
+          glide(t0+0.05, 220, 180, 0.2, 'sine', 0.25);
+          break;
         case 'guiding_bolt_charge':
           glide(t0, 220, 880, 0.18, 'sine', 0.5);
           break;
@@ -117,6 +127,12 @@
           break;
         case 'healing_word_cast':
           chord(t0, [523.25, 659.25, 783.99], 0.7, 'sine', 0.45); // C5-E5-G5
+          break;
+        case 'cure_wounds_cast':
+          chord(t0, [392, 523.25, 659.25], 0.5, 'sine', 0.45); // G4-C5-E5
+          break;
+        case 'cure_wounds_bloom':
+          chord(t0, [659.25, 880], 0.6, 'triangle', 0.5);
           break;
         case 'inflict_wounds_cast':
           glide(t0, 180, 120, 0.25, 'sine', 0.5); playNoise(t0, 0.22, { band: [200, 1200] });
