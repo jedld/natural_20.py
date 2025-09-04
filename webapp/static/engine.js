@@ -3350,9 +3350,9 @@ $(document).ready(() => {
 
   function handleAction(entity_uid, action, opts, coordsx, coordsy, data) {
     if (data && data.status === 'ok') {
-      refreshTurn();
-      // hide the popover menu
       $(".popover-menu").hide();
+      $("#modal-1").modal("hide");
+      refreshTurn();
       return;
     }
     // Basic validation and graceful fallback
