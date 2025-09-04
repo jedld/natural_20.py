@@ -30,6 +30,7 @@ prepared_spells:
 - find_familiar
 - true_strike
 - poison_spray
+- thunderwave
 languages:
 - common
 - elvish

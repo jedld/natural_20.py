@@ -163,7 +163,9 @@ class EventManager:
 
         def spell_damage(event):
             if event.get('spell_save', None):
-                self.output_logger.log(f"{self.show_name(event)} cast {event['spell']['name']} on {self.show_target_name(event)} and hits with {event['spell_save']}={event['spell_save'].result()} < DC: {event['dc']} for {event['damage']} damage.")
+                # Handle both failed and successful saves (half damage)
+                cmp = '<' if event['spell_save'].result() < event['dc'] else '>='
+                self.output_logger.log(f"{self.show_name(event)} cast {event['spell']['name']} on {self.show_target_name(event)} and {'hits' if cmp=='<' else 'deals'} with {event['spell_save']}={event['spell_save'].result()} {cmp} DC: {event['dc']} for {event['damage']} damage.")
             else:
                 self.output_logger.log(f"{self.show_name(event)} cast {event['spell']['name']} on {self.show_target_name(event)} and hit with {event['attack_roll']}{to_advantage_str(event)}= {event['attack_roll'].result()} for {event['damage']} damage.")
 
@@ -197,7 +199,7 @@ class EventManager:
             if event.get('sneak_attack'):
                 self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} {keyword} {damage} {event['damage_type']} damage and {event['sneak_attack']}={event['sneak_attack'].result()} sneak attack damage. {msg}")
             else:
-                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} {keyword} {damage} {event['damage_type']} damage. {msg}"),
+                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} {keyword} {damage} {event['damage_type']} damage. {msg}")
 
             if event.get('instant_death'):
                 self.output_logger.log(f"{self.show_name(event)} died instantly.")
@@ -243,9 +245,9 @@ class EventManager:
 
         def death_save(event):
             if event['roll'].nat_20():
-                self.output_logger.log(f"{self.show_name(event)} makes a death saving throw and succeeds with a critical success: {event['roll']} = {event['roll'].result()}. {event['source'].label()} is now at {event['source'].hit_points()} hit points."),
+                self.output_logger.log(f"{self.show_name(event)} makes a death saving throw and succeeds with a critical success: {event['roll']} = {event['roll'].result()}. {event['source'].label()} is now at {event['source'].hit_points()} hit points.")
             else:
-                self.output_logger.log(f"{self.show_name(event)} makes a death saving throw and succeeds: {event['roll']} = {event['roll'].result()}"),
+                self.output_logger.log(f"{self.show_name(event)} makes a death saving throw and succeeds: {event['roll']} = {event['roll'].result()}")
 
         def conversation(event):
             if event['targets']:
@@ -324,6 +326,10 @@ class EventManager:
             ),
             'unlock': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} unlocked the door. Reason: {event.get('reason', 'No reason provided')}"
+            )
+            ,
+            'thunderwave_push': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} is pushed by thunderwave to {event.get('position')}" if event.get('position') else f"{self.show_name(event)} resisted being moved by thunderwave."
             )
         }
 
