@@ -214,6 +214,12 @@
           // Soft, reassuring bloom
           chord(t0, [523.25, 659.25], 0.5, 'triangle', 0.4);
           break;
+        case 'resistance_cast':
+          chord(t0, [523.25, 698.46], 0.45, 'sine', 0.35);
+          break;
+        case 'resistance_apply':
+          glide(t0, 400, 520, 0.22, 'triangle', 0.3);
+          break;
         case 'inflict_wounds_cast':
           glide(t0, 180, 120, 0.25, 'sine', 0.5); playNoise(t0, 0.22, { band: [200, 1200] });
           break;
