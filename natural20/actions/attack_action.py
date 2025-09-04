@@ -319,6 +319,9 @@ class AttackAction(Action):
                 if self.source.has_effect('bless'):
                     bless_roll = DieRoll.roll("1d4", description='dice_roll.bless', entity=self.source, battle=battle)
                     self.attack_roll += bless_roll
+                if self.source.has_effect('bane'):
+                    bane_roll = DieRoll.roll("1d4", description='dice_roll.bane', entity=self.source, battle=battle)
+                    self.attack_roll += DieRoll.roll("-" + str(bane_roll.result()), battle=battle, entity=self.source)
 
             # print(f"{self.source.name} rolls a {attack_roll} to attack {target.name}")
             self.source.resolve_trigger('attack_resolved', {'target': target})
