@@ -91,6 +91,7 @@ class ShoveAction(Action):
                 "type": "shove",
                 "success": True,
                 "battle": battle,
+                "refresh_map": True,
                 "map": map,
                 "shove_loc": shove_loc,
                 "knock_prone": self.knock_prone,

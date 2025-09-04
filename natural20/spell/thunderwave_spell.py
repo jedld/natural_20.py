@@ -12,10 +12,7 @@ class ThunderwaveSpell(Spell):
             opts = {}
         at_level = opts.get('at_level', getattr(self.action, 'at_level', 1) or 1)
         dice = 2 + max(0, at_level - 1)  # 2d8 + 1d8 per slot level above 1st
-        if opts.get('half'):
-            dice = f"({dice}d8) / 2"
-        else:
-            dice = f"{dice}d8"
+        dice = f"{dice}d8"
         return DieRoll.roll(dice, crit=crit, battle=battle, entity=self.source, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.thunderwave')))
 
     def avg_damage(self, battle, opts=None):
@@ -53,7 +50,7 @@ class ThunderwaveSpell(Spell):
             if tgt is not None and tgt != entity:
                 if tgt not in entity_targets:
                     entity_targets.append(tgt)
-
+        damage_roll = self._damage(battle, opts={'at_level': spell_action.at_level or 1})
         for tgt in entity_targets:
             failed = False
 
@@ -64,9 +61,7 @@ class ThunderwaveSpell(Spell):
                 failed = save < dc
             else:
                 failed = True
-
             if failed:
-                damage_roll = self._damage(battle, opts={'at_level': spell_action.at_level or 1})
                 results.append({
                     'source': entity,
                     'target': tgt,
@@ -90,13 +85,13 @@ class ThunderwaveSpell(Spell):
                     'type': 'thunderwave_push',
                     'source': entity,
                     'target': tgt,
+                    'refresh_map': True,
                     'map': battle_map,
                     'push_to': push_to
                 })
             else:
                 # Half damage on a successful save
-                damage_roll = self._damage(battle, opts={'half': True, 'at_level': spell_action.at_level or 1})
-                half_value = damage_roll
+                half_value = damage_roll.half()
                 results.append({
                     'source': entity,
                     'target': tgt,
@@ -133,13 +128,4 @@ class ThunderwaveSpell(Spell):
                     'source': item['source'],
                     'target': item['target'],
                     'position': push_to
-                    })
-            else:
-                # Could not push due to obstruction
-                if evt_mgr:
-                    evt_mgr.received_event({
-                    'event': 'thunderwave_push',
-                    'source': item['source'],
-                    'target': item['target'],
-                    'position': None
                     })
