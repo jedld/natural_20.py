@@ -21,6 +21,7 @@ def action_animator(action):
                 return action.target.entity_uid
             return action.target
         return None
+
     if action and action.action_type == 'attack':
         return {
             'type': 'attack',
@@ -32,7 +33,7 @@ def action_animator(action):
                 'label': action.label()
             }
         }
-    if action and action.action_type == 'spell' and action.target:
+    elif action and action.action_type == 'spell':
         # Try to include the spell short name (e.g., 'bless') for client-side visuals
         try:
             spell_name = None

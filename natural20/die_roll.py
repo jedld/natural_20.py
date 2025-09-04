@@ -5,6 +5,7 @@ import copy
 import pdb
 import re
 from collections import deque
+
 # Global dictionary used for "fudged" rolls.
 FUDGE_HASH = {}
 DIE_ROLL = {}
@@ -210,7 +211,8 @@ class DieRolls(Rollable):
 
 class DieRoll(Rollable):
     def __init__(self, rolls, modifier, die_sides=20, advantage=False, disadvantage=False,
-                 description=None, roller=None, prev_roll=None, modifier_op=None, modifier_val=None):
+                 description=None, roller=None, prev_roll=None, modifier_op=None, modifier_val=None,
+                 halved=False):
         self.rolls = rolls
         self.modifier = modifier  # Keep for backward compatibility
         self.modifier_op = modifier_op  # The operation: '+', '-', '*', '/'
@@ -221,6 +223,14 @@ class DieRoll(Rollable):
         self.description = description
         self.roller = roller
         self.prev_roll = prev_roll
+        self.halved = halved
+
+    def clone(self):
+        return DieRoll(self.rolls[:], self.modifier, self.die_sides,
+                       advantage=self.advantage, disadvantage=self.disadvantage,
+                       description=self.description, roller=self.roller,
+                       prev_roll=self.prev_roll, modifier_op=self.modifier_op,
+                       modifier_val=self.modifier_val, halved=self.halved)
 
     def nat_20(self):
         if self.die_sides != 20:
@@ -295,8 +305,16 @@ class DieRoll(Rollable):
                 result *= self.modifier_val
             elif self.modifier_op == '/':
                 result = int(result / self.modifier_val)  # Integer division for dice rolls
-        
+
+        if self.halved:
+            result = int(result // 2)
+
         return result
+
+    def half(self):
+        _roll = self.clone()
+        _roll.halved = True
+        return _roll
 
     def expected(self):
         if self.die_sides == 0:
@@ -375,16 +393,17 @@ class DieRoll(Rollable):
         if self.modifier_op and self.modifier_val is not None:
             base_str += f" {self.modifier_op} {self.modifier_val}"
         
+        if self.halved:
+            base_str += " / 2"
         return base_str
 
     def __repr__(self):
         return self.__str__()
 
     def __str__(self):
-        if self.prev_roll:
+        if self.prev_roll and self != self.prev_roll:
             return f"{self.prev_roll.describe()} lucky -> {self.describe()}"
         return self.describe()
-    
 
     # support >= and <=
     def __ge__(self, other):
