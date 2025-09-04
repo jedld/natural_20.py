@@ -220,6 +220,14 @@
         case 'inflict_wounds_impact':
           chord(t0, [110, 220], 0.4, 'triangle', 0.6);
           break;
+        case 'bane_cast':
+          // Dark, minor third interval
+          chord(t0, [220, 261.6], 0.3, 'sine', 0.35);
+          break;
+        case 'bane_apply':
+          // Subtle ominous throb
+          glide(t0, 200, 170, 0.25, 'sine', 0.35);
+          break;
         case 'ice_knife_throw':
           glide(t0, 1320, 880, 0.18, 'sine', 0.35);
           break;
