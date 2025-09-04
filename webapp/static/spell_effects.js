@@ -1579,6 +1579,179 @@
     });
   });
 
+  // Thunderwave: concussive burst from caster with jagged shock ring, diamond wave, and push hints
+  register('thunderwave', function(payload){
+    return new Promise((resolve) => {
+      const srcId = payload && payload.source;
+      const src = srcId ? centerOfEntity(srcId) : null;
+      if (!src) return resolve();
+      const { overlay, ctx, destroy } = createOverlay(1105);
+      const tileSize = ($('.tiles-container').data('tile-size') || 64);
+      const targets = ensureArray(payload && payload.target);
+      const centers = targets.map(centerOfEntity).filter(Boolean);
+
+      // Optional facing support: if payload.target is [tx,ty] tile coords or a vector, use it for directional accents
+      let facingAngle = null;
+      (function computeFacing(){
+        try {
+          if (Array.isArray(payload?.target) && payload.target.length === 2 && typeof payload.target[0] === 'number' && typeof payload.target[1] === 'number'){
+            const srcTile = entityTileCoords(srcId);
+            if (srcTile) {
+              const dxg = payload.target[0] - srcTile[0];
+              const dyg = payload.target[1] - srcTile[1];
+              if (dxg !== 0 || dyg !== 0) facingAngle = Math.atan2(dyg, dxg);
+            } else {
+              const tgtCenter = tileCenterByCoords(payload.target[0], payload.target[1]);
+              if (tgtCenter) facingAngle = Math.atan2(tgtCenter.y - src.y, tgtCenter.x - src.x);
+            }
+          }
+        } catch(e){}
+      })();
+
+      try { if (window.SFX && SFX.play) SFX.play('thunderwave_cast'); } catch(e){}
+
+      // Helper: jagged lightning segment
+      function drawLightning(ax, ay, bx, by, jitter, alpha, width){
+        const dx = bx - ax, dy = by - ay; const dist = Math.max(1, Math.hypot(dx, dy));
+        const nx = -dy/dist, ny = dx/dist; // normal
+        const steps = Math.max(6, Math.floor(dist/28));
+        ctx.save(); ctx.globalCompositeOperation = 'screen';
+        ctx.lineWidth = width || 2.5;
+        ctx.strokeStyle = `rgba(200,230,255,${alpha.toFixed(2)})`;
+        ctx.beginPath();
+        for (let i=0;i<=steps;i++){
+          const t = i/steps;
+          const x = ax + dx*t, y = ay + dy*t;
+          const amp = jitter * (1 - Math.abs(0.5 - t)*2);
+          const off = (Math.random()*2 - 1) * amp;
+          const jx = x + nx*off, jy = y + ny*off;
+          if (i===0) ctx.moveTo(jx, jy); else ctx.lineTo(jx, jy);
+        }
+        ctx.stroke();
+        // inner bright core
+        ctx.lineWidth = Math.max(1, (width||2.5)*0.5);
+        ctx.strokeStyle = `rgba(255,255,255,${(alpha*0.95).toFixed(2)})`;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Stage 1: brief charge swirl at caster
+      const tCharge0 = performance.now();
+      const chargeDur = 200;
+      function charge(now){
+        const t = Math.min(1, (now - tCharge0)/chargeDur);
+        ctx.clearRect(0,0,overlay.width, overlay.height);
+        const a = 0.9 * (1 - Math.abs(0.5 - t)*2);
+        ctx.save(); ctx.globalCompositeOperation = 'screen';
+        // tight glowing core
+        const r0 = 8 + 10*t;
+        const g = ctx.createRadialGradient(src.x, src.y, 2, src.x, src.y, r0);
+        g.addColorStop(0, `rgba(255,255,255, ${(0.7*a).toFixed(2)})`);
+        g.addColorStop(1, `rgba(150,200,255, ${(0.5*a).toFixed(2)})`);
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(src.x, src.y, r0, 0, Math.PI*2); ctx.fill();
+        // small sparks
+        for (let i=0;i<8;i++){
+          const ang = (i/8)*Math.PI*2 + now*0.01;
+          const rr = 16 + 8*Math.sin(now*0.02 + i);
+          const x = src.x + Math.cos(ang)*rr, y = src.y + Math.sin(ang)*rr;
+          ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(220,240,255, ${(0.5*a).toFixed(2)})`; ctx.fill();
+        }
+        ctx.restore();
+        if (t < 1) requestAnimationFrame(charge); else boom();
+      }
+
+      // Stage 2: concussive boom with diamond + halo and lightning cracks; subtle camera shake
+      function boom(){
+        try { if (window.SFX && SFX.play) SFX.play('thunderwave_boom'); } catch(e){}
+        const t0 = performance.now();
+        const dur = 720;
+        const rMax = tileSize * 3.2; // ~15ft + a bit
+        requestAnimationFrame(function loop(now){
+          const t = Math.min(1, (now - t0)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          const ease = 1 - Math.pow(1 - t, 2);
+          // screen shake that decays quickly
+          const shake = (1 - t) * 6;
+          ctx.save(); ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+          ctx.globalCompositeOperation = 'screen';
+
+          // Expanding diamond (rotated square) outline
+          const r = rMax * ease;
+          const a1 = 0.9 * (1 - t);
+          ctx.beginPath();
+          ctx.moveTo(src.x + r, src.y);
+          ctx.lineTo(src.x, src.y + r);
+          ctx.lineTo(src.x - r, src.y);
+          ctx.lineTo(src.x, src.y - r);
+          ctx.closePath();
+          ctx.strokeStyle = `rgba(200,230,255, ${a1.toFixed(2)})`;
+          ctx.lineWidth = 3 - 1.5*t; ctx.stroke();
+          // inner bright diamond
+          ctx.strokeStyle = `rgba(255,255,255, ${(0.85*a1).toFixed(2)})`;
+          ctx.lineWidth = 1.5; ctx.stroke();
+
+          // Soft circular halo blending the harsh edges
+          ctx.beginPath(); ctx.arc(src.x, src.y, Math.max(1, r*0.92), 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(160,200,255, ${(0.5*(1-t)).toFixed(2)})`;
+          ctx.lineWidth = 2.2 - 1.2*t; ctx.stroke();
+
+          // Directional emphasis: draw a brighter arc in facing direction if known
+          if (facingAngle != null){
+            ctx.beginPath(); ctx.arc(src.x, src.y, Math.max(8, r*0.9), facingAngle - Math.PI/6, facingAngle + Math.PI/6);
+            ctx.strokeStyle = `rgba(255,255,255, ${(0.9*(1-t)).toFixed(2)})`; ctx.lineWidth = 3; ctx.stroke();
+          }
+
+          // Lightning cracks radiating outward
+          const bolts = 8;
+          for (let i=0;i<bolts;i++){
+            const ang = (i/bolts)*Math.PI*2 + (facingAngle!=null ? (i%2===0?0.08:-0.08) : 0);
+            const bx = src.x + Math.cos(ang)*r;
+            const by = src.y + Math.sin(ang)*r;
+            drawLightning(src.x, src.y, bx, by, 16, 0.65*(1 - t*0.6), 2.5);
+          }
+
+          // Push hints on provided targets (short streaks from center through targets)
+          centers.forEach((c, idx)=>{
+            const dir = Math.atan2(c.y - src.y, c.x - src.x);
+            const len = Math.min(r*0.8, Math.hypot(c.x - src.x, c.y - src.y));
+            const ex = src.x + Math.cos(dir)*len;
+            const ey = src.y + Math.sin(dir)*len;
+            ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(ex, ey);
+            ctx.strokeStyle = `rgba(255,255,255, ${(0.45*(1-t)).toFixed(2)})`;
+            ctx.lineWidth = 2; ctx.stroke();
+            // small ring bursting at the target tip
+            ctx.beginPath(); ctx.arc(ex, ey, 10 + 14*(1 - (1-ease)*(1-ease)), 0, Math.PI*2);
+            ctx.strokeStyle = `rgba(180,210,255, ${(0.35*(1-t)).toFixed(2)})`; ctx.lineWidth = 1.6; ctx.stroke();
+          });
+
+          ctx.restore(); // shake
+          if (t < 1) requestAnimationFrame(loop); else linger();
+        });
+      }
+
+      // Stage 3: brief lingering resonance that fades
+      function linger(){
+        const t0 = performance.now();
+        const dur = 320;
+        requestAnimationFrame(function f(now){
+          const t = Math.min(1, (now - t0)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          const r = tileSize * 2.2;
+          const g = ctx.createRadialGradient(src.x, src.y, 6, src.x, src.y, r);
+          g.addColorStop(0, `rgba(255,255,255, ${(0.12*(1-t)).toFixed(2)})`);
+          g.addColorStop(1, `rgba(150,200,255, ${(0.06*(1-t)).toFixed(2)})`);
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(src.x, src.y, r, 0, Math.PI*2); ctx.fill();
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(f); else { destroy(); resolve(); }
+        });
+      }
+
+      requestAnimationFrame(charge);
+    });
+  });
+
   // Spare the Dying: gentle stabilizing aura and soft pulse on the target
   register('spare_the_dying', function(payload){
     return new Promise((resolve) => {

@@ -329,7 +329,7 @@ class EventManager:
             )
             ,
             'thunderwave_push': lambda event: self.output_logger.log(
-                f"{self.show_name(event)} is pushed by thunderwave to {event.get('position')}" if event.get('position') else f"{self.show_name(event)} resisted being moved by thunderwave."
+                f"{self.show_target_name(event)} is pushed by thunderwave to {event.get('position')}" if event.get('position') else f"{self.show_name(event)} resisted being moved by thunderwave."
             )
         }
 
