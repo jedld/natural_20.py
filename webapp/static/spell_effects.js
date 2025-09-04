@@ -1975,6 +1975,221 @@
     });
   });
 
+  // Second Wind: invigorating inward swirl, heartbeat bloom, and uplifting motes
+  register('second_wind', function(payload){
+    return new Promise((resolve)=>{
+      const srcId = payload && payload.source;
+      const c = srcId ? centerOfEntity(srcId) : null;
+      if (!c) return resolve();
+      const tileSize = ($('.tiles-container').data('tile-size') || 64);
+      const baseR = Math.max(26, tileSize * 0.85);
+      const { overlay, ctx, destroy } = createOverlay(1105);
+      try { if (window.SFX && SFX.play) SFX.play('second_wind_cast'); } catch(e){}
+
+      // Stage 1: inward swirl (gives a sense of drawing breath/strength)
+      const t0 = performance.now();
+      const dur1 = 260;
+      function stage1(now){
+        const t = Math.min(1, (now - t0)/dur1);
+        ctx.clearRect(0,0,overlay.width, overlay.height);
+        const a = 0.95 * (1 - t);
+        ctx.save(); ctx.globalCompositeOperation = 'screen';
+        const rings = 4;
+        for (let i=0;i<rings;i++){
+          const f = i/(rings-1);
+          const r = baseR * (1.2 - 0.3*t) * (0.55 + 0.55*f);
+          ctx.setLineDash([6,6]);
+          ctx.lineDashOffset = (1-t) * 28 * (i%2?1:-1);
+          ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(140,220,255, ${(0.75*a).toFixed(2)})`;
+          ctx.lineWidth = 3.0; ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        // stronger core glow
+        const g = ctx.createRadialGradient(c.x, c.y, 2, c.x, c.y, baseR*0.7);
+        g.addColorStop(0, `rgba(255,255,255, ${(0.6*a).toFixed(2)})`);
+        g.addColorStop(1, `rgba(100,200,180, ${(0.3*a).toFixed(2)})`);
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, baseR*0.7, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+        if (t < 1) requestAnimationFrame(stage1); else stage2();
+      }
+
+      // Stage 2: heartbeat healing bloom with uplifting motes
+      function stage2(){
+        const t1 = performance.now();
+        const dur2 = 850;
+        requestAnimationFrame(function loop(now){
+          const t = Math.min(1, (now - t1)/dur2);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          const beat = Math.max(0, Math.sin((now - t1)*0.012));
+          const r = baseR * (0.9 + 0.6*t + 0.1*beat);
+          // soft fill glow
+          const gf = ctx.createRadialGradient(c.x, c.y, 4, c.x, c.y, r*0.95);
+          gf.addColorStop(0, `rgba(255,255,255, ${(0.22*(1-t)).toFixed(2)})`);
+          gf.addColorStop(1, `rgba(140,220,200, ${(0.10*(1-t)).toFixed(2)})`);
+          ctx.fillStyle = gf; ctx.beginPath(); ctx.arc(c.x, c.y, r*0.95, 0, Math.PI*2); ctx.fill();
+          // dual halo
+          ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(140,220,255, ${(0.85*(1-t)).toFixed(2)})`;
+          ctx.lineWidth = 3.4 - 1.4*t; ctx.stroke();
+          ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(6, r-6), 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(255,255,255, ${(0.7*(1-t)).toFixed(2)})`; ctx.lineWidth = 2.0; ctx.stroke();
+          // uplifting motes
+          for (let i=0;i<16;i++){
+            const ang = Math.random()*Math.PI*2;
+            const rr = r * (0.2 + 0.6*Math.random());
+            const x = c.x + Math.cos(ang)*rr;
+            const y = c.y + Math.sin(ang)*rr - 14*t;
+            const s = 1.2 + Math.random()*1.6;
+            ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(220,255,240, ${(0.5*(1-t)).toFixed(2)})`; ctx.fill();
+          }
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(loop); else stage3();
+        });
+      }
+
+      // Stage 3: quick, gentle fade
+      function stage3(){
+        const t2 = performance.now();
+        const dur3 = 420;
+        requestAnimationFrame(function fade(now){
+          const t = Math.min(1, (now - t2)/dur3);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          const g = ctx.createRadialGradient(c.x, c.y, 4, c.x, c.y, baseR*1.1);
+          g.addColorStop(0, `rgba(255,255,255, ${(0.2*(1-t)).toFixed(2)})`);
+          g.addColorStop(1, `rgba(120,220,200, ${(0.1*(1-t)).toFixed(2)})`);
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, baseR*1.1, 0, Math.PI*2); ctx.fill();
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(fade); else { destroy(); resolve(); }
+        });
+      }
+
+      requestAnimationFrame(stage1);
+    });
+  });
+
+  // Action Surge: time-slice ripple, speed streaks, and rotating tick marks
+  register('action_surge', function(payload){
+    return new Promise((resolve)=>{
+      const srcId = payload && payload.source;
+      const c = srcId ? centerOfEntity(srcId) : null;
+      if (!c) return resolve();
+      const tileSize = ($('.tiles-container').data('tile-size') || 64);
+      const baseR = Math.max(22, tileSize * 0.7);
+      const { overlay, ctx, destroy } = createOverlay(1105);
+      try { if (window.SFX && SFX.play) SFX.play('action_surge_cast'); } catch(e){}
+
+      // Stage 1: snap preflash
+      const t0 = performance.now();
+      const dur1 = 180;
+      function stage1(now){
+        const t = Math.min(1, (now - t0)/dur1);
+        ctx.clearRect(0,0,overlay.width, overlay.height);
+        ctx.save(); ctx.globalCompositeOperation = 'screen';
+        const a = 1 - t;
+        // core flash
+        ctx.beginPath(); ctx.arc(c.x, c.y, 8 + 6*t, 0, Math.PI*2);
+        ctx.fillStyle = `rgba(255,255,255, ${(0.8*a).toFixed(2)})`; ctx.fill();
+        // tick marks (like a speed dial)
+        const ticks = 12; const r = baseR*0.8;
+        ctx.strokeStyle = `rgba(160,200,255, ${(0.9*a).toFixed(2)})`; ctx.lineWidth = 2;
+        for (let i=0;i<ticks;i++){
+          const ang = (i/ticks)*Math.PI*2 + now*0.01;
+          const x0 = c.x + Math.cos(ang)*(r-6);
+          const y0 = c.y + Math.sin(ang)*(r-6);
+          const x1 = c.x + Math.cos(ang)*r;
+          const y1 = c.y + Math.sin(ang)*r;
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        }
+        ctx.restore();
+        if (t < 1) requestAnimationFrame(stage1); else stage2();
+      }
+
+      // Stage 2: main ripple with speed streaks and rotating ticks
+      function stage2(){
+        try { if (window.SFX && SFX.play) SFX.play('action_surge_surge'); } catch(e){}
+        const t1 = performance.now();
+        const dur2 = 640;
+        const streaks = Array.from({length: 22}, (_,i)=>({
+          a: (i/22)*Math.PI*2,
+          len: baseR * (0.8 + Math.random()*0.6),
+          w: 2 + Math.random()*2,
+          phase: Math.random()*Math.PI*2
+        }));
+        requestAnimationFrame(function loop(now){
+          const t = Math.min(1, (now - t1)/dur2);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          const ease = 1 - Math.pow(1 - t, 2);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          // expanding ripple ring
+          const r = baseR * (0.8 + 1.0*ease);
+          ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(200,230,255, ${(0.75*(1-t)).toFixed(2)})`;
+          ctx.lineWidth = 3 - 1.5*t; ctx.stroke();
+          // inner bright edge
+          ctx.beginPath(); ctx.arc(c.x, c.y, r-4, 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(255,255,255, ${(0.65*(1-t)).toFixed(2)})`; ctx.lineWidth = 1.4; ctx.stroke();
+          // rotating ticks
+          const ticks = 16; const rr = r*0.8;
+          ctx.strokeStyle = `rgba(160,200,255, ${(0.8*(1-t)).toFixed(2)})`; ctx.lineWidth = 2;
+          for (let i=0;i<ticks;i++){
+            const ang = (i/ticks)*Math.PI*2 + now*0.008;
+            const x0 = c.x + Math.cos(ang)*(rr-6);
+            const y0 = c.y + Math.sin(ang)*(rr-6);
+            const x1 = c.x + Math.cos(ang)*rr;
+            const y1 = c.y + Math.sin(ang)*rr;
+            ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+          }
+          // speed streaks
+          streaks.forEach(s => {
+            const wob = Math.sin(now*0.01 + s.phase) * 0.15;
+            const ang = s.a + wob;
+            const len = s.len * (0.6 + 0.6*ease);
+            const fade = 1 - t;
+            const x0 = c.x + Math.cos(ang)*(r*0.4);
+            const y0 = c.y + Math.sin(ang)*(r*0.4);
+            const x1 = c.x + Math.cos(ang)*(r*0.4 + len);
+            const y1 = c.y + Math.sin(ang)*(r*0.4 + len);
+            const grd = ctx.createLinearGradient(x0, y0, x1, y1);
+            grd.addColorStop(0, `rgba(255,255,255, ${(0.55*fade).toFixed(2)})`);
+            grd.addColorStop(1, `rgba(140,200,255, ${(0.05*fade).toFixed(2)})`);
+            ctx.strokeStyle = grd; ctx.lineWidth = s.w;
+            ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+          });
+          // subtle opposing arcs (afterimage sweep)
+          ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(8, rr*0.9), Math.PI*0.15 + now*0.002, Math.PI*0.3 + now*0.002);
+          ctx.strokeStyle = `rgba(255,255,255, ${(0.4*(1-t)).toFixed(2)})`; ctx.lineWidth = 2; ctx.stroke();
+          ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(8, rr*0.9), -Math.PI*0.3 - now*0.002, -Math.PI*0.15 - now*0.002);
+          ctx.strokeStyle = `rgba(200,230,255, ${(0.3*(1-t)).toFixed(2)})`; ctx.lineWidth = 2; ctx.stroke();
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(loop); else stage3();
+        });
+      }
+
+      // Stage 3: quick fade-out
+      function stage3(){
+        const t2 = performance.now();
+        const dur3 = 260;
+        requestAnimationFrame(function fade(now){
+          const t = Math.min(1, (now - t2)/dur3);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          const g = ctx.createRadialGradient(c.x, c.y, 4, c.x, c.y, baseR*1.2);
+          g.addColorStop(0, `rgba(255,255,255, ${(0.16*(1-t)).toFixed(2)})`);
+          g.addColorStop(1, `rgba(160,200,255, ${(0.07*(1-t)).toFixed(2)})`);
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, baseR*1.2, 0, Math.PI*2); ctx.fill();
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(fade); else { destroy(); resolve(); }
+        });
+      }
+
+      requestAnimationFrame(stage1);
+    });
+  });
+
   // Expose API
   global.SpellEffects = { register, play };
 })(window);
