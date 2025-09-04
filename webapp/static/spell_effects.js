@@ -1583,6 +1583,8 @@
   register('spare_the_dying', function(payload){
     return new Promise((resolve) => {
       const tgtId = payload && payload.target;
+      const srcId = payload && payload.source;
+      const source = srcId ? centerOfEntity(srcId) : null;
       const target = tgtId ? centerOfEntity(tgtId) : null;
       if (!target) return resolve();
 
@@ -1615,6 +1617,21 @@
       function pulse(now){
         const t = Math.min(1, (now - t0)/pulseDur);
         ctx.clearRect(0,0,overlay.width, overlay.height);
+
+        // optional faint link from caster to target
+        if (source) {
+          ctx.save();
+          ctx.globalAlpha = 0.15 * (1 - t*0.7);
+          const grad = ctx.createLinearGradient(source.x, source.y, target.x, target.y);
+          grad.addColorStop(0, 'rgba(220,255,220,0.0)');
+          grad.addColorStop(0.3, 'rgba(230,255,230,0.25)');
+          grad.addColorStop(0.7, 'rgba(230,255,230,0.15)');
+          grad.addColorStop(1, 'rgba(220,255,220,0.0)');
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = Math.max(2, tileSize * 0.03);
+          ctx.beginPath(); ctx.moveTo(source.x, source.y); ctx.lineTo(target.x, target.y); ctx.stroke();
+          ctx.restore();
+        }
 
         // expanding soft ring
         const r = baseR * (0.7 + 0.9 * t);
