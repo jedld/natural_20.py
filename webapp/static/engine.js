@@ -622,15 +622,40 @@ class EventQueue {
     try {
       const msg = data && data.message ? data.message : data;
       const spellKey = (msg && (msg.spell || msg.label)) || '';
+      const refreshAfter = () => {
+        try {
+          // Targeted refresh for source and all targets to update effect icons and concentration
+          const targets = Array.isArray(msg && msg.target) ? msg.target : (msg && msg.target ? [msg.target] : []);
+          const ids = [];
+          if (msg && msg.source) ids.push(msg.source);
+          targets.forEach(t => { if (t != null) ids.push(t); });
+          // If we have entity ids, do one refresh; server can choose to optimize by entity
+          if (ids.length > 1) {
+            // Multiple affected entities; do a full refresh to update all icons/portraits
+            Utils.refreshTileSet();
+          } else if (ids.length === 1) {
+            // Targeted refresh for a single entity
+            Utils.refreshTileSet(false, true, 0, 0, ids[0]);
+          } else {
+            Utils.refreshTileSet();
+          }
+        } catch (e) {
+          try { Utils.refreshTileSet(); } catch (_) {}
+        }
+        try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
+      };
       if (window.SpellEffects && typeof window.SpellEffects.play === 'function') {
-  window.SpellEffects.play(spellKey, msg).then(() => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); }).catch(() => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); });
+  window.SpellEffects.play(spellKey, msg).then(() => { refreshAfter(); resolve(); }).catch(() => { refreshAfter(); resolve(); });
         return;
       }
       // Fallback: log only if SpellEffects registry isn’t loaded
       console.log('Casting spell (no SpellEffects registry found):', msg);
+      try { refreshAfter(); } catch (e) {}
       resolve();
     } catch (e) {
       console.warn('processSpellEvent failed', e);
+      try { Utils.refreshTileSet(); } catch (_) {}
+      try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
       try { resolve(); } catch (_) {}
     }
   }
