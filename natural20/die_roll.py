@@ -1,3 +1,4 @@
+from typing import Optional
 import random
 import i18n
 import copy
@@ -11,10 +12,10 @@ DIE_ROLLS = deque(maxlen=100)
 
 class DieRollDetail:
     def __init__(self):
-        self.die_count = None   # Integer: number of dice to roll or fixed number value
-        self.die_type = None    # String: e.g. "20" for a d20; empty if not a dice roll
-        self.modifier = None    # String: digits for the modifier (if any)
-        self.modifier_op = None  # String: '+' or '-' (if any)
+        self.die_count: Optional[int] = None   # Integer: number of dice to roll or fixed number value
+        self.die_type: Optional[str] = None    # String: e.g. "20" for a d20; empty if not a dice roll
+        self.modifier: Optional[str] = None    # String: digits for the modifier (if any)
+        self.modifier_op: Optional[str] = None  # String: '+', '-', '*', or '/' (if any)
 
 class Rollable:
     def result(self):
@@ -97,9 +98,20 @@ class Roller:
         else:
             rolls = [DieRoll.generate_number(die_sides) for _ in range(number_of_die)]
 
-        mod_value = 0 if not modifier_str else int(f"{modifier_op}{modifier_str}")
-        result = DieRoll(rolls, mod_value, die_sides,
-                       advantage=self.advantage, disadvantage=self.disadvantage, roller=self)
+        # Handle the modifier operation
+        if modifier_op in ['*', '/']:
+            # For multiplication and division, use the new system
+            mod_value = 0  # No legacy modifier
+            modifier_val = int(modifier_str) if modifier_str else None
+            result = DieRoll(rolls, mod_value, die_sides,
+                           advantage=self.advantage, disadvantage=self.disadvantage, roller=self,
+                           modifier_op=modifier_op, modifier_val=modifier_val)
+        else:
+            # For addition and subtraction, use the legacy system for backward compatibility
+            mod_value = 0 if not modifier_str else int(f"{modifier_op}{modifier_str}")
+            result = DieRoll(rolls, mod_value, die_sides,
+                           advantage=self.advantage, disadvantage=self.disadvantage, roller=self)
+        
         DIE_ROLLS.append(result)
         return result
 
@@ -198,9 +210,11 @@ class DieRolls(Rollable):
 
 class DieRoll(Rollable):
     def __init__(self, rolls, modifier, die_sides=20, advantage=False, disadvantage=False,
-                 description=None, roller=None, prev_roll=None):
+                 description=None, roller=None, prev_roll=None, modifier_op=None, modifier_val=None):
         self.rolls = rolls
-        self.modifier = modifier
+        self.modifier = modifier  # Keep for backward compatibility
+        self.modifier_op = modifier_op  # The operation: '+', '-', '*', '/'
+        self.modifier_val = modifier_val  # The operand value
         self.die_sides = die_sides
         self.advantage = advantage
         self.disadvantage = disadvantage
@@ -257,7 +271,8 @@ class DieRoll(Rollable):
         desc = f"(lucky) {self.description} {self.rolls} -> {new_rolls}" if lucky else self.description
         return DieRoll(new_rolls, self.modifier, self.die_sides,
                        advantage=self.advantage, disadvantage=self.disadvantage,
-                       roller=self.roller, description=desc, prev_roll=self)
+                       roller=self.roller, description=desc, prev_roll=self,
+                       modifier_op=self.modifier_op, modifier_val=self.modifier_val)
 
     def result(self):
         if self.advantage:
@@ -266,7 +281,22 @@ class DieRoll(Rollable):
             total = sum(min(roll) if isinstance(roll, (tuple, list)) else roll for roll in self.rolls)
         else:
             total = sum(self.rolls)
-        return total + self.modifier
+        
+        # Apply operations in order: first the legacy modifier (for backward compatibility)
+        result = total + self.modifier
+        
+        # Then apply the new modifier operation if present
+        if self.modifier_op and self.modifier_val is not None:
+            if self.modifier_op == '+':
+                result += self.modifier_val
+            elif self.modifier_op == '-':
+                result -= self.modifier_val
+            elif self.modifier_op == '*':
+                result *= self.modifier_val
+            elif self.modifier_op == '/':
+                result = int(result / self.modifier_val)  # Integer division for dice rolls
+        
+        return result
 
     def expected(self):
         if self.die_sides == 0:
@@ -333,10 +363,19 @@ class DieRoll(Rollable):
             else:
                 roll_parts.append(self.color_roll(r))
         rolls_str = ' + '.join(roll_parts)
+        
+        # Handle legacy modifier
         if self.modifier != 0:
             sign = ' - ' if self.modifier < 0 else ' + '
-            return f"d{self.die_sides}({rolls_str}){sign}{abs(self.modifier)}"
-        return f"d{self.die_sides}({rolls_str})"
+            base_str = f"d{self.die_sides}({rolls_str}){sign}{abs(self.modifier)}"
+        else:
+            base_str = f"d{self.die_sides}({rolls_str})"
+        
+        # Handle new modifier operations
+        if self.modifier_op and self.modifier_val is not None:
+            base_str += f" {self.modifier_op} {self.modifier_val}"
+        
+        return base_str
 
     def __repr__(self):
         return self.__str__()
@@ -394,12 +433,12 @@ class DieRoll(Rollable):
     def parse(roll_str: str) -> DieRollDetail:
         """
         Parse a dice roll string into its components.
-        Expected format: "[number]d[sides][+/-modifier]"
-        For example: "2d6+3" or "d20" or just "5" (a fixed modifier).
+        Expected format: "[number]d[sides][+/-/*// modifier]"
+        For example: "2d6+3" or "d20" or "1d20/2" or just "5" (a fixed modifier).
         """
         roll_str = str(roll_str).strip()
         # Try to parse with a regular expression.
-        pattern = r'^(?:(\d+)?d(\d+))?(?:\s*([+-])\s*(\d+))?$'
+        pattern = r'^(?:(\d+)?d(\d+))?(?:\s*([+\-*/])\s*(\d+))?$'
         match = re.match(pattern, roll_str)
         detail = DieRollDetail()
         if match:
@@ -436,6 +475,12 @@ class DieRoll(Rollable):
                             state = 'modifier'
                         elif c == '-':
                             modifier_op = '-'
+                            state = 'modifier'
+                        elif c == '*':
+                            modifier_op = '*'
+                            state = 'modifier'
+                        elif c == '/':
+                            modifier_op = '/'
                             state = 'modifier'
                 elif state == 'modifier':
                     if c != ' ' and DieRoll.numeric(c):

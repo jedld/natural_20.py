@@ -20,7 +20,7 @@ class HideAction(Action):
 
     @staticmethod
     def build(session, source):
-        action = HideAction(session, source, 'attack')
+        action = HideAction(session, source, 'hide')
         return action.build_map()
 
     def resolve(self, session, map, opts=None):

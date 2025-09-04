@@ -132,5 +132,10 @@ class TestDieRoll(unittest.TestCase):
     d8_roll = DieRoll.roll('1d8')
     self.assertFalse(d8_roll.nat_20())
 
+  def test_math_operations(self):
+      DieRoll.fudge(20, 20)
+      roll = DieRoll.roll('1d20 / 2')
+      self.assertEqual(roll.result(), 10)
+
 if __name__ == '__main__':
   unittest.main()
