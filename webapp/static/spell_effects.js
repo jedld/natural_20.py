@@ -16,148 +16,97 @@
     return null;
   }
 
-  function getTileCenterFallback($tile) {
-    if (!$tile || !$tile.length || !$tile[0] || !$tile[0].getBoundingClientRect) return null;
-    const rect = $tile[0].getBoundingClientRect();
-    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const tileSize = ($('.tiles-container').data('tile-size') || 64);
-    return { x: rect.left + scrollLeft + tileSize/2, y: rect.top + scrollTop + tileSize/2 };
+  // Get pixel center of tile by map coordinates (data-coords-x/y)
+  function tileCenterByCoords(tx, ty){
+    try {
+      const el = document.querySelector(`.tile[data-coords-x="${tx}"][data-coords-y="${ty}"]`);
+      if (!el) return null;
+      const $tile = typeof $ === 'function' ? $(el) : null;
+      if ($tile && $tile.length){
+        const p = getTileCenterFromEngine($tile);
+        if (p) return p;
+      }
+      const rect = el.getBoundingClientRect();
+      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      return { x: rect.left + scrollLeft + rect.width/2, y: rect.top + scrollTop + rect.height/2 };
+    } catch(e){ return null; }
   }
 
-  function centerOfEntity(entityId) {
-    const $tile = $(`.tile[data-coords-id="${entityId}"]`);
-    let pt = getTileCenterFromEngine($tile);
-    if (!pt) pt = getTileCenterFallback($tile);
-    return pt;
+  // Get tile coordinates [x,y] for an entity id
+  function entityTileCoords(entityId){
+    try {
+      let el = document.querySelector(`[data-entity-id="${entityId}"]`);
+      if (!el) el = document.querySelector(`[data-id="${entityId}"]`) || document.getElementById(String(entityId));
+      if (!el) return null;
+      const tile = el.closest ? (el.closest('.tile, .map-tile, .grid-cell, .cell') || el) : el;
+      const x = tile.getAttribute('data-coords-x');
+      const y = tile.getAttribute('data-coords-y');
+      if (x == null || y == null) return null;
+      return [Number(x), Number(y)];
+    } catch(e){ return null; }
+  }
+  
+  // Utility: normalize a value to an array
+  function ensureArray(x){
+    if (x == null) return [];
+    return Array.isArray(x) ? x : [x];
   }
 
-  function ensureArray(val){ return Array.isArray(val) ? val : (val != null ? [val] : []); }
+  // Compute the on-screen center of an entity by id, with fallbacks
+  function centerOfEntity(entityId){
+    try {
+      // Prefer elements tagged with data-entity-id
+      let el = document.querySelector(`[data-entity-id="${entityId}"]`);
+      if (!el) {
+        // Common alternates
+        el = document.querySelector(`[data-id="${entityId}"]`) || document.getElementById(String(entityId));
+      }
+      if (el) {
+        // Try to locate the containing tile cell if present
+        const tile = el.closest ? (el.closest('.tile, .map-tile, .grid-cell, .cell') || el) : el;
+        const $tile = typeof $ === 'function' ? $(tile) : null;
+        if ($tile && $tile.length){
+          const p = getTileCenterFromEngine($tile);
+          if (p) return p;
+        }
+        const rect = tile.getBoundingClientRect();
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        return { x: rect.left + scrollLeft + rect.width/2, y: rect.top + scrollTop + rect.height/2 };
+      }
+    } catch(e) {}
+    return null;
+  }
 
-  function createOverlay(z = 1101) {
+  // Create a full-screen canvas overlay at a given z-index
+  function createOverlay(z){
     const overlay = document.createElement('canvas');
-    overlay.width = window.innerWidth;
-    overlay.height = window.innerHeight;
-    overlay.style.position = 'fixed';
-    overlay.style.top = '0';
+    overlay.width = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+    overlay.height = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+    overlay.style.position = 'absolute';
     overlay.style.left = '0';
-    overlay.style.width = '100%';
-    overlay.style.height = '100%';
-    overlay.style.zIndex = String(z);
+    overlay.style.top = '0';
+    overlay.style.zIndex = String(z || 1100);
     overlay.style.pointerEvents = 'none';
     document.body.appendChild(overlay);
     const ctx = overlay.getContext('2d');
-    return {
-      overlay,
-      ctx,
-      destroy: () => { try { document.body.removeChild(overlay); } catch (e) {} }
-    };
+    return { overlay, ctx, destroy: () => { try { document.body.removeChild(overlay); } catch(e) {} } };
   }
 
-  function play(spellKey, payload) {
-    const raw = (spellKey || (payload && (payload.spell || payload.label)) || '').toString().toLowerCase();
-    const key = raw.replace(/[\s-]+/g, '_');
-    const fn = REGISTRY[key] || REGISTRY['__default__'];
-    try {
-      return fn(payload);
-    } catch (e) {
-      console.warn('SpellEffects.play failed', key, e);
-      return Promise.resolve();
-    }
+  // Public API to play a registered effect (safe no-op on errors)
+  function play(name, payload){
+    return new Promise((resolve) => {
+      try {
+        if (!name) return resolve();
+        const key = String(name).toLowerCase();
+        const renderer = REGISTRY[key] || REGISTRY[(payload && payload.spell) ? String(payload.spell).toLowerCase() : ''];
+        if (!renderer) return resolve();
+        const ret = renderer(payload);
+        if (ret && typeof ret.then === 'function') ret.then(resolve).catch(()=>resolve()); else resolve();
+      } catch(e){ resolve(); }
+    });
   }
-
-  // ---------- Implementations ----------
-  // Default: soft buff halo on targets
-  register('__default__', function(payload){
-    return new Promise((resolve) => {
-      const targets = ensureArray(payload && payload.target);
-      const centers = targets.map(centerOfEntity).filter(Boolean);
-      if (!centers.length) return resolve();
-      const { overlay, ctx, destroy } = createOverlay(1101);
-      const tileSize = ($('.tiles-container').data('tile-size') || 64);
-      const start = performance.now();
-      const duration = 900;
-      const color = [180, 220, 255];
-      const loop = (now) => {
-        const t = Math.min(1, (now - start)/duration);
-        ctx.clearRect(0,0,overlay.width, overlay.height);
-        centers.forEach((p) => {
-          const ease = 1 - Math.pow(1 - t, 3);
-          const radius = (tileSize*0.35) + ease*(tileSize*1.0);
-          const alpha = (1 - ease) * 0.85;
-          ctx.save();
-          ctx.globalCompositeOperation = 'screen';
-          ctx.beginPath(); ctx.arc(p.x, p.y, radius, 0, Math.PI*2);
-          ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha.toFixed(3)})`;
-          ctx.lineWidth = Math.max(1, 6 - 4*ease);
-          ctx.shadowColor = `rgba(${color[0]},${color[1]},${color[2]},${(0.6*alpha).toFixed(3)})`;
-          ctx.shadowBlur = 12 * (1 - ease) + 4;
-          ctx.stroke();
-          ctx.restore();
-        });
-        if (t < 1) requestAnimationFrame(loop); else { destroy(); resolve(); }
-      };
-      requestAnimationFrame(loop);
-    });
-  });
-
-  // Bless: golden beam + two pulsing halos + sparkles
-  register('bless', function(payload){
-    return new Promise((resolve) => {
-      const targets = ensureArray(payload && payload.target);
-      const centers = targets.map(centerOfEntity).filter(Boolean);
-      if (!centers.length) return resolve();
-      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
-      const { overlay, ctx, destroy } = createOverlay(1101);
-      const tileSize = ($('.tiles-container').data('tile-size') || 64);
-      const start = performance.now();
-      const duration = 1200;
-      const color = [255, 215, 0];
-      const frame = (now) => {
-        const t = Math.min(1, (now - start)/duration);
-        ctx.clearRect(0,0,overlay.width, overlay.height);
-        if (src) {
-          const beamPhase = Math.max(0, 1 - (now - start)/300);
-          if (beamPhase > 0) {
-            ctx.save();
-            ctx.globalCompositeOperation = 'screen';
-            ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${(0.35+0.45*beamPhase).toFixed(3)})`;
-            ctx.lineWidth = 6*beamPhase + 2;
-            centers.forEach((p)=>{ ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(p.x, p.y); ctx.stroke(); });
-            ctx.restore();
-          }
-        }
-        centers.forEach((p, idx) => {
-          for (let k=0;k<2;k++){
-            const localT = Math.min(1, Math.max(0, (now - start - k*160)/duration));
-            if (localT <= 0 || localT > 1) continue;
-            const ease = 1 - Math.pow(1 - localT, 3);
-            const radius = (tileSize*0.35) + ease*(tileSize*1.4);
-            const alpha = (1 - ease) * 0.85;
-            ctx.save();
-            ctx.globalCompositeOperation = 'screen';
-            ctx.beginPath(); ctx.arc(p.x, p.y, radius, 0, Math.PI*2);
-            ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha.toFixed(3)})`;
-            ctx.lineWidth = Math.max(1, 6 - 4*ease);
-            ctx.shadowColor = `rgba(${color[0]},${color[1]},${color[2]},${(0.6*alpha).toFixed(3)})`;
-            ctx.shadowBlur = 18*(1-ease) + 6; ctx.stroke(); ctx.restore();
-            const sparkCount = 4;
-            for (let s=0;s<sparkCount;s++){
-              const ang = (idx*1.7 + k*0.9 + s) * 1.9 + now*0.002;
-              const r = radius * (0.7 + 0.25*Math.sin(now*0.006 + s));
-              const sx = p.x + Math.cos(ang)*r, sy = p.y + Math.sin(ang)*r;
-              const spAlpha = alpha*0.9;
-              ctx.save(); ctx.globalCompositeOperation = 'screen';
-              ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${spAlpha.toFixed(3)})`;
-              ctx.beginPath(); ctx.arc(sx, sy, 2 + 1.5*(1-ease), 0, Math.PI*2); ctx.fill(); ctx.restore();
-            }
-          }
-        });
-        if (t < 1) requestAnimationFrame(frame); else { destroy(); resolve(); }
-      };
-      requestAnimationFrame(frame);
-    });
-  });
 
   // Magic Missile: sequential darts with curved paths and small impact bursts
   register('magic_missile', function(payload){
@@ -175,7 +124,7 @@
         const target = centers[i++];
         const start = performance.now();
         const duration = 450;
-        const ctrl = { x: (src.x + target.x)/2 + (Math.random() < 0.5 ? -1 : 1) * 60, y: (src.y + target.y)/2 - 80 };
+        const ctrl = { x: (src.x + target.x)/2 + (Math.random() < 0.5 ? -1 : 1) * 60, y: (Math.min(src.y, target.y)) - 80 };
         const dart = (now) => {
           const t = Math.min(1, (now - start)/duration);
           ctx.clearRect(0,0,overlay.width, overlay.height);
@@ -582,6 +531,10 @@
       function drawBlunt(t){
         const r = 16 + 14*t;
         ctx.beginPath(); ctx.arc(tgt.x, tgt.y, r, 0, Math.PI*2);
+        ctx.strokeStyle = 'rgba(255,200,120,0.8)';
+        ctx.lineWidth = 6 - 3*t;
+        ctx.stroke();
+      }
 
       function drawGenericRanged(t){
         if (!src) return;
@@ -590,8 +543,6 @@
         ctx.strokeStyle = 'rgba(220,230,255,0.8)'; ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(x, y); ctx.stroke();
         ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI*2); ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fill();
-      }
-        ctx.strokeStyle = 'rgba(255,200,120,0.8)'; ctx.lineWidth = 6 - 3*t; ctx.stroke();
       }
 
       function drawThrust(t){
@@ -1142,6 +1093,197 @@
         requestAnimationFrame(loop);
       }
       requestAnimationFrame(fly);
+    });
+  });
+
+  // Burning Hands: 15-ft cone of flame in the direction specified by target vector
+  // payload.target is a [dx, dy] direction relative to the caster (tiles or any vector)
+  register('burning_hands', function(payload){
+    return new Promise((resolve) => {
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      if (!src) return resolve();
+      const tileSize = ($('.tiles-container').data('tile-size') || 64);
+      // Determine facing angle: prefer absolute tile target -> vector from source tile to target tile
+      let angle;
+      if (payload && Array.isArray(payload.target) && payload.target.length === 2 &&
+          typeof payload.target[0] === 'number' && typeof payload.target[1] === 'number') {
+        // Prefer grid-space facing using tile coordinates to match backend exactly
+        const srcTile = entityTileCoords(payload.source);
+        if (srcTile) {
+          const dxg = payload.target[0] - srcTile[0];
+          const dyg = payload.target[1] - srcTile[1];
+          angle = Math.atan2(dyg, dxg); // grid y grows down, same as canvas
+        } else {
+          // Fallback to pixel centers if we can't get tile coords for source
+          const tgtCenter = tileCenterByCoords(payload.target[0], payload.target[1]);
+          if (tgtCenter) {
+            const dxp = tgtCenter.x - src.x;
+            const dyp = tgtCenter.y - src.y;
+            angle = Math.atan2(dyp, dxp);
+          } else {
+            // Final fallback: treat target as direction vector
+            const len = Math.hypot(payload.target[0], payload.target[1]) || 1;
+            const nx = payload.target[0] / len, ny = payload.target[1] / len;
+            angle = Math.atan2(ny, nx);
+          }
+        }
+      } else {
+        // Default facing to the right if no target
+        angle = 0;
+      }
+  const range = tileSize * 3.2; // ~15 ft reach
+  // Match backend cone half-aperture: atan(0.5) ≈ 26.565° (distance equals width)
+  const halfAngle = Math.atan(0.5);
+
+      const { overlay, ctx, destroy } = createOverlay(1103);
+      try { if (window.SFX && SFX.play) { SFX.play('burning_hands_cast'); } } catch(e){}
+
+      // Lightweight noise for jittering boundaries and flow
+      const seed = Math.random()*1000;
+      function vnoise(u, t){
+        return (
+          Math.sin(u*3.31 + t*2.07 + seed*0.71) +
+          Math.sin(u*5.13 + t*1.37 + seed*1.19) +
+          Math.sin(u*7.77 + t*0.81 + seed*2.23)
+        ) / 3;
+      }
+
+      // Build a softly jittered cone-like mask
+      function jitteredPath(now, baseR){
+        const a0 = angle - halfAngle*1.1;
+        const a1 = angle + halfAngle*1.1;
+        const steps = 30;
+        ctx.beginPath();
+        ctx.moveTo(src.x, src.y);
+        for (let i=0; i<=steps; i++){
+          const f = i/steps;
+          const aa = a0 + (a1 - a0)*f;
+          const n = vnoise(aa*0.9, now*0.002);
+          const r = baseR * (0.86 + 0.13*n);
+          const x = src.x + Math.cos(aa)*r;
+          const y = src.y + Math.sin(aa)*r;
+          ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+      }
+
+      // Simple embers system
+      let particles = [];
+      function initParticles(maxR){
+        const count = 60;
+        particles = Array.from({length: count}, () => {
+          const f = Math.random()*0.35 + 0.05;
+          const d = maxR * f;
+          const spread = (Math.random()*2-1) * halfAngle*0.9;
+          const a = angle + spread;
+          return {
+            x: src.x + Math.cos(a)*d,
+            y: src.y + Math.sin(a)*d,
+            a,
+            v: tileSize*(1.6 + Math.random()*1.4),
+            life: 0,
+            maxLife: 280 + Math.random()*260,
+            size: 1.4 + Math.random()*2.3
+          };
+        });
+      }
+
+      const start = performance.now();
+      const total = 800;
+      const colCore = [255, 240, 200];
+      const colBody = [255, 160, 60];
+      const colEdge = [255, 90, 40];
+      const draw = (now) => {
+        const t = Math.min(1, (now - start)/total);
+        ctx.clearRect(0,0,overlay.width, overlay.height);
+        ctx.save(); ctx.globalCompositeOperation = 'screen';
+        const ease = 1 - Math.pow(1 - t, 3);
+        const r = range * (0.8 + 0.2*ease);
+        if (!particles.length) initParticles(r);
+
+        // Masked plasma body
+        jitteredPath(now, r);
+        ctx.save();
+        ctx.clip();
+
+        // Layered glowing blobs along axis
+        const blobs = 5;
+        for (let i=0;i<blobs;i++){
+          const frac = (i+1)/(blobs+1);
+          const wob = vnoise(frac*8.0, now*0.002);
+          const cx = src.x + Math.cos(angle) * r * frac * (0.92 + 0.06*wob);
+          const cy = src.y + Math.sin(angle) * r * frac * (0.92 + 0.06*wob);
+          const rr = 14 + 32*frac*(0.7 + 0.3*Math.sin(now*0.01 + i));
+          const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, rr);
+          g.addColorStop(0, `rgba(255,255,255,${(0.6*(1-frac)).toFixed(2)})`);
+          g.addColorStop(0.45, `rgba(${colCore[0]},${colCore[1]},${colCore[2]},${(0.5*(1-frac)).toFixed(2)})`);
+          g.addColorStop(1, `rgba(${colBody[0]},${colBody[1]},${colBody[2]},${(0.25*(1-frac)).toFixed(2)})`);
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI*2); ctx.fill();
+        }
+
+        // Flowing veins
+        const veins = 9;
+        for (let i=0;i<veins;i++){
+          const frac = (i+1)/(veins+1);
+          const base = r * frac;
+          const perpX = -Math.sin(angle), perpY = Math.cos(angle);
+          const wob = vnoise(i*3.7, now*0.004) * 18 * (1 - frac);
+          const c1x = src.x + Math.cos(angle)*base*0.45 + perpX*wob;
+          const c1y = src.y + Math.sin(angle)*base*0.45 + perpY*wob;
+          const endx = src.x + Math.cos(angle)*base + perpX*wob*0.5;
+          const endy = src.y + Math.sin(angle)*base + perpY*wob*0.5;
+          ctx.beginPath(); ctx.moveTo(src.x, src.y);
+          ctx.quadraticCurveTo(c1x, c1y, endx, endy);
+          ctx.strokeStyle = `rgba(${colCore[0]},${colCore[1]},${colCore[2]},${(0.14*(1-frac)).toFixed(2)})`;
+          ctx.lineWidth = 2.2 - 1.6*frac; ctx.stroke();
+        }
+
+        // Embers
+        const dt = 16;
+        particles.forEach(p => {
+          const drift = vnoise(p.a*2.0, now*0.003) * 0.12;
+          p.a += drift*0.04;
+          p.x += Math.cos(p.a) * p.v * (dt/1000);
+          p.y += Math.sin(p.a) * p.v * (dt/1000);
+          p.v *= 0.985;
+          p.life += dt;
+          const lifeT = Math.min(1, p.life/p.maxLife);
+          const size = p.size * (1.2 - 0.8*lifeT);
+          const a = 0.7 * (1 - lifeT) * (0.5 + 0.5*ease);
+          ctx.beginPath(); ctx.arc(p.x, p.y, size, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(${colBody[0]},${colBody[1]},${colBody[2]},${a.toFixed(2)})`; ctx.fill();
+        });
+
+        ctx.restore(); // end clip
+
+        // Edge glow hint (not a hard wedge)
+        jitteredPath(now, r);
+        ctx.strokeStyle = `rgba(${colEdge[0]},${colEdge[1]},${colEdge[2]},${(0.45*ease).toFixed(2)})`;
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        ctx.restore();
+        if (t < 1) requestAnimationFrame(draw); else {
+          // Lingering afterglow
+          const t0 = performance.now();
+          const linger = (now2) => {
+            const tt = Math.min(1, (now2 - t0)/280);
+            ctx.clearRect(0,0,overlay.width, overlay.height);
+            ctx.save(); ctx.globalCompositeOperation = 'screen';
+            jitteredPath(now2, range*0.7);
+            ctx.clip();
+            const g = ctx.createRadialGradient(src.x, src.y, 6, src.x, src.y, range*0.7);
+            g.addColorStop(0, `rgba(${colCore[0]},${colCore[1]},${colCore[2]},${(0.14*(1-tt)).toFixed(2)})`);
+            g.addColorStop(1, `rgba(${colBody[0]},${colBody[1]},${colBody[2]},${(0.08*(1-tt)).toFixed(2)})`);
+            ctx.fillStyle = g; ctx.fillRect(0,0,overlay.width, overlay.height);
+            ctx.restore();
+            if (tt < 1) requestAnimationFrame(linger); else { destroy(); resolve(); }
+          };
+          requestAnimationFrame(linger);
+        }
+      };
+      requestAnimationFrame(draw);
     });
   });
 
