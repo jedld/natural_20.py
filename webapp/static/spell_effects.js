@@ -1026,6 +1026,104 @@
     });
   });
 
+  // Toll the Dead: spectral bell manifests above the target, twin toll pulses, necrotic aura
+  (function(){
+    function tollEffect(payload){
+      return new Promise((resolve) => {
+        const targets = ensureArray(payload && payload.target);
+        const centers = targets.map(centerOfEntity).filter(Boolean);
+        if (!centers.length) return resolve();
+        const { overlay, ctx, destroy } = createOverlay(1104);
+        const nec = [110, 40, 160]; // deep violet
+        const steel = [210, 210, 230]; // pale bell metal
+        const tileSize = ($('.tiles-container').data('tile-size') || 64);
+        const baseR = Math.max(18, tileSize * 0.5);
+        try { if (window.SFX && SFX.play) SFX.play('toll_the_dead_cast'); } catch(e){}
+        const t0 = performance.now();
+        const total = 1000;
+        let bong1 = false, bong2 = false;
+        function drawBell(x, y, scale, alpha){
+          const w = 16*scale, h = 18*scale;
+          const top = y - h;
+          ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, top);
+          // dome
+          ctx.beginPath();
+          ctx.moveTo(-w*0.6, h*0.4);
+          ctx.quadraticCurveTo(0, -h*0.2, w*0.6, h*0.4);
+          ctx.lineTo(w*0.55, h*0.9);
+          ctx.quadraticCurveTo(0, h*1.05, -w*0.55, h*0.9);
+          ctx.closePath();
+          ctx.strokeStyle = `rgba(${steel[0]},${steel[1]},${steel[2]},0.9)`; ctx.lineWidth = 2; ctx.stroke();
+          ctx.strokeStyle = `rgba(255,255,255,0.8)`; ctx.lineWidth = 1; ctx.stroke();
+          // clapper
+          ctx.beginPath(); ctx.arc(0, h*0.95, 2.2*scale, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(${steel[0]},${steel[1]},${steel[2]},0.9)`; ctx.fill();
+          ctx.restore();
+        }
+        function loop(now){
+          const t = Math.min(1, (now - t0)/total);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          centers.forEach((c, idx)=>{
+            // Bell manifests above target
+            const appear = Math.min(1, t/0.25);
+            const scale = 1.0 + 0.1*Math.sin(now*0.008 + idx);
+            drawBell(c.x, c.y - baseR*0.9, scale, appear);
+            // Twin toll pulses
+            const p1 = (t - 0.25)/0.28; // first pulse window
+            const p2 = (t - 0.6)/0.28;  // second pulse window
+            if (p1 >= 0 && !bong1){ try { SFX && SFX.play && SFX.play('toll_the_dead_bong'); } catch(e){} bong1 = true; }
+            if (p2 >= 0 && !bong2){ try { SFX && SFX.play && SFX.play('toll_the_dead_bong'); } catch(e){} bong2 = true; }
+            const drawPulse = (pp) => {
+              const u = Math.max(0, Math.min(1, pp));
+              const fade = 1 - u;
+              const r = baseR * (0.8 + 1.1*u);
+              // outer ring
+              ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI*2);
+              ctx.strokeStyle = `rgba(${nec[0]},${nec[1]},${nec[2]},${(0.75*fade).toFixed(2)})`;
+              ctx.lineWidth = 3 - 1.6*u; ctx.stroke();
+              // inner bright edge
+              ctx.beginPath(); ctx.arc(c.x, c.y, r-4, 0, Math.PI*2);
+              ctx.strokeStyle = `rgba(255,255,255,${(0.6*fade).toFixed(2)})`; ctx.lineWidth = 1.4; ctx.stroke();
+              // faint radial spokes
+              for (let i=0;i<10;i++){
+                const ang = (i/10)*Math.PI*2 + now*0.0015;
+                const len = 10 + 14*u;
+                ctx.beginPath(); ctx.moveTo(c.x, c.y);
+                ctx.lineTo(c.x + Math.cos(ang)*len, c.y + Math.sin(ang)*len);
+                ctx.strokeStyle = `rgba(${nec[0]},${nec[1]},${nec[2]},${(0.35*fade).toFixed(2)})`;
+                ctx.lineWidth = 1.2; ctx.stroke();
+              }
+            };
+            if (p1 < 1) drawPulse(p1);
+            if (p2 < 1) drawPulse(p2);
+            // Necrotic aura focusing on target
+            const auraT = Math.max(0, Math.min(1, (t - 0.15)/0.7));
+            const gf = ctx.createRadialGradient(c.x, c.y, baseR*0.1, c.x, c.y, baseR*0.9);
+            gf.addColorStop(0, `rgba(255,255,255, ${(0.12*auraT).toFixed(2)})`);
+            gf.addColorStop(1, `rgba(${nec[0]},${nec[1]},${nec[2]}, ${(0.16*auraT).toFixed(2)})`);
+            ctx.fillStyle = gf; ctx.beginPath(); ctx.arc(c.x, c.y, baseR*0.9, 0, Math.PI*2); ctx.fill();
+            // drifting motes downward (mourning chimes)
+            for (let i=0;i<8;i++){
+              const ang = Math.random()*Math.PI*2;
+              const rr = baseR * (0.2 + 0.7*Math.random());
+              const x = c.x + Math.cos(ang)*rr;
+              const y = c.y + Math.sin(ang)*rr + 10*t;
+              ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI*2);
+              ctx.fillStyle = `rgba(230,220,255, ${(0.28*(1-t)).toFixed(2)})`; ctx.fill();
+            }
+          });
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(loop); else { destroy(); resolve(); }
+        }
+        requestAnimationFrame(loop);
+      });
+    }
+    register('toll_the_dead', tollEffect);
+    register('toll the dead', tollEffect); // alias to match label-based spell keys
+  })();
+
+
   // Ice Knife: crystalline shard to target, then cold shatter ring with fragments
   register('ice_knife', function(payload){
     return new Promise((resolve) => {
@@ -1933,6 +2031,121 @@
         }
       }
       requestAnimationFrame(loop);
+    });
+  });
+
+  // Bless: radiant boon from caster to allies with golden tethers and clear target glyphs
+  register('bless', function(payload){
+    return new Promise((resolve)=>{
+      const srcId = payload && payload.source;
+      const src = srcId ? centerOfEntity(srcId) : null;
+      const targets = ensureArray(payload && payload.target);
+      const centers = targets.map(centerOfEntity).filter(Boolean);
+      if (!src && !centers.length) return resolve();
+      const tileSize = ($('.tiles-container').data('tile-size') || 64);
+      const { overlay, ctx, destroy } = createOverlay(1104);
+      try { if (window.SFX && SFX.play) SFX.play('bless_cast'); } catch(e){}
+
+      // Stage 1: brief radiant charge at caster
+      function charge(next){
+        if (!src) return next();
+        const t0 = performance.now();
+        const dur = 260;
+        requestAnimationFrame(function loop(now){
+          const t = Math.min(1, (now - t0)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          const baseR = Math.max(20, tileSize*0.5);
+          const r = baseR * (0.8 + 0.4*t);
+          // soft halo
+          const g = ctx.createRadialGradient(src.x, src.y, 2, src.x, src.y, r);
+          g.addColorStop(0, `rgba(255,255,220, ${(0.5*(1-t)).toFixed(2)})`);
+          g.addColorStop(1, `rgba(255,215,120, ${(0.18*(1-t)).toFixed(2)})`);
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(src.x, src.y, r, 0, Math.PI*2); ctx.fill();
+          // rotating sigil arcs
+          const ang = now*0.004;
+          ctx.strokeStyle = `rgba(255,220,140, ${(0.85*(1-t)).toFixed(2)})`;
+          ctx.lineWidth = 2.4;
+          for (let k=0;k<3;k++){
+            const a0 = ang + (k/3)*Math.PI*2;
+            ctx.beginPath(); ctx.arc(src.x, src.y, r*0.75, a0, a0 + Math.PI/3); ctx.stroke();
+          }
+          // sparkle motes
+          for (let i=0;i<8;i++){
+            const aa = (i/8)*Math.PI*2 + now*0.006;
+            const rr = r*0.5 + Math.sin(aa*4 + now*0.01)*4;
+            const x = src.x + Math.cos(aa)*rr, y = src.y + Math.sin(aa)*rr;
+            ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(255,255,240, ${(0.5*(1-t)).toFixed(2)})`; ctx.fill();
+          }
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(loop); else next();
+        });
+      }
+
+      // Stage 2: golden tethers to each target
+      function tethers(next){
+        if (!src || !centers.length) return next();
+        const t0 = performance.now();
+        const dur = 320;
+        requestAnimationFrame(function loop(now){
+          const t = Math.min(1, (now - t0)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          centers.forEach((c, idx)=>{
+            const grad = ctx.createLinearGradient(src.x, src.y, c.x, c.y);
+            grad.addColorStop(0, `rgba(255,240,180, ${(0.9*(1-t)).toFixed(2)})`);
+            grad.addColorStop(1, `rgba(255,200,120, ${(0.2*(1-t)).toFixed(2)})`);
+            ctx.strokeStyle = grad; ctx.lineWidth = 3;
+            // Draw progressive line
+            const x = src.x + (c.x - src.x) * (0.6 + 0.4*t);
+            const y = src.y + (c.y - src.y) * (0.6 + 0.4*t);
+            ctx.beginPath(); ctx.moveTo(src.x, src.y); ctx.lineTo(x, y); ctx.stroke();
+          });
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(loop); else next();
+        });
+      }
+
+      // Stage 3: target glyphs (ring + star + small rotating d4 diamond)
+      function applyGlyphs(done){
+        const t0 = performance.now();
+        const dur = 820;
+        requestAnimationFrame(function loop(now){
+          const t = Math.min(1, (now - t0)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          centers.forEach((c, idx)=>{
+            const r = Math.max(16, tileSize*0.45) * (0.9 + 0.2*Math.sin(now*0.01 + idx));
+            // soft halo fill
+            const gf = ctx.createRadialGradient(c.x, c.y, 2, c.x, c.y, r);
+            gf.addColorStop(0, `rgba(255,255,220, ${(0.22*(1-t)).toFixed(2)})`);
+            gf.addColorStop(1, `rgba(255,215,120, 0)`);
+            ctx.fillStyle = gf; ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI*2); ctx.fill();
+            // bright ring
+            ctx.beginPath(); ctx.arc(c.x, c.y, r*0.85, 0, Math.PI*2);
+            ctx.strokeStyle = `rgba(255,235,180, ${(0.85*(1-t)).toFixed(2)})`; ctx.lineWidth = 2.6; ctx.stroke();
+            // tiny 4-point star
+            const len = 10;
+            ctx.strokeStyle = `rgba(255,255,255, ${(0.9*(1-t)).toFixed(2)})`; ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.moveTo(c.x - len, c.y); ctx.lineTo(c.x + len, c.y);
+            ctx.moveTo(c.x, c.y - len); ctx.lineTo(c.x, c.y + len);
+            ctx.stroke();
+            // rotating diamond (d4 hint)
+            const rot = now*0.004 + idx*0.6;
+            const d = 7;
+            ctx.save(); ctx.translate(c.x, c.y - r*0.65); ctx.rotate(rot);
+            ctx.beginPath(); ctx.moveTo(0, -d); ctx.lineTo(d, 0); ctx.lineTo(0, d); ctx.lineTo(-d, 0); ctx.closePath();
+            ctx.strokeStyle = `rgba(255,255,255, ${(0.8*(1-t)).toFixed(2)})`; ctx.lineWidth = 1.4; ctx.stroke();
+            ctx.restore();
+          });
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(loop); else { try { if (window.SFX && SFX.play) SFX.play('bless_apply'); } catch(e){} done(); }
+        });
+      }
+
+      charge(()=> tethers(()=> applyGlyphs(()=> { destroy(); resolve(); })));
     });
   });
 
