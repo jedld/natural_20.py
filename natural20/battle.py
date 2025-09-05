@@ -582,12 +582,12 @@ class Battle():
             if self.animation_log_enabled and len(self.animation_log) > 0:
                 self.animation_log[-1][2] = { "target" : action.target.entity_uid, "source": action.source.entity_uid, "type": "attack", "ranged" : action.ranged_attack(), "label": action.label() }
             self.animation_log.append(action_animator(action))
-        elif action.action_type == 'spell':
-            if self.animation_log_enabled and action.target:
-                animation_payload = action_animator(action)
-                self.animation_log.append(animation_payload)
         elif action.action_type == 'interact':
             self.trigger_event('interact', action)
+        else:
+            if self.animation_log_enabled:
+                animation_payload = action_animator(action)
+                self.animation_log.append(animation_payload)
 
         self.battle_log.append(action)
         return None
