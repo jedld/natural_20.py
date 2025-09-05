@@ -51,13 +51,13 @@ class ThunderwaveSpell(Spell):
                 if tgt not in entity_targets:
                     entity_targets.append(tgt)
         damage_roll = self._damage(battle, opts={'at_level': spell_action.at_level or 1})
+        dc = entity.spell_save_dc('intelligence')
         for tgt in entity_targets:
             failed = False
-
+            save = None
             if tgt.conscious():
                 save = tgt.save_throw('constitution', battle, { 'is_magical': True })
                 # Use INT-based DC consistent with other wizard spells in this codebase
-                dc = entity.spell_save_dc('intelligence')
                 failed = save < dc
             else:
                 failed = True
