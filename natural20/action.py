@@ -99,8 +99,8 @@ class Action:
         return None
 
     @staticmethod
-    def apply(battle, item, session=None):
-        pass
+    def apply(battle, item, session=None) -> list:
+        return []
 
     def resolve(self, session, map, opts=None):
         pass

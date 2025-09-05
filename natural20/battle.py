@@ -563,15 +563,20 @@ class Battle():
 
         action.committed = True
         # check_action_serialization(action)
+        other_results = []
         for item in action.result:
             for klass in Action.__subclasses__():
-                klass.apply(self, item, self.session)
-
+                other_results = klass.apply(self, item, self.session)
+                if isinstance(other_results, list):
+                    for result in other_results:
+                        if result not in action.result:
+                            action.result.append(result)
                 if self.animation_log_enabled:
                     if item.get('perception_targets'):
                         perception_targets = item['perception_targets']
                         self.animation_log.append({"type": "perception", "targets": [p.entity_uid for p in perception_targets]})
-
+                    if item["type"] == "message":
+                        self.animation_log.append({"type": "message_toaster", "source": item["source"].entity_uid, "message": item["message"], "position": item["position"]})
         if action.action_type == 'move':
             self.trigger_event('movement', action.source, { 'move_path': action.move_path})
             if self.animation_log_enabled:
