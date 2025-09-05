@@ -1729,7 +1729,22 @@ def select_character():
     
     # Update the current_game controllers if needed
     current_game._setup_controllers()
-    
+
+    # Proactively set POV and sync current map to the selected character to avoid stale map on first load
+    try:
+        entity = current_game.get_entity_by_uid(character_name)
+        if entity is not None:
+            current_game.set_pov_entity_for_user(username, entity)
+            try:
+                entity_map = current_game.get_map_for_entity(entity)
+                if entity_map is not None:
+                    current_game.switch_map_for_user(username, entity_map.name)
+            except Exception:
+                pass
+    except Exception:
+        # Non-fatal; index() will still attempt to correct on first render
+        pass
+
     logger.info(f"User {username} selected character {character_name}")
     return jsonify(status='ok')
 
@@ -1869,18 +1884,30 @@ def index():
     if not logged_in():
         print("not logged in")
         return redirect(url_for('login'))
-    
+
     # Check if user needs to select a character
     if 'dm' not in user_role():
         user_entities = entities_controlled_by(session['username'])
         if not user_entities:
             return redirect(url_for('character_selection'))
-        
+
         pov_entity = current_game.get_pov_entity_for_user(session['username'])
         if not pov_entity:
+            # Initialize POV to the selected character and sync current map accordingly
             current_game.set_pov_entity_for_user(session['username'], user_entities[0])
+            pov_entity = user_entities[0]
+            entity_map = current_game.get_map_for_entity(pov_entity)
+            if entity_map is not None:
+                try:
+                    current_game.switch_map_for_user(session['username'], entity_map.name)
+                except Exception:
+                    pass
+            battle_map = entity_map or current_game.get_map_for_user(session['username'])
+        else:
+            battle_map = current_game.get_map_for_entity(pov_entity)
+    else:
+        battle_map = current_game.get_map_for_user(session['username'])
 
-    battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     available_maps = current_game.get_available_maps()
 

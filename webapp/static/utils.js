@@ -53,10 +53,12 @@ const Utils = {
     
 
     const currentSequence = ++window.tileUpdateSequence;
+  // Capture any active map toasts so we can restore them after refresh
+  const _activeToasts = Utils.collectAllToasts ? Utils.collectAllToasts() : [];
     
     // Check if optimization is disabled (for debugging)
-    if (window.disableTileOptimization || is_setup) {
-    Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) => {
+  if (window.disableTileOptimization || is_setup) {
+  Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) => {
         // Only apply if this is still the most recent request
         if (currentSequence >= (window.lastAppliedSequence || 0)) {
           lastMovedEntityBeforeRefresh = null;
@@ -68,6 +70,8 @@ const Utils = {
       try { if (window.PersistentEffects && window.PersistentEffects.applyAll) window.PersistentEffects.applyAll(); } catch(e) {}
           // Ensure popover menus stay on top after full refresh
           Utils.ensurePopoverMenusOnTop();
+      // Restore map toasts after full refresh
+      try { if (Utils.restoreAllToasts) Utils.restoreAllToasts(_activeToasts); } catch (e) { console.warn('Failed to restore map toasts after full refresh', e); }
         } else {
           console.log('Ignoring out-of-order tile update (full): ' + currentSequence + ' < ' + window.lastAppliedSequence);
         }
@@ -155,9 +159,11 @@ const Utils = {
   try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
         
         // Add entity delete buttons for DMs (if function exists)
-        if (typeof window.addEntityDeleteButtons === 'function') {
+  if (typeof window.addEntityDeleteButtons === 'function') {
           setTimeout(window.addEntityDeleteButtons, 100);
         }
+  // For safety, if optimized path caused a full container update elsewhere, attempt toast restore too
+  try { if (Utils.restoreAllToasts) Utils.restoreAllToasts(_activeToasts, true /*skipExisting*/); } catch (e) {}
       } else {
         console.log('Ignoring out-of-order tile update (optimized): ' + currentSequence + ' < ' + window.lastAppliedSequence);
       }
@@ -193,6 +199,9 @@ const Utils = {
         return; // No change needed - preserve interactive elements
       }
       
+  // Capture any active map toasts on this tile so we can restore them after replacement
+  const toastsOnTile = Utils.collectToastsFromTile ? Utils.collectToastsFromTile($existingTile) : [];
+
       // Debug logging for fog of war changes
       const oldFog = $existingTile.find('.fog-of-war').length;
       const newFog = $newTile.find('.fog-of-war').length;
@@ -209,6 +218,14 @@ const Utils = {
       
       // Restore preserved elements
       Utils.restoreInteractiveElements($('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]'), preservedElements);
+
+      // Restore any map toasts captured for this tile with their remaining time
+      if (toastsOnTile && toastsOnTile.length) {
+        try {
+          const $tileAfter = $('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]');
+          Utils.mountToastsOnTile($tileAfter, toastsOnTile);
+        } catch (e) { console.warn('Failed to restore map toasts on tile', x, y, e); }
+      }
     });
     
     // Debug logging to show optimization effectiveness
@@ -388,6 +405,75 @@ const Utils = {
         Utils.ensurePopoverMenusOnTop();
       }, 10);
     }
+  },
+
+  // --- Map Toast Preservation Helpers ---
+  // Collect toasts for a single tile as array of { text, remainingMs }
+  collectToastsFromTile: function($tile) {
+    const res = [];
+    try {
+      const now = Date.now();
+      $tile.find('.map-toast').each(function() {
+        const $t = $(this);
+        const exp = parseInt($t.attr('data-toast-expiry')) || (now + 5000);
+        const remaining = Math.max(0, exp - now);
+        const text = $t.text();
+        if (remaining > 50 && text) {
+          res.push({ text: text, remainingMs: remaining });
+        }
+      });
+    } catch(e) {}
+    return res;
+  },
+  // Mount a list of toast data back onto a given tile
+  mountToastsOnTile: function($tile, toasts) {
+    if (!$tile || !$tile.length || !Array.isArray(toasts)) return;
+    const now = Date.now();
+    toasts.forEach(function(t) {
+      const dur = Math.max(0, parseInt(t.remainingMs) || 0);
+      if (dur <= 50) return;
+      try {
+        const $toast = $('<div class="map-toast"></div>').text(t.text);
+        $toast.css({ position: 'absolute', left: '50%', top: '-6px', transform: 'translate(-50%, -100%)' });
+        $toast.attr('data-toast-expiry', now + dur);
+        $tile.append($toast);
+        setTimeout(function(){ try { $toast.fadeOut(400, function(){ $toast.remove(); }); } catch(_){} }, dur);
+      } catch(e) { /* noop */ }
+    });
+  },
+  // Collect all active toasts across the map with their tile coords
+  collectAllToasts: function() {
+    const res = [];
+    const now = Date.now();
+    $('.map-toast').each(function(){
+      const $t = $(this);
+      const $tile = $t.closest('.tile');
+      if (!$tile.length) return;
+      const x = $tile.data('coords-x');
+      const y = $tile.data('coords-y');
+      const exp = parseInt($t.attr('data-toast-expiry')) || (now + 5000);
+      const remaining = Math.max(0, exp - now);
+      const text = $t.text();
+      if (x !== undefined && y !== undefined && text && remaining > 50) {
+        res.push({ x: x, y: y, text: text, remainingMs: remaining });
+      }
+    });
+    return res;
+  },
+  // Restore captured toasts after a full or partial refresh
+  restoreAllToasts: function(toasts, skipExisting) {
+    if (!Array.isArray(toasts) || toasts.length === 0) return;
+    toasts.forEach(function(t){
+      const selector = '.tile[data-coords-x="' + t.x + '"][data-coords-y="' + t.y + '"]';
+      const $tile = $(selector);
+      if (!$tile.length) return;
+      if (skipExisting) {
+        // Avoid duplicating if a toast with same text is already present
+        const exists = $tile.find('.map-toast').filter(function(){ return $(this).text() === t.text; }).length > 0;
+        if (exists) return;
+      }
+      Utils.mountToastsOnTile($tile, [{ text: t.text, remainingMs: t.remainingMs }]);
+    });
   },
   
   ajaxGet: function (url, data, onSuccess) {

@@ -80,11 +80,11 @@ class DoorObject(Object):
 
     def open(self):
         self.state = "opened"
-        self.resolve_trigger("open")
+        return self.resolve_trigger("open")
 
     def close(self):
         self.state = "closed"
-        self.resolve_trigger("close")
+        return self.resolve_trigger("close")
 
     def token(self):
         if self.dead():
@@ -281,11 +281,12 @@ class DoorObject(Object):
             return {"action": "lock"} if not self.unlocked() else {"action": "lock_failed"}
 
     def use(self, entity, result, session=None):
+        results = []
         super().use(entity, result, session)
         action = result["action"]
         if action == "open":
             if self.closed():
-                self.open()
+                results += self.open()
                 if session:
                     session.event_manager.received_event({
                         "source": entity,
@@ -363,6 +364,8 @@ class DoorObject(Object):
             if session:
                 session.event_manager.received_event(source=self, user=entity, event="object_interaction",
                                                   sub_type="unlock_failed", result="failed", reason="Correct Key missing.")
+
+        return results
 
     def lockpick_dc(self):
         return self.properties.get("lockpick_dc", 10)

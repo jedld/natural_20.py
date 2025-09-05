@@ -1131,14 +1131,14 @@ class Entity(EntityStateEvaluator, Notable):
             return c_restrained
         return 'restrained' in self.statuses
 
-    def resolve_trigger(self, event_type, opts=None):
+    def resolve_trigger(self, event_type, opts=None) -> list:
         results = []
         if opts is None:
             opts = {}
         if event_type in self.entity_event_hooks:
             available_hooks = [effect for effect in self.entity_event_hooks[event_type] if not effect.get('expiration') or effect['expiration'] > self.session.game_time]
             if len(available_hooks) == 0:
-                return
+                return []
 
             for active_hook in available_hooks:
                 _temp_results = getattr(active_hook['handler'], active_hook['method'])(self, {**opts, 'effect': active_hook['effect']})
