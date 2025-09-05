@@ -165,6 +165,23 @@ class EventQueue {
           resolve();
           break;
         }
+        case "message_toaster": {
+          try {
+            const msg = (data && data.message !== undefined) ? data.message : data;
+            const text = (typeof msg === 'string') ? msg : (msg && (msg.text || msg.message || msg.msg)) || '';
+            // If msg is a string, pull position/source from the original data object
+            const position = (typeof msg === 'string')
+              ? (data && (data.position || data.pos || data.coords))
+              : (msg && (msg.position || msg.pos || msg.coords));
+            const source = (typeof msg === 'string')
+              ? (data && (data.source || data.entity_id))
+              : (msg && (msg.source || msg.entity_id));
+            // Show toast but don't block the queue for the full duration
+            showMapToast(text, position, source, 10000);
+          } catch (e) { console.warn('Failed to show message_toaster', e, data); }
+          resolve();
+          break;
+        }
         case "map": {
           this.processMapEvent(data, resolve);
           break;
@@ -423,6 +440,20 @@ class EventQueue {
           this.processSpellEvent(entry, () => animateFunction(animationLog, idx + 1));
         } else if (t === 'attack') {
           this.processAttackEvent(entry, () => animateFunction(animationLog, idx + 1));
+        } else if (t === 'message_toaster') {
+          try {
+            const msg = (entry && entry.message !== undefined) ? entry.message : entry;
+            const text = (typeof msg === 'string') ? msg : (msg && (msg.text || msg.message || msg.msg)) || '';
+            const position = (typeof msg === 'string')
+              ? (entry && (entry.position || entry.pos || entry.coords))
+              : (msg && (msg.position || msg.pos || msg.coords));
+            const source = (typeof msg === 'string')
+              ? (entry && (entry.source || entry.entity_id))
+              : (msg && (msg.source || msg.entity_id));
+            showMapToast(text, position, source, 10000);
+          } catch (e) { console.warn('Inline message_toaster failed', e, entry); }
+          // Continue immediately
+          animateFunction(animationLog, idx + 1);
         } else {
           // Unknown inline event; skip
           console.warn('Skipping unknown inline animation entry:', entry);
@@ -709,6 +740,72 @@ class EventQueue {
 
 // Create global event queue instance
 const eventQueue = new EventQueue();
+
+// Helper: show an on-map "toaster" message near a tile coordinate or an entity id
+function showMapToast(text, position, sourceEntityId = null, durationMs = 10000) {
+  try {
+    const dur = typeof durationMs === 'number' && durationMs > 0 ? durationMs : 10000;
+    const safeText = (text == null) ? '' : String(text);
+  const expiryTs = Date.now() + dur;
+
+    const resolveTile = () => {
+      // 1) By explicit grid position [x, y] or {x, y}
+      let x = null, y = null;
+      if (Array.isArray(position) && position.length >= 2) {
+        x = position[0]; y = position[1];
+      } else if (position && typeof position === 'object' && position.x != null && position.y != null) {
+        x = position.x; y = position.y;
+      }
+      if (x != null && y != null) {
+        const $t = $(`.tile[data-coords-x="${x}"][data-coords-y="${y}"]`);
+        if ($t.length) return $t;
+      }
+      // 2) Fallback by source entity tile
+      if (sourceEntityId) {
+        const $t2 = $(`.tile[data-coords-id="${sourceEntityId}"]`);
+        if ($t2.length) return $t2;
+      }
+      return $();
+    };
+
+    const mountToastAtTile = ($tile) => {
+      try {
+        // If a previous toast exists on the same tile, remove it to avoid stacking
+        const $existing = $tile.find('.map-toast');
+        if ($existing.length) { try { $existing.remove(); } catch (_) {} }
+
+  const $toast = $('<div class="map-toast"></div>').text(safeText);
+  $toast.attr('data-toast-expiry', expiryTs);
+        // Position above the tile center
+        $toast.css({ position: 'absolute', left: '50%', top: '-6px', transform: 'translate(-50%, -100%)' });
+        $tile.append($toast);
+        // Auto-remove after duration
+  setTimeout(() => { try { $toast.fadeOut(400, () => $toast.remove()); } catch (_) {} }, dur);
+      } catch (e) { console.warn('Failed to mount map toast on tile', e); }
+    };
+
+    const attemptMount = (attemptsLeft = 6) => {
+      const $tile = resolveTile();
+      if ($tile && $tile.length) { mountToastAtTile($tile); return; }
+      if (attemptsLeft <= 0) { return; }
+      try {
+        // Try a targeted refresh if we have explicit coords
+        if (Array.isArray(position) && position.length >= 2) {
+          Utils.refreshTileSet(false, true, position[0], position[1], sourceEntityId || undefined);
+        } else if (position && typeof position === 'object' && position.x != null && position.y != null) {
+          Utils.refreshTileSet(false, true, position.x, position.y, sourceEntityId || undefined);
+        } else if (sourceEntityId) {
+          Utils.refreshTileSet(false, true, 0, 0, sourceEntityId);
+        }
+      } catch (_) {}
+      setTimeout(() => attemptMount(attemptsLeft - 1), 120);
+    };
+
+    attemptMount();
+  } catch (e) {
+    console.warn('showMapToast failed', e, { text, position, sourceEntityId, durationMs });
+  }
+}
 
 // Add debug panel for monitoring event queue
 function createEventQueueDebugPanel() {

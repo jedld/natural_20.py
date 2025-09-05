@@ -131,13 +131,14 @@ class InteractAction(Action):
 
     @staticmethod
     def apply(battle, item, session=None):
+        results = []
         entity = item['source']
         item_type = item['type']
         if session is None:
             session = battle.session
 
         if item_type == 'interact':
-            item['target'].use(entity, item, session)
+            results = item['target'].use(entity, item, session)
             if battle:
                 if item.get('cost') == 'action':
                     battle.consume(entity, 'action', 1)
@@ -157,7 +158,8 @@ class InteractAction(Action):
                         "source": entity, 
                         "target": item['target'],
                         "object_action": item['object_action']})
-                    
+        return results
+
     def to_h(self):
         return {
             "action_type": self.action_type,

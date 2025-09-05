@@ -859,14 +859,15 @@ class GameManagement:
                 action_battle_map = self.get_map_for_entity(action.source)
                 action.resolve(self.game_session, action_battle_map)
 
+
                 for item in action.result:
                     for klass in Action.__subclasses__():
-                        klass.apply(None, item, session=self.game_session)
-
+                        other_results = klass.apply(None, item, session=self.game_session)
+                        if isinstance(other_results, list):
+                            action.result.extend(other_results)
                 # handle game time for out of battle actions
                 if isinstance(action.source, PlayerCharacter):
                     self.increment_game_time(action.source)
-
         # did the map change for the current pov?
         self.check_and_notify_map_change(pov_map, pov_entity, username)
 
@@ -874,26 +875,27 @@ class GameManagement:
             self.socketio.emit('message', {'type': 'move', 'message': { 'animation_log': battle.get_animation_logs()}})
             battle.clear_animation_logs()
         else:
-            self.loop_environment()
             self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
             # check if spell and send animation log
             self.socketio.emit('message',action_animator(action))
             # Check if the action affects visibility (doors, lighting, etc.) and emit refresh_map
+            request_map_refresh = False
             if hasattr(action, 'result') and action.result:
                 for result_item in action.result:
                     if (result_item.get('type') == 'interact' and
                         result_item.get('action') in ['open', 'close']):
                         # Door open/close affects line of sight, refresh the map
-                        self.socketio.emit('message', {'type': 'refresh_map'})
-                        break
+                        request_map_refresh = True
                     elif result_item.get('type') == 'look':
                         # Look action can reveal notes and concealed entities, refresh the map
-                        self.socketio.emit('message', {'type': 'refresh_map'})
-                        break
+                        request_map_refresh = True
+                    elif result_item.get("type") == "message":
+                        self.socketio.emit('message', {"type": "message_toaster", "source": result_item["source"].entity_uid, "message": result_item["message"], "position": result_item["position"]})
                     elif result_item.get('refresh_map'):
-                        self.socketio.emit('message', {'type': 'refresh_map'})
-                        break
-
+                        request_map_refresh = True
+            if request_map_refresh:
+                self.socketio.emit('message', {'type': 'refresh_map'})
+            self.loop_environment()
         self.socketio.emit('message', {'type': 'turn', 'message': { 'game_time': self.game_session.game_time }})
 
         if self.autosave:
