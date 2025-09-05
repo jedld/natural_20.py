@@ -18,6 +18,14 @@ class GenericEventHandler:
 
         if self.properties.get('message'):
             message = self.session.t(self.properties['message'], options={ "name": entity.label(), "target": opts['target'].label() if opts.get('target') else None })
+            source_entity = self.properties.get('message_source', entity)
+
+            result.append({
+                "type": "message",
+                "source": source_entity,
+                "message": message,
+                "position": self.properties.get('message_position', self.map.position_of(entity))
+            })
             self.session.event_manager.received_event({
                 'event': 'message',
                 'source': entity,
