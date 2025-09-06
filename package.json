@@ -5,7 +5,8 @@
   "scripts": {
     "test": "jest --runInBand",
     "test:coverage": "jest --coverage --runInBand",
-    "ci:test": "jest --coverage --runInBand"
+  "ci:test": "jest --coverage --runInBand",
+  "build:assets": "node scripts/minify.mjs"
   },
   "jest": {
     "testEnvironment": "jsdom",
@@ -28,6 +29,7 @@
     ]
   },
   "devDependencies": {
+  "esbuild": "^0.23.0",
     "jest": "^29.0.0",
     "jest-environment-jsdom": "^30.0.5",
     "jquery": "^3.7.0",
