@@ -1,3 +1,24 @@
+########################################
+# Stage 1: Build/minify frontend assets
+########################################
+FROM node:20-alpine AS assets
+
+WORKDIR /app
+
+# Only copy files needed for asset build first for better caching
+COPY package.json ./
+COPY scripts ./scripts
+COPY webapp/static ./webapp/static
+
+# Install node deps and build assets
+RUN npm install --no-audit --no-fund \
+    && npm run build:assets \
+    # Promote .min.js to the original filenames so templates need no changes
+    && find webapp/static -type f -name '*.min.js' -print0 | while IFS= read -r -d '' f; do t="${f%.min.js}.js"; cp "$f" "$t"; done
+
+########################################
+# Stage 2: Python runtime
+########################################
 FROM python:3.9-slim
 
 # Install build dependencies
@@ -19,6 +40,9 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn eventlet
 
 # Copy all project files into the container
 COPY . .
+
+# Overwrite static assets with minified output from assets stage
+COPY --from=assets /app/webapp/static /app/webapp/static
 
 RUN pip install --no-cache-dir -e .
 

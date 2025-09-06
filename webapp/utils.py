@@ -89,6 +89,9 @@ class GameManagement:
         self.autosave = autosave
         self.gzip = False
         self.game_state_lock = threading.Lock()
+        # Per-map locks for non-battle actions to reduce contention across maps
+        self.map_state_locks = {}
+        self._map_state_locks_guard = threading.Lock()
         # Initialize logger as early as possible so subsequent setup can log safely
         if not system_logger:
             self.logger = logging.getLogger(__name__)
@@ -468,7 +471,7 @@ class GameManagement:
                     self.output_logger.log("Battle started.")
 
                     # if battle sound is present, start playing it
-                    for soundtrack in self.soundtracks:
+                    for soundtrack in (self.soundtracks or []):
                         if battle_music.lower()==soundtrack['name'].lower():
                             self.play_soundtrack(soundtrack['name'])
                             break
@@ -584,7 +587,7 @@ class GameManagement:
             self.current_soundtrack = None
             self.socketio.emit('message', {'type': 'stoptrack', 'message': {}})
         else:
-            for soundtrack in self.soundtracks:
+            for soundtrack in (self.soundtracks or []):
                 url = soundtrack['file']
 
                 if track_id != soundtrack['name']:
@@ -613,6 +616,24 @@ class GameManagement:
 
     def list_states(self):
         return self.save_states
+
+    def _get_map_lock(self, map_obj):
+        """Return an RLock dedicated to the provided map object.
+        This allows actions on different maps to proceed concurrently when safe (outside battle).
+        """
+        if map_obj is None:
+            # Fallback to global lock if map is unknown
+            return self.game_state_lock
+        try:
+            map_key = getattr(map_obj, 'name', None) or id(map_obj)
+        except Exception:
+            map_key = id(map_obj)
+        with self._map_state_locks_guard:
+            lock = self.map_state_locks.get(map_key)
+            if lock is None:
+                lock = threading.RLock()
+                self.map_state_locks[map_key] = lock
+            return lock
 
     def save_game(self, name: Optional[str] = None):
         # Snapshot state and determine filename under lock, then write outside the lock
@@ -793,7 +814,7 @@ class GameManagement:
         self.trigger_event('on_battle_end')
         self.set_current_battle(None)
         # revert to background musing if present
-        for soundtrack in self.soundtracks:
+        for soundtrack in (self.soundtracks or []):
             if 'background' in soundtrack['name']:
                 self.play_soundtrack(soundtrack['name'])
         self.socketio.emit('message', {'type': 'console', 'message': 'Battle has ended.'})
@@ -839,28 +860,41 @@ class GameManagement:
             self.game_session.increment_game_time()
 
     def commit_and_update(self, username, action, pov_entities):
-        # Use the lock to make the operation atomic
-        with self.game_state_lock:
-            battle = self.get_current_battle()
+        """Commit an action and update clients.
 
-            pov_entity = self.get_pov_entity_for_user(username)
+        Locking policy:
+        - During an active battle, use the global game_state_lock to preserve strict ordering.
+        - Outside battle, use a per-map lock for the map containing the acting entity
+          so actions on different maps don't block each other.
+        """
+        # Snapshot basic references without holding locks for long
+        battle = self.get_current_battle()
+        pov_entity = self.get_pov_entity_for_user(username) or (pov_entities[0] if pov_entities else None)
+        pov_map = self.get_map_for_entity(pov_entity)
 
-            if not pov_entity:
-                pov_entity = pov_entities[0] if pov_entities else None
-
-            pov_map = self.get_map_for_entity(pov_entity)
-
-            if battle:
+        if battle:
+            # Strict global locking while in battle
+            with self.game_state_lock:
                 battle.action(action)
                 battle.commit(action)
                 if battle.battle_ends():
                     self.end_current_battle()
-            else:
-                action_battle_map = self.get_map_for_entity(action.source)
+        else:
+            # More forgiving: lock only the acting entity's map
+            action_battle_map = self.get_map_for_entity(action.source)
+            map_lock = self._get_map_lock(action_battle_map)
+            # Try a short timeout first to avoid long waits; then block if needed
+            acquired = False
+            try:
+                acquired = map_lock.acquire(timeout=0.2)
+            except Exception:
+                # Fallback to blocking acquire if timeout not supported
+                acquired = False
+            if not acquired:
+                map_lock.acquire()
+            try:
                 action.resolve(self.game_session, action_battle_map)
-
-
-                for item in action.result:
+                for item in list(action.result):
                     for klass in Action.__subclasses__():
                         other_results = klass.apply(None, item, session=self.game_session)
                         if isinstance(other_results, list):
@@ -868,6 +902,11 @@ class GameManagement:
                 # handle game time for out of battle actions
                 if isinstance(action.source, PlayerCharacter):
                     self.increment_game_time(action.source)
+            finally:
+                try:
+                    map_lock.release()
+                except Exception:
+                    pass
         # did the map change for the current pov?
         self.check_and_notify_map_change(pov_map, pov_entity, username)
 
