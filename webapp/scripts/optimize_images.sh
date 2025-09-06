@@ -1,20 +1,32 @@
 #!/bin/bash
-# This script resizes all PNG images in the specified assets folders
-# to 75x75 pixels and optimizes them for the web.
-# It uses ImageMagick's convert tool and optipng for optimization.
+# Resize and optimize PNG images in one or more asset folders.
+# - Supports per-folder target size via folders.txt (e.g., "../static/spells 75x75").
+# - Default size is 75x75; you can override with a 2nd CLI arg (e.g., "./optimize_images.sh folders.txt 128x128").
+# - Uses ImageMagick (convert) and optipng.
 #
 # Usage:
-#   ./optimize_images.sh [folders_file]
+#   ./optimize_images.sh [folders_file] [default_size]
 #
-# The folders file should contain one path per line.
-# Lines starting with '#' are considered comments and are ignored.
-# If no file is specified, it defaults to "../static/items".
+# Examples:
+#   ./optimize_images.sh                       # uses ./folders.txt and 75x75
+#   ./optimize_images.sh folders.txt 128x128   # uses 128x128 when a line doesn't specify a size
+#
+# folders.txt format:
+#   One entry per line. Optional size after the path, separated by whitespace.
+#     ../static/spells 75x75
+#     ../static/actions 128x128
+#   Lines beginning with '#' are comments.
 
 # Set default folder file if none is provided
-if [ "$#" -eq 0 ]; then
-    FOLDER_FILE="folders.txt"
-else
+FOLDER_FILE="folders.txt"
+DEFAULT_SIZE="75x75"
+
+# Args: [folders_file] [default_size]
+if [ "$#" -ge 1 ] && [ -n "$1" ]; then
     FOLDER_FILE="$1"
+fi
+if [ "$#" -ge 2 ] && [ -n "$2" ]; then
+    DEFAULT_SIZE="$2"
 fi
 
 # Check if the folder file exists
@@ -23,47 +35,52 @@ if [ ! -f "$FOLDER_FILE" ]; then
     exit 1
 fi
 
-# Read folders from the file (ignoring empty lines and lines starting with '#')
-FOLDERS=()
+# Process each line: "<folder> [<size>]"
 while IFS= read -r line || [ -n "$line" ]; do
-    # Skip empty lines and comment lines
-    if [[ -z "$line" || "$line" =~ ^# ]]; then
+    # Skip empty and comment lines
+    if [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]]; then
         continue
     fi
-    FOLDERS+=("$line")
-done < "$FOLDER_FILE"
 
-# Loop through each specified folder
-for ASSETS_DIR in "${FOLDERS[@]}"; do
-    echo "Processing folder: $ASSETS_DIR"
+    # Read folder and optional size (whitespace separated)
+    folder_path=""
+    folder_size=""
+    # shellcheck disable=SC2086
+    read -r folder_path folder_size <<< "$line"
+
+    # Validate/assign size
+    if [[ -z "$folder_size" || ! "$folder_size" =~ ^[0-9]+x[0-9]+$ ]]; then
+        folder_size="$DEFAULT_SIZE"
+    fi
+
+    echo "Processing folder: $folder_path (size: $folder_size)"
 
     # Check if the assets folder exists
-    if [ ! -d "$ASSETS_DIR" ]; then
-        echo "Error: Assets folder not found at $ASSETS_DIR"
+    if [ ! -d "$folder_path" ]; then
+        echo "Error: Assets folder not found at $folder_path"
         continue
     fi
 
     # Loop through all PNG images in the assets folder
-    for img in "$ASSETS_DIR"/*.png; do
-        # Skip if no PNG files are found
-        [ -e "$img" ] || continue
-
+    shopt -s nullglob
+    for img in "$folder_path"/*.png; do
         echo "Optimizing image: $img"
 
         # Define output file (adds a "-optimized" suffix before the extension)
         base=$(basename "$img" .png)
-        out="$ASSETS_DIR/${base}-optimized.png"
+        out="$folder_path/${base}-optimized.png"
 
-        # Resize and crop image to exactly 75x75 px:
-        # -resize 75x75^ scales the image while preserving aspect ratio until the smaller side fits 75px
-        # -gravity center sets the focal point and -background none ensures transparency is preserved before cropping with -extent 75x75
-        convert "$img" -resize 75x75^ -gravity center -background none -extent 75x75 "$out"
+        # Resize and crop image to the requested size (e.g., 75x75 or 128x128):
+        # -resize <WxH>^ preserves aspect ratio until the smaller side fits
+        # -gravity center + -background none + -extent <WxH> crops to exact size with transparency preserved
+        convert "$img" -resize "${folder_size}^" -gravity center -background none -extent "$folder_size" "$out"
 
         # Further optimize the image with optipng (level 7 optimization)
-        optipng -o7 "$out"
+        optipng -o7 "$out" >/dev/null 2>&1 || optipng -o7 "$out"
     done
+    shopt -u nullglob
 
-    echo "Completed optimization for folder: $ASSETS_DIR"
-done
+    echo "Completed optimization for folder: $folder_path"
+done < "$FOLDER_FILE"
 
 echo "Image optimization completed."
