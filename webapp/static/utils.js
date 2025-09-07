@@ -597,107 +597,130 @@ const Utils = {
     });
   },
   drawMovementPath: function(ctx, movePath, available_cost, placeable, terrainInfo, options) {
+    // Firefox can choke on frequent layout reads; throttle to ~30 FPS and coalesce work
+    try {
+      if (typeof Utils._isFirefox === 'undefined') {
+        Utils._isFirefox = typeof navigator !== 'undefined' && /firefox/i.test(navigator.userAgent || '');
+      }
+      if (Utils._isFirefox) {
+        const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        const minDelta = 1000 / 30; // 30 FPS cap
+        if (!Utils._movementLastDrawTs) Utils._movementLastDrawTs = 0;
+        if (now - Utils._movementLastDrawTs < minDelta) {
+          // Save latest args and schedule a single rAF draw
+          Utils._movementPendingArgs = [ctx, movePath, available_cost, placeable, terrainInfo, options];
+          if (!Utils._movementRafId) {
+            Utils._movementRafId = requestAnimationFrame(function() {
+              const args = Utils._movementPendingArgs;
+              Utils._movementPendingArgs = null;
+              Utils._movementRafId = null;
+              if (args) {
+                // Update timestamp and perform draw
+                Utils._movementLastDrawTs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+                Utils._doDrawMovementPath.apply(Utils, args);
+              }
+            });
+          }
+          return;
+        }
+        Utils._movementLastDrawTs = now;
+      }
+    } catch (e) { /* non-fatal */ }
+
+    // Draw immediately (non-Firefox or not throttled)
+    Utils._doDrawMovementPath(ctx, movePath, available_cost, placeable, terrainInfo, options);
+  },
+
+  // Internal implementation of movement path drawing (no throttling)
+  _doDrawMovementPath: function(ctx, movePath, available_cost, placeable, terrainInfo, options) {
     const suppressArrow = options && options.suppressArrow === true;
     const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const tile_size = ($('.tiles-container').data('tile-size')) || ($('.tile').height() || 50);
+
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    
+
     // Create a lookup map for terrain information for faster access
     const terrainLookup = {};
     if (terrainInfo) {
-      terrainInfo.forEach(info => {
-        terrainLookup[info.x + ',' + info.y] = info.difficult;
-      });
+      terrainInfo.forEach(function(info){ terrainLookup[info.x + ',' + info.y] = !!info.difficult; });
     }
-    
-    ctx.strokeStyle = "green";
+
+    // Cache centers for all tiles in the path to avoid repeated DOM/layout reads
+    const centerCache = new Map(); // key: "x,y" -> {x, y}
+    function getCenter(x, y) {
+      const key = x + ',' + y;
+      let c = centerCache.get(key);
+      if (c) return c;
+      const el = document.querySelector('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]');
+      if (!el || !el.getBoundingClientRect) return null;
+      const rect = el.getBoundingClientRect();
+      c = { x: rect.left + rect.width / 2 + scrollLeft, y: rect.top + rect.height / 2 + scrollTop };
+      centerCache.set(key, c);
+      return c;
+    }
+
+    // Precompute centers
+    const centers = movePath.map(function(coords){ return getCenter(coords[0], coords[1]); });
+
+    ctx.strokeStyle = 'green';
     ctx.lineWidth = 5;
     let prevX, prevY;
-    
-    movePath.forEach((coords, index) => {
-      const [x, y] = coords;
-      const rect = $('.tile[data-coords-x="' + x + '"][data-coords-y="' + y + '"]')[0].getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2 + scrollLeft;
-      const centerY = rect.top + rect.height / 2 + scrollTop;
-      
+
+    for (let index = 0; index < movePath.length; index++) {
+      const coords = movePath[index];
+      const center = centers[index];
+      if (!center) continue;
+      const centerX = center.x;
+      const centerY = center.y;
+
       if (index === 0) {
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
         prevX = centerX;
         prevY = centerY;
       } else {
-        // Check if this segment goes through difficult terrain
-        const isDifficult = terrainLookup[x + ',' + y] || false;
-        
-        // Start a new path segment with appropriate line style
+        // Determine if destination tile is difficult
+        const x = coords[0], y = coords[1];
+        const isDifficult = !!terrainLookup[x + ',' + y];
+
         ctx.beginPath();
         ctx.moveTo(prevX, prevY);
         ctx.lineTo(centerX, centerY);
-        
-        // Set line dash for difficult terrain
-        if (isDifficult) {
-          ctx.setLineDash([10, 10]); // Dotted line: 10px dash, 10px gap
-        } else {
-          ctx.setLineDash([]); // Solid line
-        }
-        
+        ctx.setLineDash(isDifficult ? [10, 10] : []);
         ctx.stroke();
-        
+
         prevX = centerX;
         prevY = centerY;
       }
-      
-  // Draw arrow at the end (unless suppressed)
-  if (!suppressArrow && index === movePath.length - 1) {
+
+      // Draw arrow and cost at the end (unless suppressed)
+      if (!suppressArrow && index === movePath.length - 1) {
         ctx.beginPath();
-        ctx.setLineDash([]); // Reset to solid line for arrow
+        ctx.setLineDash([]); // solid for arrow
         const arrowSize = 10;
-        // Calculate angle from previous position to current position
-        let angle;
-        if (index > 0) {
-          // Use the direction from the previous segment
-          const prevCoords = movePath[index - 1];
-          const [prevTileX, prevTileY] = prevCoords;
-          const prevRect = $('.tile[data-coords-x="' + prevTileX + '"][data-coords-y="' + prevTileY + '"]')[0].getBoundingClientRect();
-          const prevCenterX = prevRect.left + prevRect.width / 2 + scrollLeft;
-          const prevCenterY = prevRect.top + prevRect.height / 2 + scrollTop;
-          angle = Math.atan2(centerY - prevCenterY, centerX - prevCenterX);
-        } else {
-          // Fallback for single tile path (shouldn't happen in normal movement)
-          angle = 0;
-        }
-        
+        const angle = (movePath.length > 1) ? Math.atan2(centerY - centers[index - 1].y, centerX - centers[index - 1].x) : 0;
+
         if (placeable) {
-          ctx.moveTo(
-            centerX - arrowSize * Math.cos(angle - Math.PI / 6),
-            centerY - arrowSize * Math.sin(angle - Math.PI / 6),
-          );
+          ctx.moveTo(centerX - arrowSize * Math.cos(angle - Math.PI / 6), centerY - arrowSize * Math.sin(angle - Math.PI / 6));
           ctx.lineTo(centerX, centerY);
-          ctx.lineTo(
-            centerX - arrowSize * Math.cos(angle + Math.PI / 6),
-            centerY - arrowSize * Math.sin(angle + Math.PI / 6),
-          );
+          ctx.lineTo(centerX - arrowSize * Math.cos(angle + Math.PI / 6), centerY - arrowSize * Math.sin(angle + Math.PI / 6));
         } else {
           ctx.moveTo(centerX - arrowSize, centerY - arrowSize);
           ctx.lineTo(centerX + arrowSize, centerY + arrowSize);
           ctx.moveTo(centerX + arrowSize, centerY - arrowSize);
           ctx.lineTo(centerX - arrowSize, centerY + arrowSize);
         }
-        
         ctx.stroke();
-        
+
         // Draw movement cost text
-        ctx.font = "20px Arial";
-        ctx.fillStyle = "green";
-        ctx.fillText(
-          available_cost + 'ft',
-          centerX,
-          centerY + $(".tile").height() / 2,
-        );
+        ctx.font = '20px Arial';
+        ctx.fillStyle = 'green';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(available_cost) + 'ft', centerX, centerY + (tile_size / 2));
       }
-    });
-    
-    // Reset line dash to solid for future drawing operations
+    }
+
+    // Reset line dash
     ctx.setLineDash([]);
   },
   toggleBubble: function(bubble) {
