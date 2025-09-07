@@ -1,3 +1,26 @@
+// Lightweight perf profile (Firefox/Linux often benefits from lower buffer scale and capped FPS)
+var EffectsPerf = (function(){
+  try {
+    var ua = (navigator && navigator.userAgent ? navigator.userAgent : '').toLowerCase();
+    var isFirefox = ua.indexOf('firefox') !== -1;
+    return {
+      isFirefox: isFirefox,
+      // Render buffer scale (multiplies DPR). 0.66 cuts pixel cost ~1/2 while keeping UI size.
+      bufferScale: isFirefox ? 0.66 : 1.0,
+      // Clamp DPR to avoid huge buffers on HiDPI
+      dprMax: isFirefox ? 2 : 3,
+      // Limit animation rate to reduce main-thread/GPU contention
+      fpsCap: isFirefox ? 30 : 60,
+      // Throttle how often we upload mask canvases to GPU (ms)
+      maskUploadThrottleMs: isFirefox ? 150 : 0,
+      // WebGL context options tuned for perf
+      webglCtxOpts: { alpha: true, antialias: false, depth: false, stencil: false, premultipliedAlpha: true, preserveDrawingBuffer: false, powerPreference: 'high-performance' }
+    };
+  } catch(e) {
+    return { isFirefox:false, bufferScale:1.0, dprMax:3, fpsCap:60, maskUploadThrottleMs:0, webglCtxOpts:{ alpha:true, antialias:false, depth:false, stencil:false, premultipliedAlpha:true, preserveDrawingBuffer:false, powerPreference:'high-performance' } };
+  }
+})();
+
 const Effects = {
   // store active effect instances
   _instances: {},
@@ -215,7 +238,8 @@ const Effects = {
     var ctx = overlay.getContext('2d');
     var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     function resize(){
-      dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      var rawDpr = (window.devicePixelRatio || 1);
+      dpr = Math.max(1, Math.min(EffectsPerf.dprMax || 3, rawDpr * (EffectsPerf.bufferScale || 1)));
       var rect = getMapRect();
       overlay.style.left = rect.left + 'px';
       overlay.style.top = rect.top + 'px';
@@ -408,9 +432,24 @@ const Effects = {
       }
     }
 
-    function frame(){
+      var _lastFrameTs = 0; var _minDelta = 1000 / Math.max(10, (EffectsPerf.fpsCap || 60));
+      var _lastMaskUpload = 0;
+      function maybeUploadMask(texLoc, tex, canvas, bindUnit){
+        if (!canvas) return;
+        var now = performance.now();
+        if ((EffectsPerf.maskUploadThrottleMs || 0) > 0 && now - _lastMaskUpload < EffectsPerf.maskUploadThrottleMs) return;
+        _lastMaskUpload = now;
+        gl.activeTexture(bindUnit);
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+        gl.uniform1i(texLoc, bindUnit - gl.TEXTURE0);
+      }
+      function frame(ts) {
       if (!running) return;
-      // Build FoW mask (if changed)
+  if (ts != null && ts - _lastFrameTs < _minDelta) { requestAnimationFrame(frame); return; }
+  _lastFrameTs = (ts != null ? ts : _lastFrameTs);
+  gl.viewport(0, 0, overlay.width, overlay.height);
       var mask = fowHelper.update();
 
       // Clear and redraw
@@ -705,7 +744,7 @@ const Effects = {
     }
 
     function resize() {
-      var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      var dpr = Math.max(1, Math.min(EffectsPerf.dprMax || 3, (window.devicePixelRatio || 1) * (EffectsPerf.bufferScale || 1)));
       var rect = getMapRect();
       overlay.style.left = rect.left + 'px';
       overlay.style.top = rect.top + 'px';
@@ -720,7 +759,7 @@ const Effects = {
     try { ro.observe(container); } catch (e) {}
 
   var gl = null;
-  try { gl = overlay.getContext('webgl', { antialias: true, alpha: true, premultipliedAlpha: true }) || overlay.getContext('experimental-webgl', { antialias: true, alpha: true, premultipliedAlpha: true }); } catch (e) { gl = null; }
+  try { gl = overlay.getContext('webgl', EffectsPerf.webglCtxOpts) || overlay.getContext('experimental-webgl', EffectsPerf.webglCtxOpts); } catch (e) { gl = null; }
 
     // helper to parse color
     function rgbFromHex(hex) {
@@ -934,8 +973,11 @@ const Effects = {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.bindTexture(gl.TEXTURE_2D, null);
 
-      function frame() {
+    var _lastFrameTs = 0; var _minDelta = 1000 / Math.max(10, (EffectsPerf.fpsCap || 60));
+    function frame(ts) {
   if (!running) return;
+  if (ts != null && ts - _lastFrameTs < _minDelta) { requestAnimationFrame(frame); return; }
+  _lastFrameTs = (ts != null ? ts : _lastFrameTs);
   gl.viewport(0, 0, overlay.width, overlay.height);
         gl.clearColor(0,0,0,0);
         gl.clear(gl.COLOR_BUFFER_BIT);
@@ -977,30 +1019,9 @@ const Effects = {
         }
 
         // Update and bind FoW texture (unit 1)
-        try {
-          var upd = fowHelper.update();
-          if (upd && upd.canvas) {
-            gl.activeTexture(gl.TEXTURE1);
-            gl.bindTexture(gl.TEXTURE_2D, fowTexture);
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, upd.canvas);
-            gl.uniform1i(fowLoc, 1);
-          }
-        } catch(e) {}
+  try { var upd = fowHelper.update(); if (upd && upd.canvas) { maybeUploadMask(fowLoc, fowTexture, upd.canvas, gl.TEXTURE1); } } catch(e) {}
         // Update and bind Manual mask (unit 2)
-        try {
-          manualHelper.setLayers(manualMaskLayers);
-          if (manualHelper.setOptions) manualHelper.setOptions({ featherPx: maskFeatherPx });
-          if (fowHelper.setOptions) fowHelper.setOptions({ featherPx: maskFeatherPx });
-          var updM = manualHelper.update();
-          if (updM && updM.canvas) {
-            gl.activeTexture(gl.TEXTURE2);
-            gl.bindTexture(gl.TEXTURE_2D, manualTexture);
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, updM.canvas);
-            gl.uniform1i(manualLoc, 2);
-          }
-        } catch(e) {}
+  try { manualHelper.setLayers(manualMaskLayers); if (manualHelper.setOptions) manualHelper.setOptions({ featherPx: maskFeatherPx }); if (fowHelper.setOptions) fowHelper.setOptions({ featherPx: maskFeatherPx }); var updM = manualHelper.update(); if (updM && updM.canvas) { maybeUploadMask(manualLoc, manualTexture, updM.canvas, gl.TEXTURE2); } } catch(e) {}
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         requestAnimationFrame(frame);
@@ -1040,8 +1061,11 @@ const Effects = {
     for (var i=0;i<Math.floor(220*intensity);i++) drops.push(makeDrop());
     var lightningAlpha = 0.0;
 
-    function draw() {
+    var _lastTs2D = 0; var _minDelta2D = 1000 / Math.max(10, (EffectsPerf.fpsCap || 60));
+    function draw(ts) {
       if (!running) return;
+      if (ts != null && ts - _lastTs2D < _minDelta2D) { requestAnimationFrame(draw); return; }
+      _lastTs2D = (ts != null ? ts : _lastTs2D);
       ctx.clearRect(0,0,overlay.width, overlay.height);
       ctx.globalCompositeOperation = 'source-over';
 
@@ -1199,7 +1223,7 @@ const Effects = {
     }
 
     function resize() {
-      var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      var dpr = Math.max(1, Math.min(EffectsPerf.dprMax || 3, (window.devicePixelRatio || 1) * (EffectsPerf.bufferScale || 1)));
       var rect = getMapRect();
       overlay.style.left = rect.left + 'px';
       overlay.style.top = rect.top + 'px';
@@ -1214,7 +1238,7 @@ const Effects = {
     try { ro.observe(container); } catch (e) {}
 
   var gl = null;
-  try { gl = overlay.getContext('webgl', { antialias: true, alpha: true, premultipliedAlpha: true }) || overlay.getContext('experimental-webgl', { antialias: true, alpha: true, premultipliedAlpha: true }); } catch (e) { gl = null; }
+  try { gl = overlay.getContext('webgl', EffectsPerf.webglCtxOpts) || overlay.getContext('experimental-webgl', EffectsPerf.webglCtxOpts); } catch (e) { gl = null; }
 
     // helper to parse color
     function rgbFromHex(hex) {
@@ -1432,8 +1456,23 @@ const Effects = {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.bindTexture(gl.TEXTURE_2D, null);
 
-  function frame(){
+  var _lastFrameSnow = 0; var _minDeltaSnow = 1000 / Math.max(10, (EffectsPerf.fpsCap || 60));
+  var _lastMaskUploadSnow = 0;
+  function maybeUploadMaskSnow(texLoc, tex, canvas, bindUnit){
+    if (!canvas) return;
+    var now = performance.now();
+    if ((EffectsPerf.maskUploadThrottleMs || 0) > 0 && now - _lastMaskUploadSnow < EffectsPerf.maskUploadThrottleMs) return;
+    _lastMaskUploadSnow = now;
+    gl.activeTexture(bindUnit);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+    gl.uniform1i(texLoc, bindUnit - gl.TEXTURE0);
+  }
+  function frame(ts){
         if (!running) return;
+        if (ts != null && ts - _lastFrameSnow < _minDeltaSnow) { requestAnimationFrame(frame); return; }
+        _lastFrameSnow = (ts != null ? ts : _lastFrameSnow);
         var now = Date.now();
         var dt = Math.max(0, (now - lastTime) / 1000.0);
         lastTime = now;
@@ -1483,32 +1522,13 @@ const Effects = {
   gl.bindTexture(gl.TEXTURE_2D, mapTexture || fallbackTex);
   gl.uniform1i(mapLoc, 0);
         // Update and bind FoW texture (unit 1)
-        try {
-          var upd = fowHelper.update();
-          if (upd && upd.canvas) {
-            gl.activeTexture(gl.TEXTURE1);
-            gl.bindTexture(gl.TEXTURE_2D, fowTexture);
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, upd.canvas);
-            gl.uniform1i(fowLoc, 1);
-          }
-        } catch(e) {}
+  try { var upd = fowHelper.update(); if (upd && upd.canvas) { maybeUploadMaskSnow(fowLoc, fowTexture, upd.canvas, gl.TEXTURE1); } } catch(e) {}
         // Update and bind Manual mask (unit 2)
-        try {
-          manualHelperSnow.setLayers(manualMaskLayersSnow);
-          var updM2 = manualHelperSnow.update();
-          if (updM2 && updM2.canvas) {
-            gl.activeTexture(gl.TEXTURE2);
-            gl.bindTexture(gl.TEXTURE_2D, manualTextureSnow);
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, updM2.canvas);
-            gl.uniform1i(manualLoc, 2);
-          }
-        } catch(e) {}
+  try { manualHelperSnow.setLayers(manualMaskLayersSnow); var updM2 = manualHelperSnow.update(); if (updM2 && updM2.canvas) { maybeUploadMaskSnow(manualLoc, manualTextureSnow, updM2.canvas, gl.TEXTURE2); } } catch(e) {}
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         requestAnimationFrame(frame);
       }
-      requestAnimationFrame(frame);
+  requestAnimationFrame(frame);
 
       return {
   stop: function(){ running = false; try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fowHelper && fowHelper.destroy(); }catch(e){} try{ manualHelperSnow && manualHelperSnow.destroy(); }catch(e){} },
@@ -1569,8 +1589,11 @@ const Effects = {
   var last2D = Date.now();
   var gustActive2D = false; var gustEnd2D = 0; var gustWind2D = 0.0; var gustTurb2D = 0.0;
 
-    function draw2D(){
+    var _last2DSnow = 0; var _minDelta2DSnow = 1000 / Math.max(10, (EffectsPerf.fpsCap || 60));
+    function draw2D(ts){
       if (!running2D) return;
+        if (ts != null && ts - _last2DSnow < _minDelta2DSnow) { requestAnimationFrame(draw2D); return; }
+        _last2DSnow = (ts != null ? ts : _last2DSnow);
       updateLogicalSize();
       // ensure backing store matches DPR
       var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
@@ -1650,7 +1673,7 @@ const Effects = {
           ctx.globalCompositeOperation = 'source-over';
         }
       } catch(e) {}
-      requestAnimationFrame(draw2D);
+  requestAnimationFrame(draw2D);
     }
     requestAnimationFrame(draw2D);
 
@@ -1723,7 +1746,7 @@ Effects.createWaterEffect = function(config) {
   }
 
   function resize(){
-    var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    var dpr = Math.max(1, Math.min(EffectsPerf.dprMax || 3, (window.devicePixelRatio || 1) * (EffectsPerf.bufferScale || 1)));
     var rect = getMapRect();
     overlay.style.left = rect.left + 'px';
     overlay.style.top = rect.top + 'px';
@@ -1740,7 +1763,7 @@ Effects.createWaterEffect = function(config) {
   function rgbFromHex(hex){ var r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255; return [r,g,b]; }
 
   var gl = null;
-  try { gl = overlay.getContext('webgl', { antialias:true, alpha:true, premultipliedAlpha:true }) || overlay.getContext('experimental-webgl', { antialias:true, alpha:true, premultipliedAlpha:true }); } catch(e) { gl = null; }
+  try { gl = overlay.getContext('webgl', EffectsPerf.webglCtxOpts) || overlay.getContext('experimental-webgl', EffectsPerf.webglCtxOpts); } catch(e) { gl = null; }
 
   if (gl) {
     var vertexSrc = 'attribute vec2 a_position; varying vec2 v_uv; void main(){ v_uv = a_position*0.5+0.5; gl_Position = vec4(a_position,0.0,1.0);}';
@@ -1907,8 +1930,23 @@ Effects.createWaterEffect = function(config) {
     var running = true;
     var _lastOverlayW = overlay.width, _lastOverlayH = overlay.height;
 
-    function frame(){
+    var _lastFrameWater = 0; var _minDeltaWater = 1000 / Math.max(10, (EffectsPerf.fpsCap || 60));
+    var _lastMaskUploadWater = 0;
+    function maybeUploadMaskWater(texLoc, tex, canvas, bindUnit){
+      if (!canvas) return;
+      var now = performance.now();
+      if ((EffectsPerf.maskUploadThrottleMs || 0) > 0 && now - _lastMaskUploadWater < EffectsPerf.maskUploadThrottleMs) return;
+      _lastMaskUploadWater = now;
+      gl.activeTexture(bindUnit);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+      gl.uniform1i(texLoc, bindUnit - gl.TEXTURE0);
+    }
+    function frame(ts){
       if (!running) return;
+      if (ts != null && ts - _lastFrameWater < _minDeltaWater) { requestAnimationFrame(frame); return; }
+      _lastFrameWater = (ts != null ? ts : _lastFrameWater);
       gl.viewport(0, 0, overlay.width, overlay.height);
       gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(program);
@@ -1928,9 +1966,9 @@ Effects.createWaterEffect = function(config) {
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, mapTexture); gl.uniform1i(mapLoc, 0);
       }
       // FoW
-      try { var upd = fowHelper.update(); if (upd && upd.canvas) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, fowTexture); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, upd.canvas); gl.uniform1i(fowLoc, 1); } } catch(e) {}
+  try { var upd = fowHelper.update(); if (upd && upd.canvas) { maybeUploadMaskWater(fowLoc, fowTexture, upd.canvas, gl.TEXTURE1); } } catch(e) {}
       // Manual
-      try { manualHelper.setLayers(manualMaskLayers); var updM = manualHelper.update(); if (updM && updM.canvas) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, manualTexture); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, updM.canvas); gl.uniform1i(manualLoc, 2); } } catch(e) {}
+  try { manualHelper.setLayers(manualMaskLayers); var updM = manualHelper.update(); if (updM && updM.canvas) { maybeUploadMaskWater(manualLoc, manualTexture, updM.canvas, gl.TEXTURE2); } } catch(e) {}
 
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       requestAnimationFrame(frame);
@@ -1971,8 +2009,11 @@ Effects.createWaterEffect = function(config) {
   var fow2D = Effects._buildFoWMaskForOverlay(overlay, { featherPx: maskFeatherPx });
   var manual2D = Effects._buildManualMaskForOverlay(overlay, manualMaskLayers, { featherPx: maskFeatherPx });
 
-  function draw2D(){
+  var _last2DWater = 0; var _minDelta2DWater = 1000 / Math.max(10, (EffectsPerf.fpsCap || 60));
+  function draw2D(ts){
     if (!running2D) return;
+    if (ts != null && ts - _last2DWater < _minDelta2DWater) { requestAnimationFrame(draw2D); return; }
+    _last2DWater = (ts != null ? ts : _last2DWater);
     // ensure backing store matches DPR and rect
     var rect = getMapRect();
     var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
@@ -2078,7 +2119,7 @@ Effects.createFogEffect = function (config) {
   }
 
   function resize() {
-    var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    var dpr = Math.max(1, Math.min(EffectsPerf.dprMax || 3, (window.devicePixelRatio || 1) * (EffectsPerf.bufferScale || 1)));
     var rect = getMapRect();
     overlay.style.left = rect.left + 'px';
     overlay.style.top = rect.top + 'px';
@@ -2095,7 +2136,7 @@ Effects.createFogEffect = function (config) {
 
   var gl = null;
   try {
-    gl = overlay.getContext('webgl') || overlay.getContext('experimental-webgl');
+    gl = overlay.getContext('webgl', EffectsPerf.webglCtxOpts) || overlay.getContext('experimental-webgl', EffectsPerf.webglCtxOpts);
   } catch (e) { gl = null; }
 
   if (gl) {
@@ -2298,8 +2339,24 @@ Effects.createFogEffect = function (config) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.bindTexture(gl.TEXTURE_2D, null);
 
-    function frame() {
+    var _lastFrameFog = 0; var _minDeltaFog = 1000 / Math.max(10, (EffectsPerf.fpsCap || 60));
+    // throttle mask uploads
+    var _lastMaskUpload = 0;
+    function maybeUploadMask(texUnit, texture, canvas, uniformLoc, bindUnit){
+      if (!canvas) return;
+      var now = performance.now();
+      if ((EffectsPerf.maskUploadThrottleMs || 0) > 0 && now - _lastMaskUpload < EffectsPerf.maskUploadThrottleMs) return;
+      _lastMaskUpload = now;
+      gl.activeTexture(bindUnit);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+      gl.uniform1i(texUnit, bindUnit - gl.TEXTURE0);
+    }
+    function frame(ts) {
       if (!running) return;
+      if (ts != null && ts - _lastFrameFog < _minDeltaFog) { requestAnimationFrame(frame); return; }
+      _lastFrameFog = (ts != null ? ts : _lastFrameFog);
       gl.viewport(0, 0, overlay.width, overlay.height);
       gl.clearColor(0,0,0,0);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -2327,28 +2384,9 @@ Effects.createFogEffect = function (config) {
         gl.uniform1i(mapLoc, 0);
       }
       // Update and bind FoW texture (unit 1)
-      try {
-        var upd = fowHelper.update();
-        if (upd && upd.canvas) {
-          gl.activeTexture(gl.TEXTURE1);
-          gl.bindTexture(gl.TEXTURE_2D, fowTexture);
-          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, upd.canvas);
-          gl.uniform1i(fowLoc, 1);
-        }
-      } catch(e) {}
+  try { var upd = fowHelper.update(); if (upd && upd.canvas) { maybeUploadMask(fowLoc, fowTexture, upd.canvas, fowLoc, gl.TEXTURE1); } } catch(e) {}
       // Update and bind Manual mask (unit 2)
-      try {
-        manualHelper.setLayers(manualMaskLayers);
-        var updM = manualHelper.update();
-        if (updM && updM.canvas) {
-          gl.activeTexture(gl.TEXTURE2);
-          gl.bindTexture(gl.TEXTURE_2D, manualTexture);
-          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, updM.canvas);
-          gl.uniform1i(manualLoc, 2);
-        }
-      } catch(e) {}
+  try { manualHelper.setLayers(manualMaskLayers); var updM = manualHelper.update(); if (updM && updM.canvas) { maybeUploadMask(manualLoc, manualTexture, updM.canvas, manualLoc, gl.TEXTURE2); } } catch(e) {}
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       requestAnimationFrame(frame);
     }
@@ -2387,8 +2425,11 @@ Effects.createFogEffect = function (config) {
   var fow2D = Effects._buildFoWMaskForOverlay(overlay, { featherPx: maskFeatherPx });
   var manual2D = Effects._buildManualMaskForOverlay(overlay, manualMaskLayers, { featherPx: maskFeatherPx });
 
-  function draw() {
+  var _last2DFog = 0; var _minDelta2DFog = 1000 / Math.max(10, (EffectsPerf.fpsCap || 60));
+  function draw(ts) {
     if (!running) return;
+    if (ts != null && ts - _last2DFog < _minDelta2DFog) { requestAnimationFrame(draw); return; }
+    _last2DFog = (ts != null ? ts : _last2DFog);
     ctx.clearRect(0,0,overlay.width, overlay.height);
     // multiple layers for richer fog
     ctx.globalCompositeOperation = 'source-over';
