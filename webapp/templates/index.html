@@ -814,12 +814,16 @@
       <div class="modal-body">
         <form id="talkForm">
           <div class="form-group">
-            <label for="talkMessage">
-              <select class="form-control" id="talkLanguageSelect">
-                <option value="Common" selected>Common</option>
-                {% for language in languages %}
-                  <option value="{{ language }}">{{ language }}</option>
-                {% endfor %}
+            <label for="talkMessage">Message</label>
+            <input type="text" class="form-control" id="talkMessage" placeholder="Type your message..." maxlength="200">
+          </div>
+          <div class="form-group">
+            <label for="languageSelect">Language</label>
+            <select class="form-control" id="languageSelect">
+              <option value="Common" selected>Common</option>
+              {% for language in languages %}
+                <option value="{{ language }}">{{ language }}</option>
+              {% endfor %}
             </select>
           </div>
           <div class="form-group">
@@ -837,6 +841,13 @@
             <div class="radio">
               <label>
                 <input type="radio" name="speechVolume" value="shout" data-distance="60"> Shout (60ft)
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="checkbox">
+              <label>
+                <input type="checkbox" id="noSpecificTarget"> No specific target (general shout)
               </label>
             </div>
           </div>
