@@ -29,6 +29,20 @@ const Effects = {
   // Remember last seen effect payloads (by effect name) so we can reapply on enable
   _lastSeen: {},
 
+  // Forceful kill switch: disable, stop, and remove any leftover overlays
+  hardReset: function(){
+    try { Effects._enabled = false; } catch(e){}
+    try { Effects.stopAll(); } catch(e){}
+    try {
+      var ids = ['effects-overlay','effects-overlay-rain','effects-overlay-snow','effects-overlay-water','effects-overlay-pointfire'];
+      for (var i=0;i<ids.length;i++){
+        var el = document.getElementById(ids[i]);
+        if (el && el.parentNode){ try{ el.width = 0; el.height = 0; }catch(e){} el.parentNode.removeChild(el); }
+      }
+    } catch(e){}
+    // Don't clear _lastSeen so re-enabling can restore map-default effects if desired
+  },
+
   // Check if effects are enabled
   isEnabled: function() { return !!Effects._enabled; },
   // Enable/disable all effects. Disabling stops any running effects.
@@ -278,7 +292,7 @@ const Effects = {
 
   var running = true;
   var dirty = true;
-  function markDirty(){ dirty = true; }
+    function markDirty(){ dirty = true; }
 
   // Watch tiles for layout changes (moving tokens/tiles)
   var tilesRoot = document.querySelector('.tiles-container');
@@ -433,12 +447,12 @@ const Effects = {
       }
     }
 
-      var _lastFrameTs = 0; var _minDelta = 1000 / Math.max(10, (EffectsPerf.fpsCap || 60));
-      function frame(ts) {
-        if (!running) return;
-        if (ts != null && ts - _lastFrameTs < _minDelta) { requestAnimationFrame(frame); return; }
-        _lastFrameTs = (ts != null ? ts : _lastFrameTs);
-        var mask = fowHelper.update();
+    var _lastFrameTs = 0; var _minDelta = 1000 / Math.max(10, (EffectsPerf.fpsCap || 60));
+    function frame(ts) {
+    if (!running) return;
+  if (ts != null && ts - _lastFrameTs < _minDelta) { requestAnimationFrame(frame); return; }
+  _lastFrameTs = (ts != null ? ts : _lastFrameTs);
+    var mask = fowHelper.update();
 
       // Clear and redraw
       ctx.clearRect(0,0,overlay.width, overlay.height);
@@ -475,7 +489,7 @@ const Effects = {
         }
       } catch(e) {}
 
-      if (running) requestAnimationFrame(frame);
+  if (running) requestAnimationFrame(frame);
     }
 
     var raf = requestAnimationFrame(frame);
@@ -743,8 +757,8 @@ const Effects = {
     }
     resize();
     window.addEventListener('resize', resize);
-    var ro = new ResizeObserver(resize);
-    try { ro.observe(container); } catch (e) {}
+  var ro = new ResizeObserver(resize);
+  try { ro.observe(container); } catch (e) {}
 
   var gl = null;
   try { gl = overlay.getContext('webgl', EffectsPerf.webglCtxOpts) || overlay.getContext('experimental-webgl', EffectsPerf.webglCtxOpts); } catch (e) { gl = null; }
@@ -903,8 +917,10 @@ const Effects = {
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
       // map texture
-  var mapTexture = null;
+      var mapTexture = null;
       var mapImageEl = document.querySelector('.image-container img.background-image, .image-container img');
+      var mapImgResizeObs = null;
+      var onMapLoad = null;
     function createMapTexture() {
         if (!gl || !mapImageEl || !mapImageEl.complete) return;
         if (!mapTexture) mapTexture = gl.createTexture();
@@ -931,8 +947,8 @@ const Effects = {
       }
       if (mapImageEl) {
         if (mapImageEl.complete) createMapTexture();
-        else mapImageEl.addEventListener('load', createMapTexture);
-        try { new ResizeObserver(function(){ createMapTexture(); }).observe(mapImageEl); } catch(e) {}
+        else { onMapLoad = function(){ createMapTexture(); if (mapImageEl) mapImageEl.removeEventListener('load', onMapLoad); }; mapImageEl.addEventListener('load', onMapLoad); }
+        try { mapImgResizeObs = new ResizeObserver(function(){ createMapTexture(); }); mapImgResizeObs.observe(mapImageEl); } catch(e) {}
       }
 
   var start = Date.now();
@@ -1017,8 +1033,8 @@ const Effects = {
 
       requestAnimationFrame(frame);
 
-      return {
-  stop: function(){ running = false; try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fowHelper && fowHelper.destroy(); }catch(e){} try{ manualHelper && manualHelper.destroy(); }catch(e){} },
+    return {
+  stop: function(){ running = false; try{ if (onMapLoad && mapImageEl) mapImageEl.removeEventListener('load', onMapLoad); }catch(e){} try{ mapImgResizeObs && mapImgResizeObs.disconnect(); }catch(e){} try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} try { window.removeEventListener('resize', resize); } catch(e) {} try{ overlay.width = 0; overlay.height = 0; }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fowHelper && fowHelper.destroy(); }catch(e){} try{ manualHelper && manualHelper.destroy(); }catch(e){} },
   updateConfig: function(c){ intensity = c.intensity != null ? c.intensity : intensity; wind = c.wind != null ? c.wind : wind; speed = c.speed != null ? c.speed : speed; color = c.color || color; lightning = c.lightning != null ? c.lightning : lightning; lightningFreq = c.lightningFreq || lightningFreq; lightningIntensity = c.lightningIntensity || lightningIntensity; useManualMask = c.mask != null ? !!c.mask : useManualMask; manualMaskLayers = c.mask_layers || manualMaskLayers; maskFeatherPx = Math.max(0, (c.mask_feather != null ? c.mask_feather : maskFeatherPx)); manualHelper.setLayers(manualMaskLayers); if (manualHelper.setOptions) manualHelper.setOptions({ featherPx: maskFeatherPx }); if (fowHelper.setOptions) fowHelper.setOptions({ featherPx: maskFeatherPx }); }
       };
     }
@@ -1157,7 +1173,7 @@ const Effects = {
     requestAnimationFrame(draw);
 
     return {
-  stop: function(){ running = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try { ro.disconnect(); } catch(e) {} try{ fow2D && fow2D.destroy(); }catch(e){} },
+  stop: function(){ running = false; try { window.removeEventListener('resize', resize); } catch(e) {} try{ overlay.width = 0; overlay.height = 0; }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try { ro.disconnect(); } catch(e) {} try{ fow2D && fow2D.destroy(); }catch(e){} try{ manual2D && manual2D.destroy && manual2D.destroy(); }catch(e){} },
       updateConfig: function(c){ intensity = c.intensity != null ? c.intensity : intensity; wind = c.wind != null ? c.wind : wind; speed = c.speed != null ? c.speed : speed; color = c.color || color; lightning = c.lightning != null ? c.lightning : lightning; lightningFreq = c.lightningFreq || lightningFreq; lightningIntensity = c.lightningIntensity || lightningIntensity; }
     };
   },
@@ -1222,8 +1238,8 @@ const Effects = {
     }
     resize();
     window.addEventListener('resize', resize);
-    var ro = new ResizeObserver(resize);
-    try { ro.observe(container); } catch (e) {}
+  var ro = new ResizeObserver(resize);
+  try { ro.observe(container); } catch (e) {}
 
   var gl = null;
   try { gl = overlay.getContext('webgl', EffectsPerf.webglCtxOpts) || overlay.getContext('experimental-webgl', EffectsPerf.webglCtxOpts); } catch (e) { gl = null; }
@@ -1410,10 +1426,11 @@ const Effects = {
         }
         gl.bindTexture(gl.TEXTURE_2D, null);
       }
+      var mapImgResizeObs = null; var onMapLoadSnow = null;
       if (mapImageEl) {
         if (mapImageEl.complete) createMapTexture();
-        else mapImageEl.addEventListener('load', createMapTexture);
-        try { new ResizeObserver(function(){ createMapTexture(); }).observe(mapImageEl); } catch(e) {}
+        else { onMapLoadSnow = function(){ createMapTexture(); if (mapImageEl) mapImageEl.removeEventListener('load', onMapLoadSnow); }; mapImageEl.addEventListener('load', onMapLoadSnow); }
+        try { mapImgResizeObs = new ResizeObserver(function(){ createMapTexture(); }); mapImgResizeObs.observe(mapImageEl); } catch(e) {}
       }
 
   var start = Date.now();
@@ -1518,8 +1535,8 @@ const Effects = {
       }
   requestAnimationFrame(frame);
 
-      return {
-  stop: function(){ running = false; try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fowHelper && fowHelper.destroy(); }catch(e){} try{ manualHelperSnow && manualHelperSnow.destroy(); }catch(e){} },
+    return {
+  stop: function(){ running = false; try{ if (onMapLoadSnow && mapImageEl) mapImageEl.removeEventListener('load', onMapLoadSnow); }catch(e){} try{ mapImgResizeObs && mapImgResizeObs.disconnect(); }catch(e){} try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){} try { window.removeEventListener('resize', resize); } catch(e) {} try{ overlay.width = 0; overlay.height = 0; }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fowHelper && fowHelper.destroy(); }catch(e){} try{ manualHelperSnow && manualHelperSnow.destroy(); }catch(e){} },
         updateConfig: function(c){
           intensity = c.intensity != null ? c.intensity : intensity;
           wind = c.wind != null ? c.wind : wind;
@@ -1666,7 +1683,7 @@ const Effects = {
     requestAnimationFrame(draw2D);
 
     return {
-  stop: function(){ running2D = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fow2D && fow2D.destroy(); }catch(e){} try{ manual2DSnow && manual2DSnow.destroy(); }catch(e){} },
+  stop: function(){ running2D = false; try { window.removeEventListener('resize', resize); } catch(e) {} try{ overlay.width = 0; overlay.height = 0; }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fow2D && fow2D.destroy(); }catch(e){} try{ manual2DSnow && manual2DSnow.destroy(); }catch(e){} },
       updateConfig: function(c){
         intensity = c.intensity != null ? c.intensity : intensity;
         wind = c.wind != null ? c.wind : wind;
@@ -1967,6 +1984,8 @@ Effects.createWaterEffect = function(config) {
       stop: function(){
         running = false;
         try{ gl.getExtension('WEBGL_lose_context').loseContext(); }catch(e){}
+        try { window.removeEventListener('resize', resize); } catch(e) {}
+        try{ overlay.width = 0; overlay.height = 0; }catch(e){}
         if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
         if (ro) try{ ro.disconnect(); }catch(e){}
         if (imgResizeObserver) try{ imgResizeObserver.disconnect(); }catch(e){}
@@ -2054,7 +2073,7 @@ Effects.createWaterEffect = function(config) {
   requestAnimationFrame(draw2D);
 
   return {
-    stop: function(){ running2D = false; if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fow2D && fow2D.destroy(); }catch(e){} try{ manual2D && manual2D.destroy(); }catch(e){} },
+    stop: function(){ running2D = false; try { window.removeEventListener('resize', resize); } catch(e) {} try{ overlay.width = 0; overlay.height = 0; }catch(e){} if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fow2D && fow2D.destroy(); }catch(e){} try{ manual2D && manual2D.destroy(); }catch(e){} },
     updateConfig: function(c){
       speed = c.speed != null ? c.speed : speed;
       amplitude = c.amplitude != null ? c.amplitude : amplitude;
@@ -2385,6 +2404,8 @@ Effects.createFogEffect = function (config) {
       stop: function () {
         running = false;
         try { gl.getExtension('WEBGL_lose_context').loseContext(); } catch (e) {}
+        try { window.removeEventListener('resize', resize); } catch(e) {}
+        try{ overlay.width = 0; overlay.height = 0; }catch(e){}
         if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
         if (ro) try { ro.disconnect(); } catch (e) {}
         if (imgResizeObserver) try { imgResizeObserver.disconnect(); } catch (e) {}
@@ -2475,7 +2496,7 @@ Effects.createFogEffect = function (config) {
   requestAnimationFrame(draw);
 
   return {
-  stop: function () { running = false; overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fow2D && fow2D.destroy(); }catch(e){} try{ manual2D && manual2D.destroy(); }catch(e){} },
+  stop: function () { running = false; try { window.removeEventListener('resize', resize); } catch(e) {} try{ overlay.width = 0; overlay.height = 0; }catch(e){} overlay.parentNode && overlay.parentNode.removeChild(overlay); if (ro) try{ ro.disconnect(); }catch(e){} try{ fow2D && fow2D.destroy(); }catch(e){} try{ manual2D && manual2D.destroy(); }catch(e){} },
     updateConfig: function (c) {
       density = c.density != null ? c.density : density;
       speed = c.speed != null ? c.speed : speed;
