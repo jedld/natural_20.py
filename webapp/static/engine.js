@@ -157,12 +157,37 @@ class EventQueue {
       }
 
       switch (evtType) {
+        case "refresh_tiles": {
+          try {
+            const msg = (data && data.message) || {};
+            const is_setup = !!msg.is_setup;
+            const pov = !!msg.pov;
+            const x = msg.x || 0;
+            const y = msg.y || 0;
+            const entity_uid = msg.entity_uid || null;
+            const cb = typeof msg.callback === 'function' ? msg.callback : null;
+            Utils.refreshTileSet(is_setup, pov, x, y, entity_uid, () => {
+              try { if (cb) cb(); } catch (_) {}
+              resolve();
+            });
+          } catch (e) {
+            console.warn('refresh_tiles failed, continuing', e);
+            resolve();
+          }
+          break;
+        }
         case "refresh_map": {
-          Utils.refreshTileSet();
-          updateDraggableEntityClasses();
-          // Clean up any pending moves since map is refreshing
-          cleanupAllPendingMoves();
-          resolve();
+          // Ensure map refresh runs within the queue and completes before next event
+          try {
+            Utils.refreshTileSet(false, false, 0, 0, null, () => {
+              try { updateDraggableEntityClasses(); } catch (_) {}
+              try { cleanupAllPendingMoves(); } catch (_) {}
+              resolve();
+            });
+          } catch (e) {
+            console.warn('refresh_map failed, continuing', e);
+            resolve();
+          }
           break;
         }
         case "message_toaster": {
@@ -350,7 +375,12 @@ class EventQueue {
     const canvas = document.querySelector("canvas");
     canvas.width = width + tile_size;
     canvas.height = height + tile_size;
-    Utils.refreshTileSet();
+    // Schedule a tile refresh as a queued event to keep ordering
+    try {
+      eventQueue.enqueue({ type: 'refresh_tiles', message: { is_setup: false, pov: false, x: 0, y: 0, entity_uid: null } });
+    } catch (_) {
+      try { Utils.refreshTileSet(); } catch (_) {}
+    }
     resolve();
   }
 
@@ -427,9 +457,15 @@ class EventQueue {
     const animateFunction = (animationLog, idx) => {
       if (idx >= animationLog.length) {
         console.log('Animation sequence complete, refreshing tile set');
-        Utils.refreshTileSet();
-  try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
-        resolve();
+        try {
+          Utils.refreshTileSet(false, false, 0, 0, null, () => {
+            try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
+            resolve();
+          });
+        } catch (e) {
+          try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(_){}
+          resolve();
+        }
         return;
       }
       const entry = animationLog[idx];
@@ -618,11 +654,11 @@ class EventQueue {
             warnedMissingEntities.add(entity_uid);
           }
           // Ask backend to refresh around the last intended position so newly visible tiles are fetched
-          if (!refreshedEntities.has(entity_uid)) {
+      if (!refreshedEntities.has(entity_uid)) {
             const last = lastTargetCoords.get(entity_uid);
             if (last && Array.isArray(last)) {
               try {
-                Utils.refreshTileSet(false, true, last[0], last[1], entity_uid);
+        enqueueTileRefresh({ pov: true, x: last[0], y: last[1], entity_uid });
                 refreshedEntities.add(entity_uid);
               } catch (e) {
                 console.warn('Failed to request targeted tile refresh for', entity_uid, e);
@@ -641,9 +677,8 @@ class EventQueue {
     if (animationBuffer && animationBuffer.length > 0) {
       animateFunction(animationBuffer, 0);
     } else {
-      // console.log('>>>>>>>>>>>>>>>>>>>>');
-      // Utils.refreshTileSet();
-  try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
+      // No animation; still apply effects and continue
+      try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
       resolve();
     }
   }
@@ -653,7 +688,7 @@ class EventQueue {
     try {
       const msg = data && data.message ? data.message : data;
       const spellKey = (msg && (msg.spell || msg.label)) || '';
-      const refreshAfter = () => {
+      const refreshAfter = (cb) => {
         try {
           // Targeted refresh for source and all targets to update effect icons and concentration
           const targets = Array.isArray(msg && msg.target) ? msg.target : (msg && msg.target ? [msg.target] : []);
@@ -661,33 +696,31 @@ class EventQueue {
           if (msg && msg.source) ids.push(msg.source);
           targets.forEach(t => { if (t != null) ids.push(t); });
           // If we have entity ids, do one refresh; server can choose to optimize by entity
+          const done = () => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} if (typeof cb === 'function') cb(); };
           if (ids.length > 1) {
             // Multiple affected entities; do a full refresh to update all icons/portraits
-            Utils.refreshTileSet();
+            Utils.refreshTileSet(false, false, 0, 0, null, done);
           } else if (ids.length === 1) {
             // Targeted refresh for a single entity
-            Utils.refreshTileSet(false, true, 0, 0, ids[0]);
+            Utils.refreshTileSet(false, true, 0, 0, ids[0], done);
           } else {
-            Utils.refreshTileSet();
+            Utils.refreshTileSet(false, false, 0, 0, null, done);
           }
         } catch (e) {
-          try { Utils.refreshTileSet(); } catch (_) {}
+          try { Utils.refreshTileSet(false, false, 0, 0, null, () => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} if (typeof cb === 'function') cb(); }); } catch (_) { if (typeof cb === 'function') cb(); }
         }
-        try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
       };
       if (window.SpellEffects && typeof window.SpellEffects.play === 'function') {
-  window.SpellEffects.play(spellKey, msg).then(() => { refreshAfter(); resolve(); }).catch(() => { refreshAfter(); resolve(); });
+  window.SpellEffects.play(spellKey, msg).then(() => { refreshAfter(resolve); }).catch(() => { refreshAfter(resolve); });
         return;
       }
       // Fallback: log only if SpellEffects registry isn’t loaded
       console.log('Casting spell (no SpellEffects registry found):', msg);
-      try { refreshAfter(); } catch (e) {}
-      resolve();
+      try { refreshAfter(resolve); } catch (e) { resolve(); }
     } catch (e) {
       console.warn('processSpellEvent failed', e);
-      try { Utils.refreshTileSet(); } catch (_) {}
-      try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
-      try { resolve(); } catch (_) {}
+      try { Utils.refreshTileSet(false, false, 0, 0, null, () => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} try { resolve(); } catch(_) {} }); } catch (_) { try { resolve(); } catch(__) {} }
+      
     }
   }
 
@@ -695,7 +728,7 @@ class EventQueue {
   processAttackEvent(data, resolve) {
     try {
       const msg = data && data.message ? data.message : data;
-      if (window.SpellEffects && typeof window.SpellEffects.play === 'function') {
+    if (window.SpellEffects && typeof window.SpellEffects.play === 'function') {
   window.SpellEffects.play('attack', msg).then(() => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); }).catch(() => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); });
         return;
       }
@@ -740,6 +773,25 @@ class EventQueue {
 
 // Create global event queue instance
 const eventQueue = new EventQueue();
+
+// Helper to request a tile refresh through the EventQueue
+function enqueueTileRefresh(opts = {}) {
+  try {
+    eventQueue.enqueue({ type: 'refresh_tiles', message: opts });
+  } catch (e) {
+    // Fallback to direct call if queue not available
+    try {
+      Utils.refreshTileSet(
+        !!opts.is_setup,
+        !!opts.pov,
+        opts.x || 0,
+        opts.y || 0,
+        opts.entity_uid || null,
+        typeof opts.callback === 'function' ? opts.callback : null
+      );
+    } catch (_) {}
+  }
+}
 
 // Helper: show an on-map "toaster" message near a tile coordinate or an entity id
 function showMapToast(text, position, sourceEntityId = null, durationMs = 10000) {
@@ -791,11 +843,11 @@ function showMapToast(text, position, sourceEntityId = null, durationMs = 10000)
       try {
         // Try a targeted refresh if we have explicit coords
         if (Array.isArray(position) && position.length >= 2) {
-          Utils.refreshTileSet(false, true, position[0], position[1], sourceEntityId || undefined);
+          enqueueTileRefresh({ is_setup: false, pov: true, x: position[0], y: position[1], entity_uid: sourceEntityId || undefined });
         } else if (position && typeof position === 'object' && position.x != null && position.y != null) {
-          Utils.refreshTileSet(false, true, position.x, position.y, sourceEntityId || undefined);
+          enqueueTileRefresh({ is_setup: false, pov: true, x: position.x, y: position.y, entity_uid: sourceEntityId || undefined });
         } else if (sourceEntityId) {
-          Utils.refreshTileSet(false, true, 0, 0, sourceEntityId);
+          enqueueTileRefresh({ is_setup: false, pov: true, x: 0, y: 0, entity_uid: sourceEntityId });
         }
       } catch (_) {}
       setTimeout(() => attemptMount(attemptsLeft - 1), 120);
@@ -2094,7 +2146,7 @@ $(document).ready(() => {
     console.error('Socket error:', error);
   });
 
-  Utils.refreshTileSet();
+  enqueueTileRefresh();
 
   // --- Effects Toggle UI (top-right unobtrusive button) ---
   try {
@@ -2196,7 +2248,7 @@ $(document).ready(() => {
     ajaxPost("/reload_map", {}, (data) => {
       console.log("Reload request successful:", data);
       $("#reloadModal").modal("hide");
-      Utils.refreshTileSet();
+  enqueueTileRefresh();
     });
   });
 
@@ -2400,7 +2452,7 @@ $(document).ready(() => {
       }
     } else {
       if (e.metaKey || e.ctrlKey) {
-        Utils.refreshTileSet(false, true, coordsx, coordsy);
+        enqueueTileRefresh({ pov: true, x: coordsx, y: coordsy });
       } else if (e.metaKey || e.shiftKey) {
         ajaxPost("/focus", { x: coordsx, y: coordsy }, (data) => {
           console.log("Focus request successful:", data);
@@ -2796,7 +2848,7 @@ $(document).ready(() => {
   $("#start-battle").click(() => {
     $("#battle-turn-order").fadeIn();
     battle_setup = true;
-    Utils.refreshTileSet(true);
+    enqueueTileRefresh({ is_setup: true });
   });
 
   const showConsole = () => {
@@ -3441,7 +3493,7 @@ $(document).ready(() => {
   $("#reload-map").click(() => {
     Utils.ajaxPost("/reload_map", {}, (data) => {
       console.log("Map reloaded successfully:", data);
-      Utils.refreshTileSet();
+  enqueueTileRefresh();
     });
   });
 
@@ -3816,7 +3868,7 @@ $(document).ready(() => {
 
   $("#turn-order").on("click", "#add-more", function () {
     battle_setup = !battle_setup;
-    Utils.refreshTileSet(battle_setup);
+    enqueueTileRefresh({ is_setup: !!battle_setup });
   });
 
   $(".game-turn-container").on("click", "#player-end-turn", function () {
