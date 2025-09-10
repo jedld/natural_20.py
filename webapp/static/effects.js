@@ -235,7 +235,8 @@ const Effects = {
       return { left: 0, top: 0, width: container.clientWidth, height: container.clientHeight };
     }
 
-    var ctx = overlay.getContext('2d');
+  // 2D rendering context for point fire overlay
+  var ctx = overlay.getContext('2d');
     var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     function resize(){
       var rawDpr = (window.devicePixelRatio || 1);
@@ -275,18 +276,18 @@ const Effects = {
       try { var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16); return [r,g,b]; } catch(e) { return [255,160,64]; }
     }
 
-    var running = true;
-    var dirty = true;
-    function markDirty(){ dirty = true; }
+  var running = true;
+  var dirty = true;
+  function markDirty(){ dirty = true; }
 
-    // Watch tiles for layout changes (moving tokens/tiles)
-    var tilesRoot = document.querySelector('.tiles-container');
-    var mo = null; try { mo = new MutationObserver(markDirty); mo.observe(tilesRoot, { attributes:true, childList:true, subtree:true }); } catch(e) {}
+  // Watch tiles for layout changes (moving tokens/tiles)
+  var tilesRoot = document.querySelector('.tiles-container');
+  var mo = null; try { mo = new MutationObserver(markDirty); mo.observe(tilesRoot, { attributes:true, childList:true, subtree:true }); } catch(e) {}
 
-    // Precompute per-point jitter offsets
-    points.forEach(function(p, i){ if (p) p._seed = (Math.random()*10000)|0; });
+  // Precompute per-point jitter offsets
+  points.forEach(function(p, i){ if (p) p._seed = (Math.random()*10000)|0; });
 
-    // Shape variants
+  // Shape variants
     function drawCircularGlow(cx, cy, sizePx, rgb, intensity, flick) {
       var rGlow = sizePx * (1.3 + 0.6*intensity) * flick;
       var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rGlow);
@@ -433,24 +434,11 @@ const Effects = {
     }
 
       var _lastFrameTs = 0; var _minDelta = 1000 / Math.max(10, (EffectsPerf.fpsCap || 60));
-      var _lastMaskUpload = 0;
-      function maybeUploadMask(texLoc, tex, canvas, bindUnit){
-        if (!canvas) return;
-        var now = performance.now();
-        if ((EffectsPerf.maskUploadThrottleMs || 0) > 0 && now - _lastMaskUpload < EffectsPerf.maskUploadThrottleMs) return;
-        _lastMaskUpload = now;
-        gl.activeTexture(bindUnit);
-        gl.bindTexture(gl.TEXTURE_2D, tex);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
-        gl.uniform1i(texLoc, bindUnit - gl.TEXTURE0);
-      }
       function frame(ts) {
-      if (!running) return;
-  if (ts != null && ts - _lastFrameTs < _minDelta) { requestAnimationFrame(frame); return; }
-  _lastFrameTs = (ts != null ? ts : _lastFrameTs);
-  gl.viewport(0, 0, overlay.width, overlay.height);
-      var mask = fowHelper.update();
+        if (!running) return;
+        if (ts != null && ts - _lastFrameTs < _minDelta) { requestAnimationFrame(frame); return; }
+        _lastFrameTs = (ts != null ? ts : _lastFrameTs);
+        var mask = fowHelper.update();
 
       // Clear and redraw
       ctx.clearRect(0,0,overlay.width, overlay.height);
