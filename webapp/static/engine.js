@@ -167,6 +167,11 @@ class EventQueue {
             const entity_uid = msg.entity_uid || null;
             const cb = typeof msg.callback === 'function' ? msg.callback : null;
             Utils.refreshTileSet(is_setup, pov, x, y, entity_uid, () => {
+              // Clean up any leftover moving sprites and ensure originals are visible
+              try {
+                $('.moving-entity-sprite').remove();
+                $('.entity').css('visibility','');
+              } catch (_) {}
               try { if (cb) cb(); } catch (_) {}
               resolve();
             });
@@ -182,6 +187,9 @@ class EventQueue {
             Utils.refreshTileSet(false, false, 0, 0, null, () => {
               try { updateDraggableEntityClasses(); } catch (_) {}
               try { cleanupAllPendingMoves(); } catch (_) {}
+              // Clean up any leftover moving sprites and ensure originals are visible
+              try { $('.moving-entity-sprite').remove();
+                $('.entity').css('visibility',''); } catch (_) {}
               resolve();
             });
           } catch (e) {
@@ -223,6 +231,8 @@ class EventQueue {
           this.processSpellEvent(data, resolve);
           break;
         }
+          // Track originals we hide during sprite animation so we can optionally restore on failure
+          const hiddenOriginals = new Map(); // entity_uid -> jQuery img element
         case "attack": {
           this.processAttackEvent(data, resolve);
           break;
@@ -454,15 +464,18 @@ class EventQueue {
   const warnedMissingEntities = new Set();
   const refreshedEntities = new Set();
   const lastTargetCoords = new Map(); // entity_uid -> [x, y]
+
     const animateFunction = (animationLog, idx) => {
-      if (idx >= animationLog.length) {
+      if (idx > animationLog.length) {
         console.log('Animation sequence complete, refreshing tile set');
         try {
           Utils.refreshTileSet(false, false, 0, 0, null, () => {
+            $('.moving-entity-sprite').remove();
             try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
             resolve();
           });
         } catch (e) {
+          console.error('Failed to refresh tile set after animations, continuing', e);
           try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(_){}
           resolve();
         }
@@ -542,19 +555,48 @@ class EventQueue {
           }
         }
 
-        const tileRect = $tile[0].getBoundingClientRect();
-        const scrollLeft =
-          window.pageXOffset || document.documentElement.scrollLeft;
-        const scrollTop =
-          window.pageYOffset || document.documentElement.scrollTop;
-        let prevX = tileRect.left + scrollLeft;
-        let prevY = tileRect.top + scrollTop;
+        // Find the visible token image inside the tile (handles flying wrapper or direct .npc)
+        const $origImg = $tile.find('.entity').first();
+        if (!$origImg.length) {
+          console.warn('No entity image found to animate for entity', entity_uid);
+          // Nothing to animate visually; proceed to next entry
+          animateFunction(animationLog, idx + 1);
+          return;
+        }
 
+        // Compute sprite size from the original image bounding box
+        const imgRect = $origImg[0].getBoundingClientRect();
+        const spriteW = imgRect.width || $origImg.width() || 0;
+        const spriteH = imgRect.height || $origImg.height() || 0;
+
+        // Helper to get absolute page center of a tile and convert to sprite top/left
+        const centerToTopLeft = ($t) => {
+          const c = getTileCenter($t);
+          if (!c) return null;
+          return { left: c.x - spriteW / 2, top: c.y - spriteH / 2 };
+        };
+
+        // Create a floating sprite clone for animation
+        const $sprite = $origImg.clone();
+        $sprite.addClass('moving-entity-sprite');
+        $sprite.css({
+          position: 'absolute',
+          zIndex: 2000,
+          pointerEvents: 'none'
+        });
+
+        // Hide the original during animation to avoid duplicates
+        try {
+          $origImg.css('visibility', 'hidden');
+          hiddenOriginals.set(entity_uid, $origImg);
+        } catch (_) {}
+
+        // Mount the sprite at the initial tile center
         const moveFunc = (p, index) => {
           if (index >= p.length) {
-            // Clean up transition properties when animation is complete
-            $tile.css('transition', '');
-            // Animation for this entity is complete, move to next entity
+            // Remove sprite; keep original hidden until server refresh replaces DOM
+            // try { $sprite.remove(); } catch (_) {}
+            // Proceed to next animation entry
             animateFunction(animationLog, idx + 1);
             return;
           }
@@ -569,66 +611,48 @@ class EventQueue {
             moveFunc(p, index + 1);
             return;
           }
+          const tl = centerToTopLeft($newTile);
+          if (!tl) { moveFunc(p, index + 1); return; }
 
-          const newRect = $newTile[0].getBoundingClientRect();
-          const imageContainer = $('.image-container')[0].getBoundingClientRect();
-          const tile_size = $('.tiles-container').data('tile-size');
-          const newX = newRect.left - imageContainer.left + tile_size;
-          const newY = newRect.top - imageContainer.top + tile_size;
-
-          // Set initial position if this is the first move
+          // Set initial sprite position on first step
           if (index === 0) {
-            $tile.css({
-              position: 'absolute',
-              top: newY,
-              left: newX
-            });
-            prevX = newX;
-            prevY = newY;
-            // Continue immediately to next step
+            try { $('body').append($sprite); } catch (_) {}
+            $sprite.css({ left: tl.left, top: tl.top });
+            // Continue to next step to actually animate
             moveFunc(p, index + 1);
             return;
           }
 
-          // Clear any existing transition to ensure clean state
-          $tile.css('transition', 'none');
-
-          // Use requestAnimationFrame to ensure the transition is properly set
+          // Animate sprite to the next tile center
+          $sprite.css('transition', 'none');
           requestAnimationFrame(() => {
-            $tile.css({
-              position: 'absolute',
-              top: newY,
-              left: newX,
-              transition: 'all 0.3s ease-in-out'
+            $sprite.css({
+              left: tl.left,
+              top: tl.top,
+              transition: 'left 0.3s ease-in-out, top 0.3s ease-in-out'
             });
 
-            // Listen for the transition end event to ensure precise timing
-            const transitionEndHandler = (e) => {
-              if (e.target === $tile[0] && (e.propertyName === 'top' || e.propertyName === 'left')) {
-                $tile.off('transitionend', transitionEndHandler);
-                prevX = newX;
-                prevY = newY;
-                moveFunc(p, index + 1);
-              }
-            };
-
-            $tile.on('transitionend', transitionEndHandler);
-
-            // Fallback timeout in case transitionend doesn't fire
-            setTimeout(() => {
-              $tile.off('transitionend', transitionEndHandler);
-              prevX = newX;
-              prevY = newY;
+            const onEnd = (e) => {
+              // We rely on timeout fallback as some browsers may not emit for both properties
+              $sprite.off('transitionend', onEnd);
               moveFunc(p, index + 1);
-            }, 350); // Slightly longer than transition time as fallback
+            };
+            $sprite.on('transitionend', onEnd);
+            setTimeout(() => { try { $sprite.off('transitionend', onEnd); } catch (_) {} moveFunc(p, index + 1); }, 350);
           });
         };
 
-        // Start the movement sequence for this entity
+        // Begin movement sequence
         if (Array.isArray(path) && path.length > 0) {
           moveFunc(path, 0);
         } else {
-          // No path to animate, move to next entity immediately
+          // No path to animate, restore hidden original and continue
+          try {
+            if (hiddenOriginals.has(entity_uid)) {
+              hiddenOriginals.get(entity_uid).css('visibility', '');
+              hiddenOriginals.delete(entity_uid);
+            }
+          } catch (_) {}
           animateFunction(animationLog, idx + 1);
         }
       };
