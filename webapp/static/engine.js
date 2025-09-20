@@ -532,19 +532,19 @@ class EventQueue {
           // Check if both source and target tiles exist before drawing action line
           const $targetTile = $(`.tile[data-coords-id="${action.target}"]`);
           if ($tile.length > 0 && $targetTile.length > 0) {
-            const opts = {
-              lineWidth: 3,
-              withArrow: true,
-              randomCurve: true,
-              strokeStyle: action.type === "attack" ? "red" : "blue",
-              text: action.label,
-            };
-            drawLine(
-              globalCtx,
-              { x: $tile.data("coords-x"), y: $tile.data("coords-y") },
-              `.tile[data-coords-id="${action.target}"]`,
-              opts,
-            );
+            // const opts = {
+            //   lineWidth: 3,
+            //   withArrow: true,
+            //   randomCurve: true,
+            //   strokeStyle: action.type === "attack" ? "red" : "blue",
+            //   text: action.label,
+            // };
+            // drawLine(
+            //   globalCtx,
+            //   { x: $tile.data("coords-x"), y: $tile.data("coords-y") },
+            //   `.tile[data-coords-id="${action.target}"]`,
+            //   opts,
+            // );
           } else {
             console.warn('Action line drawing skipped: source or target tile not found', {
               entity_uid,
