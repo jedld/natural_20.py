@@ -11,6 +11,9 @@ Core patterns and conventions (do not invent alternatives):
 - Controllers implement `select_action(battle, entity, available_actions)` and `move_for(entity, battle)`. `GenericController` provides heuristics; `LlmMcpController` (in `natural20/llm_controller.py`) delegates to an LLM and falls back safely to heuristics.
 - Actions resolve via subclasses in `natural20/actions/`: each action builds intent with `build_map()`, gets auto-targeted by `natural20.utils.action_builder.autobuild`, and resolves through `Action.resolve` to enqueue battle events.
 - Spells pair YAML definitions (`templates/items/spells.yml`) with Python classes in `natural20/spell/`; `SpellAction` loads the class through `natural20/utils/spell_loader.py`, applies resource costs via `Spell.consume`, and emits damage/miss events for the battle log.
+  - AoE targeting primitives:
+    - Cones: use `select_cone` in a spell's `build_map()` and preview squares via `Map.squares_in_cone(...)` (server returns `target_squares` from `/target`).
+    - Directional cubes (e.g., Thunderwave): use `select_cube` in `build_map()`. The web UI will send `mode: 'cube'` with a clicked direction; the server previews with `Map.squares_in_adjacent_cube((caster_x, caster_y), (x, y), size_squares=3)` and returns `target_squares`. YAML typically provides `range_cube` (15 for Thunderwave).
 - LLM integration: webapp uses provider adapters (`webapp/llm_handler.py`) with explicit function-call tokens like `[FUNCTION_CALL: get_map_info()]`. `LlmMcpController._build_prompt(...)` still expects a single integer index or an MCP tool call response.
 
 Developer workflows and commands (verified in repo README):
@@ -51,10 +54,16 @@ Files to check for implementation examples and extension points:
 - `natural20/llm_controller.py` — detailed prompt building, parsing, MCP bridge, fallback rules.
 - `webapp/llm_handler.py` — provider adapters, session logging, function-call parsing and execution.
 - `templates/` and `samples/` — example maps, characters, and level configs used by `Session` and the web UI.
+- `natural20/map.py` — targeting helpers: `squares_in_cone(...)` and `squares_in_adjacent_cube(...)` (cardinal, face-adjacent 3x3 cube used by Thunderwave).
 
 Extending spells and character classes:
 
 - New spells require: YAML entry in `templates/items/spells.yml` (with `spell_list_classes` and optional `spell_class` override), a matching class in `natural20/spell/` implementing `build_map` and `resolve`, and registration inside `natural20/utils/spell_loader.py`. Reuse `natural20/spell/extensions/` helpers for shared targeting/damage logic.
+  - UI targeting map params you can use in `build_map()`:
+    - `select_target`, `select_empty_space`, `select_cone`, and `select_cube`.
+    - For `select_cube`, return `{ 'type': 'select_cube', 'range': <feet>, 'num': 1 }` and then accept a 2D point in the subsequent `next(target)`.
+  - YAML AoE keys: use `range_cone` for cones and `range_cube` for cubes.
+  - Thunderwave specifics (baseline reference): 15‑ft cube originating from the caster (directional), CON save, half damage on success and no push, failed save pushes 10 ft away using `Entity.push_from(...)`, damage `2d8 + 1d8` per slot above 1st.
 - To add a player class, create a mixin in `natural20/entity_class/` (see `wizard.py` for slot tables and rest hooks), add a YAML config in `templates/char_classes/`, and update `PlayerCharacter` usage if the class introduces custom actions or resources. Slot accounting should integrate with `PlayerCharacter.spell_slots` and class-specific `initialize_<klass>` routines.
 
 Small gotchas discovered in the repo:
@@ -62,6 +71,9 @@ Small gotchas discovered in the repo:
 - Prompts can be long; `N20_LLM_PROMPT_MAX_CHARS` truncation logic is present in `LlmMcpController` — preserve or respect it when modifying prompt construction.
 - Some LLM providers are optional; code defensively checks for provider availability. When adding imports depend on optional libs, prefer lazy imports and clear error messages.
 - Many YAML-driven resources live under the `templates/` or `samples/` directories — tests and the web UI assume specific file names (e.g., `templates/index.json`, `game.yml`).
+  - If you add new targeting modes for spells, ensure both sides are wired:
+    - Web UI: add a handler in `webapp/static/engine.js` (e.g., for `select_cube`) and post `mode` along with `target`.
+    - Server: update `/target` (preview squares) and the generic `/action` builder to recognize the new selector type and `mode` (e.g., treat `'cube'` like `'cone'` for coordinate targets).
 
 If you change LLM behavior, unit tests to update or add:
 

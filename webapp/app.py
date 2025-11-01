@@ -3099,6 +3099,11 @@ def get_target():
                 require_los = build_map['param'][0]['require_los']
                 target_squares = battle_map.squares_in_cone((entity_x, entity_y), (x, y), build_map['param'][0]['range'] // battle_map.feet_per_grid, require_los=require_los)
                 build_map = build_map['next']([x, y])
+            elif build_map['param'][0]['type'] == 'select_cube':
+                # For directional cube AoE (e.g., Thunderwave) originating from caster
+                entity_x, entity_y = battle_map.entity_or_object_pos(entity)
+                target_squares = battle_map.squares_in_adjacent_cube((entity_x, entity_y), (x, y), size_squares=3)
+                build_map = build_map['next']([x, y])
             else:
                 raise ValueError(f"Unknown action type {build_map['param'][0]['type']}")
 
@@ -3325,7 +3330,7 @@ def action():
 
     if target_coords:
         mode = action_request.get('mode', None)
-        if mode == 'cone' or mode == 'point_target':
+        if mode == 'cone' or mode == 'point_target' or mode == 'cube':
             target = [target_coords['x'], target_coords['y']]
         else:
             if isinstance(target_coords, list):
@@ -3488,6 +3493,17 @@ def action():
                         else:
                             action_info['action'] = action_type
                             action_info['type'] = 'select_cone'
+                            action_info['param'] = action['param']
+                            action_info['range'] = param_details.get('range', 5)
+                            action_info['range_max'] = param_details.get('max_range', param_details.get('range', 5))
+                            return jsonify(action_info)
+                    elif param_details['type'] == 'select_cube':
+                        if target:
+                            action = action['next'](target)
+                            continue
+                        else:
+                            action_info['action'] = action_type
+                            action_info['type'] = 'select_cube'
                             action_info['param'] = action['param']
                             action_info['range'] = param_details.get('range', 5)
                             action_info['range_max'] = param_details.get('max_range', param_details.get('range', 5))
