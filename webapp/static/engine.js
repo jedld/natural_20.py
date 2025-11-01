@@ -3670,6 +3670,29 @@ $(document).ready(() => {
           );
         };
         break;
+      case "select_cube":
+        $(".popover-menu").hide();
+        $("#modal-1").modal("hide");
+        source = { x: coordsx, y: coordsy, entity_uid };
+        targetModeMaxRange =
+          data.range_max !== undefined ? data.range_max : data.range;
+        // No special mode needed for drawing; server returns target_squares
+        targetMode = true;
+        globalActionInfo = action;
+        globalOpts = opts;
+        globalSourceEntity = entity_uid;
+        targetModeCallback = (target) => {
+          ajaxPost(
+            "/action",
+            { id: entity_uid, mode: 'cube', action, opts, target },
+            (data) => {
+              console.log("Action request successful:", data);
+              refreshTurn();
+            },
+            true,
+          );
+        };
+        break;
       case "select_target":
         $(".popover-menu").hide();
         $("#modal-1").modal("hide");
