@@ -2251,7 +2251,7 @@ def jump_info():
 
 # Configure paths that don't require login
 ALLOWED_PATHS = ['/login', '/health']
-ALLOWED_PREFIXES = ['/favicon.ico', '/static/assets', '/assets/']
+ALLOWED_PREFIXES = ['/favicon.ico', '/static/assets', '/assets/', '/libs/']
 
 @app.before_request
 def require_login():
