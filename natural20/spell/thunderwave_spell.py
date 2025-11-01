@@ -5,7 +5,25 @@ import pdb
 
 class ThunderwaveSpell(Spell):
     def build_map(self, orig_action):
-        return orig_action
+        def set_target(target=None):
+            action = orig_action.clone()
+            # Allow None for backward compatibility (tests/builders without UI)
+            if target is not None:
+                action.target = target
+            return action
+
+        # Thunderwave requires choosing a direction for a 15-ft cube originating from you
+        return {
+            'param': [
+                {
+                    'type': 'select_cube',
+                    'num': 1,
+                    'range': self.properties.get('range_cube', 15),
+                    'require_los': False
+                }
+            ],
+            'next': set_target
+        }
 
     def _damage(self, battle, crit=False, opts=None):
         if opts is None:
@@ -18,21 +36,44 @@ class ThunderwaveSpell(Spell):
     def avg_damage(self, battle, opts=None):
         return self._damage(battle, opts=opts).expected()
 
-    def _cube_squares_centered(self, battle_map, src, radius=1):
+    def _cube_squares_from_face(self, battle_map, origin, towards, size_squares=3):
         """
-        Compute a 15-ft cube centered on the caster (3x3 area), excluding the caster's own square.
-        This approximates "originating from you" without requiring a direction.
+        Compute a size_squares x size_squares cube whose nearest face is adjacent to the origin
+        and oriented toward the 'towards' position. Excludes the origin square.
         """
-        sx, sy = src
+        ox, oy = origin
+        tx, ty = towards
+        dx = tx - ox
+        dy = ty - oy
+
+        # Choose primary cardinal facing based on larger magnitude
+        if abs(dx) >= abs(dy):
+            facing = 'E' if dx > 0 else 'W'
+        else:
+            facing = 'S' if dy > 0 else 'N'
+
         squares = []
-        for dx in range(-radius, radius + 1):
-            for dy in range(-radius, radius + 1):
-                if dx == 0 and dy == 0:
-                    continue
-                x = sx + dx
-                y = sy + dy
-                if 0 <= x < battle_map.size[0] and 0 <= y < battle_map.size[1]:
-                    squares.append((x, y))
+        w, h = battle_map.size
+        half = size_squares // 2
+
+        if facing == 'N':
+            x_min, x_max = ox - half, ox + half
+            y_min, y_max = oy - size_squares, oy - 1
+        elif facing == 'S':
+            x_min, x_max = ox - half, ox + half
+            y_min, y_max = oy + 1, oy + size_squares
+        elif facing == 'E':
+            x_min, x_max = ox + 1, ox + size_squares
+            y_min, y_max = oy - half, oy + half
+        else:  # 'W'
+            x_min, x_max = ox - size_squares, ox - 1
+            y_min, y_max = oy - half, oy + half
+
+        for x in range(x_min, x_max + 1):
+            for y in range(y_min, y_max + 1):
+                if 0 <= x < w and 0 <= y < h:
+                    if not (x == ox and y == oy):
+                        squares.append((x, y))
         return squares
 
     def compute_hit_probability(self, battle, opts=None):
@@ -42,8 +83,13 @@ class ThunderwaveSpell(Spell):
     def resolve(self, entity, battle, spell_action, battle_map):
         results = []
         src_pos = battle_map.position_of(entity)
-        # Gather targets in a 15-ft cube centered on the caster (3x3)
-        squares = self._cube_squares_centered(battle_map, src_pos, radius=1)
+        # Determine direction from selected target to orient the cube
+        target_pos = spell_action.target if isinstance(spell_action.target, list) else None
+        if not target_pos:
+            # Fallback: default to facing east if not provided
+            target_pos = [src_pos[0] + 1, src_pos[1]]
+        # Gather targets in a 15-ft cube originating from the caster (3x3) in the chosen direction
+        squares = self._cube_squares_from_face(battle_map, src_pos, target_pos, size_squares=3)
         entity_targets = []
         for (x, y) in squares:
             tgt = battle_map.entity_at(x, y)
@@ -51,6 +97,7 @@ class ThunderwaveSpell(Spell):
                 if tgt not in entity_targets:
                     entity_targets.append(tgt)
         damage_roll = self._damage(battle, opts={'at_level': spell_action.at_level or 1})
+        # Use caster's spell save DC; default to intelligence unless specified elsewhere
         dc = entity.spell_save_dc('intelligence')
         for tgt in entity_targets:
             failed = False
