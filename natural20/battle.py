@@ -321,8 +321,8 @@ class Battle():
         entity = self.current_turn()
         entity_pos = self.entity_or_object_pos(entity)
 
-        if self.animation_log_enabled:
-            self.animation_log.append([entity.entity_uid, [entity_pos], None])
+        # if self.animation_log_enabled:
+        #     self.animation_log.append([entity.entity_uid, [entity_pos], None])
 
         if entity.unconscious() and not entity.stable():
             entity.death_saving_throw(self)
@@ -580,8 +580,8 @@ class Battle():
         if action.action_type == 'move':
             self.trigger_event('movement', action.source, { 'move_path': action.move_path})
             if self.animation_log_enabled:
-                if len(self.animation_log) == 0:
-                    self.animation_log.append([action.source.entity_uid, [self.entity_or_object_pos(action.source)], None])
+                # if len(self.animation_log) == 0:
+                #     self.animation_log.append([action.source.entity_uid, [self.entity_or_object_pos(action.source)], None])
                 self.animation_log.append([action.source.entity_uid, action.move_path, None])
         elif action.action_type == 'attack':
             if self.animation_log_enabled and len(self.animation_log) > 0:
@@ -604,7 +604,7 @@ class Battle():
         self.animation_log.clear()
         entity = self.current_turn()
         entity_pos = self.entity_or_object_pos(entity)
-        self.animation_log.append([entity.entity_uid, [entity_pos], None])
+        # self.animation_log.append([entity.entity_uid, [entity_pos], None])
 
     def group_for(self, entity):
         return self.entity_group_for(entity)

@@ -5,6 +5,8 @@ from natural20.entity_class.rogue import Rogue
 from natural20.entity_class.wizard import Wizard
 from natural20.entity_class.cleric import Cleric
 from natural20.entity_class.paladin import Paladin
+from natural20.entity_class.warlock import Warlock
+from natural20.entity_class.ranger import Ranger
 from natural20.actions.action_surge_action import ActionSurgeAction
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.look_action import LookAction
@@ -41,7 +43,7 @@ import uuid
 import pdb
 
 
-class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Lootable, Inventory):
+class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, Ranger, Lootable, Inventory):
   ACTION_LIST = [
     SpellAction,
     AttackAction,
