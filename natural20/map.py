@@ -765,6 +765,55 @@ class Map(SerializableObject):
         return sorted(affected)
 
 
+    def squares_in_adjacent_cube(
+        self,
+        origin_pos: Tuple[int, int],
+        direction_pos: Tuple[int, int],
+        size_squares: int = 3,
+    ) -> List[Tuple[int, int]]:
+        """
+        Return every map square in a size_squares x size_squares cube whose nearest face
+        is adjacent to the origin and oriented toward direction_pos. Excludes the origin.
+
+        The cube is axis-aligned to the grid; we choose the cardinal facing closest to the
+        target direction.
+        """
+        ox, oy = origin_pos
+        tx, ty = direction_pos
+        dx = tx - ox
+        dy = ty - oy
+
+        # Determine cardinal facing by dominant axis
+        if abs(dx) >= abs(dy):
+            facing = 'E' if dx > 0 else 'W'
+        else:
+            facing = 'S' if dy > 0 else 'N'
+
+        w, h = self.size
+        half = size_squares // 2
+
+        if facing == 'N':
+            x_min, x_max = ox - half, ox + half
+            y_min, y_max = oy - size_squares, oy - 1
+        elif facing == 'S':
+            x_min, x_max = ox - half, ox + half
+            y_min, y_max = oy + 1, oy + size_squares
+        elif facing == 'E':
+            x_min, x_max = ox + 1, ox + size_squares
+            y_min, y_max = oy - half, oy + half
+        else:  # 'W'
+            x_min, x_max = ox - size_squares, ox - 1
+            y_min, y_max = oy - half, oy + half
+
+        squares: List[Tuple[int, int]] = []
+        for x in range(x_min, x_max + 1):
+            for y in range(y_min, y_max + 1):
+                if 0 <= x < w and 0 <= y < h:
+                    if not (x == ox and y == oy):
+                        squares.append((x, y))
+        return squares
+
+
     def find_empty_placeable_position(self, entity, pos_x, pos_y):
         for ofs_x in range(-1, 2):
             for ofs_y in range(-1, 2):
