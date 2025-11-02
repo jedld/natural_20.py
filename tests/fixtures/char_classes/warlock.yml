@@ -1,0 +1,51 @@
+---
+hit_die: 1d8
+weapon_proficiencies:
+- simple
+saving_throw_proficiency:
+- wisdom
+- charisma
+available_skills_choices: 2
+available_skills:
+  - arcana
+  - deception
+  - history
+  - intimidation
+  - investigation
+  - nature
+  - religion
+spellcasting_ability: charisma
+spell_list:
+  cantrip:
+    - eldritch_blast
+    - chill_touch
+    - firebolt
+    - poison_spray
+    - shocking_grasp
+  level_1:
+    - burning_hands
+    - expeditious_retreat
+    - find_familiar
+    - magic_missile
+    - thunderwave
+proficiency_bonuses:
+- 2
+- 2
+- 2
+- 2
+- 3
+- 3
+- 3
+- 3
+- 4
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 5
+- 6
+- 6
+- 6
+- 6

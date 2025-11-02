@@ -57,6 +57,20 @@ class TestPlayerCharacter(unittest.TestCase):
         player.reset_turn(self.battle)
         return player
 
+    def load_human_warlock_character(self):
+        player = PlayerCharacter.load(self.session, 'human_warlock.yml')
+        self.battle.add(player, 'a')
+        self.battle.start()
+        player.reset_turn(self.battle)
+        return player
+
+    def load_elf_ranger_character(self):
+        player = PlayerCharacter.load(self.session, 'elf_ranger.yml')
+        self.battle.add(player, 'a')
+        self.battle.start()
+        player.reset_turn(self.battle)
+        return player
+
     def setUp(self):
         self.session = self.make_session()
         self.battle = Battle(self.session, None)
@@ -349,8 +363,20 @@ class TestPlayerCharacter(unittest.TestCase):
 
     def test_goliath_paladin_spell_slots(self):
         self.player = self.load_goliath_paladin_character()
-        self.assertEqual(self.player.spell_slots_count(1), 3)
+        self.assertEqual(self.player.spell_slots_count(1), 2)
         self.assertEqual(self.player.spell_slots_count(9), 0)
+
+    def test_warlock_spell_slots(self):
+        self.player = self.load_human_warlock_character()
+        # Warlock level 5 has 2 slots at 2nd level
+        self.assertEqual(self.player.spell_slots_count(1), 0)
+        self.assertEqual(self.player.spell_slots_count(2), 2)
+
+    def test_ranger_spell_slots(self):
+        self.player = self.load_elf_ranger_character()
+        # Ranger level 5 has 4 slots at 1st level and 2 at 2nd level
+        self.assertEqual(self.player.spell_slots_count(1), 4)
+        self.assertEqual(self.player.spell_slots_count(2), 2)
 
 if __name__ == '__main__':
     unittest.main()

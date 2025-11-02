@@ -1,0 +1,48 @@
+---
+hit_die: 1d10
+weapon_proficiencies:
+- simple
+- martial
+- light_armor
+- medium_armor
+- shields
+saving_throw_proficiencies:
+- strength
+- dexterity
+available_skills_choices: 3
+available_skills:
+  - animal_handling
+  - athletics
+  - insight
+  - investigation
+  - nature
+  - perception
+  - stealth
+  - survival
+spellcasting_ability: wisdom
+spell_list:
+  level_1:
+    - cure_wounds
+    - detect_magic
+proficiency_bonuses:
+- 2
+- 2
+- 2
+- 2
+- 3
+- 3
+- 3
+- 3
+- 4
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 5
+- 6
+- 6
+- 6
+- 6
+
