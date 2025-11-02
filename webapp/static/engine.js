@@ -70,7 +70,7 @@ class EventQueue {
     this.processing = false;
     this.maxQueueSize = 100; // Prevent memory leaks
     this.processedCount = 0;
-    this.debugMode = false; // Set to true for debugging
+    this.debugMode = true; // Set to true for debugging
   }
 
   setDebugMode(enabled) {
@@ -466,7 +466,7 @@ class EventQueue {
   const lastTargetCoords = new Map(); // entity_uid -> [x, y]
 
     const animateFunction = (animationLog, idx) => {
-      if (idx > animationLog.length) {
+      if (idx >= animationLog.length) {
         console.log('Animation sequence complete, refreshing tile set');
         try {
           Utils.refreshTileSet(false, false, 0, 0, null, () => {
@@ -505,7 +505,7 @@ class EventQueue {
           animateFunction(animationLog, idx + 1);
         } else {
           // Unknown inline event; skip
-          console.warn('Skipping unknown inline animation entry:', entry);
+          console.warn('Skipping unknown inline animation entry:', t);
           animateFunction(animationLog, idx + 1);
         }
         return;
@@ -674,22 +674,105 @@ class EventQueue {
           setTimeout(() => tryResolveTile(attemptsLeft - 1), 100);
         } else {
           if (!warnedMissingEntities.has(entity_uid)) {
-            console.warn('Entity tile not found, skipping animation for:', entity_uid);
+            console.warn('Entity tile not found; attempting server render for animation:', entity_uid);
             warnedMissingEntities.add(entity_uid);
           }
-          // Ask backend to refresh around the last intended position so newly visible tiles are fetched
-      if (!refreshedEntities.has(entity_uid)) {
-            const last = lastTargetCoords.get(entity_uid);
-            if (last && Array.isArray(last)) {
+
+          // Try to fetch a server-rendered map fragment and synthesize a sprite to animate
+          const attemptServerSprite = (() => {
+            let attempted = false;
+            return () => {
+              if (attempted) return;
+              attempted = true;
               try {
-        enqueueTileRefresh({ pov: true, x: last[0], y: last[1], entity_uid });
-                refreshedEntities.add(entity_uid);
+                // Request a partial map render; we'll extract the entity token image
+                $.get('/update', { entity_uid: entity_uid, pov: false, is_setup: false, x: 0, y: 0 })
+                  .done((html) => {
+                    try {
+                      const $tmp = $('<div></div>').html(html);
+                      // Prefer an <img.entity> source; fallback to data-attr if present
+                      let spriteSrc = null;
+                      const $img = $tmp.find(`.tile[data-coords-id="${entity_uid}"] .entity`).first();
+                      if ($img && $img.length) {
+                        spriteSrc = $img.attr('src') || $img.data('src') || $img.attr('data-src') || null;
+                      }
+                      // If we still don't have a source, try a conventional token path guess
+                      if (!spriteSrc) {
+                        spriteSrc = `/assets/token_${entity_uid}.png`;
+                      }
+
+                      // If no path is available or empty, we cannot animate; skip
+                      if (!Array.isArray(path) || path.length === 0) {
+                        animateFunction(animationLog, idx + 1);
+                        return;
+                      }
+
+                      // Build a floating sprite and animate along the path using tile centers
+                      const tileSize = parseInt($('.tiles-container').data('tile-size') || 64, 10);
+                      const $sprite = $('<img class="moving-entity-sprite" />')
+                        .attr('src', spriteSrc)
+                        .css({ position: 'absolute', zIndex: 2000, pointerEvents: 'none', width: `${tileSize}px`, height: `${tileSize}px` });
+
+                      const moveFuncNoOrig = (p, index) => {
+                        if (index >= p.length) {
+                          try { $sprite.remove(); } catch (_) {}
+                          animateFunction(animationLog, idx + 1);
+                          return;
+                        }
+                        const [nx, ny] = p[index];
+                        const $t = $(`.tile[data-coords-x="${nx}"][data-coords-y="${ny}"]`);
+                        if (!$t.length) { moveFuncNoOrig(p, index + 1); return; }
+                        const c = getTileCenter($t);
+                        if (!c) { moveFuncNoOrig(p, index + 1); return; }
+                        const left = c.x - tileSize / 2;
+                        const top = c.y - tileSize / 2;
+
+                        if (index === 0) {
+                          try { $('body').append($sprite); } catch (_) {}
+                          $sprite.css({ left, top });
+                          moveFuncNoOrig(p, index + 1);
+                          return;
+                        }
+
+                        $sprite.css('transition', 'none');
+                        requestAnimationFrame(() => {
+                          $sprite.css({ left, top, transition: 'left 0.3s ease-in-out, top 0.3s ease-in-out' });
+                          const onEnd = () => {
+                            $sprite.off('transitionend', onEnd);
+                            moveFuncNoOrig(p, index + 1);
+                          };
+                          $sprite.on('transitionend', onEnd);
+                          setTimeout(() => { try { $sprite.off('transitionend', onEnd); } catch (_) {} moveFuncNoOrig(p, index + 1); }, 350);
+                        });
+                      };
+
+                      moveFuncNoOrig(path, 0);
+                    } catch (e) {
+                      console.warn('Failed to animate with server-rendered sprite', e);
+                      animateFunction(animationLog, idx + 1);
+                    }
+                  })
+                  .fail(() => {
+                    // As a last resort, request a targeted tile refresh then continue
+                    if (!refreshedEntities.has(entity_uid)) {
+                      const last = lastTargetCoords.get(entity_uid);
+                      if (last && Array.isArray(last)) {
+                        try { enqueueTileRefresh({ pov: true, x: last[0], y: last[1], entity_uid }); refreshedEntities.add(entity_uid); } catch (_) {}
+                      }
+                    }
+                    animateFunction(animationLog, idx + 1);
+                  });
               } catch (e) {
-                console.warn('Failed to request targeted tile refresh for', entity_uid, e);
+                console.warn('Error requesting server render for entity', entity_uid, e);
+                animateFunction(animationLog, idx + 1);
               }
-            }
-          }
-          // Mark this entity as missing so subsequent entries in the same event skip immediately
+            };
+          })();
+
+          // Kick off the server-sprite attempt
+          // attemptServerSprite();
+
+          // Mark this entity as missing so subsequent entries in the same event skip noisy retries
           missingEntities.add(entity_uid);
           animateFunction(animationLog, idx + 1);
         }

@@ -40,8 +40,8 @@ class Bard:
   def short_rest_for_bard(self, battle):
     pass
 
-  def max_slots_for_wizard(self, level):
-    return BARD_SPELL_SLOT_TABLE[self.wizard_level - 1][level] if level < len(WIZARD_SPELL_SLOT_TABLE[self.wizard_level - 1]) else 0
+  def max_slots_for_bard(self, level):
+    return BARD_SPELL_SLOT_TABLE[self.bard_level - 1][level - 1] if level < len(BARD_SPELL_SLOT_TABLE[self.bard_level - 1]) else 0
 
   def reset_spell_slots(self):
-    return OrderedDict((index, slots) for index, slots in enumerate(WIZARD_SPELL_SLOT_TABLE[self.wizard_level - 1]))
+    return OrderedDict((index, slots) for index, slots in enumerate(BARD_SPELL_SLOT_TABLE[self.bard_level - 1]))
