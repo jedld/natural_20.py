@@ -2413,7 +2413,9 @@ def continue_game():
 
         current_turn = battle.current_turn()
     socketio.emit('message', { 'type': 'initiative', 'message': { 'index': battle.current_turn_index} })
-    socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 'animation_log' : battle.get_animation_logs() }})
+    logs = battle.get_animation_logs()
+    if logs:
+        socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 'animation_log' : logs }})
     battle.clear_animation_logs()
     socketio.emit('message', { 'type': 'turn', 'message': {}})
 
@@ -2441,8 +2443,10 @@ def next_turn():
 
             current_game.game_loop()
             socketio.emit('message', { 'type': 'initiative','message': {'index': battle.current_turn_index}})
-            socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid,
-                                                                'animation_log' : battle.get_animation_logs() }})
+            _logs = battle.get_animation_logs()
+            if _logs:
+                socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid,
+                                                                'animation_log' : _logs }})
             socketio.emit('message', { 'type': 'turn', 'message': {}})
             battle.clear_animation_logs()
 
@@ -3381,8 +3385,12 @@ def action():
 
                         current_game.commit_and_update(session['username'], action, pov_entities)
                         if battle:
-                            socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1],
-                                                                                'animation_log': battle.get_animation_logs()}})
+                            # POV-aware logs are emitted via commit_and_update; avoid duplicate raw emission
+                            logs = battle.get_animation_logs()
+                            if logs:
+                                socketio.emit('message', {'type': 'move', 'message': {
+                                    'from': move_path[0], 'to': move_path[-1], 'animation_log': logs
+                                }})
                             battle.clear_animation_logs()
                         else:
                             animation_log = []

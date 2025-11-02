@@ -1,0 +1,23 @@
+---
+name: Valdris
+race: human
+classes:
+  warlock: 5
+level: 5
+max_hp: 40
+hp: 40
+ability:
+  str: 10
+  dex: 14
+  con: 15
+  int: 12
+  wis: 13
+  cha: 18
+skills: []
+equipped:
+- light_crossbow
+- leather_armor
+inventory: []
+token:
+- V
+
