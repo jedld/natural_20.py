@@ -4,11 +4,11 @@
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1" name="viewport">
     <title>{{ title }}</title>
-    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/libs/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
     <link href="/styles.css?salt={{ salt }}" rel="stylesheet">
-    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="/libs/jquery/jquery-3.2.1.min.js"></script>
+    <script src="/libs/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="/libs/socket.io/socket.io.min.js"></script>
   <script src="/inert-polyfill.js?salt={{ salt }}"></script>
   <script src="/effects.js?salt={{ salt }}"></script>
   <script src="/sfx.js?salt={{ salt }}"></script>
@@ -17,10 +17,10 @@
     <script src="/utils.js?salt={{ salt }}"></script>
     <script src="/js/chat.js?salt={{ salt }}"></script>
     <script src="/engine.js?salt={{ salt }}"></script>
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-    <link rel="manifest" href="/site.webmanifest">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png') }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}?v={{ salt }}">
     <style>
         .image-container {
           position: absolute;

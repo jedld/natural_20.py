@@ -1677,7 +1677,7 @@
     });
   });
 
-  // Thunderwave: concussive burst from caster with jagged shock ring, diamond wave, and push hints
+  // Thunderwave: directional 15-ft cube (3x3 tiles) originating from caster's space, with concussive burst and push hints
   register('thunderwave', function(payload){
     return new Promise((resolve) => {
       const srcId = payload && payload.source;
@@ -1687,13 +1687,14 @@
       const tileSize = ($('.tiles-container').data('tile-size') || 64);
       const targets = ensureArray(payload && payload.target);
       const centers = targets.map(centerOfEntity).filter(Boolean);
+      const srcTile = entityTileCoords(srcId);
 
       // Optional facing support: if payload.target is [tx,ty] tile coords or a vector, use it for directional accents
       let facingAngle = null;
+      let facingCardinal = null; // 'N'|'E'|'S'|'W'
       (function computeFacing(){
         try {
           if (Array.isArray(payload?.target) && payload.target.length === 2 && typeof payload.target[0] === 'number' && typeof payload.target[1] === 'number'){
-            const srcTile = entityTileCoords(srcId);
             if (srcTile) {
               const dxg = payload.target[0] - srcTile[0];
               const dyg = payload.target[1] - srcTile[1];
@@ -1703,10 +1704,53 @@
               if (tgtCenter) facingAngle = Math.atan2(tgtCenter.y - src.y, tgtCenter.x - src.x);
             }
           }
+          // Derive cardinal from facingAngle if present; default East
+          if (facingAngle == null) facingAngle = 0;
+          const ang = ((facingAngle % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+          const dirs = [ {c:'E', a:0}, {c:'S', a:Math.PI/2}, {c:'W', a:Math.PI}, {c:'N', a:3*Math.PI/2} ];
+          let best = {c:'E', d: 1e9};
+          dirs.forEach(d => { const dd = Math.abs(((ang - d.a + Math.PI) % (2*Math.PI)) - Math.PI); if (dd < best.d) best = {c:d.c, d:dd}; });
+          facingCardinal = best.c;
         } catch(e){}
       })();
 
       try { if (window.SFX && SFX.play) SFX.play('thunderwave_cast'); } catch(e){}
+
+      // Helper: get tile rect by grid coords
+      function tileRectByCoords(tx, ty){
+        try {
+          const el = document.querySelector(`.tile[data-coords-x="${tx}"][data-coords-y="${ty}"]`);
+          if (!el) return null;
+          const rect = el.getBoundingClientRect();
+          const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+          const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+          return { x: rect.left + scrollLeft, y: rect.top + scrollTop, w: rect.width, h: rect.height };
+        } catch(e){ return null; }
+      }
+
+      // Build list of affected cube tiles (3x3) based on facing cardinal
+      let cubeTiles = [];
+      (function computeCubeTiles(){
+        if (!srcTile) return;
+        const [gx, gy] = srcTile;
+        const half = 1; // 3x3
+        let xMin, xMax, yMin, yMax;
+        switch (facingCardinal) {
+          case 'N': xMin = gx - half; xMax = gx + half; yMin = gy - 3; yMax = gy - 1; break;
+          case 'S': xMin = gx - half; xMax = gx + half; yMin = gy + 1; yMax = gy + 3; break;
+          case 'W': xMin = gx - 3; xMax = gx - 1; yMin = gy - half; yMax = gy + half; break;
+          case 'E':
+          default:  xMin = gx + 1; xMax = gx + 3; yMin = gy - half; yMax = gy + half; break;
+        }
+        for (let x = xMin; x <= xMax; x++){
+          for (let y = yMin; y <= yMax; y++){
+            // skip source tile if included by accident
+            if (x === gx && y === gy) continue;
+            const r = tileRectByCoords(x, y);
+            if (r) cubeTiles.push({gx:x, gy:y, rect:r});
+          }
+        }
+      })();
 
       // Helper: jagged lightning segment
       function drawLightning(ax, ay, bx, by, jitter, alpha, width){
@@ -1759,7 +1803,7 @@
         if (t < 1) requestAnimationFrame(charge); else boom();
       }
 
-      // Stage 2: concussive boom with diamond + halo and lightning cracks; subtle camera shake
+      // Stage 2: concussive boom with directional cube highlight + halo and lightning cracks; subtle camera shake
       function boom(){
         try { if (window.SFX && SFX.play) SFX.play('thunderwave_boom'); } catch(e){}
         const t0 = performance.now();
@@ -1774,24 +1818,31 @@
           ctx.save(); ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
           ctx.globalCompositeOperation = 'screen';
 
-          // Expanding diamond (rotated square) outline
+          // Directional cube highlight: softly light up the affected 3x3 area
+          if (cubeTiles.length){
+            const fillA = 0.28 * (1 - t*0.7);
+            const strokeA = 0.55 * (1 - t);
+            cubeTiles.forEach(({rect}) => {
+              const pad = Math.max(1, Math.min(3, tileSize*0.05));
+              const x = rect.x + pad, y = rect.y + pad, w = rect.w - pad*2, h = rect.h - pad*2;
+              // inner glow
+              const g = ctx.createLinearGradient(x, y, x+w, y+h);
+              g.addColorStop(0, `rgba(190,220,255, ${fillA.toFixed(2)})`);
+              g.addColorStop(1, `rgba(130,170,255, ${Math.max(0,fillA-0.1).toFixed(2)})`);
+              ctx.fillStyle = g;
+              ctx.fillRect(x, y, w, h);
+              // border
+              ctx.strokeStyle = `rgba(255,255,255, ${strokeA.toFixed(2)})`;
+              ctx.lineWidth = 2;
+              ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+            });
+          }
+
+          // Soft circular halo blending the harsh edges around the caster
           const r = rMax * ease;
           const a1 = 0.9 * (1 - t);
-          ctx.beginPath();
-          ctx.moveTo(src.x + r, src.y);
-          ctx.lineTo(src.x, src.y + r);
-          ctx.lineTo(src.x - r, src.y);
-          ctx.lineTo(src.x, src.y - r);
-          ctx.closePath();
-          ctx.strokeStyle = `rgba(200,230,255, ${a1.toFixed(2)})`;
-          ctx.lineWidth = 3 - 1.5*t; ctx.stroke();
-          // inner bright diamond
-          ctx.strokeStyle = `rgba(255,255,255, ${(0.85*a1).toFixed(2)})`;
-          ctx.lineWidth = 1.5; ctx.stroke();
-
-          // Soft circular halo blending the harsh edges
-          ctx.beginPath(); ctx.arc(src.x, src.y, Math.max(1, r*0.92), 0, Math.PI*2);
-          ctx.strokeStyle = `rgba(160,200,255, ${(0.5*(1-t)).toFixed(2)})`;
+          ctx.beginPath(); ctx.arc(src.x, src.y, Math.max(1, r*0.85), 0, Math.PI*2);
+          ctx.strokeStyle = `rgba(160,200,255, ${(0.45*(1-t)).toFixed(2)})`;
           ctx.lineWidth = 2.2 - 1.2*t; ctx.stroke();
 
           // Directional emphasis: draw a brighter arc in facing direction if known
@@ -1836,7 +1887,7 @@
           const t = Math.min(1, (now - t0)/dur);
           ctx.clearRect(0,0,overlay.width, overlay.height);
           ctx.save(); ctx.globalCompositeOperation = 'screen';
-          const r = tileSize * 2.2;
+          const r = tileSize * 2.0;
           const g = ctx.createRadialGradient(src.x, src.y, 6, src.x, src.y, r);
           g.addColorStop(0, `rgba(255,255,255, ${(0.12*(1-t)).toFixed(2)})`);
           g.addColorStop(1, `rgba(150,200,255, ${(0.06*(1-t)).toFixed(2)})`);

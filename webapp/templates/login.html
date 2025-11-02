@@ -2,11 +2,12 @@
 <html>
 <head>
     <title>{{ title }}</title>
-    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
     <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/libs/bootstrap/3.3.7/css/bootstrap.min.css">
+    <!-- jQuery (must be loaded before Bootstrap JS) -->
+    <script src="/libs/jquery/jquery-3.6.0.min.js"></script>
     <!-- Bootstrap JS -->
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="/libs/bootstrap/3.3.7/js/bootstrap.min.js"></script>
     <!-- Custom CSS -->
     <style>
         /* Full page background image */
@@ -49,7 +50,6 @@
             border-radius: 5px;
         }
     </style>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
     $(document).ready(function() {
       $('#loginForm').on('submit', function(e) {
