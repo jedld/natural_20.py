@@ -205,6 +205,136 @@
     });
   });
 
+  // Eldritch Blast: arcane beams with void ripple impacts, supports multiple beams/targets
+  register('eldritch_blast', function(payload){
+    return new Promise((resolve) => {
+      const beamTargets = ensureArray(payload && payload.target);
+      if (!beamTargets.length) return resolve();
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      const centers = beamTargets.map(centerOfEntity).filter(Boolean);
+      if (!src || !centers.length) return resolve();
+
+      const { overlay, ctx, destroy } = createOverlay(1102);
+      const coreColor = [150, 70, 255]; // vibrant violet core
+      const auraColor = [70, 0, 140];   // shadowy edge for contrast
+      let index = 0;
+
+      const fireBeam = () => {
+        if (index >= centers.length) {
+          destroy();
+          resolve();
+          return;
+        }
+
+        const target = centers[index++];
+        const pathDuration = 260;
+        const wobblePhase = Math.random() * Math.PI * 2;
+
+        const drawBeam = (start) => {
+          const step = (now) => {
+            const t = Math.min(1, (now - start) / pathDuration);
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+
+            // Source pulse
+            const pulse = 6 + 4 * Math.sin((now - start) * 0.018);
+            ctx.fillStyle = `rgba(${coreColor[0]},${coreColor[1]},${coreColor[2]},0.35)`;
+            ctx.beginPath();
+            ctx.arc(src.x, src.y, pulse, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Beam trajectory with a subtle wobble
+            const wobbleStrength = 14 * (1 - t);
+            const wobbleX = Math.sin(wobblePhase + now * 0.02) * wobbleStrength;
+            const wobbleY = Math.cos(wobblePhase + now * 0.017) * wobbleStrength;
+            const x = src.x + (target.x - src.x) * t + wobbleX;
+            const y = src.y + (target.y - src.y) * t + wobbleY;
+
+            ctx.strokeStyle = `rgba(${auraColor[0]},${auraColor[1]},${auraColor[2]},0.45)`;
+            ctx.lineWidth = 7;
+            ctx.beginPath();
+            ctx.moveTo(src.x, src.y);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+
+            ctx.strokeStyle = `rgba(${coreColor[0]},${coreColor[1]},${coreColor[2]},0.85)`;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(src.x, src.y);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+
+            ctx.fillStyle = `rgba(${coreColor[0]},${coreColor[1]},${coreColor[2]},0.95)`;
+            ctx.shadowColor = `rgba(${coreColor[0]},${coreColor[1]},${coreColor[2]},0.9)`;
+            ctx.shadowBlur = 14;
+            ctx.beginPath();
+            ctx.arc(x, y, 6.5 - 2.5 * t, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            if (t < 1) {
+              requestAnimationFrame(step);
+            } else {
+              impact(performance.now());
+            }
+          };
+          requestAnimationFrame(step);
+        };
+
+        const impact = (startTime) => {
+          const impactDuration = 240;
+          const shockRings = 3;
+
+          const burst = (now) => {
+            const t = Math.min(1, (now - startTime) / impactDuration);
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+
+            const maxRadius = 45;
+            const radius = 12 + maxRadius * t;
+            const alpha = 0.85 * (1 - t);
+            const gradient = ctx.createRadialGradient(target.x, target.y, 0, target.x, target.y, radius);
+            gradient.addColorStop(0, `rgba(${coreColor[0]},${coreColor[1]},${coreColor[2]},${alpha})`);
+            gradient.addColorStop(0.35, `rgba(${coreColor[0]},${coreColor[1]},${coreColor[2]},${alpha * 0.6})`);
+            gradient.addColorStop(1, `rgba(${auraColor[0]},${auraColor[1]},${auraColor[2]},0)`);
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(target.x, target.y, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Void ripples
+            for (let i = 0; i < shockRings; i++) {
+              const ringT = Math.max(0, t - i * 0.18);
+              if (ringT <= 0) continue;
+              const ringAlpha = Math.max(0, 0.35 - ringT * 0.35);
+              const ringRadius = radius * (0.6 + 0.35 * i) * ringT;
+              ctx.strokeStyle = `rgba(${coreColor[0]},${coreColor[1]},${coreColor[2]},${ringAlpha.toFixed(2)})`;
+              ctx.lineWidth = Math.max(1.5, 4 - ringT * 3);
+              ctx.beginPath();
+              ctx.arc(target.x, target.y, ringRadius, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+
+            ctx.restore();
+
+            if (t < 1) {
+              requestAnimationFrame(burst);
+            } else {
+              setTimeout(fireBeam, 90);
+            }
+          };
+          requestAnimationFrame(burst);
+        };
+
+        drawBeam(performance.now());
+      };
+
+      fireBeam();
+    });
+  });
+
   // Guiding Bolt: radiant beam, starburst impact, lingering motes
   register('guiding_bolt', function(payload){
     return new Promise((resolve) => {

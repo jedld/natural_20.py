@@ -1606,6 +1606,15 @@ class Entity(EntityStateEvaluator, Notable):
             if save_type in ['intelligence', 'wisdom', 'charisma'] and self.class_feature('gnome_cunning'):
                 advantages.append('gnome_cunning')
 
+        frightened_check = False
+        if opts.get('condition') == 'frightened' or opts.get('saving_throw_type') == 'frightened':
+            frightened_check = True
+        conditions = opts.get('conditions')
+        if isinstance(conditions, (list, tuple)) and 'frightened' in conditions:
+            frightened_check = True
+        if frightened_check and self.class_feature('fearless'):
+            advantages.append('fearless')
+
         has_advantage = len(advantages) > 0
         has_disadvantage = len(disadvantages) > 0
         advantage_str = ",".join(advantages) if len(advantages) > 0 else ""

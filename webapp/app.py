@@ -1519,6 +1519,14 @@ def create_character():
         if not name or not race or not klass:
             return jsonify(error='Name, race, and class are required'), 400
 
+        races_def = game_session.load_races() or {}
+        race_def = races_def.get(race)
+        if race_def is None:
+            return jsonify(error='Unknown race selection'), 400
+        subrace_def = {}
+        if subrace:
+            subrace_def = (race_def.get('subrace') or {}).get(subrace, {})
+
         # Parse optional structured selections
         def _parse_json_list(key):
             val = request.form.get(key)
@@ -1531,9 +1539,105 @@ def create_character():
             except Exception:
                 pass
             return []
+
+        def _parse_json_dict(key):
+            val = request.form.get(key)
+            if not val:
+                return {}
+            try:
+                data = json.loads(val)
+                if isinstance(data, dict):
+                    parsed = {}
+                    for k, v in data.items():
+                        try:
+                            parsed[str(k)] = int(v)
+                        except Exception:
+                            return {}
+                    return parsed
+            except Exception:
+                pass
+            return {}
+
         selected_skills = _parse_json_list('skills')
         selected_cantrips = _parse_json_list('cantrips')
         selected_level1 = _parse_json_list('level1_spells')
+        race_bonus_map = _parse_json_dict('race_ability_bonuses')
+        race_skill_selections = _parse_json_list('race_skills')
+        race_language_selections = _parse_json_list('race_languages')
+
+        flexible_cfg = subrace_def.get('flexible_ability') or race_def.get('flexible_ability') or {}
+        expected_picks = flexible_cfg.get('picks') or []
+        if expected_picks:
+            if not race_bonus_map:
+                return jsonify(error='Select all racial ability bonuses.'), 400
+            expected_amounts = [int(pick.get('amount', 1)) for pick in expected_picks]
+            try:
+                actual_amounts = sorted([int(v) for v in race_bonus_map.values()])
+            except Exception:
+                return jsonify(error='Invalid racial ability bonuses'), 400
+            expected_sorted = sorted(expected_amounts)
+            if flexible_cfg.get('unique', True):
+                if actual_amounts != expected_sorted:
+                    return jsonify(error='Invalid racial ability bonuses'), 400
+            else:
+                if sum(actual_amounts) != sum(expected_amounts):
+                    return jsonify(error='Invalid racial ability bonuses'), 400
+            if any(ab not in ability for ab in race_bonus_map.keys()):
+                return jsonify(error='Invalid racial ability bonuses'), 400
+        else:
+            if race_bonus_map:
+                return jsonify(error='Unexpected racial ability bonuses'), 400
+            race_bonus_map = {}
+
+        skill_choice_cfg = subrace_def.get('skill_choices') or race_def.get('skill_choices') or {}
+        if skill_choice_cfg.get('count'):
+            expected_count = int(skill_choice_cfg['count'])
+            options = set(skill_choice_cfg.get('options') or [])
+            if len(race_skill_selections) != expected_count:
+                plural = '' if expected_count == 1 else 's'
+                return jsonify(error=f'Choose {expected_count} racial skill{plural}.'), 400
+            if not all(choice in options for choice in race_skill_selections):
+                return jsonify(error='Invalid racial skill choices'), 400
+        else:
+            if race_skill_selections:
+                return jsonify(error='Unexpected racial skill choices'), 400
+            race_skill_selections = []
+
+        language_choice_cfg = subrace_def.get('language_choices') or race_def.get('language_choices') or {}
+        if language_choice_cfg.get('count'):
+            expected_language_count = int(language_choice_cfg['count'])
+            options = set(language_choice_cfg.get('options') or [])
+            if len(race_language_selections) != expected_language_count:
+                plural = '' if expected_language_count == 1 else 's'
+                return jsonify(error=f'Choose {expected_language_count} bonus language{plural}.'), 400
+            if not all(choice in options for choice in race_language_selections):
+                return jsonify(error='Invalid racial language choices'), 400
+        else:
+            if race_language_selections:
+                return jsonify(error='Unexpected racial language choices'), 400
+            race_language_selections = []
+
+        def _apply_racial_bonus(bonus_map):
+            if not isinstance(bonus_map, dict):
+                return
+            for key, value in bonus_map.items():
+                if key in ability:
+                    try:
+                        ability[key] = min(20, ability[key] + int(value))
+                    except Exception:
+                        continue
+
+        _apply_racial_bonus(race_def.get('attribute_bonus'))
+        if subrace_def:
+            _apply_racial_bonus(subrace_def.get('attribute_bonus'))
+        if race_bonus_map:
+            for key, value in race_bonus_map.items():
+                ability[key] = min(20, ability[key] + int(value))
+
+        base_languages = []
+        for lang_src in (race_def.get('languages', []), subrace_def.get('languages', [])):
+            if lang_src:
+                base_languages.extend([str(l) for l in lang_src])
 
         # Build PC YAML compatible with existing templates
         # Basic defaults: level 1, hit_die inherit, simple equipment empty
@@ -1559,6 +1663,10 @@ def create_character():
         if subrace:
             pc['subrace'] = subrace
 
+        languages = list(dict.fromkeys(base_languages + race_language_selections))
+        if languages:
+            pc['languages'] = languages
+
         # Validate and apply class choices from templates
         try:
             classes_def = game_session.load_classes() or {}
@@ -1570,6 +1678,12 @@ def create_character():
                 valid_skills = [s for s in selected_skills if s in available_skills][:max_skills]
                 if valid_skills:
                     pc['skills'] = valid_skills
+
+            if race_skill_selections:
+                pc.setdefault('skills', [])
+                for skill in race_skill_selections:
+                    if skill not in pc['skills']:
+                        pc['skills'].append(skill)
 
             # Spells and early-class specifics
             spell_list = cdef.get('spell_list', {}) or {}

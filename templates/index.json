@@ -39,6 +39,11 @@
       "name": "gomeran",
       "file": "characters/gomeran.png",
       "description": "A newly forged gnome cleric."
+    },
+    {
+      "name": "chestnut_latchlifter",
+      "file": "characters/chestnut_latchlifter.png",
+      "description": "A newly forged kender warlock."
     }
   ],
   "logins": [

@@ -1,0 +1,37 @@
+base_speed: 30
+size: small
+languages:
+  - common
+  - kenderspeak
+language_choices:
+  count: 1
+  options:
+    - abyssal
+    - celestial
+    - draconic
+    - dwarvish
+    - elvish
+    - giant
+    - gnomish
+    - goblin
+    - halfling
+    - infernal
+    - orc
+    - primordial
+    - sylvan
+flexible_ability:
+  unique: true
+  picks:
+    - amount: 2
+    - amount: 1
+race_features:
+  - fearless
+  - kender_aptitude
+skill_choices:
+  count: 1
+  options:
+    - insight
+    - investigation
+    - sleight_of_hand
+    - stealth
+    - survival
