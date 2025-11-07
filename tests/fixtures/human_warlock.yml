@@ -20,4 +20,10 @@ equipped:
 inventory: []
 token:
 - V
+cantrips:
+  - eldritch_blast
+  - chill_touch
+prepared_spells:
+  - eldritch_blast
+  - misty_step
 

@@ -25,6 +25,7 @@ class SpellAction(Action):
         self.casting_time = "action"
         self.spell_action = None
         self.target = None
+        self.spellcasting_class = None
 
     def __str__(self):
         name = "SpellAction: unknown"
@@ -47,7 +48,8 @@ class SpellAction(Action):
             'spell_class': self.spell_class,
             'level': self.level,
             'at_level': self.at_level,
-            'casting_time': self.casting_time
+            'casting_time': self.casting_time,
+            'spellcasting_class': self.spellcasting_class
         }
         if self.target:
             if isinstance(self.target, list):
@@ -65,6 +67,7 @@ class SpellAction(Action):
         action.at_level = data['at_level']
         action.casting_time = data['casting_time']
         action.target = data['target']
+        action.spellcasting_class = data.get('spellcasting_class')
         return action
 
     def short_name(self):
@@ -101,14 +104,22 @@ class SpellAction(Action):
         if at_level is None:
             at_level = spell_details['level']
 
+        slot_owner = entity.owner if entity.familiar() else entity
+
         if not as_scroll:
             if spell_details['level'] > 0:
-                total_slots_count = 0
+                has_slot = False
                 for spell_class in spell_details.get("spell_list_classes", []):
-                    # check spell slots
-                    total_slots_count += entity.spell_slots_count(at_level, spell_class.lower())
+                    class_key = spell_class.lower()
+                    if hasattr(slot_owner, 'next_spell_slot_level'):
+                        if slot_owner.next_spell_slot_level(class_key, at_level) is not None:
+                            has_slot = True
+                            break
+                    elif slot_owner.spell_slots_count(at_level, class_key) > 0:
+                        has_slot = True
+                        break
 
-                if total_slots_count == 0:
+                if not has_slot:
                     return False
 
         if not battle:
@@ -156,6 +167,15 @@ class SpellAction(Action):
             action.spell_class = spell_class
             action.spell_action = spell_class(self.session, self.source, spell_name, spell)
             action.spell_action.action = action
+            slot_owner = action.source.owner if action.source.familiar() else action.source
+            if action.at_level > 0 and hasattr(slot_owner, 'next_spell_slot_level'):
+                for spell_class_name in spell.get('spell_list_classes', []):
+                    class_key = spell_class_name.lower()
+                    slot_level = slot_owner.next_spell_slot_level(class_key, action.at_level)
+                    if slot_level is not None:
+                        action.at_level = slot_level
+                        action.spellcasting_class = class_key
+                        break
             return action.spell_action.build_map(action)
 
         return {
@@ -173,6 +193,7 @@ class SpellAction(Action):
         spell_action.level = self.level
         spell_action.at_level = self.at_level
         spell_action.target = self.target
+        spell_action.spellcasting_class = self.spellcasting_class
         if self.spell_action:
             spell_action.spell_action = self.spell_action.clone()
             spell_action.spell_action.action = spell_action
