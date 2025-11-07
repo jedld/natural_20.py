@@ -439,8 +439,18 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     if character_class is None:
       character_class = list(self.spell_slots.keys())[0]
 
-    if self.spell_slots[character_class].get(level):
-      self.spell_slots[character_class][level] = max(self.spell_slots[character_class][level] - qty, 0)
+    if level <= 0:
+      return
+
+    slots = self.spell_slots.get(character_class, {})
+    if not slots:
+      return
+
+    target_level = level if slots.get(level, 0) >= qty else self.next_spell_slot_level(character_class, level)
+    if target_level is None:
+      return
+
+    self.spell_slots[character_class][target_level] = max(self.spell_slots[character_class][target_level] - qty, 0)
 
   def class_feature(self, feature):
     if feature in self.properties.get('class_features', []):
@@ -535,6 +545,21 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       return True
 
     return bool(self.race_properties.get('darkvision', None) and (self.race_properties['darkvision'] >= distance))
+
+  def next_spell_slot_level(self, character_class, minimum_level):
+    if minimum_level <= 0:
+      return 0
+
+    slots = self.spell_slots.get(character_class, {})
+    if not slots:
+      return None
+
+    max_slot_level = max(slots.keys()) if slots else 0
+    for slot_level in range(max(1, minimum_level), max_slot_level + 1):
+      if slots.get(slot_level, 0) > 0:
+        return slot_level
+
+    return None
 
   def spell_slots_count(self, level=None, character_class=None):
     if character_class not in self.spell_slots:

@@ -28,6 +28,7 @@ def load_spell_class(spell_name):
     from natural20.spell.resistance_spell import ResistanceSpell
     from natural20.spell.thunderwave_spell import ThunderwaveSpell
     from natural20.spell.eldritch_blast_spell import EldritchBlastSpell
+    from natural20.spell.misty_step_spell import MistyStepSpell
     # Create a mapping of spell names to spell classes
     spell_classes = {
         'ShockingGraspSpell': ShockingGraspSpell,
@@ -57,7 +58,8 @@ def load_spell_class(spell_name):
         'BaneSpell': BaneSpell,
         'ResistanceSpell': ResistanceSpell,
         'ThunderwaveSpell': ThunderwaveSpell,
-        'EldritchBlastSpell': EldritchBlastSpell
+        'EldritchBlastSpell': EldritchBlastSpell,
+        'MistyStepSpell': MistyStepSpell
     }
 
     if spell_name not in spell_classes:

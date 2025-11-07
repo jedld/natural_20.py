@@ -393,6 +393,25 @@ magic_missile:
   spell_list_classes:
     - Sorcerer
     - Wizard
+misty_step:
+  label: Misty Step
+  casting_time: 1:bonus_action
+  components:
+    - verbal
+  description: |
+    Briefly surrounded by silvery mist, you teleport up to 30 feet to an unoccupied space you can see.
+  duration: instant
+  level: 2
+  name: Misty Step
+  range: 30
+  school: conjuration
+  spell_class: Natural20::MistyStep
+  type: teleport
+  spell_list_classes:
+    - Bard
+    - Sorcerer
+    - Warlock
+    - Wizard
 ray_of_frost:
   label: Ray of Frost
   base_damage: 1d8

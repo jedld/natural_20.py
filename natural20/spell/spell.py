@@ -5,9 +5,9 @@ def camel_case_to_human_readable(camel_case_string):
     human_readable = re.sub(r'(?<!^)(?=[A-Z])', '_', camel_case_string).capitalize()
     return human_readable.lower()
 
-def consume_resource(battle, source, item, as_scroll=False):
+def consume_resource(battle, source, item, as_scroll=False, cast_level=None, casting_class=None):
     amt, resource = item["casting_time"].split(":")
-    spell_level = item["level"]
+    spell_level = cast_level if cast_level is not None else item["level"]
 
     if battle:
         if source.familiar():
@@ -29,9 +29,11 @@ def consume_resource(battle, source, item, as_scroll=False):
     # scrolls do not consume spell slots
     if not as_scroll:
         if source.familiar():
-            source.owner.consume_spell_slot(spell_level) if spell_level > 0 else None
+            if spell_level > 0:
+                source.owner.consume_spell_slot(spell_level, character_class=casting_class)
         else:
-            source.consume_spell_slot(spell_level) if spell_level > 0 else None
+            if spell_level > 0:
+                source.consume_spell_slot(spell_level, character_class=casting_class)
 
 class AttackHook:
     def after_attack_roll(battle, entity, attacker, attack_roll, effective_ac, opts=None):
@@ -69,7 +71,19 @@ class Spell:
         return self.properties.get('id')
 
     def consume(self, battle, as_scroll=False):
-        consume_resource(battle, self.source, self.properties, as_scroll=as_scroll)
+        cast_level = self.properties.get('level', 0)
+        casting_class = None
+        if self.action:
+            cast_level = getattr(self.action, 'at_level', cast_level)
+            casting_class = getattr(self.action, 'spellcasting_class', None)
+        consume_resource(
+            battle,
+            self.source,
+            self.properties,
+            as_scroll=as_scroll,
+            cast_level=cast_level,
+            casting_class=casting_class
+        )
 
     @staticmethod
     def apply(battle, item, session=None):

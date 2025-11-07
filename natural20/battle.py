@@ -48,6 +48,12 @@ def action_animator(action):
         except Exception:
             spell_name = None
 
+        extra_message = {}
+        if spell_name == 'misty_step':
+            origin = getattr(action, 'misty_step_from', None)
+            if origin is not None:
+                extra_message['from'] = list(origin)
+
         return {
             'type': 'spell',
             'message': {
@@ -55,7 +61,8 @@ def action_animator(action):
                 'source': action.source.entity_uid,
                 'type': 'spell',
                 'label': action.label(),
-                'spell': spell_name
+                'spell': spell_name,
+                **extra_message
             }
         }
     else:
