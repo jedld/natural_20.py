@@ -335,6 +335,143 @@
     });
   });
 
+  // Misty Step: silvery vanish and reappear between coordinates
+  register('misty_step', function(payload){
+    return new Promise((resolve) => {
+      const fromCoords = Array.isArray(payload && payload.from) ? payload.from : null;
+      const hasCoordinateTarget = Array.isArray(payload && payload.target) && payload.target.length === 2 && typeof payload.target[0] === 'number' && typeof payload.target[1] === 'number';
+      const targets = hasCoordinateTarget ? [payload.target] : ensureArray(payload && payload.target);
+      const rawTarget = targets.length ? targets[0] : null;
+
+      const originCenter = (() => {
+        if (fromCoords && fromCoords.length === 2) {
+          const center = tileCenterByCoords(fromCoords[0], fromCoords[1]);
+          if (center) return center;
+        }
+        if (payload && payload.source) {
+          // Fallback to current entity location if the origin tile is no longer present
+          const coords = entityTileCoords(payload.source);
+          if (coords && coords.length === 2) {
+            const center = tileCenterByCoords(coords[0], coords[1]);
+            if (center) return center;
+          }
+          return centerOfEntity(payload.source);
+        }
+        return null;
+      })();
+
+      const destinationCenter = (() => {
+        const candidate = (arr) => {
+          if (Array.isArray(arr) && arr.length === 2 && typeof arr[0] === 'number' && typeof arr[1] === 'number') {
+            const center = tileCenterByCoords(arr[0], arr[1]);
+            if (center) return center;
+          }
+          return null;
+        };
+
+        if (hasCoordinateTarget) {
+          const direct = candidate(payload.target);
+          if (direct) return direct;
+        }
+
+        const arrayTarget = candidate(rawTarget);
+        if (arrayTarget) return arrayTarget;
+
+        if (rawTarget != null) {
+          const entityCenter = centerOfEntity(rawTarget);
+          if (entityCenter) return entityCenter;
+        }
+
+        if (payload && payload.source) {
+          const coords = entityTileCoords(payload.source);
+          if (coords) {
+            const fallback = candidate(coords);
+            if (fallback) return fallback;
+          }
+          return centerOfEntity(payload.source);
+        }
+
+        return null;
+      })();
+
+      if (!originCenter || !destinationCenter) return resolve();
+
+      const { overlay, ctx, destroy } = createOverlay(1102);
+      const aura = [185, 215, 255];
+      const core = [120, 170, 255];
+
+      function drawRing(center, radius, strength) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        const grad = ctx.createRadialGradient(center.x, center.y, Math.max(1, radius * 0.35), center.x, center.y, radius);
+        grad.addColorStop(0, `rgba(${aura[0]},${aura[1]},${aura[2]},${(0.6 * strength).toFixed(2)})`);
+        grad.addColorStop(1, `rgba(${core[0]},${core[1]},${core[2]},0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(center.x, center.y, radius, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+
+      const vanishDuration = 260;
+      const appearDuration = 300;
+
+      function stageVanish(startTime) {
+        const step = (now) => {
+          const t = Math.min(1, (now - startTime) / vanishDuration);
+          ctx.clearRect(0, 0, overlay.width, overlay.height);
+          const radius = 60 * (1 - t);
+          drawRing(originCenter, Math.max(10, radius), 1 - t * 0.6);
+          ctx.save();
+          ctx.globalCompositeOperation = 'screen';
+          ctx.fillStyle = `rgba(${core[0]},${core[1]},${core[2]},${(0.75 * (1 - t)).toFixed(2)})`;
+          ctx.beginPath(); ctx.arc(originCenter.x, originCenter.y, 10 * (1 - t), 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+          if (t < 1) {
+            requestAnimationFrame(step);
+          } else {
+            stageAppear(performance.now());
+          }
+        };
+        requestAnimationFrame(step);
+      }
+
+      function stageAppear(startTime) {
+        const sparkleCount = 20;
+        const sparkSeeds = Array.from({ length: sparkleCount }, (_, i) => ({
+          angle: (i / sparkleCount) * Math.PI * 2,
+          radius: 12 + Math.random() * 14
+        }));
+
+        const step = (now) => {
+          const t = Math.min(1, (now - startTime) / appearDuration);
+          ctx.clearRect(0, 0, overlay.width, overlay.height);
+          drawRing(destinationCenter, 20 + 45 * t, 0.8 - t * 0.5);
+          ctx.save();
+          ctx.globalCompositeOperation = 'screen';
+          ctx.fillStyle = `rgba(${core[0]},${core[1]},${core[2]},${(0.8 * t).toFixed(2)})`;
+          ctx.beginPath(); ctx.arc(destinationCenter.x, destinationCenter.y, 8 + 10 * t, 0, Math.PI * 2); ctx.fill();
+          sparkSeeds.forEach((seed) => {
+            const pulse = Math.sin(now * 0.02 + seed.angle) * 2;
+            const r = seed.radius + 20 * (1 - t) + pulse;
+            const sx = destinationCenter.x + Math.cos(seed.angle) * r;
+            const sy = destinationCenter.y + Math.sin(seed.angle) * r;
+            ctx.fillStyle = `rgba(${aura[0]},${aura[1]},${aura[2]},${(0.35 * (1 - t)).toFixed(2)})`;
+            ctx.beginPath(); ctx.arc(sx, sy, 2 + 2 * (1 - t), 0, Math.PI * 2); ctx.fill();
+          });
+          ctx.restore();
+          if (t < 1) {
+            requestAnimationFrame(step);
+          } else {
+            destroy();
+            resolve();
+          }
+        };
+        requestAnimationFrame(step);
+      }
+
+      stageVanish(performance.now());
+    });
+  });
+
   // Guiding Bolt: radiant beam, starburst impact, lingering motes
   register('guiding_bolt', function(payload){
     return new Promise((resolve) => {

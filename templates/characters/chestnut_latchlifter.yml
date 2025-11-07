@@ -1,8 +1,8 @@
 name: Chestnut Latchlifter
 race: kender
 classes:
-  warlock: 2
-level: 2
+  warlock: 3
+level: 3
 hit_die: inherit
 max_hp: 8
 ability:
@@ -28,5 +28,7 @@ skills:
 - arcana
 - stealth
 prepared_spells:
+- chill_touch
 - eldritch_blast
 - expeditious_retreat
+- misty_step
