@@ -104,6 +104,14 @@ LANGUAGE_PATTERNS = {
         'prefixes': ['un', 're', 'in', 'dis', 'mis'],
         'suffixes': ['ing', 'ed', 'ly', 'ful', 'ous'],
     },
+    'kenderspeak': {
+        'vowels': 'aeiou',
+        'consonants': 'bcdfghjklmnpqrstvwxyz',
+        'syllables': ['th', 'sh', 'ch', 'ph', 'wh'],
+        'word_endings': ['im', 'en', 'el', 'or', 'in'],
+        'prefixes': ['ka', 'ke', 'ki', 'ko', 'ku'],
+        'suffixes': ['ik', 'il', 'en', 'or', 'in'],
+    },
     'infernal': {
         'vowels': 'aeiou',
         'consonants': 'bdghjklmnprstvxz',

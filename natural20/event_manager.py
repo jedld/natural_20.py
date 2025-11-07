@@ -138,7 +138,7 @@ class EventManager:
                 msg = "[legendary action] " + msg
 
             if event.get('spell_save'):
-                self.output_logger.log(f"{msg} but succeeded on save with {event['spell_save']} > DC: {event['dc']}.")
+                self.output_logger.log(f"{msg} but {self.show_target_name(event)} succeeded on save with {event['spell_save']} > DC: {event['dc']}.")
             else:
                 self.output_logger.log(f"{msg} but missed with {event['attack_roll']}= {event['attack_roll'].result()}.")
 

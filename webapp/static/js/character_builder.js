@@ -3,6 +3,7 @@
   const COST = {8:0,9:1,10:2,11:3,12:4,13:5,14:7,15:9};
   const MIN = 8, MAX = 15, BUDGET = 27;
   const abilities = ["str","dex","con","int","wis","cha"];
+  const abilityLabels = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
   let pool = BUDGET;
 
   function updatePoints() {
@@ -111,6 +112,7 @@
     const $panel = $('#class-options');
     const $body = $('#class-options-body');
     $body.empty();
+    $body.off();
     if(!klass || !CLASSES[klass]){
       $panel.hide();
       return;
@@ -261,14 +263,211 @@
     }
   }
 
+  function renderRaceOptions(){
+    const race = $('#race').val();
+    const subrace = $('#subrace').val();
+    const $panel = $('#race-options');
+    const $body = $('#race-options-body');
+    $body.empty();
+    $body.off();
+    if(!race || !RACES[race]){
+      $panel.hide();
+      return;
+    }
+
+    const base = RACES[race] || {};
+    const sub = (base.subrace && subrace && base.subrace[subrace]) || {};
+    let hasOptions = false;
+
+    const flex = sub.flexible_ability || base.flexible_ability;
+    if(flex && Array.isArray(flex.picks) && flex.picks.length){
+      const picks = flex.picks;
+      const unique = flex.unique !== false;
+      const wrap = $('<div class="form-group"/>');
+      wrap.append('<label>Ability Score Increases</label>');
+      picks.forEach((pick, idx)=>{
+        const amount = parseInt(pick.amount, 10) || 1;
+        const selectId = `race-ability-${idx}`;
+        const row = $('<div style="margin-bottom:8px;"/>');
+        const select = $(`<select class="form-control race-ability-pick" data-amount="${amount}" id="${selectId}" required></select>`);
+        select.append('<option value="">-- Choose Ability --</option>');
+        abilities.forEach(ab=>{
+          const label = abilityLabels[ab] || ab.toUpperCase();
+          select.append(`<option value="${ab}">${label} (+${amount})</option>`);
+        });
+        row.append(select);
+        wrap.append(row);
+      });
+      const helperText = unique && flex.picks.length > 1
+        ? 'Choose different abilities for each bonus.'
+        : 'Select abilities to receive these bonuses.';
+      wrap.append(`<div class="helper">${helperText}</div>`);
+      $body.append(wrap);
+
+      const enforceUnique = ()=>{
+        if(!unique){ return; }
+        const selected = {};
+        $body.find('.race-ability-pick').each(function(){
+          const val = $(this).val();
+          if(val){ selected[val] = true; }
+        });
+        $body.find('.race-ability-pick').each(function(){
+          const current = $(this).val();
+          $(this).find('option').each(function(){
+            const optVal = $(this).attr('value');
+            if(!optVal){ return; }
+            const disable = selected[optVal] && optVal !== current;
+            $(this).prop('disabled', disable);
+          });
+        });
+      };
+      $body.on('change', '.race-ability-pick', enforceUnique);
+      enforceUnique();
+      hasOptions = true;
+    }
+
+    const skillChoices = sub.skill_choices || base.skill_choices;
+    if(skillChoices && skillChoices.count){
+      const count = parseInt(skillChoices.count, 10) || 0;
+      const options = skillChoices.options || [];
+      if(count > 0 && options.length){
+        const wrap = $('<div class="form-group"/>');
+        wrap.append(`<label>Racial Skill Proficiency: choose ${count}</label>`);
+        const row = $('<div class="row"/>');
+        options.forEach((skill, idx)=>{
+          const col = $('<div class="col-xs-6 col-sm-4 col-md-3"/>');
+          const id = `race-skill-${idx}`;
+          col.append(`
+            <div class="checkbox">
+              <label>
+                <input type="checkbox" class="cb-race-skill" data-name="${skill}" id="${id}"> ${skill.replace(/_/g,' ')}
+              </label>
+            </div>`);
+          row.append(col);
+        });
+        wrap.append(row);
+        wrap.append(`<div class="helper" id="race-skill-helper">${count} remaining</div>`);
+        $body.append(wrap);
+
+        const updateSkillHelper = ()=>{
+          const selected = $body.find('.cb-race-skill:checked').length;
+          const remaining = Math.max(0, count - selected);
+          $('#race-skill-helper').text(`${remaining} remaining`);
+          if(selected >= count){
+            $body.find('.cb-race-skill:not(:checked)').prop('disabled', true);
+          } else {
+            $body.find('.cb-race-skill').prop('disabled', false);
+          }
+        };
+        $body.on('change', '.cb-race-skill', updateSkillHelper);
+        updateSkillHelper();
+        hasOptions = true;
+      }
+    }
+
+    const languageChoices = sub.language_choices || base.language_choices;
+    if(languageChoices && languageChoices.count){
+      const count = parseInt(languageChoices.count, 10) || 0;
+      const options = languageChoices.options || [];
+      if(count > 0 && options.length){
+        const wrap = $('<div class="form-group"/>');
+        wrap.append(`<label>Bonus Languages: choose ${count}</label>`);
+        const row = $('<div class="row"/>');
+        options.forEach((lang, idx)=>{
+          const col = $('<div class="col-xs-6 col-sm-4 col-md-3"/>');
+          const id = `race-language-${idx}`;
+          col.append(`
+            <div class="checkbox">
+              <label>
+                <input type="checkbox" class="cb-race-language" data-name="${lang}" id="${id}"> ${lang.replace(/_/g,' ')}
+              </label>
+            </div>`);
+          row.append(col);
+        });
+        wrap.append(row);
+        wrap.append(`<div class="helper" id="race-language-helper">${count} remaining</div>`);
+        $body.append(wrap);
+
+        const updateLanguageHelper = ()=>{
+          const selected = $body.find('.cb-race-language:checked').length;
+          const remaining = Math.max(0, count - selected);
+          $('#race-language-helper').text(`${remaining} remaining`);
+          if(selected >= count){
+            $body.find('.cb-race-language:not(:checked)').prop('disabled', true);
+          } else {
+            $body.find('.cb-race-language').prop('disabled', false);
+          }
+        };
+        $body.on('change', '.cb-race-language', updateLanguageHelper);
+        updateLanguageHelper();
+        hasOptions = true;
+      }
+    }
+
+    if(hasOptions){
+      $panel.show();
+    } else {
+      $panel.hide();
+    }
+  }
+
   $('#klass, #level').on('change', renderClassOptions);
+  $('#race, #subrace').on('change', renderRaceOptions);
   // initial hide
   $('#class-options').hide();
+  $('#race-options').hide();
 
   $('#cancel-btn').on('click', function(){ window.location.href = '/'; });
 
   $('#character-form').on('submit', function(e){
     e.preventDefault();
+    $('#builder-msg').empty();
+    const raceVal = $('#race').val();
+    const subraceVal = $('#subrace').val();
+    const baseRace = (raceVal && RACES[raceVal]) || {};
+    const subRaceCfg = (baseRace.subrace && subraceVal && baseRace.subrace[subraceVal]) || {};
+    const raceErrors = [];
+
+    const flexCfg = subRaceCfg.flexible_ability || baseRace.flexible_ability;
+    if(flexCfg && Array.isArray(flexCfg.picks) && flexCfg.picks.length){
+      const requiredPicks = flexCfg.picks.length;
+      const picked = [];
+      $('#race-options-body .race-ability-pick').each(function(){
+        const val = $(this).val();
+        if(val){ picked.push(val); }
+      });
+      if(picked.length !== requiredPicks){
+        raceErrors.push('Select all racial ability bonuses.');
+      }
+    }
+
+    const skillCfg = subRaceCfg.skill_choices || baseRace.skill_choices;
+    if(skillCfg && skillCfg.count){
+      const expected = parseInt(skillCfg.count, 10) || 0;
+      if(expected > 0){
+        const chosen = $('#race-options-body .cb-race-skill:checked').length;
+        if(chosen !== expected){
+          raceErrors.push(expected === 1 ? 'Choose 1 racial skill.' : `Choose ${expected} racial skills.`);
+        }
+      }
+    }
+
+    const languageCfg = subRaceCfg.language_choices || baseRace.language_choices;
+    if(languageCfg && languageCfg.count){
+      const expectedLang = parseInt(languageCfg.count, 10) || 0;
+      if(expectedLang > 0){
+        const chosenLang = $('#race-options-body .cb-race-language:checked').length;
+        if(chosenLang !== expectedLang){
+          raceErrors.push(expectedLang === 1 ? 'Choose 1 bonus language.' : `Choose ${expectedLang} bonus languages.`);
+        }
+      }
+    }
+
+    if(raceErrors.length){
+      $('#builder-msg').html(`<div class="alert alert-danger">${raceErrors.join('<br>')}</div>`);
+      return;
+    }
+
     const formEl = document.getElementById('character-form');
     const fd = new FormData(formEl);
   // append class options
@@ -281,6 +480,21 @@
   const level1 = [];
   $('#class-options-body .cb-lvl1:checked').each(function(){ level1.push($(this).data('name')); });
   if(level1.length) fd.append('level1_spells', JSON.stringify(level1));
+  const raceAbility = {};
+  $('#race-options-body .race-ability-pick').each(function(){
+    const ability = $(this).val();
+    const bonus = parseInt($(this).data('amount'), 10) || 0;
+    if(ability && bonus){
+      raceAbility[ability] = (raceAbility[ability] || 0) + bonus;
+    }
+  });
+  if(Object.keys(raceAbility).length){ fd.append('race_ability_bonuses', JSON.stringify(raceAbility)); }
+  const raceSkills = [];
+  $('#race-options-body .cb-race-skill:checked').each(function(){ raceSkills.push($(this).data('name')); });
+  if(raceSkills.length) fd.append('race_skills', JSON.stringify(raceSkills));
+  const raceLanguages = [];
+  $('#race-options-body .cb-race-language:checked').each(function(){ raceLanguages.push($(this).data('name')); });
+  if(raceLanguages.length) fd.append('race_languages', JSON.stringify(raceLanguages));
     $.ajax({
       type: 'POST', url: '/create_character', data: fd, dataType: 'json',
       processData: false,
@@ -303,4 +517,5 @@
 
   // init
   updatePoints();
+  renderRaceOptions();
 })();
