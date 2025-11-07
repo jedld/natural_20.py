@@ -67,6 +67,8 @@ spell_list:
     - thunderwave
     - unseen_servant
     - witch_bolt
+  level_2:
+    - misty_step
 proficiency_bonuses:
 - 2
 - 2

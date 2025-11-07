@@ -83,7 +83,19 @@ class TestPlayerCharacter(unittest.TestCase):
 
     def test_wizard_available_actions(self):
         self.player = self.load_mage_character()
-        expected_actions = ['SpellAction: mage_armor to Crysania', 'Dash', 'Disengage', 'Dodge', 'Prone', 'Help', 'Grapple', 'Shove', 'Look']
+        expected_actions = [
+            'SpellAction: mage_armor to Crysania',
+            'SpellAction: magic_missile to (Crysania, Crysania, Crysania)',
+            'Dash',
+            'Disengage',
+            'Dodge',
+            'Prone',
+            'Help',
+            'Grapple',
+            'Shove',
+            'UseItem: scroll_of_magic_missile',
+            'Look'
+        ]
         self.assertEqual([str(action) for action in self.player.available_actions(self.session, self.battle)], expected_actions)
 
     def test_wizard_spell_attack_modifier(self):
@@ -368,9 +380,37 @@ class TestPlayerCharacter(unittest.TestCase):
 
     def test_warlock_spell_slots(self):
         self.player = self.load_human_warlock_character()
-        # Warlock level 5 has 2 slots at 2nd level
+        # Warlock level 5 has two pact slots at 3rd level; lower-level slots are unavailable
         self.assertEqual(self.player.spell_slots_count(1), 0)
-        self.assertEqual(self.player.spell_slots_count(2), 2)
+        self.assertEqual(self.player.spell_slots_count(2), 0)
+        self.assertEqual(self.player.spell_slots_count(3), 2)
+
+    def test_warlock_pact_magic_progression(self):
+        # Level 2 warlock should still have first level slots
+        level2_warlock = PlayerCharacter.load(
+            self.session,
+            'human_warlock.yml',
+            override={'level': 2, 'classes': {'warlock': 2}}
+        )
+        battle_lvl2 = Battle(self.session, None)
+        battle_lvl2.add(level2_warlock, 'a')
+        battle_lvl2.start()
+        level2_warlock.reset_turn(battle_lvl2)
+        self.assertEqual(level2_warlock.spell_slots_count(1), 2)
+        self.assertEqual(level2_warlock.spell_slots_count(2), 0)
+
+        # Level 3 warlock upgrades to 2nd-level pact slots
+        level3_warlock = PlayerCharacter.load(
+            self.session,
+            'human_warlock.yml',
+            override={'level': 3, 'classes': {'warlock': 3}}
+        )
+        battle_lvl3 = Battle(self.session, None)
+        battle_lvl3.add(level3_warlock, 'a')
+        battle_lvl3.start()
+        level3_warlock.reset_turn(battle_lvl3)
+        self.assertEqual(level3_warlock.spell_slots_count(1), 0)
+        self.assertEqual(level3_warlock.spell_slots_count(2), 2)
 
     def test_ranger_spell_slots(self):
         self.player = self.load_elf_ranger_character()
