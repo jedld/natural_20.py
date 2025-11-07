@@ -1,0 +1,32 @@
+name: Chestnut Latchlifter
+race: kender
+classes:
+  warlock: 2
+level: 2
+hit_die: inherit
+max_hp: 8
+ability:
+  str: 8
+  dex: 14
+  con: 14
+  int: 10
+  wis: 10
+  cha: 15
+equipped: []
+inventory: []
+token:
+- C
+description: A newly forged kender warlock.
+entity_uid: chestnut_latchlifter
+token_image: token_chestnut_latchlifter.png
+profile_image: characters/chestnut_latchlifter.png
+languages:
+- common
+- kenderspeak
+- elvish
+skills:
+- arcana
+- stealth
+prepared_spells:
+- eldritch_blast
+- expeditious_retreat

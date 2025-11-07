@@ -153,3 +153,105 @@ def test_create_character_builder_only_mode():
         with open(index_path, 'w', encoding='utf-8') as fh:
             fh.write(index_original_text)
         app.config['CHARACTER_BUILDER_ONLY'] = previous_mode
+
+
+def test_create_kender_character_with_racial_options():
+    app.config['TESTING'] = True
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess['username'] = 'dm'
+
+    unique = uuid.uuid4().hex[:8]
+    name = f"Brash Kender {unique}"
+    safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', name)
+    entity_uid = safe_name.lower()
+
+    index_path = os.path.join(game_session.root_path, 'index.json')
+    with open(index_path, 'r', encoding='utf-8') as fh:
+        index_original_text = fh.read()
+
+    char_path = os.path.join(game_session.root_path, 'characters', f"{safe_name}.yml")
+
+    payload = {
+        'name': name,
+        'race': 'kender',
+        'klass': 'fighter',
+        'level': '1',
+        'str': '10',
+        'dex': '14',
+        'con': '13',
+        'int': '10',
+        'wis': '12',
+        'cha': '11',
+        'skills': json.dumps(['athletics', 'perception']),
+        'race_ability_bonuses': json.dumps({'dex': 2, 'wis': 1}),
+        'race_skills': json.dumps(['stealth']),
+        'race_languages': json.dumps(['elvish']),
+    }
+
+    created_entity = None
+    try:
+        response = client.post('/create_character', data=payload)
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data and data.get('status') == 'ok'
+
+        assert os.path.exists(char_path)
+        with open(char_path, 'r', encoding='utf-8') as fh:
+            pc_data = yaml.safe_load(fh)
+
+        abilities = pc_data['ability']
+        assert abilities['dex'] == 16
+        assert abilities['wis'] == 13
+
+        languages = pc_data.get('languages', [])
+        assert set(languages) == {'common', 'kenderspeak', 'elvish'}
+
+        skills = set(pc_data.get('skills', []))
+        assert {'athletics', 'perception', 'stealth'}.issubset(skills)
+
+        created_entity = game_session.entity_by_uid(entity_uid)
+        assert created_entity is not None
+        assert created_entity.class_feature('fearless')
+
+        save_roll = created_entity.save_throw('wisdom', opts={'conditions': ['frightened']})
+        assert getattr(save_roll, 'advantage', False)
+    finally:
+        if os.path.exists(char_path):
+            os.remove(char_path)
+        with open(index_path, 'w', encoding='utf-8') as fh:
+            fh.write(index_original_text)
+        index_data['selectable_characters'] = json.loads(index_original_text).get('selectable_characters', [])
+        if created_entity is not None:
+            for map_obj in game_session.maps.values():
+                if created_entity in map_obj.entities:
+                    map_obj.remove(created_entity)
+                    map_obj.unaware_npcs = [entry for entry in map_obj.unaware_npcs if entry.get('entity') is not created_entity]
+                    break
+            game_session.entity_registry.unregister(created_entity)
+
+
+def test_kender_missing_racial_bonuses_returns_error():
+    app.config['TESTING'] = True
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess['username'] = 'dm'
+
+    payload = {
+        'name': 'Incomplete Kender',
+        'race': 'kender',
+        'klass': 'fighter',
+        'level': '1',
+        'str': '10',
+        'dex': '10',
+        'con': '10',
+        'int': '10',
+        'wis': '10',
+        'cha': '10',
+    }
+
+    response = client.post('/create_character', data=payload)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data is not None
+    assert data.get('error') == 'Select all racial ability bonuses.'
