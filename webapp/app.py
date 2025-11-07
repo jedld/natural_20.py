@@ -93,6 +93,7 @@ from PIL import Image, ImageDraw
 import io
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
+app.config['CHARACTER_BUILDER_ONLY'] = os.environ.get('CHARACTER_BUILDER_ONLY', 'false').lower() == 'true'
 
 # Determine if we're running in AWS or locally
 is_aws = os.environ.get('AWS_ENVIRONMENT', 'false').lower() == 'true'
@@ -170,6 +171,10 @@ socketio = SocketIO(app,
     upgrade_timeout=10
 )
 Session(app)
+
+
+def builder_only_mode():
+    return app.config.get('CHARACTER_BUILDER_ONLY', False)
 
 
 @socketio.on('connect')
@@ -447,10 +452,19 @@ entity_rag_handler = EntityRAGHandler(game_session, current_game)
 
 
 def logged_in():
+    if builder_only_mode():
+        if 'username' not in session:
+            session['username'] = 'builder'
+        return True
     return session.get('username') is not None
 
 def user_role():
-    login_info = next((login for login in LOGINS if login["name"].lower() == session['username']), None)
+    if builder_only_mode():
+        return ['dm']
+    username = session.get('username')
+    if not username:
+        return []
+    login_info = next((login for login in LOGINS if login["name"].lower() == username), None)
     return login_info["role"] if login_info else []
 
 
@@ -1426,6 +1440,8 @@ def character_builder():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if builder_only_mode():
+        return redirect(url_for('character_builder'))
     if request.method == 'POST':
         username = request.form['username'].lower()
         password = request.form['password']
@@ -1575,6 +1591,10 @@ def create_character():
                 elif klass_lower == 'bard':
                     cantrip_cap = 2
                     lvl1_cap = 4 if level==1 else 5
+                elif klass_lower == 'warlock':
+                    # Pact Magic: stick to early-level defaults (builder supports levels 1-2)
+                    cantrip_cap = 2 if level <= 3 else 3
+                    lvl1_cap = 2 if level <= 1 else 3
 
                 cantrips = [s for s in selected_cantrips if s in can_list][:cantrip_cap]
                 if cantrips:
@@ -1601,6 +1621,9 @@ def create_character():
                         pc['spellbook'] = book
                     else:
                         pc['prepared_spells'].extend(lvl1_spells)
+
+                if 'prepared_spells' in pc:
+                    pc['prepared_spells'] = list(dict.fromkeys(pc['prepared_spells']))
         except Exception:
             logger.exception('Failed to apply class choices')
 
@@ -1638,54 +1661,58 @@ def create_character():
             logger.exception('Failed to save uploaded character images')
 
     # Load into current session and place on a map (default to 'index')
-        try:
-            pc_entity = PlayerCharacter.load(game_session, f'characters/{safe_name}.yml')
-            target_map = game_session.maps.get('index') or next(iter(game_session.maps.values()))
-            # find a free tile
-            width, height = target_map.size
-            pos = None
-            for y in range(height):
-                for x in range(width):
-                    if not target_map.entity_at(x, y):
-                        pos = (x, y); break
-                if pos: break
-            if not pos:
-                pos = (0, 0)
-            target_map.add(pc_entity, pos[0], pos[1], group='a')
-        except Exception:
-            logger.exception('Failed to place new character on map')
-
-        # Update index.json selectable_characters so it shows in selection page
-        try:
-            index_json_path = os.path.join(game_session.root_path, 'index.json')
-            if os.path.exists(index_json_path):
-                with open(index_json_path, 'r') as jf:
-                    idx = json.load(jf)
-            else:
-                idx = {}
-            selectable = idx.get('selectable_characters') or []
-            # If not present, add basic entry (use entity_uid for consistency)
-            lower = entity_uid
-            if not any(c.get('name','').lower()==lower for c in selectable):
-                selectable.append({
-                    'name': lower,
-                    'file': f'characters/{lower}.png',
-                    'description': pc.get('description', lower)
-                })
-            idx['selectable_characters'] = selectable
-            with open(index_json_path, 'w') as jf:
-                json.dump(idx, jf, indent=2)
-            # Also update in-memory index_data so UI sees it immediately
+        if not builder_only_mode():
             try:
-                global index_data
-                index_data['selectable_characters'] = selectable
+                pc_entity = PlayerCharacter.load(game_session, f'characters/{safe_name}.yml')
+                target_map = game_session.maps.get('index') or next(iter(game_session.maps.values()))
+                # find a free tile
+                width, height = target_map.size
+                pos = None
+                for y in range(height):
+                    for x in range(width):
+                        if not target_map.entity_at(x, y):
+                            pos = (x, y); break
+                    if pos: break
+                if not pos:
+                    pos = (0, 0)
+                target_map.add(pc_entity, pos[0], pos[1], group='a')
             except Exception:
-                logger.exception('Failed to update in-memory selectable_characters')
-        except Exception:
-            logger.exception('Failed to update index.json with new character')
+                logger.exception('Failed to place new character on map')
+
+            # Update index.json selectable_characters so it shows in selection page
+            try:
+                index_json_path = os.path.join(game_session.root_path, 'index.json')
+                if os.path.exists(index_json_path):
+                    with open(index_json_path, 'r') as jf:
+                        idx = json.load(jf)
+                else:
+                    idx = {}
+                selectable = idx.get('selectable_characters') or []
+                # If not present, add basic entry (use entity_uid for consistency)
+                lower = entity_uid
+                if not any(c.get('name','').lower()==lower for c in selectable):
+                    selectable.append({
+                        'name': lower,
+                        'file': f'characters/{lower}.png',
+                        'description': pc.get('description', lower)
+                    })
+                idx['selectable_characters'] = selectable
+                with open(index_json_path, 'w') as jf:
+                    json.dump(idx, jf, indent=2)
+                # Also update in-memory index_data so UI sees it immediately
+                try:
+                    global index_data
+                    index_data['selectable_characters'] = selectable
+                except Exception:
+                    logger.exception('Failed to update in-memory selectable_characters')
+            except Exception:
+                logger.exception('Failed to update index.json with new character')
 
         # Optionally redirect to selection if a player
-        redirect_to = '/character_selection' if 'dm' not in user_role() else '/'
+        if builder_only_mode():
+            redirect_to = url_for('character_builder')
+        else:
+            redirect_to = '/character_selection' if 'dm' not in user_role() else '/'
         return jsonify(status='ok', redirect=redirect_to)
     except Exception as e:
         logger.exception('Failed to create character')
@@ -1881,6 +1908,8 @@ def pov_entities():
 @app.route('/')
 def index():
     global current_game, logger
+    if builder_only_mode():
+        return redirect(url_for('character_builder'))
     if not logged_in():
         print("not logged in")
         return redirect(url_for('login'))
