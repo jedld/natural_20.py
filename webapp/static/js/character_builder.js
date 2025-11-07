@@ -172,6 +172,19 @@
       } else if(klassLower === 'bard'){
         cantripCount = level===1 ? 2 : 2;
         level1Prep = level===1 ? 4 : 5; // known spells (approx)
+      } else if(klassLower === 'warlock'){
+        // Warlocks know a small set of spells; Pact Magic handles slots separately
+        const warlockCantrips = [0, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4];
+        const warlockKnown = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15];
+        const cappedLevel = Math.min(level, warlockCantrips.length - 1);
+        cantripCount = warlockCantrips[cappedLevel] || 0;
+        // Builder currently offers only 1st-level spells; use known count as cap
+        level1Prep = warlockKnown[cappedLevel] || 0;
+      }
+
+      const totalCantrips = Array.isArray(spellList.cantrip) ? spellList.cantrip.length : 0;
+      if(totalCantrips>0){
+        cantripCount = Math.min(cantripCount, totalCantrips);
       }
 
       if(cantripCount>0 && Array.isArray(spellList.cantrip)){
@@ -203,6 +216,11 @@
             $body.find('.cb-cantrip').prop('disabled', false);
           }
         });
+      }
+
+      const totalLevel1 = Array.isArray(spellList.level_1) ? spellList.level_1.length : 0;
+      if(totalLevel1>0){
+        level1Prep = Math.min(level1Prep, totalLevel1);
       }
 
       if(level1Prep>0 && Array.isArray(spellList.level_1)){
