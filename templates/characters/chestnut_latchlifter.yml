@@ -4,7 +4,7 @@ classes:
   warlock: 3
 level: 3
 hit_die: inherit
-max_hp: 8
+max_hp: 24
 ability:
   str: 8
   dex: 14
@@ -27,8 +27,11 @@ languages:
 skills:
 - arcana
 - stealth
-prepared_spells:
-- chill_touch
+cantrips:
 - eldritch_blast
+- chill_touch
+prepared_spells:
+- armor_of_agathys
+- mage_hand
 - expeditious_retreat
 - misty_step
