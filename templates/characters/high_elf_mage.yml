@@ -25,6 +25,7 @@ prepared_spells:
 - magic_missile
 - expeditious_retreat
 - shocking_grasp
+- mage_hand
 - shield
 - ice_knife
 - find_familiar
@@ -40,6 +41,7 @@ spellbook:
 - magic_missile
 - shield
 - find_familiar
+- mage_hand
 equipped:
 - dagger
 inventory:

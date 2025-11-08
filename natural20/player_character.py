@@ -31,6 +31,7 @@ from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.interact_action import InteractAction
 from natural20.actions.find_familiar_action import FindFamiliarAction
 from natural20.actions.summon_familiar_action import SummonFamiliarAction
+from natural20.actions.mage_hand_action import MageHandAction
 from natural20.utils.action_builder import autobuild
 from natural20.concern.container import Container
 from natural20.utils.movement import compute_actual_moves
@@ -72,7 +73,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     InteractAction,
     LookAction,
     FindFamiliarAction,
-    SummonFamiliarAction
+    SummonFamiliarAction,
+    MageHandAction
   ]
 
   def __init__(self, session, properties, name=None):
@@ -355,6 +357,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
                 action_list.append(action)
         elif action_type == FindFamiliarAction:
           action_list.append(FindFamiliarAction(session, self, 'dismiss_familiar'))
+        elif action_type == MageHandAction:
+          action_list.append(MageHandAction(session, self, 'mage_hand_command'))
     return action_list
 
 
