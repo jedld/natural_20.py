@@ -50,6 +50,7 @@ from natural20.actions.hide_action import HideAction, HideBonusAction
 from natural20.actions.first_aid_action import FirstAidAction
 from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
+from natural20.actions.lay_on_hands_action import LayOnHandsAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.interact_action import InteractAction
 from natural20.actions.summon_familiar_action import SummonFamiliarAction
@@ -3190,6 +3191,8 @@ def action_type_to_class(action_type):
         return SummonFamiliarAction
     elif action_type == 'MageHandAction':
         return MageHandAction
+    elif action_type == 'LayOnHandsAction':
+        return LayOnHandsAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
 
