@@ -48,6 +48,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.death_saves = 0
         self.hidden_stealth = None
         self._temp_hp = 0
+        self._temp_hp_source = None
         self.event_handlers = {}
         self.event_manager = event_manager
         self.concentration = None
@@ -365,6 +366,41 @@ class Entity(EntityStateEvaluator, Notable):
 
     def temp_hp(self):
         return self._temp_hp
+
+    def temp_hp_source(self):
+        return self._temp_hp_source
+
+    def grant_temp_hp(self, amount, source=None, effect=None):
+        if amount is None:
+            return self._temp_hp
+
+        amount = int(amount)
+        if amount <= 0:
+            if effect and self._temp_hp_source == effect:
+                self.clear_temp_hp(effect=effect)
+            return self._temp_hp
+
+        previous = self._temp_hp
+        replace = False
+
+        if effect and self._temp_hp_source == effect:
+            replace = True
+        elif amount > previous:
+            replace = True
+
+        if not replace:
+            return self._temp_hp
+
+        self._temp_hp = amount
+        self._temp_hp_source = effect
+        return self._temp_hp
+
+    def clear_temp_hp(self, effect=None):
+        if effect is not None and self._temp_hp_source is not None and self._temp_hp_source != effect:
+            return
+
+        self._temp_hp = 0
+        self._temp_hp_source = None
 
     # Returns the character hit die
     # @return [dict]
@@ -1802,11 +1838,20 @@ class Entity(EntityStateEvaluator, Notable):
             elif resource == 'hour' and battle and battle.ongoing():
                 disable_reason.append('in_battle')
             if details['level'] > 0:
-                slot_count = 0
+                slot_available = False
                 for spell_class_type in details.get('spell_list_classes', []):
-                    slot_count += self.spell_slots_count(details['level'], spell_class_type.lower())
+                    class_key = spell_class_type.lower()
+                    if hasattr(self, 'next_spell_slot_level'):
+                        next_slot = self.next_spell_slot_level(class_key, details['level'])
+                        if next_slot is not None:
+                            slot_available = True
+                            break
+                    else:
+                        if self.spell_slots_count(details['level'], class_key) > 0:
+                            slot_available = True
+                            break
 
-                if slot_count == 0:
+                if not slot_available:
                     disable_reason.append('no_spell_slot')
 
             spell_list[spell] = details.copy()
@@ -1853,13 +1898,43 @@ class Entity(EntityStateEvaluator, Notable):
         else:
             total_damage = dmg
         damage_threshold_active = False
+        temp_hp_before = self._temp_hp
+        temp_hp_source = self._temp_hp_source
 
         if total_damage < self.damage_threshold():
             total_damage = 0
             damage_threshold_active = True
 
-        if total_damage > 0:
-            self.resolve_trigger('damage', { "dmg": total_damage, 'damage_type': damage_type })
+        effective_damage = total_damage
+        attacker = item.get('source') if item else None
+        should_trigger_damage = dmg > 0 and (effective_damage > 0 or temp_hp_before > 0)
+
+        if should_trigger_damage:
+            damage_opts = {
+                'dmg': effective_damage,
+                'damage_type': damage_type,
+                'raw_damage': dmg,
+                'battle': battle,
+                'item': item,
+                'attacker': attacker,
+                'temp_hp_before': temp_hp_before
+            }
+            self.resolve_trigger('damage', damage_opts)
+
+        temp_hp_absorbed = 0
+        if effective_damage > 0 and temp_hp_before > 0:
+            temp_hp_absorbed = min(effective_damage, temp_hp_before)
+            total_damage = max(0, total_damage - temp_hp_absorbed)
+            self._temp_hp = max(0, self._temp_hp - temp_hp_absorbed)
+            if self._temp_hp == 0 and temp_hp_before > 0:
+                depletion_opts = {
+                    'battle': battle,
+                    'item': item,
+                    'attacker': attacker,
+                    'effect': temp_hp_source
+                }
+                self.resolve_trigger('temp_hp_depleted', depletion_opts)
+                self.clear_temp_hp(effect=temp_hp_source)
 
         self.attributes["hp"] -= total_damage
         instant_death = False
@@ -1914,7 +1989,7 @@ class Entity(EntityStateEvaluator, Notable):
         if self.hp() <= 0:
             self.attributes["hp"] = 0
 
-        session.event_manager.received_event({'source': self, 'event': 'damage', 'total_damage': total_damage, 'damage_threshold_active': damage_threshold_active, 'value': dmg, 'damage_type': damage_type, 'roll_info': roll_info, 'instant_death': instant_death, 'sneak_attack': sneak_attack})
+        session.event_manager.received_event({'source': self, 'event': 'damage', 'total_damage': total_damage, 'damage_threshold_active': damage_threshold_active, 'value': dmg, 'damage_type': damage_type, 'roll_info': roll_info, 'instant_death': instant_death, 'sneak_attack': sneak_attack, 'temp_hp_absorbed': temp_hp_absorbed})
 
         if battle and item and total_damage > 0:
             self.on_take_damage(battle, item)

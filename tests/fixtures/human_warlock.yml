@@ -25,5 +25,6 @@ cantrips:
   - chill_touch
 prepared_spells:
   - eldritch_blast
+  - armor_of_agathys
   - misty_step
 

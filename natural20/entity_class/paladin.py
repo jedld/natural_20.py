@@ -1,6 +1,14 @@
-from natural20.actions.lay_on_hands_action import LayOnHandsAction
+# pyright: reportAttributeAccessIssue=false
+
 from collections import OrderedDict
-import pdb
+from typing import TYPE_CHECKING
+
+from natural20.action import AsyncReactionHandler
+from natural20.actions.divine_smite_action import DivineSmiteAction
+from natural20.actions.lay_on_hands_action import LayOnHandsAction
+
+if TYPE_CHECKING:
+    from natural20.player_character import PlayerCharacter
 
 PALADIN_SPELL_SLOT_TABLE = [
         [0, 0],  # 1 - No spellcasting
@@ -26,11 +34,118 @@ PALADIN_SPELL_SLOT_TABLE = [
     ]
 
 class DivineSmiteEffect:
-    def __init__(self, source, target, value):
-        self.value = value
+    def __init__(self, owner):
+        self.owner = owner
 
-    def on_attack_hit(self, result):
-        pdb.set_trace()
+    def on_attack_hit(self, entity, opts=None):
+        if opts is None:
+            opts = {}
+
+        if entity != self.owner:
+            return []
+
+        hit_result = opts.get('result') or {}
+
+        if not hit_result.get('hit?'):
+            return []
+
+        battle = hit_result.get('battle')
+        if battle is None:
+            return []
+
+        target = hit_result.get('target')
+        if target is None:
+            return []
+
+        if not self._is_valid_melee_hit(entity, hit_result):
+            return []
+
+        if entity.total_bonus_actions(battle) <= 0:
+            return []
+
+        available_slots = self._available_slot_levels(entity)
+        if not available_slots:
+            return []
+
+        spell_details = entity.session.load_spell('divine_smite')
+        valid_actions = [
+            self._build_action(entity, target, slot_level, spell_details, hit_result)
+            for slot_level in available_slots
+        ]
+
+        stored_reaction = opts.get('stored_reaction')
+        attack_action = opts.get('action')
+        controller = battle.controller_for(entity)
+
+        if stored_reaction not in (None, False):
+            selected_action = stored_reaction
+        else:
+            if controller is None:
+                selected_action = valid_actions[0]
+            else:
+                event_payload = {
+                    'type': 'divine_smite',
+                    'trigger': 'on_attack_hit',
+                    'source': entity,
+                    'target': target,
+                    'result': hit_result,
+                    'spell': spell_details
+                }
+                selected_action = controller.select_reaction(
+                    entity,
+                    battle,
+                    battle.map_for(entity),
+                    valid_actions,
+                    event_payload
+                )
+
+        if hasattr(selected_action, 'send'):
+            raise AsyncReactionHandler(entity, selected_action, attack_action, 'on_attack_hit')
+
+        if not selected_action:
+            return []
+
+        if isinstance(selected_action, list):
+            return selected_action
+
+        if isinstance(selected_action, int):
+            if 0 <= selected_action < len(valid_actions):
+                selected_action = valid_actions[selected_action]
+            else:
+                return []
+
+        if not isinstance(selected_action, DivineSmiteAction):
+            return []
+
+        resolved_action = selected_action.resolve(entity.session, battle.map_for(entity), {'battle': battle})
+        return resolved_action.result if resolved_action.result else []
+
+    def _available_slot_levels(self, entity) -> list[int]:
+        slot_owner = entity.owner if entity.familiar() else entity
+        slots = getattr(slot_owner, 'spell_slots', {}).get('paladin', {})
+        return [level for level, qty in sorted(slots.items()) if level > 0 and qty > 0]
+
+    def _is_valid_melee_hit(self, entity, hit_result) -> bool:
+        if hit_result.get('thrown'):
+            return False
+
+        weapon_meta = None
+        if hit_result.get('npc_action'):
+            weapon_meta = hit_result['npc_action']
+        else:
+            weapon_key = hit_result.get('weapon')
+            if weapon_key:
+                weapon_meta = entity.session.load_weapon(weapon_key)
+
+        if not weapon_meta:
+            return False
+
+        return weapon_meta.get('type') == 'melee_attack'
+
+    def _build_action(self, entity, target, slot_level, spell_details, hit_result):
+        action = DivineSmiteAction(entity.session, entity, target, slot_level, spell_details, hit_result)
+        action.as_bonus_action = True
+        return action
 
 class Paladin():
     def __init__(self, name):
@@ -43,7 +158,7 @@ class Paladin():
         self.lay_on_hands_max_pool = self.paladin_level * 5
         self.divine_sense_max_count = 1 + self.cha_mod()
         self.lay_on_hands_count = self.lay_on_hands_max_pool
-        divine_smite = DivineSmiteEffect(self, self, self.paladin_level)
+        divine_smite = DivineSmiteEffect(self)
         self.register_event_hook('on_attack_hit', divine_smite, 'on_attack_hit')
 
     def special_actions_for_paladin(self, session, battle):

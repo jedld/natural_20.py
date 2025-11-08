@@ -53,6 +53,7 @@ from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.interact_action import InteractAction
 from natural20.actions.summon_familiar_action import SummonFamiliarAction
+from natural20.actions.mage_hand_action import MageHandAction
 from natural20.actions.find_familiar_action import FindFamiliarAction
 from natural20.spell.extensions.hit_computations import AttackSpell
 from natural20.entity import Entity
@@ -3187,6 +3188,8 @@ def action_type_to_class(action_type):
         return FindFamiliarAction
     elif action_type == 'SummonFamiliarAction':
         return SummonFamiliarAction
+    elif action_type == 'MageHandAction':
+        return MageHandAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
 
