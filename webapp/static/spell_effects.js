@@ -1001,6 +1001,85 @@
     });
   });
 
+  // Armor of Agathys: jagged frost shell forming around target with swirling shards
+  register('armor_of_agathys', function(payload){
+    return new Promise((resolve) => {
+      const targetKey = (() => {
+        if (payload && payload.target != null) {
+          const arr = ensureArray(payload.target);
+          if (arr.length && arr[0] != null) return arr[0];
+        }
+        return payload && payload.source ? payload.source : null;
+      })();
+      const target = (() => {
+        if (Array.isArray(targetKey) && targetKey.length === 2 && typeof targetKey[0] === 'number') {
+          return tileCenterByCoords(targetKey[0], targetKey[1]);
+        }
+        return targetKey ? centerOfEntity(targetKey) : null;
+      })();
+      if (!target) return resolve();
+      const { overlay, ctx, destroy } = createOverlay(1102);
+      const shardCount = 22;
+      const shards = Array.from({ length: shardCount }, (_, idx) => ({
+        angle: (idx / shardCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.35,
+        jitter: 0.7 + Math.random() * 0.6,
+        length: 24 + Math.random() * 28
+      }));
+      const start = performance.now();
+      const total = 1180;
+      const frost = [170, 225, 255];
+      const deep = [55, 110, 165];
+      const draw = (now) => {
+        const t = Math.min(1, (now - start) / total);
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+        ctx.save(); ctx.globalCompositeOperation = 'screen';
+        const grow = Math.min(1, t / 0.55);
+        const linger = Math.max(0, (t - 0.45) / 0.55);
+        const glowRadius = 24 + 40 * grow;
+        const glow = ctx.createRadialGradient(target.x, target.y, 0, target.x, target.y, glowRadius + 24);
+        glow.addColorStop(0, `rgba(230,250,255,${(0.55 - 0.2 * grow).toFixed(2)})`);
+        glow.addColorStop(0.5, `rgba(${frost[0]},${frost[1]},${frost[2]},${(0.32 - linger * 0.12).toFixed(2)})`);
+        glow.addColorStop(1, `rgba(${deep[0]},${deep[1]},${deep[2]},0)`);
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(target.x, target.y, glowRadius + 12, 0, Math.PI * 2); ctx.fill();
+        shards.forEach((shard, idx) => {
+          const phase = Math.max(0, Math.min(1, grow * 1.2 - idx * 0.012));
+          if (phase <= 0) return;
+          const eased = 1 - Math.pow(1 - phase, 3);
+          const inner = 14 + shard.jitter * 6;
+          const span = shard.length * (0.45 + 0.55 * eased);
+          const ang = shard.angle + Math.sin(now * 0.0025 + idx) * 0.08 * (1 - linger);
+          const baseX = target.x + Math.cos(ang) * inner;
+          const baseY = target.y + Math.sin(ang) * inner;
+          const tipX = target.x + Math.cos(ang) * (inner + span);
+          const tipY = target.y + Math.sin(ang) * (inner + span);
+          ctx.strokeStyle = `rgba(${frost[0]},${frost[1]},${frost[2]},${(0.82 - linger * 0.28).toFixed(2)})`;
+          ctx.lineWidth = 3.2 - 1.6 * eased;
+          ctx.beginPath(); ctx.moveTo(baseX, baseY); ctx.lineTo(tipX, tipY); ctx.stroke();
+        });
+        const moteCount = 26;
+        for (let i = 0; i < moteCount; i++) {
+          const prog = (t * 0.85 + i / moteCount) % 1;
+          const radius = 12 + 28 * prog;
+          const ang = now * 0.003 + i * (Math.PI * 2 / moteCount);
+          const px = target.x + Math.cos(ang) * radius;
+          const py = target.y + Math.sin(ang) * radius;
+          ctx.beginPath(); ctx.arc(px, py, 2 - prog * 0.9, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(235,250,255,${(0.6 - prog * 0.45).toFixed(2)})`; ctx.fill();
+        }
+        if (linger > 0) {
+          const shell = Math.min(1, linger * 1.3);
+          ctx.beginPath(); ctx.arc(target.x, target.y, 28 + 26 * shell, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(${frost[0]},${frost[1]},${frost[2]},${(0.42 * (1 - linger * 0.6)).toFixed(2)})`;
+          ctx.lineWidth = 2 - 1.1 * shell; ctx.stroke();
+        }
+        ctx.restore();
+        if (t < 1) requestAnimationFrame(draw); else { destroy(); resolve(); }
+      };
+      requestAnimationFrame(draw);
+    });
+  });
+
   // Shield of Faith: protective golden rotating sigils around target
   register('shield_of_faith', function(payload){
     return new Promise((resolve) => {

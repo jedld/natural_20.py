@@ -27,6 +27,18 @@
       50% { box-shadow: 0 0 14px rgba(140,210,255,0.40), inset 0 0 10px rgba(140,210,255,0.30); opacity: 0.40; }
       100% { box-shadow: 0 0 8px rgba(120,190,255,0.25), inset 0 0 6px rgba(120,190,255,0.2); opacity: 0.25; }
     }
+    @keyframes pe-frost-pulse {
+      0% { transform: scale(0.95); opacity: 0.48; }
+      100% { transform: scale(1.05); opacity: 0.26; }
+    }
+    @keyframes pe-frost-rotate {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(-360deg); }
+    }
+    @keyframes pe-frost-shards {
+      0% { transform: rotate(0deg) scale(0.96); opacity: 0.52; }
+      100% { transform: rotate(360deg) scale(1.04); opacity: 0.34; }
+    }
     .pe-container {
       position: absolute;
       top: 0; left: 0;
@@ -84,6 +96,26 @@
       mix-blend-mode: screen;
       animation: pe-rotate 3.8s linear infinite;
     }
+    .pe-armor-agathys {
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(220, 245, 255, 0.62) 0%, rgba(170, 220, 250, 0.36) 42%, rgba(90, 140, 200, 0.14) 70%, rgba(40, 80, 120, 0.0) 84%);
+      box-shadow: 0 0 24px rgba(170, 220, 255, 0.48), inset 0 0 18px rgba(210, 245, 255, 0.36);
+      animation: pe-frost-pulse 1.8s ease-in-out infinite alternate;
+    }
+    .pe-armor-agathys-ring {
+      border-radius: 50%;
+      border: 2px solid rgba(170, 225, 255, 0.55);
+      box-shadow: 0 0 16px rgba(150, 210, 255, 0.36), inset 0 0 8px rgba(210, 245, 255, 0.26);
+      mix-blend-mode: screen;
+      animation: pe-frost-rotate 6s linear infinite;
+    }
+    .pe-armor-agathys-shards {
+      border-radius: 50%;
+      background: repeating-conic-gradient(rgba(220, 250, 255, 0.66) 0deg 12deg, rgba(120, 180, 220, 0.1) 12deg 24deg);
+      opacity: 0.42;
+      mix-blend-mode: screen;
+      animation: pe-frost-shards 8s linear infinite;
+    }
     `;
     const style = document.createElement('style');
     style.id = 'persistent-effects-style';
@@ -111,8 +143,9 @@
     bless: 'pe-bless',
     shield: 'pe-shield',
     mage_armor: 'pe-mage-armor',
-  bane: 'pe-bane',
-  resistance: 'pe-bless',
+    armor_of_agathys: 'pe-armor-agathys',
+    bane: 'pe-bane',
+    resistance: 'pe-bless',
   };
 
   function createOverlayFor($tile, effKey){
@@ -147,6 +180,12 @@
     if (effKey === 'mage_armor') {
       const $ring = $('<div class="pe-overlay pe-mage-armor-ring">').attr('data-pe', effKey).css({ width: w, height: h, top: 0, left: 0 });
       $container.append($ring);
+    }
+    if (effKey === 'armor_of_agathys') {
+      const $ring = $('<div class="pe-overlay pe-armor-agathys-ring">').attr('data-pe', effKey).css({ width: w, height: h, top: 0, left: 0 });
+      const $shards = $('<div class="pe-overlay pe-armor-agathys-shards">').attr('data-pe', effKey).css({ width: w, height: h, top: 0, left: 0 });
+      $container.append($ring);
+      $container.append($shards);
     }
     if (effKey === 'bane') {
       const $ring = $('<div class="pe-overlay pe-bane-ring">').attr('data-pe', effKey).css({ width: w, height: h, top: 0, left: 0 });
