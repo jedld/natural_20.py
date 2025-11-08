@@ -168,8 +168,75 @@ class Paladin():
         return actions
     
     def lay_on_hands(self, target, amt):
-        self.event_manager.received_event({'source': self, 'target': target, 'value': amt, 'event': 'lay_on_hands'})
-        target.heal(amt)
+        if target is None:
+            return 0
+
+        available = getattr(self, 'lay_on_hands_count', 0)
+        heal_amt = max(0, min(amt, available))
+        if heal_amt <= 0:
+            return 0
+
+        self.lay_on_hands_count = max(0, available - heal_amt)
+        self.event_manager.received_event({'source': self, 'target': target, 'value': heal_amt, 'event': 'lay_on_hands', 'mode': 'heal'})
+        target.heal(heal_amt)
+        return heal_amt
+
+    def lay_on_hands_cure(self, target, conditions):
+        if target is None or not conditions:
+            return []
+
+        available = getattr(self, 'lay_on_hands_count', 0)
+        cost = 5 * len(conditions)
+        if available < cost:
+            return []
+
+        statuses = getattr(target, 'statuses', [])
+
+        def has_status(entity, status_name):
+            if status_name == 'poisoned' and hasattr(entity, 'poisoned') and callable(entity.poisoned):
+                if entity.poisoned():
+                    return True
+            return status_name in statuses
+
+        def remove_status(status_name):
+            removed = False
+            if isinstance(statuses, list):
+                while status_name in statuses:
+                    statuses.remove(status_name)
+                    removed = True
+            return removed
+
+        cured = []
+        for condition in conditions:
+            if condition == 'poisoned':
+                previously_poisoned = has_status(target, 'poisoned')
+                status_removed = remove_status('poisoned')
+                if hasattr(target, 'remove_effect'):
+                    target.remove_effect('poisoned')
+                still_poisoned = has_status(target, 'poisoned')
+                if previously_poisoned and (status_removed or not still_poisoned):
+                    cured.append('poisoned')
+            else:
+                was_afflicted = condition in statuses
+                status_removed = remove_status(condition)
+                if hasattr(target, 'remove_effect'):
+                    target.remove_effect(condition)
+                if was_afflicted and (status_removed or condition not in statuses):
+                    cured.append(condition)
+
+        if not cured:
+            return []
+
+        self.lay_on_hands_count = max(0, available - cost)
+        self.event_manager.received_event({
+            'source': self,
+            'target': target,
+            'event': 'lay_on_hands',
+            'mode': 'cure',
+            'conditions': cured,
+            'value': cost
+        })
+        return cured
 
     def paladin_spell_casting_modifier(self):
         return self.cha_mod()
