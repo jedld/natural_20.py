@@ -1,3 +1,5 @@
+# pyright: reportGeneralTypeIssues=false
+
 from natural20.action import Action
 from natural20.die_roll import DieRoll
 from natural20.entity import Entity
@@ -419,9 +421,16 @@ class AttackAction(Action):
                 }
 
             stored_reaction = self.has_async_reaction_for_source(self.source, 'on_attack_hit')
-            results = self.source.resolve_trigger('on_attack_hit', { 'result': self.hit_result, 'stored_reaction': stored_reaction } )
+            results = self.source.resolve_trigger('on_attack_hit', {
+                'result': self.hit_result,
+                'stored_reaction': stored_reaction,
+                'action': self
+            })
             if results:
-                self.result.append(results)
+                if isinstance(results, list):
+                    self.result.extend(results)
+                else:
+                    self.result.append(results)
 
             self.result.append(self.hit_result)
             

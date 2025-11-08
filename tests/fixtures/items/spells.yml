@@ -17,6 +17,22 @@ shield_of_faith:
   spell_list_classes:
     - Cleric
   spell_class: Natural20::ShieldOfFaith
+divine_smite:
+  label: Divine Smite
+  casting_time: instant:bonus_action
+  components: []
+  damage_type: radiant
+  description: |
+    Immediately after you hit a creature with a melee weapon attack, you can expend a spell slot to deal radiant damage to the target, in addition to the weapon's damage. The extra damage is 2d8 for a 1st-level slot, plus 1d8 for each spell slot level higher than 1st, to a maximum of 5d8. The damage increases by 1d8 if the target is an undead or a fiend.
+  duration: instant
+  level: 1
+  name: Divine Smite
+  range: self
+  school: evocation
+  type: buff
+  spell_list_classes:
+    - Paladin
+  spell_class: Natural20::DivineSmite
 spare_the_dying:
   label: Spare the Dying
   casting_time: 1:action
@@ -302,6 +318,26 @@ firebolt:
   spell_list_classes:
     - Sorcerer
     - Wizard
+armor_of_agathys:
+  label: Armor of Agathys
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  damage_type: cold
+  description: |
+    A protective magical force surrounds you, manifesting as frost that covers you and your gear. You gain 5 temporary hit points for the duration.
+    If a creature hits you with a melee attack while you have these hit points, the creature takes 5 cold damage.
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, both the temporary hit points and the cold damage increase by 5 for each slot level above 1st.
+  duration: 1h
+  level: 1
+  name: Armor of Agathys
+  range: self
+  school: abjuration
+  type: warding
+  spell_list_classes:
+    - Warlock
+  spell_class: Natural20::ArmorOfAgathys
 eldritch_blast:
   label: Eldritch Blast
   base_damage: 1d10
@@ -359,6 +395,30 @@ mage_armor:
   type: buff
   spell_list_classes:
     - Sorcerer
+    - Wizard
+mage_hand:
+  label: Mage Hand
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  description: |
+    A spectral, floating hand appears at a point you choose within range and lasts for 1 minute.
+    The hand vanishes if it is ever more than 30 feet away from you or if you cast this spell again.
+    You can use the hand to manipulate an object, open an unlocked door or container, stow or retrieve an item from an open container, or pour the contents out of a vial.
+    As a Magic action on later turns, you can move the hand up to 30 feet and repeat the interaction.
+    The hand cannot attack, activate magic items, or carry more than 10 pounds.
+  duration: 1m
+  level: 0
+  name: Mage Hand
+  range: 30
+  school: conjuration
+  spell_class: Natural20::MageHand
+  type: utility
+  spell_list_classes:
+    - Bard
+    - Sorcerer
+    - Warlock
     - Wizard
 magic_missile:
   label: Magic Missile
