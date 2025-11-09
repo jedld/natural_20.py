@@ -244,11 +244,21 @@ class SpellAction(Action):
 
     @staticmethod
     def apply(battle, item, session=None):
+        # Guard against double processing when other action types proxy to SpellAction.apply
+        if item.get('_spell_action_applied'):
+            return item.get('_spell_action_result')
+
         if battle and session is None:
             session = battle.session
 
+        spell_apply_result = None
         for klass in SpellAction._all_spell_descendants():
-            klass.apply(battle, item, session)
+            result = klass.apply(battle, item, session)
+            if result is not None:
+                spell_apply_result = result
+
+        item['_spell_action_applied'] = True
+        item['_spell_action_result'] = spell_apply_result
 
         if item['type'] == 'spell_damage':
             if item['target'].passive():
@@ -278,4 +288,6 @@ class SpellAction(Action):
                 'dc': item.get('dc', None),
                 'event': 'miss'
             })
+
+        return spell_apply_result
 
