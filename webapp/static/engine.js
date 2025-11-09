@@ -2566,23 +2566,145 @@ $(document).ready(() => {
         });
       } else {
         $(".popover-menu").hide();
-        let entity_uid =
-          $tile.data("coords-id") || $tile.find(".object-container").data("id");
-        Utils.ajaxGet("/actions", { id: entity_uid }, (data) => {
-          const $menu = $tile.find(".popover-menu");
-          $menu.html(data).toggle();
-          const tileRightEdge = $menu.offset().left + $menu.outerWidth();
-          const windowRightEdge = $(window).width();
-          $menu.css("top", `${tile_size}px`);
-          if (windowRightEdge < tileRightEdge) {
-            $menu.css("left", `-=${tileRightEdge - windowRightEdge}`);
-          }
+        const occupantEntries = [];
+        const seenOccupants = new Set();
 
-          // Ensure the popover menu stays on top after being shown
-          if (Utils && Utils.ensurePopoverMenusOnTop) {
-            Utils.ensurePopoverMenusOnTop();
+        const pushOccupant = (id, label, type) => {
+          if (!id || seenOccupants.has(id)) {
+            return;
           }
+          seenOccupants.add(id);
+          const trimmedLabel = (label && `${label}`.trim()) || "";
+          occupantEntries.push({ id, label: trimmedLabel, type });
+        };
+
+        const primaryEntityId = $tile.data("coords-id");
+        if (primaryEntityId) {
+          const $primaryEntity = $tile
+            .find(`.entity[data-id="${primaryEntityId}"]`)
+            .first();
+          const primaryLabel =
+            $primaryEntity.data("label") ||
+            $tile.find(".nameplate").first().text() ||
+            primaryEntityId;
+          pushOccupant(primaryEntityId, primaryLabel, "creature");
+        }
+
+        $tile.find(".entity[data-id]").each(function () {
+          const $entity = $(this);
+          const id = $entity.data("id");
+          const label = $entity.data("label") ||
+            $entity.find(".nameplate").first().text();
+          pushOccupant(id, label, "creature");
         });
+
+        $tile.find(".object-container[data-id]").each(function () {
+          const $object = $(this);
+          const id = $object.data("id");
+          const label =
+            $object.data("label") ||
+            $object.data("tooltip") ||
+            `Object ${id}`;
+          pushOccupant(id, label, "object");
+        });
+
+        if (occupantEntries.length === 0) {
+          return;
+        }
+
+        const $menu = $tile.find(".popover-menu");
+        $menu
+          .css({ left: 0 })
+          .html(
+            '<div class="popover-actions-stack"><div class="popover-actions-entry popover-actions-entry--loading"><div class="popover-actions-header"><span class="popover-actions-title">Loading...</span></div></div></div>'
+          )
+          .show();
+
+        const fetchSection = (entry) =>
+          new Promise((resolve) => {
+            $.ajax({
+              url: "/actions",
+              type: "GET",
+              data: { id: entry.id },
+              success: (payload, _textStatus, jqXHR) => {
+                const contentType = (jqXHR.getResponseHeader("Content-Type") || "").toLowerCase();
+                if (typeof payload === "object" && !contentType.includes("text/html")) {
+                  resolve({ entry, error: payload && payload.error ? payload.error : "No actions available." });
+                  return;
+                }
+                const htmlPayload = typeof payload === "string" ? payload : "";
+                if (!htmlPayload.trim()) {
+                  resolve({ entry, error: "No actions available." });
+                } else {
+                  resolve({ entry, html: htmlPayload });
+                }
+              },
+              error: (jqXHR, textStatus) => {
+                let message = textStatus || "Failed to load actions.";
+                if (jqXHR.responseJSON && jqXHR.responseJSON.error) {
+                  message = jqXHR.responseJSON.error;
+                } else if (jqXHR.status === 403) {
+                  message = "Forbidden.";
+                }
+                resolve({ entry, error: message });
+              },
+            });
+          });
+
+        Promise.all(occupantEntries.map(fetchSection))
+          .then((sections) => {
+            if (!$tile.closest("body").length) {
+              return;
+            }
+
+            const $stack = $("<div class='popover-actions-stack'></div>");
+
+            sections.forEach(({ entry, html, error }) => {
+              const typeLabel = entry.type === "object" ? "Object" : "Creature";
+              const displayLabel = entry.label || entry.id;
+              const $entry = $("<div class='popover-actions-entry'></div>")
+                .attr("data-entity-uid", entry.id);
+              const $header = $("<div class='popover-actions-header'></div>");
+              $("<span class='popover-actions-title'></span>")
+                .text(displayLabel)
+                .appendTo($header);
+              $("<span class='popover-actions-type'></span>")
+                .text(typeLabel)
+                .appendTo($header);
+              $entry.append($header);
+
+              const $body = $("<div class='popover-actions-body'></div>");
+              if (html) {
+                $body.html(html);
+              } else {
+                $("<div class='popover-actions-empty'></div>")
+                  .text(error)
+                  .appendTo($body);
+              }
+              $entry.append($body);
+              $stack.append($entry);
+            });
+
+            $menu.empty().append($stack);
+
+            $menu.css("top", `${tile_size}px`);
+            const tileRightEdge = $menu.offset().left + $menu.outerWidth();
+            const windowRightEdge = $(window).width();
+            if (windowRightEdge < tileRightEdge) {
+              $menu.css("left", `-=${tileRightEdge - windowRightEdge}`);
+            }
+
+            if (Utils && Utils.ensurePopoverMenusOnTop) {
+              Utils.ensurePopoverMenusOnTop();
+            }
+          })
+          .catch(() => {
+            $menu
+              .empty()
+              .append(
+                "<div class='popover-actions-stack'><div class='popover-actions-entry'><div class='popover-actions-empty'>Unable to load actions.</div></div></div>"
+              );
+          });
       }
     }
   });
