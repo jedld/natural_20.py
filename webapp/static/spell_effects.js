@@ -2546,6 +2546,103 @@
     });
   });
 
+  // Guidance: focused glow from caster to single ally with hovering d4 motes
+  register('guidance', function(payload){
+    return new Promise((resolve)=>{
+      const targets = ensureArray(payload && payload.target).filter(Boolean);
+      const centers = targets.map(centerOfEntity).filter(Boolean);
+      if (!centers.length) return resolve();
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      const tileSize = ($('.tiles-container').data('tile-size') || 64);
+      const { overlay, ctx, destroy } = createOverlay(1104);
+      try { if (window.SFX && SFX.play) SFX.play('guidance_cast'); } catch(e){}
+
+      const motes = centers.map(()=>{
+        return Array.from({length: 10}, (_, idx)=>({ angle: (idx/10)*Math.PI*2, radius: 0.4 + 0.12*Math.random(), seed: Math.random()*Math.PI*2 }));
+      });
+
+      function stageBeam(next){
+        if (!src) return next();
+        const start = performance.now();
+        const dur = 280;
+        requestAnimationFrame(function beam(now){
+          const t = Math.min(1, (now - start)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          centers.forEach((c, idx)=>{
+            const grad = ctx.createLinearGradient(src.x, src.y, c.x, c.y);
+            grad.addColorStop(0, `rgba(230, 200, 120, ${(0.7*(1-t)).toFixed(2)})`);
+            grad.addColorStop(1, `rgba(170, 140, 80, ${(0.15*(1-t)).toFixed(2)})`);
+            ctx.strokeStyle = grad; ctx.lineWidth = 3 - 1.4*t;
+            ctx.beginPath(); ctx.moveTo(src.x, src.y);
+            const px = src.x + (c.x - src.x) * (0.5 + 0.5*t);
+            const py = src.y + (c.y - src.y) * (0.5 + 0.5*t);
+            ctx.lineTo(px, py);
+            ctx.stroke();
+          });
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(beam); else next();
+        });
+      }
+
+      function stageHalo(done){
+        const start = performance.now();
+        const dur = 780;
+        requestAnimationFrame(function halo(now){
+          const t = Math.min(1, (now - start)/dur);
+          ctx.clearRect(0,0,overlay.width, overlay.height);
+          ctx.save(); ctx.globalCompositeOperation = 'screen';
+          centers.forEach((c, idx)=>{
+            const base = Math.max(18, tileSize*0.48);
+            const pulse = 0.85 + 0.18*Math.sin((now*0.007) + idx);
+            const radius = base * pulse;
+            const glow = ctx.createRadialGradient(c.x, c.y, 2, c.x, c.y, radius);
+            glow.addColorStop(0, `rgba(245, 230, 170, ${(0.38*(1-t)).toFixed(2)})`);
+            glow.addColorStop(1, `rgba(210, 180, 120, 0)`);
+            ctx.fillStyle = glow;
+            ctx.beginPath(); ctx.arc(c.x, c.y, radius, 0, Math.PI*2); ctx.fill();
+
+            ctx.strokeStyle = `rgba(255, 240, 190, ${(0.75*(1-t)).toFixed(2)})`;
+            ctx.lineWidth = 2.3;
+            ctx.beginPath(); ctx.arc(c.x, c.y, radius*0.85, 0, Math.PI*2); ctx.stroke();
+
+            const moteSet = motes[idx];
+            moteSet.forEach((m, mIdx)=>{
+              const ang = m.angle + (now*0.004) + m.seed;
+              const rr = radius * (m.radius);
+              const x = c.x + Math.cos(ang)*rr;
+              const y = c.y + Math.sin(ang)*rr;
+              const size = 2 + 1.5*Math.sin((now*0.009) + mIdx);
+              ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI*2);
+              ctx.fillStyle = `rgba(255, 255, 220, ${(0.55*(1-t)).toFixed(2)})`;
+              ctx.fill();
+            });
+
+            const spin = now*0.003 + idx;
+            const d = 8;
+            ctx.save();
+            ctx.translate(c.x, c.y - radius*0.55);
+            ctx.rotate(spin);
+            ctx.beginPath();
+            ctx.moveTo(0, -d);
+            ctx.lineTo(d, 0);
+            ctx.lineTo(0, d);
+            ctx.lineTo(-d, 0);
+            ctx.closePath();
+            ctx.strokeStyle = `rgba(255, 255, 210, ${(0.65*(1-t)).toFixed(2)})`;
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+            ctx.restore();
+          });
+          ctx.restore();
+          if (t < 1) requestAnimationFrame(halo); else { try { if (window.SFX && SFX.play) SFX.play('guidance_apply'); } catch(e){} done(); }
+        });
+      }
+
+      stageBeam(()=> stageHalo(()=> { destroy(); resolve(); }));
+    });
+  });
+
   // Resistance: brief protective shimmer on target with teal ring and a soft tether from caster
   register('resistance', function(payload){
     return new Promise((resolve)=>{

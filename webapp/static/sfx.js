@@ -106,6 +106,12 @@
         case 'bless_cast':
           chord(t0, [660, 990, 1320], 0.5, 'sine', 0.4);
           break;
+        case 'guidance_cast':
+          chord(t0, [523.25, 783.99], 0.45, 'sine', 0.35);
+          break;
+        case 'guidance_apply':
+          glide(t0, 440, 660, 0.28, 'triangle', 0.32);
+          break;
         case 'chill_touch_cast':
           // eerie spectral swell
           glide(t0, 660, 440, 0.22, 'sine', 0.35);

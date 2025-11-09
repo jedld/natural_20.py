@@ -209,6 +209,83 @@ class DieRolls(Rollable):
         return ''.join(parts)
 
 
+class DieRollResult(int):
+    """Numeric wrapper for DieRoll totals that allows conditional guidance injection."""
+
+    def __new__(cls, value, die_roll, base_total):
+        obj = int.__new__(cls, value)
+        obj._die_roll = die_roll
+        obj._base_total = base_total
+        return obj
+
+    def _numeric_value(self):
+        die_roll = getattr(self, "_die_roll", None)
+        if die_roll and hasattr(die_roll, "metadata"):
+            return die_roll.metadata.get('last_result', super().__int__())
+        return super().__int__()
+
+    def _base_value(self):
+        return getattr(self, "_base_total", super().__int__())
+
+    def _coerce_other(self, other):
+        if isinstance(other, DieRollResult):
+            return other._numeric_value()
+        if isinstance(other, DieRoll):
+            return int(other.result())
+        if isinstance(other, DieRolls):
+            return other.result()
+        return other
+
+    def _prepare(self, other, comparator):
+        die_roll = getattr(self, "_die_roll", None)
+        other_numeric = self._coerce_other(other)
+        if not die_roll:
+            return self._numeric_value(), other_numeric
+
+        base_total = self._base_value()
+        die_roll._maybe_apply_guidance(base_total, other_numeric, comparator)
+        left_numeric = die_roll.metadata.get('last_result', self._numeric_value())
+
+        if isinstance(other, DieRollResult):
+            other_die_roll = getattr(other, "_die_roll", None)
+            if other_die_roll:
+                other_die_roll._maybe_apply_guidance(other._base_value(), left_numeric, comparator)
+                other_numeric = other_die_roll.metadata.get('last_result', other._numeric_value())
+
+        return left_numeric, other_numeric
+
+    def __ge__(self, other):
+        left, right = self._prepare(other, 'ge')
+        return left >= right
+
+    def __gt__(self, other):
+        left, right = self._prepare(other, 'gt')
+        return left > right
+
+    def __le__(self, other):
+        left, right = self._prepare(other, 'le')
+        return left <= right
+
+    def __lt__(self, other):
+        left, right = self._prepare(other, 'lt')
+        return left < right
+
+    def __int__(self):
+        return self._numeric_value()
+
+    def __float__(self):
+        return float(self._numeric_value())
+
+    def __str__(self):
+        return str(self._numeric_value())
+
+    def __repr__(self):
+        return str(self)
+
+    def __reduce__(self):
+        return (int, (self._numeric_value(),))
+
+
 class DieRoll(Rollable):
     def __init__(self, rolls, modifier, die_sides=20, advantage=False, disadvantage=False,
                  description=None, roller=None, prev_roll=None, modifier_op=None, modifier_val=None,
@@ -224,13 +301,16 @@ class DieRoll(Rollable):
         self.roller = roller
         self.prev_roll = prev_roll
         self.halved = halved
+        self.metadata = {}
 
     def clone(self):
-        return DieRoll(self.rolls[:], self.modifier, self.die_sides,
-                       advantage=self.advantage, disadvantage=self.disadvantage,
-                       description=self.description, roller=self.roller,
-                       prev_roll=self.prev_roll, modifier_op=self.modifier_op,
-                       modifier_val=self.modifier_val, halved=self.halved)
+        cloned = DieRoll(self.rolls[:], self.modifier, self.die_sides,
+                         advantage=self.advantage, disadvantage=self.disadvantage,
+                         description=self.description, roller=self.roller,
+                         prev_roll=self.prev_roll, modifier_op=self.modifier_op,
+                         modifier_val=self.modifier_val, halved=self.halved)
+        cloned.metadata = copy.deepcopy(getattr(self, 'metadata', {}))
+        return cloned
 
     def nat_20(self):
         if self.die_sides != 20:
@@ -279,23 +359,29 @@ class DieRoll(Rollable):
                 elif roll == 1 or roll == self.die_sides:
                     new_rolls[index] = DieRoll.generate_number(self.die_sides)
         desc = f"(lucky) {self.description} {self.rolls} -> {new_rolls}" if lucky else self.description
-        return DieRoll(new_rolls, self.modifier, self.die_sides,
-                       advantage=self.advantage, disadvantage=self.disadvantage,
-                       roller=self.roller, description=desc, prev_roll=self,
-                       modifier_op=self.modifier_op, modifier_val=self.modifier_val)
+        rerolled = DieRoll(new_rolls, self.modifier, self.die_sides,
+                           advantage=self.advantage, disadvantage=self.disadvantage,
+                           roller=self.roller, description=desc, prev_roll=self,
+                           modifier_op=self.modifier_op, modifier_val=self.modifier_val)
+        rerolled.metadata = copy.deepcopy(getattr(self, 'metadata', {}))
+        return rerolled
 
     def result(self):
+        total = self._apply_modifiers(self._sum_rolls())
+        self.metadata.setdefault('guidance_base', total)
+        self.metadata['last_result'] = total
+        return DieRollResult(total, self, self.metadata['guidance_base'])
+
+    def _sum_rolls(self):
         if self.advantage:
-            total = sum(max(roll) if isinstance(roll, (tuple, list)) else roll for roll in self.rolls)
-        elif self.disadvantage:
-            total = sum(min(roll) if isinstance(roll, (tuple, list)) else roll for roll in self.rolls)
-        else:
-            total = sum(self.rolls)
-        
-        # Apply operations in order: first the legacy modifier (for backward compatibility)
+            return sum(max(roll) if isinstance(roll, (tuple, list)) else roll for roll in self.rolls)
+        if self.disadvantage:
+            return sum(min(roll) if isinstance(roll, (tuple, list)) else roll for roll in self.rolls)
+        return sum(self.rolls)
+
+    def _apply_modifiers(self, total):
         result = total + self.modifier
-        
-        # Then apply the new modifier operation if present
+
         if self.modifier_op and self.modifier_val is not None:
             if self.modifier_op == '+':
                 result += self.modifier_val
@@ -304,12 +390,86 @@ class DieRoll(Rollable):
             elif self.modifier_op == '*':
                 result *= self.modifier_val
             elif self.modifier_op == '/':
-                result = int(result / self.modifier_val)  # Integer division for dice rolls
+                result = int(result / self.modifier_val)
 
         if self.halved:
             result = int(result // 2)
 
         return result
+
+    def _maybe_apply_guidance(self, base_total, comparison_value, comparator):
+        if not getattr(self, 'metadata', None):
+            return
+        if not self.metadata.get('is_ability_check'):
+            return
+        if self.metadata.get('guidance_applied'):
+            return
+        if comparison_value is None:
+            return
+
+        entity = self.roller.entity if self.roller else None
+        if entity is None or not entity.has_effect('guidance'):
+            return
+
+        failed = False
+        if comparator == 'ge':
+            failed = base_total < comparison_value
+        elif comparator == 'gt':
+            failed = base_total <= comparison_value
+        elif comparator == 'le':
+            failed = base_total > comparison_value
+        elif comparator == 'lt':
+            failed = base_total >= comparison_value
+
+        if not failed:
+            return
+
+        effect_entry = self._find_active_effect(entity, 'guidance')
+        if not effect_entry:
+            return
+
+        battle = self.roller.battle if self.roller else None
+        guidance_roll = DieRoll.roll_with_lucky(entity, '1d4', description='guidance', battle=battle)
+        bonus = guidance_roll.result()
+
+        self.metadata.setdefault('guidance_base', base_total)
+        self.modifier += bonus
+        new_total = base_total + bonus
+        self.metadata['last_result'] = new_total
+        self.metadata['guidance_applied'] = True
+        self.metadata['guidance_bonus'] = bonus
+        self.metadata['guidance_roll'] = guidance_roll
+
+        effect_obj = effect_entry.get('effect')
+        try:
+            if effect_obj and hasattr(effect_obj, 'source') and effect_obj.source:
+                effect_obj.source.dismiss_effect(effect_obj)
+            elif effect_obj:
+                entity.remove_effect(effect_obj)
+        except Exception:
+            try:
+                if effect_obj:
+                    entity.remove_effect(effect_obj)
+            except Exception:
+                pass
+
+        event_manager = getattr(entity.session, 'event_manager', None)
+        if event_manager:
+            event_manager.received_event({
+                'event': 'guidance',
+                'source': effect_entry.get('source', entity),
+                'target': entity,
+                'bonus': bonus
+            })
+
+    @staticmethod
+    def _find_active_effect(entity, effect_type):
+        if effect_type not in entity.effects:
+            return None
+
+        active = [effect for effect in entity.effects[effect_type]
+                  if not effect.get('expiration') or effect['expiration'] > entity.session.game_time]
+        return active[-1] if active else None
 
     def half(self):
         _roll = self.clone()
@@ -414,12 +574,6 @@ class DieRoll(Rollable):
 
     def __gt__(self, other):
         return self.result() > other
-
-    def __lt__(self, other):
-        return self.result() < other
-
-    def __eq__(self, other):
-        return self.result() == other
 
     @staticmethod
     def numeric(c):
