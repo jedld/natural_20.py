@@ -329,11 +329,14 @@ class Entity(EntityStateEvaluator, Notable):
             if advantage and disadvantage:
                 advantage = disadvantage = False
 
-            return DieRoll.roll_with_lucky(self, f"1d20+{modifiers}",
-                                            description=description,
-                                            advantage=advantage,
-                                            disadvantage=disadvantage,
-                                            battle=battle)
+            roll = DieRoll.roll_with_lucky(self, f"1d20+{modifiers}",
+                                           description=description,
+                                           advantage=advantage,
+                                           disadvantage=disadvantage,
+                                           battle=battle)
+            roll.metadata['skill'] = skill
+            roll.metadata['is_ability_check'] = True
+            return roll
         return skill_check
 
     def __str__(self):
@@ -2239,7 +2242,16 @@ class Entity(EntityStateEvaluator, Notable):
         disadvantage = not self.proficient_with_equipped_armor() if battle is None else False
         if self.poisoned():
             disadvantage = True
-        return DieRoll.roll_with_lucky(self, f"1d20+{self.dex_mod() + bonus}", disadvantage=disadvantage, description=description or 'dice_roll.dexterity', battle=battle)
+        roll = DieRoll.roll_with_lucky(
+            self,
+            f"1d20+{self.dex_mod() + bonus}",
+            disadvantage=disadvantage,
+            description=description or 'dice_roll.dexterity',
+            battle=battle
+        )
+        roll.metadata['ability'] = 'dexterity'
+        roll.metadata['is_ability_check'] = True
+        return roll
 
     def perception_proficient(self):
         return self.proficient('perception')

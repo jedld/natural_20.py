@@ -102,6 +102,25 @@ resistance:
   spell_list_classes:
     - Cleric
   spell_class: Natural20::Resistance
+guidance:
+  label: Guidance
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  description: |
+    You touch one willing creature. Once before the spell ends, the target can roll a d4 and add the number rolled to one ability check of its choice. The creature can roll the die before or after making the ability check. The spell then ends.
+  duration: 1m
+  level: 0
+  name: Guidance
+  range: 5
+  school: divination
+  type: buff
+  concentration: true
+  spell_list_classes:
+    - Cleric
+    - Druid
+  spell_class: Natural20::Guidance
 burning_hands:
   label: Burning Hands
   casting_time: 1:action
