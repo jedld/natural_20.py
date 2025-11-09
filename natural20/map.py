@@ -911,6 +911,8 @@ class Map(SerializableObject):
         """
         Check if entity can see entity2
         """
+        if entity.is_admin:
+            return True
         if isinstance(entity, str):
             entity = self.entity_by_uid(entity)
         if isinstance(entity2, str):
