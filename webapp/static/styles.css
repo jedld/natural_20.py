@@ -659,13 +659,13 @@ input.initiative-input.form-control {
 }
 
 
-.tile .effect {
+.entity .effect {
   position: absolute;
   top: 5px;
   left: 0;
 }
 
-.tile .effect-img {
+ .effect-img {
   width: 20px;
   height: 20px;
   z-index: 1000;

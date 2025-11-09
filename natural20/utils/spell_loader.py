@@ -32,6 +32,7 @@ def load_spell_class(spell_name):
     from natural20.spell.mage_hand_spell import MageHandSpell
     from natural20.spell.divine_smite_spell import DivineSmiteSpell
     from natural20.spell.armor_of_agathys_spell import ArmorOfAgathysSpell
+    from natural20.spell.guidance_spell import GuidanceSpell
     # Create a mapping of spell names to spell classes
     spell_classes = {
         'ShockingGraspSpell': ShockingGraspSpell,
@@ -65,7 +66,8 @@ def load_spell_class(spell_name):
         'MistyStepSpell': MistyStepSpell,
         'MageHandSpell': MageHandSpell,
         'DivineSmiteSpell': DivineSmiteSpell,
-        'ArmorOfAgathysSpell': ArmorOfAgathysSpell
+        'ArmorOfAgathysSpell': ArmorOfAgathysSpell,
+        'GuidanceSpell': GuidanceSpell
     }
 
     if spell_name not in spell_classes:
