@@ -614,6 +614,18 @@ class GameManagement:
                     self.current_soundtrack = soundtrack
                     break
 
+    """
+    Againt track_id, seek to a specific time
+    :param track_id: the track id
+    :param time_s: the time in seconds
+    """
+    def seek_soundtrack(self, time_s):
+        if self.current_soundtrack:
+            self.current_soundtrack['start_time'] = int(time.time()) - time_s
+            self.current_soundtrack['time'] = time_s
+            self.socketio.emit('message', {'type': 'track', 'message': self.current_soundtrack})
+            self.logger.info(f"Seeking soundtrack {self.current_soundtrack['name']} to {time_s}")
+
     def list_states(self):
         return self.save_states
 
