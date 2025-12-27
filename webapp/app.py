@@ -3895,6 +3895,14 @@ def set_volume():
    
     return jsonify(status='ok')
 
+@app.route('/seek', methods=['POST'])
+def seek():
+    global current_game
+    time_s = int(request.json['time'])
+    current_game.seek_soundtrack(time_s)
+    return jsonify(status='ok')
+
+
 
 @app.route('/unequip', methods=['POST'])
 def unequip():

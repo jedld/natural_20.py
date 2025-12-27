@@ -6,13 +6,13 @@ function formatGameTime(totalSeconds) {
   const hours = Math.floor((totalSeconds % (24 * 60 * 60)) / (60 * 60));
   const minutes = Math.floor((totalSeconds % (60 * 60)) / 60);
   const seconds = totalSeconds % 60;
-  
+
   const parts = [];
   if (days > 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`);
   if (hours > 0) parts.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
   if (minutes > 0) parts.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
   if (seconds > 0 || parts.length === 0) parts.push(`${seconds} second${seconds !== 1 ? 's' : ''}`);
-  
+
   return parts.join(', ');
 }
 
@@ -170,9 +170,9 @@ class EventQueue {
               // Clean up any leftover moving sprites and ensure originals are visible
               try {
                 $('.moving-entity-sprite').remove();
-                $('.entity').css('visibility','');
-              } catch (_) {}
-              try { if (cb) cb(); } catch (_) {}
+                $('.entity').css('visibility', '');
+              } catch (_) { }
+              try { if (cb) cb(); } catch (_) { }
               resolve();
             });
           } catch (e) {
@@ -185,11 +185,13 @@ class EventQueue {
           // Ensure map refresh runs within the queue and completes before next event
           try {
             Utils.refreshTileSet(false, false, 0, 0, null, () => {
-              try { updateDraggableEntityClasses(); } catch (_) {}
-              try { cleanupAllPendingMoves(); } catch (_) {}
+              try { updateDraggableEntityClasses(); } catch (_) { }
+              try { cleanupAllPendingMoves(); } catch (_) { }
               // Clean up any leftover moving sprites and ensure originals are visible
-              try { $('.moving-entity-sprite').remove();
-                $('.entity').css('visibility',''); } catch (_) {}
+              try {
+                $('.moving-entity-sprite').remove();
+                $('.entity').css('visibility', '');
+              } catch (_) { }
               resolve();
             });
           } catch (e) {
@@ -389,7 +391,7 @@ class EventQueue {
     try {
       eventQueue.enqueue({ type: 'refresh_tiles', message: { is_setup: false, pov: false, x: 0, y: 0, entity_uid: null } });
     } catch (_) {
-      try { Utils.refreshTileSet(); } catch (_) {}
+      try { Utils.refreshTileSet(); } catch (_) { }
     }
     resolve();
   }
@@ -459,11 +461,11 @@ class EventQueue {
 
   processMoveEvent(data, resolve) {
     const animationBuffer = data.message.animation_log;
-  // Track entities whose tiles are missing to avoid repeated retries and warnings
-  const missingEntities = new Set();
-  const warnedMissingEntities = new Set();
-  const refreshedEntities = new Set();
-  const lastTargetCoords = new Map(); // entity_uid -> [x, y]
+    // Track entities whose tiles are missing to avoid repeated retries and warnings
+    const missingEntities = new Set();
+    const warnedMissingEntities = new Set();
+    const refreshedEntities = new Set();
+    const lastTargetCoords = new Map(); // entity_uid -> [x, y]
 
     const animateFunction = (animationLog, idx) => {
       if (idx >= animationLog.length) {
@@ -471,12 +473,12 @@ class EventQueue {
         try {
           Utils.refreshTileSet(false, false, 0, 0, null, () => {
             $('.moving-entity-sprite').remove();
-            try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
+            try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { }
             resolve();
           });
         } catch (e) {
           console.error('Failed to refresh tile set after animations, continuing', e);
-          try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(_){}
+          try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (_) { }
           resolve();
         }
         return;
@@ -589,7 +591,7 @@ class EventQueue {
         try {
           $origImg.css('visibility', 'hidden');
           hiddenOriginals.set(entity_uid, $origImg);
-        } catch (_) {}
+        } catch (_) { }
 
         // Mount the sprite at the initial tile center
         const moveFunc = (p, index) => {
@@ -616,7 +618,7 @@ class EventQueue {
 
           // Set initial sprite position on first step
           if (index === 0) {
-            try { $('body').append($sprite); } catch (_) {}
+            try { $('body').append($sprite); } catch (_) { }
             $sprite.css({ left: tl.left, top: tl.top });
             // Continue to next step to actually animate
             moveFunc(p, index + 1);
@@ -638,7 +640,7 @@ class EventQueue {
               moveFunc(p, index + 1);
             };
             $sprite.on('transitionend', onEnd);
-            setTimeout(() => { try { $sprite.off('transitionend', onEnd); } catch (_) {} moveFunc(p, index + 1); }, 350);
+            setTimeout(() => { try { $sprite.off('transitionend', onEnd); } catch (_) { } moveFunc(p, index + 1); }, 350);
           });
         };
 
@@ -652,7 +654,7 @@ class EventQueue {
               hiddenOriginals.get(entity_uid).css('visibility', '');
               hiddenOriginals.delete(entity_uid);
             }
-          } catch (_) {}
+          } catch (_) { }
           animateFunction(animationLog, idx + 1);
         }
       };
@@ -715,7 +717,7 @@ class EventQueue {
 
                       const moveFuncNoOrig = (p, index) => {
                         if (index >= p.length) {
-                          try { $sprite.remove(); } catch (_) {}
+                          try { $sprite.remove(); } catch (_) { }
                           animateFunction(animationLog, idx + 1);
                           return;
                         }
@@ -728,7 +730,7 @@ class EventQueue {
                         const top = c.y - tileSize / 2;
 
                         if (index === 0) {
-                          try { $('body').append($sprite); } catch (_) {}
+                          try { $('body').append($sprite); } catch (_) { }
                           $sprite.css({ left, top });
                           moveFuncNoOrig(p, index + 1);
                           return;
@@ -742,7 +744,7 @@ class EventQueue {
                             moveFuncNoOrig(p, index + 1);
                           };
                           $sprite.on('transitionend', onEnd);
-                          setTimeout(() => { try { $sprite.off('transitionend', onEnd); } catch (_) {} moveFuncNoOrig(p, index + 1); }, 350);
+                          setTimeout(() => { try { $sprite.off('transitionend', onEnd); } catch (_) { } moveFuncNoOrig(p, index + 1); }, 350);
                         });
                       };
 
@@ -757,7 +759,7 @@ class EventQueue {
                     if (!refreshedEntities.has(entity_uid)) {
                       const last = lastTargetCoords.get(entity_uid);
                       if (last && Array.isArray(last)) {
-                        try { enqueueTileRefresh({ pov: true, x: last[0], y: last[1], entity_uid }); refreshedEntities.add(entity_uid); } catch (_) {}
+                        try { enqueueTileRefresh({ pov: true, x: last[0], y: last[1], entity_uid }); refreshedEntities.add(entity_uid); } catch (_) { }
                       }
                     }
                     animateFunction(animationLog, idx + 1);
@@ -785,7 +787,7 @@ class EventQueue {
       animateFunction(animationBuffer, 0);
     } else {
       // No animation; still apply effects and continue
-      try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
+      try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { }
       resolve();
     }
   }
@@ -803,7 +805,7 @@ class EventQueue {
           if (msg && msg.source) ids.push(msg.source);
           targets.forEach(t => { if (t != null) ids.push(t); });
           // If we have entity ids, do one refresh; server can choose to optimize by entity
-          const done = () => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} if (typeof cb === 'function') cb(); };
+          const done = () => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { } if (typeof cb === 'function') cb(); };
           if (ids.length > 1) {
             // Multiple affected entities; do a full refresh to update all icons/portraits
             Utils.refreshTileSet(false, false, 0, 0, null, done);
@@ -814,11 +816,11 @@ class EventQueue {
             Utils.refreshTileSet(false, false, 0, 0, null, done);
           }
         } catch (e) {
-          try { Utils.refreshTileSet(false, false, 0, 0, null, () => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} if (typeof cb === 'function') cb(); }); } catch (_) { if (typeof cb === 'function') cb(); }
+          try { Utils.refreshTileSet(false, false, 0, 0, null, () => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { } if (typeof cb === 'function') cb(); }); } catch (_) { if (typeof cb === 'function') cb(); }
         }
       };
       if (window.SpellEffects && typeof window.SpellEffects.play === 'function') {
-  window.SpellEffects.play(spellKey, msg).then(() => { refreshAfter(resolve); }).catch(() => { refreshAfter(resolve); });
+        window.SpellEffects.play(spellKey, msg).then(() => { refreshAfter(resolve); }).catch(() => { refreshAfter(resolve); });
         return;
       }
       // Fallback: log only if SpellEffects registry isn’t loaded
@@ -826,8 +828,8 @@ class EventQueue {
       try { refreshAfter(resolve); } catch (e) { resolve(); }
     } catch (e) {
       console.warn('processSpellEvent failed', e);
-      try { Utils.refreshTileSet(false, false, 0, 0, null, () => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} try { resolve(); } catch(_) {} }); } catch (_) { try { resolve(); } catch(__) {} }
-      
+      try { Utils.refreshTileSet(false, false, 0, 0, null, () => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { } try { resolve(); } catch (_) { } }); } catch (_) { try { resolve(); } catch (__) { } }
+
     }
   }
 
@@ -835,15 +837,15 @@ class EventQueue {
   processAttackEvent(data, resolve) {
     try {
       const msg = data && data.message ? data.message : data;
-    if (window.SpellEffects && typeof window.SpellEffects.play === 'function') {
-  window.SpellEffects.play('attack', msg).then(() => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); }).catch(() => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {} resolve(); });
+      if (window.SpellEffects && typeof window.SpellEffects.play === 'function') {
+        window.SpellEffects.play('attack', msg).then(() => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { } resolve(); }).catch(() => { try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { } resolve(); });
         return;
       }
       console.log('Attack animation (no SpellEffects registry found):', msg);
       resolve();
     } catch (e) {
       console.warn('processAttackEvent failed', e);
-      try { resolve(); } catch (_) {}
+      try { resolve(); } catch (_) { }
     }
   }
 
@@ -860,7 +862,7 @@ class EventQueue {
       active_background_sound.volume = nextVol;
       if (nextVol <= 0) {
         clearInterval(interval);
-        try { active_background_sound.pause(); } catch (e) {}
+        try { active_background_sound.pause(); } catch (e) { }
         active_background_sound = null;
         active_track_id = -1;
 
@@ -896,7 +898,7 @@ function enqueueTileRefresh(opts = {}) {
         opts.entity_uid || null,
         typeof opts.callback === 'function' ? opts.callback : null
       );
-    } catch (_) {}
+    } catch (_) { }
   }
 }
 
@@ -905,7 +907,7 @@ function showMapToast(text, position, sourceEntityId = null, durationMs = 10000)
   try {
     const dur = typeof durationMs === 'number' && durationMs > 0 ? durationMs : 10000;
     const safeText = (text == null) ? '' : String(text);
-  const expiryTs = Date.now() + dur;
+    const expiryTs = Date.now() + dur;
 
     const resolveTile = () => {
       // 1) By explicit grid position [x, y] or {x, y}
@@ -931,15 +933,15 @@ function showMapToast(text, position, sourceEntityId = null, durationMs = 10000)
       try {
         // If a previous toast exists on the same tile, remove it to avoid stacking
         const $existing = $tile.find('.map-toast');
-        if ($existing.length) { try { $existing.remove(); } catch (_) {} }
+        if ($existing.length) { try { $existing.remove(); } catch (_) { } }
 
-  const $toast = $('<div class="map-toast"></div>').text(safeText);
-  $toast.attr('data-toast-expiry', expiryTs);
+        const $toast = $('<div class="map-toast"></div>').text(safeText);
+        $toast.attr('data-toast-expiry', expiryTs);
         // Position above the tile center
         $toast.css({ position: 'absolute', left: '50%', top: '-6px', transform: 'translate(-50%, -100%)' });
         $tile.append($toast);
         // Auto-remove after duration
-  setTimeout(() => { try { $toast.fadeOut(400, () => $toast.remove()); } catch (_) {} }, dur);
+        setTimeout(() => { try { $toast.fadeOut(400, () => $toast.remove()); } catch (_) { } }, dur);
       } catch (e) { console.warn('Failed to mount map toast on tile', e); }
     };
 
@@ -956,7 +958,7 @@ function showMapToast(text, position, sourceEntityId = null, durationMs = 10000)
         } else if (sourceEntityId) {
           enqueueTileRefresh({ is_setup: false, pov: true, x: 0, y: 0, entity_uid: sourceEntityId });
         }
-      } catch (_) {}
+      } catch (_) { }
       setTimeout(() => attemptMount(attemptsLeft - 1), 120);
     };
 
@@ -1061,9 +1063,9 @@ const switchPOV = (entity_uid, canvas) => {
       const currentMap = $('body').attr('data-current-map');
       const isMapChange = !currentMap || (data.name && data.name !== currentMap);
       if (isMapChange) {
-  Utils.updateMapDisplay(data, canvas);
-  // Re-apply persistent status overlays after map display update
-  try { if (window.PersistentEffects && window.PersistentEffects.applyAll) window.PersistentEffects.applyAll(); } catch (e) {}
+        Utils.updateMapDisplay(data, canvas);
+        // Re-apply persistent status overlays after map display update
+        try { if (window.PersistentEffects && window.PersistentEffects.applyAll) window.PersistentEffects.applyAll(); } catch (e) { }
         // Apply map-default effects if provided and DM has no active override.
         // If no default and no DM override, clear any previous effects.
         try {
@@ -1071,7 +1073,7 @@ const switchPOV = (entity_uid, canvas) => {
             var arr = Array.isArray(data.map_default_effects) ? data.map_default_effects.slice() : [];
             if (!arr.length && data.map_default_effect) arr = [data.map_default_effect];
             if (arr.length && Effects.applyEffect) {
-              arr = arr.map(function(p){ try{ if (p && typeof p === 'object' && p.exclusive === undefined) p.exclusive = false; }catch(e){} return p; });
+              arr = arr.map(function (p) { try { if (p && typeof p === 'object' && p.exclusive === undefined) p.exclusive = false; } catch (e) { } return p; });
               Effects.applyEffect(arr);
             } else if (Effects.stopAll) {
               Effects.stopAll();
@@ -1079,9 +1081,9 @@ const switchPOV = (entity_uid, canvas) => {
           }
         } catch (e) { console.warn('Failed to apply/clear effect on POV switch', e); }
         // Ask server to (re)send effects after map switch in case client missed anything
-  try { if (typeof socket !== 'undefined' && socket && socket.emit) socket.emit('request_effects'); } catch (e) {}
-  // Re-apply persistent status overlays on map change
-  try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
+        try { if (typeof socket !== 'undefined' && socket && socket.emit) socket.emit('request_effects'); } catch (e) { }
+        // Re-apply persistent status overlays on map change
+        try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { }
       }
     }
     // update the pov entity id in the body data
@@ -1093,15 +1095,15 @@ const switchPOV = (entity_uid, canvas) => {
       (y = 0),
       (entity_uid = entity_uid),
       () => {
-  // Clean up any pending move ghosts and reset tile positioning to prevent artifacts
-  try { if (typeof cleanupAllPendingMoves === 'function') cleanupAllPendingMoves(); } catch (e) {}
-  // Avoid resetting .tile positioning globally; some layouts rely on absolute positioning per tile
-  // If needed, specific animated tiles should clear transition in the animation handler itself
-  try { updateDraggableEntityClasses(); } catch (e) {}
+        // Clean up any pending move ghosts and reset tile positioning to prevent artifacts
+        try { if (typeof cleanupAllPendingMoves === 'function') cleanupAllPendingMoves(); } catch (e) { }
+        // Avoid resetting .tile positioning globally; some layouts rely on absolute positioning per tile
+        // If needed, specific animated tiles should clear transition in the animation handler itself
+        try { updateDraggableEntityClasses(); } catch (e) { }
         const $tile = $(`.tile[data-coords-id="${entity_uid}"]`);
         createGlobalCanvas();
         centerOnTile($tile);
-  try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch(e) {}
+        try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { }
       },
     );
   });
@@ -1123,11 +1125,15 @@ const ajaxPost = (url, data, onSuccess, isJSON = false) => {
 };
 
 // DM Sound Manager - Enhanced soundtrack control for DMs
+// DM Sound Manager - Enhanced soundtrack control for DMs
 const DMSoundManager = {
   // Store volume preferences for each track
   trackVolumes: {},
   currentTrackId: null,
+  currentTrackDuration: 0,
+  currentTrackTime: 0,
   isPlaying: false,
+  progressInterval: null,
 
   // Load track volumes from localStorage
   loadTrackVolumes: function () {
@@ -1182,6 +1188,10 @@ const DMSoundManager = {
         this.currentTrackId = trackId;
         this.isPlaying = trackId !== "-1";
 
+        // Reset time tracking
+        this.currentTrackTime = 0;
+        this.currentTrackDuration = 0; // Will be set from UI or server response if available
+
         // Update global state
         active_track_id = trackId;
 
@@ -1191,6 +1201,17 @@ const DMSoundManager = {
             active_background_sound.pause();
             active_background_sound = null;
           }
+          this.stopProgressUpdater();
+        } else {
+          // Find track duration from DOM if possible
+          const trackItem = $(`.track-item[data-track-id="${trackId}"]`);
+          // This assumes the server provides duration in some way, or we default to 0
+          // For now, we rely on the updateUI to set max from server rendered template initially, 
+          // but we should probably fetch it or store it. 
+          // Ideally the server response 'data' or the initial template execution has it.
+          // We'll rely on the socket 'track' message to update exact details usually, 
+          // but here we just start the counter.
+          this.startProgressUpdater();
         }
 
         this.updateUI();
@@ -1211,6 +1232,40 @@ const DMSoundManager = {
     }
   },
 
+  seekTo: function (time) {
+    this.currentTrackTime = time;
+    ajaxPost(
+      "/seek",
+      { time: time },
+      (data) => {
+        console.log("Seeked to:", time);
+        this.updateUI();
+      },
+      true
+    );
+  },
+
+  startProgressUpdater: function () {
+    this.stopProgressUpdater();
+    this.progressInterval = setInterval(() => {
+      if (this.isPlaying) {
+        this.currentTrackTime++;
+        // Clamp to duration if known
+        if (this.currentTrackDuration > 0 && this.currentTrackTime > this.currentTrackDuration) {
+          this.currentTrackTime = this.currentTrackDuration;
+        }
+        this.updateSeekUI();
+      }
+    }, 1000);
+  },
+
+  stopProgressUpdater: function () {
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+      this.progressInterval = null;
+    }
+  },
+
   // Toggle play/pause for current track
   togglePlayPause: function () {
     if (this.currentTrackId && this.currentTrackId !== "-1") {
@@ -1223,6 +1278,7 @@ const DMSoundManager = {
             console.log("Track paused successfully:", data);
             // Keep track ID but mark as not playing (paused state)
             this.isPlaying = false;
+            this.stopProgressUpdater();
             this.updateUI();
           },
           true
@@ -1236,6 +1292,7 @@ const DMSoundManager = {
           (data) => {
             console.log("Track resumed successfully:", data);
             this.isPlaying = true;
+            this.startProgressUpdater();
             this.updateUI();
           },
           true
@@ -1264,6 +1321,7 @@ const DMSoundManager = {
         this.currentTrackId = "-1";
         this.isPlaying = false;
         active_track_id = -1;
+        this.stopProgressUpdater();
 
         if (active_background_sound) {
           active_background_sound.pause();
@@ -1283,6 +1341,7 @@ const DMSoundManager = {
     const pauseBtn = $('.pause-btn');
     const stopBtn = $('.stop-btn');
     const volumeSection = $('.volume-controls');
+    const seekSection = $('.track-seek-container');
 
     // Update current track display
     if (this.currentTrackId && this.currentTrackId !== "-1") {
@@ -1296,11 +1355,31 @@ const DMSoundManager = {
         pauseBtn.show();
         stopBtn.show();
         volumeSection.show();
+        seekSection.show();
       } else {
         playBtn.show();
         pauseBtn.hide();
         stopBtn.hide();
         volumeSection.hide();
+        // keep seek section visible if paused? Maybe. Let's hide it if stopped, show if paused.
+        // Logic above was "if isPlaying". If paused, isPlaying is false.
+        // But we might want to see seekbar when paused to seek before resuming.
+        // For now, follow existing strict "if isPlaying" toggle for other controls, 
+        // but maybe we should show it if track selected?
+        // Let's verify existing behavior: pauseBtn.hide() when paused.
+        // Actually, when paused, we usually want to see the controls to Resume (Play btn).
+        // If simply paused, currentTrackId is still set.
+
+        // Re-evaluating: 'isPlaying' is toggle between Play/Pause buttons.
+        // If paused, we show Play button.
+        // We SHOULD show volume and seek controls even if paused, as long as a track is active (currentTrackId != -1).
+        if (this.currentTrackId && this.currentTrackId !== "-1") {
+          volumeSection.show();
+          seekSection.show();
+        } else {
+          volumeSection.hide();
+          seekSection.hide();
+        }
       }
     } else {
       currentDisplay.text('None');
@@ -1308,6 +1387,7 @@ const DMSoundManager = {
       pauseBtn.hide();
       stopBtn.hide();
       volumeSection.hide();
+      seekSection.hide();
     }
 
     // Update track list highlighting
@@ -1318,6 +1398,34 @@ const DMSoundManager = {
 
     // Update volume displays
     this.updateVolumeDisplays();
+
+    // Initialize seekbar if not already handled
+    const $seekbar = $('#track-seekbar');
+    if ($seekbar.length > 0) {
+      $seekbar.off('change input').on('change', function () {
+        DMSoundManager.seekTo($(this).val());
+      });
+
+      // Update local state from DOM if we just opened modal or reloaded
+      if (this.currentTrackDuration === 0) {
+        const max = parseInt($seekbar.attr('max')) || 0;
+        this.currentTrackDuration = max;
+      }
+
+      // Also update the value visually
+      this.updateSeekUI();
+    }
+  },
+
+  updateSeekUI: function () {
+    const $seekbar = $('#track-seekbar');
+    const $timeDisplay = $('#track-current-time');
+    if ($seekbar.length) {
+      $seekbar.val(this.currentTrackTime);
+      const mins = Math.floor(this.currentTrackTime / 60);
+      const secs = Math.floor(this.currentTrackTime % 60);
+      $timeDisplay.text(`${mins}:${secs < 10 ? '0' : ''}${secs}`);
+    }
   },
 
   // Update volume displays for all tracks
@@ -1355,13 +1463,60 @@ const DMSoundManager = {
   init: function () {
     this.loadTrackVolumes();
 
-    // Get current state from active_track_id
-    this.currentTrackId = active_track_id;
-    this.isPlaying = active_background_sound !== null;
+    // Check DOM for initial state
+    const $activeTrack = $('.active-track');
+    if ($activeTrack.length) {
+      this.currentTrackId = $activeTrack.data('track-id');
+      // If the pause button is visible, it means we are playing
+      if ($activeTrack.find('.pause-btn').is(':visible')) {
+        this.isPlaying = true;
+      }
+    } else {
+      // If no active track class, check if ANY track shows pause button (just in case)
+      const $playingTrack = $('.pause-btn:visible').closest('.track-item');
+      if ($playingTrack.length) {
+        this.currentTrackId = $playingTrack.data('track-id');
+        this.isPlaying = true;
+      }
+    }
+
+    // Check global state as fallback
+    if (!this.currentTrackId && typeof active_track_id !== 'undefined' && active_track_id !== -1) {
+      this.currentTrackId = active_track_id;
+      this.isPlaying = true;
+    }
+
+    const $seekbar = $('#track-seekbar');
+    if ($seekbar.length) {
+      this.currentTrackDuration = parseInt($seekbar.attr('max')) || 0;
+      this.currentTrackTime = parseInt($seekbar.val()) || 0;
+
+      // If we have an active track and it appears to be playing
+      if (this.currentTrackId && this.isPlaying) {
+        this.startProgressUpdater();
+      }
+
+      // Attach listener immediately
+      $seekbar.off('change input').on('change', function () {
+        DMSoundManager.seekTo($(this).val());
+      });
+
+      // Initial UI update to sync everything
+      this.updateSeekUI();
+    }
+
+    // Ensure global active_track_id is synced
+    if (this.currentTrackId) {
+      active_track_id = this.currentTrackId;
+    }
 
     this.updateUI();
   }
 };
+
+$(document).ready(function () {
+  DMSoundManager.init();
+});
 
 // Plays a background sound (stopping any previous one).
 const playSound = (url, track_id, volume, time_override = null) => {
@@ -1976,19 +2131,19 @@ function moveEntityTo(entityId, targetX, targetY) {
 
   // Find the source tile using coords-id
   const $sourceTile = $(`.tile[data-coords-id="${entityId}"]`);
-  
+
   if (!$sourceTile.length) {
     console.error(`Could not find source tile for entity with ID: ${entityId}`);
   } else {
     const sourceX = $sourceTile.data('coords-x');
     const sourceY = $sourceTile.data('coords-y');
     const $sourceEntity = $sourceTile.find('.entity, .npc').first();
-    
+
     if ($sourceEntity.length) {
       console.log(`Creating ghost token for entity ${entityId} moving from (${sourceX}, ${sourceY}) to (${targetX}, ${targetY})`);
       // Create ghost token at target position
       createGhostToken(entityId, sourceX, sourceY, targetX, targetY, $sourceEntity);
-      
+
       // Mark source entity as pending move
       $sourceEntity.addClass('entity-pending-move');
     }
@@ -2042,14 +2197,14 @@ function createGhostToken(entityId, sourceX, sourceY, targetX, targetY, $sourceE
   $ghost.removeAttr('data-entity-id'); // Remove ID to avoid conflicts
   $ghost.removeAttr('data-entity-uid');
   $ghost.removeAttr('data-entityId');
-  
+
   // Add ghost to target tile
   $targetTile.append($ghost);
-  
+
   // Store pending move info
   pendingMoves.set(entityId, {
     sourceX: sourceX,
-    sourceY: sourceY, 
+    sourceY: sourceY,
     targetX: targetX,
     targetY: targetY,
     ghostElement: $ghost
@@ -2060,7 +2215,7 @@ function createGhostToken(entityId, sourceX, sourceY, targetX, targetY, $sourceE
     console.warn(`Move request for entity ${entityId} timed out, cleaning up ghost`);
     cleanupPendingMove(entityId);
   }, 30000);
-  
+
   moveRequestTimeouts.set(entityId, timeoutId);
 }
 
@@ -2108,19 +2263,19 @@ function movePCEntityTo(entityUid, targetX, targetY) {
 
   // Find the source tile using coords-id
   const $sourceTile = $(`.tile[data-coords-id="${entityUid}"]`);
-  
+
   if (!$sourceTile.length) {
     console.log(`Could not find source tile for PC entity with UID: ${entityUid}, proceeding with move anyway`);
   } else {
     const sourceX = $sourceTile.data('coords-x');
     const sourceY = $sourceTile.data('coords-y');
     const $sourceEntity = $sourceTile.find('.entity, .npc').first();
-    
+
     if ($sourceEntity.length) {
       console.log(`Creating ghost token for PC ${entityUid} moving from (${sourceX}, ${sourceY}) to (${targetX}, ${targetY})`);
       // Create ghost token at target position
       createGhostToken(entityUid, sourceX, sourceY, targetX, targetY, $sourceEntity);
-      
+
       // Mark source entity as pending move
       $sourceEntity.addClass('entity-pending-move');
     }
@@ -2210,13 +2365,13 @@ $(document).ready(() => {
       try {
         var saved = localStorage.getItem('vtt.effects.enabled');
         if (saved === 'false') { Effects.setEnabled(false); }
-      } catch (e) {}
+      } catch (e) { }
 
       Effects.initSocketHandlers(socket);
-  // Ask the server to resend any active or map-default effects now that handlers are registered
-  if (Effects.isEnabled()) {
-    try { socket.emit('request_effects'); } catch (e) { console.warn('Failed to request effects', e); }
-  }
+      // Ask the server to resend any active or map-default effects now that handlers are registered
+      if (Effects.isEnabled()) {
+        try { socket.emit('request_effects'); } catch (e) { console.warn('Failed to request effects', e); }
+      }
     } catch (e) {
       console.warn('Failed to init Effects socket handlers', e);
     }
@@ -2277,16 +2432,16 @@ $(document).ready(() => {
         btn.style.borderRadius = '4px';
         btn.style.cursor = 'pointer';
         btn.title = 'Toggle visual effects (for performance)';
-        btn.addEventListener('mouseenter', function(){ btn.style.opacity = '1.0'; });
-        btn.addEventListener('mouseleave', function(){ btn.style.opacity = '0.75'; });
-        btn.addEventListener('click', function(){
+        btn.addEventListener('mouseenter', function () { btn.style.opacity = '1.0'; });
+        btn.addEventListener('mouseleave', function () { btn.style.opacity = '0.75'; });
+        btn.addEventListener('click', function () {
           var next = !Effects.isEnabled();
           Effects.setEnabled(next);
           btn.textContent = next ? 'Effects: On' : 'Effects: Off';
-          try { localStorage.setItem('vtt.effects.enabled', next ? 'true' : 'false'); } catch(e) {}
+          try { localStorage.setItem('vtt.effects.enabled', next ? 'true' : 'false'); } catch (e) { }
           // When turning on, re-request current effects from server (or map defaults)
           if (next) {
-            try { if (socket && socket.emit) socket.emit('request_effects'); } catch (e) {}
+            try { if (socket && socket.emit) socket.emit('request_effects'); } catch (e) { }
           }
         });
         document.body.appendChild(btn);
@@ -2355,7 +2510,7 @@ $(document).ready(() => {
     ajaxPost("/reload_map", {}, (data) => {
       console.log("Reload request successful:", data);
       $("#reloadModal").modal("hide");
-  enqueueTileRefresh();
+      enqueueTileRefresh();
     });
   });
 
@@ -2492,7 +2647,7 @@ $(document).ready(() => {
         // If currently on this map, update background immediately
         const currentMap = $('body').attr('data-current-map');
         if (currentMap === mapName && data.background) {
-          const resp = { background: data.background, name: mapName, width: $("#tiles-area").data('width'), height: $("#tiles-area").data('height'), image_offset_px: [0,0] };
+          const resp = { background: data.background, name: mapName, width: $("#tiles-area").data('width'), height: $("#tiles-area").data('height'), image_offset_px: [0, 0] };
           Utils.updateMapDisplay(resp, globalCanvas);
         }
       },
@@ -2982,9 +3137,9 @@ $(document).ready(() => {
         valid_target_cache = {};
         move_path_cache = {};
         multiTargetList = [];
-  jumpMode = false;
-  jumpStartIndex = null;
-  lastPathForJump = null;
+        jumpMode = false;
+        jumpStartIndex = null;
+        lastPathForJump = null;
         globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
         $(".tile").css("border", "none");
         globalActionInfo = globalOpts = null;
@@ -3033,9 +3188,9 @@ $(document).ready(() => {
       pivotPoints = [];
       valid_target_cache = {};
       move_path_cache = {};
-  jumpMode = false;
-  jumpStartIndex = null;
-  lastPathForJump = null;
+      jumpMode = false;
+      jumpStartIndex = null;
+      lastPathForJump = null;
       globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
       $(".tile").css("border", "none");
       $(".add-to-target, .popover-menu-2").hide();
@@ -3156,19 +3311,19 @@ $(document).ready(() => {
     // Only allow dragging from the drag handle or empty areas, not from form elements
     const target = e.originalEvent.target;
     if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'BUTTON' ||
-        target.closest('input, select, button')) {
+      target.closest('input, select, button')) {
       e.preventDefault();
       return false;
     }
-    
+
     draggedElement = this;
     draggedIndex = $(this).index();
     $(this).addClass("dragging");
-    
+
     // Set drag data
     e.originalEvent.dataTransfer.effectAllowed = "move";
     e.originalEvent.dataTransfer.setData("text/html", this.outerHTML);
-    
+
     console.log("Started dragging entity:", $(this).data("id"));
   });
 
@@ -3182,14 +3337,14 @@ $(document).ready(() => {
   $("#turn-order").on("dragover", ".turn-order-item", function (e) {
     e.preventDefault();
     e.originalEvent.dataTransfer.dropEffect = "move";
-    
+
     if (this !== draggedElement) {
       const rect = this.getBoundingClientRect();
       const midpoint = rect.top + rect.height / 2;
       const mouseY = e.originalEvent.clientY;
-      
+
       $(".turn-order-item").removeClass("drag-over drag-over-bottom");
-      
+
       if (mouseY < midpoint) {
         $(this).addClass("drag-over");
       } else {
@@ -3200,42 +3355,42 @@ $(document).ready(() => {
 
   $("#turn-order").on("drop", ".turn-order-item", function (e) {
     e.preventDefault();
-    
+
     if (this !== draggedElement) {
       const targetIndex = $(this).index();
       const rect = this.getBoundingClientRect();
       const midpoint = rect.top + rect.height / 2;
       const mouseY = e.originalEvent.clientY;
-      
+
       let newIndex = targetIndex;
       if (mouseY >= midpoint) {
         newIndex = targetIndex + 1;
       }
-      
+
       // Adjust for moving elements within the same container
       if (draggedIndex < newIndex) {
         newIndex--;
       }
-      
+
       // Get the new order of entity IDs
       const $turnOrderItems = $("#turn-order .turn-order-item");
       const entityOrder = [];
-      
-      $turnOrderItems.each(function(index) {
+
+      $turnOrderItems.each(function (index) {
         if (this !== draggedElement) {
           entityOrder.push($(this).data("id"));
         }
       });
-      
+
       // Insert the dragged element at the new position
       const draggedEntityId = $(draggedElement).data("id");
       entityOrder.splice(newIndex, 0, draggedEntityId);
-      
+
       console.log("Reordering initiative:", entityOrder);
-      
+
       // Send the new order to the server
-      ajaxPost("/reorder_initiative", 
-        { entity_order: entityOrder }, 
+      ajaxPost("/reorder_initiative",
+        { entity_order: entityOrder },
         (data) => {
           if (data.status === 'ok') {
             console.log("Initiative reordered successfully");
@@ -3249,17 +3404,17 @@ $(document).ready(() => {
         true
       );
     }
-    
+
     $(".turn-order-item").removeClass("drag-over drag-over-bottom");
   });
 
   // Prevent default drag behavior on the turn order container
-  $("#turn-order").on("dragover", function(e) {
+  $("#turn-order").on("dragover", function (e) {
     e.preventDefault();
   });
 
   // Prevent dragging when clicking on form elements
-  $("#turn-order").on("mousedown", "input, select, button", function(e) {
+  $("#turn-order").on("mousedown", "input, select, button", function (e) {
     e.stopPropagation();
   });
 
@@ -3276,7 +3431,7 @@ $(document).ready(() => {
   });
 
   // Character Builder menu entry
-  $(document).on('click', '#character-builder', function() {
+  $(document).on('click', '#character-builder', function () {
     window.location.href = '/character_builder';
   });
 
@@ -3345,9 +3500,9 @@ $(document).ready(() => {
   }
 
   // NPC search functionality
-  $("#npc-search-input").on("input", function() {
+  $("#npc-search-input").on("input", function () {
     const searchTerm = $(this).val().toLowerCase();
-    $(".npc-item").each(function() {
+    $(".npc-item").each(function () {
       const npcName = $(this).find(".npc-item-name").text().toLowerCase();
       if (npcName.includes(searchTerm)) {
         $(this).show();
@@ -3361,24 +3516,24 @@ $(document).ready(() => {
   let draggedNPC = null;
   let draggedObject = null;
 
-  $("#npc-list").on("dragstart", ".npc-item", function(e) {
+  $("#npc-list").on("dragstart", ".npc-item", function (e) {
     draggedNPC = $(this).data("npc-type");
     $(this).addClass("dragging");
     e.originalEvent.dataTransfer.effectAllowed = "copy";
     e.originalEvent.dataTransfer.setData("text/plain", draggedNPC);
-    
+
     // Add visual feedback for empty tiles
     $("body").addClass("npc-drag-active");
-    $(".tile").each(function() {
+    $(".tile").each(function () {
       if ($(this).find(".entity").length === 0) {
         $(this).addClass("empty-tile-highlight");
       }
     });
-    
+
     console.log("Started dragging NPC:", draggedNPC);
   });
 
-  $("#npc-list").on("dragend", ".npc-item", function(e) {
+  $("#npc-list").on("dragend", ".npc-item", function (e) {
     $(this).removeClass("dragging");
     $(".tile").removeClass("battlefield-drop-zone drag-over empty-tile-highlight");
     $("body").removeClass("npc-drag-active");
@@ -3386,13 +3541,13 @@ $(document).ready(() => {
   });
 
   // Battlefield drop zone functionality
-  $(".tiles-container").on("dragover", ".tile", function(e) {
+  $(".tiles-container").on("dragover", ".tile", function (e) {
     if (draggedNPC || draggedObject) {
       e.preventDefault();
       e.originalEvent.dataTransfer.dropEffect = "copy";
-      
+
       const $tile = $(this);
-      
+
       if (draggedNPC) {
         // Only show drop zone for NPCs if tile is empty
         const hasEntity = $tile.find(".entity").length > 0;
@@ -3408,25 +3563,25 @@ $(document).ready(() => {
     }
   });
 
-  $(".tiles-container").on("dragleave", ".tile", function(e) {
+  $(".tiles-container").on("dragleave", ".tile", function (e) {
     if (draggedNPC || draggedObject) {
       $(this).removeClass("drag-over");
     }
   });
 
-  $(".tiles-container").on("drop", ".tile", function(e) {
+  $(".tiles-container").on("drop", ".tile", function (e) {
     e.preventDefault();
-    
+
     const $tile = $(this);
     const x = parseInt($tile.data("coords-x"));
     const y = parseInt($tile.data("coords-y"));
-    
+
     if (draggedNPC) {
       // Handle NPC spawning (only on empty tiles)
       const hasEntity = $tile.find(".entity").length > 0;
       if (!hasEntity) {
         console.log(`Spawning ${draggedNPC} at (${x}, ${y})`);
-        
+
         ajaxPost("/spawn_npc", {
           npc_type: draggedNPC,
           x: x,
@@ -3444,7 +3599,7 @@ $(document).ready(() => {
     } else if (draggedObject) {
       // Handle object spawning (can be placed anywhere)
       console.log(`Spawning ${draggedObject} at (${x}, ${y})`);
-      
+
       ajaxPost("/spawn_object", {
         object_type: draggedObject,
         x: x,
@@ -3463,7 +3618,7 @@ $(document).ready(() => {
         const draggedData = e.originalEvent.dataTransfer.getData('text/plain');
         if (draggedData) {
           console.log(`Moving PC ${draggedData} to (${x}, ${y})`);
-          
+
           // Use ghost token for PC moves too
           movePCEntityTo(draggedData, x, y);
         }
@@ -3471,7 +3626,7 @@ $(document).ready(() => {
         console.log("Cannot place PC: position is occupied");
       }
     }
-    
+
     $(".tile").removeClass("battlefield-drop-zone drag-over");
   });
 
@@ -3514,7 +3669,7 @@ $(document).ready(() => {
 
     pcs.forEach((pc) => {
       const classInfo = pc.class_and_level.length > 0 ? `Lvl ${pc.class_and_level[0][1] || '?'} ${pc.class_and_level[0][0] || 'Unknown'}` : 'Unknown Class';
-      
+
       const $pcItem = $(`
         <div class="pc-item" draggable="true" data-entity-uid="${pc.entity_uid}" title="${pc.race} ${classInfo}">
           <img class="pc-item-image" src="/assets/${pc.token_image}" alt="${pc.name}" onerror="this.onerror=null;this.src='/static/assets/token_player.png'">
@@ -3524,16 +3679,16 @@ $(document).ready(() => {
           </div>
         </div>
       `);
-      
+
       // Add drag event handlers for PCs
       $pcItem.on('dragstart', (e) => {
         e.originalEvent.dataTransfer.setData('text/plain', pc.entity_uid);
         e.originalEvent.dataTransfer.effectAllowed = 'move';
         $(e.currentTarget).addClass('dragging');
         $('body').addClass('pc-drag-active');
-        
+
         // Add visual feedback for empty tiles
-        $(".tile").each(function() {
+        $(".tile").each(function () {
           if ($(this).find(".entity").length === 0) {
             $(this).addClass("empty-tile-highlight");
           }
@@ -3550,9 +3705,9 @@ $(document).ready(() => {
     });
 
     // Add search functionality for PCs
-    $("#pc-search-input").off('input').on('input', function() {
+    $("#pc-search-input").off('input').on('input', function () {
       const searchTerm = $(this).val().toLowerCase();
-      $(".pc-item").each(function() {
+      $(".pc-item").each(function () {
         const pcName = $(this).find('.pc-item-name').text().toLowerCase();
         const pcType = $(this).find('.pc-item-type').text().toLowerCase();
         if (pcName.includes(searchTerm) || pcType.includes(searchTerm)) {
@@ -3604,7 +3759,7 @@ $(document).ready(() => {
     objects.forEach((object) => {
       const passableText = object.passable ? "Passable" : "Blocks Movement";
       const opaqueText = object.opaque ? "Opaque" : "Transparent";
-      
+
       const $objectItem = $(`
         <div class="object-item" draggable="true" data-object-type="${object.id}" title="${object.description || object.name}">
           <img class="object-item-image" src="/assets/editor/${object.image}" alt="${object.name}">
@@ -3614,20 +3769,20 @@ $(document).ready(() => {
           </div>
         </div>
       `);
-      
+
       // Add drag event handlers for objects
       $objectItem.on('dragstart', (e) => {
         draggedObject = $(e.currentTarget).data('object-type');
         $(e.currentTarget).addClass('dragging');
         e.originalEvent.dataTransfer.effectAllowed = 'copy';
         e.originalEvent.dataTransfer.setData('text/plain', draggedObject);
-        
+
         // Add visual feedback for tiles
         $('body').addClass('object-drag-active');
-        $(".tile").each(function() {
+        $(".tile").each(function () {
           $(this).addClass("empty-tile-highlight");
         });
-        
+
         console.log("Started dragging object:", draggedObject);
       });
 
@@ -3642,9 +3797,9 @@ $(document).ready(() => {
     });
 
     // Add search functionality for objects
-    $("#object-search-input").off('input').on('input', function() {
+    $("#object-search-input").off('input').on('input', function () {
       const searchTerm = $(this).val().toLowerCase();
-      $(".object-item").each(function() {
+      $(".object-item").each(function () {
         const objectName = $(this).find('.object-item-name').text().toLowerCase();
         const objectType = $(this).find('.object-item-type').text().toLowerCase();
         if (objectName.includes(searchTerm) || objectType.includes(searchTerm)) {
@@ -3659,13 +3814,13 @@ $(document).ready(() => {
   // (Deprecated confirm-based handler removed; see unified modal-based handler below)
 
   // Handle action-bar delete button clicks (also used in turn order)
-  $(document).on('click', '.delete-entity-btn', function(e) {
+  $(document).on('click', '.delete-entity-btn', function (e) {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const entityUid = $(this).data('entity-uid');
     let entityName = 'this entity';
-    
+
     // Try to find a nearby name label if in turn order
     const $row = $(this).closest('.turn-order-item');
     if ($row.length) {
@@ -3678,16 +3833,16 @@ $(document).ready(() => {
         entityName = $nameplate.text();
       }
     }
-    
+
     $('#entityToDeleteName').text(entityName);
     $('#deleteEntityModal').modal('show');
     $('#confirmDeleteEntity').data('entity-uid', entityUid);
   });
 
   // Handle confirmation modal delete button
-  $('#confirmDeleteEntity').click(function() {
+  $('#confirmDeleteEntity').click(function () {
     const entityUid = $(this).data('entity-uid');
-    
+
     if (entityUid) {
       ajaxPost("/delete_entity", {
         entity_uid: entityUid
@@ -3726,7 +3881,7 @@ $(document).ready(() => {
   $("#reload-map").click(() => {
     Utils.ajaxPost("/reload_map", {}, (data) => {
       console.log("Map reloaded successfully:", data);
-  enqueueTileRefresh();
+      enqueueTileRefresh();
     });
   });
 
@@ -3745,7 +3900,7 @@ $(document).ready(() => {
     if (data.error) {
       console.error('handleAction: server error', data.error);
       // Optionally surface to user
-      try { alert(data.error); } catch (e) {}
+      try { alert(data.error); } catch (e) { }
       return;
     }
     const param0 = (Array.isArray(data.param) && data.param.length > 0) ? data.param[0] : null;
@@ -4045,7 +4200,7 @@ $(document).ready(() => {
         initiateTransfer();
         break;
       default:
-  console.log("Unknown action type:", param0.type);
+        console.log("Unknown action type:", param0.type);
     }
     console.log("Action request successful:", data);
   }
@@ -4135,8 +4290,8 @@ $(document).ready(() => {
 
   //on mouse over an action button if there is a target, highlight the target
   $(".actions-container").on("mouseover", ".action-button", function () {
-  const opts = $(this).data("action-opts");
-  // Optionally highlight targets if opts carries target info in the future
+    const opts = $(this).data("action-opts");
+    // Optionally highlight targets if opts carries target info in the future
   });
 
   $(".actions-container").on("click", ".action-end-turn", function () {
@@ -5022,7 +5177,7 @@ $(document).ready(() => {
   // Clean up drag state
   function cleanupDrag() {
     isDraggingEntity = false;
-  dragPending = false;
+    dragPending = false;
     draggedEntityId = null;
 
     if (draggedEntityTile) {
@@ -5045,14 +5200,14 @@ $(document).ready(() => {
   // Make dialog panel draggable and resizable
   makeDialogPanelDraggable();
   makeDialogPanelResizable();
-  
+
   // Make floating windows draggable
   makeFloatingWindowsDraggable();
 
   // Handle window resize to keep panel in bounds
-  
+
   // Clean up ghost tokens on page unload
-  $(window).on('beforeunload', function() {
+  $(window).on('beforeunload', function () {
     cleanupAllPendingMoves();
   });
 });
@@ -5159,7 +5314,7 @@ function makeDialogPanelResizable() {
 
 // Function to make floating windows draggable
 function makeFloatingWindowsDraggable() {
-  $('.floating-window').each(function() {
+  $('.floating-window').each(function () {
     const $panel = $(this);
     const $header = $panel.find('.header');
     let isDragging = false;
