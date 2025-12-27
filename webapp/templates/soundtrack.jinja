@@ -35,6 +35,17 @@
       <input type="range" min="0" max="100" value="{{current_soundtrack.volume or 50}}" class="volume-slider" style="width: 200px;">
       <span class="volume-display">{{current_soundtrack.volume or 50}}%</span>
     </div>
+    <div class="row track-seek-container" style="margin-top: 10px; display: flex; align-items: center;">
+        <div class="col-xs-3 text-right">
+            <span id="track-current-time">0:00</span>
+        </div>
+        <div class="col-xs-6">
+             <input type="range" id="track-seekbar" class="track-seekbar" min="0" max="{{current_soundtrack.duration}}" value="{{current_soundtrack.time}}">
+        </div>
+        <div class="col-xs-3 text-left">
+            <span id="track-duration">{{ (current_soundtrack.duration // 60) }}:{{ '%02d' % (current_soundtrack.duration % 60) }}</span>
+        </div>
+    </div>
     {% endif %}
   </div>
 
