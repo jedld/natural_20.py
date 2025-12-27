@@ -645,7 +645,7 @@ class Map(SerializableObject):
             for klass in match:
                 objects.update([obj for obj in self.objects[pos_x][pos_y] if isinstance(obj, klass)])
             return list(objects)
-        return [obj for obj in self.objects[pos_x][pos_y] if reveal_concealed or not obj.secret()]
+        return [obj for obj in self.objects[pos_x][pos_y]]
 
     # Natural20::Entity to look around
     # @param entity [Natural20::Entity] The entity to look around his line of sight
@@ -867,8 +867,8 @@ class Map(SerializableObject):
 
     def kind_of_door(self, pos_x, pos_y):
         for obj in self.objects_at(pos_x, pos_y):
-            if obj.secret():
-                continue
+            # if obj.secret():
+            #     continue
             if obj.kind_of_door() and not obj.dead():
                 return obj
         return None
@@ -979,7 +979,7 @@ class Map(SerializableObject):
         if not has_line_of_sight:
             return False
         
-        if entity2.kind_of_door() and not entity2.concealed() and not entity2.secret():
+        if entity.is_admin or (entity2.kind_of_door() and not entity2.concealed() and not entity2.secret()):
             # doors are always visible
             return True
 
