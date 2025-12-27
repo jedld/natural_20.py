@@ -2627,9 +2627,13 @@ $(document).ready(() => {
               type: "GET",
               data: { id: entry.id },
               success: (payload, _textStatus, jqXHR) => {
-                const contentType = (jqXHR.getResponseHeader("Content-Type") || "").toLowerCase();
-                if (typeof payload === "object" && !contentType.includes("text/html")) {
-                  resolve({ entry, error: payload && payload.error ? payload.error : "No actions available." });
+                const contentHeader =
+                  jqXHR && typeof jqXHR.getResponseHeader === "function"
+                    ? jqXHR.getResponseHeader("Content-Type") || ""
+                    : "";
+                if (typeof payload === "object" && !contentHeader.toLowerCase().includes("text/html")) {
+                  const errMsg = payload && payload.error ? payload.error : "No actions available.";
+                  resolve({ entry, error: errMsg });
                   return;
                 }
                 const htmlPayload = typeof payload === "string" ? payload : "";
