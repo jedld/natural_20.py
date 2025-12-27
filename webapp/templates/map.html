@@ -27,9 +27,9 @@
           {# --- Render objects on the tile --- #}
           {% if tile['objects'] %}
             {% for obj in tile['objects'] %}
-        <div class="object-container"
-          data-id="{{ obj['id'] }}"
-          data-label="{{ (obj['label'] or obj['name'])|default('')|e }}"
+              <div class="object-container"
+                   data-id="{{ obj['id'] }}"
+                   data-label="{{ (obj['label'] or obj['name'])|default('')|e }}"
                    data-tooltip="{{ obj['name'] }}"
                    style="width: {{ tile_size_px }}px; height: {{ tile_size_px }}px;">
                 {% if obj['image'] %}
