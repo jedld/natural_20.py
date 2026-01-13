@@ -309,6 +309,15 @@
                             <input type="text" id="controller-input" class="form-control" placeholder="Type username to assign...">
                             <div id="controller-suggestions" class="suggestions-list"></div>
                         </div>
+                        <div class="form-group">
+                            <label for="controller-select">Or Select User:</label>
+                            <select id="controller-select" class="form-control">
+                                <option value="">-- Select --</option>
+                                {% for user in all_users %}
+                                <option value="{{ user }}">{{ user }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                         <div class="current-controllers">
                             <h4>Current Controllers:</h4>
                             <ul id="controllers-list">
