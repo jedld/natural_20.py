@@ -3778,7 +3778,8 @@ def get_info():
     entity = battle_map.entity_by_uid(info_id)
     if entity is None:
         entity = battle_map.object_by_uid(info_id)
-    return render_template('info.html.jinja', entity=entity, session=game_session, battle=battle, restricted=False, role=user_role())
+    all_users = sorted(list(set([l['name'] for l in LOGINS] + list(current_game.username_to_sid.keys()))))
+    return render_template('info.html.jinja', entity=entity, session=game_session, battle=battle, restricted=False, role=user_role(), all_users=all_users)
 
 @app.route('/entity_info', methods=['GET'])
 def get_entity_info():
