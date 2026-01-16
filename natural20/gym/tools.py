@@ -339,6 +339,9 @@ def action_to_gym_action(entity, map, available_actions, weapon_mappings=None, s
     valid_actions.append((-1, (0, 0), (0, 0), 0, 0)) # end turn should always be available
     for action in valid_actions:
         assert len(action) == 5, f"Invalid action {action}"
+    
+    # remove duplicates
+    valid_actions = sorted(list(set(valid_actions)), key=lambda x: (x[0], x[3], x[4]))
     return valid_actions
 
 def compute_available_moves(session, map, entity: Entity, battle, weapon_mappings=None, spell_mappings=None):
