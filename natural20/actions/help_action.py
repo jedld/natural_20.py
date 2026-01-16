@@ -57,6 +57,9 @@ class HelpAction(Action):
         target = item['target']
         event_manager = battle.event_manager if battle else session.event_manager
 
+        if target is None:
+            return
+
         if battle:
             battle.consume(source, 'action')
             event_type = 'help_distract' if battle.opposing(source, target) else 'help'

@@ -10,7 +10,7 @@ import os
 import sys
 from llm_handler import LLMHandler
 
-class TestOllamaProvider:
+class MockOllamaProvider:
     """Mock provider that simulates the real Ollama response from the log."""
     
     def __init__(self):
@@ -24,23 +24,23 @@ class TestOllamaProvider:
     def send_message(self, messages):
         # Simulate the exact response from the log
         return '''<think>
-Okay, so I'm trying to figure out how to help the user with their D&D game data. They've provided some JSON-like data that includes details about characters and non-playable opponents (NPCs). The first thing I notice is that they want a complete, user-friendly response based on this information.
+okay, so i'm trying to figure out how to help the user with their d&d game data. they've provided some json-like data that includes details about characters and non-playable opponents (npcs). the first thing i notice is that they want a complete, user-friendly response based on this information.
 
-Looking at the data, there are two main sections: Characters and NPCs. Each has several entries with fields like name, type, entity_uid, position, hp, max_hp, level, dead status, and whether they're unconscious, prone, or hidden.
+looking at the data, there are two main sections: characters and npcs. each has several entries with fields like name, type, entity_uid, position, hp, max_hp, level, dead status, and whether they're unconscious, prone, or hidden.
 
-I think the best approach is to present this information in a clear and organized way. Maybe I can start by explaining what each section represents. For Characters, it's straightforward—each has a name, type (player or NPC), position on the grid, health stats, level, and status. The same goes for NPCs.
+i think the best approach is to present this information in a clear and organized way. maybe i can start by explaining what each section represents. for characters, it's straightforward—each has a name, type (player or npc), position on the grid, health stats, level, and status. the same goes for npcs.
 
-I should probably format this as two separate lists to make it easy to read. Under Characters, I'll list each one with their details. Then do the same for NPCs. This way, the user can quickly compare the different classes or encounter enemies without getting overwhelmed.
+i should probably format this as two separate lists to make it easy to read. under characters, i'll list each one with their details. then do the same for npcs. this way, the user can quickly compare the different classes or encounter enemies without getting overwhelmed.
 
-Also, since they mentioned wanting a complete response, I should include all 12 characters and 30+ NPCs in the data provided. That means no omissions—everything is included as per their JSON input.
+also, since they mentioned wanting a complete response, i should include all 12 characters and 30+ npcs in the data provided. that means no omissions—everything is included as per their json input.
 
-I need to make sure that each entry is clear and concise. Maybe using bullet points or numbered lists could help, but since it's a text response, I'll just list them out with line breaks for readability.
+i need to make sure that each entry is clear and concise. maybe using bullet points or numbered lists could help, but since it's a text response, i'll just list them out with line breaks for readability.
 
-Another thing to consider is the user's possible needs. They might be looking to analyze their party composition or prepare for an encounter. By providing all the necessary details in one place, they can easily compare stats and make informed decisions.
+another thing to consider is the user's possible needs. they might be looking to analyze their party composition or prepare for an encounter. by providing all the necessary details in one place, they can easily compare stats and make informed decisions.
 
-I should also mention that if there are any specific questions or need further analysis, I'm here to help. This opens up a conversation for them to ask more detailed questions if needed.
+i should also mention that if there are any specific questions or need further analysis, i'm here to help. this opens up a conversation for them to ask more detailed questions if needed.
 
-Finally, I'll wrap it up by offering assistance with anything else they might need beyond just presenting the data.
+finally, i'll wrap it up by offering assistance with anything else they might need beyond just presenting the data.
 </think>
 
 Here's a complete and organized presentation of your game data:
@@ -86,7 +86,7 @@ def test_real_scenario():
     print()
     
     # Replace the mock provider with our test provider
-    handler.providers['mock'] = TestOllamaProvider()
+    handler.providers['mock'] = MockOllamaProvider()
     
     # Initialize the test provider
     print("Initializing test provider...")
