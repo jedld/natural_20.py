@@ -804,14 +804,10 @@ const Utils = {
 
   updateMapDisplay: function (data, canvas) {
     const tile_size = $('.tiles-container').data('tile-size');
+    const $imageContainer = $("#main-map-area .image-container");
 
-    // Update image container and image
-    $("#main-map-area .image-container img").css({
-      width: data.width + 'px',
-      objectFit: 'cover',
-      objectPosition: 'top',
-    });
-    $("#main-map-area .image-container").css({
+    // Update image container size
+    $imageContainer.css({
       height: data.height + 'px',
     });
 
@@ -842,9 +838,6 @@ const Utils = {
       left: (imageOffset[0] + tile_size) + 'px'
     });
 
-    // Update image width explicitly (string with units)
-    $(".image-container img").css({ width: data.width + 'px' });
-
     // Do NOT resize or reposition the global overlay canvas here.
     // It's created as a full-viewport fixed canvas in createGlobalCanvas().
     // Changing its size/position during POV switches caused visual artifacts.
@@ -855,8 +848,52 @@ const Utils = {
       } catch (e) { /* noop */ }
     }
 
-    // Update background and map name
-    $("#main-map-area .image-container img").attr("src", data.background);
+    // Update background - handle both img and video elements
+    const bgSrc = data.background;
+    const isVideo = bgSrc && (bgSrc.endsWith('.mp4') || bgSrc.endsWith('.webm'));
+    const $existingImg = $imageContainer.find('img.background-image, img').first();
+    const $existingVideo = $imageContainer.find('video').first();
+
+    if (isVideo) {
+      // New background is video - remove existing img if present, add/update video
+      if ($existingImg.length) {
+        $existingImg.remove();
+      }
+      if ($existingVideo.length) {
+        // Update existing video source
+        $existingVideo.find('source').attr('src', bgSrc);
+        $existingVideo[0].load();
+        $existingVideo[0].play().catch(() => {});
+      } else {
+        // Create new video element (insert before tiles-container)
+        const $video = $('<video autoplay loop muted playsinline></video>')
+          .css({ width: data.width + 'px', height: 'inherit', objectFit: 'cover', objectPosition: 'top' })
+          .append($('<source>').attr('src', bgSrc).attr('type', 'video/mp4'));
+        $imageContainer.find('.tiles-container').before($video);
+        $video[0].play().catch(() => {});
+      }
+    } else {
+      // New background is image - remove existing video if present, add/update img
+      if ($existingVideo.length) {
+        $existingVideo.remove();
+      }
+      if ($existingImg.length) {
+        // Update existing image
+        $existingImg.attr('src', bgSrc).css({
+          width: data.width + 'px',
+          objectFit: 'cover',
+          objectPosition: 'top',
+        });
+      } else {
+        // Create new img element (insert before tiles-container)
+        const $img = $('<img class="background-image">')
+          .attr('src', bgSrc)
+          .css({ width: data.width + 'px', objectFit: 'cover', objectPosition: 'top' });
+        $imageContainer.find('.tiles-container').before($img);
+      }
+    }
+
+    // Update map name in body data
     $('body').attr('data-current-map', data.name);
   }
 };

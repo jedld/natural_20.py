@@ -3431,6 +3431,7 @@ def switch_pov():
             dm_active = False
     return jsonify(background=f"assets/{background}",
         name=entity_battle_map.name,
+        pov_entity=entity_id,
         image_offset_px=entity_battle_map.image_offset_px,
         height=tiles_dimension_height,
         width=tiles_dimension_width,
