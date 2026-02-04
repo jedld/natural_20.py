@@ -122,7 +122,6 @@ class JsonRenderer:
                     shared_attrs['objects'] = []
                     for object_entity in objects:
                         if entity_pov and entity_pov != current_entity:
-                            print(f"pov {entity_pov}")
                             visible_to_pov = any([self.map.can_see(entity_p, object_entity, allow_dark_vision=True) for entity_p in entity_pov])
                             if isinstance(object_entity, DoorObject) or isinstance(object_entity, DoorObjectWall):
                                 visible_to_pov = True
