@@ -12,6 +12,77 @@
   z-index: 99;
 }
 
+/* Viewport Pan/Zoom Controls (Roll20-style) */
+#main-map-area {
+  overflow: hidden !important;
+  cursor: default;
+}
+
+#main-map-area.panning {
+  cursor: grabbing !important;
+}
+
+.image-container {
+  transform-origin: 0 0;
+  will-change: transform;
+  transition: none;
+}
+
+/* Zoom Controls UI */
+#zoom-controls {
+  position: fixed;
+  bottom: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+}
+
+#zoom-controls button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #ccc;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#zoom-controls button:hover {
+  background: #f0f0f0;
+}
+
+#zoom-controls button:active {
+  background: #e0e0e0;
+}
+
+#zoom-level {
+  min-width: 45px;
+  text-align: center;
+  font-weight: 500;
+}
+
+#zoom-reset {
+  font-size: 12px !important;
+  width: auto !important;
+  padding: 0 8px;
+}
+
+/* Cursor hints for middle-click pan */
+#main-map-area:hover {
+  cursor: default;
+}
+
 #floating-menu ul {
   list-style: none;
   padding-left: 0;
@@ -246,6 +317,12 @@
   width: 40px;
   height: 40px;
   z-index: 1000;
+}
+
+.add-to-target {
+  display: none;
+  top: 7px;
+  right: 0;
 }
 
 input.initiative-text {
@@ -892,7 +969,7 @@ input.initiative-input.form-control {
 
 .portrait-button {
   position: fixed;
-  left: 120px;
+  left: 246px;
   bottom: 10px;
   z-index: 1100;
 }
