@@ -359,6 +359,15 @@ describe('engine.js basic behavior', () => {
       if (sel === 'html, body') {
         return { animate: (obj, ms, cb) => { calls.animate = { obj, ms }; if (cb) cb(); return this; } };
       }
+      if (sel === '.image-container') {
+        return { length: 1, css: () => {} };
+      }
+      if (sel === '#main-map-area') {
+        return { length: 1, 0: { getBoundingClientRect: () => ({ width: 800, height: 600, left: 0, top: 0 }) } };
+      }
+      if (sel === '.tiles-container') {
+        return { data: () => 70 };
+      }
       return orig$(sel);
     };
 
@@ -368,6 +377,7 @@ describe('engine.js basic behavior', () => {
       width: () => 50,
       height: () => 50,
       offset: () => ({ left: 100, top: 200 }),
+      data: (key) => key === 'coords-x' ? 5 : (key === 'coords-y' ? 3 : null),
       find: () => ({ addClass: (cls) => { if (cls === 'focus-highlight') {} return tileStub; } }),
       fadeOut: (ms) => { calls.faded += 1; return tileStub; },
       fadeIn: (ms) => { calls.faded += 1; return tileStub; },
@@ -381,15 +391,14 @@ describe('engine.js basic behavior', () => {
     // centerOnTile is exposed as Engine.centerOnTile
     Engine.centerOnTile(tileStub, true);
 
-    expect(calls.animate).not.toBeNull();
+    // Now uses viewport transform instead of scroll animation
     expect(calls.faded).toBe(2); // fadeOut + fadeIn
     expect(calls.addedRed).toBe(true);
 
     global.$ = orig$;
   });
 
-  test('centerOnTileXY selects tile by coords and triggers centering animation', () => {
-    const calls = { animate: null };
+  test('centerOnTileXY selects tile by coords and triggers centering', () => {
     const seen = { selected: null };
     const orig$ = global.$;
 
@@ -398,6 +407,7 @@ describe('engine.js basic behavior', () => {
       width: () => 50,
       height: () => 50,
       offset: () => ({ left: 100, top: 200 }),
+      data: (key) => key === 'coords-x' ? 7 : (key === 'coords-y' ? 9 : null),
       find: () => ({ addClass: () => tileStub }),
       fadeOut: () => tileStub,
       fadeIn: () => tileStub,
@@ -407,9 +417,11 @@ describe('engine.js basic behavior', () => {
     global.$ = (sel) => {
       const m = sel && sel.match?.(/\.tile\[data-coords-x="(\d+)"\]\[data-coords-y="(\d+)"\]/);
       if (m) { seen.selected = { x: Number(m[1]), y: Number(m[2]) }; return tileStub; }
-      if (sel === 'html, body') { return { animate: (o, ms, cb) => { calls.animate = { o, ms }; if (cb) cb(); return this; } }; }
       if (sel === '.tile') { return { removeClass: () => ({}) } }
       if (sel === '.tile .entity') { return { removeClass: () => ({}) } }
+      if (sel === '.image-container') { return { length: 1, css: () => {} }; }
+      if (sel === '#main-map-area') { return { length: 1, 0: { getBoundingClientRect: () => ({ width: 800, height: 600, left: 0, top: 0 }) } }; }
+      if (sel === '.tiles-container') { return { data: () => 70 }; }
       return orig$(sel);
     };
 
@@ -420,13 +432,11 @@ describe('engine.js basic behavior', () => {
     Engine.centerOnTileXY(7, 9, true);
 
     expect(seen.selected).toEqual({ x: 7, y: 9 });
-    expect(calls.animate).not.toBeNull();
 
     global.$ = orig$;
   });
 
-  test('centerOnEntityId selects tile by id and triggers centering animation', () => {
-    const calls = { animate: null };
+  test('centerOnEntityId selects tile by id and triggers centering', () => {
     const seen = { id: null };
     const orig$ = global.$;
 
@@ -435,6 +445,7 @@ describe('engine.js basic behavior', () => {
       width: () => 50,
       height: () => 50,
       offset: () => ({ left: 100, top: 200 }),
+      data: (key) => key === 'coords-x' ? 5 : (key === 'coords-y' ? 3 : null),
       find: () => ({ addClass: () => tileStub }),
       fadeOut: () => tileStub,
       fadeIn: () => tileStub,
@@ -444,9 +455,11 @@ describe('engine.js basic behavior', () => {
     global.$ = (sel) => {
       const m = sel && sel.match?.(/\.tile\[data-coords-id="(.+?)"\]/);
       if (m) { seen.id = m[1]; return tileStub; }
-      if (sel === 'html, body') { return { animate: (o, ms, cb) => { calls.animate = { o, ms }; if (cb) cb(); return this; } }; }
       if (sel === '.tile') { return { removeClass: () => ({}) } }
       if (sel === '.tile .entity') { return { removeClass: () => ({}) } }
+      if (sel === '.image-container') { return { length: 1, css: () => {} }; }
+      if (sel === '#main-map-area') { return { length: 1, 0: { getBoundingClientRect: () => ({ width: 800, height: 600, left: 0, top: 0 }) } }; }
+      if (sel === '.tiles-container') { return { data: () => 70 }; }
       return orig$(sel);
     };
 
@@ -457,14 +470,12 @@ describe('engine.js basic behavior', () => {
     Engine.centerOnEntityId('E-123');
 
     expect(seen.id).toBe('E-123');
-    expect(calls.animate).not.toBeNull();
 
     global.$ = orig$;
   });
 
   test('EventQueue focus event centers on coords with highlight', async () => {
     const q = new Engine.EventQueue();
-    const calls = { animate: null };
     const seen = { selected: null };
     const orig$ = global.$;
 
@@ -473,6 +484,7 @@ describe('engine.js basic behavior', () => {
       width: () => 50,
       height: () => 50,
       offset: () => ({ left: 100, top: 200 }),
+      data: (key) => key === 'coords-x' ? 3 : (key === 'coords-y' ? 5 : null),
       find: () => ({ addClass: () => tileStub }),
       fadeOut: () => tileStub,
       fadeIn: () => tileStub,
@@ -485,6 +497,9 @@ describe('engine.js basic behavior', () => {
       if (sel === 'html, body') { return { animate: (o, ms, cb) => { calls.animate = { o, ms }; if (cb) cb(); return this; } }; }
       if (sel === '.tile') { return { removeClass: () => ({}) } }
       if (sel === '.tile .entity') { return { removeClass: () => ({}) } }
+      if (sel === '.image-container') { return { length: 1, css: () => {} }; }
+      if (sel === '#main-map-area') { return { length: 1, 0: { getBoundingClientRect: () => ({ width: 800, height: 600, left: 0, top: 0 }) } }; }
+      if (sel === '.tiles-container') { return { data: () => 70 }; }
       return orig$(sel);
     };
 
@@ -499,7 +514,6 @@ describe('engine.js basic behavior', () => {
     });
 
     expect(seen.selected).toEqual({ x: 3, y: 5 });
-    expect(calls.animate).not.toBeNull();
 
     global.$ = orig$;
   });
@@ -643,11 +657,22 @@ describe('engine.js basic behavior', () => {
           each: () => {}
         };
       }
+      if (sel === '.moving-entity-sprite') {
+        return { remove: () => {} };
+      }
+      if (sel === '.entity') {
+        return { css: () => {} };
+      }
       return orig$(sel);
     };
 
     const origUtils = global.Utils;
-    global.Utils = { refreshTileSet: jest.fn() };
+    // Mock refreshTileSet to call the callback immediately
+    global.Utils = { 
+      refreshTileSet: jest.fn((a, b, c, d, e, callback) => {
+        if (typeof callback === 'function') callback();
+      })
+    };
 
     q.enqueue({ type: 'refresh_map' });
 

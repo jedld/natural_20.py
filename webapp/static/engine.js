@@ -31,6 +31,16 @@ let globalCtx = null;
 let talkToEntityMode = false; // Flag to track when user is talking to an entity
 let dialogMessageProcessing = false; // Flag to track if a dialog message is being processed
 
+// Pan and Zoom state (Roll20-style viewport)
+let viewportPan = { x: 0, y: 0 };
+let viewportZoom = 1.0;
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 3.0;
+const ZOOM_STEP = 0.1;
+let isPanning = false;
+let panStart = { x: 0, y: 0 };
+let panStartViewport = { x: 0, y: 0 };
+
 // Ghost token system for pending moves
 let pendingMoves = new Map(); // entityId -> { sourceX, sourceY, targetX, targetY, ghostElement }
 let moveRequestTimeouts = new Map(); // entityId -> timeoutId for cleanup
@@ -352,8 +362,21 @@ class EventQueue {
           break;
         case "switch_map":
           var map_id = data.message.map;
+          // Reset viewport before switching maps
+          resetViewport();
           Utils.switchMap(map_id, globalCanvas, () => {
             createGlobalCanvas();
+            // After map loads, center on the current POV entity if available
+            setTimeout(() => {
+              try {
+                const povEntity = Chat.getCurrentPovEntity();
+                if (povEntity) {
+                  centerOnEntityId(povEntity);
+                }
+              } catch (e) {
+                console.warn('Could not center on POV entity after map switch', e);
+              }
+            }, 100); // Small delay to ensure tiles are rendered
             resolve();
           });
           break;
@@ -581,10 +604,14 @@ class EventQueue {
         // Create a floating sprite clone for animation
         const $sprite = $origImg.clone();
         $sprite.addClass('moving-entity-sprite');
+        // Apply viewport zoom scale so sprite matches the zoomed map
+        const currentZoom = typeof viewportZoom !== 'undefined' ? viewportZoom : 1.0;
         $sprite.css({
           position: 'absolute',
           zIndex: 2000,
-          pointerEvents: 'none'
+          pointerEvents: 'none',
+          transform: `scale(${currentZoom})`,
+          transformOrigin: 'center center'
         });
 
         // Hide the original during animation to avoid duplicates
@@ -711,9 +738,11 @@ class EventQueue {
 
                       // Build a floating sprite and animate along the path using tile centers
                       const tileSize = parseInt($('.tiles-container').data('tile-size') || 64, 10);
+                      // Apply viewport zoom scale so sprite matches the zoomed map
+                      const currentZoom = typeof viewportZoom !== 'undefined' ? viewportZoom : 1.0;
                       const $sprite = $('<img class="moving-entity-sprite" />')
                         .attr('src', spriteSrc)
-                        .css({ position: 'absolute', zIndex: 2000, pointerEvents: 'none', width: `${tileSize}px`, height: `${tileSize}px` });
+                        .css({ position: 'absolute', zIndex: 2000, pointerEvents: 'none', width: `${tileSize}px`, height: `${tileSize}px`, transform: `scale(${currentZoom})`, transformOrigin: 'center center' });
 
                       const moveFuncNoOrig = (p, index) => {
                         if (index >= p.length) {
@@ -1058,38 +1087,44 @@ const switchPOV = (entity_uid, canvas) => {
 
   ajaxPost("/switch_pov", { entity_uid }, (data) => {
     console.log("Switched POV:", data);
+    // Determine if the map is changing - we need this for both background update and tile refresh
+    const currentMap = $('body').attr('data-current-map');
+    const isMapChange = !currentMap || (data.name && data.name !== currentMap);
+    console.log("Map change detection:", { currentMap, newMap: data.name, isMapChange, hasBackground: !!data.background });
+    
+    // Always update map display if background data is present - the server knows best
     if (data.background) {
-      // Only update the map display and touch effects if the map actually changed
-      const currentMap = $('body').attr('data-current-map');
-      const isMapChange = !currentMap || (data.name && data.name !== currentMap);
+      // Reset viewport when map changes
       if (isMapChange) {
-        Utils.updateMapDisplay(data, canvas);
-        // Re-apply persistent status overlays after map display update
-        try { if (window.PersistentEffects && window.PersistentEffects.applyAll) window.PersistentEffects.applyAll(); } catch (e) { }
-        // Apply map-default effects if provided and DM has no active override.
-        // If no default and no DM override, clear any previous effects.
-        try {
-          if (!data.dm_active && typeof Effects !== 'undefined') {
-            var arr = Array.isArray(data.map_default_effects) ? data.map_default_effects.slice() : [];
-            if (!arr.length && data.map_default_effect) arr = [data.map_default_effect];
-            if (arr.length && Effects.applyEffect) {
-              arr = arr.map(function (p) { try { if (p && typeof p === 'object' && p.exclusive === undefined) p.exclusive = false; } catch (e) { } return p; });
-              Effects.applyEffect(arr);
-            } else if (Effects.stopAll) {
-              Effects.stopAll();
-            }
-          }
-        } catch (e) { console.warn('Failed to apply/clear effect on POV switch', e); }
-        // Ask server to (re)send effects after map switch in case client missed anything
-        try { if (typeof socket !== 'undefined' && socket && socket.emit) socket.emit('request_effects'); } catch (e) { }
-        // Re-apply persistent status overlays on map change
-        try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { }
+        resetViewport();
       }
+      Utils.updateMapDisplay(data, canvas);
+      // Re-apply persistent status overlays after map display update
+      try { if (window.PersistentEffects && window.PersistentEffects.applyAll) window.PersistentEffects.applyAll(); } catch (e) { }
+      // Apply map-default effects if provided and DM has no active override.
+      // If no default and no DM override, clear any previous effects.
+      try {
+        if (!data.dm_active && typeof Effects !== 'undefined') {
+          var arr = Array.isArray(data.map_default_effects) ? data.map_default_effects.slice() : [];
+          if (!arr.length && data.map_default_effect) arr = [data.map_default_effect];
+          if (arr.length && Effects.applyEffect) {
+            arr = arr.map(function (p) { try { if (p && typeof p === 'object' && p.exclusive === undefined) p.exclusive = false; } catch (e) { } return p; });
+            Effects.applyEffect(arr);
+          } else if (Effects.stopAll) {
+            Effects.stopAll();
+          }
+        }
+      } catch (e) { console.warn('Failed to apply/clear effect on POV switch', e); }
+      // Ask server to (re)send effects after map switch in case client missed anything
+      try { if (typeof socket !== 'undefined' && socket && socket.emit) socket.emit('request_effects'); } catch (e) { }
+      // Re-apply persistent status overlays on map change
+      try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { }
     }
     // update the pov entity id in the body data
     $('body').attr('data-pov-entity', data.pov_entity);
+    // When map changes, use is_setup=true to force full tile refresh (bypass optimization)
     Utils.refreshTileSet(
-      (is_setup = false),
+      (is_setup = isMapChange),
       (pov = true),
       (x = 0),
       (y = 0),
@@ -1669,10 +1704,10 @@ const getTileCenter = ($tile) => {
   const rect = $tile[0].getBoundingClientRect();
   const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
   const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-  const tile_size = $('.tiles-container').data('tile-size');
+  // Use rect.width/height to get the actual displayed center (accounts for zoom)
   return {
-    x: rect.left + scrollLeft + tile_size / 2,
-    y: rect.top + scrollTop + tile_size / 2
+    x: rect.left + scrollLeft + rect.width / 2,
+    y: rect.top + scrollTop + rect.height / 2
   };
 };
 
@@ -1809,25 +1844,32 @@ function command(cmd) {
 
 // Centers the viewport on a given tile and (optionally) highlights it.
 function centerOnTile(tile, highlight = false) {
-  const boardWidth = $(window).width();
-  const boardHeight = $(window).height();
-  const tileWidth = tile.width();
-  const tileHeight = tile.height();
-  const offset = tile.offset();
-  const { left, top } = offset;
-  const scrollLeft = left - boardWidth / 2 + tileWidth / 2;
-  const scrollTop = top - boardHeight / 2 + tileHeight / 2;
+  if (!tile.length) return;
+  
+  // Support both jQuery objects and plain objects with data properties
+  const tileX = typeof tile.data === 'function' ? tile.data('coords-x') : tile['coords-x'];
+  const tileY = typeof tile.data === 'function' ? tile.data('coords-y') : tile['coords-y'];
 
   $(".tile .entity").removeClass("focus-highlight");
-  tile.find(".entity").addClass("focus-highlight");
+  if (typeof tile.find === 'function') {
+    tile.find(".entity").addClass("focus-highlight");
+  }
 
-  $("html, body").animate({ scrollLeft, scrollTop }, 200, () => {
+  // Use viewport centering if coordinates are available
+  if (tileX !== undefined && tileY !== undefined) {
+    centerViewportOnTile(tileX, tileY);
+  }
+  
+  // Visual feedback
+  if (typeof tile.fadeOut === 'function') {
     tile.fadeOut(150).fadeIn(150);
-    if (highlight) {
-      $(".tile").removeClass("focus-highlight-red");
+  }
+  if (highlight) {
+    $(".tile").removeClass("focus-highlight-red");
+    if (typeof tile.addClass === 'function') {
       tile.addClass("focus-highlight-red");
     }
-  });
+  }
 }
 
 const centerOnTileXY = (x, y, highlight = false) => {
@@ -2099,6 +2141,197 @@ function createGlobalCanvas() {
   globalCtx = globalCanvas.getContext("2d");
 }
 
+// --- Pan and Zoom (Roll20-style viewport) ---
+// Apply the current pan/zoom transform to the map container
+function applyViewportTransform() {
+  const $container = $('.image-container');
+  if ($container.length) {
+    $container.css({
+      'transform': `translate(${viewportPan.x}px, ${viewportPan.y}px) scale(${viewportZoom})`,
+      'transform-origin': '0 0'
+    });
+  }
+}
+
+// Zoom at a specific point (for scroll wheel zoom)
+function zoomAtPoint(delta, clientX, clientY) {
+  const $mapArea = $('#main-map-area');
+  const $container = $('.image-container');
+  if (!$container.length) return;
+  
+  // Get container position relative to map area
+  const mapRect = $mapArea[0].getBoundingClientRect();
+  
+  // Calculate point in container space before zoom
+  const pointX = (clientX - mapRect.left - viewportPan.x) / viewportZoom;
+  const pointY = (clientY - mapRect.top - viewportPan.y) / viewportZoom;
+  
+  // Apply zoom
+  const oldZoom = viewportZoom;
+  viewportZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, viewportZoom + delta));
+  
+  // Adjust pan to keep the point under cursor
+  viewportPan.x = clientX - mapRect.left - pointX * viewportZoom;
+  viewportPan.y = clientY - mapRect.top - pointY * viewportZoom;
+  
+  applyViewportTransform();
+  
+  // Update display
+  updateZoomDisplay();
+}
+
+// Simple zoom (without point tracking)
+function setZoom(newZoom) {
+  viewportZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, newZoom));
+  applyViewportTransform();
+  updateZoomDisplay();
+}
+
+// Reset viewport to default
+function resetViewport() {
+  viewportPan = { x: 0, y: 0 };
+  viewportZoom = 1.0;
+  applyViewportTransform();
+  updateZoomDisplay();
+}
+
+// Center viewport on specific tile coordinates
+function centerViewportOnTile(tileX, tileY) {
+  const $mapArea = $('#main-map-area');
+  const $container = $('.image-container');
+  const tileSize = parseInt($('.tiles-container').data('tile-size')) || 70;
+  
+  if (!$mapArea.length || !$container.length) return;
+  
+  const mapRect = $mapArea[0].getBoundingClientRect();
+  
+  // Calculate tile center position in container space
+  const tileCenterX = (tileX + 0.5) * tileSize;
+  const tileCenterY = (tileY + 0.5) * tileSize;
+  
+  // Calculate pan to center this tile
+  viewportPan.x = (mapRect.width / 2) - (tileCenterX * viewportZoom);
+  viewportPan.y = (mapRect.height / 2) - (tileCenterY * viewportZoom);
+  
+  applyViewportTransform();
+}
+
+// Update zoom display in UI
+function updateZoomDisplay() {
+  const zoomPercent = Math.round(viewportZoom * 100);
+  $('#zoom-level').text(`${zoomPercent}%`);
+}
+
+// Initialize viewport handlers
+function initViewportControls() {
+  const $mapArea = $('#main-map-area');
+  if (!$mapArea.length) return;
+  
+  // Disable native scroll on map area
+  $mapArea.css('overflow', 'hidden');
+  
+  // Middle mouse button pan (mousedown)
+  $mapArea.on('mousedown', function(e) {
+    // Middle mouse button (button 1)
+    if (e.button === 1) {
+      e.preventDefault();
+      isPanning = true;
+      panStart = { x: e.clientX, y: e.clientY };
+      panStartViewport = { x: viewportPan.x, y: viewportPan.y };
+      $mapArea.addClass('panning');
+      $('body').css('cursor', 'grabbing');
+    }
+  });
+  
+  // Mouse move for panning
+  $(document).on('mousemove.viewport', function(e) {
+    if (!isPanning) return;
+    
+    const dx = e.clientX - panStart.x;
+    const dy = e.clientY - panStart.y;
+    
+    viewportPan.x = panStartViewport.x + dx;
+    viewportPan.y = panStartViewport.y + dy;
+    
+    applyViewportTransform();
+  });
+  
+  // Mouse up to end panning
+  $(document).on('mouseup.viewport', function(e) {
+    if (e.button === 1 && isPanning) {
+      isPanning = false;
+      $mapArea.removeClass('panning');
+      $('body').css('cursor', '');
+    }
+  });
+  
+  // Scroll wheel zoom
+  $mapArea.on('wheel', function(e) {
+    // Check if we're over a modal or UI element
+    if ($(e.target).closest('.modal, .panel, #turn-order, #console-container, .popover-menu, .popover-menu-2').length) {
+      return; // Allow normal scroll in UI elements
+    }
+    
+    e.preventDefault();
+    
+    const delta = e.originalEvent.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+    zoomAtPoint(delta, e.clientX, e.clientY);
+  });
+  
+  // Prevent context menu on middle click
+  $mapArea.on('contextmenu', function(e) {
+    if (e.button === 1) {
+      e.preventDefault();
+    }
+  });
+  
+  // Zoom button controls
+  $('#zoom-in').on('click', function() {
+    const $mapArea = $('#main-map-area');
+    const rect = $mapArea[0].getBoundingClientRect();
+    // Zoom at center of viewport
+    zoomAtPoint(ZOOM_STEP, rect.left + rect.width / 2, rect.top + rect.height / 2);
+  });
+  
+  $('#zoom-out').on('click', function() {
+    const $mapArea = $('#main-map-area');
+    const rect = $mapArea[0].getBoundingClientRect();
+    // Zoom at center of viewport
+    zoomAtPoint(-ZOOM_STEP, rect.left + rect.width / 2, rect.top + rect.height / 2);
+  });
+  
+  $('#zoom-reset').on('click', function() {
+    resetViewport();
+  });
+  
+  // Keyboard shortcuts for zoom (when not typing in an input)
+  $(document).on('keydown.viewport', function(e) {
+    // Skip if typing in an input
+    if ($(e.target).is('input, textarea, select')) return;
+    
+    const $mapArea = $('#main-map-area');
+    if (!$mapArea.length) return;
+    const rect = $mapArea[0].getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    if (e.key === '=' || e.key === '+') {
+      e.preventDefault();
+      zoomAtPoint(ZOOM_STEP, centerX, centerY);
+    } else if (e.key === '-' || e.key === '_') {
+      e.preventDefault();
+      zoomAtPoint(-ZOOM_STEP, centerX, centerY);
+    } else if (e.key === '0' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      resetViewport();
+    }
+  });
+  
+  // Initialize transform
+  applyViewportTransform();
+  updateZoomDisplay();
+}
+
 // Check if user is DM
 function isDM() {
   return $('body').data('role') && $('body').data('role').includes('dm');
@@ -2325,6 +2558,9 @@ $(document).ready(() => {
   // Update draggable entity classes for cursor styling
   updateDraggableEntityClasses();
 
+  // Initialize viewport pan/zoom controls (Roll20-style)
+  initViewportControls();
+
   createGlobalCanvas();
   // Update canvas size on window resize
   $(window).on('resize', function () {
@@ -2517,8 +2753,16 @@ $(document).ready(() => {
   $("#mapModal").on("change", "#map-select", function (event) {
     event.preventDefault();
     const map_id = $("#map-select").val();
+    resetViewport();
     Utils.switchMap(map_id, globalCanvas, () => {
       createGlobalCanvas();
+      // Center on POV entity after map loads
+      setTimeout(() => {
+        try {
+          const povEntity = Chat.getCurrentPovEntity();
+          if (povEntity) centerOnEntityId(povEntity);
+        } catch (e) { }
+      }, 100);
     });
   });
 
@@ -2526,6 +2770,7 @@ $(document).ready(() => {
   $("#mapModal").on("click", ".map-card", function (event) {
     const mapName = $(this).data("map-name");
     if (!mapName) return; // ignore non-map tiles (e.g., create-new)
+    resetViewport();
     Utils.switchMap(mapName, globalCanvas, () => {
       createGlobalCanvas();
     });
@@ -2574,8 +2819,16 @@ $(document).ready(() => {
           $(tileHtml).insertBefore($("#create-new-map"));
         }
         // Switch to the new map
+        resetViewport();
         Utils.switchMap(mapName, globalCanvas, () => {
           createGlobalCanvas();
+          // Center on POV entity after map loads
+          setTimeout(() => {
+            try {
+              const povEntity = Chat.getCurrentPovEntity();
+              if (povEntity) centerOnEntityId(povEntity);
+            } catch (e) { }
+          }, 100);
         });
       }
     );
@@ -2612,8 +2865,16 @@ $(document).ready(() => {
       if (currentMap === mapName) {
         const $first = $("#map-grid .map-card[data-map-name]").first();
         const target = $first.data('map-name') || 'index';
+        resetViewport();
         Utils.switchMap(target, globalCanvas, () => {
           createGlobalCanvas();
+          // Center on POV entity after map loads
+          setTimeout(() => {
+            try {
+              const povEntity = Chat.getCurrentPovEntity();
+              if (povEntity) centerOnEntityId(povEntity);
+            } catch (e) { }
+          }, 100);
         });
       }
     });
