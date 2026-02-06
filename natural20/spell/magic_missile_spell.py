@@ -17,7 +17,8 @@ class MagicMissileSpell(Spell):
              'num': darts,
              'range': self.properties['range'],
              'allow_retarget': True,
-             'target_types': ['enemies', 'allies']}
+               'target_types': ['enemies', 'allies'],
+               'prefer_enemies': True}
         ], 'next': next_func }
 
     def compute_hit_probability(self, battle, opts = None):

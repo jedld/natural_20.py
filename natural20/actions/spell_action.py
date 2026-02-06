@@ -92,7 +92,16 @@ class SpellAction(Action):
         if opt is None:
             opt = {}
 
-        return SpellAction.can_cast(entity, battle, opt.get("spell", None))
+        requested_spell = opt.get("spell", None)
+        if requested_spell:
+            return SpellAction.can_cast(entity, battle, requested_spell)
+
+        # Only surface the generic "spell" action if at least one spell is
+        # currently castable.
+        for spell_name in entity.available_spells(battle):
+            if SpellAction.can_cast(entity, battle, spell_name):
+                return True
+        return False
 
     @staticmethod
     def can_cast(entity, battle, spell, at_level=None, as_scroll=False):
@@ -125,10 +134,9 @@ class SpellAction(Action):
         if not battle:
             return True
 
-        # check if the entity has the required resources to cast the spell
-        if entity.casted_leveled_spells(battle) > 0 \
-            and resource in ["action", "bonus_action"] \
-            and at_level > 0:
+        # If a leveled spell has already been cast this turn, do not allow any
+        # further spellcasting that consumes an action/bonus action.
+        if entity.casted_leveled_spells(battle) > 0 and resource in ["action", "bonus_action"]:
             return False
 
         if resource == "action" and entity.total_actions(battle) == 0:
@@ -160,7 +168,8 @@ class SpellAction(Action):
                 raise Exception(f"spell not found {spell_name}")
             action.spell = spell
             action.level = spell.get("level", 0)
-            action.at_level = at_level
+            # Some call sites pass 0 to mean "cast at base level".
+            action.at_level = at_level if at_level else action.level
             spell_name = spell.get("spell_class", classify(spell_name)) + "Spell"
             spell_name = spell_name.replace("Natural20::", "")
             spell_class = load_spell_class(spell_name)

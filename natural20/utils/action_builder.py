@@ -28,6 +28,14 @@ def acquire_targets(param, entity, battle, map=None):
 
     target_types = param.get("target_types", ['enemies'])
 
+    # Optional heuristic for spells: prefer enemies when available.
+    prefer_enemies = bool(param.get("prefer_enemies", False))
+    if prefer_enemies and battle and "enemies" in target_types:
+        enemies = battle.opponents_of(entity)
+        enemy_targets = in_range_and_visible(enemies)
+        if enemy_targets:
+            return enemy_targets
+
     # Handle multiple target types in a single param (if needed).
     # If your logic only ever expects one target type per param, 
     # just switch these to if/elif/else blocks accordingly.
