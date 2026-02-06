@@ -23,6 +23,7 @@ from natural20.item_library.pit_trap import PitTrap
 from natural20.generic_controller import GenericController
 from natural20.web.web_controller import WebController
 from natural20.session import Session
+from natural20.die_roll import DieRollResult
 from typing import Any
 import yaml
 from natural20.map import Map
@@ -39,6 +40,18 @@ def represent_uuid(dumper, data):
 
 def represent_ndarray(dumper, data):
     return dumper.represent_list(data.tolist())
+
+def represent_np_integer(dumper, data):
+    return dumper.represent_int(int(data))
+
+def represent_np_floating(dumper, data):
+    return dumper.represent_float(float(data))
+
+def represent_np_bool(dumper, data):
+    return dumper.represent_bool(bool(data))
+
+def represent_die_roll_result(dumper, data):
+    return dumper.represent_int(int(data))
 
 def represent_class(dumper, data):
     # Represent a class by its fully qualified name.
@@ -124,6 +137,12 @@ def register_yaml_handlers():
         )
     yaml.SafeDumper.add_representer(uuid.UUID, represent_uuid)
     yaml.SafeDumper.add_representer(np.ndarray, represent_ndarray)
+    yaml.SafeDumper.add_representer(DieRollResult, represent_die_roll_result)
+    # NumPy scalar types (np.int64, np.float32, np.bool_, etc.) are not handled
+    # by PyYAML SafeDumper by default.
+    yaml.SafeDumper.add_multi_representer(np.integer, represent_np_integer)
+    yaml.SafeDumper.add_multi_representer(np.floating, represent_np_floating)
+    yaml.SafeDumper.add_multi_representer(np.bool_, represent_np_bool)
     
     # Register constructors for each tag in our mapping, plus the UUID.
     for tag in list(CLASS_TAG_MAPPING.values()) + ['!uuid']:
