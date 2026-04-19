@@ -86,6 +86,29 @@ def optimize_conal_targets(position_choices, entity, battle, map, range_cone):
         selected_positions.append(position_choices[best_position])
     return selected_positions
 
+def _optimize_cube_targets(position_choices, entity, battle, map, size_squares):
+    selected_positions = []
+    best_position = None
+    best_score = 1
+    entity_position = map.position_of(entity)
+    for i, position in enumerate(position_choices):
+        squares = map.squares_in_adjacent_cube(entity_position, tuple(position), size_squares)
+        if len(squares) > 0:
+            score = 0
+            for square in squares:
+                entity_at_square = map.entity_at(square[0], square[1])
+                if entity_at_square is not None:
+                    if entity_at_square in battle.opponents_of(entity):
+                        score += 1
+                    elif entity_at_square in battle.allies_of(entity):
+                        score -= 1
+            if score >= best_score:
+                best_score = score
+                best_position = i
+    if best_position is not None:
+        selected_positions.append(position_choices[best_position])
+    return selected_positions
+
 def build_params(session, entity, battle, build_info, map=None, auto_target=True, match=None, is_verbose=False):
     """
     Build a list (parallel to build_info["param"]) containing all possible
@@ -336,6 +359,34 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
 
             if len(position_choices) > 0 and auto_target:
                 position_choices = optimize_conal_targets(position_choices, entity, battle, map, _range)
+
+            params_list.append(position_choices)
+        elif param_type == "select_cube":
+            if not map:
+                if is_verbose:
+                    print(f"No map found for {entity.name}")
+                return None
+            size_squares = param.get("range", 15) // map.feet_per_grid
+            cur_x, cur_y = map.position_of(entity)
+            position_choices = []
+            # Check the 4 cardinal + 4 diagonal adjacent squares as direction targets
+            for dx in range(-1, 2):
+                for dy in range(-1, 2):
+                    if dx == 0 and dy == 0:
+                        continue
+                    dir_x, dir_y = cur_x + dx, cur_y + dy
+                    if dir_x < 0 or dir_x >= map.size[0]:
+                        continue
+                    if dir_y < 0 or dir_y >= map.size[1]:
+                        continue
+                    squares = map.squares_in_adjacent_cube((cur_x, cur_y), (dir_x, dir_y), size_squares)
+                    if len(squares) == 0:
+                        continue
+                    position_choices.append([dir_x, dir_y])
+
+            if len(position_choices) > 0 and auto_target:
+                # Reuse cone optimizer — it scores by counting enemies/allies in the AoE
+                position_choices = _optimize_cube_targets(position_choices, entity, battle, map, size_squares)
 
             params_list.append(position_choices)
         else:
