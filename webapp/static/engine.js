@@ -483,6 +483,13 @@ class EventQueue {
   }
 
   processMoveEvent(data, resolve) {
+    if (!data.message || !data.message.animation_log) {
+      // Legacy move event without animation_log — just refresh the map
+      try {
+        Utils.refreshTileSet(false, false, 0, 0, null, () => { resolve(); });
+      } catch (_) { resolve(); }
+      return;
+    }
     const animationBuffer = data.message.animation_log;
     // Track entities whose tiles are missing to avoid repeated retries and warnings
     const missingEntities = new Set();
