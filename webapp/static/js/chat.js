@@ -48,6 +48,62 @@ const Chat = {
 
         return cleaned;
     },
+    getTranscriptText: function (isDraggable = false) {
+        const $chatContainer = isDraggable ? $("#draggable-chat-messages") : $("#chat-messages");
+        return $chatContainer.find(".chat-message").map(function () {
+            return $(this).text().replace(/\s+/g, " ").trim();
+        }).get().filter(Boolean).join("\n\n");
+    },
+    selectTranscript: function (isDraggable = false) {
+        const container = (isDraggable ? $("#draggable-chat-messages") : $("#chat-messages"))[0];
+        if (!container) {
+            return;
+        }
+
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(container);
+        selection.removeAllRanges();
+        selection.addRange(range);
+    },
+    copyTranscript: async function (isDraggable = false) {
+        const transcript = Chat.getTranscriptText(isDraggable);
+        const $button = isDraggable ? $("#draggable-copy-chat-transcript") : $("#copy-chat-transcript");
+
+        if (!transcript) {
+            return;
+        }
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(transcript);
+            } else {
+                const $temp = $("<textarea>")
+                    .css({
+                        position: "fixed",
+                        top: "-9999px",
+                        left: "-9999px"
+                    })
+                    .val(transcript)
+                    .appendTo("body");
+                $temp[0].focus();
+                $temp[0].select();
+                document.execCommand("copy");
+                $temp.remove();
+            }
+
+            if ($button.length) {
+                const originalHtml = $button.html();
+                $button.html('<i class="glyphicon glyphicon-ok"></i> Copied');
+                setTimeout(function () {
+                    $button.html(originalHtml);
+                }, 1500);
+            }
+        } catch (error) {
+            console.warn("Clipboard copy failed, selecting transcript instead", error);
+            Chat.selectTranscript(isDraggable);
+        }
+    },
     loadOllamaModels: function () {
         // Use the API key from the modal panel
         const url = $("#ai-api-key").val() || "http://localhost:11434";
@@ -76,6 +132,35 @@ const Chat = {
                 const $modelSelect = $("#ai-model-select");
                 $modelSelect.empty().append('<option value="">Failed to load models</option>');
                 Chat.addChatMessage("system", "Failed to load Ollama models. Please check your Ollama installation and connection.");
+            }
+        });
+    },
+    loadLlamaCppModels: function () {
+        const url = $("#ai-api-key").val() || "http://localhost:8011";
+
+        $.ajax({
+            type: "GET",
+            url: "/ai/llama_cpp/models",
+            data: { base_url: url },
+            success: (data) => {
+                const $modelSelect = $("#ai-model-select");
+                $modelSelect.empty();
+
+                if (data.success && data.models && data.models.length > 0) {
+                    data.models.forEach(model => {
+                        $modelSelect.append(`<option value="${model}">${model}</option>`);
+                    });
+                    Chat.addChatMessage("system", `Found ${data.models.length} llama.cpp models. Please select one and initialize.`);
+                    syncModelSelections();
+                } else {
+                    $modelSelect.append('<option value="">No models found</option>');
+                    Chat.addChatMessage("system", "No llama.cpp models found. Please make sure the server is running and exposing /v1/models.");
+                }
+            },
+            error: () => {
+                const $modelSelect = $("#ai-model-select");
+                $modelSelect.empty().append('<option value="">Failed to load models</option>');
+                Chat.addChatMessage("system", "Failed to load llama.cpp models. Please check the server URL and connection.");
             }
         });
     },
@@ -217,6 +302,8 @@ const Chat = {
         $("#refresh-models").on("click", function () {
             if ($("#ai-provider-select").val() === "ollama") {
                 Chat.loadOllamaModels();
+            } else if ($("#ai-provider-select").val() === "llama_cpp") {
+                Chat.loadLlamaCppModels();
             }
         });
         // Initialize provider select on page load for both panels
@@ -395,8 +482,8 @@ const Chat = {
                         Chat.addChatMessage("system", "Failed to initialize AI: Network error", isDraggable);
                     }
                 });
-            } else if (provider === "ollama") {
-                // Ollama provider
+            } else if (provider === "ollama" || provider === "llama_cpp") {
+                // Local model providers
                 const config = { provider: provider };
                 if (apiKey) {
                     config.base_url = apiKey;
@@ -419,7 +506,8 @@ const Chat = {
                                 $("#ai-status").removeClass("label-default label-danger").addClass("label-success").text("Initialized");
                                 $("#chat-input, #send-chat").prop("disabled", false);
                             }
-                            Chat.addChatMessage("system", `AI Assistant initialized successfully with ${data.model || 'Ollama'}! How can I help you with your D&D game?`, isDraggable);
+                            const providerLabel = provider === "llama_cpp" ? "llama.cpp" : "Ollama";
+                            Chat.addChatMessage("system", `AI Assistant initialized successfully with ${data.model || providerLabel}! How can I help you with your D&D game?`, isDraggable);
                         } else {
                             if (isDraggable) {
                                 $("#draggable-ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
@@ -435,7 +523,8 @@ const Chat = {
                         } else {
                             $("#ai-status").removeClass("label-default label-success").addClass("label-danger").text("Failed");
                         }
-                        Chat.addChatMessage("system", "Failed to initialize AI: Network error. Make sure Ollama is running.", isDraggable);
+                        const providerLabel = provider === "llama_cpp" ? "llama.cpp" : "Ollama";
+                        Chat.addChatMessage("system", `Failed to initialize AI: Network error. Make sure ${providerLabel} is running.`, isDraggable);
                     }
                 });
             } else {
@@ -519,7 +608,18 @@ const Chat = {
                 if (isDraggable) {
                     loadDraggableOllamaModels();
                 } else {
-                    loadOllamaModels();
+                    Chat.loadOllamaModels();
+                }
+            } else if (provider === "llama_cpp") {
+                $apiKeyField.prop("disabled", false).val("http://localhost:8011");
+                $apiKeyLabel.text("llama.cpp URL");
+                $apiKeyHelp.text("Leave empty for http://localhost:8011 or enter custom URL");
+                $modelRow.show();
+
+                if (isDraggable) {
+                    loadDraggableLlamaCppModels();
+                } else {
+                    Chat.loadLlamaCppModels();
                 }
             } else {
                 $apiKeyField.prop("disabled", false).val("");
@@ -779,6 +879,36 @@ const Chat = {
             });
         }
 
+        function loadDraggableLlamaCppModels() {
+            const url = $("#draggable-ai-api-key").val() || "http://localhost:8011";
+
+            $.ajax({
+                type: "GET",
+                url: "/ai/llama_cpp/models",
+                data: { base_url: url },
+                success: (data) => {
+                    const $modelSelect = $("#draggable-ai-model-select");
+                    $modelSelect.empty();
+
+                    if (data.success && data.models && data.models.length > 0) {
+                        data.models.forEach(model => {
+                            $modelSelect.append(`<option value="${model}">${model}</option>`);
+                        });
+                        addChatMessage("system", `Found ${data.models.length} llama.cpp models. Please select one and initialize.`, true);
+                        syncModelSelections();
+                    } else {
+                        $modelSelect.append('<option value="">No models found</option>');
+                        addChatMessage("system", "No llama.cpp models found. Please make sure the server is running and exposing /v1/models.", true);
+                    }
+                },
+                error: () => {
+                    const $modelSelect = $("#draggable-ai-model-select");
+                    $modelSelect.empty().append('<option value="">Failed to load models</option>');
+                    addChatMessage("system", "Failed to load llama.cpp models. Please check the server URL and connection.", true);
+                }
+            });
+        }
+
         // Sync model selections between modal and draggable panel
         function syncModelSelections() {
             const modalModel = $("#ai-model-select").val();
@@ -809,12 +939,31 @@ const Chat = {
             if ($("#draggable-ai-provider-select").val() === "ollama") {
                 loadDraggableOllamaModels();
                 // Also refresh the modal models to keep them in sync
-                loadOllamaModels();
+                Chat.loadOllamaModels();
+            } else if ($("#draggable-ai-provider-select").val() === "llama_cpp") {
+                loadDraggableLlamaCppModels();
+                Chat.loadLlamaCppModels();
             }
         });
 
         // Load position on page load
         $(document).ready(function () {
+            $("#copy-chat-transcript").on("click", function () {
+                Chat.copyTranscript(false);
+            });
+
+            $("#select-chat-transcript").on("click", function () {
+                Chat.selectTranscript(false);
+            });
+
+            $("#draggable-copy-chat-transcript").on("click", function () {
+                Chat.copyTranscript(true);
+            });
+
+            $("#draggable-select-chat-transcript").on("click", function () {
+                Chat.selectTranscript(true);
+            });
+
             loadPanelPosition();
         });
 

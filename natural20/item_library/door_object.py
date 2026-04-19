@@ -316,6 +316,7 @@ class DoorObject(Object):
         elif action == "lockpick_success":
             if self.locked:
                 self.unlock()
+                results.append(self.toast_message(entity, f"{entity} successfully lockpicked {self.label()} with {result['roll']} = {result['roll'].result()}."))
                 session.event_manager.received_event( { "source": entity,
                                                         "target": self,
                                                         "event": "object_interaction",
@@ -326,6 +327,7 @@ class DoorObject(Object):
                                                         "reason": "Door unlocked using lockpick."})
         elif action == "lockpick_fail":
             entity.deduct_item("thieves_tools")
+            results.append(self.toast_message(entity, f"{entity} failed to lockpick {self.label()} with {result['roll']} = {result['roll'].result()}."))
             if session:
                 session.event_manager.received_event({ "source": entity,
                                             "target": self,

@@ -2597,15 +2597,25 @@ $(document).ready(() => {
   // Initialize effects socket handlers if Effects exists
   if (typeof Effects !== 'undefined' && Effects.initSocketHandlers) {
     try {
-      // Load persisted effects setting
-      try {
-        var saved = localStorage.getItem('vtt.effects.enabled');
-        if (saved === 'false') { Effects.setEnabled(false); }
-      } catch (e) { }
+      var serverEffectsEnabled = $('body').attr('data-special-effects-enabled') !== 'false';
+
+      if (!serverEffectsEnabled) {
+        if (Effects.hardReset) {
+          Effects.hardReset();
+        } else {
+          Effects.setEnabled(false);
+        }
+      } else {
+        // Load persisted effects setting
+        try {
+          var saved = localStorage.getItem('vtt.effects.enabled');
+          if (saved === 'false') { Effects.setEnabled(false); }
+        } catch (e) { }
+      }
 
       Effects.initSocketHandlers(socket);
       // Ask the server to resend any active or map-default effects now that handlers are registered
-      if (Effects.isEnabled()) {
+      if (serverEffectsEnabled && Effects.isEnabled()) {
         try { socket.emit('request_effects'); } catch (e) { console.warn('Failed to request effects', e); }
       }
     } catch (e) {
@@ -2649,12 +2659,12 @@ $(document).ready(() => {
   // --- Effects Toggle UI (top-right unobtrusive button) ---
   try {
     if (typeof Effects !== 'undefined') {
+      var serverEffectsEnabled = $('body').attr('data-special-effects-enabled') !== 'false';
       var btn = document.getElementById('effects-toggle-btn');
       if (!btn) {
         btn = document.createElement('button');
         btn.id = 'effects-toggle-btn';
         btn.type = 'button';
-        btn.textContent = Effects.isEnabled() ? 'Effects: On' : 'Effects: Off';
         btn.style.position = 'fixed';
         btn.style.top = '8px';
         btn.style.left = '200px';
@@ -2666,7 +2676,20 @@ $(document).ready(() => {
         btn.style.color = '#fff';
         btn.style.border = '1px solid #555';
         btn.style.borderRadius = '4px';
+        document.body.appendChild(btn);
+      }
+
+      if (!serverEffectsEnabled) {
+        btn.textContent = 'Effects: Disabled';
+        btn.disabled = true;
+        btn.style.cursor = 'not-allowed';
+        btn.style.opacity = '0.55';
+        btn.title = 'Visual effects are disabled by server configuration';
+      } else {
+        btn.textContent = Effects.isEnabled() ? 'Effects: On' : 'Effects: Off';
+        btn.disabled = false;
         btn.style.cursor = 'pointer';
+        btn.style.opacity = '0.75';
         btn.title = 'Toggle visual effects (for performance)';
         btn.addEventListener('mouseenter', function () { btn.style.opacity = '1.0'; });
         btn.addEventListener('mouseleave', function () { btn.style.opacity = '0.75'; });
@@ -2680,7 +2703,6 @@ $(document).ready(() => {
             try { if (socket && socket.emit) socket.emit('request_effects'); } catch (e) { }
           }
         });
-        document.body.appendChild(btn);
       }
     }
   } catch (e) { console.warn('Failed to setup effects toggle', e); }
