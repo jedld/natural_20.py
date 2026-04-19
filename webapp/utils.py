@@ -29,23 +29,370 @@ class SocketIOOutputLogger:
     def __init__(self, socketio):
         self.logging_queue = deque(maxlen=1000)
         self.socketio = socketio
+        self._game_getter = None
+        self._role_lookup = None
+        self._controlled_entities_lookup = None
+        self._event_context = None
 
-    def get_all_logs(self):
-        return self.logging_queue
+    def configure_visibility(self, game_getter=None, role_lookup=None, controlled_entities_lookup=None):
+        self._game_getter = game_getter
+        self._role_lookup = role_lookup
+        self._controlled_entities_lookup = controlled_entities_lookup
+
+    def get_all_logs(self, username=None, roles=None):
+        return [entry['message'] for entry in self.get_visible_entries(username=username, roles=roles)]
+
+    def get_visible_entries(self, username=None, roles=None):
+        if username is None and roles is None:
+            return list(self.logging_queue)
+
+        visible_entries = []
+        for entry in self.logging_queue:
+            if self._entry_visible_to_user(entry, username=username, roles=roles):
+                visible_entries.append(entry)
+        return visible_entries
+
+    def get_visible_entries_for_entity(self, entity):
+        return [entry for entry in self.logging_queue if self._entry_visible_to_entity(entry, entity)]
+
+    def get_logs_for_entity(self, entity):
+        return [entry['message'] for entry in self.get_visible_entries_for_entity(entity)]
 
     def clear_logs(self):
         self.logging_queue.clear()
 
-    def update(self):
-        self.socketio.emit('message', {'type': 'console', 'messages': self.get_all_logs()})
+    def set_event_context(self, event):
+        self._event_context = event
 
-    def log(self, event_msg):
+    def clear_event_context(self):
+        self._event_context = None
+
+    def update(self):
+        game = self._current_game()
+        if not game or not getattr(game, 'username_to_sid', None):
+            self.socketio.emit('message', {'type': 'console', 'messages': self.get_all_logs()})
+            return
+
+        for username, sids in game.username_to_sid.items():
+            if not sids:
+                continue
+            messages = self.get_all_logs(username=username, roles=self._roles_for_username(username))
+            for sid in sids:
+                self.socketio.emit('message', {'type': 'console', 'messages': messages}, to=sid)
+
+    def log(self, event_msg, event=None, visibility=None):
         # add time to the message
         current_time_str = time.strftime("%Y:%m:%d.%H:%M:%S", time.localtime())
-        event_msg = f"{current_time_str}: {event_msg}"
+        rendered_message = f"{current_time_str}: {event_msg}"
+        effective_event = event if event is not None else self._event_context
 
-        self.logging_queue.append(event_msg)
-        self.socketio.emit('message', {'type': 'console', 'message': event_msg})
+        entry = {
+            'timestamp': current_time_str,
+            'message': rendered_message,
+            'visibility': self._snapshot_visibility(event=effective_event, visibility=visibility),
+        }
+
+        self.logging_queue.append(entry)
+        self._emit_entry(entry)
+
+    def _emit_entry(self, entry):
+        game = self._current_game()
+        if not game or not getattr(game, 'username_to_sid', None):
+            self.socketio.emit('message', {'type': 'console', 'message': entry['message']})
+            return
+
+        emitted = False
+        for username, sids in game.username_to_sid.items():
+            if not sids:
+                continue
+            if not self._entry_visible_to_user(entry, username=username):
+                continue
+            emitted = True
+            for sid in sids:
+                self.socketio.emit('message', {'type': 'console', 'message': entry['message']}, to=sid)
+
+        if not emitted and entry['visibility'].get('public'):
+            self.socketio.emit('message', {'type': 'console', 'message': entry['message']})
+
+    def _snapshot_visibility(self, event=None, visibility=None):
+        if visibility is None and event is None:
+            return self._public_visibility()
+
+        if visibility == 'public':
+            return self._public_visibility()
+
+        if visibility in ('dm', 'dm_only'):
+            return self._dm_only_visibility()
+
+        if isinstance(visibility, dict):
+            kind = visibility.get('kind')
+            if kind == 'combat':
+                return self._scoped_visibility(entity_uids=self._combat_visible_entity_uids(visibility))
+            if kind == 'conversation':
+                return self._scoped_visibility(entity_uids=self._conversation_visible_entity_uids(visibility))
+            if kind in ('entity_only', 'entities'):
+                return self._scoped_visibility(
+                    entity_uids=self._entity_uids_from_values(
+                        visibility.get('entity_uids') or visibility.get('entities') or []
+                    ),
+                    usernames=visibility.get('usernames') or [],
+                )
+            if visibility.get('public'):
+                return self._public_visibility()
+            if visibility.get('dm_only'):
+                return self._dm_only_visibility()
+            if visibility.get('entity_uids') or visibility.get('usernames'):
+                return self._scoped_visibility(
+                    entity_uids=self._entity_uids_from_values(visibility.get('entity_uids') or []),
+                    usernames=visibility.get('usernames') or [],
+                )
+
+        if event is not None:
+            event_name = event.get('event')
+            if event_name == 'conversation':
+                return self._scoped_visibility(entity_uids=self._conversation_visible_entity_uids(event))
+            if event_name == 'console':
+                return self._public_visibility()
+            return self._scoped_visibility(entity_uids=self._combat_visible_entity_uids(event))
+
+        return self._public_visibility()
+
+    def _public_visibility(self):
+        return {
+            'public': True,
+            'dm_only': False,
+            'entity_uids': [],
+            'usernames': [],
+        }
+
+    def _dm_only_visibility(self):
+        return {
+            'public': False,
+            'dm_only': True,
+            'entity_uids': [],
+            'usernames': [],
+        }
+
+    def _scoped_visibility(self, entity_uids=None, usernames=None):
+        entity_uids = sorted(set(uid for uid in (entity_uids or []) if uid))
+        usernames = sorted(set(name for name in (usernames or []) if name))
+        if not entity_uids and not usernames:
+            return self._public_visibility()
+        return {
+            'public': False,
+            'dm_only': False,
+            'entity_uids': entity_uids,
+            'usernames': usernames,
+        }
+
+    def _entry_visible_to_user(self, entry, username=None, roles=None):
+        if roles is None:
+            roles = self._roles_for_username(username)
+
+        if roles and 'dm' in roles:
+            return True
+
+        visibility = entry.get('visibility') or self._public_visibility()
+        if visibility.get('public'):
+            return True
+        if visibility.get('dm_only'):
+            return False
+        if username and username in set(visibility.get('usernames') or []):
+            return True
+
+        visible_uids = set(visibility.get('entity_uids') or [])
+        if not visible_uids:
+            return False
+
+        controlled_uids = set(self._controlled_entity_uids_for_username(username))
+        return bool(controlled_uids.intersection(visible_uids))
+
+    def _entry_visible_to_entity(self, entry, entity):
+        if entity is None:
+            return False
+
+        try:
+            if getattr(entity, 'is_admin', False):
+                return True
+        except Exception:
+            pass
+
+        visibility = entry.get('visibility') or self._public_visibility()
+        if visibility.get('public'):
+            return True
+        if visibility.get('dm_only'):
+            return False
+
+        entity_uid = self._entity_uid(entity)
+        if not entity_uid:
+            return False
+
+        visible_uids = set(visibility.get('entity_uids') or [])
+        return entity_uid in visible_uids
+
+    def _combat_visible_entity_uids(self, payload):
+        source = payload.get('source')
+        targets = self._collect_entities(payload)
+        visible_entities = set(self._entity_uids_from_values(targets))
+        if source is not None:
+            source_uid = self._entity_uid(source)
+            if source_uid:
+                visible_entities.add(source_uid)
+
+        if payload.get('players'):
+            visible_entities.update(self._entity_uids_from_values(payload['players'].keys()))
+
+        battle_map = self._map_for_payload(payload)
+        if battle_map is None:
+            return visible_entities
+
+        seeds = []
+        if source is not None:
+            seeds.append(source)
+        seeds.extend(targets)
+
+        if not seeds:
+            return visible_entities
+
+        for viewer in self._map_entities(battle_map):
+            viewer_uid = self._entity_uid(viewer)
+            if not viewer_uid:
+                continue
+            for seed in seeds:
+                try:
+                    if battle_map.can_see(viewer, seed):
+                        visible_entities.add(viewer_uid)
+                        break
+                except Exception:
+                    continue
+
+        return visible_entities
+
+    def _conversation_visible_entity_uids(self, payload):
+        source = payload.get('source')
+        targets = self._collect_entities(payload)
+        visible_entities = set(self._entity_uids_from_values(targets))
+
+        if source is None:
+            return visible_entities
+
+        source_uid = self._entity_uid(source)
+        if source_uid:
+            visible_entities.add(source_uid)
+
+        battle_map = self._map_for_payload(payload)
+        if battle_map is None:
+            return visible_entities
+
+        distance_ft = payload.get('distance_ft', 30)
+        try:
+            listeners = battle_map.entities_in_range(source, distance_ft)
+        except Exception:
+            listeners = []
+
+        for listener in listeners:
+            listener_uid = self._entity_uid(listener)
+            if not listener_uid:
+                continue
+            try:
+                if battle_map.can_see(listener, source):
+                    visible_entities.add(listener_uid)
+            except Exception:
+                continue
+
+        return visible_entities
+
+    def _collect_entities(self, payload):
+        entities = []
+        if payload.get('target') is not None:
+            entities.append(payload.get('target'))
+        entities.extend(payload.get('targets') or [])
+        return entities
+
+    def _entity_uids_from_values(self, values):
+        entity_uids = []
+        for value in values:
+            uid = self._entity_uid(value)
+            if uid:
+                entity_uids.append(uid)
+        return entity_uids
+
+    def _entity_uid(self, value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        return getattr(value, 'entity_uid', None)
+
+    def _map_for_payload(self, payload):
+        source = payload.get('source')
+        candidate_entities = [source] + self._collect_entities(payload)
+        for entity in candidate_entities:
+            battle_map = self._map_for_entity(entity)
+            if battle_map is not None:
+                return battle_map
+        return None
+
+    def _map_for_entity(self, entity):
+        if entity is None:
+            return None
+
+        game = self._current_game()
+        if game is not None:
+            try:
+                battle_map = game.get_map_for_entity(entity)
+                if battle_map is not None:
+                    return battle_map
+            except Exception:
+                pass
+
+        session = getattr(entity, 'session', None)
+        if session is not None:
+            try:
+                return session.map_for_entity(entity)
+            except Exception:
+                return None
+        return None
+
+    def _map_entities(self, battle_map):
+        entities = getattr(battle_map, 'entities', None)
+        if entities is None:
+            return []
+        try:
+            return list(entities)
+        except Exception:
+            return []
+
+    def _current_game(self):
+        if self._game_getter is None:
+            return None
+        try:
+            return self._game_getter()
+        except Exception:
+            return None
+
+    def _roles_for_username(self, username):
+        if not username or self._role_lookup is None:
+            return []
+        try:
+            return self._role_lookup(username) or []
+        except Exception:
+            return []
+
+    def _controlled_entity_uids_for_username(self, username):
+        if not username or self._controlled_entities_lookup is None:
+            return []
+        try:
+            entities = self._controlled_entities_lookup(username) or []
+        except Exception:
+            return []
+
+        entity_uids = []
+        for entity in entities:
+            uid = self._entity_uid(entity)
+            if uid:
+                entity_uids.append(uid)
+        return entity_uids
 
 # Defines a class for high level game management
 class GameManagement:
@@ -333,7 +680,7 @@ class GameManagement:
         self.battle.clear_animation_logs()
 
     def execute_game_loop(self):
-        self.output_logger.log("Battle started.")
+        self.output_logger.log("Battle started.", visibility='public')
         self.game_loop()
         self.socketio.emit('message',{'type': 'initiative', 'message': {}})
 
@@ -479,7 +826,7 @@ class GameManagement:
                         controller.register_handlers_on(entity)
                         self.logger.info(f"Adding {entity.name} to battle with group {group}")
                         self.battle.add(entity, group, controller=controller)
-                    self.output_logger.log("Battle started.")
+                    self.output_logger.log("Battle started.", visibility='public')
 
                     # if battle sound is present, start playing it
                     for soundtrack in (self.soundtracks or []):

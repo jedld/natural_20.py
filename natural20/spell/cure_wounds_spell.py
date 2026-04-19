@@ -14,7 +14,7 @@ class CureWoundsSpell(Spell):
                     'type': 'select_target',
                     'num': 1,
                     'range': self.properties['range'],
-                    'target_types': ['allies', 'self', 'eneimes']
+                    'target_types': ['allies', 'self']
                 }
             ],
             'next': set_target

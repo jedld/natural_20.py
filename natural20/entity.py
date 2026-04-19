@@ -1242,26 +1242,37 @@ class Entity(EntityStateEvaluator, Notable):
         if battle is None:
             return True
 
-        return (battle.entity_state_for(self).get('action', 0) > 0)
+        entity_state = battle.entity_state_for(self)
+        if entity_state is None:
+            return True
+
+        return (entity_state.get('action', 0) > 0)
 
     def total_actions(self, battle):
         if battle:
-            if not battle.entity_state_for(self):
-                return 0
+            entity_state = battle.entity_state_for(self)
+            if not entity_state:
+                return 1
 
-            return battle.entity_state_for(self).get('action')
+            return entity_state.get('action')
         else:
             return 1
 
     def total_reactions(self, battle):
         if battle:
-            return battle.entity_state_for(self).get('reaction')
+            entity_state = battle.entity_state_for(self)
+            if not entity_state:
+                return 1
+            return entity_state.get('reaction')
         else:
             return 1
 
     def total_legendary_actions(self, battle):
         if battle:
-            return battle.entity_state_for(self).get('legendary_actions')
+            entity_state = battle.entity_state_for(self)
+            if not entity_state:
+                return 0
+            return entity_state.get('legendary_actions')
         else:
             return 0
 
@@ -1269,10 +1280,21 @@ class Entity(EntityStateEvaluator, Notable):
         if battle is None:
             return True
 
-        return (battle.entity_state_for(self).get('free_object_interaction', 0) > 0)
+        entity_state = battle.entity_state_for(self)
+        if entity_state is None:
+            return True
+
+        return (entity_state.get('free_object_interaction', 0) > 0)
 
     def total_bonus_actions(self, battle):
-        return battle.entity_state_for(self).get('bonus_action')
+        if battle is None:
+            return 1
+
+        entity_state = battle.entity_state_for(self)
+        if entity_state is None:
+            return 1
+
+        return entity_state.get('bonus_action')
 
     def available_movement(self, battle):
         if battle is None:
@@ -1281,10 +1303,11 @@ class Entity(EntityStateEvaluator, Notable):
         if self.grappled() or self.unconscious():
             return 0
 
-        if battle.entity_state_for(self):
-            return battle.entity_state_for(self).get('movement')
+        entity_state = battle.entity_state_for(self)
+        if entity_state:
+            return entity_state.get('movement')
         else:
-            return 0
+            return self.speed()
 
     def available_spells(self, battle, touch=False):
         return []

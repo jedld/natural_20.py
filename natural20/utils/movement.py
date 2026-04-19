@@ -53,6 +53,41 @@ def valid_move_path(entity: Entity, path: list, battle, map, test_placement=True
     return path == compute_actual_moves(entity, path, map, battle, entity.available_movement(battle) / map.feet_per_grid,
                                         test_placement=test_placement, manual_jump=manual_jump).movement
 
+
+def simplify_path(path):
+    """Remove backtracking/oscillation from a movement path.
+
+    Walks the path and removes cycles: if a square appears more than once,
+    the earlier segment that loops back is collapsed.  The result is the
+    shortest non-repeating sub-path that still starts at path[0] and ends
+    at the furthest unique destination.
+
+    Example::
+
+        simplify_path([[0,4],[0,3],[0,2],[1,2],[0,2],[1,2]])
+        # => [[0,4],[0,3],[0,2],[1,2]]
+    """
+    if not path or len(path) <= 1:
+        return path
+
+    # Walk forward, tracking first occurrence of each square.
+    # When we revisit a square, drop everything from the first occurrence onward
+    # and restart from that square (keeping the prefix before the loop).
+    seen = {}  # tuple(pos) -> index in result
+    result = []
+    for pos in path:
+        key = tuple(pos)
+        if key in seen:
+            # Trim result back to (and including) the first occurrence
+            result = result[:seen[key] + 1]
+            # Rebuild seen index for trimmed result
+            seen = {tuple(r): i for i, r in enumerate(result)}
+        else:
+            seen[key] = len(result)
+            result.append(list(pos))
+    return result
+
+
 def requires_squeeze(entity: Entity, pos_x, pos_y, map, battle=None):
     return not map.passable(entity, pos_x, pos_y, battle, False) and map.passable(entity, pos_x, pos_y, battle, True)
 

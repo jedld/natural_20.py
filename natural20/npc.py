@@ -21,6 +21,7 @@ from natural20.actions.multiattack_action import MultiattackAction
 from natural20.actions.first_aid_action import FirstAidAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.spell_action import SpellAction
+from natural20.actions.speak_action import SpeakAction
 from natural20.utils.action_builder import autobuild
 from natural20.actions.shove_action import ShoveAction
 from natural20.utils.multiattack import Multiattack
@@ -38,7 +39,7 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         DisengageBonusAction, HideAction, HideBonusAction,
         DodgeAction, LookAction, MoveAction,
         StandAction, ShoveAction, HelpAction, UseItemAction, GroundInteractAction,
-        SpellAction, InteractAction
+        SpellAction, InteractAction, SpeakAction
     ]
 
     def __init__(self, session, type, opt=None):
@@ -303,6 +304,8 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
                             actions.append(ShoveAction(session, self, "shove"))
                     elif action_class == LookAction:
                         actions.append(LookAction(session, self, "look"))
+                    elif action_class == SpeakAction:
+                        actions.append(SpeakAction(session, self, "speak"))
                     elif action_class == InteractAction:
                         if map:
                             for objects in map.objects_near(self, battle):
