@@ -33,6 +33,13 @@ def action_animator(action):
                 'label': action.label()
             }
         }
+    elif action and action.action_type == 'move':
+        return {
+            'type': 'move',
+            'token_image': action.source.token_image(),
+            'token_size': action.source.token_size(),
+            'transform': action.source.token_image_transform(),
+        }
     elif action and action.action_type == 'spell':
         # Try to include the spell short name (e.g., 'bless') for client-side visuals
         try:
@@ -592,11 +599,10 @@ class Battle():
             if self.animation_log_enabled:
                 # if len(self.animation_log) == 0:
                 #     self.animation_log.append([action.source.entity_uid, [self.entity_or_object_pos(action.source)], None])
-                self.animation_log.append([action.source.entity_uid, action.move_path, None])
+                self.animation_log.append([action.source.entity_uid, action.move_path, action_animator(action)])
         elif action.action_type == 'attack':
-            if self.animation_log_enabled and len(self.animation_log) > 0:
-                self.animation_log[-1][2] = { "target" : action.target.entity_uid, "source": action.source.entity_uid, "type": "attack", "ranged" : action.ranged_attack(), "label": action.label() }
-            self.animation_log.append(action_animator(action))
+            if self.animation_log_enabled:
+                self.animation_log.append(action_animator(action))
         elif action.action_type == 'interact':
             self.trigger_event('interact', action)
         else:

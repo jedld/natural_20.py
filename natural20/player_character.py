@@ -32,6 +32,7 @@ from natural20.actions.interact_action import InteractAction
 from natural20.actions.find_familiar_action import FindFamiliarAction
 from natural20.actions.summon_familiar_action import SummonFamiliarAction
 from natural20.actions.mage_hand_action import MageHandAction
+from natural20.actions.speak_action import SpeakAction
 from natural20.utils.action_builder import autobuild
 from natural20.concern.container import Container
 from natural20.utils.movement import compute_actual_moves
@@ -74,7 +75,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     LookAction,
     FindFamiliarAction,
     SummonFamiliarAction,
-    MageHandAction
+    MageHandAction,
+    SpeakAction
   ]
 
   def __init__(self, session, properties, name=None):
@@ -359,6 +361,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action_list.append(FindFamiliarAction(session, self, 'dismiss_familiar'))
         elif action_type == MageHandAction:
           action_list.append(MageHandAction(session, self, 'mage_hand_command'))
+        elif action_type == SpeakAction:
+          action_list.append(SpeakAction(session, self, 'speak'))
     return action_list
 
 
@@ -614,7 +618,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
 
     racial_languages = self.race_properties.get('languages', [])
 
-    return sorted(super().languages() + class_languages + racial_languages)
+    return sorted(set(super().languages() + class_languages + racial_languages))
   
   def passive_investigation(self):
     return 10 + self.int_mod() + self.investigation_proficiency()
