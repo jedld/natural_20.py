@@ -838,6 +838,8 @@ class GameManagement:
                 else:
                     for entity, group in add_to_initiative:
                         controller = self.build_combat_controller_for_entity(entity)
+                        if controller is None:
+                            controller = GenericController(self.game_session)
                         controller.register_handlers_on(entity)
                         self.battle.add(entity, group, add_to_initiative=True, controller=controller)
 
