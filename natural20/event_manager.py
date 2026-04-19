@@ -3,6 +3,7 @@ from typing import List, Union
 import i18n
 from collections import deque
 from natural20.utils.attack_util import to_advantage_str
+from natural20.utils.gibberish import gibberish
 
 class EventLogger:
     """
@@ -22,6 +23,12 @@ class OutputLogger:
     def __init__(self):
         pass
 
+    def set_event_context(self, event):
+        return None
+
+    def clear_event_context(self):
+        return None
+
     def log(self, event_msg):
         print(event_msg)
 
@@ -31,6 +38,12 @@ class FileOutputLogger:
     """
     def __init__(self, file_path):
         self.file_path = file_path
+
+    def set_event_context(self, event):
+        return None
+
+    def clear_event_context(self):
+        return None
 
     def log(self, event_msg):
         with open(self.file_path, "a") as f:
@@ -66,8 +79,16 @@ class EventManager:
 
     def received_event(self, event):
         def process_event(event):
-            for handler in self.event_listeners.get(event['event'], []):
-                handler(event)
+            set_context = getattr(self.output_logger, 'set_event_context', None)
+            clear_context = getattr(self.output_logger, 'clear_event_context', None)
+            if callable(set_context):
+                set_context(event)
+            try:
+                for handler in self.event_listeners.get(event['event'], []):
+                    handler(event)
+            finally:
+                if callable(clear_context):
+                    clear_context()
 
         if not self.event_listeners:
             return
@@ -290,10 +311,80 @@ class EventManager:
                 self.output_logger.log(f"{self.show_name(event)} makes a death saving throw and succeeds: {event['roll']} = {event['roll'].result()}")
 
         def conversation(event):
+            source = event.get('source')
+            language = event.get('language', 'common')
+            message = event['message']
+
             if event['targets']:
-                self.output_logger.log(f"{self.show_name(event)} to {self.show_target_name(event)}[{event['language']}]: {event['message']}")
+                prefix = f"{self.show_name(event)} to {self.show_target_name(event)}[{language}]:"
             else:
-                self.output_logger.log(f"{self.show_name(event)} [in {event['language']}]: {event['message']}")
+                prefix = f"{self.show_name(event)} [in {language}]:"
+
+            # Partition nearby entities into those who understand the language and those who don't
+            understands_uids = set()
+            not_understands_uids = set()
+
+            # The speaker always understands their own message
+            if source and hasattr(source, 'entity_uid'):
+                understands_uids.add(source.entity_uid)
+
+            # Targeted entities
+            for target in (event.get('targets') or []):
+                if hasattr(target, 'entity_uid'):
+                    if hasattr(target, 'languages') and language in target.languages():
+                        understands_uids.add(target.entity_uid)
+                    else:
+                        not_understands_uids.add(target.entity_uid)
+
+            # Nearby entities who can hear
+            if source and hasattr(source, 'session'):
+                try:
+                    entity_map = source.session.map_for_entity(source)
+                    if entity_map:
+                        nearby = entity_map.entities_in_range(source, 30)
+                        for listener in nearby:
+                            if listener == source:
+                                continue
+                            if not hasattr(listener, 'entity_uid'):
+                                continue
+                            try:
+                                if not entity_map.can_see(listener, source):
+                                    continue
+                            except Exception:
+                                continue
+                            if hasattr(listener, 'languages') and language in listener.languages():
+                                understands_uids.add(listener.entity_uid)
+                            else:
+                                not_understands_uids.add(listener.entity_uid)
+                except Exception:
+                    pass
+
+            # Remove any entity that already understands from the not-understands set
+            not_understands_uids -= understands_uids
+
+            if not not_understands_uids:
+                # Everyone understands — log normally
+                self.output_logger.log(f"{prefix} {message}")
+            elif not understands_uids:
+                # Nobody understands — log gibberish only
+                self.output_logger.log(f"{prefix} {gibberish(message, language)}")
+            else:
+                # Mixed — emit two scoped log entries
+                understands_vis = {
+                    'public': False,
+                    'dm_only': False,
+                    'entity_uids': sorted(str(uid) for uid in understands_uids),
+                    'usernames': [],
+                }
+                not_understands_vis = {
+                    'public': False,
+                    'dm_only': False,
+                    'entity_uids': sorted(str(uid) for uid in not_understands_uids),
+                    'usernames': [],
+                }
+                self.output_logger.log(f"{prefix} {message}", visibility=understands_vis)
+                self.output_logger.log(f"{prefix} {gibberish(message, language)}", visibility=not_understands_vis)
+
         def died(event):
             if event['source'].object():
                 self.output_logger.log(f"{self.show_name(event)} is destroyed.")

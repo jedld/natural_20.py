@@ -10,7 +10,7 @@ from natural20.entity import Entity
 from natural20.action import Action
 from natural20.controller import Controller
 from natural20.ai.path_compute import PathCompute
-from natural20.utils.movement import retrieve_opportunity_attacks
+from natural20.utils.movement import retrieve_opportunity_attacks, simplify_path
 from natural20.item_library.door_object import DoorObject
 from natural20.item_library.trap_door import TrapDoor
 import math
@@ -112,6 +112,9 @@ class GenericController(Controller):
         # environment, entity = self._build_environment(battle, entity)
         selected_action = self.select_action(battle, entity, available_actions)
         if isinstance(selected_action, MoveAction):
+            # Remove backtracking/oscillation from move paths
+            if selected_action.move_path:
+                selected_action.move_path = simplify_path(selected_action.move_path)
             battle_data = self._battle_data(battle, entity)
             for p in selected_action.move_path:
                 battle_data['visited_location'][tuple(p)] = True
@@ -364,6 +367,10 @@ class GenericController(Controller):
                     # If we have investigate targets on the other side (rough heuristic: door blocks LOS now)
                     if len(enemy_positions) == 0 and len(investigate_location) > 0:
                         score += 0.3
+            else:
+                # Non-door interactions (loot, etc.) are low priority during active combat
+                if len(enemy_positions) > 0:
+                    score = -1.0  # strongly deprioritize when enemies are visible
             return score
 
         sorted_actions = []
