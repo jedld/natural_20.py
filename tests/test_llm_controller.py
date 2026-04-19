@@ -160,6 +160,38 @@ def test_llm_controller_conversation_summary():
     assert 'Hello friend!' in summary[0]
 
 
+def test_llm_controller_prompt_includes_only_visible_combat_logs():
+    session = Session('tests/fixtures')
+    controller = LlmMcpController(session)
+    any_map = next(iter(session.maps.values()))
+    battle = Battle(session, any_map)
+
+    goblin = session.npc('goblin', {"group": "b", "name": "Goblin"})
+    hero = session.npc('goblin', {"group": "a", "name": "Hero"})
+    battle.add(goblin, 'b', position=(0, 0))
+    battle.add(hero, 'a', position=(1, 0))
+    battle.start(combat_order=[goblin, hero])
+
+    class PromptLogger:
+        def get_logs_for_entity(self, entity):
+            if entity is goblin:
+                return [
+                    '2026:04:19.12:00:00: Goblin attacked Hero.',
+                    '2026:04:19.12:00:01: Hero missed Goblin.',
+                ]
+            return ['2026:04:19.12:00:02: Hidden watcher log.']
+
+    session.event_manager.output_logger = PromptLogger()
+
+    actions = goblin.available_actions(session, battle)
+    prompt = controller._build_prompt(battle, goblin, actions)
+
+    assert 'Visible combat log:' in prompt
+    assert 'Goblin attacked Hero.' in prompt
+    assert 'Hero missed Goblin.' in prompt
+    assert 'Hidden watcher log.' not in prompt
+
+
 def test_llm_controller_goal_tool_processing():
     """Test that goal tool calls are properly processed."""
     session = Session('tests/fixtures')

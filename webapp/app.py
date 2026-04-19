@@ -352,7 +352,7 @@ def health():
     return jsonify({"status": "ok"}), 200
 
 output_logger = SocketIOOutputLogger(socketio)
-output_logger.log("Server started")
+output_logger.log("Server started", visibility='public')
 
 event_manager = EventManager(output_logger=output_logger, movement_consolidation=True)
 event_manager.standard_cli()
@@ -555,14 +555,16 @@ def logged_in():
         return True
     return session.get('username') is not None
 
-def user_role():
+def roles_for_username(username):
     if builder_only_mode():
         return ['dm']
-    username = session.get('username')
     if not username:
         return []
     login_info = next((login for login in LOGINS if login["name"].lower() == username), None)
     return login_info["role"] if login_info else []
+
+def user_role():
+    return roles_for_username(session.get('username'))
 
 
 def controller_of(entity_uid, username):
@@ -1073,6 +1075,33 @@ def entity_owners(entity):
 
 app.add_template_global(entity_owners, name='entity_owners')
 
+def visible_log_messages_for_username(username, roles=None):
+    if roles is None:
+        roles = roles_for_username(username)
+    return output_logger.get_all_logs(username=username, roles=roles)
+
+def entity_audience_usernames(entities, include_dm=True):
+    recipients = set()
+    for entity in entities or []:
+        if entity is None:
+            continue
+        recipients.update(entity_owners(entity))
+
+    if include_dm:
+        for login in LOGINS:
+            roles = login.get('role') or []
+            if 'dm' in roles and login.get('name'):
+                recipients.add(login['name'].lower())
+
+    return recipients
+
+def conversation_audience_usernames(source_entity, processed_conversations=None, targets=None, include_dm=True):
+    audience_entities = [source_entity]
+    audience_entities.extend(targets or [])
+    for receiver, _message, _directed_to in (processed_conversations or []):
+        audience_entities.append(receiver)
+    return entity_audience_usernames(audience_entities, include_dm=include_dm)
+
 
 def conversation_recipient_usernames(entity, include_requester=True):
     recipients = set(entity_owners(entity))
@@ -1088,6 +1117,12 @@ def conversation_recipient_usernames(entity, include_requester=True):
             recipients.add(login['name'].lower())
 
     return recipients
+
+output_logger.configure_visibility(
+    game_getter=lambda: current_game,
+    role_lookup=roles_for_username,
+    controlled_entities_lookup=entities_controlled_by,
+)
 
 def describe_terrain(tile):
     battle_map = current_game.get_map_for_user(session['username'])
@@ -2143,7 +2178,7 @@ def index():
 
     tiles_dimension_height = map_height * TILE_PX
     tiles_dimension_width = map_width * TILE_PX
-    messages = output_logger.get_all_logs()
+    messages = visible_log_messages_for_username(session['username'], user_role())
 
     # get entity ids of the current user
     entity_ids = []
@@ -2313,7 +2348,7 @@ def switch_map():
 def combat_log():
     global current_game
     battle = current_game.get_current_battle()
-    logs = output_logger.get_all_logs()
+    logs = visible_log_messages_for_username(session['username'], user_role())
     response =[{'message': log} for log in logs]
     return jsonify(combat_log=response)
 
@@ -2321,7 +2356,7 @@ def combat_log():
 def get_combat_log():
     global current_game
     battle = current_game.get_current_battle()
-    logs = output_logger.get_all_logs()
+    logs = visible_log_messages_for_username(session['username'], user_role())
     return render_template('combat-log.html', combat_log=logs,
                            username=session['username'], role=user_role())
 
@@ -2584,7 +2619,7 @@ def start_battle_with_initiative():
 
             controller.register_handlers_on(entity)
             battle.add(entity, param_item['group'], controller=controller)
-        output_logger.log("Battle started.")
+        output_logger.log("Battle started.", visibility='public')
         battle.start()
     else:
         print("skipping default battle start")
@@ -3441,7 +3476,10 @@ def manual_roll():
     description = request.json.get('description', None)
     roll_result = DieRoll.roll(roll, disadvantage=disadvantage, advantage=advantage,
                 entity=entity, battle=battle, description=description)
-    output_logger.log(f"{entity.name} rolled a {roll_result}={roll_result.result()} for {description}")
+    output_logger.log(
+        f"{entity.name} rolled a {roll_result}={roll_result.result()} for {description}",
+        visibility={'kind': 'combat', 'entities': [entity]},
+    )
   
     return jsonify(roll_result=roll_result.result(), roll_explaination=str(roll_result))
 
@@ -3505,7 +3543,10 @@ def read_letter():
     # Process the letter for the entity using the provided item_id.
     item, letter_content = entity.read_item(item_id)
 
-    output_logger.log(f"{entity.name} read {item.get('label', item['name'])}: {letter_content}")
+    output_logger.log(
+        f"{entity.name} read {item.get('label', item['name'])}: {letter_content}",
+        visibility={'kind': 'entity_only', 'entities': [entity]},
+    )
 
     # process raw text so that linebreaks are preserved when rendering on the web page
     letter_content = letter_content.replace('\n', '<br>')
@@ -4068,9 +4109,15 @@ def talk():
         for _entity_uid in primary_targets:
             entity_targets.append(game_session.entity_by_uid(_entity_uid))
     processed_conversations = entity.send_conversation(message, distance_ft=distance_ft, targets=entity_targets, language=language)
-    current_sids = current_game.username_to_sid.get(session['username'], [])
-    for sid in current_sids:
-        socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': entity_id, 'message': message}}, to=sid)
+    speaker_audience = conversation_audience_usernames(entity, processed_conversations, targets=entity_targets)
+    for recipient_username in speaker_audience:
+        sids = current_game.username_to_sid.get(recipient_username, [])
+        for sid in sids:
+            socketio.emit(
+                'message',
+                {'type': 'conversation', 'message': {'entity_id': entity_id, 'message': message, 'targets': primary_targets}},
+                to=sid,
+            )
 
     for receiver, message, directed_to in processed_conversations:
         if receiver.entity_uid == entity_id:
@@ -4095,8 +4142,8 @@ def talk():
                     language, response = entity_rag_handler.process_entity_response(
                         response, receiver, entity, llm_conversation_handler
                     )
-                    receiver.send_conversation(response, targets=[entity], language=language)
-                    recipient_usernames = conversation_recipient_usernames(entity)
+                    response_conversations = receiver.send_conversation(response, targets=[entity], language=language)
+                    recipient_usernames = conversation_audience_usernames(receiver, response_conversations, targets=[entity])
                     for recipient_username in recipient_usernames:
                         sids = current_game.username_to_sid.get(recipient_username, [])
                         for sid in sids:
@@ -4355,7 +4402,10 @@ def update_action_resources():
         entity_state[resource_type] = new_value
         
         # Log the change for tracking
-        output_logger.log(f"DM updated {entity.label()}'s {resource_type.replace('_', ' ')} from {current_value} to {new_value}")
+        output_logger.log(
+            f"DM updated {entity.label()}'s {resource_type.replace('_', ' ')} from {current_value} to {new_value}",
+            visibility='dm_only',
+        )
         
         # Emit update to refresh the UI for all connected clients
         socketio.emit('message', {'type': 'refresh_map'})
@@ -4439,7 +4489,10 @@ def update_spell_slots():
         entity.spell_slots[character_class][level] = new_value
         
         # Log the change for tracking
-        output_logger.log(f"DM updated {entity.label()}'s {character_class} level {level} spell slots from {current_value} to {new_value}")
+        output_logger.log(
+            f"DM updated {entity.label()}'s {character_class} level {level} spell slots from {current_value} to {new_value}",
+            visibility='dm_only',
+        )
         
         # Emit update to refresh the UI for all connected clients
         socketio.emit('message', {'type': 'refresh_map'})
@@ -4509,7 +4562,10 @@ def dm_move_entity():
         battle_map.move_to(entity, target_x, target_y, battle)
         
         # Log the move for tracking
-        output_logger.log(f"DM moved {entity.label()} from ({current_x}, {current_y}) to ({target_x}, {target_y})")
+        output_logger.log(
+            f"DM moved {entity.label()} from ({current_x}, {current_y}) to ({target_x}, {target_y})",
+            visibility='dm_only',
+        )
         
         # Emit update to refresh the UI for all connected clients
         socketio.emit('message', {'type': 'refresh_map'})

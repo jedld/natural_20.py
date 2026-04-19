@@ -166,6 +166,63 @@ class TestBattle(unittest.TestCase):
         print(valid_targets2)
         assert fighter1 not in valid_targets2, valid_targets2
 
+    def test_move_then_attack_animation_log_has_single_attack_entry(self):
+        session = self.make_session()
+        battle_map = Map(session, 'battle_sim_objects')
+        battle = Battle(session, battle_map, animation_log_enabled=True)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        goblin = session.npc('goblin', {"name": 'target'})
+
+        battle.add(fighter, 'a', position=(0, 5), token='G')
+        battle.add(goblin, 'b', position=(2, 5), token='g')
+        battle.start(combat_order=[fighter, goblin])
+        fighter.reset_turn(battle)
+        goblin.reset_turn(battle)
+
+        move_action = MoveAction(session, fighter, 'move')
+        move_action.move_path = [[0, 5], [1, 5]]
+        move_action = battle.action(move_action)
+        battle.commit(move_action)
+
+        random.seed(1337)
+        attack_action = battle.resolve_action(fighter, 'attack', {"target": goblin, "using": 'vicious_rapier'})
+        battle.commit(attack_action)
+
+        animation_log = battle.get_animation_logs()
+        assert len(animation_log) == 2, animation_log
+        assert animation_log[0][0] == fighter.entity_uid
+        assert animation_log[0][1] == [[0, 5], [1, 5]]
+        assert animation_log[0][2]['type'] == 'move'
+        assert animation_log[0][2]['token_image'] == fighter.token_image()
+        assert animation_log[0][2]['token_size'] == fighter.token_size()
+        assert isinstance(animation_log[1], dict)
+        assert animation_log[1].get('type') == 'attack'
+        assert animation_log[1]['message']['source'] == fighter.entity_uid
+        assert animation_log[1]['message']['target'] == goblin.entity_uid
+
+    def test_entities_not_in_active_battle_use_out_of_combat_resource_defaults(self):
+        session = self.make_session()
+        battle_map = Map(session, 'battle_sim_objects')
+        battle = Battle(session, battle_map)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        goblin = session.npc('goblin', {"name": 'target'})
+        spectator = session.npc('goblin', {"name": 'spectator'})
+
+        battle.add(fighter, 'a', position=(0, 5), token='G')
+        battle.add(goblin, 'b', position=(2, 5), token='g')
+        battle_map.place((4, 5), spectator, 's')
+
+        battle.start(combat_order=[fighter, goblin])
+
+        assert battle.entity_state_for(spectator) is None
+        assert spectator.action(battle)
+        assert spectator.total_actions(battle) == 1
+        assert spectator.total_reactions(battle) == 1
+        assert spectator.total_bonus_actions(battle) == 1
+        assert spectator.total_legendary_actions(battle) == 0
+        assert spectator.free_object_interaction(battle)
+        assert spectator.available_movement(battle) == spectator.speed()
+
     # Tests that an action can have reactions attached to it
     # and can be resolved
     def test_opportunity_attack_reactions(self):

@@ -242,6 +242,91 @@ class LlmMcpController(GenericController):
 				},
 			},
 		},
+		# Advanced communication tools
+		{
+			"type": "function",
+			"function": {
+				"name": "request_help",
+				"description": "Call out to a nearby ally asking them to help you with a specific task (e.g., 'help me attack the goblin', 'heal me', 'cover my retreat'). The ally will hear this and may act accordingly on their next turn.",
+				"parameters": {
+					"type": "object",
+					"properties": {
+						"ally_name": {
+							"type": "string",
+							"description": "The name of the ally you are calling out to.",
+						},
+						"request": {
+							"type": "string",
+							"description": "What you need help with.",
+						},
+					},
+					"required": ["ally_name", "request"],
+				},
+			},
+		},
+		{
+			"type": "function",
+			"function": {
+				"name": "warn_ally",
+				"description": "Shout a warning to a nearby ally about a danger (e.g., 'Watch out! Flanking from behind!', 'Trap ahead!'). The ally will hear this and may take precautions on their next turn.",
+				"parameters": {
+					"type": "object",
+					"properties": {
+						"ally_name": {
+							"type": "string",
+							"description": "The name of the ally to warn.",
+						},
+						"warning": {
+							"type": "string",
+							"description": "The danger or threat you are warning about.",
+						},
+					},
+					"required": ["ally_name", "warning"],
+				},
+			},
+		},
+		{
+			"type": "function",
+			"function": {
+				"name": "coordinate_attack",
+				"description": "Call out tactical coordination to allies (e.g., 'Focus fire on the wizard!', 'Surround the ogre!'). All nearby allies will hear this.",
+				"parameters": {
+					"type": "object",
+					"properties": {
+						"directive": {
+							"type": "string",
+							"description": "The tactical directive to coordinate.",
+						},
+						"target_name": {
+							"type": "string",
+							"description": "Optional: the name of the enemy to focus on.",
+						},
+					},
+					"required": ["directive"],
+				},
+			},
+		},
+		{
+			"type": "function",
+			"function": {
+				"name": "taunt",
+				"description": "Taunt or provoke an enemy to try to draw their attention. This is roleplay communication - it does not mechanically force them to target you, but may influence their behavior.",
+				"parameters": {
+					"type": "object",
+					"properties": {
+						"enemy_name": {
+							"type": "string",
+							"description": "The name of the enemy to taunt.",
+						},
+						"message": {
+							"type": "string",
+							"description": "The taunting message.",
+						},
+					},
+					"required": ["enemy_name", "message"],
+				},
+			},
+		},
 	]
 
 	def __init__(self, session, valid_move_types=None, llm_client=None, model: Optional[str] = None, use_tools: bool = True, llm_provider=None):
@@ -372,6 +457,114 @@ class LlmMcpController(GenericController):
 			ctx['action_history'].pop(0)
 		ctx['action_history'].append(action_desc)
 
+	def begin_turn(self, entity) -> None:
+		"""
+		Called at the start of an entity's turn in combat.
+		Processes pending communications (requests, warnings, directives, taunts)
+		and incorporates them into the entity's tactical context.
+		"""
+		ctx = self._get_entity_context(entity)
+
+		# Process pending help requests from allies
+		pending_requests = ctx.pop('pending_requests', [])
+		for req in pending_requests:
+			self.add_memory_note(entity, f"{req['from']} asked for help: {req['request']}")
+
+		# Process pending warnings from allies
+		pending_warnings = ctx.pop('pending_warnings', [])
+		for warn in pending_warnings:
+			self.add_memory_note(entity, f"WARNING from {warn['from']}: {warn['warning']}")
+
+		# Process pending tactical directives from allies
+		pending_directives = ctx.pop('pending_directives', [])
+		for directive in pending_directives:
+			note = f"Tactical directive from {directive['from']}: {directive['directive']}"
+			if directive.get('target'):
+				note += f" (target: {directive['target']})"
+			self.add_memory_note(entity, note)
+
+		# Process received taunts from enemies
+		received_taunts = ctx.pop('received_taunts', [])
+		for taunt in received_taunts:
+			self.add_memory_note(entity, f"{taunt['from']} taunted me: \"{taunt['message'][:50]}\"")
+
+		# Check for unprocessed conversations in memory_buffer since last turn
+		self._process_unread_conversations(entity, ctx)
+
+	def _process_unread_conversations(self, entity, ctx: dict) -> None:
+		"""
+		Check the entity's memory_buffer for new conversations since last processed
+		and add them as memory notes for the LLM to consider.
+		"""
+		last_processed_time = ctx.get('_last_conversation_time', -1)
+		memory_buffer = getattr(entity, 'memory_buffer', [])
+
+		new_messages = []
+		for entry in memory_buffer:
+			msg_time = entry.get('time', 0)
+			if msg_time is not None and msg_time > last_processed_time:
+				source = entry.get('source')
+				if source == entity:
+					continue  # Skip own messages
+				source_name = getattr(source, 'name', str(source)) if source else 'Unknown'
+				message = entry.get('message', '')
+				directed_to = entry.get('directed_to', [])
+
+				# Check if this entity can understand the language
+				language = entry.get('language', 'common')
+				entity_languages = getattr(entity, 'languages', lambda: ['common'])()
+				if language.lower() not in [l.lower() for l in entity_languages]:
+					continue  # Can't understand
+
+				# Only record messages directed at this entity or broadcast
+				if directed_to is None or entity in (directed_to or []) or not directed_to:
+					msg_preview = message[:80] + "..." if len(message) > 80 else message
+					new_messages.append(f"{source_name}: \"{msg_preview}\"")
+
+		if new_messages:
+			# Keep only recent messages to avoid flooding memory
+			for msg in new_messages[-3:]:
+				self.add_memory_note(entity, f"Heard: {msg}")
+
+		# Update last processed time
+		if memory_buffer:
+			latest_time = max((entry.get('time', 0) or 0) for entry in memory_buffer)
+			ctx['_last_conversation_time'] = latest_time
+		elif last_processed_time == -1:
+			ctx['_last_conversation_time'] = 0
+
+	def get_communication_context(self, entity) -> str:
+		"""
+		Build a communication context string for inclusion in the LLM prompt.
+		Includes pending requests, warnings, and directives from allies.
+		"""
+		ctx = self._get_entity_context(entity)
+		parts = []
+
+		pending_requests = ctx.get('pending_requests', [])
+		if pending_requests:
+			for req in pending_requests:
+				parts.append(f"- {req['from']} is asking for help: {req['request']}")
+
+		pending_warnings = ctx.get('pending_warnings', [])
+		if pending_warnings:
+			for warn in pending_warnings:
+				parts.append(f"- WARNING from {warn['from']}: {warn['warning']}")
+
+		pending_directives = ctx.get('pending_directives', [])
+		if pending_directives:
+			for d in pending_directives:
+				parts.append(f"- Directive from {d['from']}: {d['directive']}")
+
+		received_taunts = ctx.get('received_taunts', [])
+		if received_taunts:
+			for t in received_taunts:
+				parts.append(f"- {t['from']} is taunting you: \"{t['message'][:50]}\"")
+
+		if parts:
+			return "Incoming communications:\n" + "\n".join(parts) + "\n"
+		return ""
+
 	def _process_goal_tool_calls(self, entity, battle, tool_calls: List[dict]) -> List[dict]:
 		"""
 		Process any goal-setting, memory, communication, or perception tool calls from the LLM response.
@@ -392,6 +585,15 @@ class LlmMcpController(GenericController):
 					self.add_memory_note(entity, args.get('note', ''))
 				elif func_name == 'speak':
 					self._handle_speak(entity, battle, args)
+				# Communication tools
+				elif func_name == 'request_help':
+					self._handle_request_help(entity, battle, args)
+				elif func_name == 'warn_ally':
+					self._handle_warn_ally(entity, battle, args)
+				elif func_name == 'coordinate_attack':
+					self._handle_coordinate_attack(entity, battle, args)
+				elif func_name == 'taunt':
+					self._handle_taunt(entity, battle, args)
 				# Perception tools
 				elif func_name == 'get_visible_entities':
 					result = self._handle_get_visible_entities(entity, battle)
@@ -456,6 +658,133 @@ class LlmMcpController(GenericController):
 				self.add_memory_note(entity, f"I said: \"{message[:50]}{'...' if len(message) > 50 else ''}\"")
 		except Exception:
 			pass  # Silently fail if communication fails
+
+	def _find_entity_by_name(self, battle, name: str):
+		"""Find an entity in the battle by name (case-insensitive)."""
+		if not name:
+			return None
+		try:
+			all_entities = list(battle.entities.keys()) if hasattr(battle, 'entities') else []
+			for e in all_entities:
+				if getattr(e, 'name', '').lower() == name.lower():
+					return e
+		except Exception:
+			pass
+		return None
+
+	def _handle_request_help(self, entity, battle, args: dict) -> None:
+		"""Handle a request_help tool call - ask a nearby ally for help."""
+		ally_name = args.get('ally_name', '')
+		request = args.get('request', '')
+		if not ally_name or not request:
+			return
+
+		ally = self._find_entity_by_name(battle, ally_name)
+		targets = [ally] if ally else None
+		message = f"[Request] {request}"
+
+		try:
+			if hasattr(entity, 'send_conversation'):
+				entity.send_conversation(message, distance_ft=60, targets=targets, language='common')
+				self.add_memory_note(entity, f"Asked {ally_name} for help: {request[:50]}")
+				# Record the request in the ally's context so it's available on their turn
+				if ally:
+					ally_ctx = self._get_entity_context(ally)
+					if 'pending_requests' not in ally_ctx:
+						ally_ctx['pending_requests'] = []
+					ally_ctx['pending_requests'].append({
+						'from': entity.name,
+						'request': request,
+					})
+		except Exception:
+			pass
+
+	def _handle_warn_ally(self, entity, battle, args: dict) -> None:
+		"""Handle a warn_ally tool call - shout a warning to a nearby ally."""
+		ally_name = args.get('ally_name', '')
+		warning = args.get('warning', '')
+		if not ally_name or not warning:
+			return
+
+		ally = self._find_entity_by_name(battle, ally_name)
+		targets = [ally] if ally else None
+		message = f"[Warning] {warning}"
+
+		try:
+			if hasattr(entity, 'send_conversation'):
+				entity.send_conversation(message, distance_ft=60, targets=targets, language='common')
+				self.add_memory_note(entity, f"Warned {ally_name}: {warning[:50]}")
+				# Store the warning in the ally's context
+				if ally:
+					ally_ctx = self._get_entity_context(ally)
+					if 'pending_warnings' not in ally_ctx:
+						ally_ctx['pending_warnings'] = []
+					ally_ctx['pending_warnings'].append({
+						'from': entity.name,
+						'warning': warning,
+					})
+		except Exception:
+			pass
+
+	def _handle_coordinate_attack(self, entity, battle, args: dict) -> None:
+		"""Handle a coordinate_attack tool call - broadcast tactical directive to allies."""
+		directive = args.get('directive', '')
+		target_name = args.get('target_name', '')
+		if not directive:
+			return
+
+		message = f"[Coordinate] {directive}"
+		if target_name:
+			message += f" (target: {target_name})"
+
+		try:
+			if hasattr(entity, 'send_conversation'):
+				# Broadcast to all allies in range
+				entity.send_conversation(message, distance_ft=60, targets=None, language='common')
+				self.add_memory_note(entity, f"Coordinated: {directive[:50]}")
+				# Store the directive in all ally contexts
+				try:
+					my_group = battle.entities[entity].get('group')
+					for e, state in battle.entities.items():
+						if e != entity and state.get('group') == my_group and e.conscious():
+							ally_ctx = self._get_entity_context(e)
+							if 'pending_directives' not in ally_ctx:
+								ally_ctx['pending_directives'] = []
+							ally_ctx['pending_directives'].append({
+								'from': entity.name,
+								'directive': directive,
+								'target': target_name,
+							})
+				except Exception:
+					pass
+		except Exception:
+			pass
+
+	def _handle_taunt(self, entity, battle, args: dict) -> None:
+		"""Handle a taunt tool call - taunt or provoke an enemy."""
+		enemy_name = args.get('enemy_name', '')
+		message = args.get('message', '')
+		if not enemy_name or not message:
+			return
+
+		enemy = self._find_entity_by_name(battle, enemy_name)
+		targets = [enemy] if enemy else None
+
+		try:
+			if hasattr(entity, 'send_conversation'):
+				entity.send_conversation(message, distance_ft=60, targets=targets, language='common')
+				self.add_memory_note(entity, f"Taunted {enemy_name}: {message[:50]}")
+				# Store the taunt in the enemy's context so their LLM can consider it
+				if enemy:
+					enemy_ctx = self._get_entity_context(enemy)
+					if 'received_taunts' not in enemy_ctx:
+						enemy_ctx['received_taunts'] = []
+					enemy_ctx['received_taunts'].append({
+						'from': entity.name,
+						'message': message,
+					})
+		except Exception:
+			pass
 
 	# --- Perception Tool Handlers ---
 	def _handle_get_visible_entities(self, entity, battle) -> dict:
@@ -1055,6 +1384,7 @@ class LlmMcpController(GenericController):
 				# Names of all non-action tools
 				auxiliary_tool_names = (
 					'set_short_term_goal', 'set_long_term_goal', 'add_memory_note', 'speak',
+					'request_help', 'warn_ally', 'coordinate_attack', 'taunt',
 					'get_visible_entities', 'get_visible_objects', 'get_terrain_at',
 					'compute_path_to', 'compute_path_to_entity', 'get_reachable_positions', 'get_optimal_ranged_position'
 				)
@@ -1227,9 +1557,28 @@ class LlmMcpController(GenericController):
 					except Exception:
 						pass
 					metrics = f" ({', '.join(info)})" if info else ""
-					return f"{idx}. cast {sp or 'a spell'} on {getattr(t, 'name', 'target')}{metrics}"
+					# Annotate target with relationship (ally/enemy/self)
+					tname = getattr(t, 'name', 'target') if t else 'target'
+					if t is entity:
+						rel = 'self'
+					elif t and t in battle.opponents_of(entity):
+						rel = 'ENEMY'
+					else:
+						rel = 'ally'
+					return f"{idx}. cast {sp or 'a spell'} on {tname} [{rel}]{metrics}"
 				if isinstance(a, LookAction):
 					return f"{idx}. look around"
+				# Interact actions: add target name and combat-relevance warning
+				if a.action_type == 'interact':
+					tgt = getattr(a, 'target', None)
+					act_name = a.object_action_name() if hasattr(a, 'object_action_name') else None
+					tgt_name = getattr(tgt, 'name', str(tgt)) if tgt else 'object'
+					# Warn if non-tactical during active combat
+					from natural20.item_library.door_object import DoorObject
+					from natural20.item_library.trap_door import TrapDoor
+					if not isinstance(tgt, (DoorObject, TrapDoor)) and any(battle.can_see(entity, e) for e in battle.opponents_of(entity)):
+						return f"{idx}. interact {tgt_name} [{act_name or 'use'}] (non-combat; enemies present!)"
+					return f"{idx}. interact {tgt_name} [{act_name or 'use'}]"
 				# Generic fallback
 				return f"{idx}. {a.action_type}"
 			except Exception:
@@ -1292,6 +1641,8 @@ class LlmMcpController(GenericController):
 			"Guidelines: prefer lethal or high-impact attacks when safe; avoid provoking opportunity attacks unless payoff is high; "
 			"use movement to get line of sight or optimal range; conserve limited resources when impact is low; "
 			"if HP is low, favor defensive options like disengage/dodge/hide; maintain concentration on valuable effects. "
+			"NEVER cast healing spells on enemies—heal only allies or yourself. "
+			"Avoid non-combat interactions (looting, etc.) while enemies are present; focus on combat actions first. "
 			"Only pick from the provided actions."
 		)
 
@@ -1330,6 +1681,15 @@ class LlmMcpController(GenericController):
 		if conversation_summary:
 			parts.append("Recent conversations:\n" + "\n".join(f"- {c}" for c in conversation_summary) + "\n")
 
+		# Add incoming communications (requests, warnings, directives, taunts)
+		comm_context = self.get_communication_context(entity)
+		if comm_context:
+			parts.append(comm_context)
+
+		combat_log_summary = self._get_visible_combat_log_summary(entity, n=8)
+		if combat_log_summary:
+			parts.append("Visible combat log:\n" + "\n".join(f"- {line}" for line in combat_log_summary) + "\n")
+
 		# Add goals and memory notes from session-persistent context
 		goals_summary = self.get_goals_summary(entity)
 		if goals_summary and goals_summary != "(no goals set)":
@@ -1350,7 +1710,7 @@ class LlmMcpController(GenericController):
 			f"{instructions}\n",
 			"Available tools:\n",
 			"- Goal/Memory: set_short_term_goal, set_long_term_goal, add_memory_note (update tactical context)\n",
-			"- Communication: speak (say something to nearby entities)\n",
+			"- Communication: speak, request_help, warn_ally, coordinate_attack, taunt (communicate with nearby entities)\n",
 			"- Perception: get_visible_entities, get_visible_objects, get_terrain_at (gather battlefield info)\n",
 			"- Pathfinding: compute_path_to, compute_path_to_entity, get_reachable_positions, get_optimal_ranged_position (plan movement)\n",
 			"Return either a single integer index (0-based) or call choose_action with that index.",
@@ -1380,6 +1740,9 @@ class LlmMcpController(GenericController):
 			parts_c.append("Recent actions (you):\n" + ("\n".join(f"- {r}" for r in recent_you_c) if recent_you_c else "(none yet)\n"))
 			parts_c.append("Recent actions (allies):\n" + ("\n".join(f"- {r}" for r in recent_allies_c) if recent_allies_c else "(none)\n"))
 			parts_c.append("Recent actions (enemies):\n" + ("\n".join(f"- {r}" for r in recent_enemies_c) if recent_enemies_c else "(none)\n"))
+			combat_log_compact = self._get_visible_combat_log_summary(entity, n=4)
+			if combat_log_compact:
+				parts_c.append("Visible combat log:\n" + "\n".join(f"- {line}" for line in combat_log_compact) + "\n")
 			# Include goals even in compact mode (they're brief)
 			if goals_summary and goals_summary != "(no goals set)":
 				parts_c.append(f"Goals: {goals_summary}\n")
@@ -1602,7 +1965,26 @@ class LlmMcpController(GenericController):
 				targets = battle.valid_targets_for(entity, action)
 				if targets:
 					action = action.clone()
-					action.target = targets[0]
+					# For healing spells (negative avg_damage), prefer wounded allies over enemies
+					is_healing = False
+					try:
+						avg = action.avg_damage(battle)
+						is_healing = avg is not None and avg < 0
+					except Exception:
+						pass
+					if is_healing:
+						allies = set(battle.allies_of(entity)) | {entity}
+						ally_targets = [t for t in targets if t in allies and t.hp() < t.max_hp()]
+						if ally_targets:
+							# Pick the most wounded ally
+							ally_targets.sort(key=lambda t: t.hp() / max(t.max_hp(), 1))
+							action.target = ally_targets[0]
+						else:
+							# Fall back to any ally even at full HP
+							any_ally = [t for t in targets if t in allies]
+							action.target = any_ally[0] if any_ally else targets[0]
+					else:
+						action.target = targets[0]
 			except Exception:
 				pass
 		elif isinstance(action, MoveAction) and not action.move_path:
@@ -1675,6 +2057,38 @@ class LlmMcpController(GenericController):
 					continue
 			
 			return summaries
+		except Exception:
+			return []
+
+	def _get_visible_combat_log_summary(self, entity, n: int = 8, max_chars: int = 160) -> List[str]:
+		"""
+		Get recent combat-log lines visible to this entity from the active output logger.
+		Uses logger-side filtering when available so the prompt only includes lines the entity could perceive.
+		"""
+		try:
+			event_manager = getattr(self.session, 'event_manager', None)
+			output_logger = getattr(event_manager, 'output_logger', None)
+			if output_logger is None:
+				return []
+
+			if hasattr(output_logger, 'get_logs_for_entity'):
+				logs = output_logger.get_logs_for_entity(entity)
+			else:
+				logs = []
+
+			if not logs:
+				return []
+
+			recent = logs[-n:] if len(logs) > n else logs
+			summary = []
+			for entry in recent:
+				if not entry:
+					continue
+				line = str(entry).strip()
+				if len(line) > max_chars:
+					line = line[:max_chars - 3] + '...'
+				summary.append(line)
+			return summary
 		except Exception:
 			return []
 

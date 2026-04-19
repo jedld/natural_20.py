@@ -14,7 +14,7 @@ class HealingWordSpell(Spell):
                     'type': 'select_target',
                     'num': 1,
                     'range': self.properties['range'],
-                    'target_types': ['allies', 'self', 'enemies']
+                    'target_types': ['allies', 'self']
                 }
             ],
             'next': set_target
