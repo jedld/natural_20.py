@@ -51,6 +51,7 @@ class SocketIOOutputLogger:
 class GameManagement:
     def __init__(self, game_session: Session, map_location, other_maps, socketio, output_logger, tile_px, controllers,
                  npc_controller = None,
+                 force_llm_npc_combat = False,
                  autosave = False,
                  auto_battle=True,
                  system_logger=None,  soundtrack=None):
@@ -76,6 +77,7 @@ class GameManagement:
         self.end_turn_state = False
         self.controllers = controllers
         self.npc_controller = npc_controller
+        self.force_llm_npc_combat = force_llm_npc_combat
         self.auto_battle = auto_battle
         self.web_controllers = {}
         self.maps = {}
@@ -360,6 +362,34 @@ class GameManagement:
 
     def get_available_maps(self):
         return list(self.maps.keys())
+
+    def effective_npc_combat_controller(self):
+        if self.force_llm_npc_combat:
+            return 'llm'
+        return self.npc_controller
+
+    def build_combat_controller_for_entity(self, entity):
+        if isinstance(entity, PlayerCharacter):
+            return self.get_controller_for_entity(entity)
+        if entity.familiar():
+            return self.get_controller_for_entity(entity.owner)
+
+        npc_controller = self.effective_npc_combat_controller()
+
+        if npc_controller == 'manual':
+            web_controllers = WebController(self.game_session, None)
+            web_controllers.add_user("dm")
+            return web_controllers
+
+        if npc_controller == 'llm':
+            try:
+                from webapp.app import llm_handler as _llm_handler  # type: ignore
+                provider = getattr(_llm_handler, 'current_provider', None)
+            except Exception:
+                provider = None
+            return LlmMcpController(self.game_session, llm_provider=provider)
+
+        return GenericController(self.game_session)
     
     def update_group(self, entity, group):
         entity.group = group
@@ -432,25 +462,6 @@ class GameManagement:
 
         if add_to_initiative:
             if start_battle:
-                # Helper to select the correct controller for an entity
-                def get_controller(entity):
-                    if isinstance(entity, PlayerCharacter):
-                        return self.get_controller_for_entity(entity)
-                    if entity.familiar():
-                        return self.get_controller_for_entity(entity.owner)
-                    elif self.npc_controller == 'manual':
-                            web_controllers = WebController(self.game_session, None)
-                            web_controllers.add_user("dm")
-                            return web_controllers
-                    elif self.npc_controller == 'llm':
-                        try:
-                            # Import lazily to avoid circulars
-                            from webapp.app import llm_handler as _llm_handler  # type: ignore
-                            provider = getattr(_llm_handler, 'current_provider', None)
-                        except Exception:
-                            provider = None
-                        return LlmMcpController(self.game_session, llm_provider=provider)
-                    return GenericController(self.game_session)
                 battle_music = 'battle'
                 if not self.battle:
                     self.battle = Battle(self.game_session, self.maps, animation_log_enabled=True)
@@ -460,7 +471,7 @@ class GameManagement:
                         if entity.battle_music:
                             battle_music = entity.battle_music
                             self.logger.info(f"Using battle music {battle_music} for {entity.name}")
-                        controller = get_controller(entity)
+                        controller = self.build_combat_controller_for_entity(entity)
                         if not controller:
                             self.logger.error(f"Controller not found for {entity}")
                             controller = GenericController(self.game_session)
@@ -479,7 +490,7 @@ class GameManagement:
                     self.execute_game_loop()
                 else:
                     for entity, group in add_to_initiative:
-                        controller = get_controller(entity)
+                        controller = self.build_combat_controller_for_entity(entity)
                         controller.register_handlers_on(entity)
                         self.battle.add(entity, group, add_to_initiative=True, controller=controller)
 

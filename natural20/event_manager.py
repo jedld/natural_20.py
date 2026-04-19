@@ -231,6 +231,46 @@ class EventManager:
         def interact(event):
             self.output_logger.log(f"{self.show_name(event)} interacted with {self.show_target_name(event)} action [{event['object_action']}]")
 
+        def object_interaction(event):
+            actor = self.show_name(event)
+            target = self.show_target_name(event)
+            sub_type = str(event.get('sub_type', 'interaction')).replace('_', ' ')
+            result = event.get('result')
+            reason = event.get('reason')
+            roll = event.get('roll')
+            is_lockpick = bool(event.get('lockpick')) or (event.get('sub_type') == 'unlock' and roll is not None)
+
+            if is_lockpick:
+                if result == 'success':
+                    message = f"{actor} successfully lockpicked {target}"
+                else:
+                    message = f"{actor} failed to lockpick {target}"
+
+                if roll is not None:
+                    message += f" with {roll} = {roll.result()}"
+
+                if reason:
+                    message += f". {reason}"
+                else:
+                    message += "."
+
+                self.output_logger.log(message)
+                return
+
+            if result == 'success':
+                message = f"{actor} {sub_type} on {target} succeeded"
+            elif result == 'failed':
+                message = f"{actor} {sub_type} on {target} failed"
+            else:
+                message = f"{actor} {sub_type} on {target}"
+
+            if reason:
+                message += f". {reason}"
+            else:
+                message += "."
+
+            self.output_logger.log(message)
+
         def look(event):
             if event['advantage']:
                 self.output_logger.log(f"{self.show_name(event)} looked around and rolled {event['die_roll']} = {event['die_roll'].result()} perception check with advantage [{', '.join(event['advantage'])}].")
@@ -297,6 +337,7 @@ class EventManager:
             'flavor': lambda event: self.output_logger.log(self.t(f"event.flavor.{event['text']}", **event)),
             'lucky_reroll': lambda event: self.output_logger.log(f"{self.show_name(event)} uses luck to reroll from {event['old_roll']} to {event['roll']}"),
             'grapple_immune': lambda event: self.output_logger.log(f"For some reason, {self.show_target_name(event)} is immune to grapple."),
+            'object_interaction': object_interaction,
             'grapple_success': lambda event: self.output_logger.log(f"{self.show_name(event)} grapples {self.show_target_name(event)}"),
             'move': lambda event: self.output_logger.log(f"{self.show_name(event)} moved to {event['position']} {event['move_cost'] * 5} feet"),
             'grapple_failure': lambda event: self.output_logger.log(f"{self.show_name(event)} failed to grapple {self.show_target_name(event)}"),

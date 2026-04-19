@@ -11,6 +11,26 @@ from natural20.utils.action_builder import autobuild
 import random
 import pdb
 
+
+class ListLogger:
+    def __init__(self):
+        self.messages = []
+
+    def log(self, event_msg):
+        self.messages.append(event_msg)
+
+
+class FakeRoll:
+    def __init__(self, text, total):
+        self.text = text
+        self.total = total
+
+    def result(self):
+        return self.total
+
+    def __str__(self):
+        return self.text
+
 # typed: false
 class TestInteractAction(unittest.TestCase):
     def make_session(self):
@@ -127,6 +147,79 @@ class TestInteractAction(unittest.TestCase):
             'Interact(front_door,open)',
             'Interact(chest,open)',
             'Interact(Ground,pickup_drop)'])
+
+    def test_failed_lockpick_logs_roll_for_cabinet(self):
+        logger = ListLogger()
+        event_manager = EventManager(output_logger=logger)
+        event_manager.standard_cli()
+        session = Session(root_path='tests/fixtures', event_manager=event_manager)
+        entity = PlayerCharacter.load(session, os.path.join('halfling_rogue.yml'))
+        battle_map = Map(session, 'entryway')
+        cabinet = battle_map.entity_by_name('cabinet')
+
+        self.assertIsNotNone(cabinet)
+
+        entity.lockpick = lambda battle=None: FakeRoll('d20(7) + 7', 14)
+
+        action = InteractAction(session, entity, 'interact')
+        action.target = cabinet
+        action.object_action = 'lockpick'
+        action.resolve(session, battle_map)
+        toast_results = InteractAction.apply(None, action.result[0], session=session)
+
+        matching_messages = [message for message in logger.messages if 'failed to lockpick cabinet' in message]
+        self.assertEqual(len(matching_messages), 1)
+        self.assertIn('d20(7) + 7 = 14', matching_messages[0])
+        self.assertIn('Lockpicking failed', matching_messages[0])
+        self.assertEqual(toast_results[0]['type'], 'message')
+        self.assertEqual(toast_results[0]['position'], cabinet.position())
+        self.assertIn('failed to lockpick cabinet', toast_results[0]['message'])
+
+    def test_successful_lockpick_returns_toast_for_cabinet(self):
+        session = self.make_session()
+        entity = PlayerCharacter.load(session, os.path.join('halfling_rogue.yml'))
+        battle_map = Map(session, 'entryway')
+        cabinet = battle_map.entity_by_name('cabinet')
+
+        self.assertIsNotNone(cabinet)
+
+        entity.lockpick = lambda battle=None: FakeRoll('d20(15) + 7', 22)
+
+        action = InteractAction(session, entity, 'interact')
+        action.target = cabinet
+        action.object_action = 'lockpick'
+        action.resolve(session, battle_map)
+        toast_results = InteractAction.apply(None, action.result[0], session=session)
+
+        self.assertFalse(cabinet.is_locked)
+        self.assertEqual(toast_results[0]['type'], 'message')
+        self.assertEqual(toast_results[0]['position'], cabinet.position())
+        self.assertIn('successfully lockpicked cabinet', toast_results[0]['message'])
+        self.assertIn('d20(15) + 7 = 22', toast_results[0]['message'])
+
+    def test_failed_lockpick_adds_message_toaster_to_battle_animation_log(self):
+        session = self.make_session()
+        entity = PlayerCharacter.load(session, os.path.join('halfling_rogue.yml'))
+        battle_map = Map(session, 'entryway')
+        cabinet = battle_map.entity_by_name('cabinet')
+        battle = Battle(session, battle_map, animation_log_enabled=True)
+
+        battle_map.place((1, 2), entity, 'G')
+        battle.add(entity, group='a')
+        battle.start()
+        entity.reset_turn(battle)
+        entity.lockpick = lambda battle=None: FakeRoll('d20(7) + 7', 14)
+
+        action = InteractAction(session, entity, 'interact')
+        action.target = cabinet
+        action.object_action = 'lockpick'
+        action.resolve(session, battle_map, {'battle': battle})
+        battle.commit(action)
+
+        toast_entries = [entry for entry in battle.get_animation_logs() if isinstance(entry, dict) and entry.get('type') == 'message_toaster']
+        self.assertEqual(len(toast_entries), 1)
+        self.assertEqual(toast_entries[0]['position'], cabinet.position())
+        self.assertIn('failed to lockpick cabinet', toast_entries[0]['message'])
 
     def build_door_open(self):
         build = InteractAction.build(self.session, self.entity)

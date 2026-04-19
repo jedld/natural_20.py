@@ -191,6 +191,7 @@ class Chest(Object):
         return None
 
     def use(self, entity, result, session=None):
+        results = []
         _result = super().use(entity, result, session)
         if not _result:
             action = result.get('action')
@@ -202,21 +203,83 @@ class Chest(Object):
             elif action == 'open':
                 if self.closed():
                     self.open()
+                    if session:
+                        session.event_manager.received_event({
+                            'source': entity,
+                            'target': self,
+                            'event': 'object_interaction',
+                            'sub_type': 'open',
+                            'result': 'success',
+                            'reason': 'Chest opened'
+                        })
             elif action == 'close':
                 if self.opened():
                     self.close()
+                    if session:
+                        session.event_manager.received_event({
+                            'source': entity,
+                            'target': self,
+                            'event': 'object_interaction',
+                            'sub_type': 'close',
+                            'result': 'success',
+                            'reason': 'Chest closed'
+                        })
             elif action == 'lockpick_success':
                 if self.is_locked:
                     self.unlock()
+                    results.append(self.toast_message(entity, f"{entity} successfully lockpicked {self.label()} with {result['roll']} = {result['roll'].result()}."))
+                    if session:
+                        session.event_manager.received_event({
+                            'source': entity,
+                            'target': self,
+                            'event': 'object_interaction',
+                            'sub_type': 'unlock',
+                            'result': 'success',
+                            'lockpick': True,
+                            'roll': result['roll'],
+                            'reason': 'Chest unlocked using lockpick.'
+                        })
             elif action == 'lockpick_fail':
                 if self.is_locked:
                     entity.deduct_item('thieves_tools')
+                    results.append(self.toast_message(entity, f"{entity} failed to lockpick {self.label()} with {result['roll']} = {result['roll'].result()}."))
+                    if session:
+                        session.event_manager.received_event({
+                            'source': entity,
+                            'target': self,
+                            'event': 'object_interaction',
+                            'sub_type': 'unlock',
+                            'result': 'failed',
+                            'lockpick': True,
+                            'roll': result['roll'],
+                            'reason': 'Lockpicking failed and the thieves tools are now broken.'
+                        })
             elif action == 'unlock':
                 if self.is_locked:
                     self.unlock()
+                    if session:
+                        session.event_manager.received_event({
+                            'source': entity,
+                            'target': self,
+                            'event': 'object_interaction',
+                            'sub_type': 'unlock',
+                            'result': 'success',
+                            'reason': 'Chest unlocked'
+                        })
             elif action == 'lock':
                 if not self.is_locked:
                     self.lock()
+                    if session:
+                        session.event_manager.received_event({
+                            'source': entity,
+                            'target': self,
+                            'event': 'object_interaction',
+                            'sub_type': 'lock',
+                            'result': 'success',
+                            'reason': 'Chest locked'
+                        })
+
+        return results if results else _result
 
     def lockpick_dc(self):
         return self.properties.get('lockpick_dc', 10)

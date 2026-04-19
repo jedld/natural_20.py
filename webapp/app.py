@@ -81,7 +81,7 @@ import uuid
 from utils import SocketIOOutputLogger, GameManagement
 from datetime import datetime
 from webapp.llm_conversation_controller import LLMConversationController
-from webapp.llm_handler import LLMHandler
+from webapp.llm_handler import LLMHandler, LlamaCppProvider
 import threading
 import pdb
 import traceback
@@ -96,6 +96,19 @@ import io
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 app.config['CHARACTER_BUILDER_ONLY'] = os.environ.get('CHARACTER_BUILDER_ONLY', 'false').lower() == 'true'
+
+
+def _env_flag(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return str(value).strip().lower() not in {'0', 'false', 'no', 'off', 'disabled'}
+
+
+app.config['SPECIAL_EFFECTS_ENABLED'] = _env_flag('SPECIAL_EFFECTS_ENABLED', False)
+app.config['NPC_LLM_COMBAT_ENABLED'] = _env_flag('NPC_LLM_COMBAT_ENABLED', False)
+
+HEAVY_SPECIAL_EFFECTS = frozenset({'fog', 'rain', 'snow', 'water', 'point_fire'})
 
 # Determine if we're running in AWS or locally
 is_aws = os.environ.get('AWS_ENVIRONMENT', 'false').lower() == 'true'
@@ -179,15 +192,99 @@ def builder_only_mode():
     return app.config.get('CHARACTER_BUILDER_ONLY', False)
 
 
+def special_effects_enabled():
+    return bool(app.config.get('SPECIAL_EFFECTS_ENABLED', False))
+
+
+def is_heavy_special_effect(effect_name):
+    return effect_name in HEAVY_SPECIAL_EFFECTS
+
+
+def filter_effect_payload(payload, stop_when_disabled=False):
+    if not isinstance(payload, dict):
+        return None
+
+    effect_name = payload.get('effect')
+    if special_effects_enabled() or not is_heavy_special_effect(effect_name):
+        return dict(payload)
+
+    if stop_when_disabled and effect_name:
+        return {'effect': effect_name, 'action': 'stop'}
+
+    return None
+
+
+def filter_effect_payloads(payloads):
+    filtered_payloads = []
+    for payload in payloads or []:
+        filtered = filter_effect_payload(payload)
+        if filtered:
+            filtered_payloads.append(filtered)
+    return filtered_payloads
+
+
+def has_enabled_effect_payloads(payloads):
+    return bool(filter_effect_payloads(payloads))
+
+
+def map_default_effect_payloads(battle_map):
+    props = getattr(battle_map, 'properties', {}) or {}
+    effect_defs = []
+    payloads = []
+
+    try:
+        if isinstance(props.get('default_effects'), (list, tuple)):
+            effect_defs.extend(props.get('default_effects') or [])
+    except Exception:
+        pass
+
+    try:
+        default_effect = props.get('default_effect')
+        if default_effect:
+            if isinstance(default_effect, (list, tuple)):
+                effect_defs.extend(list(default_effect))
+            else:
+                effect_defs.append(default_effect)
+    except Exception:
+        pass
+
+    for effect_def in effect_defs:
+        try:
+            payload = dict(effect_def)
+        except Exception:
+            continue
+        payload['exclusive'] = False
+        filtered = filter_effect_payload(payload)
+        if filtered:
+            payloads.append(filtered)
+
+    return payloads
+
+
+def point_fire_effect_payload(battle_map):
+    props = getattr(battle_map, 'properties', {}) or {}
+    point_fires = props.get('point_fires') or props.get('point_fire')
+
+    if point_fires and isinstance(point_fires, (list, tuple)):
+        return filter_effect_payload({
+            'effect': 'point_fire',
+            'action': 'start',
+            'config': {'points': point_fires},
+            'exclusive': False,
+        }, stop_when_disabled=True)
+
+    return {'effect': 'point_fire', 'action': 'stop'}
+
+
 @socketio.on('connect')
 def _on_connect():
     # When a client connects, send any active effects for the current game so
     # a page refresh or new client receives the same visual state.
     try:
         game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
-        effects = active_effects.get(game_key, {})
+        effects = filter_effect_payloads(active_effects.get(game_key, {}).values())
         if effects:
-            for payload in effects.values():
+            for payload in effects:
                 emit('effect:set', payload)
         else:
             # No global DM override; first try per-map overrides
@@ -201,35 +298,13 @@ def _on_connect():
                     except Exception:
                         cur_map = current_game.get_current_battle_map()
                 cur_name = getattr(cur_map, 'name', None)
-                map_overrides = active_effects_map.get(game_key, {}).get(cur_name, {})
+                map_overrides = filter_effect_payloads(active_effects_map.get(game_key, {}).get(cur_name, {}).values())
                 if map_overrides:
-                    for payload in map_overrides.values():
+                    for payload in map_overrides:
                         emit('effect:set', payload)
                 else:
-                    props = getattr(cur_map, 'properties', {}) or {}
-                    # Support plural 'default_effects' or a single 'default_effect'
-                    map_defs = []
-                    try:
-                        if isinstance(props.get('default_effects'), (list, tuple)):
-                            map_defs.extend(props.get('default_effects') or [])
-                    except Exception:
-                        pass
-                    try:
-                        de = props.get('default_effect')
-                        if de:
-                            if isinstance(de, (list, tuple)):
-                                map_defs.extend(list(de))
-                            else:
-                                map_defs.append(de)
-                    except Exception:
-                        pass
-                    for md in map_defs:
-                        try:
-                            payload = dict(md)
-                            payload['exclusive'] = False
-                            emit('effect:set', payload)
-                        except Exception:
-                            pass
+                    for payload in map_default_effect_payloads(cur_map):
+                        emit('effect:set', payload)
             except Exception:
                 pass
     except Exception:
@@ -295,6 +370,7 @@ current_game = GameManagement(game_session=game_session,
                               tile_px=TILE_PX,
                               controllers=CONTROLLERS,
                               npc_controller=DEFAULT_NPC_CONTROLLER,
+                              force_llm_npc_combat=app.config['NPC_LLM_COMBAT_ENABLED'],
                               autosave=AUTOSAVE,
                               system_logger=logger,
                               soundtrack=SOUNDTRACKS)
@@ -438,6 +514,25 @@ def initialize_llm_from_env():
             logger.info(f"Initialized Ollama provider with model: {model} at {base_url}")
         else:
             logger.error(f"Failed to initialize Ollama provider: {config}")
+
+    elif llm_provider in ('llama_cpp', 'llama.cpp', 'llamacpp'):
+        # llama.cpp OpenAI-compatible server configuration
+        base_url = os.environ.get('LLAMA_CPP_BASE_URL', 'http://localhost:8011')
+        model = os.environ.get('LLAMA_CPP_MODEL', os.environ.get('N20_LLM_MODEL'))
+        api_key = os.environ.get('LLAMA_CPP_API_KEY', 'llama-cpp')
+
+        config = {
+            'base_url': base_url,
+            'api_key': api_key,
+        }
+        if model:
+            config['model'] = model
+
+        success = llm_handler.initialize_provider('llama_cpp', config)
+        if success:
+            logger.info(f"Initialized llama.cpp provider with model: {getattr(llm_handler.current_provider, 'current_model', model)} at {base_url}")
+        else:
+            logger.error(f"Failed to initialize llama.cpp provider: {config}")
             
     else:
         logger.warning(f"Unknown LLM provider: {llm_provider}, using mock provider")
@@ -562,61 +657,26 @@ def _on_request_effects():
         except Exception:
             cur_map = None
 
-        effects = active_effects.get(game_key, {})
+        effects = filter_effect_payloads(active_effects.get(game_key, {}).values())
         if effects:
-            for payload in effects.values():
+            for payload in effects:
                 emit('effect:set', payload)
         else:
             try:
                 cur_name = getattr(cur_map, 'name', None)
-                map_overrides = active_effects_map.get(game_key, {}).get(cur_name, {})
+                map_overrides = filter_effect_payloads(active_effects_map.get(game_key, {}).get(cur_name, {}).values())
                 if map_overrides:
-                    for payload in map_overrides.values():
+                    for payload in map_overrides:
                         emit('effect:set', payload)
                 else:
-                    props = getattr(cur_map, 'properties', {}) or {}
-                    map_defs = []
-                    try:
-                        if isinstance(props.get('default_effects'), (list, tuple)):
-                            map_defs.extend(props.get('default_effects') or [])
-                    except Exception:
-                        pass
-                    try:
-                        de = props.get('default_effect')
-                        if de:
-                            if isinstance(de, (list, tuple)):
-                                map_defs.extend(list(de))
-                            else:
-                                map_defs.append(de)
-                    except Exception:
-                        pass
-                    for md in map_defs:
-                        try:
-                            payload = dict(md)
-                            payload['exclusive'] = False
-                            emit('effect:set', payload)
-                        except Exception:
-                            pass
+                    for payload in map_default_effect_payloads(cur_map):
+                        emit('effect:set', payload)
             except Exception:
                 pass
 
         # Emit map-defined point fires separately (independent of DM overlay effects)
         try:
-            props = getattr(cur_map, 'properties', {}) or {}
-            point_fires = props.get('point_fires') or props.get('point_fire')
-            if point_fires and isinstance(point_fires, (list, tuple)):
-                emit('effect:set', {
-                    'effect': 'point_fire',
-                    'action': 'start',
-                    'config': { 'points': point_fires },
-                    'exclusive': False
-                })
-            else:
-                # Explicitly stop any prior point fire effect if present
-                emit('effect:set', {
-                    'effect': 'point_fire',
-                    'action': 'stop'
-                })
+            emit('effect:set', point_fire_effect_payload(cur_map))
         except Exception:
             pass
     except Exception:
@@ -714,6 +774,8 @@ def admin_effect():
     target_map_name = payload.get('map')  # optional explicit map name
     if not effect or not action:
         return jsonify(error='effect and action required'), 400
+    if not special_effects_enabled() and action != 'stop' and (effect == 'map_default' or is_heavy_special_effect(effect)):
+        return jsonify(error='Special effects are disabled by configuration'), 409
     try:
         # Validate and sanitize config per effect type
         def _hex_color(c):
@@ -1010,6 +1072,22 @@ def entity_owners(entity):
     return [] if not ctrl_info else ctrl_info['controllers']
 
 app.add_template_global(entity_owners, name='entity_owners')
+
+
+def conversation_recipient_usernames(entity, include_requester=True):
+    recipients = set(entity_owners(entity))
+
+    if include_requester:
+        requester = session.get('username')
+        if requester:
+            recipients.add(requester)
+
+    for login in LOGINS:
+        roles = login.get('role') or []
+        if 'dm' in roles and login.get('name'):
+            recipients.add(login['name'].lower())
+
+    return recipients
 
 def describe_terrain(tile):
     battle_map = current_game.get_map_for_user(session['username'])
@@ -2105,7 +2183,9 @@ def index():
                            current_pov=current_pov[0] if current_pov else None,
                            game_session=current_game.game_session,
                            username=session['username'], role=user_role(),
-                           DEFAULT_NPC_CONTROLLER=current_game.npc_controller)
+                           DEFAULT_NPC_CONTROLLER=current_game.effective_npc_combat_controller(),
+                           NPC_LLM_COMBAT_ENABLED=current_game.force_llm_npc_combat,
+                           special_effects_enabled=special_effects_enabled())
 eval_context = {}
 
 @app.route('/command', methods=['POST'])
@@ -2194,24 +2274,7 @@ def switch_map():
     map_default = None
     map_defaults = []
     try:
-        # map properties live in the Map object
-        props = getattr(battle_map, 'properties', {}) or {}
-        # Accept plural list or single
-        try:
-            if isinstance(props.get('default_effects'), (list, tuple)):
-                map_defaults.extend(props.get('default_effects') or [])
-        except Exception:
-            pass
-        try:
-            de = props.get('default_effect')
-            if de:
-                if isinstance(de, (list, tuple)):
-                    map_defaults.extend(list(de))
-                else:
-                    map_defaults.append(de)
-        except Exception:
-            pass
-        # also keep first as legacy single
+        map_defaults = map_default_effect_payloads(battle_map)
         map_default = map_defaults[0] if map_defaults else None
     except Exception:
         map_default = None
@@ -2220,10 +2283,10 @@ def switch_map():
     dm_active = False
     try:
         game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
-        dm_active = bool(active_effects.get(game_key))
+        dm_active = has_enabled_effect_payloads(active_effects.get(game_key, {}).values())
         # Include per-map overrides
         try:
-            dm_active = dm_active or bool(active_effects_map.get(game_key, {}).get(map_name))
+            dm_active = dm_active or has_enabled_effect_payloads(active_effects_map.get(game_key, {}).get(map_name, {}).values())
         except Exception:
             pass
     except Exception:
@@ -2235,8 +2298,9 @@ def switch_map():
                    height=tiles_dimension_height,
                    width=tiles_dimension_width,
                    map_default_effect=map_default,
-                   map_default_effects=[dict(e, **{'exclusive': False}) if isinstance(e, dict) else e for e in map_defaults],
-                   dm_active=dm_active)
+                   map_default_effects=map_defaults,
+                   dm_active=dm_active,
+                   special_effects_enabled=special_effects_enabled())
 
 #                 // Fetch combat log messages from the server
 # $.get('/api/combat-log', function(data) {
@@ -3401,30 +3465,16 @@ def switch_pov():
         current_game.switch_map_for_user(session['username'], entity_battle_map.name)
 
         try:
-            props = getattr(entity_battle_map, 'properties', {}) or {}
-            try:
-                if isinstance(props.get('default_effects'), (list, tuple)):
-                    map_defaults.extend(props.get('default_effects') or [])
-            except Exception:
-                pass
-            try:
-                de = props.get('default_effect')
-                if de:
-                    if isinstance(de, (list, tuple)):
-                        map_defaults.extend(list(de))
-                    else:
-                        map_defaults.append(de)
-            except Exception:
-                pass
+            map_defaults = map_default_effect_payloads(entity_battle_map)
             map_default = map_defaults[0] if map_defaults else None
         except Exception:
             map_default = None
 
         try:
             game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
-            dm_active = bool(active_effects.get(game_key))
+            dm_active = has_enabled_effect_payloads(active_effects.get(game_key, {}).values())
             try:
-                dm_active = dm_active or bool(active_effects_map.get(game_key, {}).get(entity_battle_map.name))
+                dm_active = dm_active or has_enabled_effect_payloads(active_effects_map.get(game_key, {}).get(entity_battle_map.name, {}).values())
             except Exception:
                 pass
         except Exception:
@@ -3436,8 +3486,9 @@ def switch_pov():
         height=tiles_dimension_height,
         width=tiles_dimension_width,
         map_default_effect=map_default,
-        map_default_effects=[dict(e, **{'exclusive': False}) if isinstance(e, dict) else e for e in map_defaults],
-        dm_active=dm_active)
+        map_default_effects=map_defaults,
+        dm_active=dm_active,
+        special_effects_enabled=special_effects_enabled())
 
 @app.route('/read_letter', methods=['POST'])
 def read_letter():
@@ -3860,7 +3911,7 @@ def add():
         return ""
     else:
         is_pc = isinstance(entity, PlayerCharacter)
-        default_controller = 'manual' if is_pc else DEFAULT_NPC_CONTROLLER
+        default_controller = 'manual' if is_pc else current_game.effective_npc_combat_controller()
         return render_template('add.html', entity=entity, is_pc=is_pc, default_controller=default_controller)
 
 @app.route('/tracks', methods=['GET'])
@@ -4045,9 +4096,9 @@ def talk():
                         response, receiver, entity, llm_conversation_handler
                     )
                     receiver.send_conversation(response, targets=[entity], language=language)
-                    owners = entity_owners(entity)
-                    for owner in owners:
-                        sids = current_game.username_to_sid.get(owner, [])
+                    recipient_usernames = conversation_recipient_usernames(entity)
+                    for recipient_username in recipient_usernames:
+                        sids = current_game.username_to_sid.get(recipient_username, [])
                         for sid in sids:
                             socketio.emit('message', {'type': 'conversation', 'message': {'entity_id': receiver.entity_uid, 'message': response, 'targets': [entity.entity_uid]}}, to=sid)
 
@@ -4641,6 +4692,32 @@ def ai_get_ollama_models():
         return jsonify({'success': False, 'error': f'Failed to connect to Ollama: {str(e)}'})
     except Exception as e:
         logger.error(f"Error getting Ollama models: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/ai/llama_cpp/models', methods=['GET'])
+def ai_get_llama_cpp_models():
+    """Get available llama.cpp models from an OpenAI-compatible server."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+
+    try:
+        base_url = request.args.get('base_url', 'http://localhost:8011').rstrip('/')
+        api_key = request.args.get('api_key', 'llama-cpp')
+        headers = {'Authorization': f'Bearer {api_key}'}
+
+        response = requests.get(f"{base_url}/v1/models", headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            models = LlamaCppProvider._extract_model_ids(data)
+            return jsonify({'success': True, 'models': models})
+        return jsonify({'success': False, 'error': f'llama.cpp API error: {response.status_code}'})
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error connecting to llama.cpp: {e}")
+        return jsonify({'success': False, 'error': f'Failed to connect to llama.cpp: {str(e)}'})
+    except Exception as e:
+        logger.error(f"Error getting llama.cpp models: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/ai/set-model', methods=['POST'])
