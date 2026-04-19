@@ -732,6 +732,161 @@ REMEMBER:
         return prompt
 
 
+class LlamaCppProvider(LLMProvider):
+    """llama.cpp server using the OpenAI-compatible API."""
+
+    def __init__(self, opts=None):
+        opts = opts or {}
+        self.base_url = opts.get('base_url', 'http://localhost:8011')
+        self.api_key = opts.get('api_key', 'llama-cpp')
+        self.current_model = opts.get('model')
+        self.conversation_history = []
+
+    @staticmethod
+    def _thinking_enabled() -> bool:
+        value = os.environ.get('LLAMA_CPP_ENABLE_THINKING', 'false')
+        return str(value).strip().lower() not in {'0', 'false', 'no', 'off', 'disabled'}
+
+    @staticmethod
+    def _extract_model_ids(data: Dict[str, Any]) -> List[str]:
+        models = []
+
+        if isinstance(data.get('data'), list):
+            models.extend(data.get('data') or [])
+        if isinstance(data.get('models'), list):
+            models.extend(data.get('models') or [])
+
+        model_ids = []
+        for model in models:
+            if not isinstance(model, dict):
+                continue
+            model_id = model.get('id') or model.get('model') or model.get('name')
+            if model_id and model_id not in model_ids:
+                model_ids.append(model_id)
+
+        return model_ids
+
+    @staticmethod
+    def _extract_content_from_choice(choice: Dict[str, Any]) -> str:
+        if not isinstance(choice, dict):
+            return ''
+
+        message = choice.get('message') or {}
+        content = message.get('content')
+
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            text_parts = []
+            for part in content:
+                if isinstance(part, str):
+                    text_parts.append(part)
+                elif isinstance(part, dict):
+                    part_text = part.get('text') or part.get('content')
+                    if isinstance(part_text, str):
+                        text_parts.append(part_text)
+            return ''.join(text_parts)
+
+        text = choice.get('text')
+        if isinstance(text, str):
+            return text
+
+        message_text = message.get('text')
+        if isinstance(message_text, str):
+            return message_text
+
+        return ''
+
+    def initialize(self, config: Dict[str, Any]) -> bool:
+        try:
+            self.base_url = config.get('base_url', self.base_url or 'http://localhost:8011').rstrip('/')
+            self.api_key = config.get('api_key', self.api_key or 'llama-cpp')
+            requested_model = config.get('model')
+
+            models = self.get_available_models()
+            if requested_model:
+                self.current_model = requested_model
+            elif models:
+                self.current_model = models[0]
+
+            logger.info(f"[LlamaCppProvider] Initialized llama.cpp provider at {self.base_url} with model: {self.current_model}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to initialize llama.cpp provider: {e}")
+            return False
+
+    def send_message(self, messages: List[Dict[str, str]]) -> str:
+        if not self.current_model:
+            return "llama.cpp provider not initialized or no model selected"
+
+        payload = {
+            'model': self.current_model,
+            'messages': messages,
+            'temperature': 0.2,
+            'max_tokens': 1000,
+            'stream': False,
+        }
+        if not self._thinking_enabled():
+            payload['chat_template_kwargs'] = {'enable_thinking': False}
+
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.api_key or "llama-cpp"}',
+        }
+
+        try:
+            timeout = int(os.environ.get('LLAMA_CPP_TIMEOUT', '60'))
+            response = requests.post(
+                f"{self.base_url}/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+            choice = (data.get('choices') or [{}])[0]
+            content = self._extract_content_from_choice(choice)
+
+            if not content:
+                reasoning_content = ((choice.get('message') or {}).get('reasoning_content') or '').strip()
+                if reasoning_content:
+                    logger.warning(
+                        "[LlamaCppProvider] Response contained reasoning_content but no assistant content; "
+                        "consider increasing max_tokens or keep LLAMA_CPP_ENABLE_THINKING disabled. "
+                        "finish_reason=%s",
+                        choice.get('finish_reason')
+                    )
+            return content or ""
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error sending message to llama.cpp: {e}")
+            return f"Error communicating with llama.cpp: {str(e)}"
+        except Exception as e:
+            logger.error(f"Unexpected error in llama.cpp send_message: {e}")
+            return f"Unexpected error: {str(e)}"
+
+    def get_available_models(self) -> List[str]:
+        headers = {'Authorization': f'Bearer {self.api_key or "llama-cpp"}'}
+        try:
+            timeout = int(os.environ.get('LLAMA_CPP_TIMEOUT', '30'))
+            response = requests.get(f"{self.base_url.rstrip('/')}/v1/models", headers=headers, timeout=timeout)
+            response.raise_for_status()
+            data = response.json()
+            return self._extract_model_ids(data)
+        except Exception as e:
+            logger.error(f"Error getting llama.cpp models: {e}")
+            return []
+
+    def set_model(self, model_name: str) -> bool:
+        available_models = self.get_available_models()
+        if not available_models:
+            self.current_model = model_name
+            return bool(model_name)
+        if model_name in available_models:
+            self.current_model = model_name
+            return True
+        return False
+
+
 class LLMHandler:
     """Main handler for LLM interactions with RAG capabilities."""
     
@@ -740,7 +895,8 @@ class LLMHandler:
             'mock': MockProvider(),
             'openai': OpenAIProvider(),
             'anthropic': AnthropicProvider(),
-            'ollama': OllamaProvider(opts)
+            'ollama': OllamaProvider(opts),
+            'llama_cpp': LlamaCppProvider(opts),
         }
         self.current_provider = None
         self.game_context_functions = {}

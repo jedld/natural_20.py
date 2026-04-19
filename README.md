@@ -372,6 +372,9 @@ export CORS_ORIGINS="http://localhost:5000,https://myapp.com"
 | `OPENAI_BASE_URL` | Custom OpenAI endpoint | `https://api.openai.com/v1` | No |
 | `ANTHROPIC_API_KEY` | Anthropic API key | - | Yes (for Anthropic) |
 | `ANTHROPIC_MODEL` | Anthropic model name | `claude-3-5-sonnet-20241022` | No |
+| `OLLAMA_BASE_URL` | Ollama server URL | `http://localhost:11434` | No |
+| `OLLAMA_MODEL` | Ollama model name | `gemma3:27b` | No |
+| `NPC_LLM_COMBAT_ENABLED` | Force NPCs to use the LLM controller during combat regardless of the per-level default controller | `false` | No |
 
 LLM NPC Controller (MCP)
 ========================
@@ -385,6 +388,21 @@ You can drive NPCs with a language model via the built-in LLM controller. This w
 {
   "npc_default_controller": "llm"
 }
+```
+
+- To force all NPCs to use the LLM controller in combat globally, set this environment variable when starting the webapp:
+
+```bash
+export NPC_LLM_COMBAT_ENABLED=true
+```
+
+This override takes precedence over `npc_default_controller` from `templates/index.json` and over the DM "Default NPC Controller" dropdown for combat controller selection. The dropdown remains visible in the UI, but when the flag is enabled it reflects the forced `llm` value.
+
+Example:
+
+```bash
+cd webapp
+LLM_PROVIDER=llama_cpp NPC_LLM_COMBAT_ENABLED=true TEMPLATE_DIR=../user_levels/death_house python -m flask run
 ```
 
 Optional: MCP bridge
@@ -409,8 +427,6 @@ Expected response:
 ```
 
 When not configured, the controller tries local LLMs (if configured elsewhere) or falls back to the built-in heuristic safely.
-| `OLLAMA_BASE_URL` | Ollama server URL | `http://localhost:11434` | No |
-| `OLLAMA_MODEL` | Ollama model name | `gemma3:27b` | No |
 
 ### Docker Configuration
 

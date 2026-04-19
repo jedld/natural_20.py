@@ -16,11 +16,12 @@ from natural20.ai.path_compute import PathCompute
 # Optional import of webapp LLM provider abstraction; keep controller decoupled if unavailable
 try:
 	# Using provider interface from web layer without importing the entire app
-	from webapp.llm_handler import OllamaProvider, OpenAIProvider, AnthropicProvider  # type: ignore
+	from webapp.llm_handler import OllamaProvider, OpenAIProvider, AnthropicProvider, LlamaCppProvider  # type: ignore
 except Exception:
 	OllamaProvider = None  # type: ignore
 	OpenAIProvider = None  # type: ignore
 	AnthropicProvider = None  # type: ignore
+	LlamaCppProvider = None  # type: ignore
 
 
 class LlmMcpController(GenericController):
@@ -257,7 +258,7 @@ class LlmMcpController(GenericController):
 	def _default_provider(self):
 		"""
 		Construct a default provider from environment variables.
-		Respects LLM_PROVIDER in [ollama|openai|anthropic], defaulting to ollama.
+		Respects LLM_PROVIDER in [ollama|openai|anthropic|llama_cpp], defaulting to ollama.
 		Returns an initialized provider or None on failure.
 		"""
 		try:
@@ -278,6 +279,23 @@ class LlmMcpController(GenericController):
 				prov = AnthropicProvider()
 				ok = prov.initialize({"api_key": api_key, "model": model})
 				return prov if ok else None
+			elif provider_name in ("llama_cpp", "llama.cpp", "llamacpp") and LlamaCppProvider is not None:
+				base_url = os.getenv("LLAMA_CPP_BASE_URL", "http://localhost:8011")
+				model = os.getenv("LLAMA_CPP_MODEL", os.getenv("N20_LLM_MODEL"))
+				api_key = os.getenv("LLAMA_CPP_API_KEY", "llama-cpp")
+				prov = LlamaCppProvider({"base_url": base_url, "api_key": api_key})
+				init_config = {"base_url": base_url, "api_key": api_key}
+				if model:
+					init_config["model"] = model
+				ok = prov.initialize(init_config)
+				if not ok:
+					return None
+				if model:
+					try:
+						prov.set_model(model)
+					except Exception:
+						pass
+				return prov
 			# default to ollama
 			if OllamaProvider is None:
 				return None

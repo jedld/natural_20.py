@@ -1,9 +1,11 @@
 import unittest
+import os
 from natural20.actions.spell_action import SpellAction
 from natural20.actions.find_familiar_action import FindFamiliarAction
 from natural20.actions.summon_familiar_action import SummonFamiliarAction
 from natural20.actions.attack_action import AttackAction
 from natural20.spell.shield_spell import ShieldSpell
+from natural20.spell.objects.mage_hand import MageHand
 from natural20.session import Session
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
@@ -15,6 +17,7 @@ from natural20.map import Map
 from natural20.battle import Battle
 from natural20.utils.action_builder import autobuild
 from natural20.map_renderer import MapRenderer
+from natural20.web.json_renderer import JsonRenderer
 from natural20.weapons import target_advantage_condition
 from natural20.utils.spell_attack_util import evaluate_spell_attack
 import random
@@ -378,6 +381,7 @@ class TestSpellAction(unittest.TestCase):
         self.battle.execute_action(action)
 
         # test send to pocket dimension
+
         action = autobuild(self.session, FindFamiliarAction, self.entity, None, map=self.battle_map, match=['dismiss_temporary'], verbose=True)[0]
 
         self.battle.execute_action(action)
@@ -394,6 +398,25 @@ class TestSpellAction(unittest.TestCase):
         self.assertIsNotNone(entity)
         self.assertEqual(entity.name, 'Bat')
         self.assertEqual(entity.owner, self.entity)
+
+    def test_mage_hand_uses_stable_token_image_in_json_renderer(self):
+        mage_hand = MageHand(self.session, self.entity)
+        self.battle_map.place((2, 5), mage_hand)
+
+        rendered_tiles = JsonRenderer(self.battle_map, self.battle).render()
+        mage_hand_tile = None
+        for row in rendered_tiles:
+            for tile in row:
+                if isinstance(tile, dict) and tile.get('id') == mage_hand.entity_uid:
+                    mage_hand_tile = tile
+                    break
+            if mage_hand_tile:
+                break
+
+        self.assertIsNotNone(mage_hand_tile)
+        self.assertEqual(mage_hand.token_image(), 'token_mage_hand.png')
+        self.assertEqual(mage_hand_tile.get('entity'), 'token_mage_hand.png')
+        self.assertTrue(os.path.exists('webapp/static/assets/token_mage_hand.png'))
 
 
     def test_protection_from_poison(self):
