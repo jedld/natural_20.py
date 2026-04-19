@@ -50,6 +50,9 @@ class MageHand(Entity):
     def token(self):
         return ['MH']
 
+    def token_image(self):
+        return 'token_mage_hand.png'
+
     def placeable(self):
         return True
 

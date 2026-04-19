@@ -110,10 +110,18 @@ class Object(Entity, Container, EventLoader):
         return self._name
 
     def label(self) -> str:
-        return self.properties.get('label', "")
+        return self.properties.get('label') or self.properties.get('name') or self.__class__.__name__
 
     def position(self) -> Any:
         return self.map.position_of(self)
+
+    def toast_message(self, source, message: str) -> Dict[str, Any]:
+        return {
+            'type': 'message',
+            'source': source,
+            'message': message,
+            'position': self.position()
+        }
 
     def color(self) -> Optional[str]:
         return self.properties.get('color')
