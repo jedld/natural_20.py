@@ -19,6 +19,7 @@ bottomless_pit:
     - ▓
 fireplace:
   color: red
+  damage_threshold: 10
   default_ac: 17
   item_class: Fireplace
   lit: false
@@ -120,6 +121,7 @@ water:
 wooden_door:
   description: An ominous wooden door. Standard for your typical fantasy dungeon.
   color: magenta
+  damage_threshold: 5
   default_ac: 15
   hp_die: 4d8
   interactable: true
@@ -589,8 +591,12 @@ attic_secret_door:
   interactable: true
   item_class: DoorObjectWall
   max_hp: 18
-  name: attic_scret_door
-  door_pos: 2
+  name: attic_secret_door
+  door_pos:
+    - 1
+    - 0
+    - 1
+    - 0
   border:
     - 1
     - 0

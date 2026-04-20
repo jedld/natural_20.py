@@ -942,6 +942,7 @@ class Map(SerializableObject):
         """
         Check if entity can see entity2
         """
+        active_perception = active_perception or 0
         if entity.is_admin:
             return True
         if isinstance(entity, str):
@@ -959,14 +960,14 @@ class Map(SerializableObject):
             return False
 
         if entity2.hidden():
-            _passive_perception_val = max(entity.passive_perception(), active_perception)
+            _passive_perception_val = max(entity.passive_perception() or 0, active_perception)
             if _passive_perception_val < entity2.hidden_stealth:
                 return False
 
         if entity2.concealed() and not ignore_concealment:
             if entity2.conceal_perception_dc() is None:
                 return False
-            if entity.passive_perception() < entity2.conceal_perception_dc():
+            if (entity.passive_perception() or 0) < entity2.conceal_perception_dc():
                 return False
             if active_perception < entity2.conceal_perception_dc():
                 return False
@@ -975,10 +976,14 @@ class Map(SerializableObject):
             secret_dc = entity2.secret_perception_dc()
             if secret_dc is None:
                 return False
-            if entity.passive_perception() < secret_dc:
+            _secret_perception_val = max(entity.passive_perception() or 0, active_perception)
+            if _secret_perception_val < secret_dc:
                 return False
-            if active_perception < secret_dc:
-                return False
+            # Perception beats the DC — if this is a door, treat it as detected
+            # (secret doors are opaque like walls, so normal LOS would block visibility
+            # to the door's own square)
+            if entity2.kind_of_door():
+                return True
 
         entity_1_squares = self.entity_squares_at_pos(entity, *entity_1_pos) if entity_1_pos else self.entity_squares(entity)
         entity_2_squares = self.entity_squares_at_pos(entity2, *entity_2_pos) if entity_2_pos else self.entity_squares(entity2)

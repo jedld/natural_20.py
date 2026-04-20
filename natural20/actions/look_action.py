@@ -84,7 +84,7 @@ class LookAction(Action):
                     for k in new_notes.keys():
                         item['perception_targets'][k] = new_notes[k]
 
-                if entity!=item["source"] and entity.secret() and entity.secret_perception_dc() and current_map.can_see(item["source"], entity, ignore_concealment=True):
+                if entity!=item["source"] and entity.secret() and entity.secret_perception_dc() and current_map.can_see(item["source"], entity, ignore_concealment=True, active_perception=perception_results):
                     if item["source"] not in entity.perception_results:
                         if entity.secret_perception_dc() <= perception_results:
                             entity.is_secret = False

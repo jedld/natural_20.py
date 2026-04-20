@@ -11,6 +11,7 @@ from natural20.map_renderer import MapRenderer
 from natural20.utils.action_builder import autobuild
 from natural20.item_library.switch import Switch
 from natural20.item_library.door_object import DoorObject
+from natural20.item_library.fireplace import Fireplace
 from natural20.actions.look_action import LookAction
 from natural20.actions.interact_action import InteractAction
 import random
@@ -102,3 +103,85 @@ class TestObjects(unittest.TestCase):
         print(MapRenderer(self.map).render(self.battle))
         self.assertEqual(switch.state, 'servants_quarters')
         self.assertEqual(self.map.entity_or_object_pos(self.entity),[0, 1])
+
+    def test_fireplace_lights_on_fire_damage(self):
+        session = Session(root_path='tests/fixtures')
+        map = Map(session, 'tests/fixtures/maps/game_map.yml')
+        props = session.load_object('fireplace')
+        props['type'] = 'fireplace'
+        fireplace = Fireplace(session, map, props)
+        map.place_object(fireplace, 3, 3)
+
+        self.assertFalse(fireplace.is_lit())
+
+        # Non-fire damage should not light the fireplace
+        fireplace.take_damage(5, damage_type='bludgeoning')
+        self.assertFalse(fireplace.is_lit())
+
+        # Fire damage should light the fireplace
+        fireplace.take_damage(5, damage_type='fire')
+        self.assertTrue(fireplace.is_lit())
+
+        # Already lit — fire damage should not error
+        fireplace.take_damage(5, damage_type='fire')
+        self.assertTrue(fireplace.is_lit())
+
+    def test_fireplace_destroyed(self):
+        session = Session(root_path='tests/fixtures')
+        map = Map(session, 'tests/fixtures/maps/game_map.yml')
+        props = session.load_object('fireplace')
+        props['type'] = 'fireplace'
+        fireplace = Fireplace(session, map, props)
+        map.place_object(fireplace, 3, 3)
+
+        # Light the fireplace first
+        fireplace.take_damage(15, damage_type='fire')
+        self.assertTrue(fireplace.is_lit())
+        self.assertFalse(fireplace.dead())
+
+        # Damage below threshold (10) should not reduce HP
+        original_hp = fireplace.hp()
+        fireplace.take_damage(5, damage_type='bludgeoning')
+        self.assertEqual(fireplace.hp(), original_hp)
+
+        # Damage above threshold destroys it
+        fireplace.take_damage(100, damage_type='bludgeoning')
+        self.assertTrue(fireplace.dead())
+
+        # Destroyed fireplace stops emitting light
+        self.assertFalse(fireplace.is_lit())
+        light = fireplace.light_properties()
+        self.assertEqual(light['bright'], 0)
+        self.assertEqual(light['dim'], 0)
+
+        # Destroyed fireplace has no interactions
+        self.assertFalse(fireplace.interactable())
+        self.assertEqual(fireplace.available_interactions(self.entity), {})
+
+    def test_door_destroyed(self):
+        # The door in battle_sim_objects map
+        self.assertTrue(self.door.closed())
+        self.assertFalse(self.door.dead())
+        self.assertFalse(self.door.passable())
+
+        # Damage below threshold (5) should not reduce HP
+        original_hp = self.door.hp()
+        self.door.take_damage(3, damage_type='slashing')
+        self.assertEqual(self.door.hp(), original_hp)
+
+        # Damage above threshold reduces HP
+        self.door.take_damage(10, damage_type='slashing')
+        self.assertLess(self.door.hp(), original_hp)
+
+        # Destroy the door
+        self.door.take_damage(100, damage_type='bludgeoning')
+        self.assertTrue(self.door.dead())
+
+        # Destroyed door acts as open
+        self.assertTrue(self.door.opened())
+        self.assertTrue(self.door.passable())
+        self.assertFalse(self.door.opaque())
+
+        # Cannot interact with destroyed door
+        self.assertFalse(self.door.interactable())
+        self.assertEqual(self.door.available_interactions(self.entity, self.battle), {})
