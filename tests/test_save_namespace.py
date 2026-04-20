@@ -20,6 +20,12 @@ class DummyLogger:
     def error(self, *a, **k):
         pass
 
+    def get_log_snapshot(self):
+        return []
+
+    def restore_log_snapshot(self, snapshot):
+        pass
+
 
 def make_game_management(tmp_save_dir, game_name):
     # set env var for SAVE_DIR so GameManagement will use it

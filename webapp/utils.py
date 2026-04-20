@@ -450,6 +450,7 @@ class GameManagement:
         self.current_soundtrack = None
         self.autosave = autosave
         self.gzip = False
+        self.read_notes = set()
         self.game_state_lock = threading.Lock()
         # Per-map locks for non-battle actions to reduce contention across maps
         self.map_state_locks = {}
@@ -1074,8 +1075,8 @@ class GameManagement:
 
     def save_game(self, name: Optional[str] = None):
         # Snapshot state and determine filename under lock, then write outside the lock
-        yaml_str, target_file, index_for_record, log_snapshot = self._prepare_save(name)
-        self._write_save_file(yaml_str, target_file, index_for_record, log_snapshot)
+        yaml_str, target_file, index_for_record, log_snapshot, read_notes_snapshot = self._prepare_save(name)
+        self._write_save_file(yaml_str, target_file, index_for_record, log_snapshot, read_notes_snapshot)
 
     def save_game_async(self, name: Optional[str] = None):
         """Queue a save request to be processed by the background save worker."""
@@ -1112,8 +1113,8 @@ class GameManagement:
                         name = next_item
                     except Exception:
                         break
-                yaml_str, target_file, index_for_record, log_snapshot = self._prepare_save(name)
-                self._write_save_file(yaml_str, target_file, index_for_record, log_snapshot)
+                yaml_str, target_file, index_for_record, log_snapshot, read_notes_snapshot = self._prepare_save(name)
+                self._write_save_file(yaml_str, target_file, index_for_record, log_snapshot, read_notes_snapshot)
                 if stop_after:
                     break
             except Exception as e:
@@ -1128,6 +1129,7 @@ class GameManagement:
             serializer = Serialization()
             yaml_str = serializer.serialize(self.game_session, self.battle, self.maps)
             log_snapshot = self.output_logger.get_log_snapshot()
+            read_notes_snapshot = list(self.read_notes)
 
             # Determine filename
             if name:
@@ -1144,9 +1146,9 @@ class GameManagement:
                 self.current_save_index += 1
 
             target_file = base_name + ('.gz' if self.gzip and not base_name.endswith('.gz') else '')
-            return yaml_str, target_file, index_for_record, log_snapshot
+            return yaml_str, target_file, index_for_record, log_snapshot, read_notes_snapshot
 
-    def _write_save_file(self, yaml_str: str, target_file: str, index_for_record: int, log_snapshot=None):
+    def _write_save_file(self, yaml_str: str, target_file: str, index_for_record: int, log_snapshot=None, read_notes_snapshot=None):
         """Write the given YAML string to disk atomically and update indices/state."""
         abs_target = os.path.join(self.save_dir, target_file)
         import tempfile
@@ -1204,6 +1206,17 @@ class GameManagement:
                 abs_log = os.path.join(self.save_dir, log_file)
                 with open(abs_log, 'w') as f:
                     json.dump(log_snapshot, f)
+            except Exception:
+                pass
+
+        # Save read notes alongside the game state
+        if read_notes_snapshot is not None:
+            import json
+            notes_file = os.path.splitext(target_file.replace('.gz', ''))[0] + '.read_notes.json'
+            try:
+                abs_notes = os.path.join(self.save_dir, notes_file)
+                with open(abs_notes, 'w') as f:
+                    json.dump(read_notes_snapshot, f)
             except Exception:
                 pass
 
@@ -1267,6 +1280,18 @@ class GameManagement:
                 with open(abs_log, 'r') as f:
                     log_snapshot = json.load(f)
                 self.output_logger.restore_log_snapshot(log_snapshot)
+        except Exception:
+            pass
+
+        # Restore read notes if a file exists alongside the save
+        notes_file = os.path.splitext(target_file.replace('.gz', ''))[0] + '.read_notes.json'
+        abs_notes = os.path.join(self.save_dir, notes_file)
+        try:
+            if os.path.exists(abs_notes):
+                with open(abs_notes, 'r') as f:
+                    self.read_notes = set(json.load(f))
+            else:
+                self.read_notes = set()
         except Exception:
             pass
 

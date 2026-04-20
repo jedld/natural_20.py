@@ -840,6 +840,91 @@ input.initiative-input.form-control {
   z-index: 1;
 }
 
+.secret-door-marker {
+  position: absolute;
+  inset: -4px;
+  pointer-events: none;
+  z-index: 1002;
+}
+
+.secret-door-marker-line {
+  position: absolute;
+  background-color: #b30000;
+  box-shadow: 0 0 0 1px rgba(20, 0, 0, 0.45);
+}
+
+.secret-door-marker-opened .secret-door-marker-line {
+  background-color: transparent;
+}
+
+.secret-door-marker-top,
+.secret-door-marker-bottom {
+  left: 4px;
+  right: 4px;
+  height: 3px;
+}
+
+.secret-door-marker-top {
+  top: 0;
+}
+
+.secret-door-marker-bottom {
+  bottom: 0;
+}
+
+.secret-door-marker-left,
+.secret-door-marker-right {
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+}
+
+.secret-door-marker-left {
+  left: 0;
+}
+
+.secret-door-marker-right {
+  right: 0;
+}
+
+.secret-door-marker-opened .secret-door-marker-top,
+.secret-door-marker-opened .secret-door-marker-bottom {
+  background-image: repeating-linear-gradient(
+    to right,
+    #b30000 0 4px,
+    transparent 4px 8px
+  );
+}
+
+.secret-door-marker-opened .secret-door-marker-left,
+.secret-door-marker-opened .secret-door-marker-right {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    #b30000 0 4px,
+    transparent 4px 8px
+  );
+}
+
+.secret-door-marker-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: #b30000;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4);
+  z-index: 1;
+}
+
 
 
 .object-container img {
@@ -873,6 +958,22 @@ input.initiative-input.form-control {
 
 .show-note-btn:hover {
   opacity: 1;
+}
+
+.show-note-btn.unread {
+  background-color: #c0392b;
+  color: #fff;
+  opacity: 0.85;
+  animation: unread-pulse 2s ease-in-out infinite;
+}
+
+.show-note-btn.unread:hover {
+  opacity: 1;
+}
+
+@keyframes unread-pulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 0.5; }
 }
 
 #noteModal {
