@@ -153,7 +153,7 @@ class TestNpc(unittest.TestCase):
         npc.reset_turn(battle)
         battle.set_current_turn(npc)
         available_actions = [str(action) for action in npc.available_actions(session, battle, map=battle_map)]
-        assert len(available_actions) == 17, len(available_actions)
+        assert len(available_actions) == 18, len(available_actions)
 
         self.assertListEqual(available_actions, ["Dash",
                                                  "Disengage",
@@ -171,7 +171,8 @@ class TestNpc(unittest.TestCase):
                                                  "Shove",
                                                  "Help",
                                                  "Interact(Screech,give)",
-                                                 "Interact(Ground,pickup_drop)"
+                                                 "Interact(Ground,pickup_drop)",
+                                                 "Speak"
                                                  ])
 
         assert npc.hit_die() == {6: 2}, npc.hit_die()

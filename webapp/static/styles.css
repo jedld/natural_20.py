@@ -2599,3 +2599,79 @@ body[data-role*="dm"] .tile.entity-dragging {
   -moz-user-select: none;
   -ms-user-select: none;
 }
+
+/* ── DM Narration Overlay ─────────────────────────────────── */
+#narration-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  animation: narration-fade-in 0.8s ease-out;
+}
+
+@keyframes narration-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes narration-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+.narration-content {
+  max-width: 640px;
+  padding: 2.5rem 3rem;
+  text-align: center;
+  animation: narration-text-rise 1s ease-out;
+}
+
+@keyframes narration-text-rise {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.narration-title {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 1.75rem;
+  font-weight: normal;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #c9a96e;
+  margin: 0 0 0.75rem;
+}
+
+.narration-divider {
+  width: 60px;
+  height: 2px;
+  background: #c9a96e;
+  margin: 0 auto 1.5rem;
+  opacity: 0.6;
+}
+
+.narration-text {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 1.15rem;
+  line-height: 1.8;
+  color: #e0ddd5;
+  white-space: pre-line;
+}
+
+.narration-dismiss {
+  margin-top: 2rem;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #888;
+  animation: narration-pulse 2s ease-in-out infinite;
+}
+
+@keyframes narration-pulse {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}

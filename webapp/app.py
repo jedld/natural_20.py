@@ -2220,6 +2220,7 @@ def index():
                            username=session['username'], role=user_role(),
                            DEFAULT_NPC_CONTROLLER=current_game.effective_npc_combat_controller(),
                            NPC_LLM_COMBAT_ENABLED=current_game.force_llm_npc_combat,
+                           narration=battle_map.narration(),
                            special_effects_enabled=special_effects_enabled())
 eval_context = {}
 
@@ -2335,6 +2336,7 @@ def switch_map():
                    map_default_effect=map_default,
                    map_default_effects=map_defaults,
                    dm_active=dm_active,
+                   narration=battle_map.narration(),
                    special_effects_enabled=special_effects_enabled())
 
 #                 // Fetch combat log messages from the server
