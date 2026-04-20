@@ -708,7 +708,7 @@ class Battle():
             return False
         if entity1 == entity2:
             return True
-        if not map1.can_see(entity1, entity2, entity_1_pos=entity_1_pos, entity_2_pos=entity_2_pos):
+        if not map1.can_see(entity1, entity2, entity_1_pos=entity_1_pos, entity_2_pos=entity_2_pos, active_perception=active_perception):
             return False
 
         return True

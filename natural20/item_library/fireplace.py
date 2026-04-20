@@ -44,6 +44,8 @@ class Fireplace(Object):
         return True
 
     def available_interactions(self, entity, battle=None, admin=False):
+        if self.dead():
+            return {}
         interactions = {}
         if self.is_lit():
             interactions['put_out'] = {}
@@ -70,12 +72,46 @@ class Fireplace(Object):
             action = result.get('action')
             if action == 'light':
                 self.lit = True
+                if self.session:
+                    self.session.event_manager.received_event({
+                        'source': entity,
+                        'target': self,
+                        'event': 'object_interaction',
+                        'sub_type': 'light',
+                        'result': 'success',
+                        'reason': f'{entity.name} lights the fireplace.'
+                    })
             elif action == 'put_out':
                 self.lit = False
+                if self.session:
+                    self.session.event_manager.received_event({
+                        'source': entity,
+                        'target': self,
+                        'event': 'object_interaction',
+                        'sub_type': 'put_out',
+                        'result': 'success',
+                        'reason': f'{entity.name} extinguishes the fireplace.'
+                    })
         return _result
 
+    def take_damage(self, dmg, battle=None, damage_type='piercing', **kwargs):
+        if damage_type == 'fire' and not self.lit and not self.dead():
+            self.lit = True
+            if self.session:
+                self.session.event_manager.received_event({
+                    'source': self,
+                    'target': self,
+                    'event': 'object_interaction',
+                    'sub_type': 'ignite',
+                    'result': 'success',
+                    'reason': 'The fireplace roars to life as the flames ignite it.'
+                })
+        super().take_damage(dmg, battle=battle, damage_type=damage_type, **kwargs)
+        if self.dead() and self.lit:
+            self.lit = False
+
     def light_properties(self):
-        if self.lit:
+        if self.lit and not self.dead():
             dim = self.bright
             bright = self.dim
         else:
@@ -85,7 +121,7 @@ class Fireplace(Object):
         return {'dim': dim, 'bright': bright}
 
     def interactable(self, entity=None):
-        return True
+        return not self.dead()
     
     def from_dict(hash):
         session = hash['session']

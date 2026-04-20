@@ -232,3 +232,77 @@ class TestMap(unittest.TestCase):
         self.assertFalse(map.passable(character, 2, 11, origin=(3, 11)))
         self.assertFalse(map.can_see_square(character, (2, 11)))
 
+    def test_can_see_with_none_passive_perception(self):
+        """can_see must not crash when passive_perception() returns None."""
+        from unittest.mock import patch, MagicMock
+
+        session = Session(root_path='tests/fixtures')
+        map = Map(session, 'tests/fixtures/maps/game_map.yml')
+        observer = PlayerCharacter.load(session, 'characters/halfling_rogue.yml')
+        target = PlayerCharacter.load(session, 'characters/high_elf_fighter.yml')
+        map.place((0, 0), observer)
+        map.place((1, 1), target)
+
+        # Patch observer.passive_perception to return None
+        with patch.object(observer, 'passive_perception', return_value=None):
+            # Hidden target — should not raise TypeError
+            target.statuses.append('hidden')
+            target.hidden_stealth = 15
+            result = map.can_see(observer, target)
+            self.assertFalse(result)
+            target.statuses.remove('hidden')
+
+            # Concealed target — should not raise TypeError
+            with patch.object(target, 'concealed', return_value=True), \
+                 patch.object(target, 'conceal_perception_dc', return_value=12):
+                result = map.can_see(observer, target)
+                self.assertFalse(result)
+
+            # Secret target — should not raise TypeError
+            with patch.object(target, 'secret', return_value=True), \
+                 patch.object(target, 'secret_perception_dc', return_value=10):
+                result = map.can_see(observer, target)
+                self.assertFalse(result)
+
+            # With active_perception high enough to see a hidden target
+            target.statuses.append('hidden')
+            target.hidden_stealth = 5
+            result = map.can_see(observer, target, active_perception=20)
+            self.assertTrue(result)
+            target.statuses.remove('hidden')
+
+            # active_perception=None should not raise TypeError
+            target.statuses.append('hidden')
+            target.hidden_stealth = 15
+            result = map.can_see(observer, target, active_perception=None)
+            self.assertFalse(result)
+            target.statuses.remove('hidden')
+
+    def test_can_see_secret_door(self):
+        """Secret doors that pass the perception DC check should be visible."""
+        from unittest.mock import patch
+
+        session = Session(root_path='tests/fixtures')
+        map = Map(session, 'tests/fixtures/maps/game_map.yml')
+        observer = PlayerCharacter.load(session, 'characters/halfling_rogue.yml')
+
+        # Place a secret door (DoorObjectWall is opaque when closed)
+        door_props = session.load_object('attic_secret_door')
+        door_props['type'] = 'attic_secret_door'
+        door_props['secret'] = True
+        door_props['secret_perception_dc'] = 15
+        from natural20.item_library.door_object import DoorObjectWall
+        door = DoorObjectWall(session, map, door_props)
+        map.place_object(door, 2, 0)
+        map.place((0, 0), observer)
+
+        # Without sufficient perception, secret door should not be visible
+        with patch.object(observer, 'passive_perception', return_value=10):
+            result = map.can_see(observer, door, active_perception=0)
+            self.assertFalse(result)
+
+        # With perception beating the DC, secret door should be visible
+        with patch.object(observer, 'passive_perception', return_value=10):
+            result = map.can_see(observer, door, active_perception=20)
+            self.assertTrue(result)
+

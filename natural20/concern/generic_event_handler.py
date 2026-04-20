@@ -6,6 +6,11 @@ class GenericEventHandler:
         self.session = session
         self.map = map
 
+    def _resolve_map(self, entity):
+        if self.map:
+            return self.map
+        return self.session.map_for(entity)
+
     def handle(self, entity, opts=None):
         if opts is None:
             opts = {}
@@ -19,12 +24,13 @@ class GenericEventHandler:
         if self.properties.get('message'):
             message = self.session.t(self.properties['message'], options={ "name": entity.label(), "target": opts['target'].label() if opts.get('target') else None })
             source_entity = self.properties.get('message_source', entity)
+            resolved_map = self._resolve_map(entity)
 
             result.append({
                 "type": "message",
                 "source": source_entity,
                 "message": message,
-                "position": self.properties.get('message_position', self.map.position_of(entity))
+                "position": self.properties.get('message_position', resolved_map.position_of(entity) if resolved_map else None)
             })
             self.session.event_manager.received_event({
                 'event': 'message',
@@ -72,7 +78,8 @@ class GenericEventHandler:
 
                 target_pos = teleport_properties.get('pos', None)
                 if target_pos is None:
-                    target_pos =  self.map.position_of(entity)
+                    resolved_map = self._resolve_map(entity)
+                    target_pos = resolved_map.position_of(entity) if resolved_map else None
                 # check if there is already an entity at pos
                 if target_map.entity_at(*target_pos):
                     target_pos = target_map.find_empty_placeable_position(target_entity, *target_pos)
@@ -92,7 +99,9 @@ class GenericEventHandler:
             delete_properties = self.properties.get('delete')
             entity_ref = delete_properties.get('entity')
             if entity_ref is None or entity_ref == 'self':
-                self.map.remove(entity)
+                resolved_map = self._resolve_map(entity)
+                if resolved_map:
+                    resolved_map.remove(entity)
 
         if self.properties.get('spawn'):
             place_entity_properties = self.properties['spawn']
@@ -101,20 +110,21 @@ class GenericEventHandler:
 
             for place_entity_property in place_entity_properties:
                 entity_name = place_entity_property['entity']
-                npc_meta = self.map.legend.get(entity_name)
+                resolved_map = self._resolve_map(entity)
+                npc_meta = resolved_map.legend.get(entity_name)
                 spawn_entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta['name'],
                                                                         "overrides" : npc_meta.get('overrides', {}), "rand_life" : True })
 
                 if place_entity_property.get('pos'):
                     pos = place_entity_property['pos']
                 else:
-                    pos = self.map.position_of(entity)
+                    pos = resolved_map.position_of(entity)
 
                 # check if there is already an entity at pos
-                if not self.map.placeable(spawn_entity, *pos, squeeze=False):
-                    pos = self.map.find_empty_placeable_position(spawn_entity, *pos)
+                if not resolved_map.placeable(spawn_entity, *pos, squeeze=False):
+                    pos = resolved_map.find_empty_placeable_position(spawn_entity, *pos)
 
-                self.map.add(spawn_entity, *pos, group=npc_meta.get('group', None))
+                resolved_map.add(spawn_entity, *pos, group=npc_meta.get('group', None))
 
         if self.properties.get('damages'):
             for damage in self.properties['damages']:
@@ -141,7 +151,7 @@ class GenericEventHandler:
                 if target_map_name:
                     target_map = self.session.maps[target_map_name]
                 else:
-                    target_map = self.map
+                    target_map = self._resolve_map(entity)
 
                 if target_map is None:
                     raise Exception(f"Could not find map {target_map_name}")
