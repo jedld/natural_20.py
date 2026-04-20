@@ -23,6 +23,8 @@ const Utils = {
         Utils.updateMapDisplay(data, canvas);
         // Refresh portraits when map is switched
         Utils.refreshPortraits();
+        // Show narration if present
+        Utils.checkNarration(data);
         // Apply map-default effects if provided and DM has no active override
         try {
           if (!data.dm_active && typeof Effects !== 'undefined') {
@@ -895,6 +897,52 @@ const Utils = {
 
     // Update map name in body data
     $('body').attr('data-current-map', data.name);
+  },
+
+  /**
+   * Show the DM narration overlay.
+   * @param {object} narration  – narration config (on_enter.title, on_enter.text, on_enter.once)
+   * @param {string} mapName    – current map name (used as localStorage key when once=true)
+   */
+  showNarration: function (narration, mapName) {
+    if (!narration || !narration.on_enter) return;
+    var entry = narration.on_enter;
+    if (!entry.text) return;
+
+    // "once" — skip if already shown for this map
+    if (entry.once) {
+      var key = 'narration_shown_' + (mapName || 'default');
+      try {
+        if (localStorage.getItem(key)) return;
+        localStorage.setItem(key, '1');
+      } catch (e) { /* private browsing / quota — show anyway */ }
+    }
+
+    var $overlay = $('#narration-overlay');
+    if (entry.title) {
+      $('#narration-title').text(entry.title).show();
+      $overlay.find('.narration-divider').show();
+    } else {
+      $('#narration-title').hide();
+      $overlay.find('.narration-divider').hide();
+    }
+    $('#narration-text').text(entry.text);
+    $overlay.css({ display: 'flex', animation: 'narration-fade-in 0.8s ease-out' });
+
+    // Dismiss on click
+    $overlay.off('click.narration').on('click.narration', function () {
+      $overlay.css('animation', 'narration-fade-out 0.4s ease-in forwards');
+      setTimeout(function () { $overlay.hide(); }, 400);
+    });
+  },
+
+  /**
+   * Check narration data from a /switch_map response and show if present.
+   */
+  checkNarration: function (data) {
+    if (data && data.narration) {
+      Utils.showNarration(data.narration, data.name);
+    }
   }
 };
 
@@ -902,6 +950,12 @@ $(document).ready(function () {
   // ...existing code...
   if (Utils.autoInsertDieRoll) { Utils.autoInsertDieRoll(); }
   if (Utils.initDieRollComponent) { Utils.initDieRollComponent(); }
+
+  // Show initial narration if the server provided one
+  if (window._initialNarration) {
+    var mapName = $('body').attr('data-current-map') || '';
+    Utils.showNarration(window._initialNarration, mapName);
+  }
 
   // Ensure popover menus stay on top when page loads
   if (Utils.ensurePopoverMenusOnTop) {

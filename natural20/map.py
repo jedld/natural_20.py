@@ -138,6 +138,10 @@ class Map(SerializableObject):
     def background_image(self):
         return self.properties.get('background_image', None)
 
+    def narration(self):
+        """Return the narration config dict from the map YAML, or None."""
+        return self.properties.get('narration', None)
+
     def __iter__(self):
         """
         Make the Map class iterable.
@@ -938,6 +942,15 @@ class Map(SerializableObject):
             if entity.passive_perception() < entity2.conceal_perception_dc():
                 return False
             if active_perception < entity2.conceal_perception_dc():
+                return False
+
+        if entity2.secret():
+            secret_dc = entity2.secret_perception_dc()
+            if secret_dc is None:
+                return False
+            if entity.passive_perception() < secret_dc:
+                return False
+            if active_perception < secret_dc:
                 return False
 
         entity_1_squares = self.entity_squares_at_pos(entity, *entity_1_pos) if entity_1_pos else self.entity_squares(entity)

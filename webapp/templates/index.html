@@ -1167,5 +1167,21 @@
         </div>
       </div>
     </div>
+
+    <!-- DM Narration Overlay -->
+    <div id="narration-overlay" style="display:none;">
+      <div class="narration-content">
+        <h2 id="narration-title" class="narration-title"></h2>
+        <div class="narration-divider"></div>
+        <div id="narration-text" class="narration-text"></div>
+        <div class="narration-dismiss">Click anywhere to continue</div>
+      </div>
+    </div>
+
+    {% if narration %}
+    <script>
+      window._initialNarration = {{ narration | tojson }};
+    </script>
+    {% endif %}
 </body>
 </html>
