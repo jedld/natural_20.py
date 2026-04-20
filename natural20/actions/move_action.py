@@ -124,6 +124,7 @@ class MoveAction(Action):
 
         # cutoff = False
         move_segments = []
+        segment_effects = []  # list of lists: one group of trigger effects per segment boundary
         _safe_moves = []
         for index, move in enumerate(actual_moves):
             is_flying_or_jumping = self.source.flying or move in movement.jump_locations
@@ -140,6 +141,7 @@ class MoveAction(Action):
                     move_segments.append(_safe_moves)
                     _safe_moves = []
 
+                    segment_effects.append(trigger_results)
                     additional_effects += trigger_results
                     if any(result['type'] == 'cancel_move' for result in trigger_results):
                         break
@@ -151,6 +153,7 @@ class MoveAction(Action):
         for index, safe_moves in enumerate(move_segments):
             movement = compute_actual_moves(self.source, safe_moves, map, battle, movement_budget, manual_jump=jumps)
 
+            grapple_effects = []
             if self.source.is_grappling():
                 grappled_movement = movement.movement.copy()
                 grappled_movement.pop()
@@ -159,7 +162,7 @@ class MoveAction(Action):
                     start_pos = map.entity_or_object_pos(grappling_target)
                     grappled_entity_movement = [start_pos] + grappled_movement
 
-                    additional_effects.append({
+                    grapple_effects.append({
                         'source': grappling_target,
                         'map': map,
                         'battle': battle,
@@ -194,8 +197,12 @@ class MoveAction(Action):
                 'position': movement.movement[-1]
             })
 
-            if index < len(additional_effects):
-                self.result.append(additional_effects[index])
+            for effect in grapple_effects:
+                self.result.append(effect)
+
+            if index < len(segment_effects):
+                for effect in segment_effects[index]:
+                    self.result.append(effect)
         return self
 
     def check_opportunity_attacks(self, entity, move_list, battle, grappled=False):

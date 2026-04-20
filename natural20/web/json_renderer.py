@@ -123,7 +123,8 @@ class JsonRenderer:
                     for object_entity in objects:
                         if entity_pov and entity_pov != current_entity:
                             visible_to_pov = any([self.map.can_see(entity_p, object_entity, allow_dark_vision=True) for entity_p in entity_pov])
-                            if isinstance(object_entity, DoorObject) or isinstance(object_entity, DoorObjectWall):
+                            if (isinstance(object_entity, DoorObject) or isinstance(object_entity, DoorObjectWall)) \
+                                    and not object_entity.concealed() and not object_entity.secret():
                                 visible_to_pov = True
                             elif not visible_to_pov:
                                 continue
