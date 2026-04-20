@@ -829,6 +829,23 @@ describe('engine.js basic behavior', () => {
     global.$ = orig$;
   });
 
+  test('EventQueue narration event calls Utils.showNarration with message and map_name', async () => {
+    const q = new Engine.EventQueue();
+    const calls = [];
+    const origUtils = global.Utils;
+    global.Utils = { ...origUtils, showNarration: (narration, mapName) => { calls.push({ narration, mapName }); } };
+
+    q.enqueue({ type: 'narration', message: { on_enter: { title: 'The Library', text: 'A grand room.', once: true } }, map_name: '2nd_floor' });
+
+    await new Promise((resolve) => { const poll = () => { if (!q.processing && q.queue.length === 0) return resolve(); setTimeout(poll, 5); }; setTimeout(poll, 5); });
+
+    expect(calls.length).toBe(1);
+    expect(calls[0].narration.on_enter.title).toBe('The Library');
+    expect(calls[0].mapName).toBe('2nd_floor');
+
+    global.Utils = origUtils;
+  });
+
   test('EventQueue stoptrack fades out and clears active sound (pauses audio)', async () => {
     const q = new Engine.EventQueue();
 

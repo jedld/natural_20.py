@@ -909,9 +909,9 @@ const Utils = {
     var entry = narration.on_enter;
     if (!entry.text) return;
 
-    // "once" — skip if already shown for this map
+    // "once" — skip if already shown for this map+title
     if (entry.once) {
-      var key = 'narration_shown_' + (mapName || 'default');
+      var key = 'narration_shown_' + (mapName || 'default') + '_' + (entry.title || '');
       try {
         if (localStorage.getItem(key)) return;
         localStorage.setItem(key, '1');
