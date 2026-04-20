@@ -127,6 +127,7 @@ class Map(SerializableObject):
 
         self._light_builder = StaticLightBuilder(self)
         self.triggers = self.properties.get('triggers', {})
+        self._triggered_area_narrations = set()
         self._compute_lights()
 
         if not skip_setup:
@@ -141,6 +142,32 @@ class Map(SerializableObject):
     def narration(self):
         """Return the narration config dict from the map YAML, or None."""
         return self.properties.get('narration', None)
+
+    def area_narrations(self):
+        """Return the list of area narration configs from the map YAML, or empty list."""
+        return self.properties.get('area_narrations', [])
+
+    def check_area_narration(self, entity, pos):
+        """Check if entity at pos triggers an area narration.
+        Returns the narration dict if triggered, None otherwise.
+        Each area narration fires at most once per entity (tracked by entity UID + area index)."""
+        x, y = pos[0], pos[1]
+        for idx, area in enumerate(self.area_narrations()):
+            bounds = area.get('bounds', {})
+            x1, y1 = bounds.get('x1', 0), bounds.get('y1', 0)
+            x2, y2 = bounds.get('x2', 0), bounds.get('y2', 0)
+            if x1 <= x <= x2 and y1 <= y <= y2:
+                key = (entity.entity_uid, idx)
+                if key not in self._triggered_area_narrations:
+                    self._triggered_area_narrations.add(key)
+                    return {
+                        'on_enter': {
+                            'title': area.get('title', ''),
+                            'text': area.get('text', ''),
+                            'once': area.get('once', True),
+                        }
+                    }
+        return None
 
     def __iter__(self):
         """
