@@ -3623,7 +3623,16 @@ def action():
                     # ignore malformed manual_jump to remain backwards compatible
                     pass
                 if battle:
-                    return jsonify(current_game.commit_and_update(session['username'], action, pov_entities))
+                    result = current_game.commit_and_update(session['username'], action, pov_entities)
+                    # Check area narrations after battle movement
+                    area_narration = battle_map.check_area_narration(entity, move_path[-1])
+                    if area_narration:
+                        socketio.emit('message', {'type': 'narration', 'message': area_narration, 'map_name': battle_map.name})
+                        narration_entry = area_narration.get('on_enter', {})
+                        narration_text = narration_entry.get('text', '')
+                        if narration_text:
+                            output_logger.log(narration_text, visibility={'kind': 'entities', 'entity_uids': [entity.entity_uid]})
+                    return jsonify(result)
                 else:
                     last_coords = move_path[-1]
                     if battle_map.placeable(entity, last_coords[0], last_coords[1]):
@@ -3641,6 +3650,14 @@ def action():
                             animation_log = []
                             animation_log.append((entity.entity_uid, move_path, None))
                             socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1], 'animation_log': animation_log}})
+                        # Check area narrations after free movement
+                        area_narration = battle_map.check_area_narration(entity, move_path[-1])
+                        if area_narration:
+                            socketio.emit('message', {'type': 'narration', 'message': area_narration, 'map_name': battle_map.name})
+                            narration_entry = area_narration.get('on_enter', {})
+                            narration_text = narration_entry.get('text', '')
+                            if narration_text:
+                                output_logger.log(narration_text, visibility={'kind': 'entities', 'entity_uids': [entity.entity_uid]})
                         current_game.loop_environment()
                         return jsonify({'status': 'ok'})
                     else:
@@ -3899,6 +3916,15 @@ def get_entity_info():
     except Exception as e:
         logger.error(f"Error getting entity info: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/reset_narrations', methods=['POST'])
+def reset_narrations():
+    global current_game
+    if not session.get('username'):
+        return jsonify({'status': 'error', 'message': 'Not logged in'}), 401
+    for m in current_game.maps.values():
+        m._triggered_area_narrations.clear()
+    return jsonify({'status': 'ok'})
 
 @app.route('/logout', methods=['POST', 'GET'])
 def logout():
