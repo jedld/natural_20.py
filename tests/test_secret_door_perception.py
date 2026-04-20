@@ -21,12 +21,31 @@ from natural20.utils.action_builder import autobuild
 from natural20.die_roll import DieRoll
 
 
+class CaptureOutputLogger:
+    def __init__(self):
+        self.entries = []
+
+    def set_event_context(self, event):
+        return None
+
+    def clear_event_context(self):
+        return None
+
+    def log(self, event_msg, event=None, visibility=None):
+        self.entries.append({
+            'message': event_msg,
+            'event': event,
+            'visibility': visibility,
+        })
+
+
 class TestSecretDoorPerceptionDeathHouse(unittest.TestCase):
     """Test secret door perception on the Death House 3rd floor map."""
 
     def setUp(self):
         random.seed(7000)
-        self.event_manager = EventManager()
+        self.output_logger = CaptureOutputLogger()
+        self.event_manager = EventManager(output_logger=self.output_logger)
         self.event_manager.standard_cli()
         self.session = Session(root_path='user_levels/death_house', event_manager=self.event_manager)
         self.map = self.session.maps['3rd_floor']
@@ -124,6 +143,22 @@ class TestSecretDoorPerceptionDeathHouse(unittest.TestCase):
             objects = tile.get('objects', [])
             self.assertTrue(len(objects) > 0, "Secret door should be visible with high perception")
             self.assertEqual(objects[0]['name'], 'attic_secret_door')
+            self.assertTrue(objects[0]['secret_door_marker'])
+            self.assertFalse(objects[0]['secret_door_marker_opened'])
+            self.assertEqual(
+                objects[0]['secret_door_marker_edges'],
+                {'top': True, 'right': False, 'bottom': True, 'left': False}
+            )
+
+    def test_renderer_does_not_mark_regular_corner_doors_as_secret(self):
+        """Doors with secret_door type metadata but no actual secret state should not show the marker."""
+        renderer = JsonRenderer(self.map, None, padding=[0, 0])
+        result = renderer.render()
+        tile = result[2][5]
+        objects = tile.get('objects', [])
+        self.assertTrue(len(objects) > 0)
+        self.assertEqual(objects[0]['name'], 'corner_door_rt')
+        self.assertFalse(objects[0]['secret_door_marker'])
 
     def test_renderer_shows_door_after_reveal(self):
         """After secret door is revealed (is_secret=False), it should always render."""
@@ -145,6 +180,7 @@ class TestSecretDoorPerceptionDeathHouse(unittest.TestCase):
         objects = tile.get('objects', [])
         self.assertTrue(len(objects) > 0, "Revealed door should always be visible")
         self.assertEqual(objects[0]['name'], 'attic_secret_door')
+        self.assertTrue(objects[0]['secret_door_marker'])
 
     def test_renderer_with_light_and_high_perception(self):
         """Non-darkvision character with light and high perception should see secret door."""
@@ -181,6 +217,80 @@ class TestSecretDoorPerceptionDeathHouse(unittest.TestCase):
         self.assertEqual(tile['x'], 4)
         self.assertEqual(tile['y'], 8)
         self.assertEqual(tile.get('objects', []), [])
+
+    def test_opened_secret_door_is_auto_discovered_when_seen(self):
+        """Opened secret doors should become discovered for the viewer without a perception check."""
+        pc = self._load_character('characters/high_elf_fighter.yml', 'test_fighter', 3, 8)
+        self.assertTrue(pc.darkvision(30))
+        self.assertLess(pc.passive_perception(), 15)
+        self.assertTrue(self.secret_door.is_secret)
+
+        self.secret_door.open()
+
+        self.assertTrue(self.map.can_see(pc, self.secret_door))
+        self.assertIn(pc, self.secret_door.perception_results)
+        self.assertTrue(self.secret_door.perception_results[pc]['revealed'])
+
+        renderer = JsonRenderer(self.map, None, padding=[0, 0])
+        result = renderer.render(entity_pov=[pc])
+        tile = result[4][4]
+        objects = tile.get('objects', [])
+        self.assertTrue(len(objects) > 0, "Opened secret door should render once seen")
+        self.assertEqual(objects[0]['name'], 'attic_secret_door')
+        self.assertTrue(objects[0]['secret_door_marker'])
+        self.assertTrue(objects[0]['secret_door_marker_opened'])
+
+    def test_first_secret_door_discovery_logs_custom_object_message_once(self):
+        """First-time secret door discovery should add one viewer-scoped combat log entry."""
+        pc = self._load_character('characters/high_elf_fighter.yml', 'test_fighter', 3, 8)
+
+        with patch.object(pc, 'passive_perception', return_value=16):
+            self.assertTrue(self.map.can_see(pc, self.secret_door))
+            renderer = JsonRenderer(self.map, None, padding=[0, 0])
+            renderer.render(entity_pov=[pc])
+
+        discovery_logs = [
+            entry for entry in self.output_logger.entries
+            if entry['message'] == 'You notice a secret door hidden in the wall.'
+        ]
+        self.assertEqual(len(discovery_logs), 1)
+        self.assertEqual(discovery_logs[0]['visibility']['kind'], 'entity_only')
+        self.assertEqual(discovery_logs[0]['visibility']['entity_uids'], [pc.entity_uid])
+
+    def test_secret_door_discovery_uses_map_level_message_when_object_has_none(self):
+        """Map-level metadata should provide the fallback discovery message."""
+        pc = self._load_character('characters/high_elf_fighter.yml', 'test_fighter', 3, 8)
+        self.secret_door.properties.pop('secret_message', None)
+        self.map.properties['map']['secret_message'] = '{viewer} spots a hidden passage near {door}.'
+
+        with patch.object(pc, 'passive_perception', return_value=16):
+            self.assertTrue(self.map.can_see(pc, self.secret_door))
+
+        self.assertIn(
+            f'{pc.label()} spots a hidden passage near {self.secret_door.label()}.',
+            [entry['message'] for entry in self.output_logger.entries]
+        )
+
+    def test_renderer_keeps_secret_door_marker_after_discovery_out_of_current_los(self):
+        """Once discovered, a secret door marker should keep rendering for that viewer even under fog."""
+        pc = self._load_character('characters/high_elf_fighter.yml', 'test_fighter', 3, 8)
+
+        with patch.object(pc, 'passive_perception', return_value=16):
+            renderer = JsonRenderer(self.map, None, padding=[0, 0])
+            result = renderer.render(entity_pov=[pc])
+            tile = result[4][4]
+            objects = tile.get('objects', [])
+            self.assertTrue(len(objects) > 0)
+            self.assertTrue(self.secret_door.perception_results[pc]['revealed'])
+
+        self.map.move_to(pc, 0, 0)
+        self.assertFalse(self.map.can_see_square(pc, (4, 8)))
+
+        result = renderer.render(entity_pov=[pc])
+        tile = result[4][4]
+        objects = tile.get('objects', [])
+        self.assertTrue(len(objects) > 0, "Discovered secret door marker should remain visible under fog")
+        self.assertTrue(objects[0]['secret_door_marker'])
 
     # --- Look action tests ---
 

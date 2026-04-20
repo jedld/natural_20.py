@@ -3203,7 +3203,17 @@ def update():
                          tile_size_px=TILE_PX, 
                          random=random, 
                          is_setup=(request.args.get('is_setup') == 'true'),
-                         current_map_name=battle_map.name)
+                         current_map_name=battle_map.name,
+                         read_notes=current_game.read_notes)
+
+@app.route('/mark_note_read', methods=['POST'])
+def mark_note_read():
+    global current_game
+    note_id = request.json.get('note_id') if request.is_json else request.form.get('note_id')
+    if not note_id:
+        return jsonify(error="No note_id provided"), 400
+    current_game.read_notes.add(note_id)
+    return jsonify(ok=True)
 
 @app.route('/actions', methods=['GET'])
 def get_actions():
@@ -3307,6 +3317,26 @@ def action_type_to_class(action_type):
         return LayOnHandsAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
+
+
+def resolve_requested_action_type(entity, session, battle, battle_map, action_class, requested_action_type):
+    if requested_action_type:
+        return requested_action_type
+
+    try:
+        available_actions = entity.available_actions(
+            session,
+            battle,
+            auto_target=False,
+            map=battle_map,
+        )
+        for available_action in available_actions:
+            if isinstance(available_action, action_class) and available_action.action_type:
+                return available_action.action_type
+    except Exception:
+        pass
+
+    return None
 
 @app.route('/target', methods=['GET'])
 def get_target():
@@ -3731,7 +3761,15 @@ def action():
         else:
             action_class = action_type_to_class(action_type)
             opts = action_request.get('opts', {})
-            action = action_class(game_session, entity, opts.get('action_type'))
+            resolved_action_type = resolve_requested_action_type(
+                entity,
+                game_session,
+                battle,
+                battle_map,
+                action_class,
+                opts.get('action_type'),
+            )
+            action = action_class(game_session, entity, resolved_action_type)
             action = action.build_map()
 
             while not isinstance(action, Action):

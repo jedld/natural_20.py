@@ -904,6 +904,54 @@ class Map(SerializableObject):
                 return obj
         return None
 
+    def _secret_door_notice_message(self, viewer, door):
+        door_properties = getattr(door, 'properties', {}) or {}
+        map_properties = ((getattr(self, 'properties', {}) or {}).get('map', {}) or {})
+        template = (
+            door_properties.get('secret_message')
+            or door_properties.get('secret_door_message')
+            or map_properties.get('secret_message')
+            or map_properties.get('secret_door_message')
+        )
+
+        viewer_label = viewer.label() if hasattr(viewer, 'label') else str(viewer)
+        door_label = door.label() if hasattr(door, 'label') else str(door)
+        values = {
+            'viewer': viewer_label,
+            'character': viewer_label,
+            'actor': viewer_label,
+            'source': viewer_label,
+            'door': door_label,
+            'target': door_label,
+            'map': map_properties.get('name') or '',
+        }
+
+        if template:
+            try:
+                return template.format(**values)
+            except Exception:
+                return template
+
+        return f"{viewer_label} notices a secret door hidden in the wall."
+
+    def _log_secret_door_discovery(self, viewer, door, reason=None):
+        event_manager = getattr(getattr(self, 'session', None), 'event_manager', None)
+        viewer_uid = getattr(viewer, 'entity_uid', None)
+        if event_manager is None or viewer_uid is None:
+            return
+
+        event_manager.received_event({
+            'event': 'secret_door_discovered',
+            'source': viewer,
+            'target': door,
+            'message': self._secret_door_notice_message(viewer, door),
+            'reason': reason,
+            'visibility': {
+                'kind': 'entity_only',
+                'entity_uids': [viewer_uid],
+            }
+        })
+
     def can_see_square(self, entity, pos2: tuple, allow_dark_vision=True, force_dark_vision=False, inclusive=None):
         has_line_of_sight = False
         max_illumination = 0.0
@@ -972,7 +1020,104 @@ class Map(SerializableObject):
             if active_perception < entity2.conceal_perception_dc():
                 return False
 
-        if entity2.secret():
+        entity2_properties = getattr(entity2, 'properties', {}) or {}
+        entity2_opened = getattr(entity2, 'opened', None)
+
+        secretish_door = bool(
+            entity2.kind_of_door()
+            and (
+                entity2.secret()
+                or entity2_properties.get('secret')
+                or entity2_properties.get('secret_door')
+                or entity2.secret_perception_dc() is not None
+            )
+        )
+        viewer_revealed_secret = bool(
+            getattr(entity2, 'perception_results', {}).get(entity, {}).get('revealed')
+        )
+        opened_secret_door = bool(
+            secretish_door
+            and callable(entity2_opened)
+            and entity2_opened()
+        )
+
+        def mark_secret_door_revealed(reason):
+            previous_result = getattr(entity2, 'perception_results', {}).get(entity, {}) or {}
+            was_revealed = bool(previous_result.get('revealed'))
+            if not hasattr(entity2, 'perception_results'):
+                entity2.perception_results = {}
+            entity2.perception_results[entity] = {
+                'secret_dc': entity2.secret_perception_dc(),
+                'perception_roll': None,
+                'revealed': True,
+                'reason': reason
+            }
+            if not was_revealed:
+                self._log_secret_door_discovery(entity, entity2, reason=reason)
+
+        def opened_secret_door_visible():
+            if not opened_secret_door:
+                return False
+
+            origin_squares = self.entity_squares_at_pos(entity, *entity_1_pos) if entity_1_pos else self.entity_squares(entity)
+            door_pos = self.position_of(entity2)
+            door_edges = getattr(entity2, 'door_pos', None)
+            edge_flags = [False, False, False, False]
+            if isinstance(door_edges, list) and len(door_edges) == 4:
+                edge_flags = [bool(edge) for edge in door_edges]
+            elif isinstance(door_edges, int) and 0 <= door_edges <= 3:
+                edge_flags[door_edges] = True
+
+            target_squares = []
+            edge_offsets = [(0, -1), (1, 0), (0, 1), (-1, 0)]
+            for enabled, (dx, dy) in zip(edge_flags, edge_offsets):
+                if not enabled:
+                    continue
+                target_x = door_pos[0] + dx
+                target_y = door_pos[1] + dy
+                if 0 <= target_x < self.size[0] and 0 <= target_y < self.size[1]:
+                    target_squares.append((target_x, target_y))
+
+            for pos1_x, pos1_y in origin_squares:
+                for target_x, target_y in target_squares:
+                    line_of_sight_info = self.line_of_sight(
+                        pos1_x,
+                        pos1_y,
+                        target_x,
+                        target_y,
+                        distance=distance,
+                        inclusive=True,
+                        heavy_cover=heavy_cover,
+                        creature_size_min=creature_size_min,
+                    )
+                    if line_of_sight_info is None:
+                        continue
+
+                    sighting_distance = math.floor(math.sqrt((pos1_x - target_x)**2 + (pos1_y - target_y)**2))
+                    if sighting_distance and entity.has_blindsight():
+                        if entity.blindsight(sighting_distance * self.feet_per_grid):
+                            mark_secret_door_revealed('opened_visible')
+                            return True
+                        continue
+
+                    if entity.is_admin:
+                        mark_secret_door_revealed('opened_visible')
+                        return True
+
+                    max_illumination = max(self.light_at(target_x, target_y), self.light_at(*door_pos))
+                    if allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid):
+                        max_illumination += 0.5
+
+                    if max_illumination > 0.0:
+                        mark_secret_door_revealed('opened_visible')
+                        return True
+
+            return False
+
+        if opened_secret_door and opened_secret_door_visible():
+            return True
+
+        if entity2.secret() and not viewer_revealed_secret and not opened_secret_door:
             secret_dc = entity2.secret_perception_dc()
             if secret_dc is None:
                 return False
@@ -983,6 +1128,7 @@ class Map(SerializableObject):
             # (secret doors are opaque like walls, so normal LOS would block visibility
             # to the door's own square)
             if entity2.kind_of_door():
+                mark_secret_door_revealed('perception')
                 return True
 
         entity_1_squares = self.entity_squares_at_pos(entity, *entity_1_pos) if entity_1_pos else self.entity_squares(entity)
@@ -1024,7 +1170,7 @@ class Map(SerializableObject):
         if not has_line_of_sight:
             return False
         
-        if entity.is_admin or (entity2.kind_of_door() and not entity2.concealed() and not entity2.secret()):
+        if entity.is_admin or (entity2.kind_of_door() and not entity2.concealed() and (not entity2.secret() or viewer_revealed_secret)):
             # doors are always visible
             return True
 

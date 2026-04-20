@@ -2241,6 +2241,136 @@ function resetKeyboardMovement() {
   globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
 }
 
+// Handle direct WSAD movement on focused entity (without needing to click first)
+function handleDirectWSADMovement(event) {
+  // Check if we're in a text input or already in another mode
+  const $focused = $(document.activeElement);
+  if ($focused.is('input, textarea, [contenteditable]') || targetMode || multiTargetMode || coneMode || talkToEntityMode) {
+    return;
+  }
+
+  // Only handle WSAD / Arrow keys
+  const key = event.key;
+  if (!['w', 'a', 's', 'd', 'W', 'A', 'S', 'D', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+    return;
+  }
+
+  // Get the focused entity (POV entity)
+  const entity_uid = $('body').attr('data-pov-entity');
+  if (!entity_uid) {
+    return; // No entity in focus
+  }
+
+  // Find the entity's current tile
+  const $entityTile = $(`.tile[data-coords-id="${entity_uid}"]`);
+  if (!$entityTile.length) {
+    return; // Entity not found on map
+  }
+
+  const coordsx = $entityTile.data('coords-x');
+  const coordsy = $entityTile.data('coords-y');
+
+  // Initiate move mode if not already active, using the entity's current position as source
+  if (!moveMode && !keyboardMovementMode) {
+    moveMode = true;
+    source = { x: coordsx, y: coordsy };
+    accumulatedPath = [];
+    pivotPoints = [];
+
+    // Store the movement callback that will be called when the user commits (via spacebar)
+    moveModeCallback = (path) => {
+      ajaxPost(
+        "/action",
+        { id: entity_uid, action: "MoveAction", opts: {}, path, manual_jump: null },
+        (data) => {
+          console.log("Direct WSAD movement executed:", data);
+          refreshTurn();
+        },
+        true
+      );
+      moveMode = false;
+      movePath = [];
+      globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+    };
+
+    console.log("Entered WSAD move mode for entity:", entity_uid, "at position:", { x: coordsx, y: coordsy });
+  }
+
+  // If we're now in moveMode, handle the directional input
+  if (moveMode && source) {
+    event.preventDefault(); // Prevent page scrolling
+
+    const currentStep = movePath.length > 0 ? movePath[movePath.length - 1] : [source.x, source.y];
+    let newX = currentStep[0];
+    let newY = currentStep[1];
+
+    // Calculate new position based on key
+    switch (key.toLowerCase()) {
+      case 'w':
+      case 'arrowup':
+        newY--;
+        break;
+      case 's':
+      case 'arrowdown':
+        newY++;
+        break;
+      case 'a':
+      case 'arrowleft':
+        newX--;
+        break;
+      case 'd':
+      case 'arrowright':
+        newX++;
+        break;
+    }
+
+    // Fetch and validate the path
+    const cacheKey = `${source.x}-${source.y}-${newX}-${newY}-${pivotPoints.join("-")}`;
+
+    const applyMovementData = (data) => {
+      if (!data || !data.cost || !data.path || data.cost.budget < 0) {
+        console.log("Invalid move via WSAD - path not available or budget exceeded");
+        return;
+      }
+
+      const available_cost = (data.cost.original_budget - data.cost.budget) * 5;
+      currentPosition = {
+        x: newX,
+        y: newY,
+        cost: available_cost,
+        path: data.path
+      };
+      lastPathForJump = data.path;
+      movePath = data.path;
+      Utils.drawMovementPath(globalCtx, movePath, available_cost, data.placeable, data.terrain_info);
+    };
+
+    const makePathRequest = () => {
+      Utils.ajaxGet(
+        "/path",
+        {
+          from: source,
+          to: { x: newX, y: newY },
+          accumulatedPath: accumulatedPath.length > 0 ? JSON.stringify(accumulatedPath) : null
+        },
+        (data) => {
+          console.log("WSAD path check response:", data);
+          move_path_cache[cacheKey] = data;
+          applyMovementData(data);
+        }
+      );
+    };
+
+    // Check cache or make request
+    if (move_path_cache[cacheKey]) {
+      console.log("Using cached path for WSAD movement");
+      applyMovementData(move_path_cache[cacheKey]);
+    } else {
+      makePathRequest();
+    }
+  }
+}
+
 function createGlobalCanvas() {
   if (globalCanvas) {
     document.body.removeChild(globalCanvas);
@@ -5779,5 +5909,42 @@ function makeFloatingWindowsDraggable() {
         $panel.css('cursor', 'default');
       }
     });
+  });
+
+  // Global WSAD/Arrow key handler for direct movement on focused entity
+  $(document).on('keydown', function(event) {
+    const key = event.key;
+
+    // Handle spacebar to commit movement
+    if (key === ' ' && moveMode) {
+      event.preventDefault();
+      moveMode = false;
+      move_path_cache = {};
+      globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+      $(".tile").css("border", "none");
+      if (moveModeCallback) {
+        moveModeCallback(movePath);
+        movePath = [];
+      }
+      return;
+    }
+
+    // Handle WSAD/Arrow keys for direct movement
+    if (['w', 'a', 's', 'd', 'W', 'A', 'S', 'D', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+      handleDirectWSADMovement(event);
+    }
+
+    // Handle Escape to cancel movement
+    if (key === 'Escape' && moveMode) {
+      event.preventDefault();
+      moveMode = false;
+      movePath = [];
+      accumulatedPath = [];
+      pivotPoints = [];
+      source = null;
+      move_path_cache = {};
+      globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+      $(".tile").css("border", "none");
+    }
   });
 }
