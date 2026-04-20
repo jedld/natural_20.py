@@ -61,6 +61,16 @@ class SocketIOOutputLogger:
     def clear_logs(self):
         self.logging_queue.clear()
 
+    def get_log_snapshot(self):
+        """Return a serializable list of all log entries for saving."""
+        return list(self.logging_queue)
+
+    def restore_log_snapshot(self, entries):
+        """Restore log entries from a saved snapshot."""
+        self.logging_queue.clear()
+        for entry in (entries or []):
+            self.logging_queue.append(entry)
+
     def set_event_context(self, event):
         self._event_context = event
 
@@ -401,7 +411,8 @@ class GameManagement:
                  force_llm_npc_combat = False,
                  autosave = False,
                  auto_battle=True,
-                 system_logger=None,  soundtrack=None):
+                 system_logger=None,  soundtrack=None,
+                 defer_player_spawn=False):
         """
         Initialize the game management
 
@@ -433,6 +444,8 @@ class GameManagement:
         self.current_map_for_user = {}
         self.username_to_sid = {}
         self.save_states = []
+        self.defer_player_spawn = defer_player_spawn
+        self.deferred_players = {}  # entity_uid -> {entity, map_name, position}
         self.soundtracks = soundtrack
         self.current_soundtrack = None
         self.autosave = autosave
@@ -526,6 +539,8 @@ class GameManagement:
                 if 'background' in track['name']:
                     self.current_soundtrack = track
         self._setup_controllers()
+        if self.defer_player_spawn:
+            self._defer_all_players()
         if autosave:
             # Build an initial save list from files present
             available_files = []
@@ -569,6 +584,52 @@ class GameManagement:
             for _controller in controller['controllers']:
                 self.web_controllers[entity].add_user(_controller)
 
+    def _defer_all_players(self):
+        """Remove all controller-managed PCs from maps and track them for deferred spawning."""
+        for controller in self.controllers:
+            entity_uid = controller['entity_uid']
+            entity = self.get_entity_by_uid(entity_uid)
+            if entity is None:
+                continue
+            entity_map = self.get_map_for_entity(entity)
+            if entity_map is None:
+                continue
+            position = list(entity_map.position_of(entity))
+            entity_map.remove(entity)
+            self.deferred_players[str(entity_uid)] = {
+                'entity': entity,
+                'map_name': entity_map.name,
+                'position': position,
+            }
+            self.logger.info(f"Deferred spawn for {entity_uid} at {position} on map {entity_map.name}")
+
+    def spawn_player_for_user(self, username):
+        """Spawn deferred PCs controlled by username onto their maps. Returns list of spawned entities."""
+        spawned = []
+        for controller in self.controllers:
+            if username not in controller['controllers']:
+                continue
+            entity_uid = str(controller['entity_uid'])
+            deferred = self.deferred_players.get(entity_uid)
+            if deferred is None:
+                continue
+            entity = deferred['entity']
+            map_name = deferred['map_name']
+            position = deferred['position']
+            target_map = self.maps.get(map_name)
+            if target_map is None:
+                continue
+            pos_x, pos_y = position
+            # If the original position is occupied or invalid, find a nearby free space
+            if not target_map.placeable(entity, pos_x, pos_y):
+                pos_x, pos_y = target_map.find_empty_placeable_position(entity, pos_x, pos_y)
+                self.logger.info(f"Original position {position} occupied, using {pos_x},{pos_y} for {entity_uid}")
+            target_map.place((pos_x, pos_y), entity)
+            del self.deferred_players[entity_uid]
+            spawned.append(entity)
+            self.logger.info(f"Spawned {entity_uid} at ({pos_x},{pos_y}) on map {map_name} for user {username}")
+        return spawned
+
     def get_pov_entity_for_user(self, username):
         self.logger.info(f"Getting POV entity for {username}")
         return self.pov_entity_for_user.get(username, None)
@@ -604,6 +665,10 @@ class GameManagement:
             entity = map_obj.entity_by_uid(entity_uid)
             if entity:
                 return entity
+        # Check deferred (not yet spawned) players
+        deferred = self.deferred_players.get(str(entity_uid))
+        if deferred:
+            return deferred['entity']
         return None
 
     def get_background_image_for_user(self, username):
@@ -1009,8 +1074,8 @@ class GameManagement:
 
     def save_game(self, name: Optional[str] = None):
         # Snapshot state and determine filename under lock, then write outside the lock
-        yaml_str, target_file, index_for_record = self._prepare_save(name)
-        self._write_save_file(yaml_str, target_file, index_for_record)
+        yaml_str, target_file, index_for_record, log_snapshot = self._prepare_save(name)
+        self._write_save_file(yaml_str, target_file, index_for_record, log_snapshot)
 
     def save_game_async(self, name: Optional[str] = None):
         """Queue a save request to be processed by the background save worker."""
@@ -1047,8 +1112,8 @@ class GameManagement:
                         name = next_item
                     except Exception:
                         break
-                yaml_str, target_file, index_for_record = self._prepare_save(name)
-                self._write_save_file(yaml_str, target_file, index_for_record)
+                yaml_str, target_file, index_for_record, log_snapshot = self._prepare_save(name)
+                self._write_save_file(yaml_str, target_file, index_for_record, log_snapshot)
                 if stop_after:
                     break
             except Exception as e:
@@ -1062,6 +1127,7 @@ class GameManagement:
         with self.game_state_lock:
             serializer = Serialization()
             yaml_str = serializer.serialize(self.game_session, self.battle, self.maps)
+            log_snapshot = self.output_logger.get_log_snapshot()
 
             # Determine filename
             if name:
@@ -1078,9 +1144,9 @@ class GameManagement:
                 self.current_save_index += 1
 
             target_file = base_name + ('.gz' if self.gzip and not base_name.endswith('.gz') else '')
-            return yaml_str, target_file, index_for_record
+            return yaml_str, target_file, index_for_record, log_snapshot
 
-    def _write_save_file(self, yaml_str: str, target_file: str, index_for_record: int):
+    def _write_save_file(self, yaml_str: str, target_file: str, index_for_record: int, log_snapshot=None):
         """Write the given YAML string to disk atomically and update indices/state."""
         abs_target = os.path.join(self.save_dir, target_file)
         import tempfile
@@ -1129,6 +1195,17 @@ class GameManagement:
         except Exception:
             # Non-fatal if we can't write last_save.txt
             pass
+
+        # Save combat log alongside the game state
+        if log_snapshot is not None:
+            import json
+            log_file = os.path.splitext(target_file.replace('.gz', ''))[0] + '.log.json'
+            try:
+                abs_log = os.path.join(self.save_dir, log_file)
+                with open(abs_log, 'w') as f:
+                    json.dump(log_snapshot, f)
+            except Exception:
+                pass
 
     def load_save(self, index=None, filename=None):
         """
@@ -1180,6 +1257,18 @@ class GameManagement:
         self.battle_map = new_maps['index']
         self.maps = new_maps
         # Do not mutate the save list on load; keep history intact
+
+        # Restore combat log if a log file exists alongside the save
+        import json
+        log_file = os.path.splitext(target_file.replace('.gz', ''))[0] + '.log.json'
+        abs_log = os.path.join(self.save_dir, log_file)
+        try:
+            if os.path.exists(abs_log):
+                with open(abs_log, 'r') as f:
+                    log_snapshot = json.load(f)
+                self.output_logger.restore_log_snapshot(log_snapshot)
+        except Exception:
+            pass
 
 
     def end_current_battle(self):
@@ -1285,6 +1374,8 @@ class GameManagement:
         if battle:
             self.socketio.emit('message', {'type': 'move', 'message': { 'animation_log': battle.get_animation_logs()}})
             battle.clear_animation_logs()
+            # Lighting or visibility may have changed (e.g. fire damage lighting a fireplace)
+            self.socketio.emit('message', {'type': 'refresh_map'})
         else:
             self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
             # check if spell and send animation log

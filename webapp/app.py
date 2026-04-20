@@ -330,6 +330,7 @@ LOGINS = index_data["logins"]
 DEFAULT_NPC_CONTROLLER = index_data.get("npc_default_controller", "ai")
 CONTROLLERS = index_data["default_controllers"]
 AUTOSAVE = index_data.get("autosave", False)
+DEFER_PLAYER_SPAWN = index_data.get("defer_player_spawn", False)
 EXTENSIONS = []
 first_connect = False
 
@@ -373,7 +374,8 @@ current_game = GameManagement(game_session=game_session,
                               force_llm_npc_combat=app.config['NPC_LLM_COMBAT_ENABLED'],
                               autosave=AUTOSAVE,
                               system_logger=logger,
-                              soundtrack=SOUNDTRACKS)
+                              soundtrack=SOUNDTRACKS,
+                              defer_player_spawn=DEFER_PLAYER_SPAWN)
 
 # Ensure pending saves are flushed on process exit
 def _shutdown_flush():
@@ -1564,6 +1566,9 @@ def login():
         login_info = next((login for login in LOGINS if login["name"].lower() == username), None)
         if login_info and login_info["password"] == password:
             session['username'] = username
+
+            # Spawn deferred PCs for this user on first login
+            current_game.spawn_player_for_user(username)
             
             # Check if user has any assigned controllers
             user_entities = entities_controlled_by(username)
@@ -1986,6 +1991,9 @@ def select_character():
     # Update the current_game controllers if needed
     current_game._setup_controllers()
 
+    # Spawn deferred PC for this user after character selection
+    current_game.spawn_player_for_user(username)
+
     # Proactively set POV and sync current map to the selected character to avoid stale map on first load
     try:
         entity = current_game.get_entity_by_uid(character_name)
@@ -2142,6 +2150,9 @@ def index():
     if not logged_in():
         print("not logged in")
         return redirect(url_for('login'))
+
+    # Spawn any deferred PCs for this user (handles returning sessions that skip login)
+    current_game.spawn_player_for_user(session['username'])
 
     # Check if user needs to select a character
     if 'dm' not in user_role():
