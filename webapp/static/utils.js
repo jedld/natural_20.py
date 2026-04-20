@@ -350,6 +350,13 @@ const Utils = {
       return false;
     }
 
+    // compare unread note state
+    const unread1 = $tile1.find('.show-note-btn.unread').length;
+    const unread2 = $tile2.find('.show-note-btn.unread').length;
+    if (unread1 !== unread2) {
+      return false;
+    }
+
     // check if the dialog bubbles are the same
     const dialog1 = $tile1.find('.dialog-bubble').length;
     const dialog2 = $tile2.find('.dialog-bubble').length;
@@ -736,11 +743,22 @@ const Utils = {
     const noteContent = btn.nextElementSibling.innerHTML;
     const name = btn.getAttribute('data-name');
     const label = btn.getAttribute('data-label');
+    const noteId = btn.getAttribute('data-note-id');
     const title = label || name || 'Notes';
 
     $('#noteModalTitle').text(title);
     $('#noteModalContent').html(noteContent);
     $('#noteModal').show();
+
+    // Mark as read
+    if (noteId && btn.classList.contains('unread')) {
+      btn.classList.remove('unread');
+      fetch('/mark_note_read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note_id: noteId })
+      }).catch(function () {});
+    }
   },
   closeNoteModal: function () {
     $('#noteModal').hide();

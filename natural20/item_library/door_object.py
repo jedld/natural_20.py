@@ -387,6 +387,11 @@ class DoorObject(Object):
         self.key_name = self.properties.get("key")
 
     def update_state(self, state):
+        state_aliases = {
+            "conclealed": "concealed",
+            "unconclealed": "unconcealed",
+        }
+        state = state_aliases.get(state, state)
         super().update_state(state)
         if state == "opened":
             self.open()

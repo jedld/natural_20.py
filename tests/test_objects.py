@@ -104,6 +104,13 @@ class TestObjects(unittest.TestCase):
         self.assertEqual(switch.state, 'servants_quarters')
         self.assertEqual(self.map.entity_or_object_pos(self.entity),[0, 1])
 
+    def test_door_update_state_accepts_legacy_conclealed_alias(self):
+        self.assertFalse(self.door.concealed())
+        self.door.update_state('conclealed')
+        self.assertTrue(self.door.concealed())
+        self.door.update_state('unconclealed')
+        self.assertFalse(self.door.concealed())
+
     def test_fireplace_lights_on_fire_damage(self):
         session = Session(root_path='tests/fixtures')
         map = Map(session, 'tests/fixtures/maps/game_map.yml')
