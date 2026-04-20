@@ -122,7 +122,9 @@ class JsonRenderer:
                     shared_attrs['objects'] = []
                     for object_entity in objects:
                         if entity_pov and entity_pov != current_entity:
-                            visible_to_pov = any([self.map.can_see(entity_p, object_entity, allow_dark_vision=True) for entity_p in entity_pov])
+                            visible_to_pov = any([self.map.can_see(entity_p, object_entity, allow_dark_vision=True,
+                                                                   active_perception=self.battle.active_perception_for(entity_p) if self.battle and entity_p in self.battle.entities else 0)
+                                                  for entity_p in entity_pov])
                             if (isinstance(object_entity, DoorObject) or isinstance(object_entity, DoorObjectWall)) \
                                     and not object_entity.concealed() and not object_entity.secret():
                                 visible_to_pov = True
