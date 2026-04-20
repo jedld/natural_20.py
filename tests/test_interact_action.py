@@ -136,7 +136,8 @@ class TestInteractAction(unittest.TestCase):
             'Interact(front_door,open)',
             'Interact(chest,open)',
             'Interact(Ground,pickup_drop)',
-            'Look'])
+            'Look',
+            'Speak'])
 
 
     def test_autobuild(self):

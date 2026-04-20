@@ -135,7 +135,7 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         return Npc(session, properties["kind"].lower(), properties)
     
     def conversable(self):
-        languages_known = self.properties.get('languages', [])
+        languages_known = self.properties.get('languages') or []
         if len(languages_known) > 0:
             return True
         return False
