@@ -29,7 +29,7 @@ class OutputLogger:
     def clear_event_context(self):
         return None
 
-    def log(self, event_msg):
+    def log(self, event_msg, event=None, visibility=None):
         print(event_msg)
 
 class FileOutputLogger:
@@ -45,7 +45,7 @@ class FileOutputLogger:
     def clear_event_context(self):
         return None
 
-    def log(self, event_msg):
+    def log(self, event_msg, event=None, visibility=None):
         with open(self.file_path, "a") as f:
             f.write(f"{event_msg}\n")
             f.flush()
@@ -298,6 +298,10 @@ class EventManager:
             else:
                 self.output_logger.log(f"{self.show_name(event)} looked around and rolled {event['die_roll']} = {event['die_roll'].result()} perception check.")
 
+        def secret_door_discovered(event):
+            message = event.get('message') or f"{self.show_name(event)} notices a secret door."
+            self.output_logger.log(message, event=event, visibility=event.get('visibility'))
+
         def ability_check(event):
             if event["success"]:
                 self.output_logger.log(f"{self.show_target_name(event)} {self.show_name(event)} makes a successfull {event['ability']} check and rolls {event['roll']} = {event['roll'].result()} >= DC {event['dc']}")
@@ -449,6 +453,7 @@ class EventManager:
             'find_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} creates a familiar {event['familiar'].name}"),
             'look': look,
             'message': lambda event: self.output_logger.log(f"{self.show_name(event)}: {event['message']}"),
+            'secret_door_discovered': secret_door_discovered,
             # New event handlers:
             'lockpick_success': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} unlocked the door using lockpick. Roll: {event['roll']}"

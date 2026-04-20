@@ -87,6 +87,8 @@ class Action:
 
     def label(self):
         p = inflect.engine()
+        if not self.action_type:
+            return "actions"
         return p.plural(self.action_type)
 
     def validate(self, battle_map, target=None):

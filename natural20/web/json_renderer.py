@@ -45,6 +45,8 @@ class JsonRenderer:
             result_row = []
             for index_2 in range(height):
                 has_darkvision = False
+                hidden_door_tile = False
+                hidden_door_line_of_sight = False
 
                 y = height - index_2 - 1 - y_offset
                 soft_shadow_direction = [0,0,0,0,0,0,0,0]
@@ -72,23 +74,23 @@ class JsonRenderer:
                                 continue
                             # check if there is a door like object in the square
                             if self.map.kind_of_door(x, y):
-                                line_of_sight = any([self.map.can_see_square(entity, (x, y), force_dark_vision=True, inclusive=False) for entity in entity_pov])
-                                result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': line_of_sight, 'light': 0.0, 'opacity': 0.9, 'soft_shadow_direction': soft_shadow_direction})
+                                hidden_door_tile = True
+                                hidden_door_line_of_sight = any([self.map.can_see_square(entity, (x, y), force_dark_vision=True, inclusive=False) for entity in entity_pov])
                             else:
                                 result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 1.0, 'soft_shadow_direction': soft_shadow_direction})
-                            continue
+                                continue
 
                 object_entities = self.map.objects_at(x, y)
                 entity = self.map.entity_at(x, y)
-                light = self.map.light_at(x, y)
+                light = 0.0 if hidden_door_tile else self.map.light_at(x, y)
 
                 darkvision_color = False
-                if has_darkvision:
+                if has_darkvision and not hidden_door_tile:
                     if light == 0.0:
                         darkvision_color = True
                     light += 0.5
 
-                opacity = 1.0 - max(min(1.0, light), 0.2)
+                opacity = 0.9 if hidden_door_tile else 1.0 - max(min(1.0, light), 0.2)
 
 
                 soft_shadow_index = 0
@@ -107,8 +109,8 @@ class JsonRenderer:
                 shared_attributes = {
                     'x': x,
                     'y': y,
-                    'difficult': self.map.difficult_terrain(entity, x, y),
-                    'line_of_sight': True,
+                    'difficult': False if hidden_door_tile else self.map.difficult_terrain(entity, x, y),
+                    'line_of_sight': hidden_door_line_of_sight if hidden_door_tile else True,
                     'light': light,
                     'soft_shadow_direction': soft_shadow_direction,
                     'opacity': opacity,
@@ -121,10 +123,16 @@ class JsonRenderer:
                 def render_objects(entity_pov=None, shared_attrs=None, objects=None, current_entity=None):
                     shared_attrs['objects'] = []
                     for object_entity in objects:
+                        viewer_revealed_secret = False
                         if entity_pov and entity_pov != current_entity:
+                            viewer_revealed_secret = any([
+                                getattr(object_entity, 'perception_results', {}).get(entity_p, {}).get('revealed')
+                                for entity_p in entity_pov
+                            ])
                             visible_to_pov = any([self.map.can_see(entity_p, object_entity, allow_dark_vision=True,
                                                                    active_perception=self.battle.active_perception_for(entity_p) if self.battle and entity_p in self.battle.entities else 0)
                                                   for entity_p in entity_pov])
+                            visible_to_pov = visible_to_pov or viewer_revealed_secret
                             if (isinstance(object_entity, DoorObject) or isinstance(object_entity, DoorObjectWall)) \
                                     and not object_entity.concealed() and not object_entity.secret():
                                 visible_to_pov = True
@@ -136,6 +144,60 @@ class JsonRenderer:
                             "label" : object_entity.label(),
                             "image" : object_entity.token_image(),
                             "transforms" : object_entity.token_image_transform()
+                        }
+
+                        marker_edges = None
+                        door_edges = getattr(object_entity, 'door_pos', None)
+                        if isinstance(door_edges, list) and len(door_edges) == 4:
+                            marker_edges = {
+                                'top': bool(door_edges[0]),
+                                'right': bool(door_edges[1]),
+                                'bottom': bool(door_edges[2]),
+                                'left': bool(door_edges[3]),
+                            }
+                        elif isinstance(door_edges, int):
+                            marker_edges = {
+                                'top': door_edges == 0,
+                                'right': door_edges == 1,
+                                'bottom': door_edges == 2,
+                                'left': door_edges == 3,
+                            }
+
+                        originally_secret_door = bool(
+                            object_entity.secret()
+                            or viewer_revealed_secret
+                            or object_entity.properties.get('secret')
+                            or object_entity.secret_perception_dc() is not None
+                            or object_entity.properties.get('secret_dc') is not None
+                            or (
+                                object_entity.properties.get('secret_door')
+                                and (
+                                    object_entity.secret()
+                                    or viewer_revealed_secret
+                                    or (hasattr(object_entity, 'opened') and object_entity.opened())
+                                )
+                            )
+                        )
+                        is_secret_door = (
+                            isinstance(object_entity, DoorObjectWall)
+                            and originally_secret_door
+                        )
+                        object_info['secret_door_marker'] = bool(
+                            is_secret_door
+                            and not object_info['image']
+                            and marker_edges
+                            and any(marker_edges.values())
+                        )
+                        object_info['secret_door_marker_opened'] = bool(
+                            object_info['secret_door_marker']
+                            and hasattr(object_entity, 'opened')
+                            and object_entity.opened()
+                        )
+                        object_info['secret_door_marker_edges'] = marker_edges or {
+                            'top': False,
+                            'right': False,
+                            'bottom': False,
+                            'left': False,
                         }
 
                         object_info['notes'], _ = object_entity.list_notes(entity_pov=entity_pov)
@@ -157,7 +219,7 @@ class JsonRenderer:
                 if entity:
                     if entity_pov and len(entity_pov) > 0:
                         visible_to_pov = any([self.map.can_see(entity_p, entity, allow_dark_vision=True) for entity_p in entity_pov])
-                        if not visible_to_pov:
+                        if not visible_to_pov or hidden_door_tile:
                             result_row.append(shared_attributes)
                             continue
 

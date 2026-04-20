@@ -39,10 +39,35 @@
                        style="{{ obj['transforms'] }}; top: {{obj['token_offset_px'][0]}}px; left: {{obj['token_offset_px'][1]}}px;"/>
                 {% endif %}
               </div>
+              {% if obj['secret_door_marker'] %}
+                <div class="secret-door-marker {% if obj['secret_door_marker_opened'] %}secret-door-marker-opened{% else %}secret-door-marker-closed{% endif %}" aria-hidden="true">
+                  {% if obj['secret_door_marker_edges']['top'] %}
+                    <div class="secret-door-marker-line secret-door-marker-top">
+                      <span class="secret-door-marker-label">S</span>
+                    </div>
+                  {% endif %}
+                  {% if obj['secret_door_marker_edges']['right'] %}
+                    <div class="secret-door-marker-line secret-door-marker-right">
+                      <span class="secret-door-marker-label">S</span>
+                    </div>
+                  {% endif %}
+                  {% if obj['secret_door_marker_edges']['bottom'] %}
+                    <div class="secret-door-marker-line secret-door-marker-bottom">
+                      <span class="secret-door-marker-label">S</span>
+                    </div>
+                  {% endif %}
+                  {% if obj['secret_door_marker_edges']['left'] %}
+                    <div class="secret-door-marker-line secret-door-marker-left">
+                      <span class="secret-door-marker-label">S</span>
+                    </div>
+                  {% endif %}
+                </div>
+              {% endif %}
               {% if obj['notes'] %}
-                <button class="show-note-btn" onclick="Utils.showNoteModal(this)" 
+                <button class="show-note-btn{% if obj['id'] not in read_notes %} unread{% endif %}" onclick="Utils.showNoteModal(this)" 
                         data-name="{{ obj['name'] }}"
                         data-label="{{ obj['label'] }}"
+                        data-note-id="{{ obj['id'] }}"
                         style="top: {{obj['image_offset_px'][0]}}px; left: {{obj['image_offset_px'][1]}}px;">
                   <i class="glyphicon glyphicon-info-sign"></i>
                 </button>
