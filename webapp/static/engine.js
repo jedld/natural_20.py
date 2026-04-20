@@ -384,6 +384,10 @@ class EventQueue {
           $("#command-output").append(data.message + "\n");
           resolve();
           break;
+        case "narration":
+          Utils.showNarration(data.message, data.map_name);
+          resolve();
+          break;
         default:
           console.log("Unknown message type:", data.type);
           resolve();
@@ -3648,6 +3652,24 @@ $(document).ready(() => {
 
   $("#open-console").click(() => {
     $("#console-container").is(":visible") ? hideConsole() : showConsole();
+  });
+
+  $("#reset-narrations").click(() => {
+    try {
+      var keys = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf('narration_shown_') === 0) keys.push(k);
+      }
+      keys.forEach(function(k) { localStorage.removeItem(k); });
+      $.post('/reset_narrations', function() {
+        alert('Narrations reset (' + keys.length + ' cleared). They will show again when you enter their areas.');
+      }).fail(function() {
+        alert('Narrations partially reset (client only). Server reset failed.');
+      });
+    } catch (e) {
+      alert('Could not clear narration data.');
+    }
   });
 
   $("#hide-combat-log").click(hideConsole);
