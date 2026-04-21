@@ -22,6 +22,7 @@ from natural20.action import Action
 from natural20.utils.conversation import audible_entities
 from typing import Optional, Dict, Any
 from natural20.session import Session
+from webapp.game_management_components import GameControllerRegistry, GameEntityRegistry, ShortTermGoalManager
 
 class SocketIOOutputLogger:
     """
@@ -447,6 +448,8 @@ class GameManagement:
         self.save_states = []
         self.defer_player_spawn = defer_player_spawn
         self.deferred_players = {}  # entity_uid -> {entity, map_name, position}
+        self.entity_registry = GameEntityRegistry(self)
+        self.controller_registry = GameControllerRegistry(self)
         self.soundtracks = soundtrack
         self.current_soundtrack = None
         self.autosave = autosave
@@ -522,8 +525,9 @@ class GameManagement:
         self.short_term_goals: Dict[str, Dict[str, Any]] = {}
         self.goal_turn_seconds = max(1, int(os.environ.get('NPC_GOAL_TURN_SECONDS', '6')))
         self.goal_poll_interval = max(0.25, float(os.environ.get('NPC_GOAL_POLL_INTERVAL', '1.0')))
+        self.goal_manager = ShortTermGoalManager(self)
         self._goal_thread_stop = threading.Event()
-        self._goal_thread = threading.Thread(target=self._goal_worker, name='npc-goal-worker', daemon=True)
+        self._goal_thread = threading.Thread(target=self.goal_manager.goal_worker, name='npc-goal-worker', daemon=True)
         self._goal_thread.start()
 
         if self.soundtracks:
@@ -581,109 +585,34 @@ class GameManagement:
                         self.load_save(filename=save_file)
 
     def _setup_controllers(self):
-        for controller in self.controllers:
-            entity_uid =  controller['entity_uid']
-            self.logger.info(f"Setting up controller for {entity_uid}")
-            entity = self.get_entity_by_uid(entity_uid)
-            if entity not in self.controllers:
-                self.web_controllers[entity] = WebController(self.game_session, None)
-                self.web_controllers[entity].add_user("dm")
-
-            for _controller in controller['controllers']:
-                self.web_controllers[entity].add_user(_controller)
+        self.controller_registry.setup_controllers()
 
     def _defer_all_players(self):
-        """Remove all controller-managed PCs from maps and track them for deferred spawning."""
-        for controller in self.controllers:
-            entity_uid = controller['entity_uid']
-            entity = self.get_entity_by_uid(entity_uid)
-            if entity is None:
-                continue
-            entity_map = self.get_map_for_entity(entity)
-            if entity_map is None:
-                continue
-            position = list(entity_map.position_of(entity))
-            entity_map.remove(entity)
-            self.deferred_players[str(entity_uid)] = {
-                'entity': entity,
-                'map_name': entity_map.name,
-                'position': position,
-            }
-            self.logger.info(f"Deferred spawn for {entity_uid} at {position} on map {entity_map.name}")
+        self.entity_registry.defer_all_players()
 
     def spawn_player_for_user(self, username):
-        """Spawn deferred PCs controlled by username onto their maps. Returns list of spawned entities."""
-        spawned = []
-        for controller in self.controllers:
-            if username not in controller['controllers']:
-                continue
-            entity_uid = str(controller['entity_uid'])
-            deferred = self.deferred_players.get(entity_uid)
-            if deferred is None:
-                continue
-            entity = deferred['entity']
-            map_name = deferred['map_name']
-            position = deferred['position']
-            target_map = self.maps.get(map_name)
-            if target_map is None:
-                continue
-            pos_x, pos_y = position
-            # If the original position is occupied or invalid, find a nearby free space
-            if not target_map.placeable(entity, pos_x, pos_y):
-                pos_x, pos_y = target_map.find_empty_placeable_position(entity, pos_x, pos_y)
-                self.logger.info(f"Original position {position} occupied, using {pos_x},{pos_y} for {entity_uid}")
-            target_map.place((pos_x, pos_y), entity)
-            del self.deferred_players[entity_uid]
-            spawned.append(entity)
-            self.logger.info(f"Spawned {entity_uid} at ({pos_x},{pos_y}) on map {map_name} for user {username}")
-        return spawned
+        return self.entity_registry.spawn_player_for_user(username)
 
     def get_pov_entity_for_user(self, username):
-        self.logger.info(f"Getting POV entity for {username}")
-        return self.pov_entity_for_user.get(username, None)
+        return self.entity_registry.get_pov_entity_for_user(username)
 
     def set_pov_entity_for_user(self, username, entity):
-        if entity:
-            self.logger.info(f"Setting POV entity for {username} to {entity.name}")
-        self.pov_entity_for_user[username] = entity
+        self.entity_registry.set_pov_entity_for_user(username, entity)
 
     def switch_map_for_user(self, username, map_name):
-        self.logger.info(f"Switching map for {username} to {map_name}")
-        self.current_map_for_user[username] = (map_name, self.maps[map_name])
+        self.entity_registry.switch_map_for_user(username, map_name)
 
     def get_map_for_user(self, username) -> Map:
-        if 'index' not in self.maps:
-             return self.maps.values()[0]
-        name, _map = self.current_map_for_user.get(username, ('index', self.maps['index']))
-        return _map
+        return self.entity_registry.get_map_for_user(username)
 
     def get_map_for_entity(self, entity) -> Map:
-        for _, map_obj in self.maps.items():
-            if isinstance(entity, str):
-                _entity = map_obj.get_entity_by_uid(entity)
-            else:
-                _entity = entity
-
-            if _entity in map_obj.entities:
-                return map_obj
-        return None
+        return self.entity_registry.get_map_for_entity(entity)
 
     def get_entity_by_uid(self, entity_uid) -> Entity:
-        for _, map_obj in self.maps.items():
-            entity = map_obj.entity_by_uid(entity_uid)
-            if entity:
-                return entity
-        # Check deferred (not yet spawned) players
-        deferred = self.deferred_players.get(str(entity_uid))
-        if deferred:
-            return deferred['entity']
-        return None
+        return self.entity_registry.get_entity_by_uid(entity_uid)
 
     def get_background_image_for_user(self, username):
-        name, _map = self.current_map_for_user.get(username, ('index', self.maps['index']))
-        if _map.background_image():
-            return 'maps/' + _map.background_image()
-        return 'maps/' + name + '.png'
+        return self.entity_registry.get_background_image_for_user(username)
 
     def waiting_for_user_input(self):
         return self.waiting_for_user
@@ -784,32 +713,10 @@ class GameManagement:
         return list(self.maps.keys())
 
     def effective_npc_combat_controller(self):
-        if self.force_llm_npc_combat:
-            return 'llm'
-        return self.npc_controller
+        return self.controller_registry.effective_npc_combat_controller()
 
     def build_combat_controller_for_entity(self, entity):
-        if isinstance(entity, PlayerCharacter):
-            return self.get_controller_for_entity(entity)
-        if entity.familiar():
-            return self.get_controller_for_entity(entity.owner)
-
-        npc_controller = self.effective_npc_combat_controller()
-
-        if npc_controller == 'manual':
-            web_controllers = WebController(self.game_session, None)
-            web_controllers.add_user("dm")
-            return web_controllers
-
-        if npc_controller == 'llm':
-            try:
-                from webapp.app import llm_handler as _llm_handler  # type: ignore
-                provider = getattr(_llm_handler, 'current_provider', None)
-            except Exception:
-                provider = None
-            return LlmMcpController(self.game_session, llm_provider=provider)
-
-        return GenericController(self.game_session)
+        return self.controller_registry.build_combat_controller_for_entity(entity)
     
     def update_group(self, entity, group):
         entity.group = group
@@ -921,32 +828,16 @@ class GameManagement:
 
 
     def get_controller_for_entity(self, entity):
-        return self.web_controllers.get(entity, None)
+        return self.controller_registry.get_controller_for_entity(entity)
 
     def get_web_controllers_for_user(self, username, default_controller = None):
-        controller_list = []
-        for k, _controller in self.web_controllers.items():
-            if username in _controller.get_users():
-                controller_list.append(_controller)
-        return controller_list
+        return self.controller_registry.get_web_controllers_for_user(username, default_controller=default_controller)
 
     def entity_owners(self, entity):
-        owner = getattr(entity, 'owner', None)
-        if owner is not None and getattr(owner, 'entity_uid', None) is not None:
-            entity_uid = owner.entity_uid
-        else:
-            entity_uid = entity.entity_uid
-
-        ctrl_info = next((controller for controller in self.controllers if controller['entity_uid'] == entity_uid), None)
-        return [] if not ctrl_info else ctrl_info['controllers']
+        return self.controller_registry.entity_owners(entity)
 
     def entities_owned_by(self, entity):
-        entities = []
-        for _, map_obj in self.maps.items():
-            for e in map_obj.entities:
-                if e.owner == entity:
-                    entities.append(e)
-        return entities
+        return self.controller_registry.entities_owned_by(entity)
 
     def game_loop(self):
         battle = self.get_current_battle()
@@ -1363,112 +1254,19 @@ class GameManagement:
             self.save_game_async()
 
     def schedule_short_term_goal(self, entity, goal_text, speaker=None):
-        if entity is None:
-            return None
-
-        goal_text = (goal_text or '').strip()
-        if not goal_text:
-            return None
-
-        goal_id = str(entity.entity_uid)
-        requester_uid = getattr(speaker, 'entity_uid', None) if speaker is not None else None
-        goal_record = {
-            'entity_uid': goal_id,
-            'goal': goal_text,
-            'status': 'active',
-            'created_at_game_time': self.game_session.game_time,
-            'updated_at_game_time': self.game_session.game_time,
-            'next_run_at': time.time() + self.goal_turn_seconds,
-            'attempts': 0,
-            'history': [],
-            'requester_uid': requester_uid,
-            'last_error': None,
-            'running': False,
-        }
-        with self.game_state_lock:
-            self.short_term_goals[goal_id] = goal_record
-        return goal_record
+        return self.goal_manager.schedule_short_term_goal(entity, goal_text, speaker=speaker)
 
     def get_short_term_goal(self, entity):
-        if entity is None:
-            return None
-        return self.short_term_goals.get(str(entity.entity_uid))
+        return self.goal_manager.get_short_term_goal(entity)
 
     def record_short_term_goal_history(self, entity, entry):
-        if entity is None:
-            return None
-        goal = self.short_term_goals.get(str(entity.entity_uid))
-        if goal is None:
-            return None
-        goal['history'].append(entry)
-        goal['history'] = goal['history'][-12:]
-        goal['updated_at_game_time'] = self.game_session.game_time
-        return goal
+        return self.goal_manager.record_short_term_goal_history(entity, entry)
 
     def complete_short_term_goal(self, entity, status='completed', reason=None):
-        if entity is None:
-            return None
-        goal = self.short_term_goals.get(str(entity.entity_uid))
-        if goal is None:
-            return None
-        goal['status'] = status
-        goal['running'] = False
-        goal['next_run_at'] = None
-        goal['last_error'] = reason
-        goal['updated_at_game_time'] = self.game_session.game_time
-        if reason:
-            goal['history'].append({
-                'time': self.game_session.game_time,
-                'event': status,
-                'reason': reason,
-            })
-            goal['history'] = goal['history'][-12:]
-        return goal
+        return self.goal_manager.complete_short_term_goal(entity, status=status, reason=reason)
 
     def _goal_worker(self):
-        while not self._goal_thread_stop.is_set():
-            if self.get_current_battle() or not self.short_term_goals:
-                self._goal_thread_stop.wait(self.goal_poll_interval)
-                continue
-
-            due_goal_ids = []
-            now = time.time()
-            with self.game_state_lock:
-                for goal_id, goal in self.short_term_goals.items():
-                    if goal.get('status') != 'active':
-                        continue
-                    if goal.get('running'):
-                        continue
-                    next_run_at = goal.get('next_run_at')
-                    if next_run_at is None or next_run_at > now:
-                        continue
-                    goal['running'] = True
-                    due_goal_ids.append(goal_id)
-
-            for goal_id in due_goal_ids:
-                try:
-                    from webapp import app as app_module
-                    app_module.entity_rag_handler.execute_scheduled_goal(goal_id, app_module.llm_conversation_handler)
-                except Exception as e:
-                    self.logger.error(f"Failed to execute short-term goal for {goal_id}: {e}")
-                    entity = self.get_entity_by_uid(goal_id)
-                    if entity is not None:
-                        self.record_short_term_goal_history(entity, {
-                            'time': self.game_session.game_time,
-                            'event': 'error',
-                            'reason': str(e),
-                        })
-                finally:
-                    with self.game_state_lock:
-                        goal = self.short_term_goals.get(goal_id)
-                        if goal is not None:
-                            goal['running'] = False
-                            if goal.get('status') == 'active':
-                                goal['attempts'] = goal.get('attempts', 0) + 1
-                                goal['next_run_at'] = time.time() + self.goal_turn_seconds
-                                goal['updated_at_game_time'] = self.game_session.game_time
-
-            self._goal_thread_stop.wait(self.goal_poll_interval)
+        self.goal_manager.goal_worker()
 
     def commit_and_update(self, username, action, pov_entities):
         """Commit an action and update clients.
