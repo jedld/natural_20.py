@@ -2,6 +2,7 @@ import unittest
 from natural20.map import Map
 from natural20.battle import Battle
 from natural20.actions.attack_action import AttackAction
+from natural20.actions.help_action import HelpAction
 from natural20.utils.action_builder import autobuild
 from natural20.session import Session
 from natural20.map_renderer import MapRenderer
@@ -104,6 +105,44 @@ class TestNpc(unittest.TestCase):
         'Shove',
         'Help'])
         self.assertEqual(len(action), 12)
+
+    def test_multiattack_continues_after_first_attack(self):
+        battle = Battle(self.session, self.map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position=[0, 1], token='G')
+        npc = self.session.npc('shamblingmound')
+        self.map.add(npc, 1, 0)
+        battle.add(npc, 'b', add_to_initiative=True)
+        battle.start(combat_order=[npc, fighter])
+        npc.reset_turn(battle)
+        fighter.reset_turn(battle)
+        battle.set_current_turn(npc)
+
+        first_attack = autobuild(self.session, AttackAction, npc, battle, map=battle.map_for(npc), match=['slam', fighter])[0]
+        battle.action(first_attack)
+        battle.commit(first_attack)
+
+        remaining_attacks = [action.npc_action['name'] for action in npc.available_actions(self.session, battle) if isinstance(action, AttackAction)]
+        self.assertIn('slam2', remaining_attacks)
+
+    def test_multiattack_cannot_follow_help_action(self):
+        battle = Battle(self.session, self.map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position=[0, 1], token='G')
+        npc = self.session.npc('shamblingmound')
+        self.map.add(npc, 1, 0)
+        battle.add(npc, 'b', add_to_initiative=True)
+        battle.start(combat_order=[npc, fighter])
+        npc.reset_turn(battle)
+        fighter.reset_turn(battle)
+        battle.set_current_turn(npc)
+
+        help_action = autobuild(self.session, HelpAction, npc, battle, map=battle.map_for(npc), match=[fighter])[0]
+        battle.action(help_action)
+        battle.commit(help_action)
+
+        remaining_attacks = [action for action in npc.available_actions(self.session, battle) if isinstance(action, AttackAction)]
+        self.assertEqual(remaining_attacks, [])
 
     def test_npc(self):
         session = self.make_session()

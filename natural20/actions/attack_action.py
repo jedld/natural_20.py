@@ -71,7 +71,18 @@ class AttackAction(Action):
         if battle and options.get('legendary_action'):
             return entity.total_legendary_actions(battle) > 0
 
-        return battle is None or entity.total_actions(battle) > 0 or entity.multiattack(battle, options.get('npc_action'))
+        if battle is None:
+            return True
+
+        if entity.total_actions(battle) > 0:
+            return True
+
+        npc_action = options.get('npc_action')
+        if npc_action and entity.multiattack(battle, npc_action):
+            entity_state = battle.entity_state_for(entity)
+            return bool(entity_state and entity_state.get('multiattack_started', False))
+
+        return False
 
     def clone(self):
         action = AttackAction(self.session, self.source, self.action_type, self.opts)
@@ -231,6 +242,10 @@ class AttackAction(Action):
                     ground_object.add_item(item['weapon'])
 
         if battle:
+            entity_state = battle.entity_state_for(item['source'])
+            if entity_state and item.get('npc_action') and item['npc_action'].get('multiattack_group') and not item.get('as_reaction') and not item.get('as_bonus_action') and not item.get('as_legendary_action') and not item.get('second_hand'):
+                entity_state['multiattack_started'] = True
+
             if item.get('as_reaction'):
                 battle.consume(item['source'], 'reaction')
             elif item.get('as_bonus_action'):

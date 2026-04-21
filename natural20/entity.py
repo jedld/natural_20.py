@@ -1107,6 +1107,7 @@ class Entity(EntityStateEvaluator, Notable):
             'active_perception_disadvantage': 0,
             'two_weapon': None,
             'action_surge': None,
+            'multiattack_started': False,
             'casted_level_spells': [],
             'positions_entered': {},
             'legendary_actions': total_legendary_actions

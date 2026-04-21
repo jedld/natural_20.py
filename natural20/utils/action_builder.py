@@ -55,8 +55,21 @@ def acquire_targets(param, entity, battle, map=None):
             allies = map.entities.keys() if map else []
         possible_targets |= in_range_and_visible(allies)
 
+    if "unconscious_targets" in target_types:
+        if battle:
+            unconscious_targets = [
+                target for target in battle.entities.keys()
+                if target.unconscious() and not target.stable() and not target.dead()
+            ]
+        else:
+            unconscious_targets = []
+        possible_targets |= in_range_and_visible(unconscious_targets)
+
     if "self" in target_types:
         possible_targets.add(entity)
+
+    if param.get("exclude_self", False):
+        possible_targets = {target for target in possible_targets if target != entity}
 
     return possible_targets
 
