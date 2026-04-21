@@ -96,6 +96,374 @@
           -ms-user-select: text;
         }
 
+        .local-conversation-panel {
+          position: fixed;
+          top: 96px;
+          right: 20px;
+          width: 360px;
+          height: 430px;
+          z-index: 1500;
+          background: rgba(255, 252, 245, 0.97);
+          border: 1px solid #c9b79c;
+          border-radius: 10px;
+          box-shadow: 0 8px 24px rgba(62, 39, 24, 0.18);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          backdrop-filter: blur(4px);
+        }
+
+        .local-conversation-panel.minimized {
+          top: auto !important;
+          left: auto !important;
+          right: 240px !important;
+          bottom: 20px !important;
+          width: 260px;
+          height: auto;
+          min-height: 0;
+          max-height: none;
+          box-shadow: 0 10px 22px rgba(62, 39, 24, 0.22);
+          display: block;
+        }
+
+        .local-conversation-panel.minimized .local-conversation-status,
+        .local-conversation-panel.minimized .local-conversation-targets,
+        .local-conversation-panel.minimized .local-conversation-transcript,
+        .local-conversation-panel.minimized .local-conversation-controls {
+          display: none;
+        }
+
+        .local-conversation-panel.minimized .local-conversation-header {
+          cursor: default;
+          border-bottom: 0;
+        }
+
+        .local-conversation-panel.dragging {
+          cursor: move;
+          box-shadow: 0 16px 32px rgba(62, 39, 24, 0.26);
+        }
+
+        .local-conversation-header {
+          padding: 10px 12px;
+          background: linear-gradient(180deg, #f6ead6 0%, #ead8ba 100%);
+          border-bottom: 1px solid #d7c3a3;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          cursor: move;
+          user-select: none;
+        }
+
+        .local-conversation-header-main {
+          min-width: 0;
+          flex: 1;
+        }
+
+        .local-conversation-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex: 0 0 auto;
+        }
+
+        .local-conversation-drag-handle {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 26px;
+          height: 26px;
+          border-radius: 6px;
+          border: 1px solid #ccb28b;
+          background: rgba(255, 255, 255, 0.55);
+          color: #7a5b43;
+          font-size: 12px;
+          line-height: 1;
+        }
+
+        .local-conversation-drag-handle:hover {
+          background: rgba(255, 255, 255, 0.78);
+        }
+
+        .local-conversation-title {
+          font-weight: 700;
+          color: #4f3523;
+          margin: 0;
+          font-size: 14px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .local-conversation-subtitle {
+          font-size: 11px;
+          color: #7a5b43;
+        }
+
+        .local-conversation-unread-badge {
+          display: none;
+          min-width: 18px;
+          height: 18px;
+          padding: 0 6px;
+          border-radius: 999px;
+          background: #c0392b;
+          color: #fff;
+          font-size: 10px;
+          font-weight: 700;
+          line-height: 18px;
+          text-align: center;
+          box-shadow: 0 2px 6px rgba(122, 33, 25, 0.25);
+        }
+
+        .local-conversation-unread-badge.visible {
+          display: inline-block;
+        }
+
+        .local-conversation-status {
+          padding: 8px 12px;
+          font-size: 12px;
+          color: #6a5748;
+          border-bottom: 1px solid #efe3cf;
+          background: rgba(255, 255, 255, 0.7);
+        }
+
+        .local-conversation-targets {
+          padding: 10px 12px;
+          border-bottom: 1px solid #efe3cf;
+          background: rgba(255, 255, 255, 0.7);
+          max-height: 120px;
+          overflow-y: auto;
+        }
+
+        .local-conversation-section {
+          margin-bottom: 10px;
+        }
+
+        .local-conversation-section:last-child {
+          margin-bottom: 0;
+        }
+
+        .local-conversation-section-title {
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          color: #7b5e43;
+          margin-bottom: 6px;
+        }
+
+        .local-conversation-target-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 6px;
+        }
+
+        .local-conversation-target-row:last-child {
+          margin-bottom: 0;
+        }
+
+        .local-conversation-target {
+          flex: 1;
+          border: 1px solid #d8c5a8;
+          background: #fffdf8;
+          border-radius: 8px;
+          padding: 6px 8px;
+          text-align: left;
+          color: #4f3523;
+        }
+
+        .local-conversation-target.active {
+          background: #f1debe;
+          border-color: #b98a51;
+        }
+
+        .local-conversation-target.disabled {
+          opacity: 0.72;
+          background: #f7f1e7;
+          border-color: #d7cbb8;
+          cursor: default;
+        }
+
+        .local-conversation-target strong {
+          display: block;
+          font-size: 12px;
+        }
+
+        .local-conversation-target span {
+          display: block;
+          font-size: 11px;
+          color: #7c6753;
+        }
+
+        .local-conversation-mention {
+          flex: 0 0 auto;
+        }
+
+        .local-conversation-transcript {
+          flex: 1;
+          padding: 10px 12px;
+          overflow-y: auto;
+          background: rgba(255, 255, 255, 0.84);
+          user-select: text;
+          -webkit-user-select: text;
+          -moz-user-select: text;
+          -ms-user-select: text;
+          cursor: text;
+        }
+
+        .local-conversation-status,
+        .local-conversation-transcript *,
+        .local-conversation-message,
+        .local-conversation-message-header,
+        .local-conversation-message-body,
+        .local-conversation-message-note,
+        .local-conversation-controls,
+        .local-conversation-controls .form-control,
+        #localConversationInput,
+        #localConversationLanguage,
+        #localConversationVolume {
+          user-select: text;
+          -webkit-user-select: text;
+          -moz-user-select: text;
+          -ms-user-select: text;
+        }
+
+        .local-conversation-empty {
+          color: #8c7a67;
+          font-size: 12px;
+          font-style: italic;
+        }
+
+        .local-conversation-message {
+          margin-bottom: 8px;
+          padding: 8px 10px;
+          border-radius: 8px;
+          background: #fffdf8;
+          border: 1px solid #ebdbc3;
+        }
+
+        .local-conversation-message.own {
+          background: #f3e4c8;
+          border-color: #d9b98a;
+        }
+
+        .local-conversation-message-header {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          font-size: 11px;
+          color: #7a6048;
+          margin-bottom: 4px;
+        }
+
+        .local-conversation-message-body {
+          font-size: 13px;
+          color: #342116;
+          word-break: break-word;
+        }
+
+        .local-conversation-message-note {
+          margin-top: 4px;
+          font-size: 11px;
+          color: #836447;
+        }
+
+        .local-conversation-controls {
+          padding: 10px 12px;
+          border-top: 1px solid #ead8ba;
+          background: rgba(248, 239, 225, 0.95);
+        }
+
+        .local-conversation-input-wrapper {
+          position: relative;
+        }
+
+        .local-conversation-mention-suggestions {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: calc(100% + 6px);
+          z-index: 5;
+          display: none;
+          max-height: 180px;
+          overflow-y: auto;
+          border: 1px solid #d8c5a8;
+          border-radius: 8px;
+          background: #fffdf8;
+          box-shadow: 0 8px 18px rgba(62, 39, 24, 0.16);
+        }
+
+        .local-conversation-mention-suggestion {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 100%;
+          padding: 8px 10px;
+          border: 0;
+          border-bottom: 1px solid #efe3cf;
+          background: transparent;
+          color: #4f3523;
+          text-align: left;
+        }
+
+        .local-conversation-mention-suggestion:last-child {
+          border-bottom: 0;
+        }
+
+        .local-conversation-mention-suggestion:hover,
+        .local-conversation-mention-suggestion.active {
+          background: #f3e4c8;
+        }
+
+        .local-conversation-mention-label {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+        }
+
+        .local-conversation-mention-label strong {
+          font-size: 12px;
+          color: #3f2b1d;
+        }
+
+        .local-conversation-mention-label span {
+          font-size: 11px;
+          color: #7c6753;
+        }
+
+        .local-conversation-mention-status {
+          flex: 0 0 auto;
+          margin-left: 8px;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: #8b6d4d;
+        }
+
+        .local-conversation-selects {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 8px;
+        }
+
+        .local-conversation-selects .form-control {
+          font-size: 12px;
+          height: 30px;
+        }
+
+        @media (max-width: 768px) {
+          .local-conversation-panel {
+            left: 10px;
+            right: 10px;
+            top: auto;
+            bottom: 10px;
+            width: auto;
+            height: 320px;
+          }
+        }
+
         .chat-transcript-actions {
           display: flex;
           gap: 6px;
@@ -756,9 +1124,9 @@
                       <div class="form-group">
                         <label for="ai-provider-select">Provider</label>
                         <select class="form-control" id="ai-provider-select">
-                          <option value="mock">Mock (Testing)</option>
-                          <option value="ollama">Ollama (Local)</option>
                           <option value="llama_cpp">llama.cpp (Local)</option>
+                          <option value="ollama">Ollama (Local)</option>
+                          <option value="mock">Mock (Testing)</option>
                           <option value="openai">OpenAI GPT</option>
                           <option value="anthropic">Anthropic Claude</option>
                         </select>
@@ -997,6 +1365,56 @@
   <div class="dialog-resize-handle" style="position: absolute; bottom: 0; right: 0; width: 15px; height: 15px; cursor: se-resize; background: linear-gradient(135deg, transparent 50%, #ccc 50%);"></div>
 </div>
 
+<div id="localConversationPanel" class="local-conversation-panel draggable-panel">
+  <div class="local-conversation-header panel-header header">
+    <div class="local-conversation-header-main">
+      <div class="local-conversation-title">Local Chat <span class="local-conversation-unread-badge" id="localConversationUnreadBadge">0</span></div>
+      <div class="local-conversation-subtitle" id="localConversationSpeaker">No active speaker</div>
+    </div>
+    <div class="local-conversation-header-actions">
+      <span class="local-conversation-drag-handle" title="Drag local chat panel">
+        <i class="glyphicon glyphicon-move"></i>
+      </span>
+      <button type="button" class="btn btn-xs btn-default" id="localConversationMinimize" title="Minimize local chat">
+        <i class="glyphicon glyphicon-minus"></i>
+      </button>
+      <button type="button" class="btn btn-xs btn-default" id="localConversationRefresh" title="Refresh nearby listeners">
+        <i class="glyphicon glyphicon-refresh"></i>
+      </button>
+    </div>
+  </div>
+  <div class="local-conversation-status" id="localConversationStatus">Select a point-of-view character to see who can hear you.</div>
+  <div class="local-conversation-targets" id="localConversationTargets">
+    <div class="local-conversation-empty">No nearby listeners.</div>
+  </div>
+  <div class="local-conversation-transcript" id="localConversationMessages">
+    <div class="local-conversation-empty">Local speech you hear will appear here.</div>
+  </div>
+  <div class="local-conversation-controls">
+    <div class="local-conversation-selects">
+      <select class="form-control" id="localConversationLanguage">
+        <option value="Common" selected>Common</option>
+      </select>
+      <select class="form-control" id="localConversationVolume">
+        <option value="whisper">Whisper</option>
+        <option value="normal" selected>Normal</option>
+        <option value="shout">Shout</option>
+      </select>
+    </div>
+    <div class="local-conversation-input-wrapper">
+      <div class="local-conversation-mention-suggestions" id="localConversationMentionSuggestions"></div>
+      <div class="input-group">
+        <input type="text" class="form-control" id="localConversationInput" placeholder="Say something nearby or use @someone" maxlength="200" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <span class="input-group-btn">
+          <button class="btn btn-primary" type="button" id="localConversationSend">
+            <i class="glyphicon glyphicon-send"></i>
+          </button>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
     <!-- Music Volume Control Widget for Non-DM Users -->
     {% if 'dm' not in role %}
     <div id="music-control-widget" class="music-control-widget" style="display: none; position: fixed; bottom: 20px; right: 20px; z-index: 2000; background: rgba(0, 0, 0, 0.8); color: white; border-radius: 8px; padding: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); min-width: 200px;">
@@ -1056,8 +1474,8 @@
           <div class="form-group" style="margin-bottom: 10px;">
             <label for="draggable-ai-provider-select" style="font-size: 12px;">Provider:</label>
             <select class="form-control input-sm" id="draggable-ai-provider-select" style="font-size: 12px;">
-              <option value="ollama">Ollama (Local)</option>
               <option value="llama_cpp">llama.cpp (Local)</option>
+              <option value="ollama">Ollama (Local)</option>
             </select>
           </div>
           
