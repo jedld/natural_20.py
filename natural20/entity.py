@@ -8,6 +8,7 @@ from natural20.concern.notable import Notable
 from natural20.concern.generic_event_handler import GenericEventHandler
 from natural20.spell.effects.protection_effect import ProtectionEffect
 import uuid
+from natural20.utils.conversation import delivered_conversations
 from natural20.utils.gibberish import gibberish
 import i18n
 class Entity(EntityStateEvaluator, Notable):
@@ -214,39 +215,27 @@ class Entity(EntityStateEvaluator, Notable):
         if self.conversation_controller:
             self.conversation_controller.process_message(self, source, message, language, self.memory_buffer, directed_to)
 
-    def send_conversation(self, message, distance_ft=30, targets=None, language=None) -> List[Tuple['Entity', str, List['Entity']]]:
+    def send_conversation(self, message, distance_ft=30, targets=None, language=None, volume=None) -> List[Tuple['Entity', str, List['Entity']]]:
         if language is None:
             language = "common"
         language = language.lower()
-        self.conversation_buffer.append({ 'source': self, 'message': message, 'directed_to': targets, 'targets': targets, 'language': language })
-        self.memory_buffer.append({ 'source': self, 'message': message, 'directed_to': targets, 'targets': targets, 'language': language })
+        self.conversation_buffer.append({ 'source': self, 'message': message, 'directed_to': targets, 'targets': targets, 'language': language, 'distance_ft': distance_ft, 'volume': volume })
+        self.memory_buffer.append({ 'source': self, 'message': message, 'directed_to': targets, 'targets': targets, 'language': language, 'distance_ft': distance_ft, 'volume': volume })
         self.session.event_manager.received_event({"source": self,
                                                    "event" : 'conversation',
                                                    "message" : message,
                                                    "language" : language,
-                                                   "targets" : targets})
+                                                   "targets" : targets,
+                                                   "distance_ft": distance_ft,
+                                                   "volume": volume})
         entity_map = self.session.map_for_entity(self)
-        map_entities = entity_map.entities_in_range(self, distance_ft)
         nearby = []
 
-        for other_entity in map_entities:
-            if other_entity == self:
-                continue
-            if not other_entity.conversable():
-                continue
-
-            line_of_sight = entity_map.can_see(other_entity, self)
-            if not line_of_sight:
-                continue
-            
-            if language not in other_entity.languages():
-                print(f'{other_entity.name} does not speak {language}')
-                nearby.append([other_entity, gibberish(message, language), targets])
-                other_entity.receive_conversation(self, gibberish(message, language), language=language, directed_to=targets)
-            else:
-                nearby.append([other_entity, message, targets])
-                print(f'{other_entity.name} speaks {language} and receives message {message}')
-                other_entity.receive_conversation(self, message, language=language, directed_to=targets)
+        for delivery in delivered_conversations(self, message, entity_map, distance_ft=distance_ft, mode=volume, targets=targets, language=language):
+            other_entity = delivery['entity']
+            rendered_message = delivery['message']
+            nearby.append([other_entity, rendered_message, targets])
+            other_entity.receive_conversation(self, rendered_message, language=language, directed_to=targets)
 
         return nearby
 

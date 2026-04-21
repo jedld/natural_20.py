@@ -23,6 +23,7 @@ AI related research on the Dungeons and Dragons 5th edition RPGs.
 - [Observation and Action Spaces](#observation-and-action-spaces)
 - [Environment Initialization Options](#environment-initialization-options)
  - [LLM NPC Controller (MCP)](#llm-npc-controller-mcp)
+- [Conversation RAG Reference](docs/CONVERSATION_RAG.md)
 
 Disclaimer
 ==========
@@ -303,6 +304,7 @@ The web application supports multiple LLM providers that can be configured using
 
 - **OpenAI** (GPT models) - Requires API key
 - **Anthropic** (Claude models) - Requires API key  
+- **llama.cpp** (Local models) - Free, runs locally via OpenAI-compatible server
 - **Ollama** (Local models) - Free, runs locally
 - **Mock** (Testing) - For development/testing
 
@@ -320,10 +322,16 @@ The web application supports multiple LLM providers that can be configured using
    OPENAI_API_KEY=your_api_key_here
    OPENAI_MODEL=gpt-4o-mini
    
-   # For Ollama (default)
-   LLM_PROVIDER=ollama
-   OLLAMA_BASE_URL=http://localhost:11434
-   OLLAMA_MODEL=gemma3:27b
+  # For llama.cpp (default)
+  LLM_PROVIDER=llama_cpp
+  LLAMA_CPP_BASE_URL=http://localhost:8011
+  LLAMA_CPP_API_KEY=llama-cpp
+  # LLAMA_CPP_MODEL=your-loaded-model-name
+
+  # For Ollama
+  LLM_PROVIDER=ollama
+  OLLAMA_BASE_URL=http://localhost:11434
+  OLLAMA_MODEL=gemma3:27b
    ```
 
 3. **Start the application:**
@@ -366,12 +374,15 @@ export CORS_ORIGINS="http://localhost:5000,https://myapp.com"
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `LLM_PROVIDER` | Provider to use (openai, anthropic, ollama, mock) | `ollama` | No |
+| `LLM_PROVIDER` | Provider to use (llama_cpp, openai, anthropic, ollama, mock) | `llama_cpp` | No |
 | `OPENAI_API_KEY` | OpenAI API key | - | Yes (for OpenAI) |
 | `OPENAI_MODEL` | OpenAI model name | `gpt-4o-mini` | No |
 | `OPENAI_BASE_URL` | Custom OpenAI endpoint | `https://api.openai.com/v1` | No |
 | `ANTHROPIC_API_KEY` | Anthropic API key | - | Yes (for Anthropic) |
 | `ANTHROPIC_MODEL` | Anthropic model name | `claude-3-5-sonnet-20241022` | No |
+| `LLAMA_CPP_BASE_URL` | llama.cpp OpenAI-compatible server URL | `http://localhost:8011` | No |
+| `LLAMA_CPP_MODEL` | llama.cpp model name | first available model | No |
+| `LLAMA_CPP_API_KEY` | llama.cpp API key/header value | `llama-cpp` | No |
 | `OLLAMA_BASE_URL` | Ollama server URL | `http://localhost:11434` | No |
 | `OLLAMA_MODEL` | Ollama model name | `gemma3:27b` | No |
 | `NPC_LLM_COMBAT_ENABLED` | Force NPCs to use the LLM controller during combat regardless of the per-level default controller | `false` | No |

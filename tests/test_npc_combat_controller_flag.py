@@ -69,3 +69,14 @@ def test_build_combat_controller_for_npc_uses_llm_when_flag_on(monkeypatch):
     controller = game.build_combat_controller_for_entity(npc)
 
     assert isinstance(controller, FakeLlmController)
+
+
+def test_entity_owners_uses_entity_uid_when_owner_is_none():
+    game = make_game_management(force_llm_npc_combat=False, npc_controller='ai')
+    npc = game.game_session.npc('goblin')
+    game.controllers = [{
+        'entity_uid': npc.entity_uid,
+        'controllers': ['dm'],
+    }]
+
+    assert game.entity_owners(npc) == ['dm']
