@@ -5,17 +5,26 @@ from natural20.actions.spell_action import SpellAction
 from natural20.actions.dodge_action import DodgeAction
 # from natural20.actions.prone_action import ProneAction
 from natural20.actions.move_action import MoveAction
+from natural20.actions.second_wind_action import SecondWindAction
+from natural20.actions.use_item_action import UseItemAction
+from natural20.actions.first_aid_action import FirstAidAction
+from natural20.actions.lay_on_hands_action import LayOnHandsAction
+from natural20.actions.help_action import HelpAction
+from natural20.actions.shove_action import ShoveAction
+from natural20.actions.grapple_action import GrappleAction
 from natural20.gym.types import EnvObject, Environment
 from natural20.entity import Entity
 from natural20.action import Action
 from natural20.controller import Controller
 from natural20.ai.path_compute import PathCompute
 from natural20.utils.movement import retrieve_opportunity_attacks, simplify_path
+from natural20.utils.action_builder import autobuild
 from natural20.item_library.door_object import DoorObject
 from natural20.item_library.trap_door import TrapDoor
 import math
 import copy
 import pdb
+from typing import Optional
 
 class GenericController(Controller):
     # Consider a broader set so AI can open doors, reposition, or defend
@@ -24,10 +33,22 @@ class GenericController(Controller):
         "spell",
         "move",
         "interact",
+        "use_item",
+        "first_aid",
+        "lay_on_hands",
+        "second_wind",
         "dash",
+        "dash_bonus",
         "disengage",
+        "disengage_bonus",
         "dodge",
         "hide",
+        "hide_bonus",
+        "help",
+        "shove",
+        "grapple",
+        "drop_grapple",
+        "escape_grapple",
         "look"
     ]
 
@@ -90,7 +111,7 @@ class GenericController(Controller):
 
         return selected_action
 
-    def select_action(self, battle, entity, available_actions = None) -> Action:
+    def select_action(self, battle, entity, available_actions = None) -> Optional[Action]:
         if available_actions is None:
             available_actions = []
         if len(available_actions) > 0:
@@ -100,13 +121,13 @@ class GenericController(Controller):
         # no action, end turn
         return None
 
-    def select_reaction(self, entity, battle, map, valid_actions, event):
+    def select_reaction(self, entity, battle, map, valid_actions, event) -> Optional[Action]:
         if len(valid_actions) == 0:
             return None
         action = self._sort_actions(entity, battle, valid_actions)[0]
         return action
 
-    def move_for(self, entity: Entity, battle):
+    def move_for(self, entity: Entity, battle) -> Optional[Action]:
         # choose available moves at random and return it
         available_actions = self._compute_available_moves(entity, battle)
         # environment, entity = self._build_environment(battle, entity)
@@ -115,9 +136,16 @@ class GenericController(Controller):
             # Remove backtracking/oscillation from move paths
             if selected_action.move_path:
                 selected_action.move_path = simplify_path(selected_action.move_path)
+            if not selected_action.move_path or len(selected_action.move_path) < 2:
+                return None
             battle_data = self._battle_data(battle, entity)
             for p in selected_action.move_path:
                 battle_data['visited_location'][tuple(p)] = True
+            destination = tuple(selected_action.move_path[-1])
+            recent_destinations = battle_data['recent_destinations']
+            recent_destinations.append(destination)
+            if len(recent_destinations) > 4:
+                recent_destinations.pop(0)
         return selected_action
 
     # Build a suitable environment for Reinforcement Learning
@@ -203,7 +231,8 @@ class GenericController(Controller):
                 'known_enemy_positions': {},
                 'hiding_spots': {},
                 'investigate_location': {},
-                'visited_location': {}
+                'visited_location': {},
+                'recent_destinations': []
             }
 
     def _compute_available_moves(self, entity, battle):
@@ -215,6 +244,7 @@ class GenericController(Controller):
         enemy_positions = {}
         self._observe_enemies(battle, entity, enemy_positions)
         available_actions = entity.available_actions(self.session, battle)
+        current_map = battle.map_for(entity)
         available_movement = entity.available_movement(battle)
         # generate available targets
         valid_actions = []
@@ -241,6 +271,13 @@ class GenericController(Controller):
 
         for action in available_actions:
             if action.action_type in self.valid_moves_types:
+                if getattr(action, 'disabled', False):
+                    continue
+                if getattr(action, 'target', None) is None and isinstance(action, (FirstAidAction, LayOnHandsAction, HelpAction, ShoveAction, GrappleAction)):
+                    built_actions = autobuild(self.session, action.__class__, entity, battle, map=current_map)
+                    if built_actions:
+                        valid_actions.extend([built_action for built_action in built_actions if not getattr(built_action, 'disabled', False)])
+                        continue
                 # Avoid appending duplicate LookActions
                 if isinstance(action, LookAction) and look_added:
                     continue
@@ -263,7 +300,8 @@ class GenericController(Controller):
                 'known_enemy_positions': {},
                 'hiding_spots': {},
                 'investigate_location': {},
-                'visited_location': {}
+                'visited_location': {},
+                'recent_destinations': []
             }
         return self.battle_data[battle][entity]
 
@@ -280,19 +318,167 @@ class GenericController(Controller):
         battle_data = self._battle_data(battle, entity)
         investigate_location = battle_data['investigate_location']
         visited_location = battle_data['visited_location']
+        recent_destinations = battle_data['recent_destinations']
+
+        def action_targets(action):
+            target = getattr(action, 'target', None)
+            if target is None:
+                return []
+            if isinstance(target, list):
+                return list(target)
+            return [target]
+
+        def has_melee_pressure(target):
+            return bool(target) and target.conscious() and battle.enemy_in_melee_range(target)
+
+        def missing_hp(target):
+            return max(0, target.max_hp() - target.hp()) if target else 0
+
+        def score_heal_target(target, expected_heal, prefer_bonus_action=False):
+            if target is None:
+                return 0
+
+            target_missing_hp = missing_hp(target)
+            if target_missing_hp <= 0 and not target.unconscious():
+                return -0.5
+
+            restored_hp = max(1, min(target_missing_hp if target_missing_hp > 0 else expected_heal, expected_heal))
+            urgency = 1.0
+            if target.unconscious():
+                urgency += 3.5
+            else:
+                hp_ratio = target.hp() / max(1, target.max_hp())
+                if hp_ratio <= 0.25:
+                    urgency += 2.0
+                elif hp_ratio <= 0.5:
+                    urgency += 1.0
+
+            if has_melee_pressure(target):
+                urgency += 0.5
+            if prefer_bonus_action:
+                urgency += 0.5
+
+            return (restored_hp / 3.0) * urgency
+
+        def score_support_spell(action):
+            spell = getattr(action, 'spell_action', None)
+            if spell is None:
+                return 0
+
+            spell_name = spell.short_name()
+            targets = action_targets(action)
+
+            if action.avg_damage(battle) < 0:
+                expected_heal = -action.avg_damage(battle)
+                return max(score_heal_target(target, expected_heal, prefer_bonus_action=action.casting_time == 'bonus_action') for target in targets)
+
+            if spell_name in ('bless', 'guidance', 'resistance', 'shield_of_faith', 'protection_from_poison'):
+                score = 0
+                for target in targets:
+                    if battle.allies(entity, target):
+                        if spell_name == 'protection_from_poison' and getattr(target, 'poisoned', lambda: False)():
+                            score += 2.5
+                            continue
+                        if hasattr(target, 'has_effect') and target.has_effect(spell_name):
+                            score -= 0.25
+                        else:
+                            score += 1.0
+                            if has_melee_pressure(target):
+                                score += 0.5
+                if len(enemy_positions) > 0:
+                    score -= 0.3
+                return score
+
+            return 0
+
+        def score_use_item(action):
+            if not isinstance(action, UseItemAction) or action.target_item is None:
+                return 0
+
+            item_name = getattr(action.target_item, 'name', None)
+            if item_name == 'healing_potion':
+                targets = action_targets(action) or [entity]
+                return max(score_heal_target(target, expected_heal=7.0) for target in targets) - 0.35
+            return 0
+
+        def score_second_wind(action):
+            if not isinstance(action, SecondWindAction):
+                return 0
+            fighter_level = getattr(entity, 'fighter_level', 1)
+            expected_heal = 5.5 + fighter_level
+            return score_heal_target(entity, expected_heal, prefer_bonus_action=True) + 0.75
+
+        def score_first_aid(action):
+            if not isinstance(action, FirstAidAction):
+                return 0
+            targets = action_targets(action)
+            if not targets:
+                return 0
+            target = targets[0]
+            if not battle.allies(entity, target):
+                return -2.0
+            if target.unconscious() and not target.stable():
+                return 5.0
+            return -0.5
+
+        def score_lay_on_hands(action):
+            if not isinstance(action, LayOnHandsAction):
+                return 0
+            target = getattr(action, 'target', None)
+            if target is None:
+                return 0
+            if action.mode == 'cure':
+                return 3.0 if action.cure_targets else 0
+            expected_heal = action.heal_amt or 1
+            return score_heal_target(target, expected_heal)
+
+        def score_help(action):
+            if not isinstance(action, HelpAction):
+                return 0
+            targets = action_targets(action)
+            if not targets:
+                return 0
+            target = targets[0]
+            if not target.conscious():
+                return -1.0
+            if battle.allies(entity, target):
+                return 1.25 if has_melee_pressure(target) else 0.5
+            return 0.9 if target.conscious() else 0
+
+        def score_control_action(action):
+            target = getattr(action, 'target', None)
+            if target is None or not battle.opposing(entity, target):
+                return 0
+
+            base_score = 0.8
+            if isinstance(action, ShoveAction):
+                if target.prone():
+                    base_score -= 0.5
+                elif has_melee_pressure(target):
+                    base_score += 0.35
+            elif isinstance(action, GrappleAction):
+                if target.grappled():
+                    base_score -= 0.4
+                elif has_melee_pressure(entity):
+                    base_score += 0.35
+            return base_score
 
         # Build target-driven movement scores
         def build_move_scores():
             scores = {}
             targets = []
+            target_kind = None
             # Visible enemies first
             for _, (loc, path) in enemy_positions.items():
                 if path is None or len(path) < 2:
                     continue
                 targets.append(tuple(loc))
+            if targets:
+                target_kind = 'enemy'
             # Then investigation spots if no visible enemies
             if not targets and len(investigate_location) > 0:
                 targets = list(investigate_location.keys())
+                target_kind = 'investigate'
             # If still nothing to go on, head to doors we can potentially open
             if not targets:
                 door_adjacents = []
@@ -325,11 +511,13 @@ class GenericController(Controller):
                                current_map.placeable(entity, tx, ty, battle, squeeze=False):
                                 door_adjacents.append((tx, ty))
                 # Deduplicate
-                targets = list({t for t in door_adjacents}) if door_adjacents else targets
+                if door_adjacents:
+                    targets = list({t for t in door_adjacents})
+                    target_kind = 'door'
 
             # Precompute path to each target and score the first step towards the closest one
             if not targets:
-                return scores
+                return scores, targets, target_kind
 
             ex, ey = current_map.position_of(entity)
             path_compute = PathCompute(battle, current_map, entity, ignore_opposing=True)
@@ -349,9 +537,33 @@ class GenericController(Controller):
                 if dest in investigate_location:
                     base += 0.2 + 0.05 * investigate_location[dest].get('age', 0)
                 scores[first_step] = max(scores.get(first_step, 0), base)
-            return scores
+            return scores, targets, target_kind
 
-        move_square_score = build_move_scores()
+        move_square_score, move_targets, move_target_kind = build_move_scores()
+
+        def progress_score_for(position_key):
+            if not move_targets:
+                return 0
+
+            ex, ey = current_map.position_of(entity)
+            path_compute = PathCompute(battle, current_map, entity, ignore_opposing=True)
+            current_paths = path_compute.compute_paths_to_multiple_destinations(ex, ey, move_targets)
+            destination_paths = path_compute.compute_paths_to_multiple_destinations(position_key[0], position_key[1], move_targets)
+
+            current_lengths = [len(path) - 1 for path in current_paths.values() if path]
+            destination_lengths = [len(path) - 1 for path in destination_paths.values() if path]
+            if not current_lengths or not destination_lengths:
+                return 0
+
+            progress = min(current_lengths) - min(destination_lengths)
+            score = progress * 0.45
+            if move_target_kind == 'investigate':
+                score += progress * 0.1
+            elif move_target_kind == 'door':
+                score += progress * 0.05
+            elif progress <= 0:
+                score -= 0.2
+            return score
 
         def score_interact(action):
             # Favor opening doors when no enemies are visible or target investigation requires it
@@ -376,12 +588,28 @@ class GenericController(Controller):
         sorted_actions = []
         for action in available_actions:
             if isinstance(action, AttackAction) or isinstance(action, SpellAction):
+                if isinstance(action, SpellAction):
+                    support_score = score_support_spell(action)
+                    if support_score != 0:
+                        sorted_actions.append((action, support_score))
+                        continue
                 base_score = action.compute_hit_probability(battle) * action.avg_damage(battle)
                 sorted_actions.append((action, base_score))
             elif isinstance(action, MoveAction):
+                if not action.move_path or len(action.move_path) < 2:
+                    sorted_actions.append((action, -2.0))
+                    continue
                 new_position = action.move_path[-1]
                 position_key = (new_position[0], new_position[1])
                 score = move_square_score.get(position_key, 0)
+                score += progress_score_for(position_key)
+
+                if position_key in recent_destinations:
+                    recency = len(recent_destinations) - recent_destinations.index(position_key)
+                    score -= 0.75 + (0.2 * recency)
+
+                if position_key in visited_location:
+                    score -= 0.15
 
                 # avoid opportunity attacks
                 opportunity_list = retrieve_opportunity_attacks(entity, action.move_path, battle)
@@ -390,6 +618,18 @@ class GenericController(Controller):
                     score -= 1.0
 
                 sorted_actions.append((action, score))
+            elif isinstance(action, SecondWindAction):
+                sorted_actions.append((action, score_second_wind(action)))
+            elif isinstance(action, UseItemAction):
+                sorted_actions.append((action, score_use_item(action)))
+            elif isinstance(action, FirstAidAction):
+                sorted_actions.append((action, score_first_aid(action)))
+            elif isinstance(action, LayOnHandsAction):
+                sorted_actions.append((action, score_lay_on_hands(action)))
+            elif isinstance(action, HelpAction):
+                sorted_actions.append((action, score_help(action)))
+            elif isinstance(action, (ShoveAction, GrappleAction)):
+                sorted_actions.append((action, score_control_action(action)))
             elif action.action_type == 'interact':
                 sorted_actions.append((action, score_interact(action)))
             elif action.action_type == 'look':

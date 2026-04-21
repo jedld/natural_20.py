@@ -8,6 +8,8 @@ class Multiattack:
   def clear_multiattack(self, battle):
     entity_state = battle.entity_state_for(self)
     entity_state["multiattack"] = {}
+    entity_state["multiattack_hits"] = {}
+    entity_state["multiattack_started"] = False
 
   def multiattack(self, battle, npc_action):
     if not npc_action or not self.has_multiattack():
