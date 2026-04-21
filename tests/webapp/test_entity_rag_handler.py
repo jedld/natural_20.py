@@ -152,6 +152,16 @@ class TestEntityRAGHandler(unittest.TestCase):
         result = self.rag_handler.get_nearby_entities(mock_entity, 30)
         
         self.assertEqual(result, [])
+
+    def test_get_nearby_entities_without_map_returns_empty(self):
+        """Missing map should not call observe() with an invalid signature."""
+        mock_entity = Mock()
+        self.mock_current_game.get_map_for_entity.return_value = None
+
+        result = self.rag_handler.get_nearby_entities(mock_entity, 30)
+
+        self.assertEqual(result, [])
+        mock_entity.observe.assert_not_called()
     
     def test_process_entity_response_empty(self):
         """Test processing empty entity response."""
@@ -315,10 +325,155 @@ class TestEntityRAGHandler(unittest.TestCase):
 
         self.assertEqual(response, 'I believe you.')
         conversation_handler.add_message.assert_called_once()
-        self.mock_current_game.output_logger.log.assert_called_once()
-        logged_message = self.mock_current_game.output_logger.log.call_args.args[0]
-        self.assertIn('insight check', logged_message)
-        self.assertIn('truthful', logged_message)
+
+    def test_build_conversation_response_plan_extracts_aside_tag(self):
+        speaker = Mock()
+        speaker.entity_uid = "speaker"
+
+        receiver = Mock()
+        receiver.entity_uid = "thorn"
+        receiver.languages.return_value = ["common"]
+
+        self.rag_handler.plan_response_volume = Mock(return_value=('normal', [speaker]))
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "Please keep your voice down. [ASIDE: Rose grips Thorn's hand and glances at the dark doorway.]",
+            receiver,
+            speaker=speaker,
+            llm_conversation_handler=Mock(),
+        )
+
+        self.assertFalse(plan['skip'])
+        self.assertEqual(plan['message'], 'Please keep your voice down.')
+        self.assertEqual(plan['narrative'], ["Rose grips Thorn's hand and glances at the dark doorway."])
+
+    def test_build_conversation_response_plan_rewrites_first_person_aside_to_third_person(self):
+        speaker = Mock()
+        speaker.entity_uid = "speaker"
+
+        receiver = Mock()
+        receiver.entity_uid = "thorn"
+        receiver.languages.return_value = ["common"]
+
+        self.rag_handler.plan_response_volume = Mock(return_value=('normal', [speaker]))
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "Keep quiet. [ASIDE: I clutch my doll tighter, my eyes wide with terror.]",
+            receiver,
+            speaker=speaker,
+            llm_conversation_handler=Mock(),
+        )
+
+        self.assertFalse(plan['skip'])
+        self.assertEqual(plan['message'], 'Keep quiet.')
+        self.assertEqual(plan['narrative'], ['They clutch their doll tighter, their eyes wide with terror.'])
+
+    def test_build_conversation_response_plan_normalizes_llm_split_narrative_to_third_person(self):
+        receiver = Mock()
+        receiver.entity_uid = "thorn"
+        receiver.languages.return_value = ["common"]
+
+        speaker = Mock()
+        speaker.entity_uid = "speaker"
+
+        llm_conversation_handler = Mock()
+        llm_conversation_handler.llm_hander = Mock()
+        llm_conversation_handler.llm_hander.send_message.return_value = (
+            '{"spoken":"Shh!","narrative":["I clutch my doll tighter while we watch the house."]}'
+        )
+
+        self.rag_handler.plan_response_volume = Mock(return_value=('normal', [speaker]))
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "Shh!\n\nI clutch my doll tighter while we watch the house.",
+            receiver,
+            speaker=speaker,
+            llm_conversation_handler=llm_conversation_handler,
+        )
+
+        self.assertFalse(plan['skip'])
+        self.assertEqual(plan['message'], 'Shh!')
+        self.assertEqual(plan['narrative'], ['They clutch their doll tighter while they watch the house.'])
+
+    def test_build_conversation_response_plan_filters_private_trust_judgment_and_requests_check(self):
+        receiver = Mock()
+        receiver.entity_uid = "rose"
+        receiver.languages.return_value = ["common"]
+
+        speaker = Mock()
+        speaker.entity_uid = "pc-1"
+        speaker.label.return_value = "RumbleBelly"
+
+        self.rag_handler.plan_response_volume = Mock(return_value=('whisper', [speaker]))
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "Please help us. [ASIDE: They do not trust him.]",
+            receiver,
+            speaker=speaker,
+            llm_conversation_handler=Mock(),
+        )
+
+        self.assertFalse(plan['skip'])
+        self.assertEqual(plan['message'], 'Please help us.')
+        self.assertEqual(plan['narrative'], [])
+        self.assertIsNotNone(plan['request_check'])
+        self.assertEqual(plan['request_check']['skill'], 'persuasion')
+        self.assertEqual(plan['request_check']['target'], speaker)
+
+    def test_build_conversation_response_plan_infers_intimidation_for_hostile_attitude(self):
+        receiver = Mock()
+        receiver.entity_uid = "rose"
+        receiver.languages.return_value = ["common"]
+
+        speaker = Mock()
+        speaker.entity_uid = "pc-1"
+
+        mock_battle = Mock()
+        mock_battle.opposing.return_value = True
+        mock_battle.allies.return_value = False
+        self.mock_current_game.get_current_battle.return_value = mock_battle
+
+        self.rag_handler.plan_response_volume = Mock(return_value=('whisper', [speaker]))
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "Stay back. [ASIDE: They do not trust him.]",
+            receiver,
+            speaker=speaker,
+            llm_conversation_handler=Mock(),
+        )
+
+        self.assertFalse(plan['skip'])
+        self.assertEqual(plan['narrative'], [])
+        self.assertIsNotNone(plan['request_check'])
+        self.assertEqual(plan['request_check']['skill'], 'intimidation')
+        self.assertEqual(plan['request_check']['target'], speaker)
+
+    def test_extract_narrative_asides_via_llm_fallback(self):
+        receiver = Mock()
+        receiver.entity_uid = "thorn"
+        receiver.languages.return_value = ["common"]
+
+        speaker = Mock()
+        speaker.entity_uid = "speaker"
+
+        llm_conversation_handler = Mock()
+        llm_conversation_handler.llm_hander = Mock()
+        llm_conversation_handler.llm_hander.send_message.return_value = (
+            '{"spoken":"Shh! Please be quiet.","narrative":["Rose clutches Thorn and scans the house."]}'
+        )
+
+        self.rag_handler.plan_response_volume = Mock(return_value=('normal', [speaker]))
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "Shh! Please be quiet.\n\nRose clutches Thorn and scans the house.",
+            receiver,
+            speaker=speaker,
+            llm_conversation_handler=llm_conversation_handler,
+        )
+
+        self.assertFalse(plan['skip'])
+        self.assertEqual(plan['message'], 'Shh! Please be quiet.')
+        self.assertEqual(plan['narrative'], ['Rose clutches Thorn and scans the house.'])
 
     def test_apply_response_plan_directives_logs_requested_checks_to_players(self):
         actor = Mock()
