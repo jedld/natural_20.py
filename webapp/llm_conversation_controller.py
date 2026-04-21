@@ -1,4 +1,9 @@
+import json
+import re
+
 from webapp.llm_handler import LLMHandler
+
+
 class LLMConversationController:
     def __init__(self, llm_handler: LLMHandler):
         self.conversations = {}
@@ -32,29 +37,156 @@ class LLMConversationController:
             messages = self.conversations[conversation_id]["messages"]
             self.conversations[conversation_id]["messages"] = messages[-self.max_history:]
 
+    def _entity_uid(self, value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        return getattr(value, 'entity_uid', None)
+
+    def _entity_label(self, value):
+        if value is None:
+            return ''
+        label = getattr(value, 'label', None)
+        try:
+            if callable(label):
+                return str(label() or '')
+        except Exception:
+            pass
+        return str(getattr(value, 'name', '') or getattr(value, 'entity_uid', '') or '')
+
+    def _directed_uids(self, message):
+        directed_to = message.get('directed_to') or []
+        return [entity_uid for entity_uid in (self._entity_uid(item) for item in directed_to) if entity_uid]
+
+    def _conversation_summary_for_router(self, candidate, limit=5):
+        summary = []
+        for message in (getattr(candidate, 'conversation_buffer', []) or [])[-limit:]:
+            source_uid = self._entity_uid(message.get('source'))
+            source_label = self._entity_label(message.get('source'))
+            directed_labels = [self._entity_label(item) for item in (message.get('directed_to') or []) if item is not None]
+            target_uid = self._entity_uid(message.get('target'))
+            if source_uid == getattr(candidate, 'entity_uid', None):
+                summary.append(f"{source_label} said: {message.get('message', '')}")
+            elif target_uid == getattr(candidate, 'entity_uid', None) and not directed_labels:
+                summary.append(f"{source_label} said to {self._entity_label(candidate)}: {message.get('message', '')}")
+            elif directed_labels:
+                summary.append(f"{source_label} spoke to {', '.join(directed_labels)}: {message.get('message', '')}")
+            else:
+                summary.append(f"{source_label} said: {message.get('message', '')}")
+        return summary
+
+    def _parse_router_response(self, response_text):
+        if not response_text:
+            return None
+
+        text = str(response_text).strip()
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            text = match.group(0)
+
+        try:
+            payload = json.loads(text)
+        except Exception:
+            return None
+
+        responders = payload.get('responders') or []
+        if isinstance(responders, str):
+            responders = [responders]
+        if not isinstance(responders, list):
+            return None
+        return [str(item) for item in responders if item]
+
+    def route_conversation_responders(self, speaker, candidates, latest_message, targeted_entities=None, language='common', volume='normal'):
+        candidates = [candidate for candidate in (candidates or []) if candidate is not None]
+        if len(candidates) <= 1:
+            return candidates
+
+        if self.llm_hander is None or not hasattr(self.llm_hander, 'send_message'):
+            return None
+
+        payload = {
+            'speaker': {
+                'entity_uid': getattr(speaker, 'entity_uid', None),
+                'name': self._entity_label(speaker),
+            },
+            'latest_message': latest_message,
+            'language': language,
+            'volume': volume,
+            'targeted_entities': [
+                {
+                    'entity_uid': getattr(entity, 'entity_uid', None),
+                    'name': self._entity_label(entity),
+                }
+                for entity in (targeted_entities or [])
+            ],
+            'candidates': [
+                {
+                    'entity_uid': getattr(candidate, 'entity_uid', None),
+                    'name': self._entity_label(candidate),
+                    'recent_conversation': self._conversation_summary_for_router(candidate),
+                }
+                for candidate in candidates
+            ],
+        }
+
+        messages = [
+            {
+                'role': 'system',
+                'content': (
+                    'You are a D&D conversation router deciding which NPC, if any, should reply next. '
+                    'Choose at most one responder. Prefer explicitly addressed NPCs. '
+                    'If the latest line is ambiguous, pick the candidate whose recent conversation context best fits. '
+                    'If nobody should reply, return an empty responders list. '
+                    'Avoid picking someone who would only repeat stale information. '
+                    'Return JSON only in the form {"responders": ["entity_uid"], "reason": "short reason"}.'
+                ),
+            },
+            {
+                'role': 'user',
+                'content': json.dumps(payload, ensure_ascii=False),
+            },
+        ]
+
+        try:
+            raw_response = self.llm_hander.send_message(messages)
+        except Exception:
+            return None
+
+        responder_ids = self._parse_router_response(raw_response)
+        if responder_ids is None:
+            return None
+
+        responder_set = set(responder_ids)
+        chosen = [candidate for candidate in candidates if getattr(candidate, 'entity_uid', None) in responder_set]
+        return chosen[:1]
+
     def update_conversation_history(self, conversation_id, new_messages):
         """Update the conversation history with new messages."""
         if conversation_id not in self.conversations:
             self.create_conversation(conversation_id)
         self.conversations[conversation_id]["messages"] = []
-        print(new_messages)
 
         for message in new_messages:
-            if message["source"].entity_uid == conversation_id:
+            source_uid = self._entity_uid(message.get('source'))
+            target_uid = self._entity_uid(message.get('target'))
+            directed_uids = self._directed_uids(message)
+
+            if source_uid == conversation_id:
                 role = "assistant"
                 message_content = f"{message['message']}"
 
-            elif conversation_id in [e.entity_uid for e in message["directed_to"]]:
+            elif conversation_id in directed_uids or (target_uid == conversation_id and not directed_uids):
                 role = "user"
                 # If the message is directed to this conversation controller, format it accordingly
-                message_content = f"{message['source'].label()} says to you (in {message['language']}): {message['message']}"
+                message_content = f"{self._entity_label(message.get('source'))} says to you (in {message['language']}): {message['message']}"
             else:
                 role = message.get("role", "system")
-                directed_entities =",".join([e.label() for e in message["directed_to"]])
-                if message["directed_to"]:
-                    message_content = f"you overhear {message['source']} talk to {directed_entities} (in {message['language']}): {message['message']}"
+                directed_entities = ", ".join([self._entity_label(e) for e in (message.get("directed_to") or [])])
+                if message.get("directed_to"):
+                    message_content = f"you overhear {self._entity_label(message.get('source'))} talk to {directed_entities} (in {message['language']}): {message['message']}"
                 else:
-                    message_content = f"{message['source']} says (in {message['language']}) to no one in particular: {message['message']}"
+                    message_content = f"{self._entity_label(message.get('source'))} says (in {message['language']}) to no one in particular: {message['message']}"
             self.add_message(conversation_id, role, message_content)
 
 

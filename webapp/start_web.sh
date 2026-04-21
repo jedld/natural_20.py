@@ -7,4 +7,6 @@ else
     TEMPLATE_DIR="../templates"
 fi
 
-PYTHONPATH="$(dirname "$0")/.." TEMPLATE_DIR="$TEMPLATE_DIR" python -m flask run --debug --host=0.0.0.0 --port=5001
+PORT="${FLASK_RUN_PORT:-${PORT:-5001}}"
+
+PYTHONPATH="$(dirname "$0")/.." TEMPLATE_DIR="$TEMPLATE_DIR" FLASK_RUN_PORT="$PORT" python -m flask run --debug --host=0.0.0.0 --port="$PORT"

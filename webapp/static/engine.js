@@ -196,6 +196,7 @@ class EventQueue {
           try {
             Utils.refreshTileSet(false, false, 0, 0, null, () => {
               try { updateDraggableEntityClasses(); } catch (_) { }
+              try { Chat.refreshLocalConversationPresence({ silent: true }); } catch (_) { }
               try { cleanupAllPendingMoves(); } catch (_) { }
               // Clean up any leftover moving sprites and ensure originals are visible
               try {
@@ -425,11 +426,22 @@ class EventQueue {
 
   processConversationEvent(data, resolve) {
     // Handle real-time conversation updates
-    const { entity_id, message, targets } = data.message;
+    const { entity_id, message, targets, visual_only } = data.message;
 
     // Validate required fields
     if (!entity_id || !message) {
       console.warn('Invalid conversation event received:', data.message);
+      resolve();
+      return;
+    }
+
+    try {
+      Chat.handleLocalConversationEvent(data.message);
+    } catch (error) {
+      console.warn('Failed to update local conversation panel', error);
+    }
+
+    if (visual_only) {
       resolve();
       return;
     }
@@ -3486,6 +3498,9 @@ $(document).ready(() => {
   $('#floating-entity-portraits').on('click', '.floating-entity-portrait', function () {
     const entity_uid = $(this).data('id');
     switchPOV(entity_uid, globalCanvas);
+    setTimeout(() => {
+      try { Chat.refreshLocalConversationPresence({ silent: true }); } catch (_) { }
+    }, 150);
   });
 
   // Highlight tile info or draw movement data on hover.
@@ -4954,32 +4969,40 @@ $(document).ready(() => {
       });
     }
 
-    // Get nearby entities within earshot range (30ft)
-    $.ajax({
-      url: '/nearby_entities',
-      type: 'GET',
-      data: {
-        entity_id: entityId,
-        range: 30 // 30ft earshot range
-      },
-      success: (data) => {
-        const $nearbyEntities = $('#nearbyEntities');
-        $nearbyEntities.empty();
+    const refreshNearbyEntities = () => {
+      const selectedVolume = $('input[name="speechVolume"]:checked');
+      const volume = selectedVolume.val() || 'normal';
+      const distance = Number(selectedVolume.data('distance') || 30);
+      $.ajax({
+        url: '/nearby_entities',
+        type: 'GET',
+        data: {
+          entity_id: entityId,
+          range: distance,
+          volume: volume,
+        },
+        success: (data) => {
+          const $nearbyEntities = $('#nearbyEntities');
+          $nearbyEntities.empty();
 
-        if (data.entities && data.entities.length > 0) {
-          data.entities.forEach(entity => {
-            $nearbyEntities.append(`
-              <label class="list-group-item">
-                <input type="checkbox" name="targets" value="${entity.id}">
-                ${entity.name} (${entity.distance}ft away)
-              </label>
-            `);
-          });
-        } else {
-          $nearbyEntities.append('<div class="list-group-item">No entities within earshot range</div>');
+          if (data.entities && data.entities.length > 0) {
+            data.entities.forEach(entity => {
+              $nearbyEntities.append(`
+                <label class="list-group-item">
+                  <input type="checkbox" name="targets" value="${entity.id}">
+                  ${entity.name} (@${entity.mention_handle}, ${entity.distance}ft away)
+                </label>
+              `);
+            });
+          } else {
+            $nearbyEntities.append('<div class="list-group-item">No entities within earshot range</div>');
+          }
         }
-      }
-    });
+      });
+    };
+
+    refreshNearbyEntities();
+    $('input[name="speechVolume"]').off('change.talkNearby').on('change.talkNearby', refreshNearbyEntities);
 
     $('#submitTalk').off('click').on('click', function () {
       const message = $('#talkMessage').val().trim();
@@ -4992,7 +5015,9 @@ $(document).ready(() => {
         const noSpecificTarget = $('#noSpecificTarget').is(':checked');
         const selectedLanguage = $('#languageSelect').val();
         const selectedVolume = $('input[name="speechVolume"]:checked');
-        const distance_ft = 10;
+        const requestedVolume = selectedVolume.val() || 'normal';
+        const volume = Chat.getEffectiveConversationVolume(message, requestedVolume);
+        const distance_ft = Chat.speechDistanceForVolume(volume);
 
         $.ajax({
           url: '/talk',
@@ -5004,7 +5029,8 @@ $(document).ready(() => {
             targets: selectedTargets,
             no_specific_target: noSpecificTarget,
             language: selectedLanguage,
-            distance_ft: distance_ft
+            distance_ft: distance_ft,
+            volume: volume
           }),
           success: (data) => {
             if (data.success) {
@@ -5231,8 +5257,7 @@ $(document).ready(() => {
     dialogMessageProcessing = true;
 
     const selectedLanguage = $('#dialogLanguageSelect').val();
-    const selectedVolume = $('.volume-btn.active');
-    const distance_ft = 10;
+    const selectedVolume = $('#localConversationVolume').val() || 'normal';
 
     // Add player message to chat
     Chat.addDialogMessage('player', message, 'player');
@@ -5289,7 +5314,7 @@ $(document).ready(() => {
         targets: talkToEntityMode ? [entityId] : [], // In talk mode, target the entity being talked to
         no_specific_target: !talkToEntityMode, // Only set to true if not in talk mode
         language: selectedLanguage,
-        distance_ft: distance_ft
+        volume: selectedVolume
       }),
       success: (data) => {
         // Clear timeouts

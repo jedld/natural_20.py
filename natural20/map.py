@@ -247,13 +247,16 @@ class Map(SerializableObject):
                         obj.after_setup()
 
     def _setup_npcs(self):
-        for player in self.properties.get('player', []):
+        players = self.properties.get('player') or []
+        npcs = self.properties.get('npc') or []
+
+        for player in players:
             column_index, row_index = player['position']
             overrides = player.get('overrides', {})
             player = PlayerCharacter.load(self.session, player['sheet'], override=overrides)
             self.add(player, column_index, row_index, group='a')
 
-        for npc in self.properties.get('npc', []):
+        for npc in npcs:
             npc_meta = npc
             column_index, row_index = npc['position']
             if not npc_meta['sub_type']:
