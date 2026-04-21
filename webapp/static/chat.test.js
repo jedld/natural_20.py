@@ -195,6 +195,9 @@ describe('chat.js local conversation minimize behavior', () => {
     };
 
     context = vm.createContext(sandbox);
+    const localConversationPath = path.resolve(__dirname, 'js/local_conversation.js');
+    const localConversationCode = fs.readFileSync(localConversationPath, 'utf8');
+    new vm.Script(localConversationCode, { filename: localConversationPath }).runInContext(context);
     const chatPath = path.resolve(__dirname, 'js/chat.js');
     const chatCode = fs.readFileSync(chatPath, 'utf8');
     new vm.Script(chatCode, { filename: chatPath }).runInContext(context);

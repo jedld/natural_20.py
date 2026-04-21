@@ -32,6 +32,32 @@ logger = logging.getLogger('werkzeug')
 CONTROL_DIRECTIVE_PATTERN = re.compile(r'\[(no_response|to|volume)(?:\s*:\s*([^\]]*))?\]', re.IGNORECASE)
 ACTION_DIRECTIVE_PATTERN = re.compile(r'\[(approach|interact|request_check|set_goal|goal_complete|goal_give_up)(?:\s*:\s*([^\]]*))?\]', re.IGNORECASE)
 INSIGHT_DIRECTIVE_PATTERN = re.compile(r'\[insight(?:\s*:\s*([^\]]*))?\]', re.IGNORECASE)
+ASIDE_DIRECTIVE_PATTERN = re.compile(r'\[(aside|narration|stage_direction)(?:\s*:\s*([^\]]*))?\]', re.IGNORECASE)
+NARRATIVE_FIRST_PERSON_SUBSTITUTIONS = [
+    (re.compile(r"\bI['\u2019]m\b", re.IGNORECASE), 'they are'),
+    (re.compile(r"\bI['\u2019]ve\b", re.IGNORECASE), 'they have'),
+    (re.compile(r"\bI['\u2019]ll\b", re.IGNORECASE), 'they will'),
+    (re.compile(r"\bI['\u2019]d\b", re.IGNORECASE), 'they would'),
+    (re.compile(r"\bwe['\u2019]re\b", re.IGNORECASE), 'they are'),
+    (re.compile(r"\bwe['\u2019]ve\b", re.IGNORECASE), 'they have'),
+    (re.compile(r"\bwe['\u2019]ll\b", re.IGNORECASE), 'they will'),
+    (re.compile(r"\bwe['\u2019]d\b", re.IGNORECASE), 'they would'),
+    (re.compile(r"\bI\b", re.IGNORECASE), 'they'),
+    (re.compile(r"\bme\b", re.IGNORECASE), 'them'),
+    (re.compile(r"\bmy\b", re.IGNORECASE), 'their'),
+    (re.compile(r"\bmine\b", re.IGNORECASE), 'theirs'),
+    (re.compile(r"\bmyself\b", re.IGNORECASE), 'themself'),
+    (re.compile(r"\bwe\b", re.IGNORECASE), 'they'),
+    (re.compile(r"\bus\b", re.IGNORECASE), 'them'),
+    (re.compile(r"\bour\b", re.IGNORECASE), 'their'),
+    (re.compile(r"\bours\b", re.IGNORECASE), 'theirs'),
+    (re.compile(r"\bourselves\b", re.IGNORECASE), 'themselves'),
+]
+NON_OBSERVABLE_TRUST_PATTERN = re.compile(
+    r"\b(?:do(?:es)?\s+not\s+trust|don['\u2019]?t\s+trust|cannot\s+trust|can['\u2019]?t\s+trust|"
+    r"distrusts?|mistrusts?|trusts?)\b",
+    re.IGNORECASE,
+)
 
 
 class EntityRAGHandler:
@@ -197,6 +223,7 @@ class EntityRAGHandler:
         plan = {
             'language': 'common',
             'message': '',
+            'narrative': [],
             'targets': [],
             'volume': None,
             'skip': True,
@@ -237,7 +264,18 @@ class EntityRAGHandler:
         if controls['no_response']:
             return plan
 
-        message = re.sub(r'\[.*?\]', '', controls['response']).strip()
+        message, narrative = self.extract_narrative_asides(
+            controls['response'],
+            llm_conversation_handler=llm_conversation_handler,
+        )
+        narrative = self.normalize_narrative_asides(narrative)
+        narrative, inferred_request_check = self.enforce_narrative_visibility_constraints(
+            narrative,
+            receiver=receiver,
+            speaker=speaker,
+        )
+        if plan['request_check'] is None and inferred_request_check is not None:
+            plan['request_check'] = inferred_request_check
         if not message:
             return plan
 
@@ -249,11 +287,207 @@ class EntityRAGHandler:
         plan.update({
             'language': language,
             'message': message,
+            'narrative': narrative,
             'targets': targets,
             'volume': volume,
             'skip': False,
         })
         return plan
+
+    def extract_narrative_asides(self, response_text: str, llm_conversation_handler=None) -> Tuple[str, List[str]]:
+        asides = []
+
+        def _replace(match):
+            value = (match.group(2) or '').strip()
+            if value:
+                asides.append(value)
+            return ''
+
+        cleaned = ASIDE_DIRECTIVE_PATTERN.sub(_replace, response_text or '')
+        cleaned = re.sub(r'\[.*?\]', '', cleaned).strip()
+
+        if asides:
+            return cleaned, asides
+
+        if '\n' not in cleaned:
+            return cleaned, []
+
+        split = self._extract_narrative_asides_via_llm(cleaned, llm_conversation_handler)
+        if split is None:
+            return cleaned, []
+
+        spoken = (split.get('spoken') or '').strip()
+        narrative = [entry.strip() for entry in (split.get('narrative') or []) if str(entry).strip()]
+        if spoken:
+            return spoken, narrative
+        return cleaned, narrative
+
+    def _extract_narrative_asides_via_llm(self, message: str, llm_conversation_handler=None) -> Optional[Dict[str, Any]]:
+        if llm_conversation_handler is None:
+            return None
+
+        llm_handler = getattr(llm_conversation_handler, 'llm_hander', None)
+        if llm_handler is None:
+            return None
+
+        messages = [
+            {
+                'role': 'system',
+                'content': (
+                    'Separate an NPC reply into spoken dialogue and narrative aside text. '
+                    'Return JSON only with keys spoken and narrative. '
+                    'spoken must be a single string that contains only what is spoken aloud. '
+                    'narrative must be an array of strings for third-person or stage-direction text not spoken aloud.'
+                ),
+            },
+            {
+                'role': 'user',
+                'content': json.dumps({'reply': message}, ensure_ascii=True),
+            },
+        ]
+
+        try:
+            raw_response = llm_handler.send_message(messages)
+        except Exception:
+            return None
+
+        if not raw_response:
+            return None
+
+        payload_text = str(raw_response).strip()
+        json_match = re.search(r'\{.*\}', payload_text, re.DOTALL)
+        if json_match:
+            payload_text = json_match.group(0)
+
+        try:
+            payload = json.loads(payload_text)
+        except Exception:
+            return None
+
+        spoken = payload.get('spoken')
+        narrative = payload.get('narrative')
+
+        if spoken is None and not narrative:
+            return None
+
+        if isinstance(narrative, str):
+            narrative = [narrative]
+        if not isinstance(narrative, list):
+            narrative = []
+
+        return {
+            'spoken': str(spoken or ''),
+            'narrative': [str(item) for item in narrative if str(item).strip()],
+        }
+
+    def normalize_narrative_asides(self, narrative: List[str]) -> List[str]:
+        normalized = []
+        for entry in narrative or []:
+            text = str(entry or '').strip()
+            if not text:
+                continue
+
+            rewritten = text
+            for pattern, replacement in NARRATIVE_FIRST_PERSON_SUBSTITUTIONS:
+                rewritten = pattern.sub(replacement, rewritten)
+
+            rewritten = re.sub(
+                r'(^|[.!?]\s+)(they)\b',
+                lambda match: f"{match.group(1)}They",
+                rewritten,
+            )
+
+            normalized.append(rewritten)
+        return normalized
+
+    def enforce_narrative_visibility_constraints(self, narrative: List[str], receiver: Entity = None, speaker: Entity = None) -> Tuple[List[str], Optional[Dict[str, Any]]]:
+        filtered = []
+        removed_non_observable = []
+
+        for entry in narrative or []:
+            text = str(entry or '').strip()
+            if not text:
+                continue
+
+            if NON_OBSERVABLE_TRUST_PATTERN.search(text):
+                removed_non_observable.append(text)
+                continue
+
+            filtered.append(text)
+
+        inferred_request_check = None
+        if removed_non_observable and speaker is not None:
+            inferred_skill = self.infer_requested_social_check_skill(
+                receiver,
+                speaker,
+                removed_non_observable,
+            )
+            inferred_request_check = {
+                'skill': inferred_skill,
+                'target': speaker,
+                'target_spec': 'speaker',
+                'dc': None,
+            }
+
+        return filtered, inferred_request_check
+
+    def conversation_attitude_toward_speaker(self, receiver: Entity, speaker: Entity) -> str:
+        if receiver is None or speaker is None:
+            return 'unknown'
+
+        try:
+            battle = self.current_game.get_current_battle()
+        except Exception:
+            battle = None
+
+        if battle is not None:
+            try:
+                if battle.opposing(receiver, speaker) is True:
+                    return 'hostile'
+            except Exception:
+                pass
+            try:
+                if battle.allies(receiver, speaker) is True:
+                    return 'allied'
+            except Exception:
+                pass
+
+        receiver_group = getattr(receiver, 'group', None)
+        speaker_group = getattr(speaker, 'group', None)
+        if receiver_group and speaker_group:
+            if receiver_group == speaker_group:
+                return 'allied'
+            try:
+                if self.game_session.opposing(receiver_group, speaker_group) is True:
+                    return 'hostile'
+            except Exception:
+                pass
+            return 'wary'
+
+        try:
+            receiver_owners = set(self.current_game.entity_owners(receiver))
+            speaker_owners = set(self.current_game.entity_owners(speaker))
+            if receiver_owners and speaker_owners and receiver_owners.intersection(speaker_owners):
+                return 'allied'
+        except Exception:
+            pass
+
+        return 'guarded'
+
+    def infer_requested_social_check_skill(self, receiver: Entity, speaker: Entity, removed_entries: List[str]) -> str:
+        attitude = self.conversation_attitude_toward_speaker(receiver, speaker)
+        removed_text = ' '.join(str(item or '') for item in (removed_entries or [])).lower()
+
+        intimidation_cues = (
+            'threat', 'threaten', 'menace', 'menacing', 'snarl', 'growl',
+            'afraid of', 'terrified of', 'fear', 'flinch', 'back away',
+            'cower', 'intimidat',
+        )
+        has_intimidation_cue = any(cue in removed_text for cue in intimidation_cues)
+
+        if attitude == 'hostile' or has_intimidation_cue:
+            return 'intimidation'
+        return 'persuasion'
 
     def parse_action_directives(self, response: str, actor: Entity, speaker: Entity = None) -> Dict[str, Any]:
         directives = {
@@ -1172,7 +1406,10 @@ class EntityRAGHandler:
             if nearby and isinstance(nearby[0], dict):
                 audience_entries = nearby
             else:
-                observed = entity.observe(battle_map) if battle_map is not None else entity.observe()
+                if battle_map is None:
+                    observed = []
+                else:
+                    observed = entity.observe(battle_map)
                 audience_entries = []
                 for observed_entity, distance in observed or []:
                     audience_entries.append({
