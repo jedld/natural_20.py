@@ -46,3 +46,20 @@ class TestHideAction(unittest.TestCase):
         npc.do_hide(20)
         self.assertTrue(npc.hidden())
         print(MapRenderer(battle_map, battle).render(line_of_sight=character))
+
+    def test_pc_can_hide_out_of_combat(self):
+        battle_map = Map(self.session, 'hide_test')
+        battle = Battle(self.session, battle_map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position='spawn_point_2')
+
+        available_actions = fighter.available_actions(self.session, None, map=battle_map)
+        hide_actions = [action for action in available_actions if isinstance(action, HideAction)]
+
+        self.assertEqual(len(hide_actions), 1)
+
+        hide_action = hide_actions[0]
+        hide_action.resolve(self.session, battle_map, {'battle': None})
+        HideAction.apply(None, hide_action.result[0], session=self.session)
+
+        self.assertTrue(fighter.hidden())

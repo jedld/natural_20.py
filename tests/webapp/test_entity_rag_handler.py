@@ -16,6 +16,7 @@ class TestEntityRAGHandler(unittest.TestCase):
         """Set up test fixtures."""
         self.mock_game_session = Mock()
         self.mock_current_game = Mock()
+        self.mock_current_game.output_logger = Mock()
         self.rag_handler = EntityRAGHandler(self.mock_game_session, self.mock_current_game)
     
     def test_parse_language_from_response_no_language(self):
@@ -185,6 +186,198 @@ class TestEntityRAGHandler(unittest.TestCase):
         # Verify that the LLM handler was called
         mock_llm_handler.add_message.assert_called()
         mock_llm_handler.generate_response.assert_called()
+
+    def test_build_conversation_response_plan_supports_no_response(self):
+        mock_receiver = Mock()
+        mock_receiver.languages.return_value = ["common"]
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "[NO_RESPONSE]",
+            mock_receiver,
+            speaker=Mock(),
+            llm_conversation_handler=Mock(),
+        )
+
+        self.assertTrue(plan['skip'])
+        self.assertEqual(plan['message'], "")
+
+    def test_build_conversation_response_plan_parses_targets_and_volume(self):
+        speaker = Mock()
+        speaker.entity_uid = "speaker"
+        speaker.label.return_value = "Speaker"
+
+        target = Mock()
+        target.entity_uid = "rose"
+        target.label.return_value = "Rose"
+
+        receiver = Mock()
+        receiver.entity_uid = "thorn"
+        receiver.languages.return_value = ["common", "elvish"]
+
+        self.rag_handler.get_conversation_targets = Mock(return_value=[speaker, target])
+        self.rag_handler.plan_response_volume = Mock(return_value=('shout', [target]))
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "[TO: @rose] [VOLUME: shout] [in elvish] Stay back.",
+            receiver,
+            speaker=speaker,
+            llm_conversation_handler=Mock(),
+        )
+
+        self.assertFalse(plan['skip'])
+        self.assertEqual(plan['language'], 'elvish')
+        self.assertEqual(plan['message'], 'Stay back.')
+        self.assertEqual(plan['targets'], [target])
+        self.assertEqual(plan['volume'], 'shout')
+
+    def test_build_conversation_response_plan_parses_approach_and_goal_directives(self):
+        speaker = Mock()
+        speaker.entity_uid = "speaker"
+
+        receiver = Mock()
+        receiver.entity_uid = "thorn"
+        receiver.languages.return_value = ["common"]
+
+        approach_target = Mock()
+        approach_target.entity_uid = "door-1"
+
+        self.rag_handler.resolve_named_target = Mock(return_value=approach_target)
+        self.rag_handler.plan_response_volume = Mock(return_value=('normal', [speaker]))
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "[APPROACH: target=Front Door, distance=10] [SET_GOAL: Open the door and check inside] On my way.",
+            receiver,
+            speaker=speaker,
+            llm_conversation_handler=Mock(),
+        )
+
+        self.assertEqual(plan['approach']['target'], approach_target)
+        self.assertEqual(plan['approach']['distance_ft'], 10)
+        self.assertEqual(plan['set_goal'], 'Open the door and check inside')
+        self.assertEqual(plan['message'], 'On my way.')
+
+    def test_build_conversation_response_plan_parses_request_check_directive(self):
+        speaker = Mock()
+        speaker.entity_uid = "speaker"
+
+        receiver = Mock()
+        receiver.entity_uid = "thorn"
+        receiver.languages.return_value = ["common"]
+
+        request_target = Mock()
+        request_target.entity_uid = "pc-1"
+
+        self.rag_handler.resolve_named_target = Mock(return_value=request_target)
+        self.rag_handler.plan_response_volume = Mock(return_value=('normal', [speaker]))
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "[REQUEST_CHECK: skill=persuasion, target=speaker, dc=14] Convince me.",
+            receiver,
+            speaker=speaker,
+            llm_conversation_handler=Mock(),
+        )
+
+        self.assertEqual(plan['request_check']['skill'], 'persuasion')
+        self.assertEqual(plan['request_check']['target'], request_target)
+        self.assertEqual(plan['request_check']['dc'], 14)
+        self.assertEqual(plan['message'], 'Convince me.')
+
+    def test_handle_insight_request_logs_and_regenerates_response(self):
+        speaker = Mock()
+        speaker.entity_uid = "pc-1"
+        speaker.label.return_value = "Rumblebelly"
+
+        receiver = Mock()
+        receiver.entity_uid = "npc-1"
+        receiver.label.return_value = "Thorn"
+        receiver.memory_buffer = [{'source': speaker, 'message': 'I am telling the truth.'}]
+
+        roll = Mock()
+        roll.result.return_value = 17
+        roll.__str__ = Mock(return_value='1d20+5')
+        receiver.insight_check.return_value = roll
+
+        conversation_handler = Mock()
+        conversation_handler.generate_response.return_value = 'I believe you.'
+
+        self.rag_handler.resolve_named_target = Mock(return_value=speaker)
+        self.rag_handler._evaluate_insight_assessment = Mock(return_value={
+            'assessment': 'truthful',
+            'reason': 'Their story matches the party history.',
+        })
+
+        response = self.rag_handler._handle_insight_request(
+            '[INSIGHT: target=speaker]',
+            receiver,
+            speaker,
+            conversation_handler,
+        )
+
+        self.assertEqual(response, 'I believe you.')
+        conversation_handler.add_message.assert_called_once()
+        self.mock_current_game.output_logger.log.assert_called_once()
+        logged_message = self.mock_current_game.output_logger.log.call_args.args[0]
+        self.assertIn('insight check', logged_message)
+        self.assertIn('truthful', logged_message)
+
+    def test_apply_response_plan_directives_logs_requested_checks_to_players(self):
+        actor = Mock()
+        actor.entity_uid = "npc-1"
+        actor.label.return_value = "Thorn"
+
+        target = Mock()
+        target.entity_uid = "pc-1"
+        target.label.return_value = "Rumblebelly"
+
+        self.mock_current_game.get_current_battle.return_value = None
+        self.mock_current_game.entity_owners.return_value = []
+
+        plan = {
+            'set_goal': None,
+            'goal_complete': False,
+            'goal_give_up': False,
+            'approach': None,
+            'interact': None,
+            'request_check': {'skill': 'intimidation', 'target': target, 'dc': 13},
+        }
+
+        result = self.rag_handler.apply_response_plan_directives(plan, actor, speaker=None, advance_time=False)
+
+        self.assertEqual(result['executed_actions'], ['request_check'])
+        self.mock_current_game.output_logger.log.assert_called_once()
+        logged_message = self.mock_current_game.output_logger.log.call_args.args[0]
+        logged_visibility = self.mock_current_game.output_logger.log.call_args.kwargs['visibility']
+        self.assertIn('intimidation', logged_message)
+        self.assertEqual(logged_visibility['kind'], 'entities')
+        self.assertEqual(set(logged_visibility['entity_uids']), {'npc-1', 'pc-1'})
+
+    def test_apply_response_plan_directives_schedules_goal_and_executes_actions(self):
+        actor = Mock()
+        actor.entity_uid = "npc-1"
+
+        self.mock_current_game.get_current_battle.return_value = None
+        self.mock_current_game.entity_owners.return_value = []
+        self.mock_current_game.schedule_short_term_goal.return_value = {'goal': 'Inspect the chest'}
+
+        move_action = Mock()
+        interact_action = Mock()
+        self.rag_handler.build_approach_action = Mock(return_value=move_action)
+        self.rag_handler.build_interact_action = Mock(return_value=interact_action)
+
+        plan = {
+            'set_goal': 'Inspect the chest',
+            'goal_complete': False,
+            'goal_give_up': False,
+            'approach': {'target': Mock(), 'distance_ft': 5},
+            'interact': {'target': Mock(), 'action': 'open'},
+        }
+
+        result = self.rag_handler.apply_response_plan_directives(plan, actor, speaker=None, advance_time=True)
+
+        self.mock_current_game.schedule_short_term_goal.assert_called_once_with(actor, 'Inspect the chest', speaker=None)
+        self.assertEqual(self.mock_current_game.commit_and_update.call_count, 2)
+        self.mock_current_game.advance_world_time.assert_called_once_with(seconds=6, trigger_environment=False)
+        self.assertEqual(result['executed_actions'], ['approach', 'interact'])
 
 
 if __name__ == '__main__':

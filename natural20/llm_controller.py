@@ -334,7 +334,7 @@ class LlmMcpController(GenericController):
 		self.client = llm_client  # expected to be OpenAI-like client; optional
 		self.model = model or os.getenv("N20_LLM_MODEL", "gpt-4o-mini")
 		self.use_tools = use_tools
-		# Generic LLMProvider backend (e.g., OllamaProvider). If none provided, try to wire Ollama by default.
+		# Generic LLMProvider backend. If none provided, try to wire the configured local default.
 		self.llm_provider = llm_provider or self._default_provider()
 		# Session-persistent context for each entity (keyed by entity UID)
 		# Stores: short_term_goal, long_term_goal, memory_notes, action_history_summary
@@ -343,11 +343,11 @@ class LlmMcpController(GenericController):
 	def _default_provider(self):
 		"""
 		Construct a default provider from environment variables.
-		Respects LLM_PROVIDER in [ollama|openai|anthropic|llama_cpp], defaulting to ollama.
+		Respects LLM_PROVIDER in [llama_cpp|ollama|openai|anthropic], defaulting to llama_cpp.
 		Returns an initialized provider or None on failure.
 		"""
 		try:
-			provider_name = os.getenv("LLM_PROVIDER", "ollama").lower()
+			provider_name = os.getenv("LLM_PROVIDER", "llama_cpp").lower()
 			if provider_name == "openai" and OpenAIProvider is not None:
 				api_key = os.getenv("OPENAI_API_KEY")
 				model = os.getenv("OPENAI_MODEL", os.getenv("N20_LLM_MODEL", "gpt-4o-mini"))
@@ -381,7 +381,7 @@ class LlmMcpController(GenericController):
 					except Exception:
 						pass
 				return prov
-			# default to ollama
+			# fall back to ollama for legacy local setups
 			if OllamaProvider is None:
 				return None
 			base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
