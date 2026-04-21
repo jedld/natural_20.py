@@ -3,6 +3,7 @@ from typing import List, Union
 import i18n
 from collections import deque
 from natural20.utils.attack_util import to_advantage_str
+from natural20.utils.conversation import audible_entities
 from natural20.utils.gibberish import gibberish
 
 class EventLogger:
@@ -340,21 +341,17 @@ class EventManager:
                     else:
                         not_understands_uids.add(target.entity_uid)
 
+            distance_ft = event.get('distance_ft', 30)
+
             # Nearby entities who can hear
             if source and hasattr(source, 'session'):
                 try:
                     entity_map = source.session.map_for_entity(source)
                     if entity_map:
-                        nearby = entity_map.entities_in_range(source, 30)
-                        for listener in nearby:
-                            if listener == source:
-                                continue
+                        nearby = audible_entities(source, entity_map, distance_ft=distance_ft, mode=event.get('volume'))
+                        for audience_entry in nearby:
+                            listener = audience_entry['entity']
                             if not hasattr(listener, 'entity_uid'):
-                                continue
-                            try:
-                                if not entity_map.can_see(listener, source):
-                                    continue
-                            except Exception:
                                 continue
                             if hasattr(listener, 'languages') and language in listener.languages():
                                 understands_uids.add(listener.entity_uid)

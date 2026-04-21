@@ -239,7 +239,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         return []
 
     action_list = []
-    if map is None:
+    if map is None and battle is not None:
       map = battle.map_for(self)
 
     for action_type in self.ACTION_LIST:

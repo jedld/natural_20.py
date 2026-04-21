@@ -7,6 +7,13 @@ from natural20.ai.path_compute import PathCompute
 import pdb
 
 class TestMap(unittest.TestCase):
+    def test_map_loader_tolerates_null_player_and_npc_lists(self):
+        session = Session(root_path='tests/fixtures')
+        battle_map = Map(session, 'tests/fixtures/maps/null_actor_lists.yml')
+
+        self.assertEqual(len(battle_map.entities), 0)
+        self.assertEqual(battle_map.size, [4, 4])
+
     def test_controller(self):
         session = Session(root_path='tests/fixtures')
         session.render_for_text = False

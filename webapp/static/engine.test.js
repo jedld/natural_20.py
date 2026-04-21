@@ -76,7 +76,8 @@ global.prompt = () => null;
 global.Chat = {
   getCurrentPovEntity: () => null,
   addDialogMessage: () => {},
-  showConversationBubble: () => {}
+  showConversationBubble: () => {},
+  handleLocalConversationEvent: () => {}
 };
 global.window.Chat = global.Chat;
 global.showDialogTriggerBubble = () => {};
@@ -955,7 +956,7 @@ describe('engine.js basic behavior', () => {
     global.localStorage = originalLocalStorage;
   });
 
-  test('Conversation event: dialog-visible shows dialog; directed-to-POV triggers opener; else bubble; invalid payload warns', async () => {
+  test('Conversation event: dialog-visible shows dialog; directed-to-POV triggers opener; visual-only skips bubbles; else bubble; invalid payload warns', async () => {
     const q = new Engine.EventQueue();
 
     // Create DOM nodes referenced by selectors
@@ -981,6 +982,7 @@ describe('engine.js basic behavior', () => {
     const bubbleSpy = jest.spyOn(global.Chat, 'showConversationBubble').mockImplementation(() => {});
     const triggerSpy = jest.spyOn(global, 'showDialogTriggerBubble').mockImplementation(() => {});
     const povSpy = jest.spyOn(global.Chat, 'getCurrentPovEntity').mockImplementation(() => 'POV');
+    const localConversationSpy = jest.spyOn(global.Chat, 'handleLocalConversationEvent').mockImplementation(() => {});
 
     const orig$ = global.$;
 
@@ -1014,7 +1016,15 @@ describe('engine.js basic behavior', () => {
     await q.processEvent({ type: 'conversation', message: { entity_id: 'E3', message: 'Bubble' } });
     expect(bubbleSpy).toHaveBeenCalledWith('E3', 'Bubble');
 
-    // Case 4: invalid payload -> warning only
+    // Case 4: visual-only placeholder updates local chat but does not show dialog or bubble
+    dialogSpy.mockClear(); bubbleSpy.mockClear(); triggerSpy.mockClear(); localConversationSpy.mockClear();
+    await q.processEvent({ type: 'conversation', message: { entity_id: 'E4', message: 'You can see them whispering, but cannot hear the words.', visual_only: true } });
+    expect(localConversationSpy).toHaveBeenCalled();
+    expect(dialogSpy).not.toHaveBeenCalled();
+    expect(bubbleSpy).not.toHaveBeenCalled();
+    expect(triggerSpy).not.toHaveBeenCalled();
+
+    // Case 5: invalid payload -> warning only
     dialogSpy.mockClear(); bubbleSpy.mockClear(); triggerSpy.mockClear();
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     await q.processEvent({ type: 'conversation', message: { entity_id: '', message: '' } });
@@ -1030,5 +1040,6 @@ describe('engine.js basic behavior', () => {
     bubbleSpy.mockRestore();
     triggerSpy.mockRestore();
     povSpy.mockRestore();
+    localConversationSpy.mockRestore();
   });
 });

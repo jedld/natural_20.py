@@ -13,7 +13,10 @@ class HideAction(Action):
         if options is None:
             options = {}
 
-        return battle and battle.maps and entity.total_actions(battle) > 0
+        if battle is None:
+            return True
+
+        return bool(battle.maps) and entity.total_actions(battle) > 0
 
     def build_map(self):
         return self
@@ -80,27 +83,32 @@ class HideAction(Action):
     @staticmethod
     def apply(battle, item, session=None):
         if item['type'] == 'hide':
+            event_manager = battle.event_manager if battle else session.event_manager if session else None
+
             if item['result'] == 'success':
-                battle.event_manager.received_event({
-                    'source': item['source'],
-                    'roll': item['roll'],
-                    'result' : 'success',
-                    'event': 'hide'
-                })
+                if event_manager:
+                    event_manager.received_event({
+                        'source': item['source'],
+                        'roll': item['roll'],
+                        'result' : 'success',
+                        'event': 'hide'
+                    })
                 item['source'].do_hide(item['roll'].result())
             else:
-                battle.event_manager.received_event({
-                    'source': item['source'],
-                    'roll': item['roll'],
-                    'result' : 'failed',
-                    'event': 'hide',
-                    'reason': item['reason']
-                })
+                if event_manager:
+                    event_manager.received_event({
+                        'source': item['source'],
+                        'roll': item['roll'],
+                        'result' : 'failed',
+                        'event': 'hide',
+                        'reason': item['reason']
+                    })
 
-            if item.get('bonus_action'):
-                battle.consume(item['source'], 'bonus_action')
-            else:
-                battle.consume(item['source'], 'action')
+            if battle:
+                if item.get('bonus_action'):
+                    battle.consume(item['source'], 'bonus_action')
+                else:
+                    battle.consume(item['source'], 'action')
 
 class HideBonusAction(HideAction):
     def __init__(self, session, source, action_type, opts=None):

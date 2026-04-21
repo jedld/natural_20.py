@@ -247,9 +247,9 @@ class TestNpc(unittest.TestCase):
 
         self.assertTrue(npc.darkvision(60))
 
-        self.assertEqual(len(npc.available_actions(session, None, map=battle_map)), 6)
+        self.assertEqual(len(npc.available_actions(session, None, map=battle_map)), 7)
         available_actions = [action.name() for action in npc.available_actions(session, None, map=battle_map)]
-        self.assertEqual(available_actions, ['attack', 'attack', 'look', 'move', 'shove', 'help'])
+        self.assertEqual(available_actions, ['attack', 'attack', 'hide', 'look', 'move', 'shove', 'help'])
         battle.set_current_turn(npc)
         first_attack = [a for a in npc.available_actions(session, battle, map=battle_map) if a.name() == 'attack'][0]
         first_attack.target = fighter
