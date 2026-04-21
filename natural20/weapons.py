@@ -116,7 +116,12 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
         if not battle.can_see(source, target, entity_1_pos=source_pos):
             disadvantage.append('invisible_attacker')
 
-        if battle.help_with(target):
+        distract_helpers = [
+            helper
+            for helper, help_type in battle.help_with(target).items()
+            if help_type == 'distract' and helper != source and helper.conscious() and battle.allies(source, helper)
+        ]
+        if distract_helpers:
             advantage.append('being_helped')
 
         if weapon and (thrown or weapon['type'] == 'ranged_attack'):

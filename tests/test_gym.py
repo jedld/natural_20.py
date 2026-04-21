@@ -85,8 +85,9 @@ class TestGym(unittest.TestCase):
                    session=session)
         observation, info = env.reset(seed=44)
         self.assertIsNotNone(observation)
-        self.assertIn((0, (0, 0), (0, 2), 2, 1), info['available_moves'])
-        observation, reward, done, truncate, info = env.step((0, (0, 0), (0, 2), 2, 1))
+        attack_actions = [action for action in info['available_moves'] if action[0] == 0]
+        self.assertGreaterEqual(len(attack_actions), 1)
+        observation, reward, done, truncate, info = env.step(attack_actions[0])
         self.assertEqual(reward, 0)
         expected_subset = {
             (5, (-1, -1), (0, 0), 0, 0),

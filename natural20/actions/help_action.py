@@ -23,6 +23,7 @@ class HelpAction(Action):
                 {
                     'type': 'select_target',
                     'target_types': ['allies', 'enemies'],
+                    'exclude_self': True,
                     'range': 5,
                     'num': 1
                 }

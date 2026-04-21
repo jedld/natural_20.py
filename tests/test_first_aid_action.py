@@ -6,6 +6,7 @@ from natural20.map import Map
 from natural20.battle import Battle
 from natural20.player_character import PlayerCharacter
 from natural20.map_renderer import MapRenderer
+from natural20.utils.action_builder import autobuild
 import random
 
 class TestFirstAidAction(unittest.TestCase):
@@ -38,6 +39,13 @@ class TestFirstAidAction(unittest.TestCase):
         self.battle.action(action)
         self.battle.commit(action)
         self.assertTrue(self.rogue.stable())
+
+    def test_autobuild_targets_only_unconscious_allies(self):
+        print(MapRenderer(self.map).render())
+        actions = autobuild(self.session, FirstAidAction, self.fighter, self.battle, map=self.map)
+
+        self.assertEqual(len(actions), 1)
+        self.assertIs(actions[0].target, self.rogue)
 
 if __name__ == '__main__':
     unittest.main()
