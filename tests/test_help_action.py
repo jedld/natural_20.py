@@ -10,6 +10,7 @@ from natural20.actions.attack_action import AttackAction
 from natural20.map_renderer import MapRenderer
 from natural20.die_roll import DieRoll
 from natural20.utils.action_builder import autobuild
+from natural20.weapons import compute_advantages_and_disadvantages
 import random
 
 class TestHelpAction(unittest.TestCase):
@@ -49,6 +50,11 @@ class TestHelpAction(unittest.TestCase):
         self.battle.set_current_turn(self.fighter)
         available_actions = [str(a) for a in self.fighter.available_actions(self.session, self.battle)]
         self.assertIn('Help', available_actions)
+
+    def test_help_cannot_target_self(self):
+        print(MapRenderer(self.map).render())
+        actions = autobuild(self.session, HelpAction, self.fighter, self.battle, match=[self.fighter])
+        self.assertEqual(actions, [])
 
     def test_advantage_on_ability_check(self):
         print(MapRenderer(self.map).render())
@@ -90,3 +96,20 @@ class TestHelpAction(unittest.TestCase):
         self.battle.action(attack_roll)
         self.battle.commit(attack_roll)
         self.assertEqual(DieRoll.last_roll().advantage, False)
+
+    def test_distracting_target_does_not_help_self_attack(self):
+        self.map.move_to(self.fighter, 2, 1, self.battle)
+        self.skeleton.set_hp(100, override_max=True)
+        print(MapRenderer(self.map).render())
+
+        self.battle.do_distract(self.fighter, self.skeleton)
+        advantages, disadvantages = compute_advantages_and_disadvantages(
+            self.session,
+            self.fighter,
+            self.skeleton,
+            {'type': 'melee_attack', 'range': 5},
+            battle=self.battle,
+        )
+
+        self.assertNotIn('being_helped', advantages)
+        self.assertEqual(disadvantages, [])

@@ -43,7 +43,8 @@ class FirstAidAction(Action):
                     'type': 'select_target',
                     'num': 1,
                     'range': 5,
-                    'target_types': ['allies']
+                    'target_types': ['unconscious_targets'],
+                    'exclude_self': True
                 }
             ],
             'next': set_target
