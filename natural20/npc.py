@@ -309,7 +309,7 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
                     elif action_class == InteractAction:
                         if map:
                             for objects in map.objects_near(self, battle):
-                                for interaction, details in objects.available_interactions(self).items():
+                                for interaction, details in objects.available_interactions(self, battle, admin=self.is_admin).items():
                                     action = InteractAction(session, self, 'interact', { "target": objects,
                                                                                                 "object_action": interaction })
                                     if details.get('disabled'):
