@@ -398,11 +398,48 @@ class ConversationService:
 
     def conversation_response_prompt(self, receiver, speaker):
         target_entities = self.entity_rag_handler.get_conversation_targets(receiver, speaker=speaker)
+
+        def _languages_for(target):
+            try:
+                langs = getattr(target, 'languages', lambda: [])() or []
+            except Exception:
+                langs = []
+            return [str(lang).strip() for lang in langs if str(lang).strip()]
+
         target_handles = []
         for target in target_entities:
-            target_handles.append(f"@{mention_handle_for(target)} ({entity_label(target)})")
+            langs = _languages_for(target)
+            lang_note = f" speaks: {', '.join(langs)}" if langs else " speaks: unknown"
+            target_handles.append(f"@{mention_handle_for(target)} ({entity_label(target)};{lang_note})")
 
         handles_text = ', '.join(target_handles) if target_handles else 'speaker'
+
+        receiver_languages = _languages_for(receiver)
+        receiver_languages_text = ', '.join(receiver_languages) if receiver_languages else 'common'
+
+        speaker_languages = _languages_for(speaker) if speaker is not None else []
+        if speaker is not None:
+            speaker_label = entity_label(speaker)
+            if speaker_languages:
+                speaker_language_text = (
+                    f"The speaker {speaker_label} understands: {', '.join(speaker_languages)}."
+                )
+            else:
+                speaker_language_text = (
+                    f"The speaker {speaker_label}'s known languages are unknown to you."
+                )
+        else:
+            speaker_language_text = "No specific speaker is addressing you."
+
+        shared_with_speaker = sorted(
+            {lang.lower() for lang in receiver_languages}
+            & {lang.lower() for lang in speaker_languages}
+        )
+        if shared_with_speaker:
+            shared_text = ', '.join(shared_with_speaker)
+        else:
+            shared_text = 'none in common'
+
         stance_text = self.conversation_attitude_toward_speaker(receiver, speaker)
         pressure_text = self.conversation_pressure_summary(receiver)
         return (
@@ -418,7 +455,7 @@ class ConversationService:
             "- Do not repeat the same warning or biography if you already said it and nothing materially changed. Prefer [NO_RESPONSE] instead.\n"
             "- You may direct your speech with [TO: speaker], [TO: @handle], [TO: @handle1, @handle2], or [TO: all].\n"
             "- You may choose loudness with [VOLUME: whisper], [VOLUME: normal], or [VOLUME: shout]. If omitted, the server will choose the quietest volume that reaches your chosen listeners.\n"
-            "- You may speak a different language with [in <language>].\n"
+            "- You may speak a different language with [in <language>]. Pick a language your intended listeners actually understand. If a listener does not share your current language, switch to a common tongue you both know (typically [in common]) so they can reply, unless you are deliberately keeping them out of the conversation.\n"
             "- You may move toward someone or something with [APPROACH: target=@handle, distance=5]. This moves up to one full out-of-combat move.\n"
             "- You may use an object with [INTERACT: target=<name or @handle>, action=<interaction>].\n"
             "- You may privately assess whether someone seems truthful with [INSIGHT: target=speaker] or [INSIGHT: target=@handle]. The server will roll insight, use DM-only context, and regenerate your reply with the result.\n"
@@ -427,6 +464,9 @@ class ConversationService:
             "- During autonomous follow-up you may end that task with [GOAL_COMPLETE] or [GOAL_GIVE_UP].\n"
             f"- Current stance toward the speaker: {stance_text}.\n"
             f"- Current pressures and circumstances: {pressure_text}.\n"
+            f"- Languages you ({entity_label(receiver)}) speak: {receiver_languages_text}.\n"
+            f"- {speaker_language_text}\n"
+            f"- Languages you share with the speaker: {shared_text}.\n"
             f"- Nearby handles you can address right now: {handles_text}.\n"
         )
 

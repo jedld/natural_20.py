@@ -3783,6 +3783,13 @@ def switch_pov():
     entity = current_game.get_entity_by_uid(entity_id)
     entity_battle_map = current_game.get_map_for_entity(entity)
     current_game.set_pov_entity_for_user(session['username'], entity)
+    # Switch the user's current map BEFORE resolving the background so a POV
+    # change to an entity on a different map returns that map's background
+    # (otherwise the previous map's background is returned and the client UI
+    # appears stuck on the old map until a manual refresh).
+    map_changed = battle_map != entity_battle_map
+    if map_changed:
+        current_game.switch_map_for_user(session['username'], entity_battle_map.name)
     background = current_game.get_background_image_for_user(session['username'])
     map_width, map_height = entity_battle_map.size
     tiles_dimension_height = map_height * TILE_PX
@@ -3791,9 +3798,7 @@ def switch_pov():
     # Include map default effect and whether DM has an active override
     map_default = None
     map_defaults = []
-    if battle_map != entity_battle_map:
-        current_game.switch_map_for_user(session['username'], entity_battle_map.name)
-
+    if map_changed:
         try:
             map_defaults = map_default_effect_payloads(entity_battle_map)
             map_default = map_defaults[0] if map_defaults else None
@@ -3940,6 +3945,15 @@ def action():
                             animation_log = []
                             animation_log.append((entity.entity_uid, move_path, None))
                             socketio.emit('message', {'type': 'move', 'message': {'from': move_path[0], 'to': move_path[-1], 'animation_log': animation_log}})
+                        # Flush any deferred map switch now that the move
+                        # animation event has been queued on the client. This
+                        # ensures the entity finishes animating into the
+                        # teleporter/stairs tile before the destination map
+                        # is rendered.
+                        try:
+                            current_game.flush_pending_map_switch(session['username'])
+                        except Exception:
+                            pass
                         # Check area narrations after free movement
                         area_narration = battle_map.check_area_narration(entity, move_path[-1])
                         if area_narration:

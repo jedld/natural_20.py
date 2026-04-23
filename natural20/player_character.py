@@ -349,7 +349,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         elif action_type == InteractAction:
           if map:
             for objects in map.objects_near(self, battle):
-              for interaction, details in objects.available_interactions(self, battle).items():
+              for interaction, details in objects.available_interactions(self, battle, admin=self.is_admin).items():
                 action = InteractAction(session, self, 'interact', { "target": objects,
                                                                               "object_action": [interaction, details] })
                 if details.get('disabled'):

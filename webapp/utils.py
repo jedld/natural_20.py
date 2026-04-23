@@ -1317,17 +1317,69 @@ class GameManagement:
                 except Exception:
                     pass
         # did the map change for the current pov?
-        self.check_and_notify_map_change(pov_map, pov_entity, username)
+        # NOTE: We intentionally defer emitting the `switch_map` notification
+        # until *after* the move animation event below. The client uses an
+        # EventQueue that processes events sequentially (awaiting each), so
+        # emitting `switch_map` first would cause the destination map to be
+        # rendered before the entity's movement animation plays — producing
+        # a visible glitch when the move included a teleporter / stairs.
+        # We still update the user's current map server-side immediately so
+        # subsequent server-side queries reflect the new map.
+        deferred_map_switch = None
+        try:
+            with self.game_state_lock:
+                new_battle_map = self.get_map_for_entity(pov_entity)
+                if pov_map is not None and new_battle_map is not None and new_battle_map != pov_map:
+                    self.switch_map_for_user(username, new_battle_map.name)
+                    entity_uid = getattr(pov_entity, 'entity_uid', None)
+                    deferred_map_switch = {
+                        'sids': list(self.username_to_sid.get(username, [])),
+                        'payload': {'map': new_battle_map.name, 'entity_uid': entity_uid},
+                    }
+        except Exception:
+            deferred_map_switch = None
 
         if battle:
             self.socketio.emit('message', {'type': 'move', 'message': { 'animation_log': battle.get_animation_logs()}})
             battle.clear_animation_logs()
+            # Emit deferred map switch after the move event so the client
+            # finishes the movement animation before swapping the background.
+            if deferred_map_switch:
+                for sid in deferred_map_switch['sids']:
+                    self.socketio.emit('message', {'type': 'switch_map', 'message': deferred_map_switch['payload']}, to=sid)
             # Lighting or visibility may have changed (e.g. fire damage lighting a fireplace)
             self.socketio.emit('message', {'type': 'refresh_map'})
         else:
             self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
             # check if spell and send animation log
-            self.socketio.emit('message',action_animator(action))
+            # Note: skip 'move' payloads here. action_animator returns a
+            # {'type': 'move', 'token_image': ...} envelope (without a
+            # 'message.animation_log') for move actions. The client's
+            # processMoveEvent treats that as a legacy/no-animation move and
+            # immediately refreshes tiles, which paints the entity at its
+            # destination before the upcoming animated 'move' event runs —
+            # producing a brief teleport-to-destination flash before the path
+            # animation. Only emit non-move animator payloads here.
+            try:
+                _animator_payload = action_animator(action)
+            except Exception:
+                _animator_payload = None
+            if _animator_payload and _animator_payload.get('type') != 'move':
+                self.socketio.emit('message', _animator_payload)
+            # For non-battle moves, the *real* move animation event (with the
+            # animation_log path) is emitted by the route handler (app.py)
+            # AFTER this function returns. Stash any pending map switch so
+            # the route can flush it once the animation event has been sent;
+            # this preserves correct ordering on the client EventQueue and
+            # avoids the destination map being rendered before the entity
+            # finishes animating into the teleporter / stairs tile.
+            if deferred_map_switch:
+                try:
+                    if not hasattr(self, '_pending_map_switches') or self._pending_map_switches is None:
+                        self._pending_map_switches = {}
+                    self._pending_map_switches[username] = deferred_map_switch
+                except Exception:
+                    pass
             # Check if the action affects visibility (doors, lighting, etc.) and emit refresh_map
             request_map_refresh = False
             if hasattr(action, 'result') and action.result:
@@ -1379,6 +1431,28 @@ class GameManagement:
         except Exception:
             pass
     
+    def flush_pending_map_switch(self, username):
+        """Emit any deferred `switch_map` notification for the given user.
+
+        Called by route handlers after they have emitted the actual move
+        animation event, so the client EventQueue plays the animation before
+        switching to the destination map.
+        """
+        try:
+            pending = getattr(self, '_pending_map_switches', None)
+            if not pending:
+                return
+            entry = pending.pop(username, None)
+            if not entry:
+                return
+            for sid in entry.get('sids', []) or []:
+                try:
+                    self.socketio.emit('message', {'type': 'switch_map', 'message': entry['payload']}, to=sid)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     def check_and_notify_map_change(self, pov_map, pov_entity, username):
         # Use the lock to make the operation atomic
         with self.game_state_lock:

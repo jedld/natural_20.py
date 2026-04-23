@@ -9,6 +9,7 @@ from natural20.item_library.pit_trap import PitTrap
 from natural20.item_library.chest import Chest
 from natural20.item_library.fireplace import Fireplace
 from natural20.item_library.teleporter import Teleporter
+from natural20.item_library.chasm import Chasm
 from natural20.item_library.switch import Switch
 from natural20.item_library.trap_door import TrapDoor
 from natural20.item_library.proximity_trigger import ProximityTrigger
@@ -467,8 +468,9 @@ class Map(SerializableObject):
             if nearby_entity and nearby_entity!=entity:
                 available_objects.append(nearby_entity)
 
+        admin_flag = getattr(entity, 'is_admin', False)
         for obj in available_objects:
-            if hasattr(obj,'available_interactions') and obj.available_interactions(entity, battle):
+            if hasattr(obj,'available_interactions') and obj.available_interactions(entity, battle, admin=admin_flag):
                 if isinstance(obj, DoorObject) or self.can_see(entity, obj):
                     objects.append(obj)
 

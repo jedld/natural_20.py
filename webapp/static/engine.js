@@ -2580,6 +2580,9 @@ function handleDirectWSADMovement(event) {
     source = { x: coordsx, y: coordsy };
     accumulatedPath = [];
     pivotPoints = [];
+    currentPosition = null;
+    lastHoverCoords = null;
+    movePath = [];
 
     // Store the movement callback that will be called when the user commits (via spacebar)
     moveModeCallback = (path) => {
@@ -3509,6 +3512,7 @@ $(document).ready(() => {
     valid_target_cache = {};
     multiTargetList = [];
     $(".add-to-target, .popover-menu-2").hide();
+    if (typeof hideMultiTargetBar === 'function') { hideMultiTargetBar(); }
     globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
     e.stopPropagation();
   });
@@ -3969,17 +3973,27 @@ $(document).ready(() => {
   // Cancel ongoing interactions on Escape.
   $(document).on("keydown", (event) => {
     if (event.keyCode === 27) {
-      if (moveMode || targetMode || multiTargetMode || coneMode) {
+      if (moveMode || targetMode || multiTargetMode || coneMode || keyboardMovementMode) {
         moveMode = targetMode = multiTargetMode = coneMode = false;
         accumulatedPath = [];
         pivotPoints = [];
         valid_target_cache = {};
         clearMovePathCache();
         multiTargetList = [];
+        if (typeof hideMultiTargetBar === 'function') { hideMultiTargetBar(); }
         jumpMode = false;
         jumpStartIndex = null;
         lastPathForJump = null;
-        globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+        movePath = [];
+        source = null;
+        currentPosition = null;
+        lastHoverCoords = null;
+        if (typeof resetKeyboardMovement === 'function' && keyboardMovementMode) {
+          try { resetKeyboardMovement(); } catch (err) { keyboardMovementMode = false; }
+        }
+        if (globalCtx && globalCanvas) {
+          globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+        }
         $(".tile").css("border", "none");
         globalActionInfo = globalOpts = null;
       }
@@ -4034,10 +4048,56 @@ $(document).ready(() => {
       globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
       $(".tile").css("border", "none");
       $(".add-to-target, .popover-menu-2").hide();
+      if (typeof hideMultiTargetBar === 'function') { hideMultiTargetBar(); }
     }
   });
 
   // Multi-target selection.
+  function showMultiTargetBar() {
+    $('#multi-target-confirm-bar').show();
+    updateMultiTargetBar();
+  }
+  function hideMultiTargetBar() {
+    $('#multi-target-confirm-bar').hide();
+    $('#multi-target-confirm').prop('disabled', true);
+  }
+  function updateMultiTargetBar() {
+    const cur = multiTargetList.length;
+    const max = max_targets || 0;
+    $('#multi-target-confirm-bar__current').text(cur);
+    $('#multi-target-confirm-bar__max').text(max);
+    $('#multi-target-confirm').prop('disabled', cur < 1);
+  }
+
+  $(document).on('click', '#multi-target-confirm', function (e) {
+    if (!multiTargetMode) { return; }
+    if (multiTargetList.length < 1) { return; }
+    if (typeof targetModeCallback === 'function') {
+      targetModeCallback(multiTargetList);
+    }
+    targetMode = multiTargetMode = false;
+    valid_target_cache = {};
+    multiTargetList = [];
+    $('.add-to-target, .popover-menu-2').hide();
+    hideMultiTargetBar();
+    if (globalCtx && globalCanvas) {
+      globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+    }
+    e.stopPropagation();
+  });
+
+  $(document).on('click', '#multi-target-cancel', function (e) {
+    targetMode = multiTargetMode = false;
+    valid_target_cache = {};
+    multiTargetList = [];
+    $('.add-to-target, .popover-menu-2').hide();
+    hideMultiTargetBar();
+    if (globalCtx && globalCanvas) {
+      globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+    }
+    e.stopPropagation();
+  });
+
   $(".tiles-container").on("click", ".add-to-target", function (e) {
     const $tile = $(this).closest(".tile");
     const entity_uid = $tile.data("coords-id");
@@ -4052,9 +4112,7 @@ $(document).ready(() => {
           withArrow: false,
           randomCurve: true,
         });
-        $(
-          `.tile[data-coords-id="${source.entity_uid}"] .popover-menu-2`,
-        ).show();
+        updateMultiTargetBar();
       }
     }
     e.stopPropagation();
@@ -4802,6 +4860,13 @@ $(document).ready(() => {
         source = { x: coordsx, y: coordsy };
         accumulatedPath = [];
         pivotPoints = [];
+        currentPosition = null;
+        lastHoverCoords = null;
+        movePath = [];
+        clearMovePathCache();
+        if (globalCtx && globalCanvas) {
+          globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+        }
         break;
       case "select_spell":
         closeCenterActionBar();
@@ -4939,6 +5004,9 @@ $(document).ready(() => {
           targetMode = false;
           coneMode = false;
           valid_target_cache = {};
+          if (typeof showMultiTargetBar === 'function') {
+            showMultiTargetBar();
+          }
         } else {
           targetMode = true;
           coneMode = false;
@@ -6324,6 +6392,8 @@ function makeFloatingWindowsDraggable() {
       clearMovePathCache();
       globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
       $(".tile").css("border", "none");
+      currentPosition = null;
+      lastHoverCoords = null;
       if (moveModeCallback) {
         moveModeCallback(movePath);
         movePath = [];
@@ -6344,6 +6414,8 @@ function makeFloatingWindowsDraggable() {
       accumulatedPath = [];
       pivotPoints = [];
       source = null;
+      currentPosition = null;
+      lastHoverCoords = null;
       clearMovePathCache();
       globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
       $(".tile").css("border", "none");
