@@ -219,9 +219,9 @@ class TestNpc(unittest.TestCase):
         random.seed(7000)
         npc.take_damage(4, session=session)
         assert npc.hit_die() == {6: 2}
-        npc.short_rest(battle)
-        assert npc.hp() == 6, npc.hp()
-        assert npc.hit_die() == {6: 1}
+        npc.short_rest(battle, force=True)
+        assert npc.hp() == 7, npc.hp()
+        assert npc.hit_die() == {6: 0}
 
         result = [npc.save_throw(attribute) for attribute in Entity.ATTRIBUTE_TYPES]
         assert [dr.roller.roll_str for dr in result] == ['d20-1', 'd20+2', 'd20+0', 'd20+0', 'd20-1', 'd20-1']

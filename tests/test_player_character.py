@@ -277,7 +277,7 @@ class TestPlayerCharacter(unittest.TestCase):
         self.player = self.load_fighter_character()
         self.player.take_damage(4, session=self.session)
         self.assertEqual(self.player.hit_die(), {10: 1})
-        self.player.short_rest(self.battle)
+        self.player.short_rest(self.battle, force=True)
         self.assertEqual(self.player.hp(), 64)
         self.assertEqual(self.player.hit_die(), {10: 0})
 
