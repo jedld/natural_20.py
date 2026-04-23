@@ -48,6 +48,27 @@ let moveRequestTimeouts = new Map(); // entityId -> timeoutId for cleanup
 // Mode & State Variables (global scope for access by functions)
 let valid_target_cache = {};
 let move_path_cache = {};
+let move_path_cache_keys = []; // insertion order for bounded LRU eviction
+const MOVE_PATH_CACHE_LIMIT = 256;
+function setMovePathCache(key, value) {
+  if (!Object.prototype.hasOwnProperty.call(move_path_cache, key)) {
+    move_path_cache_keys.push(key);
+    if (move_path_cache_keys.length > MOVE_PATH_CACHE_LIMIT) {
+      const oldest = move_path_cache_keys.shift();
+      delete move_path_cache[oldest];
+    }
+  }
+  move_path_cache[key] = value;
+}
+function clearMovePathCache() {
+  move_path_cache = {};
+  move_path_cache_keys = [];
+  if (typeof Utils !== 'undefined' && typeof Utils.invalidateMovementGridCache === 'function') {
+    Utils.invalidateMovementGridCache();
+  }
+}
+let currentPathXhr = null;     // in-flight /path jqXHR, aborted on new hover
+let lastHoverCoords = null;    // last (x,y) processed by movement-mode hover
 let currentPosition = null;
 let accumulatedPath = [];
 let pivotPoints = [];
@@ -3065,6 +3086,16 @@ $(document).ready(() => {
   let lastMovedEntityBeforeRefresh = null;
   const battleEntityList = [];
 
+  // Invalidate the cached tile-grid origin used by the movement-path
+  // renderer whenever layout might shift.
+  const invalidateGrid = () => {
+    if (typeof Utils !== 'undefined' && typeof Utils.invalidateMovementGridCache === 'function') {
+      Utils.invalidateMovementGridCache();
+    }
+  };
+  window.addEventListener('resize', invalidateGrid, { passive: true });
+  window.addEventListener('scroll', invalidateGrid, { passive: true });
+
   // Initialize global variables
   backgroundSoundStartTime = $("body").data("soundtrack-time");
   pageRenderTime = new Date().getTime();
@@ -3520,7 +3551,7 @@ $(document).ready(() => {
     } else if (moveMode) {
       if (coordsx !== source.x || coordsy !== source.y) {
         moveMode = false;
-        move_path_cache = {};
+        clearMovePathCache();
         globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
         $(".tile").css("border", "none");
         moveModeCallback(movePath);
@@ -3788,6 +3819,12 @@ $(document).ready(() => {
         `<p>X: ${coordsx}</p><p>Y: ${coordsy}</p>${tooltip}`,
       );
       if (moveMode && (source.x !== coordsx || source.y !== coordsy)) {
+        // Skip duplicate work when the mouseover bubbles from child elements
+        // (entity sprites, tooltips, etc.) without changing the tile.
+        if (lastHoverCoords && lastHoverCoords.x === coordsx && lastHoverCoords.y === coordsy) {
+          return;
+        }
+        lastHoverCoords = { x: coordsx, y: coordsy };
         const cacheKey = `${source.x}-${source.y}-${coordsx}-${coordsy}-${pivotPoints.join("-")}`;
 
         // Function to process and draw movement path
@@ -3859,24 +3896,50 @@ $(document).ready(() => {
           if (pathDebounceTimer) {
             clearTimeout(pathDebounceTimer);
           }
+          // Abort any in-flight request from a previous hover so the latest
+          // destination always wins (prevents arrow lag/flicker on fast moves).
+          if (currentPathXhr && typeof currentPathXhr.abort === 'function') {
+            try { currentPathXhr.abort(); } catch (e) { /* ignore */ }
+            currentPathXhr = null;
+          }
 
           // Set a new timer to delay the path request
+          const pendingDest = { x: coordsx, y: coordsy };
           pathDebounceTimer = setTimeout(() => {
-            // Fetch path data from server
-            Utils.ajaxGet(
-              "/path",
-              {
+            // If the cursor has moved off this tile by the time the timer
+            // fires, skip the fetch entirely.
+            if (!lastHoverCoords ||
+                lastHoverCoords.x !== pendingDest.x ||
+                lastHoverCoords.y !== pendingDest.y) {
+              return;
+            }
+            // Fetch path data from server using a jqXHR we can abort.
+            currentPathXhr = $.ajax({
+              url: "/path",
+              type: 'GET',
+              data: {
                 from: source,
-                to: { x: coordsx, y: coordsy },
+                to: pendingDest,
                 accumulatedPath: accumulatedPath.length > 0 ? JSON.stringify(accumulatedPath) : null
               },
-              (data) => {
-                // Cache the result
-                move_path_cache[cacheKey] = data;
-                processMovementData(data);
+              success: (data) => {
+                currentPathXhr = null;
+                setMovePathCache(cacheKey, data);
+                // Only render if the cursor is still on the requested tile.
+                if (lastHoverCoords &&
+                    lastHoverCoords.x === pendingDest.x &&
+                    lastHoverCoords.y === pendingDest.y) {
+                  processMovementData(data);
+                }
+              },
+              error: (jqXHR, textStatus) => {
+                if (textStatus !== 'abort') {
+                  console.error('Error with GET /path:', textStatus);
+                }
+                currentPathXhr = null;
               }
-            );
-          }, 50); // 0.1 seconds delay
+            });
+          }, 50);
         }
       }
     }
@@ -3888,6 +3951,8 @@ $(document).ready(() => {
       clearTimeout(pathDebounceTimer);
       pathDebounceTimer = null;
     }
+    // Don't reset lastHoverCoords here — mouseout fires when bubbling into
+    // child elements as well, and we still want to suppress duplicate work.
   });
 
   // Example: add all entities to initiative.
@@ -3909,7 +3974,7 @@ $(document).ready(() => {
         accumulatedPath = [];
         pivotPoints = [];
         valid_target_cache = {};
-        move_path_cache = {};
+        clearMovePathCache();
         multiTargetList = [];
         jumpMode = false;
         jumpStartIndex = null;
@@ -3962,7 +4027,7 @@ $(document).ready(() => {
       accumulatedPath = [];
       pivotPoints = [];
       valid_target_cache = {};
-      move_path_cache = {};
+      clearMovePathCache();
       jumpMode = false;
       jumpStartIndex = null;
       lastPathForJump = null;
@@ -5065,7 +5130,7 @@ $(document).ready(() => {
     if (moveMode) {
       moveMode = false;
       accumulatedPath = [];
-      move_path_cache = {};
+      clearMovePathCache();
       pivotPoints = [];
       globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
       $(".tile").css("border", "none");
@@ -6256,7 +6321,7 @@ function makeFloatingWindowsDraggable() {
     if (key === ' ' && moveMode) {
       event.preventDefault();
       moveMode = false;
-      move_path_cache = {};
+      clearMovePathCache();
       globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
       $(".tile").css("border", "none");
       if (moveModeCallback) {
@@ -6279,7 +6344,7 @@ function makeFloatingWindowsDraggable() {
       accumulatedPath = [];
       pivotPoints = [];
       source = null;
-      move_path_cache = {};
+      clearMovePathCache();
       globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
       $(".tile").css("border", "none");
     }
