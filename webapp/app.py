@@ -653,6 +653,16 @@ def controller_of(entity_uid, username):
 
 app.add_template_global(controller_of, name='controller_of')
 
+def can_rest_for(entity_uid):
+    """Template helper: True if the current user may issue rest commands for entity."""
+    try:
+        if 'dm' in user_role():
+            return True
+        return controller_of(entity_uid, session.get('username'))
+    except Exception:
+        return False
+app.add_template_global(can_rest_for, name='can_rest_for')
+
 def within_talking_distance(entity_uid):
     current_map = current_game.get_map_for_user(session['username'])
     pov_entity = current_game.get_pov_entity_for_user(session['username'])
@@ -4713,6 +4723,217 @@ def update_spell_slots():
         
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to update spell slots: {str(e)}'}), 500
+
+
+def _can_act_for_entity(entity_uid):
+    """True if the current session may issue rest commands for this entity."""
+    if 'dm' in user_role():
+        return True
+    return controller_of(entity_uid, session.get('username'))
+
+
+def _wizard_arcane_recovery_state(entity):
+    """Return (budget, available_levels) for a wizard's arcane recovery, or None."""
+    if not hasattr(entity, 'wizard_level'):
+        return None
+    if int(getattr(entity, 'arcane_recovery', 0) or 0) <= 0:
+        return None
+    import math as _math
+    budget = _math.ceil(entity.wizard_level / 2)
+    slots = entity.spell_slots.get('wizard', {}) or {}
+    avail = []
+    for level in sorted(slots.keys()):
+        try:
+            lvl_i = int(level)
+        except (TypeError, ValueError):
+            continue
+        if lvl_i < 1 or lvl_i > 5:
+            continue
+        if lvl_i > budget:
+            continue
+        if slots.get(level, 0) < entity.max_spell_slots(lvl_i, 'wizard'):
+            avail.append(lvl_i)
+    return budget, avail
+
+
+class _WebRestController:
+    """Inline controller used to drive the engine's rest hooks from a request."""
+
+    def __init__(self, arcane_picks=None):
+        self._arcane_picks = list(arcane_picks or [])
+        self.consumed_picks = []
+
+    def arcane_recovery_ui(self, entity, available_levels):
+        while self._arcane_picks:
+            level = self._arcane_picks.pop(0)
+            if level in available_levels:
+                self.consumed_picks.append(level)
+                return level
+        return None
+
+
+def _entity_rest_snapshot(entity):
+    """JSON-friendly snapshot of mutable rest-related state."""
+    snapshot = {
+        'hp': entity.hp(),
+        'max_hp': entity.max_hp(),
+        'hit_die': dict(entity.hit_die()) if hasattr(entity, 'hit_die') else {},
+        'spell_slots': {
+            klass: dict(slots) for klass, slots in (getattr(entity, 'spell_slots', {}) or {}).items()
+        },
+        'statuses': list(entity.statuses) if hasattr(entity, 'statuses') else [],
+    }
+    for attr in ('arcane_recovery', 'second_wind_count', 'lay_on_hands_count'):
+        if hasattr(entity, attr):
+            snapshot[attr] = getattr(entity, attr)
+    return snapshot
+
+
+@app.route('/rest/preview', methods=['GET'])
+def rest_preview():
+    """Return current state and rest options for an entity."""
+    if not session.get('username'):
+        return jsonify(success=False, error='Unauthorized'), 401
+    entity_id = request.args.get('entity_id')
+    rest_type = (request.args.get('type') or 'short').lower()
+    if rest_type not in ('short', 'long'):
+        return jsonify(success=False, error='Invalid rest type'), 400
+    if not entity_id:
+        return jsonify(success=False, error='Missing entity_id'), 400
+    if not _can_act_for_entity(entity_id):
+        return jsonify(success=False, error='Forbidden'), 403
+
+    battle_map = current_game.get_map_for_user(session['username'])
+    entity = battle_map.entity_by_uid(entity_id)
+    if entity is None:
+        return jsonify(success=False, error='Entity not found'), 404
+
+    battle = current_game.get_current_battle()
+    in_combat = bool(battle and getattr(battle, 'started', False))
+    payload = {
+        'success': True,
+        'entity_id': entity_id,
+        'entity_name': entity.label() if hasattr(entity, 'label') else getattr(entity, 'name', entity_id),
+        'type': rest_type,
+        'in_combat': in_combat,
+        'requires_force': in_combat,
+        'is_dm': 'dm' in user_role(),
+        'state': _entity_rest_snapshot(entity),
+    }
+    arcane = _wizard_arcane_recovery_state(entity)
+    if rest_type == 'short' and arcane is not None:
+        budget, levels = arcane
+        payload['arcane_recovery'] = {
+            'budget': budget,
+            'available_levels': levels,
+        }
+    return jsonify(payload)
+
+
+@app.route('/rest', methods=['POST'])
+def take_rest():
+    """Run a short or long rest for an entity."""
+    if not session.get('username'):
+        return jsonify(success=False, error='Unauthorized'), 401
+    data = request.get_json(silent=True) or request.form
+    entity_id = data.get('entity_id')
+    rest_type = (data.get('type') or 'short').lower()
+    force = bool(data.get('force'))
+    arcane_picks = data.get('arcane_picks') or []
+    if isinstance(arcane_picks, str):
+        try:
+            arcane_picks = [int(x) for x in arcane_picks.split(',') if x.strip()]
+        except ValueError:
+            return jsonify(success=False, error='arcane_picks must be integers'), 400
+    try:
+        arcane_picks = [int(x) for x in arcane_picks]
+    except (TypeError, ValueError):
+        return jsonify(success=False, error='arcane_picks must be integers'), 400
+
+    if rest_type not in ('short', 'long'):
+        return jsonify(success=False, error='Invalid rest type'), 400
+    if not entity_id:
+        return jsonify(success=False, error='Missing entity_id'), 400
+    if not _can_act_for_entity(entity_id):
+        return jsonify(success=False, error='Forbidden'), 403
+    if force and 'dm' not in user_role():
+        return jsonify(success=False, error='Only the DM may force a rest during combat'), 403
+
+    battle_map = current_game.get_map_for_user(session['username'])
+    entity = battle_map.entity_by_uid(entity_id)
+    if entity is None:
+        return jsonify(success=False, error='Entity not found'), 404
+
+    battle = current_game.get_current_battle()
+    before = _entity_rest_snapshot(entity)
+
+    # Validate arcane picks against budget and availability before running the rest.
+    if rest_type == 'short' and arcane_picks:
+        arcane = _wizard_arcane_recovery_state(entity)
+        if arcane is None:
+            return jsonify(success=False, error='Entity cannot use arcane recovery'), 400
+        budget, _avail = arcane
+        if sum(arcane_picks) > budget:
+            return jsonify(
+                success=False,
+                error=f'Arcane recovery picks total {sum(arcane_picks)} exceed budget {budget}'
+            ), 400
+
+    # Inject a controller so wizard arcane recovery can pick slots from request.
+    controller_holder = {}
+    rest_controller = _WebRestController(arcane_picks=arcane_picks)
+    if battle is not None:
+        original_controller_for = battle.controller_for
+
+        def _proxy_controller_for(target):
+            if target is entity:
+                return rest_controller
+            return original_controller_for(target)
+
+        battle.controller_for = _proxy_controller_for
+        controller_holder['restore'] = lambda: setattr(battle, 'controller_for', original_controller_for)
+
+    try:
+        if rest_type == 'short':
+            entity.short_rest(battle, force=force)
+            time_advance = 60 * 60  # 1 in-game hour
+        else:
+            entity.long_rest()
+            time_advance = 8 * 60 * 60  # 8 in-game hours
+
+        try:
+            current_game.game_session.increment_game_time(time_advance)
+        except Exception:
+            pass
+
+        try:
+            output_logger.log(
+                f"{entity.label() if hasattr(entity, 'label') else entity.name} took a {rest_type} rest"
+                + (' (DM forced)' if force else '')
+            )
+        except Exception:
+            pass
+
+        socketio.emit('message', {'type': 'refresh_map'})
+        return jsonify({
+            'success': True,
+            'entity_id': entity_id,
+            'type': rest_type,
+            'forced': force,
+            'before': before,
+            'after': _entity_rest_snapshot(entity),
+            'arcane_picks_consumed': rest_controller.consumed_picks,
+            'game_time': current_game.game_session.game_time,
+        })
+    except ValueError as e:
+        return jsonify(success=False, error=str(e)), 409
+    except Exception as e:
+        logger.exception('Failed to run rest')
+        return jsonify(success=False, error=str(e)), 500
+    finally:
+        if 'restore' in controller_holder:
+            controller_holder['restore']()
+
 
 @app.route('/dm_move_entity', methods=['POST'])
 def dm_move_entity():

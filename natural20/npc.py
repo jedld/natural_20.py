@@ -197,12 +197,12 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         else:
             super().make_unconscious()
 
-    def make_dead(self):
+    def make_dead(self, battle=None):
         if self.linked_hp:
-            self.linked_hp.make_dead()
-            super().make_dead()
+            self.linked_hp.make_dead(battle=battle)
+            super().make_dead(battle=battle)
         else:
-            super().make_dead()
+            super().make_dead(battle=battle)
 
     def max_spell_slots(self, level, character_class=None):
         if self.familiar():

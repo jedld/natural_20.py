@@ -479,6 +479,12 @@
                             </td>
                         </tr>
                     </table>
+                    {% if not restricted and can_rest_for(entity.entity_uid) %}
+                    <div class="rest-controls" style="margin: 8px 0 12px 0; display: flex; gap: 6px;">
+                        <button type="button" class="hp-save-btn" onclick="openRestModal('{{ entity.entity_uid }}', 'short')">Short Rest</button>
+                        <button type="button" class="hp-save-btn" onclick="openRestModal('{{ entity.entity_uid }}', 'long')">Long Rest</button>
+                    </div>
+                    {% endif %}
                     {% if entity.death_saves > 0 or entity.death_fails > 0 %}
                     <h3>Death Saves</h3>
                     <div class="death-saves">
@@ -1297,6 +1303,178 @@
                 });
             });
         });
+    </script>
+
+    <!-- Rest modal -->
+    <div id="rest-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:#fff; padding:18px 22px; border-radius:8px; min-width:340px; max-width:520px; max-height:80vh; overflow:auto;">
+            <h3 id="rest-modal-title" style="margin-top:0;">Rest</h3>
+            <div id="rest-modal-body" style="font-size:14px;">Loading…</div>
+            <div id="rest-modal-error" style="color:#b00; margin-top:8px; display:none;"></div>
+            <div style="margin-top:14px; display:flex; gap:8px; justify-content:flex-end;">
+                <button type="button" class="hp-save-btn" onclick="closeRestModal()">Cancel</button>
+                <button type="button" class="hp-save-btn" id="rest-modal-confirm" onclick="confirmRest()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            let restState = null;
+
+            window.openRestModal = function (entityId, type) {
+                restState = { entityId: entityId, type: type, picks: [], preview: null };
+                document.getElementById('rest-modal-title').textContent =
+                    (type === 'long' ? 'Long Rest' : 'Short Rest');
+                document.getElementById('rest-modal-error').style.display = 'none';
+                document.getElementById('rest-modal-body').textContent = 'Loading…';
+                document.getElementById('rest-modal').style.display = 'flex';
+
+                fetch('/rest/preview?entity_id=' + encodeURIComponent(entityId) + '&type=' + type)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.success) {
+                            renderRestError(data.error || 'Unable to load rest preview');
+                            return;
+                        }
+                        restState.preview = data;
+                        renderRestPreview(data);
+                    })
+                    .catch(err => renderRestError(String(err)));
+            };
+
+            window.closeRestModal = function () {
+                document.getElementById('rest-modal').style.display = 'none';
+                restState = null;
+            };
+
+            function renderRestError(msg) {
+                const err = document.getElementById('rest-modal-error');
+                err.textContent = msg;
+                err.style.display = 'block';
+            }
+
+            function renderRestPreview(data) {
+                const body = document.getElementById('rest-modal-body');
+                const lines = [];
+                lines.push('<div><strong>' + escapeHtml(data.entity_name) + '</strong> — ' +
+                    (data.type === 'long' ? 'Long' : 'Short') + ' Rest</div>');
+                lines.push('<div style="margin-top:6px;">HP: ' + data.state.hp + ' / ' + data.state.max_hp + '</div>');
+                if (data.state.hit_die && Object.keys(data.state.hit_die).length) {
+                    const hd = Object.entries(data.state.hit_die)
+                        .map(([d, n]) => 'd' + d + ': ' + n).join(', ');
+                    lines.push('<div>Hit Dice: ' + hd + '</div>');
+                }
+                if (data.in_combat) {
+                    lines.push('<div style="margin-top:8px; color:#b00;">Combat is in progress.' +
+                        (data.is_dm ? ' DM may force a rest below.' : '') + '</div>');
+                    if (data.is_dm) {
+                        lines.push('<label style="display:block; margin-top:6px;">' +
+                            '<input type="checkbox" id="rest-force"> Force rest (DM override)</label>');
+                    }
+                }
+                if (data.arcane_recovery) {
+                    const ar = data.arcane_recovery;
+                    lines.push('<div style="margin-top:10px;"><strong>Arcane Recovery</strong> — budget ' +
+                        ar.budget + '</div>');
+                    if (ar.available_levels.length === 0) {
+                        lines.push('<div>No spell slots are available to recover.</div>');
+                    } else {
+                        lines.push('<div style="margin-top:4px;">Choose slot levels to recover (totals must be ≤ ' +
+                            ar.budget + '):</div>');
+                        lines.push('<div id="arcane-picks" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;"></div>');
+                        lines.push('<div style="margin-top:6px; display:flex; gap:6px;">');
+                        ar.available_levels.forEach(lvl => {
+                            lines.push('<button type="button" class="hp-save-btn" data-lvl="' + lvl +
+                                '" onclick="addArcanePick(' + lvl + ')">+L' + lvl + '</button>');
+                        });
+                        lines.push('<button type="button" class="hp-save-btn" onclick="clearArcanePicks()">Clear</button>');
+                        lines.push('</div>');
+                    }
+                }
+                body.innerHTML = lines.join('');
+                renderArcanePicks();
+            }
+
+            function renderArcanePicks() {
+                const container = document.getElementById('arcane-picks');
+                if (!container || !restState) return;
+                const ar = restState.preview && restState.preview.arcane_recovery;
+                const budget = ar ? ar.budget : 0;
+                const used = restState.picks.reduce((a, b) => a + b, 0);
+                const items = restState.picks.map((lvl, i) =>
+                    '<span style="background:#eef; padding:2px 6px; border-radius:4px;">L' + lvl +
+                    ' <a href="#" onclick="removeArcanePick(' + i + '); return false;">×</a></span>'
+                );
+                container.innerHTML = '<div>Selected: ' + (items.join(' ') || '<em>none</em>') +
+                    ' — used ' + used + ' / ' + budget + '</div>';
+            }
+
+            window.addArcanePick = function (lvl) {
+                if (!restState || !restState.preview || !restState.preview.arcane_recovery) return;
+                const ar = restState.preview.arcane_recovery;
+                const used = restState.picks.reduce((a, b) => a + b, 0);
+                if (used + lvl > ar.budget) {
+                    renderRestError('Pick exceeds budget of ' + ar.budget);
+                    return;
+                }
+                document.getElementById('rest-modal-error').style.display = 'none';
+                restState.picks.push(lvl);
+                renderArcanePicks();
+            };
+            window.removeArcanePick = function (idx) {
+                if (!restState) return;
+                restState.picks.splice(idx, 1);
+                renderArcanePicks();
+            };
+            window.clearArcanePicks = function () {
+                if (!restState) return;
+                restState.picks = [];
+                renderArcanePicks();
+            };
+
+            window.confirmRest = function () {
+                if (!restState) return;
+                const forceCheckbox = document.getElementById('rest-force');
+                const payload = {
+                    entity_id: restState.entityId,
+                    type: restState.type,
+                    force: forceCheckbox ? forceCheckbox.checked : false,
+                    arcane_picks: restState.picks,
+                };
+                document.getElementById('rest-modal-error').style.display = 'none';
+                document.getElementById('rest-modal-confirm').disabled = true;
+                fetch('/rest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                })
+                    .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                    .then(({ ok, data }) => {
+                        document.getElementById('rest-modal-confirm').disabled = false;
+                        if (!ok || !data.success) {
+                            renderRestError(data.error || 'Rest failed');
+                            return;
+                        }
+                        closeRestModal();
+                        if (typeof window.reloadEntityInfo === 'function') {
+                            window.reloadEntityInfo();
+                        } else {
+                            window.location.reload();
+                        }
+                    })
+                    .catch(err => {
+                        document.getElementById('rest-modal-confirm').disabled = false;
+                        renderRestError(String(err));
+                    });
+            };
+
+            function escapeHtml(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+        })();
     </script>
 </body>
 </html>
