@@ -186,11 +186,45 @@ function decorateCenterActionSection($body, entry, coordsx, coordsy) {
   $body.find('.action-button, .action-end-turn, .talk-action').addClass('hotkey-capable-action');
 }
 
+// Decide whether a /actions HTML payload contains anything actionable.
+// The endpoint always emits an "info" button for every entity (including
+// inert objects like ground / wall tiles). We only want to render a panel
+// when the entity has at least one real action the user can perform.
+function actionHtmlHasActionableContent(html) {
+  if (!html || !`${html}`.trim()) {
+    return false;
+  }
+  try {
+    const $probe = $('<div></div>').html(html);
+    // .action-info is always present for every entity and is purely
+    // informational; ignore it. A panel is meaningful only if there is
+    // at least one of: a regular action button, end-turn, talk button,
+    // or DM delete control.
+    const actionable = $probe.find(
+      '.action-button, .action-end-turn, .talk-action, .delete-entity-btn'
+    );
+    return actionable.length > 0;
+  } catch (e) {
+    // If parsing fails, fall back to showing the html.
+    return true;
+  }
+}
+
 function renderCenteredActionBarSections(sections, coordsx, coordsy) {
   const $content = $('#centerActionBarContent');
   const $stack = $('<div class="popover-actions-stack"></div>');
 
-  sections.forEach(({ entry, html, error }) => {
+  // Drop sections that have no actionable content. This prevents empty
+  // panels for environment objects like ground / wall tiles that have no
+  // applicable actions for the current entity.
+  const renderable = sections.filter(({ html }) => actionHtmlHasActionableContent(html));
+
+  if (renderable.length === 0) {
+    closeCenterActionBar();
+    return;
+  }
+
+  renderable.forEach(({ entry, html }) => {
     const typeLabel = entry.type === 'object' ? 'Object' : 'Creature';
     const displayLabel = entry.label || entry.id;
     const $entry = $('<div class="popover-actions-entry center-action-entry"></div>')
@@ -203,12 +237,8 @@ function renderCenteredActionBarSections(sections, coordsx, coordsy) {
     $entry.append($header);
 
     const $body = $('<div class="popover-actions-body"></div>');
-    if (html) {
-      $body.html(html);
-      decorateCenterActionSection($body, entry, coordsx, coordsy);
-    } else {
-      $('<div class="popover-actions-empty"></div>').text(error).appendTo($body);
-    }
+    $body.html(html);
+    decorateCenterActionSection($body, entry, coordsx, coordsy);
     $entry.append($body);
     $stack.append($entry);
   });
