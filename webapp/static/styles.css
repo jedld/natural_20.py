@@ -1355,6 +1355,97 @@ input.initiative-input.form-control {
   text-overflow: ellipsis;
 }
 
+.multi-target-confirm-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20060;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.multi-target-confirm-bar__panel {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: min(720px, calc(100vw - 16px));
+  margin-bottom: 8px;
+  padding: 8px 14px;
+  border-radius: 12px 12px 8px 8px;
+  border: 1px solid rgba(228, 201, 149, 0.32);
+  border-bottom: none;
+  background:
+    radial-gradient(circle at top left, rgba(197, 140, 65, 0.16), transparent 34%),
+    linear-gradient(180deg, rgba(26, 20, 15, 0.94), rgba(14, 11, 9, 0.94));
+  color: #f4ead9;
+  box-shadow: 0 -8px 22px rgba(0, 0, 0, 0.42);
+}
+
+.multi-target-confirm-bar__info {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.multi-target-confirm-bar__title {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 11px;
+  color: #ffd166;
+}
+
+.multi-target-confirm-bar__count {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f4ead9;
+}
+
+.multi-target-confirm-bar__sep {
+  margin: 0 4px;
+  opacity: 0.6;
+}
+
+.multi-target-confirm-bar__label {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.75;
+  text-transform: lowercase;
+}
+
+.multi-target-confirm-bar__actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.multi-target-confirm-bar__actions kbd {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 10px;
+  margin-left: 4px;
+}
+
+@media (max-width: 700px) {
+  .multi-target-confirm-bar__panel {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+  .multi-target-confirm-bar__actions {
+    justify-content: flex-end;
+  }
+}
+
 .movement-mode-hint__title {
   font-weight: 600;
   margin-right: 8px;

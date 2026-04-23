@@ -935,6 +935,23 @@
             <div id="tiles-area" class="tiles-container actions-container" data-width="{{ background_width }}" data-height="{{ background_height }}" data-tile-size="{{tile_size_px}}" style="position: absolute; top: -{{tile_size_px + top_offset_px}}px; left: -{{tile_size_px + left_offset_px}}px;"></div>
         </div>
     </div>
+        <div id="multi-target-confirm-bar" class="multi-target-confirm-bar" style="display: none;" role="region" aria-live="polite" aria-label="Spell targeting">
+          <div class="multi-target-confirm-bar__panel">
+            <div class="multi-target-confirm-bar__info">
+              <span class="multi-target-confirm-bar__title">Select Targets</span>
+              <span class="multi-target-confirm-bar__count">
+                <span id="multi-target-confirm-bar__current">0</span>
+                <span class="multi-target-confirm-bar__sep">/</span>
+                <span id="multi-target-confirm-bar__max">0</span>
+                <span class="multi-target-confirm-bar__label">targets</span>
+              </span>
+            </div>
+            <div class="multi-target-confirm-bar__actions">
+              <button type="button" id="multi-target-cancel" class="btn btn-default btn-sm">Cancel <kbd>Esc</kbd></button>
+              <button type="button" id="multi-target-confirm" class="btn btn-primary btn-sm" disabled>Confirm Targets &amp; Cast</button>
+            </div>
+          </div>
+        </div>
         <div id="movement-mode-hint" class="movement-mode-hint" style="display: none;" aria-live="polite">
           <span class="movement-mode-hint__title">Movement Mode</span>
           <span class="movement-mode-hint__keys">
