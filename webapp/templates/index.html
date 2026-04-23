@@ -934,6 +934,34 @@
             <div id="tiles-area" class="tiles-container actions-container" data-width="{{ background_width }}" data-height="{{ background_height }}" data-tile-size="{{tile_size_px}}" style="position: absolute; top: -{{tile_size_px + top_offset_px}}px; left: -{{tile_size_px + left_offset_px}}px;"></div>
         </div>
     </div>
+        <div id="movement-mode-hint" class="movement-mode-hint" style="display: none;" aria-live="polite">
+          <span class="movement-mode-hint__title">Movement Mode</span>
+          <span class="movement-mode-hint__keys">
+            <kbd>Arrows</kbd>/<kbd>WASD</kbd> move
+            &nbsp;&middot;&nbsp; <kbd>Space</kbd>/<kbd>Enter</kbd> commit
+            &nbsp;&middot;&nbsp; <kbd>Q</kbd> add waypoint
+            &nbsp;&middot;&nbsp; <kbd>J</kbd> jump
+            &nbsp;&middot;&nbsp; <kbd>Esc</kbd> cancel
+          </span>
+        </div>
+        <div id="centerActionBar" class="center-action-bar" style="display: none;">
+          <div class="center-action-bar-panel actions-container" role="region" aria-labelledby="centerActionBarTitle">
+            <div class="center-action-bar-header">
+              <div>
+                <div id="centerActionBarTitle" class="center-action-bar-title">Actions</div>
+                <div id="centerActionBarSubtitle" class="center-action-bar-subtitle">Choose an action for the selected entity.</div>
+              </div>
+              <div class="center-action-bar-toolbar">
+                <button id="actionBarHotkeyToggle" type="button" class="btn btn-default btn-sm">Bind Hotkeys</button>
+                <button id="centerActionBarClose" type="button" class="btn btn-default btn-sm">Close</button>
+              </div>
+            </div>
+            <div id="centerActionBarInstructions" class="center-action-bar-instructions">
+              Press 1-9 to trigger assigned actions. Use Bind Hotkeys to customize them.
+            </div>
+            <div id="centerActionBarContent" class="center-action-bar-content"></div>
+          </div>
+        </div>
     <div class="modal fade" id="modal-1" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content actions-container">
@@ -1064,7 +1092,13 @@
     {% else %}
         <div class="game-turn-container"></div>
     {% endif %}
-    <button id="toggle-portraits" class="btn btn-default portrait-button">Show/Hide Characters</button>
+    <button id="toggle-portraits"
+            class="btn btn-default portrait-button"
+            type="button"
+            title="Show/Hide Characters"
+            aria-label="Show or hide characters">
+      <span class="glyphicon glyphicon-user" aria-hidden="true"></span>
+    </button>
     <div id="floating-entity-portraits">
         {% include 'floating_portraits.html' %}
     </div>
