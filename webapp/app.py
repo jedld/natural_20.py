@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session, redirect, url_for, render_template, send_file
+from flask import Flask, request, jsonify, session, redirect, url_for, render_template, send_file, make_response
 from flask_socketio import SocketIO, emit
 from flask_session import Session
 from flask import send_from_directory
@@ -108,6 +108,24 @@ import io
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 app.config['CHARACTER_BUILDER_ONLY'] = os.environ.get('CHARACTER_BUILDER_ONLY', 'false').lower() == 'true'
+
+# Enable response compression (gzip/brotli) for HTML/JSON/JS/CSS.
+try:
+    from flask_compress import Compress
+    app.config.setdefault('COMPRESS_MIMETYPES', [
+        'text/html', 'text/css', 'text/xml', 'text/plain',
+        'application/json', 'application/javascript', 'application/xml',
+        'image/svg+xml',
+    ])
+    app.config.setdefault('COMPRESS_LEVEL', 6)
+    app.config.setdefault('COMPRESS_MIN_SIZE', 500)
+    # Disable streaming compression: flask-compress 1.24 has a bug where the
+    # streaming path calls `compressor.process()` which doesn't exist, breaking
+    # send_file/send_from_directory responses (e.g. /styles.css, bootstrap).
+    app.config.setdefault('COMPRESS_STREAMS', False)
+    Compress(app)
+except ImportError:
+    logging.getLogger(__name__).warning("Flask-Compress not installed; responses will not be compressed")
 
 
 def _env_flag(name, default=False):
@@ -2525,6 +2543,144 @@ def require_login():
         return redirect(url_for('login'))
 
 
+# -----------------------
+# Performance instrumentation (lightweight, always-on)
+# -----------------------
+# Rolling per-route stats. Bounded in size; no external deps.
+_PERF_LOCK = threading.Lock()
+
+_PERF_STATS = {
+    'routes': {},          # endpoint -> {count, total_ms, max_ms, last_ms, slow}
+    'socket_emits': {},    # event_name -> count
+    'slow_threshold_ms': float(os.environ.get('PERF_SLOW_MS', '250')),
+    'recent_slow': [],     # bounded list of recent slow requests
+}
+_PERF_RECENT_SLOW_MAX = 50
+
+# Routes we never time (would be too noisy / static-like).
+_PERF_SKIP_PREFIXES = ('/static', '/assets', '/libs', '/favicon', '/socket.io', '/health')
+
+
+def _perf_should_track(path):
+    if not path:
+        return False
+    return not any(path.startswith(p) for p in _PERF_SKIP_PREFIXES)
+
+
+@app.before_request
+def _perf_start_timer():
+    if _perf_should_track(request.path):
+        try:
+            request._perf_t0 = time.perf_counter()
+        except Exception:
+            pass
+
+
+@app.after_request
+def _perf_stop_timer(response):
+    try:
+        t0 = getattr(request, '_perf_t0', None)
+        if t0 is None:
+            return response
+        elapsed_ms = (time.perf_counter() - t0) * 1000.0
+        endpoint = request.endpoint or request.path
+        # Server-Timing header so devtools shows it.
+        try:
+            existing = response.headers.get('Server-Timing')
+            new_val = f'app;dur={elapsed_ms:.1f}'
+            response.headers['Server-Timing'] = f'{existing}, {new_val}' if existing else new_val
+        except Exception:
+            pass
+
+        slow = elapsed_ms >= _PERF_STATS['slow_threshold_ms']
+        with _PERF_LOCK:
+            bucket = _PERF_STATS['routes'].setdefault(endpoint, {
+                'count': 0, 'total_ms': 0.0, 'max_ms': 0.0, 'last_ms': 0.0, 'slow': 0,
+            })
+            bucket['count'] += 1
+            bucket['total_ms'] += elapsed_ms
+            bucket['last_ms'] = elapsed_ms
+            if elapsed_ms > bucket['max_ms']:
+                bucket['max_ms'] = elapsed_ms
+            if slow:
+                bucket['slow'] += 1
+                _PERF_STATS['recent_slow'].append({
+                    'ts': time.time(),
+                    'endpoint': endpoint,
+                    'path': request.path,
+                    'method': request.method,
+                    'ms': round(elapsed_ms, 1),
+                    'status': response.status_code,
+                })
+                if len(_PERF_STATS['recent_slow']) > _PERF_RECENT_SLOW_MAX:
+                    del _PERF_STATS['recent_slow'][0:len(_PERF_STATS['recent_slow']) - _PERF_RECENT_SLOW_MAX]
+        if slow:
+            try:
+                logger.warning(f"[perf] slow {request.method} {request.path} -> {elapsed_ms:.1f}ms (status {response.status_code})")
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return response
+
+
+# Wrap socketio.emit to count event rates without changing call sites.
+try:
+    _orig_socketio_emit = socketio.emit
+
+    def _perf_socketio_emit(event, *args, **kwargs):
+        try:
+            with _PERF_LOCK:
+                _PERF_STATS['socket_emits'][event] = _PERF_STATS['socket_emits'].get(event, 0) + 1
+        except Exception:
+            pass
+        return _orig_socketio_emit(event, *args, **kwargs)
+
+    socketio.emit = _perf_socketio_emit
+except Exception:
+    pass
+
+
+@app.route('/admin/perf', methods=['GET'])
+def admin_perf():
+    if not session.get('username'):
+        return jsonify(error='Unauthorized'), 401
+    if 'dm' not in user_role():
+        return jsonify(error='Forbidden'), 403
+    with _PERF_LOCK:
+        routes = []
+        for ep, b in _PERF_STATS['routes'].items():
+            routes.append({
+                'endpoint': ep,
+                'count': b['count'],
+                'avg_ms': round(b['total_ms'] / b['count'], 2) if b['count'] else 0,
+                'max_ms': round(b['max_ms'], 2),
+                'last_ms': round(b['last_ms'], 2),
+                'slow': b['slow'],
+            })
+        routes.sort(key=lambda r: r['avg_ms'] * r['count'], reverse=True)
+        snapshot = {
+            'slow_threshold_ms': _PERF_STATS['slow_threshold_ms'],
+            'routes': routes,
+            'socket_emits': dict(_PERF_STATS['socket_emits']),
+            'recent_slow': list(_PERF_STATS['recent_slow']),
+        }
+    return jsonify(snapshot)
+
+
+@app.route('/admin/perf/reset', methods=['POST'])
+def admin_perf_reset():
+    if not session.get('username'):
+        return jsonify(error='Unauthorized'), 401
+    if 'dm' not in user_role():
+        return jsonify(error='Forbidden'), 403
+    with _PERF_LOCK:
+        _PERF_STATS['routes'].clear()
+        _PERF_STATS['socket_emits'].clear()
+        _PERF_STATS['recent_slow'].clear()
+    return jsonify(status='ok')
+
+
 
 @socketio.on('register')
 def handle_connect(data):
@@ -2758,34 +2914,36 @@ def reorder_initiative():
 def get_available_npcs():
     """Get list of available NPCs for spawning"""
     global current_game
-    
+
     # Check if user is DM
     if 'dm' not in user_role():
         return jsonify(error='Only DMs can access NPC list'), 403
-    
+
     try:
-        # Use session.load_npcs() to get actual NPC instances with full data
-        npcs = game_session.load_npcs()
-        
-        # Convert to list and sort alphabetically by label
-        npc_list = []
-        for npc in npcs:
-            npc_list.append({
-                'id': npc.npc_type if hasattr(npc, 'npc_type') else npc.properties.get('id', 'unknown'),
-                'name': npc.label() if hasattr(npc, 'label') else npc.properties.get('label', npc.name),
-                'type': npc.properties.get('type', 'Unknown'),
-                'image': npc.token_image() if hasattr(npc, 'token_image') else npc.properties.get('token', f'{npc.name}.png'),
-                'cr': npc.properties.get('cr', 'Unknown'),
-                'size': npc.properties.get('size', 'Medium'),
-                'ac': npc.armor_class() if hasattr(npc, 'armor_class') else npc.properties.get('ac', 'Unknown'),
-                'hp': npc.max_hp() if hasattr(npc, 'max_hp') else npc.properties.get('hp', 'Unknown')
-            })
-        
-        # Sort alphabetically by name
-        npc_list.sort(key=lambda x: x['name'].lower())
-        
-        return jsonify(npcs=npc_list)
-        
+        cached = getattr(app, '_available_npcs_cache', None)
+        if cached is None:
+            # Use session.load_npcs() to get actual NPC instances with full data
+            npcs = game_session.load_npcs()
+
+            npc_list = []
+            for npc in npcs:
+                npc_list.append({
+                    'id': npc.npc_type if hasattr(npc, 'npc_type') else npc.properties.get('id', 'unknown'),
+                    'name': npc.label() if hasattr(npc, 'label') else npc.properties.get('label', npc.name),
+                    'type': npc.properties.get('type', 'Unknown'),
+                    'image': npc.token_image() if hasattr(npc, 'token_image') else npc.properties.get('token', f'{npc.name}.png'),
+                    'cr': npc.properties.get('cr', 'Unknown'),
+                    'size': npc.properties.get('size', 'Medium'),
+                    'ac': npc.armor_class() if hasattr(npc, 'armor_class') else npc.properties.get('ac', 'Unknown'),
+                    'hp': npc.max_hp() if hasattr(npc, 'max_hp') else npc.properties.get('hp', 'Unknown')
+                })
+
+            npc_list.sort(key=lambda x: x['name'].lower())
+            app._available_npcs_cache = npc_list
+            cached = npc_list
+
+        return jsonify(npcs=cached)
+
     except Exception as e:
         logger.error(f"Error getting available NPCs: {str(e)}")
         return jsonify(error='Failed to load NPCs'), 500
@@ -2794,41 +2952,42 @@ def get_available_npcs():
 def get_available_objects():
     """Get list of available objects for spawning"""
     global current_game
-    
+
     # Check if user is DM
     if 'dm' not in user_role():
         return jsonify(error='Only DMs can access object list'), 403
-    
+
     try:
-        # Load all objects from the objects.yml file
-        all_objects = game_session.load_yaml_file('items', 'objects')
-        
-        # Convert to list and filter placeable objects
-        object_list = []
-        for object_id, object_data in all_objects.items():
-            # Get token image, fallback to object id + .png
-            if object_data.get('token_editor_image'):
-                token_image = object_data['token_editor_image']
-            else:
-                token_image = f'{object_id}.png'
-            
-            object_list.append({
-                'id': object_id,
-                'name': object_data.get('name', object_id.replace('_', ' ').title()),
-                'description': object_data.get('description', ''),
-                'image': token_image,
-                'ac': object_data.get('default_ac', 'N/A'),
-                'hp': object_data.get('max_hp', 'N/A'),
-                'passable': object_data.get('passable', False),
-                'opaque': object_data.get('opaque', True),
-                'color': object_data.get('color', 'brown')
-            })
-        
-        # Sort alphabetically by name
-        object_list.sort(key=lambda x: x['name'])
-        
-        return jsonify(objects=object_list)
-        
+        cached = getattr(app, '_available_objects_cache', None)
+        if cached is None:
+            # Load all objects from the objects.yml file
+            all_objects = game_session.load_yaml_file('items', 'objects')
+
+            object_list = []
+            for object_id, object_data in all_objects.items():
+                if object_data.get('token_editor_image'):
+                    token_image = object_data['token_editor_image']
+                else:
+                    token_image = f'{object_id}.png'
+
+                object_list.append({
+                    'id': object_id,
+                    'name': object_data.get('name', object_id.replace('_', ' ').title()),
+                    'description': object_data.get('description', ''),
+                    'image': token_image,
+                    'ac': object_data.get('default_ac', 'N/A'),
+                    'hp': object_data.get('max_hp', 'N/A'),
+                    'passable': object_data.get('passable', False),
+                    'opaque': object_data.get('opaque', True),
+                    'color': object_data.get('color', 'brown')
+                })
+
+            object_list.sort(key=lambda x: x['name'])
+            app._available_objects_cache = object_list
+            cached = object_list
+
+        return jsonify(objects=cached)
+
     except Exception as e:
         logger.error(f"Error loading objects: {str(e)}")
         return jsonify(error=f'Failed to load objects: {str(e)}'), 500
@@ -3203,8 +3362,10 @@ def update():
         _pov_entities = user_entities if user_entities else []
 
     logger.info(f"entity: {entity}, pov_entity: {pov_entity}, _pov_entities: {_pov_entities}")
+    _t_render = time.perf_counter()
     my_2d_array = [renderer.render(entity_pov=_pov_entities)]
-    return render_template('map.html', 
+    _t_after_render = time.perf_counter()
+    response = render_template('map.html', 
                          pov_entity=pov_entity, 
                          tiles=my_2d_array, 
                          tile_size_px=TILE_PX, 
@@ -3212,6 +3373,13 @@ def update():
                          is_setup=(request.args.get('is_setup') == 'true'),
                          current_map_name=battle_map.name,
                          read_notes=current_game.read_notes)
+    _t_after_tpl = time.perf_counter()
+    resp = make_response(response)
+    resp.headers['Server-Timing'] = (
+        f"render;dur={(_t_after_render - _t_render) * 1000:.1f}, "
+        f"template;dur={(_t_after_tpl - _t_after_render) * 1000:.1f}"
+    )
+    return resp
 
 @app.route('/mark_note_read', methods=['POST'])
 def mark_note_read():

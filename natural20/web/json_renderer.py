@@ -21,6 +21,18 @@ class JsonRenderer:
         entity_pov_locations = None
         width, height = self.map.size
 
+        # Per-render memoization for Map.light_at (called up to 9× per tile via
+        # the soft-shadow neighbor loop).
+        _map_light_at = self.map.light_at
+        _light_cache = {}
+        def light_at(x, y):
+            key = (x, y)
+            v = _light_cache.get(key)
+            if v is None:
+                v = _map_light_at(x, y)
+                _light_cache[key] = v
+            return v
+
         if entity_pov is not None and len(entity_pov) > 0:
             entity_pov_locations = []
             if not isinstance(entity_pov, list):
@@ -82,7 +94,7 @@ class JsonRenderer:
 
                 object_entities = self.map.objects_at(x, y)
                 entity = self.map.entity_at(x, y)
-                light = 0.0 if hidden_door_tile else self.map.light_at(x, y)
+                light = 0.0 if hidden_door_tile else light_at(x, y)
 
                 darkvision_color = False
                 if has_darkvision and not hidden_door_tile:
@@ -100,7 +112,7 @@ class JsonRenderer:
                             continue
                         if x + offset_x < 0 or y + offset_y < 0 or x + offset_x >= self.map.size[0] or y + offset_y >= self.map.size[1]:
                             soft_shadow_direction[soft_shadow_index] = 0
-                        elif self.map.light_at(x + offset_x, y + offset_y) > light:
+                        elif light_at(x + offset_x, y + offset_y) > light:
                             soft_shadow_direction[soft_shadow_index] = 1
                         else:
                             soft_shadow_direction[soft_shadow_index] = 0

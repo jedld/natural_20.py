@@ -15,6 +15,7 @@ Core patterns and conventions (do not invent alternatives):
     - Cones: use `select_cone` in a spell's `build_map()` and preview squares via `Map.squares_in_cone(...)` (server returns `target_squares` from `/target`).
     - Directional cubes (e.g., Thunderwave): use `select_cube` in `build_map()`. The web UI will send `mode: 'cube'` with a clicked direction; the server previews with `Map.squares_in_adjacent_cube((caster_x, caster_y), (x, y), size_squares=3)` and returns `target_squares`. YAML typically provides `range_cube` (15 for Thunderwave).
 - LLM integration: webapp uses provider adapters (`webapp/llm_handler.py`) with explicit function-call tokens like `[FUNCTION_CALL: get_map_info()]`. `LlmMcpController._build_prompt(...)` still expects a single integer index or an MCP tool call response.
+- Make sure new objects/spells/items/entities can be properly serialized for save/load game support.
 
 Developer workflows and commands (verified in repo README):
 
