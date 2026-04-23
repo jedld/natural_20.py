@@ -3818,7 +3818,7 @@ $(document).ready(() => {
       $("#coords-box").html(
         `<p>X: ${coordsx}</p><p>Y: ${coordsy}</p>${tooltip}`,
       );
-      if (moveMode && (source.x !== coordsx || source.y !== coordsy)) {
+      if (moveMode && !keyboardMovementMode && (source.x !== coordsx || source.y !== coordsy)) {
         // Skip duplicate work when the mouseover bubbles from child elements
         // (entity sprites, tooltips, etc.) without changing the tile.
         if (lastHoverCoords && lastHoverCoords.x === coordsx && lastHoverCoords.y === coordsy) {
