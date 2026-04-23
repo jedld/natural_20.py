@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import math
 # import pdb
 
 WIZARD_SPELL_SLOT_TABLE = [
@@ -39,27 +40,47 @@ class Wizard:
     return []
 
   def short_rest_for_wizard(self, battle):
-    if self.arcane_recovery > 0:
-      controller = battle.controller_for(self)
-      if controller and hasattr(controller, 'arcane_recovery_ui'):
-        max_sum = (self.wizard_level / 2).ceil()
-        while True:
-          current_sum = 0
-          avail_levels = [
-            index for index, slots in enumerate(WIZARD_SPELL_SLOT_TABLE[self.wizard_level - 1])
-            if index > 0 and index < 6 and self.wizard_spell_slots['wizard'][index] < slots and current_sum <= max_sum
-          ]
+    # Reset the once-per-day Arcane Recovery so the player may use it on
+    # one short rest between long rests.  Note: per RAW arcane recovery
+    # itself recharges on a long rest, but storing the gate here lets the
+    # short-rest UI offer it once until consumed; long_rest_for_wizard
+    # rearms it.
+    if getattr(self, 'arcane_recovery', 0) <= 0:
+      return
+    if battle is None:
+      return
+    controller = battle.controller_for(self)
+    if not (controller and hasattr(controller, 'arcane_recovery_ui')):
+      return
 
-          if not avail_levels:
-            break
+    slots = self.spell_slots.get('wizard', {})
+    table = WIZARD_SPELL_SLOT_TABLE[self.wizard_level - 1]
+    budget = math.ceil(self.wizard_level / 2)
 
-          level = controller.arcane_recovery_ui(self, avail_levels)
-          if level is None:
-            break
+    while budget > 0:
+      avail_levels = [
+        index for index, max_slots in enumerate(table)
+        if 0 < index <= 5
+        and slots.get(index, 0) < max_slots
+        and index <= budget
+      ]
 
-          self.wizard_spell_slots['wizard'][level] += 1
-          self.arcane_recovery = 0
-          max_sum -= level
+      if not avail_levels:
+        break
+
+      level = controller.arcane_recovery_ui(self, avail_levels)
+      if level is None or level not in avail_levels:
+        break
+
+      slots[level] = slots.get(level, 0) + 1
+      budget -= level
+
+    self.arcane_recovery = 0
+
+  def long_rest_for_wizard(self, battle):
+    # Restore spell slots and rearm Arcane Recovery on a long rest.
+    self.spell_slots['wizard'] = self.reset_spell_slots()
+    self.arcane_recovery = 1
 
   def max_slots_for_wizard(self, level):
     return WIZARD_SPELL_SLOT_TABLE[self.wizard_level - 1][level] if level < len(WIZARD_SPELL_SLOT_TABLE[self.wizard_level - 1]) else 0
