@@ -60,27 +60,34 @@ class StaticLightBuilder:
 
     def light_at(self, pos_x, pos_y):
         intensity = 0.0
-        entity_keys = []
-        entity_keys += self.map.entities.keys()
-        entity_keys += self.map.interactable_objects.keys()
+        feet_per_grid = self.map.feet_per_grid
+        light_in_sight = self.map.light_in_sight
+        entity_or_object_pos = self.map.entity_or_object_pos
 
-        for entity in entity_keys:
-            if entity.light_properties() is None:
-                continue
+        # Iterate entities + objects directly without building an intermediate
+        # list (the previous '+=' on .keys() views triggered MutableMapping
+        # abc iteration that dominated /update CPU time).
+        for source in (self.map.entities, self.map.interactable_objects):
+            for entity in source:
+                light = entity.light_properties()
+                if light is None:
+                    continue
 
-            light = entity.light_properties()
-            bright_light = light.get('bright', 0.0) / self.map.feet_per_grid
-            dim_light = light.get('dim', 0.0) / self.map.feet_per_grid
+                bright_light = light.get('bright', 0.0) / feet_per_grid
+                dim_light = light.get('dim', 0.0) / feet_per_grid
 
-            if (bright_light + dim_light) <= 0.0:
-                continue
+                if (bright_light + dim_light) <= 0.0:
+                    continue
 
-            light_pos_x, light_pos_y = self.map.entity_or_object_pos(entity)
+                light_pos_x, light_pos_y = entity_or_object_pos(entity)
 
-            in_bright, in_dim = self.map.light_in_sight(pos_x, pos_y, light_pos_x, light_pos_y, min_distance=bright_light,
-                                                        distance=bright_light + dim_light,
-                                                        inclusive=True)
+                in_bright, in_dim = light_in_sight(
+                    pos_x, pos_y, light_pos_x, light_pos_y,
+                    min_distance=bright_light,
+                    distance=bright_light + dim_light,
+                    inclusive=True,
+                )
 
-            intensity += 1.0 if in_bright else (0.5 if in_dim else 0.0)
+                intensity += 1.0 if in_bright else (0.5 if in_dim else 0.0)
 
         return intensity
