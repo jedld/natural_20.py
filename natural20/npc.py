@@ -457,6 +457,8 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         base_dict["name"] = self.name
         base_dict["session"] = self.session
         base_dict["group"] = self.group
+        base_dict["_current_hit_die"] = dict(self._current_hit_die)
+        base_dict["_max_hit_die"] = dict(self._max_hit_die)
         return base_dict
     
     def interactable(self):
@@ -475,4 +477,8 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         npc.entity_uid = data["entity_uid"]
         npc.name = data["name"]
         npc.group = data.get("group", "b")
+        if "_current_hit_die" in data:
+            npc._current_hit_die = {int(k): v for k, v in data["_current_hit_die"].items()}
+        if "_max_hit_die" in data:
+            npc._max_hit_die = dict(data["_max_hit_die"])
         return npc

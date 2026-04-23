@@ -657,6 +657,19 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       _serialized_effects[k] = _descriptor_arr
 
 
+    # Per-class mutable resources that should round-trip
+    class_resources = {}
+    for attr in (
+      'arcane_recovery',
+      'second_wind_count',
+      'lay_on_hands_count',
+      'lay_on_hands_max_pool',
+      'divine_sense_count',
+      'divine_sense_max_count',
+    ):
+      if hasattr(self, attr):
+        class_resources[attr] = getattr(self, attr)
+
     base_dict = {
       'session': self.session,
       'name': self.name,
@@ -676,7 +689,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       'death_fails': self.death_fails,
       'death_saves': self.death_saves,
       'hidden_stealth': self.hidden_stealth,
-      '_temp_hp': self._temp_hp
+      '_temp_hp': self._temp_hp,
+      'spell_slots': {k: dict(v) for k, v in self.spell_slots.items()},
+      '_current_hit_die': dict(self._current_hit_die),
+      'class_resources': class_resources,
     }
     return base_dict
 
@@ -697,4 +713,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     player_character.concentration = data['concentration']
     player_character.hidden_stealth = data['hidden_stealth']
     player_character._temp_hp = data['_temp_hp']
+    if 'spell_slots' in data:
+      player_character.spell_slots = {k: dict(v) for k, v in data['spell_slots'].items()}
+    if '_current_hit_die' in data:
+      player_character._current_hit_die = dict(data['_current_hit_die'])
+    for attr, value in (data.get('class_resources') or {}).items():
+      setattr(player_character, attr, value)
     return player_character
