@@ -683,8 +683,23 @@ class Entity(EntityStateEvaluator, Notable):
         modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
         return modifier
 
-    def short_rest(self, battle, prompt=False):
-        controller = battle.controller_for(self)
+    def short_rest(self, battle, prompt=False, force=False):
+        """Take a short rest (D&D 5e SRD).
+
+        Spends hit dice (interactively if the controller exposes
+        ``prompt_hit_die_roll``, otherwise greedily up to max HP), revives a
+        stable but unconscious creature to 1 HP, dispatches per-class
+        ``short_rest_for_<klass>`` hooks (Second Wind, Arcane Recovery,
+        warlock pact slots, etc.), and fires a ``short_rest`` event/trigger
+        so registered effects can react.
+
+        A short rest is not allowed while a battle is in progress unless
+        ``force=True`` is supplied (DM override).
+        """
+        if not force and battle is not None and getattr(battle, 'started', False):
+            raise ValueError("cannot take a short rest while combat is in progress")
+
+        controller = battle.controller_for(self) if battle is not None else None
 
         # hit die management
         if prompt and controller and hasattr(controller, 'prompt_hit_die_roll'):
@@ -703,15 +718,41 @@ class Entity(EntityStateEvaluator, Notable):
                 if not available_die:
                     break
 
-                old_hp = self.hp
+                old_hp = self.hp()
 
                 self.use_hit_die(available_die[0], battle=battle)
 
-                if self.hp == old_hp:
+                if self.hp() == old_hp:
                     break
 
         if self.unconscious() and self.stable():
             self.heal(1)
+
+        # Per-class short-rest hooks (Second Wind reset, pact slots, Arcane
+        # Recovery, channel divinity, ki, etc.)  Each is optional.
+        for klass in self._iter_class_names():
+            hook = getattr(self, f"short_rest_for_{klass}", None)
+            if callable(hook):
+                hook(battle)
+
+        self.resolve_trigger('short_rest')
+        self.event_manager.received_event({'source': self, 'event': 'short_rest'})
+
+    def _iter_class_names(self):
+        """Yield class names for dispatching per-class rest hooks.
+
+        Player characters expose ``c_class()`` returning a ``{klass: level}``
+        dict; NPCs and other entities have no class hooks.
+        """
+        c_class = getattr(self, 'c_class', None)
+        if callable(c_class):
+            try:
+                classes = c_class()
+            except Exception:
+                classes = None
+            if isinstance(classes, dict):
+                for klass in classes.keys():
+                    yield klass
 
     def use_hit_die(self, die_type, battle=None):
         if die_type in self._current_hit_die and self._current_hit_die[die_type] > 0:
@@ -2342,7 +2383,36 @@ class Entity(EntityStateEvaluator, Notable):
         self.grapples.clear()
         self.drop_concentration()
         self._temp_hp = 0
+
+        # Recover spent hit dice: floor(level/2), minimum 1, capped at max
+        # per die type.  PCs track per-class hit-die maxima; NPCs use a
+        # single npc_type bucket (max stored on _max_hit_die).
+        max_hit_die = getattr(self, 'max_hit_die', None) or getattr(self, '_max_hit_die', None) or {}
+        total_max = sum(max_hit_die.values()) if max_hit_die else 0
+        if total_max > 0:
+            recover = max(1, total_max // 2)
+            for die_type in sorted(self._current_hit_die.keys()):
+                if recover <= 0:
+                    break
+                # Compute the per-die-type max.  PCs key max_hit_die by class
+                # name and we don't have a class->die mapping here, so cap at
+                # total_max which is always >= per-die-type count.
+                current = self._current_hit_die.get(die_type, 0)
+                room = total_max - current
+                if room <= 0:
+                    continue
+                grant = min(recover, room)
+                self._current_hit_die[die_type] = current + grant
+                recover -= grant
+
+        # Per-class long-rest hooks (paladin lay on hands pool, etc.).
+        for klass in self._iter_class_names():
+            hook = getattr(self, f"long_rest_for_{klass}", None)
+            if callable(hook):
+                hook(None)
+
         self.resolve_trigger('long_rest')
+        self.event_manager.received_event({'source': self, 'event': 'long_rest'})
 
     def t(self, key, **kwargs):
         return self.session.t(key, kwargs)
