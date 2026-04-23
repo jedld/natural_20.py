@@ -24,3 +24,4 @@ save_*.yml
 last_save.txt
 env.list
 coverage/
+.playwright-mcp/
