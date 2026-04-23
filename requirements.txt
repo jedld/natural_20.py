@@ -17,6 +17,7 @@ flask
 flask-session
 flask-socketio
 flask-cors
+flask-compress
 pillow
 tensorboard
 pyfiglet

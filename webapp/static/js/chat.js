@@ -205,12 +205,15 @@ const Chat = Object.assign({}, window.LocalConversationChatBindings || {}, {
         // Try to get from the floating portraits
         const $currentPov = $('#floating-entity-portraits .floating-entity-portrait.current-pov');
         if ($currentPov.length) {
-            return $currentPov.data('id');
+            const id = $currentPov.data('id');
+            if (id && id !== 'None') {
+                return id;
+            }
         }
 
         const povEntityId = $('body').data('pov-entity');
 
-        if (povEntityId) {
+        if (povEntityId && povEntityId !== 'None') {
             return povEntityId;
         }
 
