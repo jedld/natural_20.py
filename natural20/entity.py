@@ -605,8 +605,13 @@ class Entity(EntityStateEvaluator, Notable):
                 if effect == 'protection':
                     self.equipped_effects[item_name] = ProtectionEffect(self)
 
-    def make_dead(self):
+    def make_dead(self, battle=None):
         if not self.dead():
+            # If this entity is configured for a phase transition (e.g. a
+            # multi-form boss), attempt the morph instead of dying outright.
+            if self._maybe_phase_transition(battle=battle):
+                return
+
             self.session.event_manager.received_event({ 'source': self, 'event': 'died' })
             # print(f"{self.name} died. :(")
             self.drop_grapple()
@@ -622,8 +627,155 @@ class Entity(EntityStateEvaluator, Notable):
             # dismiss all effects
             for effect in self.casted_effects:
                 self.dismiss_effect(effect['effect'])
-            
+
+            # Fire YAML-registered 'died' event hooks (e.g. spawn, message).
+            try:
+                self.resolve_trigger('died', { 'battle': battle })
+            except Exception:
+                pass
+
             self.after_death()
+
+    def _maybe_phase_transition(self, battle=None):
+        """If self.properties['phase_transition'] is configured, swap this
+        entity for a fresh NPC of the configured form, preserving position,
+        group, controller, and initiative slot. Returns True if the
+        transition fired (and the caller should skip the normal death path),
+        False otherwise.
+
+        YAML schema (on the npc that will transition):
+            phase_transition:
+              npc: walter_graveborn       # required: target npc sub_type
+              label: "Walter, the Graveborn"  # optional override label
+              keep_uid: true              # optional, default true
+              narration: "..."            # optional read-aloud text
+              overrides: { ... }          # optional npc property overrides
+        """
+        cfg = self.properties.get('phase_transition') if hasattr(self, 'properties') else None
+        if not cfg:
+            return False
+        # Guard against re-entry / repeat transitions.
+        if self.properties.get('_phase_transitioned'):
+            return False
+        self.properties['_phase_transitioned'] = True
+
+        if isinstance(cfg, str):
+            cfg = { 'npc': cfg }
+        target_npc = cfg.get('npc')
+        if not target_npc:
+            return False
+
+        # Resolve the map this entity currently occupies.
+        target_map = None
+        try:
+            target_map = self.session.map_for(self)
+        except Exception:
+            target_map = None
+        if target_map is None:
+            # Cannot transition without a map; allow normal death.
+            self.properties.pop('_phase_transitioned', None)
+            return False
+        try:
+            position = target_map.position_of(self)
+        except Exception:
+            position = None
+        if position is None:
+            self.properties.pop('_phase_transitioned', None)
+            return False
+
+        # Build the next-phase NPC.
+        from natural20.npc import Npc
+        overrides = dict(cfg.get('overrides') or {})
+        if cfg.get('label') and 'label' not in overrides:
+            overrides['label'] = cfg['label']
+        keep_uid = cfg.get('keep_uid', True)
+        if keep_uid:
+            overrides['entity_uid'] = self.entity_uid
+        try:
+            new_entity = Npc(self.session, target_npc, {
+                'name': cfg.get('name', self.name),
+                'overrides': overrides,
+                'rand_life': False,
+            })
+        except Exception:
+            self.properties.pop('_phase_transitioned', None)
+            return False
+
+        # Capture group/controller/initiative from current battle (if any).
+        prior_group = None
+        prior_controller = None
+        prior_initiative = None
+        if battle is not None and self in getattr(battle, 'entities', {}):
+            state = battle.entities[self]
+            prior_group = state.get('group')
+            prior_controller = state.get('controller')
+            prior_initiative = state.get('initiative')
+
+        # Release engulfed / grappled targets and casted effects on old form.
+        for effect in list(self.casted_effects):
+            self.dismiss_effect(effect['effect'])
+        self.drop_grapple()
+
+        # Remove the old entity from the map (silent: not flagged as dead).
+        try:
+            target_map.remove(self, battle=battle)
+        except Exception:
+            pass
+
+        # Add the new entity at the same square.
+        try:
+            target_map.add(new_entity, position[0], position[1], group=prior_group or 'b')
+        except Exception:
+            pass
+
+        # Splice into the active battle preserving the initiative slot.
+        if battle is not None:
+            try:
+                if self in battle.entities:
+                    del battle.entities[self]
+                if self in battle.combat_order:
+                    idx = battle.combat_order.index(self)
+                    battle.combat_order[idx] = new_entity
+                state = {
+                    'group': prior_group or 'b',
+                    'action': 0,
+                    'bonus_action': 0,
+                    'reaction': 0,
+                    'movement': 0,
+                    'stealth': 0,
+                    'statuses': set(),
+                    'active_perception': 0,
+                    'active_perception_disadvantage': 0,
+                    'free_object_interaction': 0,
+                    'legendary_actions': 0,
+                    'target_effect': {},
+                    'two_weapon': None,
+                    'positions_entered': {},
+                    'controller': prior_controller,
+                    'help_with': {},
+                }
+                if prior_initiative is not None:
+                    state['initiative'] = prior_initiative
+                else:
+                    state['initiative'] = new_entity.initiative(battle)
+                battle.entities[new_entity] = state
+                battle.groups.setdefault(prior_group or 'b', set()).add(new_entity)
+                self.session.register_entity(new_entity)
+            except Exception:
+                pass
+
+        # Emit a structured event for UI / logs.
+        try:
+            self.session.event_manager.received_event({
+                'source': self,
+                'event': 'phase_transition',
+                'next_form': new_entity,
+                'narration': cfg.get('narration'),
+            })
+        except Exception:
+            pass
+
+        return True
 
     def observe(self, entity_map, range_ft=30):
         map_entities = entity_map.entities_in_range(self, range_ft)
@@ -2012,10 +2164,10 @@ class Entity(EntityStateEvaluator, Notable):
 
         if self.hp() < 0 and abs(self.hp()) >= self.properties['max_hp']:
             instant_death = True
-            self.make_dead()
+            self.make_dead(battle=battle)
 
         elif self.hp() <= 0:
-            self.make_dead() if self.npc() or self.object() else self.make_unconscious()
+            self.make_dead(battle=battle) if self.npc() or self.object() else self.make_unconscious()
             # drop concentration spells
             if self.concentration:
                 self.dismiss_effect(self.concentration)
