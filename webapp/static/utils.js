@@ -833,6 +833,7 @@ const Utils = {
 
     // Hide any other floating UI elements
     $(".add-to-target").hide();
+    $('#multi-target-confirm-bar').hide();
 
     // Clear any highlighted tiles or selections
     $(".highlighted").removeClass("highlighted");

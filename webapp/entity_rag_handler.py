@@ -1433,6 +1433,15 @@ class EntityRAGHandler:
             response = []
             for audience_entry in audience_entries:
                 nearby_entity = audience_entry['entity']
+                # Hide entities the speaker cannot see; otherwise listing them in the
+                # UI would reveal hidden/invisible/unseen creatures even though they
+                # may still be able to hear the speaker.
+                try:
+                    if battle_map is not None and hasattr(battle_map, 'can_see'):
+                        if not battle_map.can_see(entity, nearby_entity):
+                            continue
+                except Exception:
+                    pass
                 response.append({
                     'id': nearby_entity.entity_uid,
                     'name': entity_label(nearby_entity),

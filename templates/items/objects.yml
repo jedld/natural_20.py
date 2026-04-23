@@ -257,3 +257,15 @@ corner_door_br:
     - ╙
   token_open:
     - ─
+chasm:
+  color: blue
+  passable: true
+  placeable: true
+  item_class: Chasm
+  fall_damage_die: 2d6
+  damage_type: bludgeoning
+  attack_name: Fall
+  prone_on_landing: true
+  token_image: pit_trap
+  token:
+    - "_"

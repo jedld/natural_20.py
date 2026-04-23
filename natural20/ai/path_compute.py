@@ -2,6 +2,7 @@ import heapq
 import math
 import copy
 from natural20.item_library.door_object import DoorObject, DoorObjectWall
+from natural20.item_library.chasm import Chasm
 MAX_DISTANCE = 4_000_000
 
 class PathCompute:
@@ -11,6 +12,9 @@ class PathCompute:
         self.battle = battle
         self.ignore_opposing = ignore_opposing
         self.max_x, self.max_y = self.map.size
+        # Tiles on which hazards (e.g. visible chasms) are intentionally allowed
+        # because the caller asked to path *to* them. Populated per query.
+        self._allowed_hazard_tiles = set()
    
     def compute_path(self, source_x, source_y, destination_x, destination_y,
                      available_movement_cost=None,
@@ -53,6 +57,11 @@ class PathCompute:
 
         if available_movement_cost is not None:
             available_movement_cost -= initial_cost
+
+        # Allow the destination tile itself to be a hazard (intentional jump);
+        # all other visible chasms are avoided. Also allow the source tile so
+        # an entity already standing on a chasm can plan a path off of it.
+        self._allowed_hazard_tiles = {(source_x, source_y), (destination_x, destination_y)}
 
         # Initialize start node
         distances[source_x][source_y] = 0
@@ -162,6 +171,10 @@ class PathCompute:
         if available_movement_cost is not None:
             available_movement_cost -= initial_cost
 
+        # Allow the source tile and any explicit destinations as hazard
+        # exceptions (intentional jumps); all other visible chasms are avoided.
+        self._allowed_hazard_tiles = {(source_x, source_y)} | set(destinations_set)
+
         # Initialize start node
         distances[source_x][source_y] = 0
 
@@ -237,6 +250,32 @@ class PathCompute:
                 return True
         return False
 
+    def _is_avoidable_hazard(self, x, y) -> bool:
+        """Return True if the tile contains a hazard the entity should avoid
+        when planning a path. Currently this means a non-concealed ``Chasm``
+        and a non-flying entity. Concealed chasms are not avoided because the
+        entity cannot reasonably know about them.
+        """
+        if self.entity is not None and getattr(self.entity, 'is_flying', None):
+            try:
+                if self.entity.is_flying():
+                    return False
+            except Exception:
+                pass
+        try:
+            objs = self.map.objects_at(x, y, reveal_concealed=False)
+        except TypeError:
+            try:
+                objs = self.map.objects_at(x, y)
+            except Exception:
+                return False
+        except Exception:
+            return False
+        for obj in objs:
+            if isinstance(obj, Chasm) and not obj.concealed():
+                return True
+        return False
+
     def get_neighbors(self, x, y, door_navigation: bool = False):
         """
         Return a list of tuples: [((nx, ny), move_cost), ...].
@@ -274,6 +313,11 @@ class PathCompute:
                 nx = x + dx
                 ny = y + dy
                 if not (0 <= nx < self.max_x and 0 <= ny < self.max_y):
+                    continue
+
+                # Avoid stepping into known hazards (e.g. visible chasms)
+                # unless the caller marked this tile as an intentional target.
+                if self._is_avoidable_hazard(nx, ny) and (nx, ny) not in self._allowed_hazard_tiles:
                     continue
 
                 # Try normal passable
