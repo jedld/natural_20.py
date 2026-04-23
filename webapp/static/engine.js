@@ -590,21 +590,35 @@ class EventQueue {
           break;
         case "switch_map":
           var map_id = data.message.map;
+          var triggered_entity_uid = data.message.entity_uid || null;
           // Reset viewport before switching maps
           resetViewport();
           Utils.switchMap(map_id, globalCanvas, () => {
             createGlobalCanvas();
-            // After map loads, center on the current POV entity if available
-            setTimeout(() => {
-              try {
-                const povEntity = Chat.getCurrentPovEntity();
-                if (povEntity) {
-                  centerOnEntityId(povEntity);
+            // After map loads, center on the entity that triggered the switch
+            // (e.g. character that stepped on a teleporter / stairs). Fall back
+            // to the current POV entity. Tile rendering may be slightly
+            // deferred, so retry briefly until the tile appears.
+            const targetUid = triggered_entity_uid || (function () {
+              try { return Chat.getCurrentPovEntity(); } catch (e) { return null; }
+            })();
+            if (targetUid) {
+              let attempts = 0;
+              const maxAttempts = 20; // ~1s total
+              const tryCenter = () => {
+                const $tile = $(`.tile[data-coords-id="${targetUid}"]`);
+                if ($tile.length) {
+                  try { centerOnEntityId(targetUid); } catch (e) {
+                    console.warn('Could not center on entity after map switch', e);
+                  }
+                  return;
                 }
-              } catch (e) {
-                console.warn('Could not center on POV entity after map switch', e);
-              }
-            }, 100); // Small delay to ensure tiles are rendered
+                if (++attempts < maxAttempts) {
+                  setTimeout(tryCenter, 50);
+                }
+              };
+              setTimeout(tryCenter, 50);
+            }
             resolve();
           });
           break;

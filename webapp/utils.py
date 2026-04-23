@@ -1392,5 +1392,10 @@ class GameManagement:
             if new_battle_map != pov_map:
                 self.switch_map_for_user(username, new_battle_map.name)
                 sids = self.username_to_sid.get(username, [])
+                # Include the entity_uid that triggered the switch so the
+                # client can auto-center on it once the new map renders
+                # (handles teleporters / stairs / ladders).
+                entity_uid = getattr(pov_entity, 'entity_uid', None)
+                payload = {'map': new_battle_map.name, 'entity_uid': entity_uid}
                 for sid in sids:
-                    self.socketio.emit('message', {'type': 'switch_map', 'message': {'map': new_battle_map.name}}, to=sid)
+                    self.socketio.emit('message', {'type': 'switch_map', 'message': payload}, to=sid)
