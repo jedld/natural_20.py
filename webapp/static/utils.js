@@ -794,6 +794,11 @@ const Utils = {
   closeAllInteractiveElements: function () {
     // Close any open action bars/menus
     $(".popover-menu, .popover-menu-2").hide();
+    if (typeof window.closeCenterActionBar === 'function') {
+      window.closeCenterActionBar();
+    } else {
+      $('#centerActionBar').hide();
+    }
 
     // Close target selection modal if open
     $('#targetSelectionModal').modal('hide');
