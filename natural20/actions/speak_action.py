@@ -31,6 +31,12 @@ class SpeakAction(Action):
     def build_map(self):
         return self
 
+    def button_image(self):
+        # Reuse an existing icon so the action button in the web UI has a
+        # valid asset. Without this override the template would request
+        # ``actions/speak.png`` which is not shipped with the app.
+        return "help"
+
     @staticmethod
     def build(session, source, opts=None):
         action = SpeakAction(session, source, "speak", opts)

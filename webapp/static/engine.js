@@ -72,6 +72,233 @@ let globalActionInfo = null,
   globalOpts = null,
   globalSourceEntity = null;
 let pathDebounceTimer = null;
+const ACTION_BAR_STORAGE_PREFIX = 'natural20.actionBarHotkeys';
+let actionBarState = {
+  visible: false,
+  bindingMode: false,
+  pendingBinding: null,
+  activeEntityUid: null,
+  activeCoords: null,
+};
+
+function isTypingIntoField(target) {
+  const $target = $(target);
+  return $target.is('input, textarea, select, [contenteditable="true"]') || $target.closest('.modal, #jrpgDialogPanel, #command-form').length > 0;
+}
+
+function setActionBarInstructions(message) {
+  $('#centerActionBarInstructions').text(message);
+}
+
+function actionBarStorageKey(entityUid) {
+  return `${ACTION_BAR_STORAGE_PREFIX}:${entityUid || 'global'}`;
+}
+
+function loadActionBarBindings(entityUid) {
+  try {
+    const raw = window.localStorage.getItem(actionBarStorageKey(entityUid));
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+function saveActionBarBindings(entityUid, bindings) {
+  try {
+    window.localStorage.setItem(actionBarStorageKey(entityUid), JSON.stringify(bindings || {}));
+  } catch (_error) {
+    // ignore storage errors
+  }
+}
+
+function actionDescriptorForButton($button) {
+  const kind =
+    $button.hasClass('talk-action') ? 'talk' :
+    $button.hasClass('action-end-turn') ? 'end-turn' :
+    $button.hasClass('action-info') ? 'info' :
+    'action';
+  const actionType = $button.data('action-type') || kind;
+  const opts = $button.data('action-opts') || {};
+  const label = ($button.attr('title') || $button.text() || actionType || '').trim();
+  return `${kind}|${actionType}|${JSON.stringify(opts)}|${label}`;
+}
+
+function clearPendingHotkeySelection() {
+  actionBarState.pendingBinding = null;
+  $('#centerActionBar .hotkey-capable-action').removeClass('hotkey-pending');
+}
+
+function closeCenterActionBar() {
+  actionBarState.visible = false;
+  actionBarState.bindingMode = false;
+  actionBarState.activeEntityUid = null;
+  actionBarState.activeCoords = null;
+  clearPendingHotkeySelection();
+  $('#actionBarHotkeyToggle').removeClass('active').text('Bind Hotkeys');
+  $('#centerActionBar').hide();
+  $('#centerActionBarContent').empty();
+  setActionBarInstructions('Press 1-9 to trigger assigned actions. Use Bind Hotkeys to customize them.');
+}
+window.closeCenterActionBar = closeCenterActionBar;
+
+function activateCenterActionEntry($entry) {
+  if (!$entry || !$entry.length) {
+    return;
+  }
+  $('#centerActionBar .center-action-entry').removeClass('is-active');
+  $entry.addClass('is-active');
+  actionBarState.activeEntityUid = $entry.data('entityUid') || null;
+  actionBarState.activeCoords = {
+    x: $entry.data('coordsX'),
+    y: $entry.data('coordsY'),
+  };
+  applyActionBarHotkeyBadges();
+}
+
+function applyActionBarHotkeyBadges() {
+  $('#centerActionBar .hotkey-capable-action').each(function () {
+    const $button = $(this);
+    const $entry = $button.closest('.center-action-entry');
+    const entityUid = $entry.data('entityUid');
+    const bindings = loadActionBarBindings(entityUid);
+    const descriptor = actionDescriptorForButton($button);
+    const hotkey = Object.keys(bindings).find((digit) => bindings[digit] === descriptor);
+
+    $button.removeClass('hotkey-bound');
+    $button.find('.action-hotkey-badge').remove();
+    if (hotkey) {
+      $button.addClass('hotkey-bound');
+      $('<span class="action-hotkey-badge"></span>').text(hotkey).appendTo($button);
+    }
+  });
+}
+
+function decorateCenterActionSection($body, entry, coordsx, coordsy) {
+  $body.find('.action-button, .action-end-turn, .talk-action, .action-info').each(function () {
+    $(this)
+      .attr('data-id', entry.id)
+      .attr('data-coords-x', coordsx)
+      .attr('data-coords-y', coordsy)
+      .attr('data-overlay-entity-uid', entry.id);
+  });
+
+  $body.find('.action-button, .action-end-turn, .talk-action').addClass('hotkey-capable-action');
+}
+
+function renderCenteredActionBarSections(sections, coordsx, coordsy) {
+  const $content = $('#centerActionBarContent');
+  const $stack = $('<div class="popover-actions-stack"></div>');
+
+  sections.forEach(({ entry, html, error }) => {
+    const typeLabel = entry.type === 'object' ? 'Object' : 'Creature';
+    const displayLabel = entry.label || entry.id;
+    const $entry = $('<div class="popover-actions-entry center-action-entry"></div>')
+      .attr('data-entity-uid', entry.id)
+      .attr('data-coords-x', coordsx)
+      .attr('data-coords-y', coordsy);
+    const $header = $('<div class="popover-actions-header"></div>');
+    $('<span class="popover-actions-title"></span>').text(displayLabel).appendTo($header);
+    $('<span class="popover-actions-type"></span>').text(typeLabel).appendTo($header);
+    $entry.append($header);
+
+    const $body = $('<div class="popover-actions-body"></div>');
+    if (html) {
+      $body.html(html);
+      decorateCenterActionSection($body, entry, coordsx, coordsy);
+    } else {
+      $('<div class="popover-actions-empty"></div>').text(error).appendTo($body);
+    }
+    $entry.append($body);
+    $stack.append($entry);
+  });
+
+  $content.empty().append($stack);
+  $('#centerActionBarTitle').text('Actions');
+  $('#centerActionBarSubtitle').text('Select an entity section, then use its action bar or hotkeys.');
+  $('#centerActionBar').show();
+  actionBarState.visible = true;
+
+  const $firstEntry = $stack.find('.center-action-entry').first();
+  activateCenterActionEntry($firstEntry);
+}
+
+function showCenteredActionBarLoading(occupantEntries) {
+  $('#centerActionBarTitle').text('Actions');
+  $('#centerActionBarSubtitle').text(`${occupantEntries.length} layer${occupantEntries.length === 1 ? '' : 's'} available on this tile.`);
+  $('#centerActionBarContent').html(
+    '<div class="popover-actions-stack"><div class="popover-actions-entry center-action-entry"><div class="popover-actions-header"><span class="popover-actions-title">Loading...</span></div></div></div>'
+  );
+  $('#centerActionBar').show();
+  actionBarState.visible = true;
+}
+
+function beginHotkeyAssignment($button) {
+  const $entry = $button.closest('.center-action-entry');
+  clearPendingHotkeySelection();
+  actionBarState.pendingBinding = {
+    entityUid: $entry.data('entityUid'),
+    descriptor: actionDescriptorForButton($button),
+  };
+  $button.addClass('hotkey-pending');
+  setActionBarInstructions('Press 1-9 to bind this action. Press Backspace or Delete to clear its binding.');
+}
+
+function assignPendingActionHotkey(digit) {
+  if (!actionBarState.pendingBinding) {
+    return;
+  }
+  const { entityUid, descriptor } = actionBarState.pendingBinding;
+  const bindings = loadActionBarBindings(entityUid);
+
+  Object.keys(bindings).forEach((key) => {
+    if (bindings[key] === descriptor || key === digit) {
+      delete bindings[key];
+    }
+  });
+  bindings[digit] = descriptor;
+  saveActionBarBindings(entityUid, bindings);
+  clearPendingHotkeySelection();
+  applyActionBarHotkeyBadges();
+  setActionBarInstructions(`Bound ${digit}. Press 1-9 to trigger assigned actions. Use Bind Hotkeys to customize them.`);
+}
+
+function clearPendingActionHotkey() {
+  if (!actionBarState.pendingBinding) {
+    return;
+  }
+  const { entityUid, descriptor } = actionBarState.pendingBinding;
+  const bindings = loadActionBarBindings(entityUid);
+  Object.keys(bindings).forEach((key) => {
+    if (bindings[key] === descriptor) {
+      delete bindings[key];
+    }
+  });
+  saveActionBarBindings(entityUid, bindings);
+  clearPendingHotkeySelection();
+  applyActionBarHotkeyBadges();
+  setActionBarInstructions('Binding cleared. Press 1-9 to trigger assigned actions. Use Bind Hotkeys to customize them.');
+}
+
+function triggerActionBarHotkey(digit) {
+  if (!actionBarState.activeEntityUid) {
+    return false;
+  }
+  const bindings = loadActionBarBindings(actionBarState.activeEntityUid);
+  const descriptor = bindings[digit];
+  if (!descriptor) {
+    return false;
+  }
+  const $entry = $('#centerActionBar .center-action-entry.is-active');
+  const $button = $entry.find('.hotkey-capable-action').filter(function () {
+    return actionDescriptorForButton($(this)) === descriptor;
+  }).first();
+  if (!$button.length || $button.is(':disabled')) {
+    return false;
+  }
+  $button.trigger('click');
+  return true;
+}
 
 // Event queue system for FIFO processing
 class EventQueue {
@@ -2528,7 +2755,7 @@ function initViewportControls() {
   // Scroll wheel zoom
   $mapArea.on('wheel', function(e) {
     // Check if we're over a modal or UI element
-    if ($(e.target).closest('.modal, .panel, #turn-order, #console-container, .popover-menu, .popover-menu-2').length) {
+    if ($(e.target).closest('.modal, .panel, #turn-order, #console-container, .popover-menu, .popover-menu-2, #centerActionBar').length) {
       return; // Allow normal scroll in UI elements
     }
     
@@ -3264,6 +3491,7 @@ $(document).ready(() => {
         });
       } else {
         $(".popover-menu").hide();
+        closeCenterActionBar();
         const occupantEntries = [];
         const seenOccupants = new Set();
 
@@ -3310,13 +3538,7 @@ $(document).ready(() => {
           return;
         }
 
-        const $menu = $tile.find(".popover-menu");
-        $menu
-          .css({ left: 0 })
-          .html(
-            '<div class="popover-actions-stack"><div class="popover-actions-entry popover-actions-entry--loading"><div class="popover-actions-header"><span class="popover-actions-title">Loading...</span></div></div></div>'
-          )
-          .show();
+        showCenteredActionBarLoading(occupantEntries);
 
         const fetchSection = (entry) =>
           new Promise((resolve) => {
@@ -3355,57 +3577,19 @@ $(document).ready(() => {
 
         Promise.all(occupantEntries.map(fetchSection))
           .then((sections) => {
-            if (!$tile.closest("body").length) {
-              return;
-            }
-
-            const $stack = $("<div class='popover-actions-stack'></div>");
-
-            sections.forEach(({ entry, html, error }) => {
-              const typeLabel = entry.type === "object" ? "Object" : "Creature";
-              const displayLabel = entry.label || entry.id;
-              const $entry = $("<div class='popover-actions-entry'></div>")
-                .attr("data-entity-uid", entry.id);
-              const $header = $("<div class='popover-actions-header'></div>");
-              $("<span class='popover-actions-title'></span>")
-                .text(displayLabel)
-                .appendTo($header);
-              $("<span class='popover-actions-type'></span>")
-                .text(typeLabel)
-                .appendTo($header);
-              $entry.append($header);
-
-              const $body = $("<div class='popover-actions-body'></div>");
-              if (html) {
-                $body.html(html);
-              } else {
-                $("<div class='popover-actions-empty'></div>")
-                  .text(error)
-                  .appendTo($body);
-              }
-              $entry.append($body);
-              $stack.append($entry);
-            });
-
-            $menu.empty().append($stack);
-
-            $menu.css("top", `${tile_size}px`);
-            const tileRightEdge = $menu.offset().left + $menu.outerWidth();
-            const windowRightEdge = $(window).width();
-            if (windowRightEdge < tileRightEdge) {
-              $menu.css("left", `-=${tileRightEdge - windowRightEdge}`);
-            }
-
-            if (Utils && Utils.ensurePopoverMenusOnTop) {
-              Utils.ensurePopoverMenusOnTop();
-            }
+            // NOTE: do NOT bail here if $tile is no longer attached.
+            // The game frequently emits refresh_tiles while the /actions
+            // request is in flight, which replaces tile DOM nodes. The
+            // centered action bar is independent of the tile, so we render
+            // it regardless.
+            renderCenteredActionBarSections(sections, coordsx, coordsy);
           })
           .catch(() => {
-            $menu
-              .empty()
-              .append(
-                "<div class='popover-actions-stack'><div class='popover-actions-entry'><div class='popover-actions-empty'>Unable to load actions.</div></div></div>"
-              );
+            $('#centerActionBarContent').html(
+              "<div class='popover-actions-stack'><div class='popover-actions-entry center-action-entry'><div class='popover-actions-empty'>Unable to load actions.</div></div></div>"
+            );
+            $('#centerActionBar').show();
+            actionBarState.visible = true;
           });
       }
     }
@@ -3691,6 +3875,7 @@ $(document).ready(() => {
         globalActionInfo = globalOpts = null;
       }
       $(".add-to-target, .popover-menu-2, .popover-menu").hide();
+      closeCenterActionBar();
     }
     // if 'q' is pressed, toggle move path
     if (event.keyCode === 81) {
@@ -4452,6 +4637,7 @@ $(document).ready(() => {
   function handleAction(entity_uid, action, opts, coordsx, coordsy, data) {
     if (data && data.status === 'ok') {
       $(".popover-menu").hide();
+      closeCenterActionBar();
       $("#modal-1").modal("hide");
       refreshTurn();
       return;
@@ -4475,6 +4661,7 @@ $(document).ready(() => {
 
     switch (param0.type) {
       case "movement":
+        closeCenterActionBar();
         moveModeCallback = (path) => {
           // If a jump segment was marked, compute manual_jump indices
           let manual_jump = null;
@@ -4508,6 +4695,7 @@ $(document).ready(() => {
         pivotPoints = [];
         break;
       case "select_spell":
+        closeCenterActionBar();
         Utils.ajaxGet("/spells", { id: entity_uid, action, opts }, (data) => {
           $("#modal-1 .modal-content").html(data);
           $("#modal-1").modal("show");
@@ -4515,6 +4703,7 @@ $(document).ready(() => {
         break;
       case "select_item": {
         const $entity_tile = $(`.tile[data-coords-id="${entity_uid}"]`);
+        closeCenterActionBar();
         Utils.ajaxGet(
           "/usable_items",
           { id: entity_uid, action, opts },
@@ -4529,6 +4718,7 @@ $(document).ready(() => {
         break;
       }
       case "select_choice": {
+        closeCenterActionBar();
         const choices = (param0 && Array.isArray(param0.choices)) ? param0.choices : [];
         if (!choices || choices.length === 0) {
           console.warn('handleAction: select_choice without choices', data);
@@ -4577,6 +4767,7 @@ $(document).ready(() => {
       }
       case "select_cone":
         $(".popover-menu").hide();
+        closeCenterActionBar();
         $("#modal-1").modal("hide");
         source = { x: coordsx, y: coordsy, entity_uid };
         targetModeMaxRange =
@@ -4600,6 +4791,7 @@ $(document).ready(() => {
         break;
       case "select_cube":
         $(".popover-menu").hide();
+        closeCenterActionBar();
         $("#modal-1").modal("hide");
         source = { x: coordsx, y: coordsy, entity_uid };
         targetModeMaxRange =
@@ -4623,6 +4815,7 @@ $(document).ready(() => {
         break;
       case "select_target":
         $(".popover-menu").hide();
+        closeCenterActionBar();
         $("#modal-1").modal("hide");
         source = { x: coordsx, y: coordsy, entity_uid };
         targetModeMaxRange =
@@ -4683,6 +4876,7 @@ $(document).ready(() => {
         break;
       case "select_empty_space":
         $(".popover-menu").hide();
+        closeCenterActionBar();
         $("#modal-1").modal("hide");
 
         source = { x: coordsx, y: coordsy, mode: 'point_target', entity_uid };
@@ -4705,6 +4899,7 @@ $(document).ready(() => {
         };
         break;
       case "select_items":
+        closeCenterActionBar();
         function initiateTransfer() {
           Utils.ajaxGet("/items", { id: entity_uid, action, opts }, (data) => {
             $("#modal-1 .modal-content").html(data);
@@ -4769,21 +4964,57 @@ $(document).ready(() => {
     console.log("Action request successful:", data);
   }
 
+  $('#centerActionBarClose').on('click', function () {
+    closeCenterActionBar();
+  });
+
+  $('#actionBarHotkeyToggle').on('click', function () {
+    actionBarState.bindingMode = !actionBarState.bindingMode;
+    clearPendingHotkeySelection();
+    $(this).toggleClass('active', actionBarState.bindingMode).text(actionBarState.bindingMode ? 'Cancel Binding' : 'Bind Hotkeys');
+    if (actionBarState.bindingMode) {
+      setActionBarInstructions('Binding mode enabled. Click an action, then press 1-9 to assign it.');
+    } else {
+      setActionBarInstructions('Press 1-9 to trigger assigned actions. Use Bind Hotkeys to customize them.');
+    }
+  });
+
+  $(document).on('click', '#centerActionBar .center-action-entry', function (e) {
+    if ($(e.target).closest('.action-button, .action-end-turn, .talk-action, .action-info, .delete-entity-btn').length) {
+      return;
+    }
+    activateCenterActionEntry($(this));
+  });
+
   // --- Action Button Handler ---
   $(".actions-container").on("click", ".action-button", function (e) {
     e.stopPropagation();
+    const $button = $(this);
+    const $overlayEntry = $button.closest('.center-action-entry');
+    if ($overlayEntry.length) {
+      activateCenterActionEntry($overlayEntry);
+      if (actionBarState.bindingMode) {
+        beginHotkeyAssignment($button);
+        return;
+      }
+    }
     const action = $(this).data("action-type");
     const opts = $(this).data("action-opts");
     let entity_uid =
+      $(this).closest('.center-action-entry').data('entityUid') ||
       $(this).closest(".tile").data("coords-id") ||
       $(this).data("id") ||
       $(this).closest(".tile").find(".object-container").data("id");
     let coordsx =
-      $(this).closest(".tile").data("coords-x") !== undefined
+      $(this).closest('.center-action-entry').data('coordsX') !== undefined
+        ? $(this).closest('.center-action-entry').data('coordsX')
+        : $(this).closest(".tile").data("coords-x") !== undefined
         ? $(this).closest(".tile").data("coords-x")
         : $(this).data("coords-x");
     let coordsy =
-      $(this).closest(".tile").data("coords-y") !== undefined
+      $(this).closest('.center-action-entry').data('coordsY') !== undefined
+        ? $(this).closest('.center-action-entry').data('coordsY')
+        : $(this).closest(".tile").data("coords-y") !== undefined
         ? $(this).closest(".tile").data("coords-y")
         : $(this).data("coords-y");
 
@@ -4808,14 +5039,35 @@ $(document).ready(() => {
   $(document).on("keydown", function (e) {
     // Check for popover menu instead of actions-container
     const $popoverMenu = $(".popover-menu:visible");
-    if ($popoverMenu.length) {
+    if ($popoverMenu.length || actionBarState.visible) {
+      const $overlayEntry = $('#centerActionBar .center-action-entry.is-active');
       const $tile = $popoverMenu.closest(".tile");
-      if ($tile.length) {
-        const entity_uid = $tile.data("coords-id");
-        const coordsx = $tile.data("coords-x");
-        const coordsy = $tile.data("coords-y");
+      if ($tile.length || $overlayEntry.length) {
+        const entity_uid = $overlayEntry.length ? $overlayEntry.data('entityUid') : $tile.data("coords-id");
+        const coordsx = $overlayEntry.length ? $overlayEntry.data('coordsX') : $tile.data("coords-x");
+        const coordsy = $overlayEntry.length ? $overlayEntry.data('coordsY') : $tile.data("coords-y");
 
         console.log("Action bar visible for entity:", entity_uid, "at coords:", coordsx, coordsy);
+
+        if (!keyboardMovementMode && actionBarState.visible && !actionBarState.bindingMode && !isTypingIntoField(e.target)) {
+          if (/^[1-9]$/.test(e.key) && triggerActionBarHotkey(e.key)) {
+            e.preventDefault();
+            return;
+          }
+        }
+
+        if (actionBarState.bindingMode && actionBarState.visible && !isTypingIntoField(e.target)) {
+          if (/^[1-9]$/.test(e.key) && actionBarState.pendingBinding) {
+            e.preventDefault();
+            assignPendingActionHotkey(e.key);
+            return;
+          }
+          if ((e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') && actionBarState.pendingBinding) {
+            e.preventDefault();
+            clearPendingActionHotkey();
+            return;
+          }
+        }
 
         // Handle movement keys
         if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", "W", "A", "S", "D"].includes(e.key)) {
@@ -4823,8 +5075,8 @@ $(document).ready(() => {
           console.log("Movement key pressed:", e.key);
           handleKeyboardMovement(e.key, entity_uid, coordsx, coordsy);
         }
-        // Handle Enter key to execute movement
-        else if (e.key === "Enter" && keyboardMovementMode) {
+        // Handle Enter / Space to execute movement
+        else if ((e.key === "Enter" || e.key === " " || e.key === "Spacebar") && keyboardMovementMode) {
           e.preventDefault();
           console.log("Executing keyboard movement");
           const action = "move";
@@ -4859,9 +5111,17 @@ $(document).ready(() => {
   });
 
   $(".actions-container").on("click", ".action-end-turn", function () {
+    if ($(this).closest('.center-action-entry').length) {
+      activateCenterActionEntry($(this).closest('.center-action-entry'));
+      if (actionBarState.bindingMode) {
+        beginHotkeyAssignment($(this));
+        return;
+      }
+    }
     ajaxPost("/end_turn", {}, (data) => {
       //hide actions
       $(".popover-menu").hide();
+      closeCenterActionBar();
     });
   });
 
@@ -4874,7 +5134,7 @@ $(document).ready(() => {
   });
 
   $(document).on("mouseenter", ".hide-action", function () {
-    const entity_uid = $(this).closest(".tile").data("coords-id");
+    const entity_uid = $(this).closest('.center-action-entry').data('entityUid') || $(this).closest(".tile").data("coords-id");
     Utils.ajaxGet("/hide", { id: entity_uid }, (data) => {
       data.hiding_spots.forEach((value) => {
         $(
@@ -5049,15 +5309,23 @@ $(document).ready(() => {
   $(document).on('click', '.talk-action', function (event) {
     event.stopPropagation();
     event.preventDefault();
-    const $menu = $(this).closest('.popover-menu');
+    const $entry = $(this).closest('.center-action-entry');
     const $tile = $(this).closest('.tile');
-    const entityId = $tile.data('coords-id');
+    const entityId = $entry.data('entityUid') || $tile.data('coords-id');
+
+    if ($entry.length) {
+      activateCenterActionEntry($entry);
+      if (actionBarState.bindingMode) {
+        beginHotkeyAssignment($(this));
+        return;
+      }
+    }
 
     // Ensure we're not in talk to entity mode for regular talk actions
     talkToEntityMode = false;
 
     handleTalk(entityId);
-    $menu.hide();
+    closeCenterActionBar();
   });
 
   $(document).on('click', '.conversation-bubble', function (event) {
@@ -5972,4 +6240,19 @@ function makeFloatingWindowsDraggable() {
       $(".tile").css("border", "none");
     }
   });
+
+  // Show/hide the movement keybinding hint while in any movement mode.
+  const $movementHint = $('#movement-mode-hint');
+  if ($movementHint.length) {
+    setInterval(function () {
+      const active = (typeof moveMode !== 'undefined' && moveMode) ||
+                     (typeof keyboardMovementMode !== 'undefined' && keyboardMovementMode);
+      const visible = $movementHint.is(':visible');
+      if (active && !visible) {
+        $movementHint.show();
+      } else if (!active && visible) {
+        $movementHint.hide();
+      }
+    }, 120);
+  }
 }

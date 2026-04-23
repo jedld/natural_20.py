@@ -3248,7 +3248,7 @@ def get_actions():
         available_actions = object_.available_actions(session, battle, auto_target=False, map=battle_map, interact_only=True, admin_actions=True)
         # Create entity map for looking up target entities
         entity_map = battle_map.entities
-    return render_template('actions.html', entity=object_, battle=battle, session=game_session, map=battle_map, available_actions=available_actions, entity_map=entity_map, is_dm=('dm' in user_role()))
+        return render_template('actions.html', entity=object_, battle=battle, session=game_session, map=battle_map, available_actions=available_actions, entity_map=entity_map, is_dm=('dm' in user_role()))
 
     return jsonify(error="Entity not found"), 404
 
