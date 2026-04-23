@@ -8,6 +8,7 @@ import json
 import os
 import click
 import uuid
+from collections import OrderedDict
 from PIL import Image
 import logging
 import importlib
@@ -108,6 +109,42 @@ import io
 
 app = Flask(__name__, static_folder='static', static_url_path='/')
 app.config['CHARACTER_BUILDER_ONLY'] = os.environ.get('CHARACTER_BUILDER_ONLY', 'false').lower() == 'true'
+
+# In-process per-user LRU cache for /path responses; bounded to keep memory
+# flat under sustained mouse hover.
+_PATH_RESPONSE_CACHE = {}
+_PATH_RESPONSE_CACHE_LIMIT = 256
+
+# Memoize a per-(map, entity, battle) difficult-terrain lookup. Keyed by the
+# Python id() of the map plus the entity uid; invalidated implicitly when the
+# map object changes (e.g. on level/map switch).
+_DIFFICULT_TERRAIN_CACHE = {}
+
+def _difficult_terrain_lookup(battle_map, entity, battle):
+    """Return a callable(x, y) -> bool with per-tile memoization."""
+    entity_uid = None
+    try:
+        eu = getattr(entity, 'entity_uid', None)
+        entity_uid = eu() if callable(eu) else eu
+    except Exception:
+        entity_uid = None
+    key = (id(battle_map), entity_uid, id(battle))
+    bucket = _DIFFICULT_TERRAIN_CACHE.get(key)
+    if bucket is None:
+        bucket = {}
+        # Cap dictionary count to avoid unbounded growth across maps.
+        if len(_DIFFICULT_TERRAIN_CACHE) > 32:
+            _DIFFICULT_TERRAIN_CACHE.clear()
+        _DIFFICULT_TERRAIN_CACHE[key] = bucket
+    def _lookup(x, y):
+        k = (x, y)
+        v = bucket.get(k)
+        if v is None:
+            v = bool(battle_map.difficult_terrain(entity, x, y, battle))
+            bucket[k] = v
+        return v
+    return _lookup
+
 
 # Enable response compression (gzip/brotli) for HTML/JSON/JS/CSS.
 try:
@@ -2403,7 +2440,6 @@ def get_combat_log():
 def compute_path():
     global current_game
     battle_map = current_game.get_map_for_user(session['username'])
-    print(battle_map.name)
     battle = current_game.get_current_battle()
 
     source = {
@@ -2432,55 +2468,83 @@ def compute_path():
     else:
         accumulated_path = []
 
-
     entity = battle_map.entity_at(entity_x, entity_y)
+    if entity is None:
+        return jsonify(error='No entity at source'), 400
+
+    # ----- Per-session LRU cache for /path responses --------------------------
+    # Repeated hovers over the same tile (or returning to a recently visited
+    # one) are very common; this avoids re-running A* for them.
+    cache_key = (
+        id(battle_map),
+        getattr(entity, 'entity_uid', lambda: None)() if callable(getattr(entity, 'entity_uid', None)) else getattr(entity, 'entity_uid', None),
+        int(source['x']), int(source['y']),
+        dest[0], dest[1],
+        tuple(accumulated_path),
+    )
+    cache = session.setdefault('_path_cache', None)
+    # Flask sessions don't support OrderedDict directly; keep an in-process
+    # dict keyed by username + battle_map id instead.
+    user_key = session.get('username') or 'anonymous'
+    proc_cache = _PATH_RESPONSE_CACHE.setdefault(user_key, OrderedDict())
+    cached = proc_cache.get(cache_key)
+    if cached is not None:
+        # Refresh LRU order
+        proc_cache.move_to_end(cache_key)
+        return jsonify(cached)
+
     if battle:
         available_movement = entity.available_movement(battle)
     else:
         available_movement = None
+
     path_compute = PathCompute(battle, battle_map, entity)
-    path1 = path_compute.compute_path(int(source['x']),
-                                    int(source['y']),
-                                    int(destination['x']),
-                                    int(destination['y']),
-                                    accumulated_path=accumulated_path,
-                                    available_movement_cost=available_movement)
-    if path1 and dest in path1:
-        path = path1
-    else:
+    path = path_compute.compute_path(int(source['x']),
+                                     int(source['y']),
+                                     dest[0], dest[1],
+                                     accumulated_path=accumulated_path,
+                                     available_movement_cost=available_movement)
+    # Only retry with door navigation when the first pass didn't reach the
+    # destination. Skipping the redundant second A* halves CPU on most hovers.
+    if not path or dest not in path:
         path = path_compute.compute_path(int(source['x']),
-                                    int(source['y']),
-                                    int(destination['x']),
-                                    int(destination['y']),
-                                    accumulated_path=accumulated_path,
-                                    available_movement_cost=available_movement,
-                                    door_navigation=True)
+                                         int(source['y']),
+                                         dest[0], dest[1],
+                                         accumulated_path=accumulated_path,
+                                         available_movement_cost=available_movement,
+                                         door_navigation=True)
 
     if accumulated_path:
-        accumulated_path.extend(path[1:])
+        full_path = list(accumulated_path)
+        full_path.extend(path[1:])
     else:
-        accumulated_path = path
+        full_path = path
 
-    cost = battle_map.movement_cost(entity, accumulated_path)
-    placeable = battle_map.placeable(entity, int(destination['x']), int(destination['y']), battle, False)
+    cost = battle_map.movement_cost(entity, full_path)
+    placeable = battle_map.placeable(entity, dest[0], dest[1], battle, False)
 
-    # Get terrain information for each tile in the path
+    # Build terrain info via a per-(map, entity, battle) memoized helper to
+    # avoid recomputing difficult-terrain for the same tile across hovers.
     terrain_info = []
     if path:
+        diff_lookup = _difficult_terrain_lookup(battle_map, entity, battle)
         for x, y in path:
-            is_difficult = battle_map.difficult_terrain(entity, x, y, battle)
             terrain_info.append({
                 'x': x,
                 'y': y,
-                'difficult': is_difficult
+                'difficult': bool(diff_lookup(x, y)),
             })
 
     path_data = {
         "path": path,
         "cost": cost.to_dict(),
         "placeable": placeable,
-        "terrain_info": terrain_info
+        "terrain_info": terrain_info,
     }
+
+    proc_cache[cache_key] = path_data
+    if len(proc_cache) > _PATH_RESPONSE_CACHE_LIMIT:
+        proc_cache.popitem(last=False)
     return jsonify(path_data)
 
 
