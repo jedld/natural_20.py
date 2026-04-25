@@ -601,7 +601,13 @@
                     <li id="select-soundtrack">Sound Manager</li>
                     <li id="open-effects" data-toggle="modal" data-target="#effectsModal">Effects</li>
                     <li><a href="/admin/manage_saves" target="_blank">Manage Saves</a></li>
-                    <li id="start-battle" style="{{ 'display: none;' if battle}}">Start Battle</li>
+                  {% if pvp_enabled %}
+                  <li style="{{ 'display: none;' if battle}}">
+                    <button id="start-match" class="btn btn-danger btn-sm" style="width: 100%;">Start Match</button>
+                  </li>
+                  {% else %}
+                  <li id="start-battle" style="{{ 'display: none;' if battle}}">Start Battle</li>
+                  {% endif %}
                     <li id="end-battle" style="{{ 'display: none;' if not battle}}">End Battle</li>
                     <li id="switch-map" data-toggle="modal" data-target="#mapModal">Switch Map</li>
                     <li id="reload-map" data-toggle="modal" data-target="#reloadModal">Reload Map</li>

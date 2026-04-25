@@ -12,22 +12,25 @@ class GameEntityRegistry:
         self.manager = manager
 
     def defer_all_players(self):
-        for controller in self.manager.controllers:
-            entity_uid = controller['entity_uid']
-            entity = self.manager.get_entity_by_uid(entity_uid)
-            if entity is None:
-                continue
-            entity_map = self.manager.get_map_for_entity(entity)
-            if entity_map is None:
-                continue
-            position = list(entity_map.position_of(entity))
-            entity_map.remove(entity)
-            self.manager.deferred_players[str(entity_uid)] = {
-                'entity': entity,
-                'map_name': entity_map.name,
-                'position': position,
-            }
-            self.manager.logger.info(f"Deferred spawn for {entity_uid} at {position} on map {entity_map.name}")
+        deferred_ids = set()
+        for entity_map in self.manager.maps.values():
+            for entity in list(entity_map.entities.keys()):
+                if not isinstance(entity, PlayerCharacter):
+                    continue
+
+                entity_uid = str(getattr(entity, 'entity_uid', '') or '')
+                if not entity_uid or entity_uid in deferred_ids:
+                    continue
+
+                position = list(entity_map.position_of(entity))
+                entity_map.remove(entity)
+                self.manager.deferred_players[entity_uid] = {
+                    'entity': entity,
+                    'map_name': entity_map.name,
+                    'position': position,
+                }
+                deferred_ids.add(entity_uid)
+                self.manager.logger.info(f"Deferred spawn for {entity_uid} at {position} on map {entity_map.name}")
 
     def spawn_player_for_user(self, username):
         spawned = []
