@@ -325,8 +325,10 @@ class GenericController(Controller):
             if target is None:
                 return []
             if isinstance(target, list):
-                return list(target)
-            return [target]
+                return [candidate for candidate in target if isinstance(candidate, Entity)]
+            if isinstance(target, Entity):
+                return [target]
+            return []
 
         def has_melee_pressure(target):
             return bool(target) and target.conscious() and battle.enemy_in_melee_range(target)

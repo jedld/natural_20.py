@@ -1,5 +1,6 @@
 import random
 import unittest
+from types import SimpleNamespace
 
 from natural20.actions.first_aid_action import FirstAidAction
 from natural20.actions.move_action import MoveAction
@@ -97,6 +98,28 @@ class TestGenericController(unittest.TestCase):
         ordered_actions = controller._sort_actions(fighter, battle, [repeated_move, fresh_move])
 
         self.assertIs(ordered_actions[0], fresh_move)
+
+    def test_support_spell_scoring_ignores_coordinate_targets(self):
+        battle_map = Map(self.session, 'battle_sim_objects')
+        battle = Battle(self.session, battle_map)
+        controller = GenericController(self.session)
+        cleric = PlayerCharacter.load(self.session, 'dwarf_cleric.yml')
+        ally = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+
+        battle.add(cleric, 'a', position=[0, 5], token='C', controller=controller)
+        battle.add(ally, 'a', position=[1, 5], token='A')
+        battle.start(combat_order=[cleric, ally])
+        cleric.reset_turn(battle)
+
+        fake_spell = object.__new__(SpellAction)
+        fake_spell.target = [ally, (4, 4)]
+        fake_spell.casting_time = 'action'
+        fake_spell.spell_action = SimpleNamespace(short_name=lambda: 'bless')
+        fake_spell.avg_damage = lambda _battle: 0
+
+        ordered_actions = controller._sort_actions(cleric, battle, [fake_spell])
+
+        self.assertEqual(ordered_actions, [fake_spell])
 
 
 if __name__ == '__main__':

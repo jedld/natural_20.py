@@ -215,6 +215,7 @@ class TestBattle(unittest.TestCase):
         battle.start(combat_order=[fighter, goblin])
 
         assert battle.entity_state_for(spectator) is None
+        assert battle.entity_state_for((4, 5)) is None
         assert spectator.action(battle)
         assert spectator.total_actions(battle) == 1
         assert spectator.total_reactions(battle) == 1
