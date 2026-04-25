@@ -8,6 +8,7 @@ import json
 import os
 import click
 import uuid
+from fnmatch import fnmatch
 from collections import OrderedDict
 from PIL import Image
 import logging
@@ -202,6 +203,8 @@ def get_allowed_origins():
             "http://natural20-alb-1402295348.us-east-1.elb.amazonaws.com",
             "https://natural20-alb-1402295348.us-east-1.elb.amazonaws.com",
             "https://0ad1d39fb719.ngrok.app",
+            "https://*.ngrok-free.dev",
+            "http://*.ngrok-free.dev",
             "*"  # Fallback to allow all origins in production
         ]
     else:
@@ -215,12 +218,33 @@ def get_allowed_origins():
             # Add common ngrok patterns
             "https://*.ngrok.io",
             "https://*.ngrok-free.app",
+            "https://*.ngrok-free.dev",
             "http://*.ngrok.io",
-            "http://*.ngrok-free.app"
+            "http://*.ngrok-free.app",
+            "http://*.ngrok-free.dev"
         ]
     
     logger.info(f"Using default CORS origins for {'production' if (is_aws or is_production) else 'development'}: {default_origins}")
     return default_origins
+
+
+def origin_allowed(origin, allowed_origins):
+    if not origin:
+        return False
+
+    normalized_origin = origin.lower()
+    for allowed_origin in allowed_origins:
+        candidate = str(allowed_origin).strip().lower()
+        if not candidate:
+            continue
+        if candidate == '*':
+            return True
+        if candidate == normalized_origin:
+            return True
+        if '*' in candidate and fnmatch(normalized_origin, candidate):
+            return True
+
+    return False
 
 allowed_origins = get_allowed_origins()
 
@@ -236,7 +260,7 @@ else:
 
 # Configure Socket.IO with proper settings
 socketio = SocketIO(app, 
-    cors_allowed_origins=allowed_origins,  # Use the same origins as CORS
+    cors_allowed_origins=lambda origin, environ=None: origin_allowed(origin, allowed_origins),
     async_mode=async_mode,  # Use eventlet for WebSocket support
     ping_timeout=120,  # Increased timeout
     ping_interval=30,  # Increased interval
@@ -244,7 +268,7 @@ socketio = SocketIO(app,
     logger=True,
     engineio_logger=True,
     manage_session=True,
-    cookie=True,
+    cookie='io',
     always_connect=True,
     message_queue=None,  # Disable message queue since we're using a single worker
     # Add ngrok-specific settings
@@ -634,6 +658,336 @@ def roles_for_username(username):
 
 def user_role():
     return roles_for_username(session.get('username'))
+
+
+def selectable_character_entry(character_name):
+    for character in index_data.get("selectable_characters", []):
+        if character.get('name') == character_name:
+            return character
+    return None
+
+
+def pvp_team_config():
+    config = index_data.get('pvp_teams') or {}
+    if config.get('enabled'):
+        return config
+    return None
+
+
+def pvp_team_counts():
+    config = pvp_team_config()
+    if not config:
+        return {}
+
+    counts = {team_key: 0 for team_key in config.get('teams', {})}
+    for controller in CONTROLLERS:
+        if not controller.get('controllers'):
+            continue
+        team = controller.get('team')
+        if team in counts:
+            counts[team] += 1
+    return counts
+
+
+def ensure_character_entity_loaded(character_name):
+    entity = current_game.get_entity_by_uid(character_name)
+    if entity is not None:
+        return entity
+
+    for map_name, map_obj in current_game.maps.items():
+        map_ref = (game_session.game_properties.get('maps') or {}).get(map_name)
+        if not map_ref:
+            continue
+
+        try:
+            map_source = map_obj.load(map_ref)
+        except Exception:
+            logger.exception(f"Failed to load source map data for {map_name}")
+            continue
+
+        for player_def in map_source.get('player') or []:
+            overrides = dict(player_def.get('overrides') or {})
+            if str(overrides.get('entity_uid')) != str(character_name):
+                continue
+
+            sheet = player_def.get('sheet')
+            if not sheet:
+                continue
+
+            entity = PlayerCharacter.load(game_session, sheet, override=overrides)
+            game_session.register_entity(entity)
+
+            if str(character_name) not in current_game.deferred_players:
+                current_game.deferred_players[str(character_name)] = {
+                    'entity': entity,
+                    'map_name': map_name,
+                    'position': list(player_def.get('position') or [0, 0]),
+                }
+
+            logger.info(f"Materialized selectable character {character_name} from {sheet} on map {map_name}")
+            return entity
+
+    return None
+
+
+def assign_character_team_and_spawn(character_name, team):
+    config = pvp_team_config()
+    if not config:
+        return None
+
+    teams = config.get('teams', {})
+    team_info = teams.get(team)
+    if not team_info:
+        raise ValueError('Invalid team selection')
+
+    team_label = team_info.get('label', f'Team {team.upper()}')
+    spawn_points = team_info.get('spawn_points') or []
+    capacity = int(team_info.get('capacity') or len(spawn_points) or 0)
+    controller_entry = next((controller for controller in CONTROLLERS if controller['entity_uid'] == character_name), None)
+
+    used_spawn_points = {
+        controller.get('spawn_point')
+        for controller in CONTROLLERS
+        if controller.get('controllers')
+        and controller.get('team') == team
+        and controller.get('entity_uid') != character_name
+        and controller.get('spawn_point')
+    }
+
+    if capacity and len(used_spawn_points) >= capacity:
+        raise ValueError(f'{team_label} is full')
+
+    selected_spawn_point = next((spawn for spawn in spawn_points if spawn not in used_spawn_points), None)
+    if selected_spawn_point is None:
+        raise ValueError(f'No spawn points remain for {team_label}')
+
+    map_name = team_info.get('map', 'index')
+    target_map = current_game.maps.get(map_name)
+    if target_map is None:
+        raise ValueError(f'PvP map {map_name} is not loaded')
+
+    spawn_meta = target_map.spawn_points.get(selected_spawn_point)
+    if spawn_meta is None:
+        raise ValueError(f'Spawn point {selected_spawn_point} is not configured on map {map_name}')
+
+    entity = ensure_character_entity_loaded(character_name)
+    if entity is None:
+        raise ValueError('Character entity not found')
+
+    entity.group = team
+    if hasattr(entity, 'properties') and isinstance(entity.properties, dict):
+        entity.properties['group'] = team
+
+    deferred = current_game.deferred_players.get(str(character_name))
+    if deferred is None:
+        entity_map = current_game.get_map_for_entity(entity)
+        if entity_map is not None and entity in entity_map.entities:
+            entity_map.remove(entity)
+        deferred = {
+            'entity': entity,
+            'map_name': map_name,
+            'position': list(spawn_meta['location']),
+        }
+        current_game.deferred_players[str(character_name)] = deferred
+
+    deferred['map_name'] = map_name
+    deferred['position'] = list(spawn_meta['location'])
+    deferred['spawn_point'] = selected_spawn_point
+
+    if controller_entry is not None:
+        controller_entry['team'] = team
+        controller_entry['spawn_point'] = selected_spawn_point
+
+    return {
+        'team': team,
+        'label': team_label,
+        'spawn_point': selected_spawn_point,
+    }
+
+
+def ensure_controller_entry(entity_uid):
+    entity_uid = str(entity_uid)
+    for controller in CONTROLLERS:
+        if str(controller.get('entity_uid')) == entity_uid:
+            controller.setdefault('controllers', [])
+            return controller
+
+    controller = {
+        'entity_uid': entity_uid,
+        'controllers': [],
+    }
+    CONTROLLERS.append(controller)
+    return controller
+
+
+def spawn_deferred_entity(entity_uid):
+    entity_uid = str(entity_uid)
+    deferred = current_game.deferred_players.get(entity_uid)
+    if deferred is None:
+        return current_game.get_entity_by_uid(entity_uid)
+
+    entity = deferred['entity']
+    map_name = deferred['map_name']
+    position = list(deferred.get('position') or [0, 0])
+    target_map = current_game.maps.get(map_name)
+    if target_map is None:
+        raise ValueError(f'Map {map_name} is not loaded for deferred entity {entity_uid}')
+
+    pos_x, pos_y = position
+    if not target_map.placeable(entity, pos_x, pos_y):
+        pos_x, pos_y = target_map.find_empty_placeable_position(entity, pos_x, pos_y)
+        logger.info(f"Original position {position} occupied, using {pos_x},{pos_y} for autofilled entity {entity_uid}")
+
+    target_map.place((pos_x, pos_y), entity)
+    del current_game.deferred_players[entity_uid]
+    logger.info(f"Spawned autofilled entity {entity_uid} at ({pos_x},{pos_y}) on map {map_name}")
+    return entity
+
+
+def pvp_autofill_candidates():
+    config = pvp_team_config()
+    if not config:
+        return {}
+
+    teams = {str(team_key).lower(): team_info for team_key, team_info in (config.get('teams') or {}).items()}
+    candidates = {team_key: [] for team_key in teams}
+    seen = set()
+
+    def add_entity(entity):
+        if entity is None or not isinstance(entity, PlayerCharacter):
+            return
+
+        entity_uid = str(getattr(entity, 'entity_uid', '') or '')
+        if not entity_uid or entity_uid in seen:
+            return
+
+        group = getattr(entity, 'group', None)
+        if group is None and isinstance(getattr(entity, 'properties', None), dict):
+            group = entity.properties.get('group')
+        if group is None:
+            return
+
+        group = str(group).lower()
+        if group not in candidates:
+            return
+
+        seen.add(entity_uid)
+        ensure_controller_entry(entity_uid).setdefault('team', group)
+        candidates[group].append(entity_uid)
+
+    for controller in CONTROLLERS:
+        entity_uid = controller.get('entity_uid')
+        if not entity_uid:
+            continue
+        entity = current_game.get_entity_by_uid(entity_uid)
+        if entity is None:
+            entity = ensure_character_entity_loaded(entity_uid)
+        add_entity(entity)
+
+    for battle_map in current_game.maps.values():
+        for entity in battle_map.entities:
+            add_entity(entity)
+
+    for deferred in current_game.deferred_players.values():
+        add_entity(deferred.get('entity'))
+
+    return candidates
+
+
+def autofill_pvp_battle_turn_order(turn_order):
+    config = pvp_team_config()
+    if not config or 'dm' not in user_role():
+        return turn_order
+
+    teams = {str(team_key).lower(): team_info for team_key, team_info in (config.get('teams') or {}).items()}
+    if not teams:
+        return turn_order
+
+    augmented_turn_order = []
+    present_ids = set()
+    team_counts = {team_key: 0 for team_key in teams}
+
+    for item in turn_order or []:
+        normalized = dict(item)
+        entity_uid = str(normalized.get('id') or '')
+        if not entity_uid:
+            continue
+        normalized['id'] = entity_uid
+        group = str(normalized.get('group') or '').lower()
+        normalized['group'] = group
+        present_ids.add(entity_uid)
+        augmented_turn_order.append(normalized)
+        if group in team_counts:
+            team_counts[group] += 1
+
+    def append_candidate_to_turn_order(entity_uid, team_key, controller_kind=None):
+        entity = current_game.get_entity_by_uid(entity_uid)
+        if entity is None:
+            entity = ensure_character_entity_loaded(entity_uid)
+        if entity is None:
+            logger.warning(f"Skipping PvP autofill for missing entity {entity_uid}")
+            return False
+
+        controller_entry = ensure_controller_entry(entity_uid)
+        entity.group = team_key
+        if isinstance(getattr(entity, 'properties', None), dict):
+            entity.properties['group'] = team_key
+        controller_entry['team'] = team_key
+
+        try:
+            spawn_deferred_entity(entity_uid)
+        except Exception:
+            logger.exception(f"Failed to spawn autofilled PvP entity {entity_uid}")
+            return False
+
+        turn_order_item = {
+            'id': entity_uid,
+            'group': team_key,
+        }
+        if controller_kind:
+            turn_order_item['controller'] = controller_kind
+
+        augmented_turn_order.append(turn_order_item)
+        present_ids.add(entity_uid)
+        team_counts[team_key] += 1
+        return True
+
+    candidates = pvp_autofill_candidates()
+    for team_key, team_info in teams.items():
+        capacity = int(team_info.get('capacity') or len(team_info.get('spawn_points') or []) or 0)
+        if capacity <= team_counts.get(team_key, 0):
+            continue
+
+        missing_slots = capacity - team_counts[team_key]
+
+        for entity_uid in candidates.get(team_key, []):
+            if missing_slots <= 0:
+                break
+            if entity_uid in present_ids:
+                continue
+
+            controller_entry = ensure_controller_entry(entity_uid)
+            if not controller_entry.get('controllers'):
+                continue
+
+            if append_candidate_to_turn_order(entity_uid, team_key):
+                missing_slots -= 1
+
+        for entity_uid in candidates.get(team_key, []):
+            if missing_slots <= 0:
+                break
+            if entity_uid in present_ids:
+                continue
+
+            controller_entry = ensure_controller_entry(entity_uid)
+            if controller_entry.get('controllers'):
+                continue
+
+            if append_candidate_to_turn_order(entity_uid, team_key, controller_kind='llm'):
+                missing_slots -= 1
+                logger.info(f"Autofilled PvP slot with LLM controller for {entity_uid} on team {team_key}")
+
+    return augmented_turn_order
 
 
 def controller_of(entity_uid, username):
@@ -1640,6 +1994,13 @@ def login():
         if login_info and login_info["password"] == password:
             session['username'] = username
 
+            if 'dm' in login_info.get('role', []):
+                current_game.set_pov_entity_for_user(username, None)
+                try:
+                    current_game.switch_map_for_user(username, current_game.get_current_battle_map().name)
+                except Exception:
+                    logger.exception(f"Failed to switch DM {username} to the current battle map")
+
             # Spawn deferred PCs for this user on first login
             current_game.spawn_player_for_user(username)
             
@@ -1677,7 +2038,9 @@ def character_selection():
                          title=TITLE, 
                          background=CHARACTER_SELECTION_BACKGROUND,
                          selectable_characters=selectable_characters,
-                         taken_characters=taken_characters)
+                         taken_characters=taken_characters,
+                         pvp_team_config=pvp_team_config(),
+                         pvp_team_counts=pvp_team_counts())
 
 @app.route('/create_character', methods=['POST'])
 def create_character():
@@ -2031,14 +2394,14 @@ def select_character():
         return jsonify(error="Not logged in"), 401
     
     character_name = request.form.get('character')
+    selected_team = (request.form.get('team') or '').lower()
     username = session['username']
     
     if not character_name:
         return jsonify(error="No character specified")
     
     # Check if character exists in selectable characters
-    selectable_characters = index_data.get("selectable_characters", [])
-    character_exists = any(char['name'] == character_name for char in selectable_characters)
+    character_exists = selectable_character_entry(character_name) is not None
     
     if not character_exists:
         return jsonify(error="Invalid character selection")
@@ -2047,19 +2410,24 @@ def select_character():
     for controller in CONTROLLERS:
         if controller['entity_uid'] == character_name and controller['controllers']:
             return jsonify(error="Character is already taken")
+
+    team_config = pvp_team_config()
+    if team_config and not selected_team:
+        return jsonify(error='Choose Team A or Team B before confirming your slot')
     
     # Assign character to user
-    for controller in CONTROLLERS:
-        if controller['entity_uid'] == character_name:
-            if username not in controller['controllers']:
-                controller['controllers'].append(username)
-            break
-    else:
-        # Character not found in default controllers, create new entry
-        CONTROLLERS.append({
-            'entity_uid': character_name,
-            'controllers': [username]
-        })
+    controller_entry = None
+    controller_entry = ensure_controller_entry(character_name)
+    if username not in controller_entry['controllers']:
+        controller_entry['controllers'].append(username)
+
+    if team_config:
+        try:
+            assign_character_team_and_spawn(character_name, selected_team)
+        except ValueError as exc:
+            if controller_entry and username in controller_entry.get('controllers', []):
+                controller_entry['controllers'].remove(username)
+            return jsonify(error=str(exc))
     
     # Update the current_game controllers if needed
     current_game._setup_controllers()
@@ -2215,6 +2583,14 @@ def pov_entities():
         pov_entities = entities_controlled_by(session['username'])
     return pov_entities
 
+
+def render_pov_entities():
+    global current_game
+    if 'dm' in user_role():
+        pov_entity = current_game.get_pov_entity_for_user(session['username'])
+        return [pov_entity] if pov_entity else None
+    return entities_controlled_by(session['username'])
+
 @app.route('/')
 def index():
     global current_game, logger
@@ -2255,8 +2631,9 @@ def index():
 
     background = current_game.get_background_image_for_user(session['username'])
     renderer = JsonRenderer(battle_map, battle, padding=MAP_PADDING, logger=logger)
+    rendered_pov_entities = render_pov_entities()
 
-    my_2d_array = [renderer.render(entity_pov=pov_entities())]
+    my_2d_array = [renderer.render(entity_pov=rendered_pov_entities)]
     map_width, map_height = battle_map.size
     left_offset_px, top_offset_px = battle_map.image_offset_px
 
@@ -2279,7 +2656,7 @@ def index():
                         ['start_time']) % current_game.current_soundtrack['duration']
         current_game.current_soundtrack['time'] = int(time_s)
 
-    current_pov = [entity.entity_uid for entity in pov_entities()]
+    current_pov_entity = current_game.get_pov_entity_for_user(session['username'])
     return render_template('index.html', tiles=my_2d_array, tile_size_px=TILE_PX,
                            background_path=f"assets/{background}",
                            background_width=tiles_dimension_width,
@@ -2299,11 +2676,12 @@ def index():
                            available_maps=available_maps,
                            user_entity_ids=[e.entity_uid for e in entities_controlled_by(session['username'])],
                            pov_entities=pov_entities(),
-                           current_pov=current_pov[0] if current_pov else None,
+                           current_pov=current_pov_entity.entity_uid if current_pov_entity else None,
                            game_session=current_game.game_session,
                            username=session['username'], role=user_role(),
                            DEFAULT_NPC_CONTROLLER=current_game.effective_npc_combat_controller(),
                            NPC_LLM_COMBAT_ENABLED=current_game.force_llm_npc_combat,
+                           pvp_enabled=bool(pvp_team_config()),
                            narration=battle_map.narration(),
                            special_effects_enabled=special_effects_enabled())
 eval_context = {}
@@ -2851,8 +3229,9 @@ def start_battle_with_initiative():
         battle = Battle(game_session, battle_map, animation_log_enabled=True)
         current_game.set_current_battle(battle)
 
-        print(request.json['battle_turn_order'])
-        for param_item in request.json['battle_turn_order']:
+        battle_turn_order = autofill_pvp_battle_turn_order(request.json['battle_turn_order'])
+        print(battle_turn_order)
+        for param_item in battle_turn_order:
             entity = current_game.get_entity_by_uid(param_item['id'])
 
             ctrl_kind = param_item.get('controller')
@@ -3420,17 +3799,17 @@ def update():
 
     # Get current POV entity
     pov_entity = current_game.get_pov_entity_for_user(session['username'])
-    _pov_entities = pov_entities()  # Use the same function as the main index route
+    _pov_entities = render_pov_entities()
     
     # Handle POV changes
     if entity and ('dm' in user_role() or entity in entities_controlled_by(session['username'], battle_map)):
         # Set new POV to selected entity
         current_game.set_pov_entity_for_user(session['username'], entity)
-        _pov_entities = pov_entities()  # Refresh the list after POV change
+        _pov_entities = render_pov_entities()
     elif is_pov and not entity:
         current_game.set_pov_entity_for_user(session['username'], None)
         pov_entity = None
-        _pov_entities = None
+        _pov_entities = render_pov_entities()
 
     if not 'dm' in user_role() and pov_entity is None and (_pov_entities is None or len(_pov_entities) == 0):
         user_entities = entities_controlled_by(session['username'], battle_map)

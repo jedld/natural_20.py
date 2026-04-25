@@ -1,4 +1,6 @@
 from natural20.event_manager import EventManager
+from natural20.map import Map
+from natural20.player_character import PlayerCharacter
 from natural20.session import Session
 
 
@@ -80,3 +82,47 @@ def test_entity_owners_uses_entity_uid_when_owner_is_none():
     }]
 
     assert game.entity_owners(npc) == ['dm']
+
+
+def test_defer_player_spawn_hides_unassigned_player_characters_until_claimed():
+    event_manager = EventManager()
+    event_manager.standard_cli()
+    session = Session(root_path='tests/fixtures', event_manager=event_manager)
+
+    from types import SimpleNamespace
+    from webapp.game_management_components import GameEntityRegistry
+
+    battle_map = Map(session, 'battle_sim', name='index')
+    fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml', override={'entity_uid': 'gomerin'})
+    mage = PlayerCharacter.load(session, 'high_elf_mage.yml', override={'entity_uid': 'crysania'})
+    rogue = PlayerCharacter.load(session, 'halfling_rogue.yml', override={'entity_uid': 'rumblebelly'})
+    cleric = PlayerCharacter.load(session, 'dwarf_cleric.yml', override={'entity_uid': 'shorvalu'})
+
+    battle_map.place((0, 1), fighter)
+    battle_map.place((0, 2), mage)
+    battle_map.place((0, 3), rogue)
+    battle_map.place((0, 4), cleric)
+
+    game = SimpleNamespace(
+        maps={'index': battle_map},
+        deferred_players={},
+        logger=DummyLogger(),
+        controllers=[{
+            'entity_uid': 'gomerin',
+            'controllers': ['alice'],
+        }],
+    )
+
+    registry = GameEntityRegistry(game)
+    registry.defer_all_players()
+
+    remaining_players = [entity for entity in battle_map.entities if isinstance(entity, PlayerCharacter)]
+
+    assert remaining_players == []
+    assert {'gomerin', 'crysania', 'rumblebelly', 'shorvalu'} <= set(game.deferred_players.keys())
+
+    spawned = registry.spawn_player_for_user('alice')
+
+    assert [entity.entity_uid for entity in spawned] == ['gomerin']
+    assert fighter in battle_map.entities
+    assert 'crysania' in game.deferred_players

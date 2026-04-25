@@ -14,6 +14,28 @@ class JsonRenderer:
         else:
             self.logger = logger
 
+    def _team_visuals_for(self, entity):
+        web_extensions = (self.map.properties.get('extensions') or {}).get('web') or {}
+        team_border_tints = web_extensions.get('team_border_tints') or {}
+        if not team_border_tints:
+            return None, None
+
+        group = None
+        if self.battle and hasattr(self.battle, 'entities') and entity in self.battle.entities:
+            try:
+                group = self.battle.entity_group_for(entity)
+            except Exception:
+                group = None
+
+        if group is None:
+            group = getattr(entity, 'group', None)
+
+        tint = team_border_tints.get(group)
+        if not tint:
+            return None, None
+
+        return group, tint
+
     def render(self, entity_pov=None, path=None, select_pos=None):
         if path is None:
            path = []
@@ -258,6 +280,7 @@ class JsonRenderer:
                     })
                     assert entity.languages() is not None
                     if m_x == x and m_y == y:
+                        team_group, team_border_tint = self._team_visuals_for(entity)
                         attributes.update({
                             'entity': entity.token_image(),
                             'name': entity.label(),
@@ -266,7 +289,9 @@ class JsonRenderer:
                             'prone': entity.prone(),
                             'dead': entity.dead(),
                             'unconscious': entity.unconscious(),
-                            'effects' : [str(effect['effect']) for effect in entity.current_effects()]
+                            'effects' : [str(effect['effect']) for effect in entity.current_effects()],
+                            'team_group': team_group,
+                            'team_border_tint': team_border_tint
                         })
                     result_row.append(attributes)
 

@@ -139,6 +139,37 @@ class TestInteractAction(unittest.TestCase):
             'Look',
             'Speak'])
 
+    def test_looting_unconscious_player_character_transfers_items(self):
+        self.entity2 = PlayerCharacter.load(self.session, os.path.join("dwarf_cleric.yml"))
+        self.battle_map.place((0, 6), self.entity2, "G")
+        self.entity2.make_unconscious()
+        if self.entity.item_count('healing_potion'):
+            self.entity.deduct_item('healing_potion', self.entity.item_count('healing_potion'))
+        self.entity2.add_item('healing_potion', 1)
+        source_potions_before = self.entity.item_count('healing_potion')
+        target_potions_before = self.entity2.item_count('healing_potion')
+
+        loot_items = {
+            'from': {
+                'items': ['healing_potion'],
+                'qty': ['1']
+            },
+            'to': {
+                'items': [],
+                'qty': []
+            }
+        }
+
+        action = InteractAction(self.session, self.entity, 'interact')
+        action.target = self.entity2
+        action.object_action = 'loot'
+        action.other_params = loot_items
+        action.resolve(self.session, self.battle_map, {'battle': self.battle})
+
+        self.assertTrue(InteractAction.apply(self.battle, action.result[0], session=self.session))
+        self.assertEqual(self.entity.item_count('healing_potion'), source_potions_before + 1)
+        self.assertEqual(self.entity2.item_count('healing_potion'), target_potions_before - 1)
+
 
     def test_autobuild(self):
         self.assertTrue(self.door.closed())

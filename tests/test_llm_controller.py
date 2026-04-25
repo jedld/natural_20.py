@@ -220,12 +220,36 @@ def test_llm_controller_goal_tool_processing():
             }
         }
     ]
-    
+
     controller._process_goal_tool_calls(entity, battle, tool_calls)
-    
+
     ctx = controller._get_entity_context(entity)
     assert ctx['short_term_goal'] == 'Flank the enemy'
     assert 'Enemy caster is low on HP' in ctx['memory_notes']
+
+
+def test_llm_controller_does_not_call_provider_for_dead_entity():
+    session = Session('tests/fixtures')
+
+    class FakeProvider:
+        def send_message(self, messages):
+            raise AssertionError('LLM provider should not be called for dead entities')
+
+    controller = LlmMcpController(session, llm_provider=FakeProvider())
+
+    class MockEntity:
+        def dead(self):
+            return True
+
+        def unconscious(self):
+            return False
+
+    class MockAction:
+        disabled = False
+
+    entity = MockEntity()
+
+    assert controller.select_action(None, entity, [MockAction()]) is None
 
 
 def test_llm_controller_speak_tool():

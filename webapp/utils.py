@@ -9,6 +9,10 @@ from natural20.generic_controller import GenericController
 from natural20.llm_controller import LlmMcpController
 from natural20.web.web_controller import WebController, ManualControl
 from natural20.player_character import PlayerCharacter
+from natural20.actions.attack_action import AttackAction
+from natural20.actions.spell_action import SpellAction
+from natural20.actions.shove_action import ShoveAction
+from natural20.actions.grapple_action import GrappleAction
 import uuid
 import pdb
 from itertools import combinations
@@ -439,6 +443,7 @@ class GameManagement:
         self.npc_controller = npc_controller
         self.force_llm_npc_combat = force_llm_npc_combat
         self.auto_battle = auto_battle
+        self.auto_battle_distance_ft = int(os.environ.get('N20_AUTO_BATTLE_DISTANCE_FT', '30'))
         self.web_controllers = {}
         self.maps = {}
         self.max_save_states = 10
@@ -681,6 +686,16 @@ class GameManagement:
         self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': self.battle.get_animation_logs()}})
         self.battle.clear_animation_logs()
 
+    def emit_current_turn_state(self):
+        battle = self.get_current_battle()
+        if not battle:
+            return
+        self.socketio.emit('message', {
+            'type': 'initiative',
+            'message': {'index': battle.current_turn_index}
+        })
+        self.socketio.emit('message', {'type': 'turn', 'message': {}})
+
     def execute_game_loop(self):
         self.output_logger.log("Battle started.", visibility='public')
         self.game_loop()
@@ -722,7 +737,51 @@ class GameManagement:
         entity.group = group
         self.loop_environment()
 
-    def loop_environment(self):
+    def _entity_group(self, entity):
+        group = getattr(entity, 'group', None)
+        if group is None and isinstance(getattr(entity, 'properties', None), dict):
+            group = entity.properties.get('group')
+        return group
+
+    def _hostile_targets_for_action(self, action):
+        if not isinstance(action, (AttackAction, SpellAction, ShoveAction, GrappleAction)):
+            return set()
+
+        source = getattr(action, 'source', None)
+        source_group = self._entity_group(source) if source else None
+        if source is None or source_group is None:
+            return set()
+
+        candidate_targets = []
+        target = getattr(action, 'target', None)
+        if isinstance(target, list):
+            candidate_targets.extend([t for t in target if isinstance(t, Entity)])
+        elif isinstance(target, Entity):
+            candidate_targets.append(target)
+
+        for item in getattr(action, 'result', []) or []:
+            target = item.get('target')
+            if isinstance(target, Entity):
+                candidate_targets.append(target)
+
+        hostile_targets = set()
+        for target in candidate_targets:
+            target_group = self._entity_group(target)
+            if target_group is not None and self.game_session.opposing(source_group, target_group):
+                hostile_targets.add(target)
+        return hostile_targets
+
+    def _add_entities_to_initiative(self, add_to_initiative_set, entity_by_groups, battle_map, anchor, group, include_allies=False):
+        add_to_initiative_set.add((anchor, group))
+        for ally in entity_by_groups.get(group, set()):
+            if ally == anchor or not ally.conscious():
+                continue
+            if self.get_map_for_entity(ally) != battle_map:
+                continue
+            if include_allies or battle_map.can_see(ally, anchor) or self._entity_group(ally) == 'a':
+                add_to_initiative_set.add((ally, group))
+
+    def loop_environment(self, aggressive_pairs=None):
         if not self.auto_battle:
             return
 
@@ -732,6 +791,11 @@ class GameManagement:
         add_to_initiative_set = set()
         pc_groups = ['a']
         enemy_groups = ['b']
+        aggressive_pairs = {
+            frozenset((source, target))
+            for source, target in (aggressive_pairs or [])
+            if source is not None and target is not None
+        }
 
         for battle_map in self.maps.values():
             for entity in battle_map.entities:
@@ -763,27 +827,23 @@ class GameManagement:
                                 if self.get_map_for_entity(entity1) != self.get_map_for_entity(entity2):
                                     continue
 
-                                if entity2.passive():
+                                if entity2.passive() and frozenset((entity1, entity2)) not in aggressive_pairs:
                                     continue
 
-                                # if it is only the player character that can see the enemy, skip it
-                                if isinstance(entity2, PlayerCharacter):
-                                    continue
+                                distance_ft = None
+                                try:
+                                    distance_ft = battle_map.distance(entity1, entity2) * battle_map.feet_per_grid
+                                except Exception:
+                                    distance_ft = None
 
-                                if battle_map.can_see(entity2, entity1):
-                                    add_to_initiative_set.add((entity1, group1))
-                                    add_to_initiative_set.add((entity2, group2))
+                                aggressive_trigger = frozenset((entity1, entity2)) in aggressive_pairs
+                                proximity_trigger = distance_ft is not None and distance_ft <= self.auto_battle_distance_ft
+                                visibility_trigger = battle_map.can_see(entity2, entity1)
 
-                                    # Add allies for entity1
-                                    for ally in entity_by_groups[group1]:
-                                        if ally != entity1 and (battle_map.can_see(ally, entity1) or ally.group=='a'):
-                                            add_to_initiative_set.add((ally, group1))
-
-                                    # Add allies for entity2
-                                    for ally in entity_by_groups[group2]:
-                                        if ally != entity2 and battle_map.can_see(ally, entity2) or ally.group=='a':
-                                            add_to_initiative_set.add((ally, group2))
-
+                                if aggressive_trigger or proximity_trigger or visibility_trigger:
+                                    include_allies = aggressive_trigger or proximity_trigger
+                                    self._add_entities_to_initiative(add_to_initiative_set, entity_by_groups, battle_map, entity1, group1, include_allies=include_allies)
+                                    self._add_entities_to_initiative(add_to_initiative_set, entity_by_groups, battle_map, entity2, group2, include_allies=include_allies)
                                     start_battle = True
         add_to_initiative = list(add_to_initiative_set)
 
@@ -847,6 +907,7 @@ class GameManagement:
                 battle.start_turn()
                 current_turn = battle.current_turn()
                 current_turn.reset_turn(battle)
+                self.emit_current_turn_state()
 
                 if battle.battle_ends():
                     break
@@ -860,6 +921,7 @@ class GameManagement:
                     battle.start_turn()
                     current_turn = battle.current_turn()
                     current_turn.reset_turn(battle)
+                    self.emit_current_turn_state()
 
                 if battle.battle_ends():
                     break
@@ -1397,7 +1459,11 @@ class GameManagement:
                         request_map_refresh = True
             if request_map_refresh:
                 self.socketio.emit('message', {'type': 'refresh_map'})
-            self.loop_environment()
+            aggressive_pairs = [
+                (action.source, target)
+                for target in self._hostile_targets_for_action(action)
+            ]
+            self.loop_environment(aggressive_pairs=aggressive_pairs)
         self.socketio.emit('message', {'type': 'turn', 'message': { 'game_time': self.game_session.game_time }})
 
         if self.autosave:
