@@ -436,6 +436,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
   def use(self, entity, result, session=None):
     if result['action'] == 'give':
       self.transfer(result['battle'], result['target'], result['source'], result['items'])
+    elif result['action'] == 'loot':
+      self.transfer(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
+      return True
     else:
       raise NotImplementedError(f"unknown action {result['action']}")
 

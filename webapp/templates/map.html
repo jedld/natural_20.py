@@ -184,7 +184,8 @@
                      style="width: {{ image_size_px }}px;
                             height: {{ image_size_px }}px;
                             opacity: {{ opacity_for(tile) }};
-                            filter: {{ filter_for(tile) }};" />
+                            filter: {{ filter_for(tile) }};
+                            {% if tile['team_border_tint'] %}border: 3px solid {{ tile['team_border_tint'] }}; box-shadow: 0 0 10px {{ tile['team_border_tint'] }}; border-radius: 12px;{% endif %}" />
               </div>
               {% else %}
               <img class="npc"
@@ -193,7 +194,15 @@
                           height: {{ image_size_px }}px;
                           opacity: {{ opacity_for(tile) }};
                           filter: {{ filter_for(tile) }};
-                          transform: {{ transform_for(tile) }};" />
+                          transform: {{ transform_for(tile) }};
+                          {% if tile['team_border_tint'] %}border: 3px solid {{ tile['team_border_tint'] }}; box-shadow: 0 0 10px {{ tile['team_border_tint'] }}; border-radius: 12px;{% endif %}" />
+              {% endif %}
+
+              {% if tile['team_group'] %}
+                <div class="team-token-indicator"
+                     style="position: absolute; top: 4px; left: 4px; min-width: 22px; height: 22px; padding: 0 6px; background: {{ tile['team_border_tint'] or '#333333' }}; color: white; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,0.45); z-index: 4; text-transform: uppercase;">
+                  {{ tile['team_group'] }}
+                </div>
               {% endif %}
               
               {% if is_setup and not tile.in_battle %}

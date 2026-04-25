@@ -411,6 +411,37 @@ class LlmMcpController(GenericController):
 			}
 		return self._entity_context[uid]
 
+	def _team_info_for(self, battle, entity, current_map=None) -> Tuple[Optional[str], str]:
+		"""Return (group_code, human_label) for an entity's team/group."""
+		group_code = None
+		try:
+			if battle is not None:
+				group_code = battle.entity_group_for(entity)
+		except Exception:
+			group_code = None
+
+		if group_code is None:
+			group_code = getattr(entity, 'group', None)
+		if group_code is None and isinstance(getattr(entity, 'properties', None), dict):
+			group_code = entity.properties.get('group')
+
+		if current_map is None and battle is not None:
+			try:
+				current_map = battle.map_for(entity)
+			except Exception:
+				current_map = None
+
+		team_labels = {}
+		try:
+			team_labels = (((current_map.properties if current_map else {}) or {}).get('extensions') or {}).get('web', {}).get('team_labels', {}) or {}
+		except Exception:
+			team_labels = {}
+
+		if group_code is None:
+			return None, 'unassigned'
+
+		return group_code, team_labels.get(group_code, f'Group {str(group_code).upper()}')
+
 	def set_short_term_goal(self, entity, goal: str) -> None:
 		"""Set a short-term tactical goal for the entity."""
 		ctx = self._get_entity_context(entity)
@@ -810,6 +841,7 @@ class LlmMcpController(GenericController):
 					# Determine relationship (ally or enemy)
 					is_enemy = other_entity in battle.opponents_of(entity)
 					relationship = 'enemy' if is_enemy else 'ally'
+					group_code, team_label = self._team_info_for(battle, other_entity, current_map)
 					
 					# Get basic status
 					hp_pct = int((other_entity.hp() / other_entity.max_hp()) * 100) if other_entity.max_hp() > 0 else 0
@@ -826,6 +858,8 @@ class LlmMcpController(GenericController):
 						'position': list(pos),
 						'distance_ft': dist_ft,
 						'relationship': relationship,
+						'group': group_code,
+						'team': team_label,
 						'hp_percent': hp_pct,
 						'conditions': conditions,
 						'size': getattr(other_entity, 'size', 'medium'),
@@ -1289,6 +1323,12 @@ class LlmMcpController(GenericController):
 
 	# --- Public API ---
 	def select_action(self, battle, entity, available_actions: Optional[List[Action]] = None) -> Optional[Action]:
+		if entity is None:
+			return None
+		if getattr(entity, 'dead', lambda: False)() or getattr(entity, 'unconscious', lambda: False)():
+			return None
+
+		available_actions = [action for action in (available_actions or []) if action is not None and not getattr(action, 'disabled', False)]
 		if not available_actions:
 			return None
 
@@ -1603,12 +1643,36 @@ class LlmMcpController(GenericController):
 
 		# Nearby enemies summary
 		enemies = battle.opponents_of(entity)
+		my_group, my_team_label = self._team_info_for(battle, entity, current_map)
 		vis_enemies = [e for e in enemies if battle.can_see(entity, e)]
+		allies = []
+		try:
+			if hasattr(battle, 'allies_of'):
+				allies = [a for a in battle.allies_of(entity) if a is not entity]
+			else:
+				grp = battle.entity_group_for(entity)
+				allies = [a for a in getattr(battle, 'entities', {}).keys() if battle.entity_group_for(a) == grp and a is not entity]
+		except Exception:
+			allies = []
+		vis_allies = [a for a in allies if battle.can_see(entity, a)]
+
+		def ally_line(a, compact=False):
+			d = _dist_ft(entity, a)
+			a_group, a_team = self._team_info_for(battle, a, current_map)
+			ally_team = f"[{a_team}; group {a_group}]" if a_group is not None else f"[{a_team}]"
+			if compact:
+				return f"{a.name} {ally_team}"
+			return f"{a.name} {ally_team}({a.hp()}/{a.max_hp()}{'' if d is None else f', {d} ft'})"
+
 		def enemy_line(e, compact=False):
 			d = _dist_ft(entity, e)
+			e_group, e_team = self._team_info_for(battle, e, current_map)
+			enemy_team = f"[{e_team}; group {e_group}]" if e_group is not None else f"[{e_team}]"
 			if compact:
-				return f"{e.name}"
-			return f"{e.name}({e.hp()}/{e.max_hp()}{'' if d is None else f', {d} ft'})"
+				return f"{e.name} {enemy_team}"
+			return f"{e.name} {enemy_team}({e.hp()}/{e.max_hp()}{'' if d is None else f', {d} ft'})"
+		ally_summ_full = ", ".join(ally_line(a, False) for a in vis_allies) or "(none visible)"
+		ally_summ_compact = ", ".join(ally_line(a, True) for a in vis_allies) or "(none visible)"
 		enemy_summ_full = ", ".join(enemy_line(e, False) for e in vis_enemies) or "(none visible)"
 		enemy_summ_compact = ", ".join(enemy_line(e, True) for e in vis_enemies) or "(none visible)"
 
@@ -1649,6 +1713,7 @@ class LlmMcpController(GenericController):
 		parts = [
 			f"Map (visible):\n{map_text}\n",
 			f"Round: {battle.current_round()} | You: {entity.name} HP {hp} ({int(hp_pct*100)}%), conditions: {cond_text}\n",
+			f"Your team: {my_team_label} [group {my_group if my_group is not None else 'unknown'}] | Friendly characters share your team/group; enemy characters are on opposing teams.\n",
 			f"Resources: {resources} | Engaged in melee: {'yes' if engaged else 'no'} | Concentration: {concentration} | Nearest enemy: {nearest_ft if nearest_ft is not None else 'n/a'} ft\n",
 		]
 		if slot_summary:
@@ -1659,16 +1724,6 @@ class LlmMcpController(GenericController):
 
 		# Recent actions by you/allies/enemies
 		recent_you = self._recent_actions(battle, entity, n=5)
-		allies = []
-		try:
-			if hasattr(battle, 'allies_of'):
-				allies = [a for a in battle.allies_of(entity) if a is not entity]
-			else:
-				# Fallback: same group as you
-				grp = battle.entity_group_for(entity)
-				allies = [a for a in getattr(battle, 'entities', {}).keys() if battle.entity_group_for(a) == grp and a is not entity]
-		except Exception:
-			allies = []
 		recent_allies = self._recent_actions_for(battle, allies, n=5)
 		recent_enemies = self._recent_actions_for(battle, enemies, n=5)
 
@@ -1705,6 +1760,7 @@ class LlmMcpController(GenericController):
 			parts.append(f"Character context: {backstory}\n")
 
 		parts.extend([
+			f"Visible allies: {ally_summ_full}\n",
 			f"Visible enemies: {enemy_summ_full}\n\n",
 			f"Available actions (index: description):\n" + "\n".join(action_lines) + "\n\n",
 			f"{instructions}\n",
@@ -1731,6 +1787,7 @@ class LlmMcpController(GenericController):
 			parts_c = [
 				f"Map (visible):\n{map_text}\n",
 				f"Round: {battle.current_round()} | You: {entity.name} HP {hp} ({int(hp_pct*100)}%), conditions: {cond_text}\n",
+				f"Your team: {my_team_label} [group {my_group if my_group is not None else 'unknown'}]\n",
 				f"Resources: {resources} | Engaged in melee: {'yes' if engaged else 'no'} | Concentration: {concentration} | Nearest enemy: {nearest_ft if nearest_ft is not None else 'n/a'} ft\n",
 			]
 			if slot_summary:
@@ -1747,6 +1804,7 @@ class LlmMcpController(GenericController):
 			if goals_summary and goals_summary != "(no goals set)":
 				parts_c.append(f"Goals: {goals_summary}\n")
 			parts_c.extend([
+				f"Visible allies: {ally_summ_compact}\n",
 				f"Visible enemies: {enemy_summ_compact}\n\n",
 				f"Available actions (index: description):\n" + "\n".join(action_lines_compact) + "\n\n",
 				f"{instructions}\n",

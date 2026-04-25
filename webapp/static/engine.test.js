@@ -155,6 +155,7 @@ const expose = new vm.Script(`({
   EventQueue: (typeof EventQueue !== 'undefined') ? EventQueue : undefined,
   updateGameTimeDisplay: (typeof updateGameTimeDisplay !== 'undefined') ? updateGameTimeDisplay : undefined,
   drawLine: (typeof drawLine !== 'undefined') ? drawLine : undefined,
+  applyViewportTransform: (typeof applyViewportTransform !== 'undefined') ? applyViewportTransform : undefined,
   centerOnTile: (typeof centerOnTile !== 'undefined') ? centerOnTile : undefined,
   centerOnTileXY: (typeof centerOnTileXY !== 'undefined') ? centerOnTileXY : undefined,
   centerOnEntityId: (typeof centerOnEntityId !== 'undefined') ? centerOnEntityId : undefined
@@ -213,6 +214,40 @@ describe('engine.js basic behavior', () => {
 
     // When centers are missing, drawLine should exit without invoking ctx
     expect(calls.length).toBe(0);
+  });
+
+  test('applyViewportTransform invalidates movement grid cache before updating transform', () => {
+    const originalUtils = global.Utils;
+    const original$ = global.$;
+    const cssCalls = [];
+    let invalidations = 0;
+
+    global.Utils = {
+      invalidateMovementGridCache: () => {
+        invalidations += 1;
+      }
+    };
+
+    global.$ = (selector) => {
+      if (selector === '.image-container') {
+        return {
+          length: 1,
+          css: (styles) => {
+            cssCalls.push(styles);
+          }
+        };
+      }
+      return original$(selector);
+    };
+
+    Engine.applyViewportTransform();
+
+    expect(invalidations).toBe(1);
+    expect(cssCalls).toHaveLength(1);
+    expect(cssCalls[0]).toHaveProperty('transform');
+
+    global.Utils = originalUtils;
+    global.$ = original$;
   });
 
   test('updateGameTimeDisplay writes formatted text into #game-time-text', () => {

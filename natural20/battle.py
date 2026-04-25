@@ -478,6 +478,8 @@ class Battle():
     def entity_state_for(self, entity):
         entity_state = self.entities.get(entity, None)
         if entity_state is None:
+            if entity is None or not hasattr(entity, 'entity_uid'):
+                return None
             _entity = self.entity_by_uid(entity.entity_uid)
             return self.entities.get(_entity, None)
         return entity_state
@@ -627,6 +629,8 @@ class Battle():
 
     def entity_group_for(self, entity):
         if entity not in self.entities:
+            if entity is None or not hasattr(entity, 'entity_uid'):
+                return 'none'
             _entity = self.entity_by_uid(entity.entity_uid)
             if _entity:
                 if _entity not in self.entities:

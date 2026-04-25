@@ -2700,6 +2700,9 @@ function createGlobalCanvas() {
 // Apply the current pan/zoom transform to the map container
 function applyViewportTransform() {
   const $container = $('.image-container');
+  if (typeof Utils !== 'undefined' && typeof Utils.invalidateMovementGridCache === 'function') {
+    Utils.invalidateMovementGridCache();
+  }
   if ($container.length) {
     $container.css({
       'transform': `translate(${viewportPan.x}px, ${viewportPan.y}px) scale(${viewportZoom})`,
@@ -4135,6 +4138,20 @@ $(document).ready(() => {
     $("#battle-turn-order").fadeIn();
     battle_setup = true;
     enqueueTileRefresh({ is_setup: true });
+  });
+
+  $("#start-match").click(() => {
+    ajaxPost(
+      "/battle",
+      { battle_turn_order: [] },
+      () => {
+        $("#start-match").hide();
+        $("#end-battle").show();
+        battle_setup = false;
+        enqueueTileRefresh({ is_setup: false, pov: false, x: 0, y: 0 });
+      },
+      true,
+    );
   });
 
   const showConsole = () => {
