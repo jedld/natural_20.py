@@ -1,0 +1,121 @@
+---
+hit_die: 1d8
+weapon_proficiencies:
+- light_armor
+- simple
+- hand_crossbow
+- longsword
+- rapier
+- shortsword
+saving_throw_proficiencies:
+- dexterity
+- charisma
+# Per SRD bards may pick any 3 skills.  We expose a generous list here and
+# let the builder cap selections via available_skills_choices.
+available_skills_choices: 3
+available_skills:
+- acrobatics
+- animal_handling
+- arcana
+- athletics
+- deception
+- history
+- insight
+- intimidation
+- investigation
+- medicine
+- nature
+- perception
+- performance
+- persuasion
+- religion
+- sleight_of_hand
+- stealth
+- survival
+class_features:
+- bardic_inspiration
+- spellcasting
+progression:
+  level_2:
+    class_features:
+      - jack_of_all_trades
+      - song_of_rest
+spellcasting_ability: charisma
+spell_list:
+  cantrip:
+    - dancing_lights
+    - friends
+    - light
+    - mage_hand
+    - mending
+    - message
+    - minor_illusion
+    - prestidigitation
+    - true_strike
+    - vicious_mockery
+  level_1:
+    - animal_friendship
+    - bane
+    - charm_person
+    - comprehend_languages
+    - cure_wounds
+    - detect_magic
+    - disguise_self
+    - dissonant_whispers
+    - faerie_fire
+    - feather_fall
+    - healing_word
+    - heroism
+    - hideous_laughter
+    - identify
+    - illusory_script
+    - longstrider
+    - silent_image
+    - sleep
+    - speak_with_animals
+    - thunderwave
+    - unseen_servant
+  level_2:
+    - animal_messenger
+    - blindness/deafness
+    - calm_emotions
+    - cloud_of_daggers
+    - crown_of_madness
+    - detect_thoughts
+    - enhance_ability
+    - enthrall
+    - heat_metal
+    - hold_person
+    - invisibility
+    - knock
+    - lesser_restoration
+    - locate_animals_or_plants
+    - locate_object
+    - magic_mouth
+    - phantasmal_force
+    - see_invisibility
+    - shatter
+    - silence
+    - suggestion
+    - zone_of_truth
+proficiency_bonuses:
+- 2
+- 2
+- 2
+- 2
+- 3
+- 3
+- 3
+- 3
+- 4
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 5
+- 6
+- 6
+- 6
+- 6

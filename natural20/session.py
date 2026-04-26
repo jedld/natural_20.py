@@ -366,6 +366,9 @@ class Session:
             self.weapons[weapon] = weapons.get(weapon)
             if self.weapons[weapon] is not None:
                 self.weapons[weapon]['equippable'] = True
+                # Preserve the YAML id alongside (display) name so consumers
+                # (e.g. Monk weapon detection) can look up by id.
+                self.weapons[weapon].setdefault('id', weapon)
         return self.weapons[weapon]
 
     def load_weapons(self):

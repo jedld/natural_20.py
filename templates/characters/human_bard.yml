@@ -1,0 +1,47 @@
+---
+name: Lyra Sundance
+race: human
+pronoun: she/her/hers
+classes:
+  bard: 2
+description: A wandering human bard whose songs have a way of changing fates.
+level: 2
+hit_die: inherit
+max_hp: 17
+ability:
+  str: 10
+  dex: 14
+  con: 14
+  int: 12
+  wis: 10
+  cha: 16
+skills:
+- performance
+- persuasion
+- deception
+token:
+  - B
+weapon_proficiencies:
+- simple
+- hand_crossbow
+- longsword
+- rapier
+- shortsword
+- light_armor
+cantrips:
+- vicious_mockery
+- mage_hand
+prepared_spells:
+- healing_word
+- thunderwave
+- magic_missile
+- charm_person
+equipped:
+- rapier
+inventory:
+- type: rapier
+  qty: 1
+- type: dagger
+  qty: 1
+- type: healing_potion
+  qty: 1

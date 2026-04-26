@@ -1,0 +1,28 @@
+---
+name: Velka
+race: tiefling
+level: 1
+classes:
+  fighter: 1
+hit_die: inherit
+max_hp: 12
+ability:
+  str: 12
+  dex: 13
+  con: 12
+  int: 10
+  wis: 10
+  cha: 14
+skills:
+- deception
+- arcana
+token:
+  - T
+weapon_proficiencies:
+- simple
+- martial
+equipped:
+- dagger
+inventory:
+- type: dagger
+  qty: 1

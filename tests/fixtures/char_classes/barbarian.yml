@@ -1,0 +1,48 @@
+---
+hit_die: 1d12
+weapon_proficiencies:
+- light_armor
+- medium_armor
+- shields
+- simple
+- martial
+saving_throw_proficiencies:
+- strength
+- constitution
+available_skills_choices: 2
+available_skills:
+- animal_handling
+- athletics
+- intimidation
+- nature
+- perception
+- survival
+class_features:
+- rage
+- unarmored_defense_barbarian
+progression:
+  level_2:
+    class_features:
+      - reckless_attack
+      - danger_sense
+proficiency_bonuses:
+- 2
+- 2
+- 2
+- 2
+- 3
+- 3
+- 3
+- 3
+- 4
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 5
+- 6
+- 6
+- 6
+- 6

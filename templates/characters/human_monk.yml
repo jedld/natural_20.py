@@ -1,0 +1,36 @@
+---
+name: Brother Tian
+race: human
+pronoun: he/him/his
+classes:
+  monk: 2
+description: A serene human monk who channels ki to strike with sudden precision.
+level: 2
+hit_die: inherit
+max_hp: 17
+ability:
+  str: 13
+  dex: 16
+  con: 14
+  int: 10
+  wis: 16
+  cha: 10
+skills:
+- acrobatics
+- insight
+- religion
+- stealth
+token:
+  - M
+weapon_proficiencies:
+- simple
+- shortsword
+equipped:
+- shortsword
+inventory:
+- type: shortsword
+  qty: 1
+- type: dart
+  qty: 10
+- type: healing_potion
+  qty: 1

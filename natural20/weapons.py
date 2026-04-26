@@ -35,9 +35,34 @@ def damage_modifier(entity, weapon, second_hand=False):
     else:
         damage_roll = weapon.get('damage')
 
+    # Monk - Martial Arts (5e SRD): unarmed strikes and monk weapons may
+    # roll the Martial Arts die in place of the weapon's normal damage die.
+    if (
+        getattr(entity, 'class_feature', None)
+        and entity.class_feature('martial_arts')
+        and getattr(entity, 'martial_arts_die', None)
+        and getattr(entity, 'is_monk_weapon', None)
+        and entity.is_monk_weapon(weapon)
+    ):
+        ma_die = entity.martial_arts_die()
+        if ma_die:
+            damage_roll = ma_die
+
     # duelist class feature
     if entity.class_feature('dueling') and weapon.get('type') == 'melee_attack' and entity.used_hand_slots(weapon_only=True) <= 1.0:
         damage_mod += 2
+
+    # Barbarian - Rage (5e SRD): while raging, gain a damage bonus on
+    # melee weapon attacks that use STR.
+    if (
+        getattr(entity, 'is_raging', None)
+        and entity.is_raging()
+        and weapon.get('type') == 'melee_attack'
+        and entity.attack_ability_mod(weapon) == entity.str_mod()
+    ):
+        rage_bonus = entity.rage_damage_bonus()
+        if rage_bonus:
+            damage_mod += rage_bonus
 
     return f"{damage_roll}{f'+{damage_mod}' if damage_mod >= 0 else damage_mod}"
 
@@ -132,5 +157,21 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
 
         if source.class_feature('pack_tactics') and battle.ally_within_enemy_melee_range(source, target, source_pos=source_pos):
             advantage.append('pack_tactics')
+
+    # Barbarian - Reckless Attack (5e SRD): the attacker has advantage on
+    # melee weapon attack rolls using STR; in return, attack rolls against
+    # the attacker have advantage until the start of their next turn.
+    if weapon and not thrown and weapon.get('type') == 'melee_attack':
+        if (
+            getattr(source, 'is_reckless', None)
+            and source.is_reckless()
+            and source.attack_ability_mod(weapon) == source.str_mod()
+        ):
+            advantage.append('reckless_attack')
+        if getattr(target, 'is_reckless', None) and target.is_reckless():
+            advantage.append('target_is_reckless')
+    elif weapon and (thrown or weapon.get('type') == 'ranged_attack'):
+        if getattr(target, 'is_reckless', None) and target.is_reckless():
+            advantage.append('target_is_reckless')
 
     return [advantage, disadvantage]

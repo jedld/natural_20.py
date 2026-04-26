@@ -14,6 +14,16 @@
         <div class="indicator movement" style="background-color: teal;" title="Movement" data-toggle="tooltip" data-placement="top">
             <span>{{ entity.available_movement(battle) }}ft</span>
         </div>
+        {% if entity.max_ki|default(0) %}
+        <div class="indicator ki" style="background-color: #b07d00;" title="Ki Points" data-toggle="tooltip" data-placement="top">
+            <span>{{ entity.ki_count or 0 }}/{{ entity.max_ki }} Ki</span>
+        </div>
+        {% endif %}
+        {% if entity.rage_max|default(0) %}
+        <div class="indicator rage" style="background-color: #c0392b;" title="Rage Uses{% if entity.is_raging() %} - RAGING ({{ entity.rage_rounds_remaining }} rd){% endif %}" data-toggle="tooltip" data-placement="top">
+            <span>{{ entity.rage_count or 0 }}/{{ entity.rage_max }}{% if entity.is_raging() %} ⚔{% endif %}</span>
+        </div>
+        {% endif %}
     </div>
     {% else %}
     <div class="current-turn-information" style="">
