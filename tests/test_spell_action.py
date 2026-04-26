@@ -243,7 +243,65 @@ class TestSpellAction(unittest.TestCase):
                            )
         self.assertEqual([str(action) for action in actions], ['SpellAction: burning_hands to [0, 7]'])
         self.battle.execute_action(actions[0])
-        self.assertEqual(self.npc.hp(), 13)
+        # 5e: half damage on a successful save (3d6 → 10, half = 5).
+        self.assertEqual(self.npc.hp(), 8)
+
+    def test_burning_hands_base_damage_is_3d6(self):
+        # PHB 2014: "3d6 fire damage on a failed save" at 1st-level slot.
+        from natural20.spell.burning_hands_spell import BurningHandsSpell
+        spell_props = self.session.load_spell('burning_hands')
+        spell = BurningHandsSpell(self.session, self.entity, 'burning_hands', spell_props)
+        roll = spell._damage(self.battle, opts={'at_level': 1})
+        self.assertEqual(len(roll.rolls), 3)
+        self.assertEqual(roll.die_sides, 6)
+
+    def test_burning_hands_upcast_adds_d6_per_slot_above_1st(self):
+        # PHB 2014: "the damage increases by 1d6 for each slot level above 1st."
+        from natural20.spell.burning_hands_spell import BurningHandsSpell
+        spell_props = self.session.load_spell('burning_hands')
+        spell = BurningHandsSpell(self.session, self.entity, 'burning_hands', spell_props)
+        for at_level, expected in ((2, 4), (3, 5), (5, 7), (9, 11)):
+            roll = spell._damage(self.battle, opts={'at_level': at_level})
+            self.assertEqual(len(roll.rolls), expected,
+                             f"slot {at_level} should be {expected}d6")
+
+    def test_burning_hands_save_dc_uses_int_for_wizard(self):
+        # high_elf_mage has INT 18, WIS 12; the DC must use the higher
+        # arcane casting ability (INT) rather than wisdom.
+        from natural20.spell.burning_hands_spell import BurningHandsSpell
+        spell_props = self.session.load_spell('burning_hands')
+        spell = BurningHandsSpell(self.session, self.entity, 'burning_hands', spell_props)
+        # 8 + prof(2) + INT mod(+4) = 14
+        self.assertEqual(spell._save_dc(self.entity), 14)
+
+    def test_burning_hands_failed_save_deals_full_damage(self):
+        # Force the target to fail by mocking save_throw to return 0.
+        from natural20.spell.burning_hands_spell import BurningHandsSpell
+        spell_props = self.session.load_spell('burning_hands')
+        spell = BurningHandsSpell(self.session, self.entity, 'burning_hands', spell_props)
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[0, 6])
+        self.npc.reset_turn(self.battle)
+
+        class _FailRoll:
+            def __lt__(self, other): return True
+            def prob(self, _dc): return 1.0
+        original_save = self.npc.save_throw
+        self.npc.save_throw = lambda *a, **k: _FailRoll()
+        try:
+            action = SpellAction(self.session, self.entity, 'spell')
+            action.spell_action = spell
+            action.target = [0, 7]
+            action.at_level = 1
+            spell.action = action
+            results = spell.resolve(self.entity, self.battle, action, self.battle_map)
+        finally:
+            self.npc.save_throw = original_save
+        damage_results = [r for r in results if r['target'] is self.npc]
+        self.assertEqual(len(damage_results), 1)
+        # On a failed save, 'damage' equals the full roll (not halved).
+        self.assertIs(damage_results[0]['damage'], damage_results[0]['damage_roll'])
+        self.assertTrue(damage_results[0]['save_failed'])
 
     def test_compute_hit_probability(self):
         self.npc = self.session.npc('skeleton')

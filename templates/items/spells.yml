@@ -178,6 +178,25 @@ hellish_rebuke:
     - Warlock
     - Tiefling
   spell_class: Natural20::HellishRebuke
+silvery_barbs:
+  label: Silvery Barbs
+  casting_time: 1:reaction
+  components:
+    - verbal
+  description: |
+    When a creature you can see within 60 feet of you succeeds on an attack roll, an ability check, or a saving throw, you can use your reaction to force that creature to reroll and use the lower result. You can also choose another creature you can see within range; the chosen creature has advantage on the next attack roll, ability check, or saving throw it makes within 1 minute.
+  duration: 1m
+  level: 1
+  name: Silvery Barbs
+  range: 60
+  school: enchantment
+  type: utility
+  triggers_on_attack_success: true
+  spell_list_classes:
+    - Bard
+    - Sorcerer
+    - Wizard
+  spell_class: Natural20::SilveryBarbs
 darkness:
   label: Darkness
   casting_time: 1:action

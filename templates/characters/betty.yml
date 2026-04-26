@@ -7,6 +7,7 @@ classes:
 description: A half-orc barbarian whose savage strikes leave foes broken and battered.
 level: 2
 hit_die: inherit
+profile_image: characters/betty.png
 max_hp: 22
 ability:
   str: 16

@@ -378,3 +378,174 @@ class PathCompute:
                 # Once we exceed movement, no need to keep trailing nodes
                 break
         return trimmed
+
+    # ------------------------------------------------------------------
+    # Cross-map pathfinding (teleporter-aware)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _iter_teleporters_on(map_):
+        """Yield ``(teleporter_obj, x, y)`` for each non-Chasm Teleporter on
+        ``map_`` that has a usable ``target_map`` link. Chasms are intentionally
+        skipped — they are hazards, not stairs."""
+        from natural20.item_library.teleporter import Teleporter as _Teleporter
+        try:
+            items = list(map_.interactable_objects.items())
+        except Exception:
+            return
+        for obj, pos in items:
+            if not isinstance(obj, _Teleporter):
+                continue
+            # Skip chasms: they are hazards filtered by ``_is_avoidable_hazard``
+            # and must not be treated as a free portal during planning.
+            if isinstance(obj, Chasm):
+                continue
+            if not getattr(obj, 'target_map', None):
+                continue
+            if not getattr(obj, 'target_position', None):
+                continue
+            try:
+                x, y = int(pos[0]), int(pos[1])
+            except Exception:
+                continue
+            yield obj, x, y
+
+    def compute_cross_map_path(self, source_map, source_x, source_y,
+                               target_map, target_x, target_y,
+                               max_segments: int = 8):
+        """A* over a graph of (map, x, y) states linked by teleporters.
+
+        Each segment of the result is a single-map sub-path the entity must
+        walk; consecutive segments are stitched by stepping onto a teleporter
+        whose ``target_map`` lands them on the next segment's start tile.
+
+        Args:
+            source_map: starting :class:`Map` instance.
+            source_x, source_y: starting tile.
+            target_map: destination :class:`Map` instance.
+            target_x, target_y: destination tile.
+            max_segments: bail-out cap to keep planning bounded across very
+                large dungeons.
+
+        Returns:
+            A list of dicts ``[{ 'map': map_obj, 'path': [(x,y), ...],
+            'teleporter': obj_or_None, 'next_map': map_or_None }]`` or
+            ``None`` if no cross-map route exists. The first segment starts at
+            ``(source_x, source_y)`` and the final segment ends at
+            ``(target_x, target_y)``.
+        """
+        if source_map is None or target_map is None:
+            return None
+        if source_map is target_map:
+            path = self._compute_path_on(source_map, source_x, source_y,
+                                         target_x, target_y)
+            if path is None:
+                return None
+            return [{
+                'map': source_map,
+                'path': path,
+                'teleporter': None,
+                'next_map': None,
+            }]
+
+        # State = (map_id, x, y). Edges: teleporter portals (zero-cost), and
+        # a virtual edge from any teleporter on ``target_map`` directly to the
+        # goal weighted by single-map path length.
+        # For tractability we enumerate teleporter nodes only.
+        visited = set()
+        # priority queue of (cost, sequence, state, parent_state, segment_path,
+        #                    teleporter, current_map)
+        pq = []
+        seq = 0
+
+        def push(state, cost, parent, path, tport, cur_map):
+            nonlocal seq
+            seq += 1
+            heapq.heappush(pq, (cost, seq, state, parent, path, tport, cur_map))
+
+        start_state = (id(source_map), source_x, source_y)
+        push(start_state, 0.0, None, None, None, source_map)
+
+        # Predecessor table set at pop-time so Dijkstra optimality holds.
+        parents = {}  # state -> (parent_state, segment_path, teleporter, segment_map)
+        maps_by_id = {id(source_map): source_map, id(target_map): target_map}
+
+        goal_state = (id(target_map), target_x, target_y)
+        # Bound the search to avoid pathological exploration in huge dungeons.
+        max_pops = max(64, max_segments * 32)
+        pops = 0
+
+        while pq and pops < max_pops:
+            pops += 1
+            cost, _, state, parent, seg_path, tport_in, seg_map = heapq.heappop(pq)
+            if state in visited:
+                continue
+            visited.add(state)
+            if parent is not None:
+                parents[state] = (parent, seg_path, tport_in, seg_map)
+
+            map_id, x, y = state
+            current_map = maps_by_id.get(map_id)
+            if current_map is None:
+                continue
+
+            # Try direct hop to goal if we are on the target map.
+            if current_map is target_map:
+                direct = self._compute_path_on(current_map, x, y,
+                                               target_x, target_y)
+                if direct is not None:
+                    parents[goal_state] = (state, direct, None, current_map)
+                    return self._reconstruct_cross_map(goal_state, parents)
+
+            # Expand via teleporters on the current map.
+            for tport, tx, ty in self._iter_teleporters_on(current_map):
+                if (x, y) == (tx, ty):
+                    seg = [(x, y)]
+                else:
+                    seg = self._compute_path_on(current_map, x, y, tx, ty)
+                    if seg is None:
+                        continue
+                next_map = current_map.linked_maps.get(tport.target_map)
+                if next_map is None:
+                    continue
+                maps_by_id.setdefault(id(next_map), next_map)
+                tpos = tport.target_position
+                try:
+                    nxt_state = (id(next_map), int(tpos[0]), int(tpos[1]))
+                except Exception:
+                    continue
+                if nxt_state in visited:
+                    continue
+                # Cost = current segment length (in tiles); teleport hop free.
+                push(nxt_state, cost + len(seg), state, seg, tport, current_map)
+
+        return None
+
+    def _compute_path_on(self, map_, sx, sy, tx, ty):
+        """Compute a single-map path on ``map_`` while preserving the
+        configured ``ignore_opposing`` and entity context. Returns the raw
+        tile list (no movement-cost trimming) or ``None``."""
+        helper = PathCompute(self.battle, map_, self.entity,
+                             ignore_opposing=self.ignore_opposing)
+        return helper.compute_path(sx, sy, tx, ty)
+
+    def _reconstruct_cross_map(self, goal_state, parents):
+        chain = []
+        state = goal_state
+        while state in parents:
+            parent_state, seg, tport, cur_map = parents[state]
+            chain.append({
+                'map': cur_map,
+                'path': seg,
+                'teleporter': tport,
+                'next_map': None,  # filled in below
+            })
+            state = parent_state
+        chain.reverse()
+        # Fill ``next_map`` so callers know where each teleporter lands.
+        for segment in chain:
+            tport = segment['teleporter']
+            if tport is None:
+                continue
+            next_map = segment['map'].linked_maps.get(tport.target_map)
+            segment['next_map'] = next_map
+        return chain

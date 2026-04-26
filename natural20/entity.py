@@ -2593,6 +2593,9 @@ class Entity(EntityStateEvaluator, Notable):
         # Half-Orc Relentless Endurance recharges on a long rest.
         if hasattr(self, 'relentless_endurance_used'):
             self.relentless_endurance_used = False
+        # Tabaxi Feline Agility recharges on a long rest as a fallback.
+        if hasattr(self, 'feline_agility_used'):
+            self.feline_agility_used = False
 
         # Recover spent hit dice: floor(level/2), minimum 1, capped at max
         # per die type.  PCs track per-class hit-die maxima; NPCs use a

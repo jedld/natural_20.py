@@ -117,9 +117,37 @@ class AttackAction(Action):
             weapon = self.session.load_weapon(self.opts.get('using') or self.using)
             attack_mod = self.source.attack_roll_mod(weapon)
             i18n_token = 'action.attack_action_throw' if self.thrown else 'action.attack_action'
-            return self.t(i18n_token, name=str(self.action_type), weapon_name=weapon['name'],
+            weapon_name = weapon['name']
+            # Tabaxi - Cat's Claws: relabel unarmed strike as "Cat's Claws"
+            if (
+                getattr(self.source, 'class_feature', None)
+                and self.source.class_feature('cats_claws')
+                and 'unarmed' in (weapon.get('properties') or [])
+            ):
+                weapon_name = "Cat's Claws"
+            return self.t(i18n_token, name=str(self.action_type), weapon_name=weapon_name,
                      mod=f"+{attack_mod}" if attack_mod >= 0 else attack_mod,
                      dmg=damage_modifier(self.source, weapon, second_hand=self.second_hand()))
+
+    def weapon_icon(self):
+        """Asset slug for the action button image. Returns None to fall
+        back to the default `using`-based asset path.
+        """
+        if self.npc_action or not self.using:
+            return None
+        try:
+            weapon = self.session.load_weapon(self.using)
+        except Exception:
+            return None
+        if not weapon:
+            return None
+        if (
+            getattr(self.source, 'class_feature', None)
+            and self.source.class_feature('cats_claws')
+            and 'unarmed' in (weapon.get('properties') or [])
+        ):
+            return 'cats_claws'
+        return None
 
     def ranged_attack(self):
         weapon = self.get_attack_info(self.opts)
@@ -625,6 +653,15 @@ class AttackAction(Action):
             ammo_type = weapon.get('ammo', None)
             attack_mod = self.source.attack_roll_mod(weapon)
             damage_roll = damage_modifier(self.source, weapon, second_hand=self.second_hand())
+
+            # Tabaxi - Cat's Claws: unarmed strikes deal slashing damage.
+            if (
+                getattr(self.source, 'class_feature', None)
+                and self.source.class_feature('cats_claws')
+                and 'unarmed' in (weapon.get('properties') or [])
+            ):
+                weapon = dict(weapon)
+                weapon['damage_type'] = 'slashing'
 
         return weapon, attack_name, attack_mod, damage_roll, ammo_type
 

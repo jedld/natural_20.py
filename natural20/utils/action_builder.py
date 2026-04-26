@@ -5,6 +5,37 @@ from natural20.utils.movement import compute_actual_moves
 from natural20.map_renderer import MapRenderer
 import pdb
 
+
+def _tile_has_avoidable_hazard(map, entity, x, y):
+    """Return True if (x, y) holds a visible chasm and ``entity`` cannot fly.
+
+    Used to keep the movement autobuilder from offering single-step moves that
+    would dump a non-flying creature straight into a known pit.
+    """
+    if entity is not None:
+        is_flying = getattr(entity, 'is_flying', None)
+        if callable(is_flying):
+            try:
+                if is_flying():
+                    return False
+            except Exception:
+                pass
+    # Lazy import to avoid a circular import via item_library -> action_builder.
+    from natural20.item_library.chasm import Chasm
+    try:
+        objs = map.objects_at(x, y, reveal_concealed=False)
+    except TypeError:
+        try:
+            objs = map.objects_at(x, y)
+        except Exception:
+            return False
+    except Exception:
+        return False
+    for obj in objs:
+        if isinstance(obj, Chasm) and not obj.concealed():
+            return True
+    return False
+
 def acquire_targets(param, entity, battle, map=None):
     """
     Acquire all possible targets based on the target_types in `param`,
@@ -229,10 +260,16 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                     new_y = cur_y + dy
                     if (map.bidirectionally_passable(entity, new_x, new_y, (cur_x, cur_y), battle, allow_squeeze=False)
                             and map.placeable(entity, new_x, new_y, battle, squeeze=False)):
-                        
+
                         if _match and [new_x, new_y] not in _match:
                             continue
 
+                        # Don't offer one-step moves that would walk a
+                        # non-flying creature into a visible chasm. Path
+                        # planning already filters this for longer paths but
+                        # the movement autobuilder enumerates raw neighbours.
+                        if (not _match) and _tile_has_avoidable_hazard(map, entity, new_x, new_y):
+                            continue
                         chosen_path = [[cur_x, cur_y], [new_x, new_y]]
                         max_moves = entity.available_movement(battle) // 5
                         

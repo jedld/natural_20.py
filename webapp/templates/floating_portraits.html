@@ -17,14 +17,14 @@
     {% if entity.current_concentration() %}
     <div class="concentration-indicator">
         <div class="concentration-aura"></div>
-        <img src="{{ url_for('static', filename='spells/spell_' + entity.current_concentration().__str__() + '.png') }}" 
+        <img src="{{ url_for('static', filename='spells/spell_' + entity.current_concentration().__str__()|lower + '.png') }}" 
              alt="Concentration" 
              class="concentration-spell-icon">
     </div>
     {% endif %}
     <div class="effect">
         {% for effect in entity.effects_str() %}
-          <img src="{{ url_for('static', filename='assets/effect/' ~ effect ~ '.png') }}"
+          <img src="{{ url_for('static', filename='assets/effect/' ~ effect|lower ~ '.png') }}"
                class="effect-img"
                alt="{{ effect }}"
                data-tooltip="{{ effect }}">

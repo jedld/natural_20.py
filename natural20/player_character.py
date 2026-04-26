@@ -17,6 +17,7 @@ from natural20.actions.flurry_of_blows_action import FlurryOfBlowsAction
 from natural20.actions.patient_defense_action import PatientDefenseAction
 from natural20.actions.step_of_the_wind_action import StepOfTheWindAction
 from natural20.actions.martial_arts_bonus_attack_action import MartialArtsBonusAttackAction
+from natural20.actions.feline_agility_action import FelineAgilityAction
 from natural20.actions.bardic_inspiration_action import BardicInspirationAction
 from natural20.actions.wild_shape_action import WildShapeAction, RevertWildShapeAction, WildShapeAttackAction
 from natural20.entity_class import wild_shape as _wild_shape
@@ -65,6 +66,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     FlurryOfBlowsAction,
     PatientDefenseAction,
     StepOfTheWindAction,
+    FelineAgilityAction,
     BardicInspirationAction,
     WildShapeAction,
     RevertWildShapeAction,
@@ -221,6 +223,22 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       effective_speed = self.eval_effect('speed_override', { "stacked": True, "value" : effective_speed})
 
     return effective_speed
+
+  def climb_speed(self):
+    return self.race_properties.get('climb_speed')
+
+  def reset_turn(self, battle):
+    entity_state = battle.entity_state_for(self)
+    # Tabaxi Feline Agility recharges when the creature moves 0 ft on a turn.
+    if entity_state is not None and self.class_feature('feline_agility'):
+      last_start = getattr(self, '_feline_movement_start', None)
+      remaining = entity_state.get('movement', 0)
+      # If no movement was consumed last turn, recharge Feline Agility.
+      if last_start is not None and last_start > 0 and remaining >= last_start:
+        self.feline_agility_used = False
+    super().reset_turn(battle)
+    if entity_state is not None:
+      self._feline_movement_start = entity_state.get('movement', 0)
 
   def _wearing_armor_or_shield(self):
     if not self.equipped:
@@ -381,6 +399,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         elif action_type == StepOfTheWindAction:
           action_list.append(StepOfTheWindAction(session, self, 'step_of_the_wind', { 'mode': 'disengage' }))
           action_list.append(StepOfTheWindAction(session, self, 'step_of_the_wind', { 'mode': 'dash' }))
+        elif action_type == FelineAgilityAction:
+          action_list.append(FelineAgilityAction(session, self, 'feline_agility'))
         elif action_type == HideAction:
           action_list.append(HideAction(session, self, 'hide'))
         elif action_type == HideBonusAction:
@@ -562,11 +582,19 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     properties = []
     if getattr(self, 'class_feature', None) and self.class_feature('martial_arts'):
       properties.append('Martial Arts')
+    if getattr(self, 'class_feature', None) and self.class_feature('cats_claws'):
+      properties.append("Cat's Claws")
+    damage_type = weapon.get('damage_type', 'bludgeoning')
+    if getattr(self, 'class_feature', None) and self.class_feature('cats_claws'):
+      damage_type = 'slashing'
+    name = weapon.get('name', 'Unarmed Strike')
+    if getattr(self, 'class_feature', None) and self.class_feature('cats_claws'):
+      name = "Cat's Claws"
     return {
-      'name': weapon.get('name', 'Unarmed Strike'),
+      'name': name,
       'attack_bonus': attack_mod,
       'damage': damage_roll,
-      'damage_type': weapon.get('damage_type', 'bludgeoning'),
+      'damage_type': damage_type,
       'range': weapon.get('range', 5),
       'ability': ability,
       'properties': properties,
@@ -912,6 +940,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       'rage_rounds_remaining',
       'reckless_attack_active',
       'relentless_endurance_used',
+      'feline_agility_used',
     ):
       if hasattr(self, attr):
         class_resources[attr] = getattr(self, attr)
