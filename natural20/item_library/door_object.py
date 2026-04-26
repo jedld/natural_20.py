@@ -569,7 +569,16 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
 
     def available_interactions(self, entity, battle=None, admin=False):
         if self.is_secret and not admin:
-            return {}
+            # Hide interactions only if this entity has not yet perceived the
+            # secret door. Once revealed (via LookAction / Map.can_see), the
+            # door behaves like a normal door for that entity.
+            revealed = bool(
+                getattr(self, 'perception_results', {})
+                .get(entity, {})
+                .get('revealed')
+            )
+            if not revealed:
+                return {}
 
         return DoorObject.available_interactions(self, entity, battle, admin=admin)
 
