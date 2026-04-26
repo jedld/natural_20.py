@@ -429,6 +429,43 @@ class TestSecretDoorPerceptionDeathHouse(unittest.TestCase):
         self.assertTrue(len(objects) > 0, "Secret door should be visible with active perception from battle")
         self.assertEqual(objects[0]['name'], 'attic_secret_door')
 
+    # --- available_interactions / objects_near tests ---
+
+    def test_available_interactions_hidden_before_perception(self):
+        """A still-secret door must not expose any interactions to an entity that has not perceived it."""
+        pc = self._load_character('characters/halfling_rogue.yml', 'test_rogue', 4, 7)
+        self.assertTrue(self.secret_door.is_secret)
+        self.assertNotIn(pc, self.secret_door.perception_results)
+        self.assertEqual(self.secret_door.available_interactions(pc, battle=None), {})
+        self.assertNotIn(self.secret_door, self.map.objects_near(pc, None))
+
+    def test_available_interactions_open_after_perception_revealed(self):
+        """Once perception_results marks the door revealed for this entity, 'open' must be available."""
+        pc = self._load_character('characters/halfling_rogue.yml', 'test_rogue', 4, 7)
+        # Simulate a successful perception reveal scoped to this entity (no global is_secret flip).
+        self.secret_door.perception_results[pc] = {'perception_roll': 18, 'revealed': True}
+        self.assertTrue(self.secret_door.is_secret)  # still secret globally
+
+        actions = self.secret_door.available_interactions(pc, battle=None)
+        self.assertIn('open', actions, f"Expected 'open' interaction after reveal, got {actions}")
+        self.assertIn(self.secret_door, self.map.objects_near(pc, None))
+
+    def test_other_entity_still_blocked_after_one_entity_reveals(self):
+        """Per-entity reveal must not leak: other entities still see no interactions."""
+        rose = self._load_character('characters/halfling_rogue.yml', 'rose', 4, 7)
+        thorn = self._load_character('characters/halfling_rogue.yml', 'thorn', 4, 9)
+        self.secret_door.perception_results[rose] = {'perception_roll': 18, 'revealed': True}
+
+        self.assertIn('open', self.secret_door.available_interactions(rose, battle=None))
+        self.assertEqual(self.secret_door.available_interactions(thorn, battle=None), {})
+
+    def test_admin_always_sees_interactions(self):
+        """admin=True bypasses both the secret gate and the range check."""
+        pc = self._load_character('characters/halfling_rogue.yml', 'test_rogue', 0, 0)
+        self.assertTrue(self.secret_door.is_secret)
+        actions = self.secret_door.available_interactions(pc, battle=None, admin=True)
+        self.assertIn('open', actions)
+
 
 if __name__ == '__main__':
     unittest.main()
