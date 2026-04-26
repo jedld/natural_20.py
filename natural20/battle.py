@@ -167,6 +167,7 @@ class Battle():
             'legendary_actions': 0,
             'target_effect': {},
             'two_weapon': None,
+            'martial_arts_pending': False,
             'positions_entered': {},
             'controller': controller,
             'help_with': {}

@@ -1,0 +1,31 @@
+---
+name: Velka
+race: tiefling
+classes:
+  warlock: 3
+level: 3
+max_hp: 24
+hp: 24
+ability:
+  str: 10
+  dex: 14
+  con: 14
+  int: 10
+  wis: 10
+  cha: 16
+skills:
+- deception
+- arcana
+equipped:
+- dagger
+inventory:
+- type: dagger
+  qty: 1
+token:
+- T
+cantrips:
+  - eldritch_blast
+prepared_spells:
+  - hellish_rebuke
+  - darkness
+  - eldritch_blast

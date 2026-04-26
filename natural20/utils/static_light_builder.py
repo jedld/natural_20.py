@@ -90,4 +90,31 @@ class StaticLightBuilder:
 
                 intensity += 1.0 if in_bright else (0.5 if in_dim else 0.0)
 
+        # Magical darkness sources zero out non-magical light in their area.
+        if self.magical_darkness_at(pos_x, pos_y):
+            return 0.0
+
         return intensity
+
+    def magical_darkness_at(self, pos_x, pos_y):
+        """Return True if any magical-darkness source covers this square."""
+        feet_per_grid = self.map.feet_per_grid
+        entity_or_object_pos = self.map.entity_or_object_pos
+        for source in (self.map.entities, self.map.interactable_objects):
+            for entity in source:
+                if not hasattr(entity, 'dark_properties'):
+                    continue
+                dark = entity.dark_properties()
+                if not dark:
+                    continue
+                radius_squares = dark.get('radius', 0) / feet_per_grid
+                if radius_squares <= 0:
+                    continue
+                src_x, src_y = entity_or_object_pos(entity)
+                dx = pos_x - src_x
+                dy = pos_y - src_y
+                # Chebyshev/grid distance — Darkness "spreads around corners",
+                # so ignore line-of-sight blocking inside the radius.
+                if max(abs(dx), abs(dy)) <= radius_squares:
+                    return True
+        return False

@@ -1,0 +1,48 @@
+---
+name: Lahaina Waylen Alagondar
+race: human
+pronoun: she/her/hers
+classes:
+  druid: 2
+description: A wandering human druid who speaks the secret tongue of nature but is actual a heiress of the Alagondar Royal Family. She has a deep connection to the natural world and is fiercely protective of it, often using her druidic powers to defend the wilderness from those who would harm it. Despite her royal lineage, Lahaina prefers a simple life in the wilds, where she can commune with animals and plants. She is known for her kindness and compassion towards all living things, and is always willing to lend a helping hand to those in need.
+level: 2
+hit_die: inherit
+max_hp: 16
+ability:
+  str: 11
+  dex: 14
+  con: 13
+  int: 15
+  wis: 20
+  cha: 11
+skills:
+- nature
+- perception
+token:
+  - D
+weapon_proficiencies:
+- light_armor
+- medium_armor
+- shield
+- club
+- dagger
+- quarterstaff
+- scimitar
+- sling
+- spear
+cantrips:
+- guidance
+- poison_spray
+prepared_spells:
+- cure_wounds
+- healing_word
+- thunderwave
+equipped:
+- scimitar
+inventory:
+- type: scimitar
+  qty: 1
+- type: quarterstaff
+  qty: 1
+- type: healing_potion
+  qty: 1

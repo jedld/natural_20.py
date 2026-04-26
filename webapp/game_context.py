@@ -494,7 +494,10 @@ class GameContextProvider:
             if hasattr(battle_map, 'light_at'):
                 light_level = battle_map.light_at(x, y)
                 if light_level == 0.0:
-                    terrain_info["lighting"] = "darkness"
+                    if hasattr(battle_map, 'magical_darkness_at') and battle_map.magical_darkness_at(x, y):
+                        terrain_info["lighting"] = "magical_darkness"
+                    else:
+                        terrain_info["lighting"] = "darkness"
                 elif light_level == 0.5:
                     terrain_info["lighting"] = "dim"
                 else:

@@ -101,6 +101,7 @@ resistance:
   concentration: true
   spell_list_classes:
     - Cleric
+    - Druid
   spell_class: Natural20::Resistance
 guidance:
   label: Guidance
@@ -154,7 +155,52 @@ thunderwave:
   spell_list_classes:
     - Wizard
     - Sorcerer
+    - Druid
   spell_class: Natural20::Thunderwave
+hellish_rebuke:
+  label: Hellish Rebuke
+  casting_time: 1:reaction
+  damage_type: fire
+  description: |
+    You point your finger, and the creature that damaged you is momentarily surrounded by hellish flames. The creature must make a Dexterity saving throw. It takes 2d10 fire damage on a failed save, or half as much damage on a successful one.
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d10 for each slot level above 1st.
+  components:
+    - verbal
+    - somatic
+  duration: instant
+  level: 1
+  name: Hellish Rebuke
+  range: 60
+  school: evocation
+  type: ranged_attack
+  triggers_on_damage: true
+  spell_list_classes:
+    - Warlock
+    - Tiefling
+  spell_class: Natural20::HellishRebuke
+darkness:
+  label: Darkness
+  casting_time: 1:action
+  components:
+    - verbal
+    - material
+  concentration: true
+  description: |
+    Magical darkness spreads from a point you choose within range to fill a 15-foot-radius sphere for the duration. The darkness spreads around corners. A creature with darkvision can't see through this darkness, and nonmagical light can't illuminate it.
+    If the point you choose is on an object you are holding or one that isn't being worn or carried, the darkness emanates from the object and moves with it. Completely covering the source of the darkness with an opaque object, such as a bowl or a helm, blocks the darkness.
+    If any of this spell's area overlaps with an area of light created by a spell of 2nd level or lower, the spell that created the light is dispelled.
+  duration: 10m
+  level: 2
+  name: Darkness
+  radius: 15
+  range: 60
+  school: evocation
+  type: utility
+  spell_list_classes:
+    - Sorcerer
+    - Warlock
+    - Wizard
+  spell_class: Natural20::Darkness
 ice_knife:
   label: Ice Knife
   casting_time: 1:action
@@ -174,6 +220,7 @@ ice_knife:
   spell_list_classes:
     - Sorcerer
     - Wizard
+    - Druid
 guiding_bolt:
   label: Guiding Bolt
   casting_time: 1:action
@@ -209,6 +256,7 @@ cure_wounds:
   type: healing
   spell_list_classes:
     - Cleric
+    - Druid
 chill_touch:
   label: Chill Touch
   casting_time: 1:action
@@ -243,6 +291,7 @@ protection_from_poison:
   type: warding
   spell_list_classes:
     - Cleric
+    - Druid
   spell_class: Natural20::ProtectionFromPoison
 sacred_flame:
   label: Sacred Flame
@@ -436,6 +485,7 @@ healing_word:
   type: healing
   spell_list_classes:
     - Cleric
+    - Druid
   spell_class: Natural20::HealingWord
 mage_armor:
   label: Mage Armor
