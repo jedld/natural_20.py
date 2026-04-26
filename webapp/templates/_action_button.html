@@ -19,7 +19,7 @@
       <img src="{{ action_image_src }}" alt="{{ fallback_label }}" style="width: 50px; height: 50px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
       <span class="action-image-fallback">{{ fallback_label }}</span>
       {% if action.as_bonus_action %}
-      <div style="position: absolute; top: 0; left: 0; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; background-color: rgba(255,255,255,0.7); color: black; font-weight: bold;">
+      <div style="position: absolute; top: 0; left: 0; width: 50px; height: 50px; display: flex;  justify-content: center; background-color: rgba(255,255,255,0.4); color: black; font-weight: bold;">
         Bonus
       </div>
       {% endif %}

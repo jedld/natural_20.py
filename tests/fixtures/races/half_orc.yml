@@ -1,0 +1,16 @@
+label: Half-Orc
+base_speed: 30
+size: medium
+darkvision: 60
+attribute_bonus:
+  str: 2
+  con: 1
+skills:
+  - intimidation
+languages:
+  - common
+  - orc
+race_features:
+  - menacing
+  - relentless_endurance
+  - savage_attacks

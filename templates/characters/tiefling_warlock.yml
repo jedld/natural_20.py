@@ -1,0 +1,33 @@
+---
+name: Velka Hellfire
+race: tiefling
+pronoun: she/her/hers
+classes:
+  warlock: 2
+description: A tiefling warlock whose infernal heritage burns in her veins.
+level: 2
+hit_die: inherit
+max_hp: 16
+ability:
+  str: 8
+  dex: 14
+  con: 14
+  int: 12
+  wis: 10
+  cha: 16
+skills:
+- arcana
+- deception
+token:
+  - T
+weapon_proficiencies:
+- light_armor
+- simple
+equipped:
+- dagger
+inventory:
+- type: dagger
+  qty: 2
+- type: healing_potion
+  qty: 1
+alignment: chaotic_neutral

@@ -1,0 +1,40 @@
+---
+name: Betty
+race: half_orc
+pronoun: he/him/his
+classes:
+  barbarian: 2
+description: A half-orc barbarian whose savage strikes leave foes broken and battered.
+level: 2
+hit_die: inherit
+max_hp: 22
+ability:
+  str: 16
+  dex: 13
+  con: 16
+  int: 8
+  wis: 12
+  cha: 10
+skills:
+- athletics
+- intimidation
+token:
+  - G
+weapon_proficiencies:
+- light_armor
+- medium_armor
+- shields
+- simple
+- martial
+equipped:
+- greataxe
+inventory:
+- type: greataxe
+  qty: 1
+- type: handaxe
+  qty: 2
+- type: javelin
+  qty: 4
+- type: healing_potion
+  qty: 1
+alignment: chaotic_neutral

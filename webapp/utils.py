@@ -444,6 +444,14 @@ class GameManagement:
         self.force_llm_npc_combat = force_llm_npc_combat
         self.auto_battle = auto_battle
         self.auto_battle_distance_ft = int(os.environ.get('N20_AUTO_BATTLE_DISTANCE_FT', '30'))
+        # When False (default, non-PvP maps), auto-start combat only on an
+        # actually aggressive action (attack/spell/shove/grapple targeting an
+        # opposing entity). When True (PvP maps), proximity (within
+        # ``auto_battle_distance_ft``) and line-of-sight between opposing
+        # groups will also auto-start combat. This prevents incidental
+        # movement or self/ally-targeted spells from triggering combat in
+        # non-PvP campaigns.
+        self.pvp_enabled = False
         self.web_controllers = {}
         self.maps = {}
         self.max_save_states = 10
@@ -837,8 +845,17 @@ class GameManagement:
                                     distance_ft = None
 
                                 aggressive_trigger = frozenset((entity1, entity2)) in aggressive_pairs
-                                proximity_trigger = distance_ft is not None and distance_ft <= self.auto_battle_distance_ft
-                                visibility_trigger = battle_map.can_see(entity2, entity1)
+                                # In non-PvP maps, only an explicit aggressive
+                                # action should auto-start combat. Proximity
+                                # and visibility triggers are reserved for
+                                # PvP scenarios where opposing player teams
+                                # squaring off should always start initiative.
+                                if self.pvp_enabled:
+                                    proximity_trigger = distance_ft is not None and distance_ft <= self.auto_battle_distance_ft
+                                    visibility_trigger = battle_map.can_see(entity2, entity1)
+                                else:
+                                    proximity_trigger = False
+                                    visibility_trigger = False
 
                                 if aggressive_trigger or proximity_trigger or visibility_trigger:
                                     include_allies = aggressive_trigger or proximity_trigger

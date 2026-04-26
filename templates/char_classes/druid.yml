@@ -1,0 +1,105 @@
+---
+hit_die: 1d8
+weapon_proficiencies:
+- light_armor
+- medium_armor
+- shield
+- club
+- dagger
+- dart
+- javelin
+- mace
+- quarterstaff
+- scimitar
+- sickle
+- sling
+- spear
+saving_throw_proficiencies:
+- intelligence
+- wisdom
+available_skills_choices: 2
+available_skills:
+- arcana
+- animal_handling
+- insight
+- medicine
+- nature
+- perception
+- religion
+- survival
+class_features:
+- druidic
+- spellcasting
+progression:
+  level_2:
+    class_features:
+      - wild_shape
+      - druid_circle
+spellcasting_ability: wisdom
+spell_list:
+  cantrip:
+    - druidcraft
+    - guidance
+    - mending
+    - poison_spray
+    - produce_flame
+    - resistance
+    - shillelagh
+    - thorn_whip
+  level_1:
+    - animal_friendship
+    - charm_person
+    - create_or_destroy_water
+    - cure_wounds
+    - detect_magic
+    - detect_poison_and_disease
+    - entangle
+    - faerie_fire
+    - fog_cloud
+    - goodberry
+    - healing_word
+    - jump
+    - longstrider
+    - purify_food_and_drink
+    - speak_with_animals
+    - thunderwave
+  level_2:
+    - animal_messenger
+    - barkskin
+    - beast_sense
+    - darkvision
+    - enhance_ability
+    - find_traps
+    - flame_blade
+    - flaming_sphere
+    - gust_of_wind
+    - heat_metal
+    - hold_person
+    - lesser_restoration
+    - locate_animals_or_plants
+    - locate_object
+    - moonbeam
+    - pass_without_trace
+    - protection_from_poison
+    - spike_growth
+proficiency_bonuses:
+- 2
+- 2
+- 2
+- 2
+- 3
+- 3
+- 3
+- 3
+- 4
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 5
+- 6
+- 6
+- 6
+- 6

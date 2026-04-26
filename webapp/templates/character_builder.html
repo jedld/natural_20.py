@@ -52,7 +52,7 @@
                 <select class="form-control" id="race" name="race" required>
                   <option value="">-- Select Race --</option>
                   {% for rname, rprops in races.items() %}
-                    <option value="{{ rname }}">{{ rname|capitalize }}</option>
+                    <option value="{{ rname }}">{{ rprops.label or rname.replace('_', ' ')|title }}</option>
                   {% endfor %}
                 </select>
                 <div class="helper">Subrace may appear after selecting race.</div>

@@ -246,6 +246,13 @@ class AttackAction(Action):
             if entity_state and item.get('npc_action') and item['npc_action'].get('multiattack_group') and not item.get('as_reaction') and not item.get('as_bonus_action') and not item.get('as_legendary_action') and not item.get('second_hand'):
                 entity_state['multiattack_started'] = True
 
+            # Free attacks granted by other features (e.g., Monk Flurry of
+            # Blows) must not consume action economy or set follow-up flags.
+            if item.get('_free_attack'):
+                item['source'].break_stealth()
+                battle.dismiss_help_for(item['target'])
+                return
+
             if item.get('as_reaction'):
                 battle.consume(item['source'], 'reaction')
             elif item.get('as_bonus_action'):
@@ -265,6 +272,25 @@ class AttackAction(Action):
                 battle.entity_state_for(item['source'])['two_weapon'] = item['weapon']
             elif battle.entity_state_for(item['source']):
                 battle.entity_state_for(item['source'])['two_weapon'] = None
+
+            # Monk - Martial Arts: taking the Attack action with an unarmed
+            # strike or a monk weapon grants a bonus-action unarmed strike.
+            source_entity = item['source']
+            if (
+                weapon is not None
+                and not item.get('as_reaction')
+                and not item.get('as_bonus_action')
+                and not item.get('as_legendary_action')
+                and not item.get('second_hand')
+                and not item.get('_free_attack')
+                and getattr(source_entity, 'class_feature', None)
+                and source_entity.class_feature('martial_arts')
+                and getattr(source_entity, 'is_monk_weapon', None)
+                and source_entity.is_monk_weapon(weapon)
+            ):
+                state_ma = battle.entity_state_for(source_entity)
+                if state_ma is not None:
+                    state_ma['martial_arts_pending'] = True
 
             state = battle.entity_state_for(item['source'])
             if state:
@@ -371,6 +397,16 @@ class AttackAction(Action):
         if damage_roll is not None:
             damage = DieRoll.roll(damage_roll, crit=attack_roll.nat_20(), description='dice_roll.damage',
                                     entity=self.source, battle=battle)
+
+            # Half-Orc Savage Attacks: on a melee weapon crit, add one extra
+            # weapon damage die to the critical damage.
+            if (self.source.class_feature('savage_attacks')
+                    and attack_roll is not None and attack_roll.nat_20()
+                    and weapon.get('type') == 'melee_attack'):
+                extra = DieRoll.roll(f"1d{damage.die_sides}",
+                                     description='dice_roll.savage_attacks',
+                                     entity=self.source, battle=battle)
+                damage += extra
 
             if self.source.class_feature('great_weapon_fighting') and (weapon.get('properties') and 'two_handed' in weapon['properties'] or (weapon.get('properties') and 'versatile' in weapon['properties'] and self.source.used_hand_slots <= 1.0)):
                 for i, roll in enumerate(damage.rolls):

@@ -1,0 +1,15 @@
+label: Tiefling
+base_speed: 30
+size: medium
+darkvision: 60
+attribute_bonus:
+  cha: 2
+  int: 1
+languages:
+  - common
+  - infernal
+resistances:
+  - fire
+race_features:
+  - hellish_resistance
+  - infernal_legacy

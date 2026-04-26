@@ -37,6 +37,13 @@ from natural20.web.web_controller import WebController, ManualControl
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction, LinkedAttackAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.second_wind_action import SecondWindAction
+from natural20.actions.flurry_of_blows_action import FlurryOfBlowsAction
+from natural20.actions.patient_defense_action import PatientDefenseAction
+from natural20.actions.step_of_the_wind_action import StepOfTheWindAction
+from natural20.actions.martial_arts_bonus_attack_action import MartialArtsBonusAttackAction
+from natural20.actions.bardic_inspiration_action import BardicInspirationAction
+from natural20.actions.wild_shape_action import WildShapeAction, RevertWildShapeAction, WildShapeAttackAction
+from natural20.actions.rage_action import RageAction, RecklessAttackAction, EndRageAction
 from natural20.actions.disengage_action import DisengageAction, DisengageBonusAction
 from natural20.actions.dash import DashAction, DashBonusAction
 from natural20.actions.dodge_action import DodgeAction
@@ -467,6 +474,12 @@ current_game = GameManagement(game_session=game_session,
                               system_logger=logger,
                               soundtrack=SOUNDTRACKS,
                               defer_player_spawn=DEFER_PLAYER_SPAWN)
+
+# Enable PvP-style auto-battle triggers (proximity / line-of-sight) only when
+# the loaded campaign declares PvP teams. Non-PvP campaigns keep combat
+# manual unless an entity takes an actually aggressive action.
+_pvp_cfg = index_data.get('pvp_teams') or {}
+current_game.pvp_enabled = bool(_pvp_cfg.get('enabled'))
 
 # Ensure pending saves are flushed on process exit
 def _shutdown_flush():
@@ -1589,7 +1602,10 @@ def describe_terrain(tile):
                     effect_class = effect['effect']
                     description.append(str(effect_class))
     if (lights == 0.0):
-        description.append("Darkness (heavily obscured)")
+        if battle_map.magical_darkness_at(tile['x'], tile['y']):
+            description.append("Magical Darkness (heavily obscured)")
+        else:
+            description.append("Darkness (heavily obscured)")
     elif (lights == 0.5):
         description.append("Dim Light")
     else:
@@ -3943,6 +3959,28 @@ def action_type_to_class(action_type):
         return MageHandAction
     elif action_type == 'LayOnHandsAction':
         return LayOnHandsAction
+    elif action_type == 'FlurryOfBlowsAction':
+        return FlurryOfBlowsAction
+    elif action_type == 'PatientDefenseAction':
+        return PatientDefenseAction
+    elif action_type == 'StepOfTheWindAction':
+        return StepOfTheWindAction
+    elif action_type == 'MartialArtsBonusAttackAction':
+        return MartialArtsBonusAttackAction
+    elif action_type == 'BardicInspirationAction':
+        return BardicInspirationAction
+    elif action_type == 'WildShapeAction':
+        return WildShapeAction
+    elif action_type == 'RevertWildShapeAction':
+        return RevertWildShapeAction
+    elif action_type == 'WildShapeAttackAction':
+        return WildShapeAttackAction
+    elif action_type == 'RageAction':
+        return RageAction
+    elif action_type == 'EndRageAction':
+        return EndRageAction
+    elif action_type == 'RecklessAttackAction':
+        return RecklessAttackAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
 
@@ -5176,7 +5214,7 @@ def _entity_rest_snapshot(entity):
         },
         'statuses': list(entity.statuses) if hasattr(entity, 'statuses') else [],
     }
-    for attr in ('arcane_recovery', 'second_wind_count', 'lay_on_hands_count'):
+    for attr in ('arcane_recovery', 'second_wind_count', 'lay_on_hands_count', 'ki_count', 'max_ki', 'bardic_inspiration_count', 'bardic_inspiration_max', 'wild_shape_count', 'wild_shape_max', 'rage_count', 'rage_max', 'raging', 'rage_rounds_remaining', 'reckless_attack_active'):
         if hasattr(entity, attr):
             snapshot[attr] = getattr(entity, attr)
     return snapshot

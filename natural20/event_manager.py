@@ -464,7 +464,19 @@ class EventManager:
             ,
             'thunderwave_push': lambda event: self.output_logger.log(
                 f"{self.show_target_name(event)} is pushed by thunderwave to {event.get('position')}" if event.get('position') else f"{self.show_name(event)} resisted being moved by thunderwave."
-            )
+            ),
+            'rage_start': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} flies into a rage! ({event.get('rounds', 10)} rounds remaining)"
+            ),
+            'rage_end': lambda event: self.output_logger.log(
+                f"{self.show_name(event)}'s rage ends" + (f" ({event['reason']})" if event.get('reason') else "")
+            ),
+            'reckless_attack': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} attacks recklessly, granting and gaining advantage on melee attacks until their next turn."
+            ),
+            'darkness': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Darkness, filling a 15-foot sphere at {event.get('target')} with magical darkness."
+            ),
         }
 
         for event, handler in event_handlers.items():

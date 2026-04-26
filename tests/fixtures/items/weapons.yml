@@ -116,6 +116,24 @@ greatclub:
   subtype: weapon
   type: melee_attack
   weight: 10
+greataxe:
+  cost: 30
+  damage: 1d12
+  damage_type: slashing
+  meta:
+    noise_source: 5
+    noise_target: 5
+  modifiers: null
+  name: Greataxe
+  proficiency_type:
+    - martial
+  properties:
+    - heavy
+    - two_handed
+  range: 5
+  subtype: weapon
+  type: melee_attack
+  weight: 7
 hand_crossbow:
   ammo: bolts
   cost: 75
@@ -387,6 +405,8 @@ unarmed_attack:
   subtype: weapon
   type: melee_attack
   weight: 0
+  properties:
+    - unarmed
 vicious_rapier:
   bonus:
     additional:

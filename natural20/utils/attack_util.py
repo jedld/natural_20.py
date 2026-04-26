@@ -79,19 +79,152 @@ def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, op
                 qty, resource = spell_details['casting_time'].split(':')
 
                 if target.has_reaction(battle) and target.conscious() and resource == 'reaction':
-                    spell_name = spell_details['spell_class'].replace("Natural20::", "")
+                    # Only consider reaction spells whose trigger is an attack
+                    # roll (e.g. Shield). Damage-triggered reactions (e.g.
+                    # Hellish Rebuke) are handled by after_take_damage_hook.
+                    if spell_details.get('triggers_on_damage'):
+                        continue
 
-                    if spell_name == 'Shield':
-                        from natural20.spell.shield_spell import ShieldSpell
-                        spell_class = ShieldSpell
-                    else:
-                        raise Exception(f"spell class (reaction) not found {spell_name}")
-                    if hasattr(spell_class, 'after_attack_roll'):
-                        result, force_miss_result = spell_class.after_attack_roll(battle, target, source, attack_roll,
-                                                                                effective_ac, opts)
-                        force_miss = True if force_miss_result == 'force_miss' else force_miss
-                        events.append(result)
+                    spell_name = spell_details['spell_class'].replace("Natural20::", "")
+                    from natural20.utils.spell_loader import load_spell_class
+                    try:
+                        spell_class = load_spell_class(f"{spell_name}Spell")
+                    except Exception:
+                        continue
+                    if spell_class is None or not hasattr(spell_class, 'after_attack_roll'):
+                        continue
+                    result, force_miss_result = spell_class.after_attack_roll(battle, target, source, attack_roll,
+                                                                            effective_ac, opts)
+                    force_miss = True if force_miss_result == 'force_miss' else force_miss
+                    events.append(result)
 
         events = [item for sublist in events for item in sublist]
 
     return force_miss, events
+
+
+def after_take_damage_hook(battle, target, attacker, damage_opts=None):
+    """Trigger reaction-cost spells that fire when an entity takes damage.
+
+    Iterates the target's prepared spells, looking for entries flagged with
+    ``triggers_on_damage: true`` (e.g. Hellish Rebuke). For each such spell
+    that the target can still cast, the controller is asked whether to spend
+    the reaction. Returns a list of resolved event dicts (already applied via
+    ``damage_event``) for inclusion in the battle log.
+    """
+    if damage_opts is None:
+        damage_opts = {}
+
+    events = []
+
+    if target is None or attacker is None or attacker is target:
+        return events
+    if not hasattr(target, 'prepared_spells'):
+        return events
+    if not target.conscious():
+        return events
+    # Damage that originates from the spell itself must not loop back into
+    # another reaction cast on the same hit.
+    if damage_opts.get('source_spell') == 'hellish_rebuke':
+        return events
+
+    if battle is not None and not target.has_reaction(battle):
+        return events
+
+    session = target.session
+
+    for spell in target.prepared_spells():
+        spell_details = session.load_spell(spell)
+        if spell_details is None:
+            continue
+        casting_time = spell_details.get('casting_time', '')
+        if ':' not in casting_time:
+            continue
+        _, resource = casting_time.split(':')
+        if resource != 'reaction':
+            continue
+        if not spell_details.get('triggers_on_damage'):
+            continue
+
+        # Build a SpellAction inline (mirrors the Shield reaction wiring) so
+        # that resource accounting and consume() behave normally.
+        from natural20.actions.spell_action import SpellAction
+        from natural20.utils.spell_loader import load_spell_class
+
+        spell_class_name = spell_details.get('spell_class', '').replace('Natural20::', '') + 'Spell'
+        try:
+            spell_class = load_spell_class(spell_class_name)
+        except Exception:
+            continue
+
+        action = SpellAction(session, target, 'spell')
+        action.spell = spell_details
+        action.level = spell_details.get('level', 1)
+        action.at_level = action.level
+        action.spell_class = spell_class
+        spell_instance = spell_class(session, target, spell_class_name, spell_details)
+        spell_instance.action = action
+        action.spell_action = spell_instance
+        action.target = attacker
+
+        # Pick a spell slot (warlock/innate). We only require one if the spell
+        # is leveled and the caster has slots available.
+        slot_owner = target.owner if target.familiar() else target
+        if action.at_level > 0 and hasattr(slot_owner, 'next_spell_slot_level'):
+            for spell_class_str in spell_details.get('spell_list_classes', []):
+                class_key = spell_class_str.lower()
+                slot_level = slot_owner.next_spell_slot_level(class_key, action.at_level)
+                if slot_level is not None:
+                    action.at_level = slot_level
+                    action.spellcasting_class = class_key
+                    break
+
+        # Confirm the caster actually has resources for this reaction spell.
+        if not SpellAction.can_cast(target, battle, spell, at_level=action.at_level):
+            continue
+
+        # Range check: target must be within the spell's range.
+        distance_ft = 0
+        if battle is not None:
+            try:
+                bmap = battle.map_for(target)
+                if bmap is not None:
+                    distance_ft = bmap.distance(target, attacker) * 5
+            except Exception:
+                distance_ft = 0
+        if distance_ft > spell_details.get('range', 60):
+            continue
+
+        controller = battle.controller_for(target) if battle else None
+        chosen = action  # default: cast it (no-controller / test scenarios)
+        if controller is not None and hasattr(controller, 'select_reaction'):
+            try:
+                chosen = controller.select_reaction(
+                    target,
+                    battle,
+                    battle.map_for(target) if battle else None,
+                    [action],
+                    {
+                        'trigger': 'on_damage_taken',
+                        'attacker': attacker,
+                        'target': target,
+                        'spell': spell_details,
+                    },
+                )
+            except Exception:
+                chosen = None
+
+        if not chosen:
+            continue
+
+        results = spell_instance.resolve(target, battle, action, None)
+        spell_instance.consume(battle)
+
+        for r in results:
+            if r.get('type') == 'spell_damage':
+                # Mark so the recursive damage from this spell does not retrigger.
+                r['source_spell'] = 'hellish_rebuke'
+                damage_event(r, battle)
+            events.append(r)
+
+    return events

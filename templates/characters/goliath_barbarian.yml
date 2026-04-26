@@ -1,0 +1,41 @@
+---
+name: Betty Stonefist
+race: goliath
+pronoun: he/him/his
+classes:
+  barbarian: 2
+description: A goliath barbarian who channels primal fury into devastating axe strikes.
+level: 2
+hit_die: inherit
+max_hp: 22
+ability:
+  str: 17
+  dex: 14
+  con: 16
+  int: 8
+  wis: 12
+  cha: 10
+skills:
+- athletics
+- intimidation
+token:
+  - K
+weapon_proficiencies:
+- light_armor
+- medium_armor
+- shields
+- simple
+- martial
+equipped:
+- battleaxe
+- handaxe
+inventory:
+- type: battleaxe
+  qty: 1
+- type: handaxe
+  qty: 2
+- type: javelin
+  qty: 4
+- type: healing_potion
+  qty: 1
+alignment: chaotic_neutral

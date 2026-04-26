@@ -1,0 +1,28 @@
+name: Krag Stoneheart
+race: goliath
+classes:
+  barbarian: 2
+level: 2
+max_hp: 22
+hp: 22
+ability:
+  str: 17
+  dex: 14
+  con: 16
+  int: 8
+  wis: 12
+  cha: 10
+skills:
+- athletics
+- intimidation
+equipped:
+- battleaxe
+- handaxe
+inventory:
+- type: battleaxe
+  qty: 1
+- type: handaxe
+  qty: 2
+token:
+- K
+alignment: chaotic_neutral
