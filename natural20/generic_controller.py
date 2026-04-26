@@ -131,8 +131,20 @@ class GenericController(Controller):
         # choose available moves at random and return it
         available_actions = self._compute_available_moves(entity, battle)
         # environment, entity = self._build_environment(battle, entity)
-        selected_action = self.select_action(battle, entity, available_actions)
+        scored = self._sort_actions_with_scores(entity, battle, available_actions)
+        if not scored:
+            return None
+        selected_action, selected_score = scored[0]
         if isinstance(selected_action, MoveAction):
+            # If the best available move actively makes the situation worse
+            # (negative score) AND the entity is already engaged in melee,
+            # forfeit the remaining movement instead of wandering. This
+            # avoids NPCs that have exhausted their attacks walking away
+            # from adjacent melee targets and provoking opportunity attacks.
+            # We deliberately *do* allow negative-scored moves when not in
+            # melee, so out-of-combat exploration still works.
+            if selected_score < 0 and battle.enemy_in_melee_range(entity):
+                return None
             # Remove backtracking/oscillation from move paths
             if selected_action.move_path:
                 selected_action.move_path = simplify_path(selected_action.move_path)
@@ -219,6 +231,28 @@ class GenericController(Controller):
                 # Only keep markers on same map
                 if battle.map_for(e) == current_map:
                     investigate_location.setdefault(tuple(last_loc), {"priority": 1.0, "age": 0})
+                else:
+                    # Enemy crossed onto a linked map (e.g. through stairs/portal).
+                    # Seed the teleporter tile leading toward them so the NPC can
+                    # chase across maps.
+                    other_map = battle.map_for(e)
+                    if other_map is None:
+                        continue
+                    try:
+                        ex, ey = other_map.position_of(e)
+                    except Exception:
+                        continue
+                    plan = PathCompute(battle, current_map, entity, ignore_opposing=True) \
+                        .compute_cross_map_path(current_map, entity_x, entity_y,
+                                                other_map, ex, ey)
+                    if not plan:
+                        continue
+                    first_seg = plan[0]
+                    if first_seg.get('teleporter') is None:
+                        continue
+                    portal_tile = tuple(first_seg['path'][-1])
+                    investigate_location.setdefault(portal_tile,
+                                                    {"priority": 1.5, "age": 0})
             except Exception:
                 # If entity e no longer exists on map, discard
                 known_positions.pop(e, None)
@@ -307,10 +341,15 @@ class GenericController(Controller):
 
     # Sort actions based on success rate and damage
     def _sort_actions(self, entity, battle, available_actions):
+        return [a for a, _ in self._sort_actions_with_scores(entity, battle, available_actions)]
+
+    def _sort_actions_with_scores(self, entity, battle, available_actions):
         """
         Simple rules for performing combat actions:
         - Attack if available
         - Move towards the closest enemy
+
+        Returns a list of ``(action, score)`` tuples sorted by score descending.
         """
 
         current_map = battle.map_for(entity)
@@ -445,7 +484,29 @@ class GenericController(Controller):
                 return -1.0
             if battle.allies(entity, target):
                 return 1.25 if has_melee_pressure(target) else 0.5
-            return 0.9 if target.conscious() else 0
+            # Distracting an enemy (Help against an opponent) only matters if
+            # an ally is in melee range of that enemy and could capitalize on
+            # the granted advantage. A lone NPC distracting a foe wastes its
+            # action because no one else attacks the target.
+            try:
+                target_map = battle.map_for(target)
+                allies_in_melee = False
+                for nearby in target_map.look(target):
+                    if nearby is entity or nearby is target:
+                        continue
+                    if not getattr(nearby, 'conscious', lambda: False)():
+                        continue
+                    if not battle.allies(entity, nearby):
+                        continue
+                    reach = max(5, nearby.melee_distance() if hasattr(nearby, 'melee_distance') else 5)
+                    if target_map.distance(nearby, target) <= (reach / target_map.feet_per_grid):
+                        allies_in_melee = True
+                        break
+                if not allies_in_melee:
+                    return -0.5
+            except Exception:
+                return 0
+            return 0.9
 
         def score_control_action(action):
             target = getattr(action, 'target', None)
@@ -649,4 +710,4 @@ class GenericController(Controller):
         # Age investigation markers to decay/boost choices over time
         for k in list(investigate_location.keys()):
             investigate_location[k]['age'] = investigate_location[k].get('age', 0) + 1
-        return [a[0] for a in sorted_actions]
+        return sorted_actions

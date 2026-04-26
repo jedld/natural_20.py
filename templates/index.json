@@ -44,6 +44,11 @@
       "name": "chestnut_latchlifter",
       "file": "characters/chestnut_latchlifter.png",
       "description": "A newly forged kender warlock."
+    },
+    {
+      "name": "betty",
+      "file": "characters/betty.png",
+      "description": "A half-orc barbarian whose savage strikes leave foes broken and battered."
     }
   ],
   "logins": [
@@ -109,6 +114,13 @@
       "role": [
         "player"
       ]
+    },
+    {
+      "name": "betty",
+      "password": "betty",
+      "role": [
+        "player"
+      ]
     }
   ],
   "default_controllers": [
@@ -126,6 +138,10 @@
     },
     {
       "entity_uid": "rumblebelly",
+      "controllers": []
+    },
+    {
+      "entity_uid": "betty",
       "controllers": []
     }
   ]

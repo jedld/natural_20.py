@@ -35,6 +35,7 @@ def load_spell_class(spell_name):
     from natural20.spell.guidance_spell import GuidanceSpell
     from natural20.spell.hellish_rebuke_spell import HellishRebukeSpell
     from natural20.spell.darkness_spell import DarknessSpell
+    from natural20.spell.silvery_barbs_spell import SilveryBarbsSpell
     # Create a mapping of spell names to spell classes
     spell_classes = {
         'ShockingGraspSpell': ShockingGraspSpell,
@@ -72,6 +73,7 @@ def load_spell_class(spell_name):
         'GuidanceSpell': GuidanceSpell,
         'HellishRebukeSpell': HellishRebukeSpell,
         'DarknessSpell': DarknessSpell,
+        'SilveryBarbsSpell': SilveryBarbsSpell,
     }
 
     if spell_name not in spell_classes:

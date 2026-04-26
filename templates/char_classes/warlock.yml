@@ -30,6 +30,7 @@ spell_list:
     - thunderwave
   level_2:
     - misty_step
+    - darkness
 proficiency_bonuses:
 - 2
 - 2

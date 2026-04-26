@@ -40,6 +40,7 @@ from natural20.actions.second_wind_action import SecondWindAction
 from natural20.actions.flurry_of_blows_action import FlurryOfBlowsAction
 from natural20.actions.patient_defense_action import PatientDefenseAction
 from natural20.actions.step_of_the_wind_action import StepOfTheWindAction
+from natural20.actions.feline_agility_action import FelineAgilityAction
 from natural20.actions.martial_arts_bonus_attack_action import MartialArtsBonusAttackAction
 from natural20.actions.bardic_inspiration_action import BardicInspirationAction
 from natural20.actions.wild_shape_action import WildShapeAction, RevertWildShapeAction, WildShapeAttackAction
@@ -455,6 +456,29 @@ output_logger.log("Server started", visibility='public')
 
 event_manager = EventManager(output_logger=output_logger, movement_consolidation=True)
 event_manager.standard_cli()
+
+def _emit_narration_overlay(event):
+    narration = event.get('narration') or {}
+    entry = narration.get('on_enter') or {}
+    if not entry.get('text'):
+        return
+    map_name = event.get('map_name')
+    if not map_name:
+        source = event.get('source')
+        if source is not None:
+            try:
+                resolved_map = game_session.map_for(source)
+                if resolved_map is not None:
+                    map_name = resolved_map.name
+            except Exception:
+                map_name = None
+    socketio.emit('message', {
+        'type': 'narration',
+        'message': narration,
+        'map_name': map_name,
+    })
+
+event_manager.register_event_listener('narration', _emit_narration_overlay)
 game_session = GameSession.Session(LEVEL, event_manager=event_manager)
 game_session.render_for_text = False # render for text is disabled since we are using a web renderer
 current_soundtrack = None
@@ -3965,6 +3989,8 @@ def action_type_to_class(action_type):
         return PatientDefenseAction
     elif action_type == 'StepOfTheWindAction':
         return StepOfTheWindAction
+    elif action_type == 'FelineAgilityAction':
+        return FelineAgilityAction
     elif action_type == 'MartialArtsBonusAttackAction':
         return MartialArtsBonusAttackAction
     elif action_type == 'BardicInspirationAction':
@@ -5190,9 +5216,15 @@ def _wizard_arcane_recovery_state(entity):
 class _WebRestController:
     """Inline controller used to drive the engine's rest hooks from a request."""
 
-    def __init__(self, arcane_picks=None):
+    def __init__(self, arcane_picks=None, hit_die_picks=None):
         self._arcane_picks = list(arcane_picks or [])
+        # Queue of integer die types (e.g. 8 for d8) the entity should spend
+        # during the short rest. ``prompt_hit_die_roll`` returns each in order
+        # and yields 'skip' when the queue is empty so the engine stops
+        # spending dice.
+        self._hit_die_picks = list(hit_die_picks or [])
         self.consumed_picks = []
+        self.consumed_hit_die = []
 
     def arcane_recovery_ui(self, entity, available_levels):
         while self._arcane_picks:
@@ -5201,6 +5233,15 @@ class _WebRestController:
                 self.consumed_picks.append(level)
                 return level
         return None
+
+    def prompt_hit_die_roll(self, entity, available_die_types):
+        """Pull the next die type the player wants to spend, or 'skip'."""
+        while self._hit_die_picks:
+            die_type = self._hit_die_picks.pop(0)
+            if die_type in available_die_types:
+                self.consumed_hit_die.append(die_type)
+                return die_type
+        return 'skip'
 
 
 def _entity_rest_snapshot(entity):
@@ -5281,6 +5322,17 @@ def take_rest():
     except (TypeError, ValueError):
         return jsonify(success=False, error='arcane_picks must be integers'), 400
 
+    hit_die_picks = data.get('hit_die_picks') or []
+    if isinstance(hit_die_picks, str):
+        try:
+            hit_die_picks = [int(x) for x in hit_die_picks.split(',') if x.strip()]
+        except ValueError:
+            return jsonify(success=False, error='hit_die_picks must be integers'), 400
+    try:
+        hit_die_picks = [int(x) for x in hit_die_picks]
+    except (TypeError, ValueError):
+        return jsonify(success=False, error='hit_die_picks must be integers'), 400
+
     if rest_type not in ('short', 'long'):
         return jsonify(success=False, error='Invalid rest type'), 400
     if not entity_id:
@@ -5310,9 +5362,26 @@ def take_rest():
                 error=f'Arcane recovery picks total {sum(arcane_picks)} exceed budget {budget}'
             ), 400
 
+    # Validate hit-die picks against the entity's currently available hit dice.
+    if rest_type == 'short' and hit_die_picks:
+        if not hasattr(entity, 'hit_die'):
+            return jsonify(success=False, error='Entity has no hit dice to spend'), 400
+        available = dict(entity.hit_die() or {})
+        remaining = {int(k): int(v) for k, v in available.items()}
+        for die_type in hit_die_picks:
+            if remaining.get(die_type, 0) <= 0:
+                return jsonify(
+                    success=False,
+                    error=f'No d{die_type} hit dice available to spend'
+                ), 400
+            remaining[die_type] -= 1
+
     # Inject a controller so wizard arcane recovery can pick slots from request.
     controller_holder = {}
-    rest_controller = _WebRestController(arcane_picks=arcane_picks)
+    rest_controller = _WebRestController(
+        arcane_picks=arcane_picks,
+        hit_die_picks=hit_die_picks,
+    )
     if battle is not None:
         original_controller_for = battle.controller_for
 
@@ -5326,7 +5395,7 @@ def take_rest():
 
     try:
         if rest_type == 'short':
-            entity.short_rest(battle, force=force)
+            entity.short_rest(battle, force=force, prompt=bool(hit_die_picks))
             time_advance = 60 * 60  # 1 in-game hour
         else:
             entity.long_rest()
@@ -5354,6 +5423,7 @@ def take_rest():
             'before': before,
             'after': _entity_rest_snapshot(entity),
             'arcane_picks_consumed': rest_controller.consumed_picks,
+            'hit_die_consumed': rest_controller.consumed_hit_die,
             'game_time': current_game.game_session.game_time,
         })
     except ValueError as e:

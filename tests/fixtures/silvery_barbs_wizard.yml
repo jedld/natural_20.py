@@ -1,0 +1,26 @@
+---
+name: Argentia
+race: elf
+subrace: high_elf
+classes:
+  wizard: 3
+description: A wizard who knows Silvery Barbs
+level: 3
+hit_die: inherit
+max_hp: 18
+ability:
+  str: 8
+  dex: 14
+  con: 14
+  int: 18
+  wis: 12
+  cha: 10
+spellbook:
+  - silvery_barbs
+  - shield
+  - magic_missile
+prepared_spells:
+  - silvery_barbs
+  - magic_missile
+  - shield
+inventory: []
