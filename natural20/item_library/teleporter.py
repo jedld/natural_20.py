@@ -12,7 +12,22 @@ class Teleporter(Object):
     def on_enter(self, entity: Entity, map, battle=None):
         entity_placed = False
         if self.target_map:
-            target_map = map.linked_maps[self.target_map]
+            target_map = map.linked_maps.get(self.target_map)
+            if target_map is None:
+                # Misconfigured link (typo or map not registered in the
+                # session). Don't raise — that would silently abort the move
+                # loop and leave the entity stuck on the source tile. Log a
+                # console event so the DM/devs can spot the bad data.
+                if getattr(map, 'session', None) and getattr(map.session, 'event_manager', None):
+                    map.session.event_manager.received_event({
+                        "event": 'console', "target": map, "source": entity,
+                        "message": (
+                            f"{entity.name} stepped on {self.label()} but "
+                            f"target_map '{self.target_map}' is not linked. "
+                            f"Available maps: {sorted(map.linked_maps.keys())}"
+                        ),
+                    })
+                return
             if target_map.placeable(entity, *self.target_position, squeeze=False):
                 target_map.place(self.target_position, entity)
                 entity_placed = True
@@ -57,7 +72,22 @@ class Teleporter(Object):
 
     def jump_required(self):
         return False
-    
+
+    def is_visible_marker(self):
+        """Whether this teleporter should be drawn with a tile-border marker
+        on the web map. Configurable per-instance via the YAML key ``visible``
+        (alias: ``marker``). Defaults to False so existing maps are unchanged.
+        """
+        props = getattr(self, 'properties', {}) or {}
+        return bool(props.get('visible') or props.get('marker'))
+
+    def marker_color(self):
+        """CSS color used for the visible-teleporter border. Configurable via
+        the YAML key ``marker_color``; defaults to green.
+        """
+        props = getattr(self, 'properties', {}) or {}
+        return props.get('marker_color') or '#22c55e'
+
     def to_dict(self):
         hash =  super().to_dict()
         hash['target_map'] = self.target_map

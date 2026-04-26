@@ -1075,6 +1075,16 @@ input.initiative-input.form-control {
   z-index: 1002;
 }
 
+.teleporter-marker {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 2px solid var(--teleporter-marker-color, #22c55e);
+  box-shadow: 0 0 4px var(--teleporter-marker-color, #22c55e) inset;
+  box-sizing: border-box;
+  z-index: 1001;
+}
+
 .secret-door-marker-line {
   position: absolute;
   background-color: #b30000;

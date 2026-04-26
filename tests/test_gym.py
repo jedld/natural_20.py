@@ -93,12 +93,13 @@ class TestGym(unittest.TestCase):
             (5, (-1, -1), (0, 0), 0, 0),
             (11, (-1, -1), (0, 0), 0, 0),
             (1, (0, 1), (0, 0), 0, 0),
-            (1, (1, 0), (0, 0), 0, 0),
-            (1, (1, 1), (0, 0), 0, 0),
             (10, (-1, -1), (0, 0), 0, 0),
             (-1, (0, 0), (0, 0), 0, 0)
         }
         # available moves can include more than the minimal set; ensure the expected core options are present
+        # Note: squares (1,0) and (1,1) are occupied by the (Large) ogre that
+        # correctly holds its melee position after attacking, so move-by
+        # offsets into those squares are not expected here.
         self.assertTrue(expected_subset.issubset(set(info['available_moves'])))
         # check for presence of 2 weapon attack (as bonus action)
         actions = [action for action in info['available_moves'] if action[0] == 9]

@@ -1,5 +1,13 @@
 import pdb
 
+
+def _die_size(die_str):
+    try:
+        return int(die_str.split('d', 1)[1])
+    except (ValueError, IndexError, AttributeError):
+        return 0
+
+
 def compute_max_weapon_range(session, action, range=None):
     if isinstance(action, dict):
         return action.get('max_range', action.get('range'))
@@ -47,6 +55,19 @@ def damage_modifier(entity, weapon, second_hand=False):
         ma_die = entity.martial_arts_die()
         if ma_die:
             damage_roll = ma_die
+
+    # Tabaxi - Cat's Claws: unarmed strikes deal 1d4 slashing damage.
+    # Only override when the weapon is the unarmed strike itself, and
+    # avoid downgrading a larger Monk Martial Arts die.
+    if (
+        getattr(entity, 'class_feature', None)
+        and entity.class_feature('cats_claws')
+        and 'unarmed' in (weapon.get('properties') or [])
+    ):
+        cur = damage_roll
+        cur_size = _die_size(cur) if isinstance(cur, str) and 'd' in cur else 0
+        if cur_size < 4:
+            damage_roll = '1d4'
 
     # duelist class feature
     if entity.class_feature('dueling') and weapon.get('type') == 'melee_attack' and entity.used_hand_slots(weapon_only=True) <= 1.0:

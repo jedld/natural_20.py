@@ -450,6 +450,7 @@ class EventManager:
             'find_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} creates a familiar {event['familiar'].name}"),
             'look': look,
             'message': lambda event: self.output_logger.log(f"{self.show_name(event)}: {event['message']}"),
+            'narration': self._handle_narration_event,
             'secret_door_discovered': secret_door_discovered,
             # New event handlers:
             'lockpick_success': lambda event: self.output_logger.log(
@@ -484,6 +485,16 @@ class EventManager:
 
     def show_name(self, event):
         return self.decorate_name(event['source'])
+
+    def _handle_narration_event(self, event):
+        narration = event.get('narration') or {}
+        entry = narration.get('on_enter') or {}
+        text = entry.get('text')
+        if not text:
+            return
+        title = entry.get('title')
+        prefix = f"[Narration] {title}: " if title else "[Narration] "
+        self.output_logger.log(f"{prefix}{text}")
 
     def show_target_name(self, event):
         if 'targets' in event:

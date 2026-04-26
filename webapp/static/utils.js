@@ -19,8 +19,16 @@ const Utils = {
     ajaxPost('/switch_map', { map: mapId }, (data) => {
       console.log('Map selection successful:', data);
       $('#mapModal').modal('hide');
+      // The new map will have a different .tiles-container bounding rect and
+      // possibly a different tile size, so any cached pathfinding origin or
+      // memoized /path responses from the previous map are stale.
+      try { if (typeof clearMovePathCache === 'function') clearMovePathCache(); } catch (e) { }
+      Utils.invalidateMovementGridCache();
       Utils.refreshTileSet(callback = () => {
         Utils.updateMapDisplay(data, canvas);
+        // Re-invalidate after DOM swap so the next draw recomputes from the
+        // freshly mounted tiles container.
+        Utils.invalidateMovementGridCache();
         // Refresh portraits when map is switched
         Utils.refreshPortraits();
         // Show narration if present

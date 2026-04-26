@@ -75,6 +75,7 @@ spell_list:
     - speak_with_animals
     - thunderwave
     - unseen_servant
+    - silvery_barbs
   level_2:
     - animal_messenger
     - blindness/deafness

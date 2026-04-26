@@ -100,7 +100,94 @@ def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, op
 
         events = [item for sublist in events for item in sublist]
 
+    # Third-party reaction scan: spells like Silvery Barbs trigger from any
+    # creature within range that can see the attacker, not just the target.
+    third_party_events = _third_party_reaction_scan(
+        battle, target if not isinstance(target, list) else (target[0] if target else None),
+        source, attack_roll, effective_ac, opts,
+    )
+    events.extend(third_party_events)
+
     return force_miss, events
+
+
+def _third_party_reaction_scan(battle, target, source, attack_roll, effective_ac, opts):
+    """Scan all entities on the map for reaction spells that fire on a
+    successful attack made by another creature (e.g. Silvery Barbs).
+
+    Returns a flat list of resolved event dicts.
+    """
+    events = []
+    if battle is None or attack_roll is None or source is None:
+        return events
+
+    # Only scan when the attack has actually succeeded — third-party reactions
+    # like Silvery Barbs are only triggered on a hit.
+    if attack_roll.nat_1():
+        return events
+    if not attack_roll.nat_20() and attack_roll.result() < effective_ac:
+        return events
+
+    try:
+        bmap = battle.map_for(source)
+    except Exception:
+        bmap = None
+    if bmap is None:
+        return events
+
+    try:
+        candidates = list(battle.entities.keys())
+    except Exception:
+        return events
+
+    from natural20.utils.spell_loader import load_spell_class
+
+    seen = set()
+    for caster in candidates:
+        if caster is None or caster is source or caster is target:
+            continue
+        if id(caster) in seen:
+            continue
+        seen.add(id(caster))
+        if not hasattr(caster, 'prepared_spells'):
+            continue
+        if not caster.conscious() or not caster.has_reaction(battle):
+            continue
+
+        for spell in caster.prepared_spells():
+            spell_details = caster.session.load_spell(spell)
+            if not spell_details:
+                continue
+            if not spell_details.get('triggers_on_attack_success'):
+                continue
+            casting_time = spell_details.get('casting_time', '')
+            if ':' not in casting_time:
+                continue
+            _, resource = casting_time.split(':')
+            if resource != 'reaction':
+                continue
+
+            spell_class_name = spell_details.get('spell_class', '').replace('Natural20::', '') + 'Spell'
+            try:
+                spell_class = load_spell_class(spell_class_name)
+            except Exception:
+                continue
+            if spell_class is None or not hasattr(spell_class, 'after_attack_roll'):
+                continue
+            try:
+                result, _force = spell_class.after_attack_roll(
+                    battle, caster, source, attack_roll, effective_ac, opts,
+                )
+            except Exception:
+                continue
+            if result:
+                events.extend(result)
+            # Stop scanning further spells for this caster — they only get
+            # one reaction.
+            if not caster.has_reaction(battle):
+                break
+
+    return events
 
 
 def after_take_damage_hook(battle, target, attacker, damage_opts=None):

@@ -302,28 +302,35 @@ class Object(Entity, Container, EventLoader):
                 self.check_results[entity] = {}
             self.check_results[entity][action] = result.get('roll')
 
-            if result.get('success'):
+            ability = result.get('ability')
+            outcome = 'success' if result.get('success') else 'failure'
+            self.session.event_manager.received_event({
+                "event": f"ability_check",
+                "ability": ability,
+                "roll": result.get('roll'),
+                "dc": result.get('dc'),
+                "success": result.get('success'),
+                "source": entity,
+                "target": self
+            })
+            # Surface the configured success/failure text to the chat log so
+            # the player sees the outcome narration. When the YAML provides
+            # the dict form (e.g. {message: ..., events: [...]}) the events
+            # list is registered separately via event_loader and will emit
+            # its own messages, so we only auto-broadcast the plain-string
+            # form here to avoid duplication.
+            outcome_props = (self.properties.get('ability_checks', {})
+                             .get(ability, {})
+                             .get(outcome))
+            outcome_message = outcome_props if isinstance(outcome_props, str) else None
+            if outcome_message:
                 self.session.event_manager.received_event({
-                    "event": f"ability_check",
-                    "ability": result.get('ability'),
-                    "roll": result.get('roll'),
-                    "dc": result.get('dc'),
-                    "success": True,
+                    "event": "message",
                     "source": entity,
-                    "target": self
+                    "target": self,
+                    "message": outcome_message,
                 })
-                self.resolve_trigger(f"{result.get('ability')}_check_success")
-            else:
-                self.session.event_manager.received_event({
-                    "event": f"ability_check",
-                    "ability": result.get('ability'),
-                    "roll": result.get('roll'),
-                    "dc": result.get('dc'),
-                    "success": False,
-                    "source": entity,
-                    "target": self
-                })
-                self.resolve_trigger(f"{result.get('ability')}_check_failure")
+            self.resolve_trigger(f"{ability}_check_{outcome}")
             return True
         return False
 

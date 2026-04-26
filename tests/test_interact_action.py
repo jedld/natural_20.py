@@ -72,6 +72,124 @@ class TestInteractAction(unittest.TestCase):
   
         self.assertListEqual(_investigate_list, ['(success) The door is not trapped'])
 
+    def test_ability_check_string_outcome_emits_message_event(self):
+        """When ability_checks.<ability>.success/failure is a plain string,
+        Object.use should auto-broadcast it as a `message` event so the
+        configured outcome text surfaces to the chat log (regression for
+        the Death House nursery 'Part the shroud' bug).
+        """
+        from natural20.item_library.object import Object as N20Object
+
+        captured = []
+        self.session.event_manager.register_event_listener(
+            'message', lambda evt: captured.append(evt)
+        )
+
+        properties = {
+            'name': 'plinth',
+            'type': 'note',
+            'ability_checks': {
+                'investigation': {
+                    'prompt': 'Inspect plinth',
+                    'dc': 1,
+                    'success': 'You discover a hidden rune.',
+                    'failure': 'You find nothing of note.',
+                },
+            },
+        }
+        plinth = N20Object(self.session, self.battle_map, properties)
+
+        # Force success path
+        result = {
+            'action': 'investigation_check',
+            'ability': 'investigation',
+            'check_type': 'check',
+            'roll': FakeRoll('d20(20)+0', 20),
+            'dc': 1,
+            'success': True,
+        }
+        plinth.use(self.entity, result, self.session)
+        success_msgs = [e for e in captured if e['message'] == 'You discover a hidden rune.']
+        self.assertEqual(len(success_msgs), 1)
+        self.assertIs(success_msgs[0]['target'], plinth)
+
+        # Force failure path on a fresh object so check_results don't disable it
+        captured.clear()
+        plinth2 = N20Object(self.session, self.battle_map, properties)
+        result_fail = {
+            'action': 'investigation_check',
+            'ability': 'investigation',
+            'check_type': 'check',
+            'roll': FakeRoll('d20(1)+0', 1),
+            'dc': 99,
+            'success': False,
+        }
+        plinth2.use(self.entity, result_fail, self.session)
+        failure_msgs = [e for e in captured if e['message'] == 'You find nothing of note.']
+        self.assertEqual(len(failure_msgs), 1)
+
+    def test_ability_check_dict_outcome_does_not_duplicate_message(self):
+        """When success is a dict with `message` and `events`, the events
+        list handles broadcast — Object.use must NOT also auto-broadcast
+        the inspector-only `message` field."""
+        captured = []
+        self.session.event_manager.register_event_listener(
+            'message', lambda evt: captured.append(evt)
+        )
+
+        # The fixture front_door uses dict-form success with
+        # message='(success) The door is not trapped' and events broadcasting
+        # 'You open the door'. Only the events-list message should appear,
+        # NOT the inspector-only top-level message.
+        action = autobuild(
+            self.session, InteractAction, self.entity, self.battle,
+            match=[self.door, 'investigation_check'], verbose=False
+        )[0]
+        self.battle.action(action)
+        self.battle.commit(action)
+
+        messages = [e['message'] for e in captured]
+        # Inspector-only text must NOT be broadcast
+        self.assertNotIn('(success) The door is not trapped', messages)
+
+    def test_event_with_narration_emits_narration_event(self):
+        """When an event entry includes a `narration` block, GenericEventHandler
+        should emit a `narration` event (in addition to any `message`) so the
+        webapp can surface it via the DM narration overlay."""
+        from natural20.concern.generic_event_handler import GenericEventHandler
+
+        captured_narration = []
+        captured_messages = []
+        self.session.event_manager.register_event_listener(
+            'narration', lambda evt: captured_narration.append(evt)
+        )
+        self.session.event_manager.register_event_listener(
+            'message', lambda evt: captured_messages.append(evt)
+        )
+
+        handler = GenericEventHandler(self.session, self.battle_map, {
+            'event': 'investigation_check_success',
+            'message': 'You uncover the hidden bundle.',
+            'narration': {
+                'title': 'Part the Shroud',
+                'text': 'You steel yourself and draw aside the dusty black shroud.',
+                'once': False,
+            },
+        })
+        handler.handle(self.entity)
+
+        self.assertEqual(len(captured_narration), 1)
+        evt = captured_narration[0]
+        self.assertEqual(evt['event'], 'narration')
+        self.assertIn('on_enter', evt['narration'])
+        self.assertEqual(evt['narration']['on_enter']['title'], 'Part the Shroud')
+        self.assertEqual(
+            evt['narration']['on_enter']['text'],
+            'You steel yourself and draw aside the dusty black shroud.',
+        )
+        # The companion message event still fires
+        self.assertTrue(any(m['message'] == 'You uncover the hidden bundle.' for m in captured_messages))
+
     def test_opening_and_closing_doors(self):
         print(MapRenderer(self.battle_map).render())
         build = InteractAction.build(self.session, self.entity)

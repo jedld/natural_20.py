@@ -64,7 +64,7 @@ def _wild_shape_duration_rounds(druid_level):
   return hours * 600
 
 
-def _apply_beast_overlay(druid, props, set_full_hp=True):
+def _apply_beast_overlay(druid, props, set_full_hp=True, beast_id=None):
   """Overlay beast statblock onto druid (no snapshot capture)."""
   new_scores = copy.deepcopy(druid.ability_scores)
   beast_ability = props.get('ability', {})
@@ -88,6 +88,18 @@ def _apply_beast_overlay(druid, props, set_full_hp=True):
   druid.properties['attributes'] = props.get('attributes', []) or []
   druid.properties['resistances'] = props.get('resistances', []) or []
 
+  # Token / portrait overlay so the VTT renders the beast form.
+  beast_token = props.get('token')
+  if beast_token is not None:
+    druid.properties['token'] = copy.deepcopy(beast_token)
+  beast_token_image = props.get('token_image')
+  if not beast_token_image:
+    kind = props.get('kind') or beast_id
+    if kind:
+      beast_token_image = f"token_{str(kind).lower().replace(' ', '_')}.png"
+  if beast_token_image:
+    druid.properties['token_image'] = beast_token_image
+
   druid.npc_actions = copy.deepcopy(props.get('actions', []))
 
 
@@ -108,9 +120,13 @@ def transform(druid, beast_id):
     'default_ac': druid.properties.get('default_ac'),
     'attributes_list': copy.deepcopy(druid.properties.get('attributes')),
     'resistances': copy.deepcopy(druid.properties.get('resistances')),
+    'token': copy.deepcopy(druid.properties.get('token')),
+    'token_image_property': druid.properties.get('token_image'),
+    'has_token_key': 'token' in druid.properties,
+    'has_token_image_key': 'token_image' in druid.properties,
   }
 
-  _apply_beast_overlay(druid, props, set_full_hp=True)
+  _apply_beast_overlay(druid, props, set_full_hp=True, beast_id=beast_id)
 
   druid._wild_shape_state = {
     'form': beast_id,
@@ -144,6 +160,15 @@ def scrub_properties_for_serialization(properties, state):
       out.pop(key, None)
     else:
       out[key] = copy.deepcopy(val)
+  # Token / token_image: only restore the key if the original had it.
+  for key, snap_key, has_key in (
+    ('token', 'token', 'has_token_key'),
+    ('token_image', 'token_image_property', 'has_token_image_key'),
+  ):
+    if snap.get(has_key):
+      out[key] = copy.deepcopy(snap.get(snap_key))
+    else:
+      out.pop(key, None)
   return out
 
 
@@ -157,7 +182,7 @@ def reapply_after_load(druid):
   beast = state.get('beast_props')
   if not beast:
     return
-  _apply_beast_overlay(druid, beast, set_full_hp=False)
+  _apply_beast_overlay(druid, beast, set_full_hp=False, beast_id=state.get('form'))
 
 
 def revert(druid, overflow_damage=0, battle=None):
@@ -198,6 +223,16 @@ def revert(druid, overflow_damage=0, battle=None):
       druid.properties.pop(key, None)
     else:
       druid.properties[key] = val
+
+  # Restore token / portrait. Only re-add the key if the original had it.
+  for key, snap_key, has_key in (
+    ('token', 'token', 'has_token_key'),
+    ('token_image', 'token_image_property', 'has_token_image_key'),
+  ):
+    if snap.get(has_key):
+      druid.properties[key] = copy.deepcopy(snap.get(snap_key))
+    else:
+      druid.properties.pop(key, None)
 
   druid.npc_actions = []
   druid._wild_shape_state = None

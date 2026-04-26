@@ -1,0 +1,17 @@
+label: Tabaxi
+base_speed: 30
+size: medium
+darkvision: 60
+climb_speed: 20
+attribute_bonus:
+  dex: 2
+  cha: 1
+skills:
+  - perception
+  - stealth
+languages:
+  - common
+race_features:
+  - feline_agility
+  - cats_claws
+  - cats_talent
