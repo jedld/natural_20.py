@@ -1,0 +1,38 @@
+---
+name: Gnorth Eastworth
+race: human
+pronoun: he/him/his
+classes:
+  monk: 2
+description: A serene human monk who channels ki to strike with sudden precision.
+level: 2
+hit_die: inherit
+max_hp: 17
+ability:
+  str: 25
+  dex: 17
+  con: 13
+  int: 13
+  wis: 20
+  cha: 10
+skills:
+- acrobatics
+- athletics
+- medicine
+- perception
+- religion
+- survival
+token:
+  - G
+weapon_proficiencies:
+- simple
+- shortsword
+equipped:
+- quarterstaff
+inventory:
+- type: quarterstaff
+  qty: 1
+- type: dart
+  qty: 10
+- type: healing_potion
+  qty: 1

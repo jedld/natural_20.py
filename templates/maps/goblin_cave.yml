@@ -227,6 +227,18 @@ player:
     sheet: characters/chestnut_latchlifter.yml
     overrides:
       entity_uid: chestnut_latchlifter
+  - position: [0, 2]
+    sheet: characters/gnorth_eastworth.yml
+    overrides:
+      entity_uid: gnorth_eastworth
+  - position: [1, 2]
+    sheet: characters/lahaina_alagondar.yml
+    overrides:
+      entity_uid: lahaina_alagondar
+  - position: [0, 1]
+    sheet: characters/betty.yml
+    overrides:
+      entity_uid: betty
 extensions:
   web:
     background_color: '#000000'

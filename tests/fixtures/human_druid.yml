@@ -1,0 +1,39 @@
+---
+name: Thalia Greenleaf
+race: human
+classes:
+  druid: 2
+level: 2
+hit_die: inherit
+max_hp: 16
+ability:
+  str: 10
+  dex: 12
+  con: 14
+  int: 10
+  wis: 16
+  cha: 10
+skills:
+- nature
+- perception
+weapon_proficiencies:
+- light_armor
+- medium_armor
+- shield
+- dagger
+- quarterstaff
+- scimitar
+cantrips:
+- guidance
+- poison_spray
+prepared_spells:
+- cure_wounds
+- healing_word
+- thunderwave
+equipped:
+- scimitar
+inventory:
+- type: scimitar
+  qty: 1
+- type: quarterstaff
+  qty: 1

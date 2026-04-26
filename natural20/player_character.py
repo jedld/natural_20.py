@@ -7,7 +7,19 @@ from natural20.entity_class.cleric import Cleric
 from natural20.entity_class.paladin import Paladin
 from natural20.entity_class.warlock import Warlock
 from natural20.entity_class.ranger import Ranger
+from natural20.entity_class.monk import Monk
+from natural20.entity_class.bard import Bard
+from natural20.entity_class.druid import Druid
+from natural20.entity_class.barbarian import Barbarian
 from natural20.actions.action_surge_action import ActionSurgeAction
+from natural20.actions.rage_action import RageAction, RecklessAttackAction, EndRageAction
+from natural20.actions.flurry_of_blows_action import FlurryOfBlowsAction
+from natural20.actions.patient_defense_action import PatientDefenseAction
+from natural20.actions.step_of_the_wind_action import StepOfTheWindAction
+from natural20.actions.martial_arts_bonus_attack_action import MartialArtsBonusAttackAction
+from natural20.actions.bardic_inspiration_action import BardicInspirationAction
+from natural20.actions.wild_shape_action import WildShapeAction, RevertWildShapeAction, WildShapeAttackAction
+from natural20.entity_class import wild_shape as _wild_shape
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.move_action import MoveAction
@@ -45,10 +57,20 @@ import uuid
 import pdb
 
 
-class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, Ranger, Lootable, Inventory):
+class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, Ranger, Monk, Bard, Druid, Barbarian, Lootable, Inventory):
   ACTION_LIST = [
     SpellAction,
     AttackAction,
+    MartialArtsBonusAttackAction,
+    FlurryOfBlowsAction,
+    PatientDefenseAction,
+    StepOfTheWindAction,
+    BardicInspirationAction,
+    WildShapeAction,
+    RevertWildShapeAction,
+    RageAction,
+    EndRageAction,
+    RecklessAttackAction,
     HideAction,
     HideBonusAction,
     DashAction,
@@ -111,7 +133,16 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     self.class_properties = {}
     self._current_hit_die = {}
     self.max_hit_die = {}
-    self.resistances = self.properties.get("resistances", [])
+    self.resistances = list(self.properties.get("resistances", []))
+    # Merge race-level damage resistances (e.g. Tiefling Hellish Resistance).
+    for r in self.race_properties.get('resistances', []) or []:
+      if r not in self.resistances:
+        self.resistances.append(r)
+    if self.subrace():
+      sub = self.race_properties.get('subrace', {}).get(self.subrace(), {}) or {}
+      for r in sub.get('resistances', []) or []:
+        if r not in self.resistances:
+          self.resistances.append(r)
     self.entity_uid =  self.properties.get('entity_uid', str(uuid.uuid4()))
 
     for klass, level in self.properties.get('classes', {}).items():
@@ -171,12 +202,41 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       return self.properties.get('subrace')
   
   def speed(self):
+    if _wild_shape.is_wild_shaped(self):
+      beast = self._wild_shape_state.get('beast_props', {})
+      beast_speed = beast.get('speed')
+      if beast_speed is not None:
+        return beast_speed
     effective_speed = self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('base_speed') or self.race_properties.get('base_speed')
+
+    # Monk - Unarmored Movement (5e SRD): bonus speed while wearing no
+    # armor and not wielding a shield.
+    if self.class_feature('unarmored_movement') and getattr(self, 'monk_level', None):
+      if not self._wearing_armor_or_shield():
+        from natural20.entity_class.monk import UNARMORED_MOVEMENT_BONUS
+        idx = max(1, min(self.monk_level, len(UNARMORED_MOVEMENT_BONUS))) - 1
+        effective_speed = (effective_speed or 0) + UNARMORED_MOVEMENT_BONUS[idx]
 
     if self.has_effect('speed_override'):
       effective_speed = self.eval_effect('speed_override', { "stacked": True, "value" : effective_speed})
 
     return effective_speed
+
+  def _wearing_armor_or_shield(self):
+    if not self.equipped:
+      return False
+    try:
+      with open(os.path.join(self.session.root_path, 'items', 'equipment.yml')) as file:
+        equipments = yaml.safe_load(file)
+    except FileNotFoundError:
+      return False
+    for item_id in self.equipped:
+      meta = equipments.get(item_id)
+      if not meta:
+        continue
+      if meta.get('type') in ('armor', 'shield'):
+        return True
+    return False
 
   def max_hp(self):
     _max_hp = 0
@@ -207,6 +267,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     return True
 
   def armor_class(self):
+    if _wild_shape.is_wild_shaped(self):
+      beast = self._wild_shape_state.get('beast_props', {})
+      ac = beast.get('default_ac')
+      if ac is not None:
+        return ac
     current_ac = self.equipped_ac()
     if self.has_effect('ac_override'):
       current_ac = self.eval_effect('ac_override', { "armor_class" : self.equipped_ac() })
@@ -253,8 +318,13 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         if action_type == LookAction:
           action_list.append(LookAction(session, self, 'look'))
         elif action_type == AttackAction:
-          action_list = action_list + self._player_character_attack_actions(session, battle, auto_target=auto_target)
+          if _wild_shape.is_wild_shaped(self):
+            action_list = action_list + self._wild_shape_attack_actions(session, battle, auto_target=auto_target)
+          else:
+            action_list = action_list + self._player_character_attack_actions(session, battle, auto_target=auto_target)
         elif action_type == TwoWeaponAttackAction:
+          if _wild_shape.is_wild_shaped(self):
+            continue
           action_list = action_list + self._player_character_attack_actions(session, battle, second_weapon=True, auto_target=auto_target)
         elif action_type == DodgeAction:
           action_list.append(DodgeAction(session, self, 'dodge'))
@@ -268,6 +338,49 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action_list.append(FirstAidAction(session, self, 'first_aid'))
         elif action_type == ActionSurgeAction:
           action_list.append(ActionSurgeAction(session, self, 'action_surge'))
+        elif action_type == MartialArtsBonusAttackAction:
+          base_action = MartialArtsBonusAttackAction(session, self, 'attack')
+          if not auto_target:
+            action_list.append(base_action)
+          else:
+            for target in battle.valid_targets_for(self, base_action, target_types=['enemies']):
+              targeted = base_action.clone()
+              targeted.target = target
+              action_list.append(targeted)
+        elif action_type == FlurryOfBlowsAction:
+          base_action = FlurryOfBlowsAction(session, self, 'flurry_of_blows')
+          if not auto_target:
+            action_list.append(base_action)
+          else:
+            for target in battle.valid_targets_for(self, base_action, target_types=['enemies']):
+              targeted = FlurryOfBlowsAction(session, self, 'flurry_of_blows')
+              targeted.target = target
+              targeted.second_target = target
+              action_list.append(targeted)
+        elif action_type == PatientDefenseAction:
+          action_list.append(PatientDefenseAction(session, self, 'patient_defense'))
+        elif action_type == BardicInspirationAction:
+          if auto_target:
+            action_list = action_list + autobuild(self.session, BardicInspirationAction, self, battle)
+          else:
+            action_list.append(BardicInspirationAction(session, self, 'bardic_inspiration'))
+        elif action_type == WildShapeAction:
+          action_list.append(WildShapeAction(session, self, 'wild_shape'))
+        elif action_type == RevertWildShapeAction:
+          action_list.append(RevertWildShapeAction(session, self, 'revert_wild_shape'))
+        elif action_type == RageAction:
+          action = RageAction(session, self, 'rage')
+          action.as_bonus_action = True
+          action_list.append(action)
+        elif action_type == EndRageAction:
+          action = EndRageAction(session, self, 'end_rage')
+          action.as_bonus_action = True
+          action_list.append(action)
+        elif action_type == RecklessAttackAction:
+          action_list.append(RecklessAttackAction(session, self, 'reckless_attack'))
+        elif action_type == StepOfTheWindAction:
+          action_list.append(StepOfTheWindAction(session, self, 'step_of_the_wind', { 'mode': 'disengage' }))
+          action_list.append(StepOfTheWindAction(session, self, 'step_of_the_wind', { 'mode': 'dash' }))
         elif action_type == HideAction:
           action_list.append(HideAction(session, self, 'hide'))
         elif action_type == HideBonusAction:
@@ -337,6 +450,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action = EscapeGrappleAction(session, self, 'escape_grapple')
           action_list.append(action)
         elif action_type == SpellAction:
+          if _wild_shape.is_wild_shaped(self):
+            continue
           if auto_target:
             action_list = action_list + autobuild(self.session, SpellAction, self, battle)
           else:
@@ -419,6 +534,71 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     else:
       final_attack_list = weapon_attacks
     return final_attack_list
+
+  def unarmed_strike_info(self):
+    """Return a summary of this character's unarmed strike for the UI.
+
+    Includes attack bonus, damage formula, damage type, range, and the
+    governing ability. Honors the Monk class' Martial Arts feature
+    (DEX in place of STR; martial arts die in place of base damage).
+    """
+    from natural20.weapons import damage_modifier
+    weapon = self.session.load_weapon('unarmed_attack')
+    if not weapon:
+      return None
+    attack_mod = self.attack_ability_mod(weapon)
+    if self.proficient_with_weapon(weapon):
+      attack_mod += self.proficiency_bonus()
+    damage_roll = damage_modifier(self, weapon)
+
+    ability = 'STR'
+    if (
+      getattr(self, 'class_feature', None) and self.class_feature('martial_arts')
+      and getattr(self, 'is_monk_weapon', None) and self.is_monk_weapon(weapon)
+      and self.dex_mod() > self.str_mod()
+    ):
+      ability = 'DEX'
+
+    properties = []
+    if getattr(self, 'class_feature', None) and self.class_feature('martial_arts'):
+      properties.append('Martial Arts')
+    return {
+      'name': weapon.get('name', 'Unarmed Strike'),
+      'attack_bonus': attack_mod,
+      'damage': damage_roll,
+      'damage_type': weapon.get('damage_type', 'bludgeoning'),
+      'range': weapon.get('range', 5),
+      'ability': ability,
+      'properties': properties,
+    }
+
+  def _wild_shape_attack_actions(self, session, battle, opportunity_attack=False, auto_target=True):
+    """Build attack actions sourced from the active beast statblock."""
+    actions = []
+    for npc_action in (getattr(self, 'npc_actions', None) or []):
+      if not AttackAction.can(self, battle, {
+        'npc_action': npc_action,
+        'opportunity_attack': opportunity_attack,
+      }):
+        continue
+      attack = WildShapeAttackAction(session, self, 'attack')
+      attack.npc_action = npc_action
+      actions.append(attack)
+    if battle and auto_target:
+      final = []
+      for action in actions:
+        for target in battle.valid_targets_for(self, action, target_types=['enemies']):
+          targeted = action.clone()
+          targeted.target = target
+          final.append(targeted)
+      return final
+    return actions
+
+  def is_wild_shaped(self):
+    return _wild_shape.is_wild_shaped(self)
+
+  def wild_shape_form(self):
+    return _wild_shape.current_form(self)
 
   def after_death(self):
       pass
@@ -544,6 +724,17 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     armor = next((equipment for equipment in equipped_meta if equipment['type'] == 'armor'), None)
     shield = next((equipment for equipment in equipped_meta if equipment['type'] == 'shield'), None)
 
+    # Monk - Unarmored Defense (5e SRD): while wearing no armor and no
+    # shield, AC = 10 + DEX modifier + WIS modifier.
+    if armor is None and shield is None and self.class_feature('unarmored_defense_monk'):
+      return 10 + self.dex_mod() + self.wis_mod()
+
+    # Barbarian - Unarmored Defense (5e SRD): while wearing no armor,
+    # AC = 10 + DEX modifier + CON modifier.  A shield is allowed and
+    # adds its AC bonus on top.
+    if armor is None and self.class_feature('unarmored_defense_barbarian'):
+      return 10 + self.dex_mod() + self.con_mod() + (0 if shield is None else shield['bonus_ac'])
+
     armor_ac = 10 + self.dex_mod() if armor is None else armor['ac'] + min(self.dex_mod(), armor['mod_cap'] if 'mod_cap' in armor else self.dex_mod()) + (1 if self.class_feature('defense') else 0)
 
     return armor_ac + (0 if shield is None else shield['bonus_ac'])
@@ -640,7 +831,47 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
   
   def perception_proficiency(self):
     return self.proficiency_bonus() if self.perception_proficient() else 0
-  
+
+  def take_damage(self, dmg, battle=None, damage_type='piercing', session=None,
+                  item=None, critical=False, roll_info=None, sneak_attack=None):
+    if not _wild_shape.is_wild_shaped(self):
+      return super().take_damage(dmg, battle=battle, damage_type=damage_type,
+                                  session=session, item=item, critical=critical,
+                                  roll_info=roll_info, sneak_attack=sneak_attack)
+
+    # Wild-shaped: damage hits the beast pool first; on 0 HP the druid
+    # reverts and any overflow damage rolls onto the saved druid HP.
+    pre_hp = self.attributes.get('hp', 0)
+    # Estimate post-resistance damage so overflow is computed before the
+    # engine clamps the beast pool to zero.
+    effective_dmg = dmg
+    if self.immune_to(damage_type):
+      effective_dmg = 0
+    elif self.resistant_to(damage_type):
+      effective_dmg = dmg // 2
+    elif self.vulnerable_to(damage_type):
+      effective_dmg = dmg * 2
+    result = super().take_damage(dmg, battle=battle, damage_type=damage_type,
+                                  session=session, item=item, critical=critical,
+                                  roll_info=roll_info, sneak_attack=sneak_attack)
+    if self.attributes.get('hp', 0) <= 0:
+      overflow = max(0, effective_dmg - pre_hp)
+      # If the engine already flagged us unconscious during the beast
+      # take_damage, clear it before reverting so the druid form can be
+      # evaluated cleanly against its restored HP.
+      if 'unconscious' in self.statuses:
+        self.statuses.remove('unconscious')
+      _wild_shape.revert(self, overflow_damage=overflow, battle=battle)
+      if session is None:
+        session = battle.session if battle else getattr(self, 'session', None)
+      if session:
+        session.event_manager.received_event({
+          'source': self,
+          'event': 'wild_shape_revert',
+          'reason': 'beast_dropped',
+        })
+    return result
+
   def to_dict(self):
     _serialized_casted_effects = []
     _serialized_effects = {}
@@ -669,9 +900,26 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       'lay_on_hands_max_pool',
       'divine_sense_count',
       'divine_sense_max_count',
+      'ki_count',
+      'max_ki',
+      'bardic_inspiration_count',
+      'bardic_inspiration_max',
+      'wild_shape_count',
+      'wild_shape_max',
+      'rage_count',
+      'rage_max',
+      'raging',
+      'rage_rounds_remaining',
+      'reckless_attack_active',
+      'relentless_endurance_used',
     ):
       if hasattr(self, attr):
         class_resources[attr] = getattr(self, attr)
+
+    # If wild-shaped, scrub the overlay from the persisted properties so
+    # the humanoid form is what gets re-instantiated by from_dict.
+    persisted_properties = _wild_shape.scrub_properties_for_serialization(
+      self.properties, getattr(self, '_wild_shape_state', None))
 
     base_dict = {
       'session': self.session,
@@ -679,7 +927,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       'classes': self.c_class(),
       'hp': self.attributes['hp'],
       'type': 'pc',
-      'properties': self.properties,
+      'properties': persisted_properties,
       'inventory': self.inventory,
       'entity_uid': self.entity_uid,
       'group': self.group,
@@ -696,6 +944,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       'spell_slots': {k: dict(v) for k, v in self.spell_slots.items()},
       '_current_hit_die': dict(self._current_hit_die),
       'class_resources': class_resources,
+      '_wild_shape_state': copy.deepcopy(getattr(self, '_wild_shape_state', None)),
+      'npc_actions': copy.deepcopy(getattr(self, 'npc_actions', None) or []),
     }
     return base_dict
 
@@ -722,4 +972,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       player_character._current_hit_die = dict(data['_current_hit_die'])
     for attr, value in (data.get('class_resources') or {}).items():
       setattr(player_character, attr, value)
+    if data.get('_wild_shape_state') is not None:
+      player_character._wild_shape_state = data['_wild_shape_state']
+      _wild_shape.reapply_after_load(player_character)
+      # Re-set HP from persisted value (overlay set it to beast max).
+      player_character.attributes['hp'] = data['hp']
+    if data.get('npc_actions'):
+      player_character.npc_actions = data['npc_actions']
     return player_character

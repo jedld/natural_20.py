@@ -1,0 +1,30 @@
+---
+name: Brother Tian
+race: human
+classes:
+  monk: 2
+level: 2
+hit_die: inherit
+max_hp: 17
+ability:
+  str: 13
+  dex: 16
+  con: 14
+  int: 10
+  wis: 16
+  cha: 10
+skills:
+- acrobatics
+- insight
+- religion
+- stealth
+weapon_proficiencies:
+- simple
+- shortsword
+equipped:
+- shortsword
+inventory:
+- type: shortsword
+  qty: 1
+- type: dart
+  qty: 10

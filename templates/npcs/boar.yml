@@ -1,0 +1,37 @@
+---
+kind: Boar
+description: A wild boar with tusks.
+size: medium
+race:
+- beast
+alignment: unaligned
+default_ac: 11
+max_hp: 11
+hp_die: 2d8+2
+speed: 40
+passive_perception: 8
+token:
+ - b
+color: yellow
+ability:
+  str: 13
+  dex: 11
+  con: 12
+  int: 2
+  wis: 9
+  cha: 5
+languages: []
+cr: 0.25
+xp: 50
+proficiency_bonus: 2
+attributes:
+  - relentless
+actions:
+  - name: Tusk
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 3
+    damage: 5
+    damage_die: 1d6+1
+    damage_type: slashing

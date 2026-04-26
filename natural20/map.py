@@ -984,6 +984,9 @@ class Map(SerializableObject):
             has_line_of_sight = True
 
         if has_line_of_sight and max_illumination < 0.5:
+            # Magical darkness can't be seen through, even with darkvision.
+            if self.magical_darkness_at(pos2_x, pos2_y):
+                return False
             return allow_dark_vision and (force_dark_vision or entity.darkvision(sighting_distance * self.feet_per_grid))
 
         return has_line_of_sight
@@ -1179,7 +1182,20 @@ class Map(SerializableObject):
             # doors are always visible
             return True
 
-        if allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid):
+        # Magical darkness: darkvision can't pierce it. If either the target or
+        # the viewer occupies a magical-darkness square, suppress darkvision.
+        in_magical_darkness = False
+        for pos2 in entity_2_squares:
+            if self.magical_darkness_at(pos2[0], pos2[1]):
+                in_magical_darkness = True
+                break
+        if not in_magical_darkness:
+            for pos1 in entity_1_squares:
+                if self.magical_darkness_at(pos1[0], pos1[1]):
+                    in_magical_darkness = True
+                    break
+
+        if not in_magical_darkness and allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid):
             max_illumination += 0.5
 
         if max_illumination == 0.0:
@@ -1395,10 +1411,20 @@ class Map(SerializableObject):
         if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
             return 0.0
 
+        # Magical darkness overrides every other light source.
+        if self._light_builder.magical_darkness_at(pos_x, pos_y):
+            return 0.0
+
         if self._light_map is not None:
             return self._light_map[pos_x][pos_y] + self._light_builder.light_at(pos_x, pos_y)
         else:
             return self._light_builder.light_at(pos_x, pos_y)
+
+    def magical_darkness_at(self, pos_x, pos_y):
+        """True when the given square is inside a magical darkness sphere."""
+        if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
+            return False
+        return self._light_builder.magical_darkness_at(pos_x, pos_y)
 
     def light_at_entity(self, entity, pos_override=None):
         intensities = []

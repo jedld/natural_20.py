@@ -1,0 +1,25 @@
+name: Grenn Ironfang
+race: half_orc
+classes:
+  barbarian: 2
+level: 2
+max_hp: 22
+hp: 22
+ability:
+  str: 14
+  dex: 12
+  con: 14
+  int: 10
+  wis: 10
+  cha: 8
+skills:
+- athletics
+- intimidation
+equipped:
+- battleaxe
+inventory:
+- type: battleaxe
+  qty: 1
+token:
+- G
+alignment: chaotic_neutral

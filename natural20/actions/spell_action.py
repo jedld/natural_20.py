@@ -145,6 +145,9 @@ class SpellAction(Action):
         if resource == "bonus_action" and entity.total_bonus_actions(battle) == 0:
             return False
 
+        if resource == "reaction" and not entity.has_reaction(battle):
+            return False
+
         return True
 
     def validate(self, battle_map, target=None):

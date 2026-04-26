@@ -500,6 +500,126 @@
                     {% endif %}
                     {% endif %}
 
+                    {# Class-feature resources (ki, rage, second wind, etc.) #}
+                    {% set _has_ki = entity.max_ki|default(0) %}
+                    {% set _has_rage = entity.rage_max|default(0) %}
+                    {% set _has_sw = entity.second_wind_count is defined and entity.second_wind_count is not none %}
+                    {% set _has_loh = entity.lay_on_hands_count is defined and entity.lay_on_hands_count is not none %}
+                    {% set _has_bardic = entity.bardic_inspiration_max|default(0) %}
+                    {% set _has_wild = entity.wild_shape_max|default(0) %}
+                    {% set _has_arcane = entity.arcane_recovery is defined and entity.arcane_recovery is not none %}
+                    {% if _has_ki or _has_rage or _has_sw or _has_loh or _has_bardic or _has_wild or _has_arcane %}
+                    <h3>Class Resources</h3>
+                    <table class="class-resources-table">
+                        {% if _has_ki %}
+                        <tr>
+                            <th>Ki Points</th>
+                            <td>
+                                <span class="resource-value">{{ entity.ki_count or 0 }}/{{ entity.max_ki }}</span>
+                                <div class="resource-pips" aria-hidden="true">
+                                    {% for i in range(entity.max_ki) %}
+                                    <span class="pip {{ 'filled' if i < (entity.ki_count or 0) else 'empty' }}" title="Ki point"></span>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% if _has_rage %}
+                        <tr>
+                            <th>Rage Uses</th>
+                            <td>
+                                <span class="resource-value">{{ entity.rage_count or 0 }}/{{ entity.rage_max }}</span>
+                                {% if entity.is_raging() %}
+                                <span class="badge badge-danger" style="background:#c0392b;color:#fff;padding:2px 6px;border-radius:4px;margin-left:6px;">Raging ({{ entity.rage_rounds_remaining }} rd)</span>
+                                {% endif %}
+                                {% if entity.is_reckless() %}
+                                <span class="badge" style="background:#e67e22;color:#fff;padding:2px 6px;border-radius:4px;margin-left:6px;">Reckless</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% if _has_sw %}
+                        <tr>
+                            <th>Second Wind</th>
+                            <td><span class="resource-value">{{ entity.second_wind_count }}/1</span></td>
+                        </tr>
+                        {% endif %}
+                        {% if _has_loh %}
+                        <tr>
+                            <th>Lay on Hands</th>
+                            <td><span class="resource-value">{{ entity.lay_on_hands_count }} HP</span></td>
+                        </tr>
+                        {% endif %}
+                        {% if _has_bardic %}
+                        <tr>
+                            <th>Bardic Inspiration</th>
+                            <td><span class="resource-value">{{ entity.bardic_inspiration_count or 0 }}/{{ entity.bardic_inspiration_max }}</span></td>
+                        </tr>
+                        {% endif %}
+                        {% if _has_wild %}
+                        <tr>
+                            <th>Wild Shape</th>
+                            <td><span class="resource-value">{{ entity.wild_shape_count or 0 }}/{{ entity.wild_shape_max }}</span></td>
+                        </tr>
+                        {% endif %}
+                        {% if _has_arcane %}
+                        <tr>
+                            <th>Arcane Recovery</th>
+                            <td><span class="resource-value">{{ 'Available' if entity.arcane_recovery else 'Used' }}</span></td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                    <style>
+                        .class-resources-table .resource-value{font-weight:600}
+                        .class-resources-table .resource-pips{display:inline-flex;gap:3px;margin-left:8px;vertical-align:middle}
+                        .class-resources-table .pip{display:inline-block;width:10px;height:10px;border-radius:50%;border:1px solid #555}
+                        .class-resources-table .pip.filled{background:#f1c40f;border-color:#b07d00;box-shadow:0 0 3px rgba(241,196,15,0.7)}
+                        .class-resources-table .pip.empty{background:#333}
+                    </style>
+                    {% endif %}
+
+                    {# Unarmed Strike summary (always available to PCs) #}
+                    {% set _unarmed = entity.unarmed_strike_info() if entity.unarmed_strike_info is defined else none %}
+                    {% if _unarmed %}
+                    <h3>Unarmed Strike</h3>
+                    <table class="unarmed-strike-table">
+                        <tr>
+                            <th>Attack</th>
+                            <td>
+                                <span class="unarmed-bonus">{{ '+' if _unarmed.attack_bonus >= 0 else '' }}{{ _unarmed.attack_bonus }}</span>
+                                <span class="unarmed-ability">({{ _unarmed.ability }})</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Damage</th>
+                            <td>
+                                <span class="unarmed-damage">{{ _unarmed.damage }}</span>
+                                <span class="unarmed-damage-type">{{ _unarmed.damage_type }}</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Range</th>
+                            <td>{{ _unarmed.range }} ft</td>
+                        </tr>
+                        {% if _unarmed.properties %}
+                        <tr>
+                            <th>Properties</th>
+                            <td>
+                                {% for prop in _unarmed.properties %}
+                                <span class="badge" style="background:#34495e;color:#fff;padding:2px 6px;border-radius:4px;margin-right:4px;">{{ prop }}</span>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                    <style>
+                        .unarmed-strike-table .unarmed-bonus{font-weight:700;font-size:1.05em}
+                        .unarmed-strike-table .unarmed-ability{color:#888;margin-left:4px;font-size:0.9em}
+                        .unarmed-strike-table .unarmed-damage{font-weight:600}
+                        .unarmed-strike-table .unarmed-damage-type{color:#888;margin-left:4px;font-size:0.9em;text-transform:capitalize}
+                    </style>
+                    {% endif %}
+
                     {% if 'dm' in role and battle and battle.entity_state_for(entity) %}
                     <h3>Action Resources (DM Controls)</h3>
                     <p style="font-size: 0.9em; color: #666; margin-bottom: 10px;">

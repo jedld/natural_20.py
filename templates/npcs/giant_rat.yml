@@ -1,0 +1,38 @@
+---
+kind: GiantRat
+description: A larger, more aggressive rat.
+darkvision: 60
+size: small
+race:
+- beast
+alignment: unaligned
+default_ac: 12
+max_hp: 7
+hp_die: 2d6
+speed: 30
+passive_perception: 10
+token:
+ - r
+color: gray
+ability:
+  str: 7
+  dex: 15
+  con: 11
+  int: 2
+  wis: 10
+  cha: 4
+languages: []
+cr: 0.125
+xp: 25
+proficiency_bonus: 2
+attributes:
+  - keen_smell
+actions:
+  - name: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 4
+    damage: 4
+    damage_die: 1d4+2
+    damage_type: piercing

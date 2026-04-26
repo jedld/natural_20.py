@@ -288,6 +288,10 @@ class Entity(EntityStateEvaluator, Notable):
                 bonus = self.proficiency_bonus() * 2 if self.expertise(skill) else self.proficiency_bonus()
             else:
                 bonus = 0
+                # Bard - Jack of All Trades: add half proficiency (rounded
+                # down) to ability checks the entity is not proficient in.
+                if self.any_class_feature(['jack_of_all_trades']):
+                    bonus = self.proficiency_bonus() // 2
             return modifiers + bonus
         return skill_mod
 
@@ -984,6 +988,15 @@ class Entity(EntityStateEvaluator, Notable):
     def effective_resistances(self):
         if self.has_effect('resistance_override'):
             return self.eval_effect('resistance_override', { "stacked": True, "value" : self.resistances})
+        # Barbarian - Rage (5e SRD): while raging, gain resistance to
+        # bludgeoning, piercing, and slashing damage.
+        if getattr(self, 'is_raging', None) and self.is_raging():
+            extra = ['bludgeoning', 'piercing', 'slashing']
+            base = list(self.resistances or [])
+            for dt in extra:
+                if dt not in base:
+                    base.append(dt)
+            return base
         return self.resistances
 
     def disengage(self, battle):
@@ -1288,6 +1301,7 @@ class Entity(EntityStateEvaluator, Notable):
             'active_perception': 0,
             'active_perception_disadvantage': 0,
             'two_weapon': None,
+            'martial_arts_pending': False,
             'action_surge': None,
             'multiattack_started': False,
             'casted_level_spells': [],
@@ -1736,7 +1750,16 @@ class Entity(EntityStateEvaluator, Notable):
             weapon_properties = weapon.get('properties', [])
             if weapon_properties is None:
                 weapon_properties = []
-            if 'finesse' in weapon_properties:
+            # Monk - Martial Arts: may use DEX in place of STR for monk
+            # weapons and unarmed strikes (5e SRD).
+            if (
+                getattr(self, 'class_feature', None)
+                and self.class_feature('martial_arts')
+                and getattr(self, 'is_monk_weapon', None)
+                and self.is_monk_weapon(weapon)
+            ):
+                modifier = max(self.str_mod(), self.dex_mod())
+            elif 'finesse' in weapon_properties:
                 modifier = max(self.str_mod(), self.dex_mod())
             else:
                 modifier = self.str_mod()
@@ -2147,6 +2170,22 @@ class Entity(EntityStateEvaluator, Notable):
 
         self.attributes["hp"] -= total_damage
         instant_death = False
+
+        # Half-Orc Relentless Endurance: when reduced to 0 HP but not killed
+        # outright, drop to 1 HP instead. Once per long rest.
+        if (self.hp() <= 0
+                and total_damage > 0
+                and not self.unconscious()
+                and not (self.hp() < 0 and abs(self.hp()) >= self.properties.get('max_hp', 0))
+                and self.class_feature('relentless_endurance')
+                and not getattr(self, 'relentless_endurance_used', False)):
+            self.attributes['hp'] = 1
+            self.relentless_endurance_used = True
+            session.event_manager.received_event({
+                'source': self,
+                'event': 'relentless_endurance',
+            })
+
         if self.unconscious():
             if 'stable' in self.statuses:
                 self.statuses.remove('stable')
@@ -2202,6 +2241,22 @@ class Entity(EntityStateEvaluator, Notable):
 
         if battle and item and total_damage > 0:
             self.on_take_damage(battle, item)
+
+        # Damage-triggered reaction spells (e.g. Hellish Rebuke).
+        # Fire only when the target is still able to react and the source is
+        # not the spell's own follow-up damage.
+        if (battle is not None
+                and total_damage > 0
+                and self.conscious()
+                and attacker is not None
+                and attacker is not self
+                and not (item and item.get('source_spell') == 'hellish_rebuke')):
+            try:
+                from natural20.utils.attack_util import after_take_damage_hook
+                after_take_damage_hook(battle, self, attacker, item or {})
+            except Exception:
+                # Reaction-trigger failures must never break the main damage flow.
+                pass
 
     def on_take_damage(self, battle, _damage_params):
         controller = battle.controller_for(self)
@@ -2535,6 +2590,9 @@ class Entity(EntityStateEvaluator, Notable):
         self.grapples.clear()
         self.drop_concentration()
         self._temp_hp = 0
+        # Half-Orc Relentless Endurance recharges on a long rest.
+        if hasattr(self, 'relentless_endurance_used'):
+            self.relentless_endurance_used = False
 
         # Recover spent hit dice: floor(level/2), minimum 1, capped at max
         # per die type.  PCs track per-class hit-die maxima; NPCs use a
