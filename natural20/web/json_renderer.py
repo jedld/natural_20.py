@@ -3,6 +3,8 @@ import pdb
 from natural20.map import Map
 from natural20.battle import Battle
 from natural20.item_library.door_object import DoorObject, DoorObjectWall
+from natural20.item_library.teleporter import Teleporter
+from natural20.item_library.chasm import Chasm
 import logging
 class JsonRenderer:
     def __init__(self, map: Map, battle: Battle=None, padding=None, logger=None):
@@ -233,6 +235,19 @@ class JsonRenderer:
                             'bottom': False,
                             'left': False,
                         }
+
+                        # Visible-teleporter marker (configurable per-instance via
+                        # YAML ``visible: true`` on a teleporter). Excludes Chasms,
+                        # which have their own visual treatment.
+                        is_visible_teleporter = (
+                            isinstance(object_entity, Teleporter)
+                            and not isinstance(object_entity, Chasm)
+                            and getattr(object_entity, 'is_visible_marker', lambda: False)()
+                        )
+                        object_info['teleporter_marker'] = bool(is_visible_teleporter)
+                        object_info['teleporter_marker_color'] = (
+                            object_entity.marker_color() if is_visible_teleporter else None
+                        )
 
                         object_info['notes'], _ = object_entity.list_notes(entity_pov=entity_pov)
                         if object_entity.properties.get('image_offset_px'):

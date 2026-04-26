@@ -38,6 +38,27 @@ class GenericEventHandler:
                 'message': message
             })
 
+        if self.properties.get('narration'):
+            narration_props = self.properties['narration']
+            if isinstance(narration_props, str):
+                narration_entry = {'text': narration_props}
+            else:
+                narration_entry = dict(narration_props)
+            # Allow templated text/title
+            label_target = opts['target'].label() if opts.get('target') else None
+            template_opts = {"name": entity.label(), "target": label_target}
+            if narration_entry.get('text'):
+                narration_entry['text'] = self.session.t(narration_entry['text'], options=template_opts)
+            if narration_entry.get('title'):
+                narration_entry['title'] = self.session.t(narration_entry['title'], options=template_opts)
+            resolved_map = self._resolve_map(entity)
+            self.session.event_manager.received_event({
+                'event': 'narration',
+                'source': entity,
+                'narration': {'on_enter': narration_entry},
+                'map_name': resolved_map.name if resolved_map else None,
+            })
+
         if self.properties.get('conversation'):
             conversation_properties = self.properties['conversation']
             entity.send_conversation(conversation_properties['message'], conversation_properties.get('distance_ft', 30), conversation_properties.get('targets', []), conversation_properties.get('language', 'common'))

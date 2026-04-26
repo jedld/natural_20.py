@@ -1,0 +1,28 @@
+name: Tasha Whiskerpaw
+race: tabaxi
+classes:
+  rogue: 3
+level: 3
+hit_die: inherit
+max_hp: 21
+hp: 21
+ability:
+  str: 10
+  dex: 16
+  con: 12
+  int: 12
+  wis: 10
+  cha: 14
+skills:
+- acrobatics
+- sleight_of_hand
+weapon_proficiencies:
+- simple
+equipped:
+- rapier
+inventory:
+- type: rapier
+  qty: 1
+token:
+- T
+alignment: chaotic_good

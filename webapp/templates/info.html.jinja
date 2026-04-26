@@ -1443,7 +1443,7 @@
             let restState = null;
 
             window.openRestModal = function (entityId, type) {
-                restState = { entityId: entityId, type: type, picks: [], preview: null };
+                restState = { entityId: entityId, type: type, picks: [], hitDicePicks: [], preview: null };
                 document.getElementById('rest-modal-title').textContent =
                     (type === 'long' ? 'Long Rest' : 'Short Rest');
                 document.getElementById('rest-modal-error').style.display = 'none';
@@ -1485,6 +1485,25 @@
                         .map(([d, n]) => 'd' + d + ': ' + n).join(', ');
                     lines.push('<div>Hit Dice: ' + hd + '</div>');
                 }
+                if (data.type === 'short' && data.state.hit_die &&
+                    Object.keys(data.state.hit_die).length) {
+                    lines.push('<div style="margin-top:10px;"><strong>Spend Hit Dice</strong>' +
+                        ' <span style="color:#666; font-size:12px;">(roll + CON mod to heal)</span></div>');
+                    lines.push('<div id="hit-die-picks" style="margin-top:4px;"></div>');
+                    lines.push('<div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">');
+                    Object.keys(data.state.hit_die)
+                        .map(k => parseInt(k, 10))
+                        .filter(k => !isNaN(k) && data.state.hit_die[k] > 0)
+                        .sort((a, b) => a - b)
+                        .forEach(die => {
+                            lines.push('<button type="button" class="hp-save-btn" data-die="' + die +
+                                '" onclick="addHitDiePick(' + die + ')">+d' + die + '</button>');
+                        });
+                    lines.push('<button type="button" class="hp-save-btn" onclick="clearHitDiePicks()">Clear</button>');
+                    lines.push('</div>');
+                    lines.push('<div style="color:#666; font-size:12px; margin-top:4px;">' +
+                        'Leave empty to auto-spend dice until full HP.</div>');
+                }
                 if (data.in_combat) {
                     lines.push('<div style="margin-top:8px; color:#b00;">Combat is in progress.' +
                         (data.is_dm ? ' DM may force a rest below.' : '') + '</div>');
@@ -1514,7 +1533,52 @@
                 }
                 body.innerHTML = lines.join('');
                 renderArcanePicks();
+                renderHitDiePicks();
             }
+
+            function renderHitDiePicks() {
+                const container = document.getElementById('hit-die-picks');
+                if (!container || !restState) return;
+                const available = (restState.preview && restState.preview.state &&
+                    restState.preview.state.hit_die) || {};
+                const used = {};
+                restState.hitDicePicks.forEach(d => { used[d] = (used[d] || 0) + 1; });
+                const items = restState.hitDicePicks.map((die, i) =>
+                    '<span style="background:#efe; padding:2px 6px; border-radius:4px;">d' + die +
+                    ' <a href="#" onclick="removeHitDiePick(' + i + '); return false;">×</a></span>'
+                );
+                const totals = Object.keys(available)
+                    .map(k => parseInt(k, 10))
+                    .filter(k => !isNaN(k))
+                    .sort((a, b) => a - b)
+                    .map(die => 'd' + die + ': ' + (used[die] || 0) + ' / ' + (available[die] || 0))
+                    .join(', ');
+                container.innerHTML = '<div>Selected: ' + (items.join(' ') || '<em>none</em>') +
+                    '</div><div style="font-size:12px; color:#666;">' + totals + '</div>';
+            }
+
+            window.addHitDiePick = function (die) {
+                if (!restState || !restState.preview) return;
+                const available = (restState.preview.state && restState.preview.state.hit_die) || {};
+                const used = restState.hitDicePicks.filter(d => d === die).length;
+                if (used >= (available[die] || 0)) {
+                    renderRestError('No more d' + die + ' hit dice available');
+                    return;
+                }
+                document.getElementById('rest-modal-error').style.display = 'none';
+                restState.hitDicePicks.push(die);
+                renderHitDiePicks();
+            };
+            window.removeHitDiePick = function (idx) {
+                if (!restState) return;
+                restState.hitDicePicks.splice(idx, 1);
+                renderHitDiePicks();
+            };
+            window.clearHitDiePicks = function () {
+                if (!restState) return;
+                restState.hitDicePicks = [];
+                renderHitDiePicks();
+            };
 
             function renderArcanePicks() {
                 const container = document.getElementById('arcane-picks');
@@ -1561,6 +1625,7 @@
                     type: restState.type,
                     force: forceCheckbox ? forceCheckbox.checked : false,
                     arcane_picks: restState.picks,
+                    hit_die_picks: restState.hitDicePicks,
                 };
                 document.getElementById('rest-modal-error').style.display = 'none';
                 document.getElementById('rest-modal-confirm').disabled = true;

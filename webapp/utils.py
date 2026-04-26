@@ -23,6 +23,47 @@ import gzip
 import threading
 import queue
 from natural20.action import Action
+
+
+def _coalesce_animation_log(animation_log):
+    """Merge consecutive move entries for the same entity into a single walk.
+
+    The combat AI emits one MoveAction per tile (single-step paths from the
+    autobuilder), producing many ``[uid, [a, b], action_meta]`` entries in a
+    row. The client renders each entry by cloning the entity sprite and
+    animating along its path; cloned sprites only get cleaned up at the very
+    end of the batch, so consecutive single-tile entries cause stacked ghost
+    sprites and a janky stop-and-go animation.
+
+    Coalescing them server-side gives the client one smooth multi-tile walk
+    per logical move, which removes the ghosting and reduces the number of
+    transitions the browser has to schedule.
+    """
+    if not animation_log:
+        return animation_log
+
+    coalesced = []
+    for entry in animation_log:
+        # Only merge plain move tuples: [entity_uid, path, action_meta].
+        if not (isinstance(entry, list) and len(entry) == 3):
+            coalesced.append(entry)
+            continue
+        uid, path, action_meta = entry
+        if not isinstance(path, list) or len(path) < 2:
+            coalesced.append(entry)
+            continue
+
+        if coalesced and isinstance(coalesced[-1], list) and len(coalesced[-1]) == 3:
+            prev_uid, prev_path, prev_meta = coalesced[-1]
+            if (prev_uid == uid
+                    and isinstance(prev_path, list) and len(prev_path) >= 1
+                    and list(prev_path[-1]) == list(path[0])):
+                merged_path = list(prev_path) + [list(p) for p in path[1:]]
+                # Prefer the latest action metadata (it reflects the final hop)
+                coalesced[-1] = [prev_uid, merged_path, action_meta or prev_meta]
+                continue
+        coalesced.append(entry)
+    return coalesced
 from natural20.utils.conversation import audible_entities
 from typing import Optional, Dict, Any
 from natural20.session import Session
@@ -691,7 +732,7 @@ class GameManagement:
         self.socketio.emit('message', {'type': 'prompt', 'message': message, 'callback': callback_id})
 
     def push_animation(self):
-        self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': self.battle.get_animation_logs()}})
+        self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': _coalesce_animation_log(self.battle.get_animation_logs())}})
         self.battle.clear_animation_logs()
 
     def emit_current_turn_state(self):
@@ -712,7 +753,7 @@ class GameManagement:
         if self.battle:
             self.socketio.emit('message', {
                 'type': 'move',
-                'message': { 'animation_log' : self.battle.get_animation_logs() }
+                'message': { 'animation_log' : _coalesce_animation_log(self.battle.get_animation_logs()) }
                 })
             self.battle.clear_animation_logs()
 
@@ -845,17 +886,26 @@ class GameManagement:
                                     distance_ft = None
 
                                 aggressive_trigger = frozenset((entity1, entity2)) in aggressive_pairs
-                                # In non-PvP maps, only an explicit aggressive
-                                # action should auto-start combat. Proximity
-                                # and visibility triggers are reserved for
-                                # PvP scenarios where opposing player teams
-                                # squaring off should always start initiative.
+                                # PvP maps trigger on proximity OR mutual
+                                # visibility between opposing player teams.
+                                # In non-PvP (adventure) mode, hostile NPCs
+                                # spotting a PC must still auto-start combat
+                                # (e.g. a trap-spawned monster appearing in
+                                # line of sight) — but a PC merely seeing a
+                                # passive NPC must not. We restrict the
+                                # non-PvP visibility trigger to the case
+                                # where the hostile NPC (entity2) is a true
+                                # NPC, not another PlayerCharacter, and can
+                                # see the PC.
                                 if self.pvp_enabled:
                                     proximity_trigger = distance_ft is not None and distance_ft <= self.auto_battle_distance_ft
                                     visibility_trigger = battle_map.can_see(entity2, entity1)
                                 else:
                                     proximity_trigger = False
-                                    visibility_trigger = False
+                                    visibility_trigger = (
+                                        not isinstance(entity2, PlayerCharacter)
+                                        and battle_map.can_see(entity2, entity1)
+                                    )
 
                                 if aggressive_trigger or proximity_trigger or visibility_trigger:
                                     include_allies = aggressive_trigger or proximity_trigger
@@ -1419,7 +1469,7 @@ class GameManagement:
             deferred_map_switch = None
 
         if battle:
-            self.socketio.emit('message', {'type': 'move', 'message': { 'animation_log': battle.get_animation_logs()}})
+            self.socketio.emit('message', {'type': 'move', 'message': { 'animation_log': _coalesce_animation_log(battle.get_animation_logs())}})
             battle.clear_animation_logs()
             # Emit deferred map switch after the move event so the client
             # finishes the movement animation before swapping the background.
@@ -1466,6 +1516,13 @@ class GameManagement:
                     if (result_item.get('type') == 'interact' and
                         result_item.get('action') in ['open', 'close']):
                         # Door open/close affects line of sight, refresh the map
+                        request_map_refresh = True
+                    elif (result_item.get('type') == 'interact' and
+                          isinstance(result_item.get('action'), str) and
+                          result_item.get('action').endswith('_check')):
+                        # Ability check interactions can reveal gated notes
+                        # (e.g. notes with investigation_dc / perception_dc)
+                        # — refresh the map so the new content is rendered.
                         request_map_refresh = True
                     elif result_item.get('type') == 'look':
                         # Look action can reveal notes and concealed entities, refresh the map

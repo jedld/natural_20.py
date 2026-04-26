@@ -63,6 +63,10 @@
                   {% endif %}
                 </div>
               {% endif %}
+              {% if obj['teleporter_marker'] %}
+                <div class="teleporter-marker" aria-hidden="true"
+                     style="--teleporter-marker-color: {{ obj['teleporter_marker_color'] }};"></div>
+              {% endif %}
               {% if obj['notes'] %}
                 <button class="show-note-btn{% if obj['id'] not in read_notes %} unread{% endif %}" onclick="Utils.showNoteModal(this)" 
                         data-name="{{ obj['name'] }}"
@@ -216,7 +220,7 @@
               
               <div class="effect">
                 {% for effect in tile['effects'] %}
-                  <img src="{{ url_for('static', filename='assets/effect/' ~ effect ~ '.png') }}"
+                  <img src="{{ url_for('static', filename='assets/effect/' ~ effect|lower ~ '.png') }}"
                        class="effect-img"
                        alt="{{ effect }}"
                        data-tooltip="{{ effect }}">

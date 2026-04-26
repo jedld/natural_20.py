@@ -8,7 +8,12 @@
         {{'disabled' if action.disabled else ''}}
         data-tooltips="{{ action.disabled_reason }}">
       {% if action.using %}
-         {% set action_image_src = url_for('static', filename='assets/items/' + action.using + '.png') %}
+         {% set weapon_icon_slug = action.weapon_icon() if action.weapon_icon is defined else none %}
+         {% if weapon_icon_slug %}
+           {% set action_image_src = url_for('static', filename='assets/items/' + weapon_icon_slug + '.png') %}
+         {% else %}
+           {% set action_image_src = url_for('static', filename='assets/items/' + action.using + '.png') %}
+         {% endif %}
       {% else %}
         {% if action.button_image()  %}
           {% set action_image_src = url_for('static', filename='actions/' + action.button_image() + '.png') %}

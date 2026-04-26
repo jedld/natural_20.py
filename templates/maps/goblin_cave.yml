@@ -239,6 +239,10 @@ player:
     sheet: characters/betty.yml
     overrides:
       entity_uid: betty
+  - position: [1, 1]
+    sheet: characters/mist.yml
+    overrides:
+      entity_uid: mist
 extensions:
   web:
     background_color: '#000000'

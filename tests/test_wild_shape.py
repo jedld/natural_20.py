@@ -162,5 +162,50 @@ class TestWildShape(unittest.TestCase):
         self.assertIn('Bite', names)
 
 
+    # --- token swap ---
+
+    def test_token_swaps_to_beast_form(self):
+        original_token = self.druid.token()
+        ws.transform(self.druid, 'wolf')
+        # Wolf's token in templates/npcs/wolf.yml is ['<'].
+        self.assertEqual(self.druid.token(), ['<'])
+        self.assertNotEqual(self.druid.token(), original_token)
+
+    def test_token_image_swaps_to_beast_form(self):
+        ws.transform(self.druid, 'wolf')
+        # Wolf has no explicit token_image; falls back to kind-based name.
+        self.assertEqual(self.druid.token_image(), 'token_wolf.png')
+
+    def test_token_restored_after_revert(self):
+        original_token = copy.deepcopy(self.druid.token())
+        original_token_image = self.druid.token_image()
+        ws.transform(self.druid, 'wolf')
+        ws.revert(self.druid)
+        self.assertEqual(self.druid.token(), original_token)
+        self.assertEqual(self.druid.token_image(), original_token_image)
+
+    def test_token_round_trips_through_dict(self):
+        ws.transform(self.druid, 'wolf')
+        data = self.druid.to_dict()
+        data = copy.deepcopy({k: v for k, v in data.items() if k != 'session'})
+        data['session'] = self.session
+        restored = PlayerCharacter.from_dict(data)
+        # Beast token re-applied after load.
+        self.assertEqual(restored.token(), ['<'])
+        self.assertEqual(restored.token_image(), 'token_wolf.png')
+
+    def test_serialized_properties_have_humanoid_token(self):
+        original_token_property = copy.deepcopy(self.druid.properties.get('token'))
+        original_token_image_property = self.druid.properties.get('token_image')
+        ws.transform(self.druid, 'wolf')
+        data = self.druid.to_dict()
+        # Persisted properties should reflect the humanoid form, so a
+        # save written mid-transform restores the original token visuals
+        # alongside the wild-shape state.
+        self.assertEqual(data['properties'].get('token'), original_token_property)
+        self.assertEqual(data['properties'].get('token_image'),
+                         original_token_image_property)
+
+
 if __name__ == '__main__':
     unittest.main()
