@@ -1079,7 +1079,14 @@ class EntityRAGHandler:
                     'Use the insight roll as a confidence gate. '
                     'If the roll is low, the evidence is mixed, or the context is insufficient, return uncertain. '
                     'Return JSON only with keys assessment and reason. '
-                    'assessment must be one of truthful, lie, or uncertain.'
+                    'assessment must be one of truthful, lie, or uncertain. '
+                    'IMPORTANT: the "reason" field is shown verbatim to the player\'s character. '
+                    'Write it strictly in-character and only describe cues the observer could plausibly notice '
+                    '(tone of voice, body language, hesitations, eye contact, inconsistencies with what was said earlier). '
+                    'NEVER reveal DM-only knowledge such as the target\'s true nature, alignment, stat block, '
+                    'hidden identity, illusion/undead/construct status, secret motives, backstory facts the observer '
+                    'has not learned in play, or any meta-game information. '
+                    'If the roll is too low to learn anything, say so vaguely without referencing hidden truths.'
                 ),
             },
             {
@@ -1129,7 +1136,38 @@ class EntityRAGHandler:
             assessment = 'uncertain'
         if not reason:
             reason = default_assessment['reason']
+        reason = self._sanitize_insight_reason(reason, default_assessment['reason'])
         return {'assessment': assessment, 'reason': reason}
+
+    # Sentences containing any of these terms reveal DM-only knowledge that
+    # the observing character could not perceive from cues alone. They are
+    # dropped from the player-facing reason text. If everything would be
+    # dropped, we fall back to a vague default.
+    _DM_LEAK_TERMS = (
+        'illusion', 'illusory', 'illusionary', 'phantasm',
+        'construct', 'undead', 'ghost', 'spectre', 'specter', 'apparition',
+        'incorporeal', 'shapechanger', 'doppelganger', 'simulacrum',
+        'true form', 'true nature', 'actually a', 'in reality',
+        'stat block', 'alignment', 'backstory', 'hit point', 'hp ',
+        'meta', 'dm note', 'dungeon master', 'behind the scenes',
+        'created by the house', 'manifestation of', 'spirit of',
+    )
+
+    def _sanitize_insight_reason(self, reason: str, fallback: str) -> str:
+        text = str(reason or '').strip()
+        if not text:
+            return fallback
+        # Split on sentence boundaries while keeping it lightweight; drop any
+        # sentence that name-drops DM-only metadata.
+        sentences = re.split(r'(?<=[\.\!\?])\s+', text)
+        kept = []
+        for sentence in sentences:
+            lowered = sentence.lower()
+            if any(term in lowered for term in self._DM_LEAK_TERMS):
+                continue
+            kept.append(sentence.strip())
+        cleaned = ' '.join(part for part in kept if part).strip()
+        return cleaned or fallback
 
     def _build_dm_insight_context(self, observer: Entity, target: Entity, statement: str) -> Dict[str, Any]:
         battle_map = self.current_game.get_map_for_entity(observer)

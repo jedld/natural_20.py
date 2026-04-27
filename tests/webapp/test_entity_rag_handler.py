@@ -534,6 +534,30 @@ class TestEntityRAGHandler(unittest.TestCase):
         self.mock_current_game.advance_world_time.assert_called_once_with(seconds=6, trigger_environment=False)
         self.assertEqual(result['executed_actions'], ['approach', 'interact'])
 
+    def test_sanitize_insight_reason_strips_dm_only_disclosures(self):
+        fallback = 'fallback reason'
+        cleaned = self.rag_handler._sanitize_insight_reason(
+            "Their gaze flickers when they answer. The target is an illusionary "
+            "construct created by the house, so there is no biological tell. "
+            "Still, the wording feels rehearsed.",
+            fallback,
+        )
+        # Sentences mentioning illusion/construct/created-by-the-house must be
+        # dropped, but the in-character cues should survive.
+        self.assertNotIn('illusion', cleaned.lower())
+        self.assertNotIn('construct', cleaned.lower())
+        self.assertNotIn('created by the house', cleaned.lower())
+        self.assertIn('gaze flickers', cleaned)
+        self.assertIn('rehearsed', cleaned)
+
+    def test_sanitize_insight_reason_falls_back_when_everything_redacted(self):
+        fallback = 'You cannot tell for sure.'
+        cleaned = self.rag_handler._sanitize_insight_reason(
+            "The target is an illusion. Behind the scenes the DM has marked them as undead.",
+            fallback,
+        )
+        self.assertEqual(cleaned, fallback)
+
 
 if __name__ == '__main__':
     unittest.main() 

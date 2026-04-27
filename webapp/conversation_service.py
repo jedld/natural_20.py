@@ -1,4 +1,5 @@
 from flask import jsonify, request, session
+import re
 
 from natural20.player_character import PlayerCharacter
 from natural20.utils.conversation import (
@@ -11,6 +12,76 @@ from natural20.utils.conversation import (
     unique_entities,
 )
 from natural20.utils.gibberish import gibberish
+
+
+# Recognises a player's request to attempt an Insight (Wisdom) check.
+# Examples that match (case-insensitive):
+#   "insight check"                       "[insight check]"
+#   "I want to roll insight on @Garrick"  "/insight"
+#   "Insight check on the merchant about his prices"
+#   "make an insight check"
+PLAYER_INSIGHT_PATTERNS = [
+    re.compile(r'^\s*/?\s*insight(?:\s+check)?\b', re.IGNORECASE),
+    re.compile(r'^\s*\[\s*insight(?:\s+check)?[^\]]*\]', re.IGNORECASE),
+    re.compile(r'\b(?:make|do|roll|attempt|try|perform)\s+(?:an?\s+)?insight\s+check\b', re.IGNORECASE),
+    re.compile(r'\binsight\s+check\s+(?:on|against|of|for)\b', re.IGNORECASE),
+    re.compile(r'\broll(?:ing)?\s+insight\b', re.IGNORECASE),
+]
+
+# Pulls a "target" and an optional "purpose" clause out of an insight request.
+# We try a few common phrasings; whichever matches first wins.
+_INSIGHT_TARGET_PURPOSE_PATTERNS = [
+    re.compile(
+        r'insight(?:\s+check)?\s+on\s+(?P<target>@?[\w\'\- ]+?)'
+        r'(?:\s+(?:about|regarding|for|to(?:\s+(?:see|determine|tell|find\s+out))?)\s+(?P<purpose>.+))?$',
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r'insight(?:\s+check)?\s+against\s+(?P<target>@?[\w\'\- ]+?)'
+        r'(?:\s+(?:about|regarding|for)\s+(?P<purpose>.+))?$',
+        re.IGNORECASE,
+    ),
+]
+
+
+def is_player_insight_request(message):
+    """Return True when the player's message is asking to roll Insight."""
+    if not message:
+        return False
+    text = str(message).strip()
+    if not text:
+        return False
+    for pattern in PLAYER_INSIGHT_PATTERNS:
+        if pattern.search(text):
+            return True
+    return False
+
+
+def parse_player_insight_request(message):
+    """Extract a (target_spec, purpose) tuple from the player's message.
+
+    Either field may be ``None`` if the request is too vague.
+    """
+    text = (message or '').strip()
+    target_spec = None
+    purpose = None
+    for pattern in _INSIGHT_TARGET_PURPOSE_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            target_spec = (match.group('target') or '').strip(' .,!?') or None
+            purpose = (match.group('purpose') or '').strip(' .,!?') or None
+            break
+
+    # Fall back: anything after the first "about"/"regarding"/"because"
+    if purpose is None:
+        about_match = re.search(
+            r'\b(?:about|regarding|because|to\s+see|to\s+determine|to\s+tell|to\s+find\s+out)\s+(?P<rest>.+)$',
+            text,
+            re.IGNORECASE,
+        )
+        if about_match:
+            purpose = about_match.group('rest').strip(' .,!?') or None
+    return target_spec, purpose
 
 
 class ConversationService:
@@ -518,6 +589,234 @@ class ConversationService:
             'entity_pov': False,
         }, 200
 
+    def _emit_player_insight_payload(self, speaker, message_text, target=None,
+                                     roll_total=None, dc=None, assessment=None,
+                                     reason=None, vague=False, clarification=None,
+                                     purpose=None):
+        """Send a private insight-check result/clarification to the player + DM only."""
+        payload = {
+            'entity_id': getattr(target, 'entity_uid', None),
+            'speaker_name': 'Dungeon Master',
+            'message': message_text,
+            'narrative': [],
+            'language': 'common',
+            'targets': [getattr(speaker, 'entity_uid', None)],
+            'target_names': [entity_label(speaker)] if speaker is not None else [],
+            'mentioned_targets': [],
+            'mentioned_handles': [],
+            'volume': 'normal',
+            'distance_ft': 0,
+            'visual_only_usernames': [],
+            'system': True,
+            'insight_check': {
+                'observer': entity_label(speaker) if speaker is not None else None,
+                'target': entity_label(target) if target is not None else None,
+                'roll_total': roll_total,
+                'dc': dc,
+                'assessment': assessment,
+                'reason': reason,
+                'vague': bool(vague),
+                'clarification': clarification,
+                'purpose': purpose,
+            },
+        }
+        usernames = self.entity_audience_usernames([speaker], include_dm=True)
+        self.emit_conversation_to_usernames(usernames, payload, source_entity=None)
+        return payload
+
+    def _resolve_insight_target(self, speaker, target_spec, explicit_targets, mentioned_targets):
+        """Pick the NPC the player wants to read."""
+        # 1) explicit/mentioned NPC targets (NPCs only, ignore the speaker)
+        for candidate in list(mentioned_targets or []) + list(explicit_targets or []):
+            if candidate is None or candidate == speaker:
+                continue
+            if hasattr(candidate, 'is_npc') and candidate.is_npc():
+                return candidate
+
+        # 2) explicit textual target via "insight check on <name>"
+        if target_spec:
+            rag_handler = self.entity_rag_handler
+            if rag_handler is not None and hasattr(rag_handler, 'resolve_named_target'):
+                try:
+                    candidate = rag_handler.resolve_named_target(speaker, target_spec, speaker=speaker)
+                except Exception:
+                    candidate = None
+                if candidate is not None and candidate != speaker and getattr(candidate, 'is_npc', lambda: False)():
+                    return candidate
+
+        # 3) fall back to the most recent NPC that spoke to the player
+        memory = list(getattr(speaker, 'memory_buffer', []) or [])
+        for entry in reversed(memory):
+            source = entry.get('source') if isinstance(entry, dict) else None
+            if source is None or source == speaker:
+                continue
+            if getattr(source, 'is_npc', lambda: False)():
+                return source
+
+        return None
+
+    def _latest_npc_statement(self, speaker, target):
+        """Return the most recent statement made by ``target`` to ``speaker``."""
+        memory = list(getattr(speaker, 'memory_buffer', []) or [])
+        for entry in reversed(memory):
+            if not isinstance(entry, dict):
+                continue
+            source = entry.get('source')
+            if source is target:
+                text = entry.get('message') or ''
+                if str(text).strip():
+                    return str(text).strip()
+        return ''
+
+    def handle_player_insight_request(self, speaker, message,
+                                      explicit_targets=None,
+                                      mentioned_targets=None):
+        """Resolve a player's "Insight Check" request privately.
+
+        Returns the standard ``(dict, status)`` tuple expected by ``/talk``.
+        The player's message is **not** forwarded to NPCs.
+        """
+        target_spec, purpose = parse_player_insight_request(message)
+        target = self._resolve_insight_target(speaker, target_spec,
+                                              explicit_targets or [],
+                                              mentioned_targets or [])
+
+        if target is None:
+            self._emit_player_insight_payload(
+                speaker,
+                "Whom would you like to read? Try 'Insight check on @<name> about <topic>'.",
+                vague=True,
+                clarification='missing_target',
+            )
+            return {'success': True, 'insight': 'needs_target'}, 200
+
+        # Look up something concrete to read. If the player did not give a
+        # purpose and the NPC has not actually said anything yet, ask them to
+        # be more specific instead of rolling.
+        latest_statement = self._latest_npc_statement(speaker, target)
+        if not purpose and not latest_statement:
+            self._emit_player_insight_payload(
+                speaker,
+                f"What about {entity_label(target)} are you trying to read? "
+                "(e.g. 'are they lying about the missing caravan?')",
+                target=target,
+                vague=True,
+                clarification='missing_purpose',
+            )
+            return {'success': True, 'insight': 'needs_purpose'}, 200
+
+        statement_for_check = purpose or latest_statement
+        description = (
+            f"Insight check on {entity_label(target)}"
+            + (f" about: {purpose}" if purpose else '')
+        )
+
+        # Roll the player's Insight check.
+        try:
+            roll = speaker.insight_check(description=description)
+        except Exception as exc:
+            self.logger.error(f"Insight check failed for {entity_label(speaker)}: {exc}")
+            self._emit_player_insight_payload(
+                speaker,
+                "Your insight check could not be completed.",
+                target=target,
+                vague=True,
+                clarification='roll_failed',
+                purpose=purpose,
+            )
+            return {'success': False, 'error': 'insight_roll_failed'}, 500
+
+        roll_total = None
+        try:
+            roll_total = roll.result()
+        except Exception:
+            roll_total = None
+
+        # Re-use the existing DM-LLM adjudicator that powers NPC-side insight
+        # so the verdict honours backstory + recent conversation context.
+        rag_handler = self.entity_rag_handler
+        llm_conversation_handler = self.llm_conversation_handler
+        assessment = 'uncertain'
+        reason = 'There is not enough reliable evidence to be sure.'
+        if rag_handler is not None and llm_conversation_handler is not None \
+                and hasattr(rag_handler, '_evaluate_insight_assessment'):
+            try:
+                verdict = rag_handler._evaluate_insight_assessment(
+                    observer=speaker,
+                    target=target,
+                    statement=statement_for_check,
+                    roll=roll,
+                    llm_conversation_handler=llm_conversation_handler,
+                )
+            except Exception as exc:
+                self.logger.error(f"Insight adjudication failed: {exc}")
+                verdict = None
+            if isinstance(verdict, dict):
+                assessment = verdict.get('assessment', assessment)
+                reason = verdict.get('reason', reason)
+
+        verdict_label = {
+            'truthful': 'They appear to be telling the truth.',
+            'lie': 'You sense deception.',
+            'uncertain': 'You cannot tell for sure.',
+        }.get(assessment, 'You cannot tell for sure.')
+
+        try:
+            roll_repr = str(roll) if roll is not None else ''
+        except Exception:
+            roll_repr = ''
+        if roll_repr and roll_total is not None:
+            roll_text = f"Insight check ({roll_repr}) = {roll_total}"
+        elif roll_total is not None:
+            roll_text = f"Insight check: {roll_total}"
+        else:
+            roll_text = "Insight check"
+        message_text = (
+            f"{roll_text} on {entity_label(target)}. {verdict_label} {reason}"
+        )
+
+        self._emit_player_insight_payload(
+            speaker,
+            message_text,
+            target=target,
+            roll_total=roll_total,
+            assessment=assessment,
+            reason=reason,
+            purpose=purpose,
+        )
+
+        # Log the social check restricted to participating entities. Match the
+        # roll-breakdown style used by the rest of the combat log (e.g.
+        # "1d20(15)+6 = 21") so DMs can see how the result was reached.
+        if rag_handler is not None and hasattr(rag_handler, '_log_social_check'):
+            try:
+                roll_breakdown = ''
+                try:
+                    roll_str = str(roll) if roll is not None else ''
+                except Exception:
+                    roll_str = ''
+                if roll_str and roll_total is not None:
+                    roll_breakdown = f"{roll_str} = {roll_total}"
+                elif roll_total is not None:
+                    roll_breakdown = f"total {roll_total}"
+                rag_handler._log_social_check(
+                    f"{entity_label(speaker)} attempts an Insight check on "
+                    f"{entity_label(target)} ({roll_breakdown}): {assessment}.",
+                    entities=[speaker, target],
+                )
+            except Exception:
+                pass
+
+        return {
+            'success': True,
+            'insight': {
+                'target': getattr(target, 'entity_uid', None),
+                'roll_total': roll_total,
+                'assessment': assessment,
+                'reason': reason,
+            },
+        }, 200
+
     def talk_response(self, data, conversation_system_prompt):
         entity_id = data.get('entity_id')
         message = data.get('message')
@@ -536,6 +835,17 @@ class ConversationService:
             self.current_game.increment_game_time(entity)
 
         entity_targets, mentioned_targets = self.resolve_conversation_targets(entity, primary_targets=primary_targets, message=message)
+
+        # Player-side meta requests (e.g. "Insight Check on @Garrick about his
+        # story") are handled privately and never broadcast to NPCs.
+        if (isinstance(entity, PlayerCharacter)
+                and is_player_insight_request(message)):
+            return self.handle_player_insight_request(
+                entity,
+                message,
+                explicit_targets=entity_targets,
+                mentioned_targets=mentioned_targets,
+            )
 
         try:
             processed_conversations = entity.send_conversation(

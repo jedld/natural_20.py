@@ -256,12 +256,15 @@ const Chat = Object.assign({}, window.LocalConversationChatBindings || {}, {
             }, 10000);
         }
     },
-    addDialogMessage: function (sender, content, type) {
+    addDialogMessage: function (sender, content, type, options) {
         const timestamp = new Date().toLocaleTimeString();
+        options = options || {};
 
         // Determine the display name based on mode and sender
         let displayName = sender;
-        if (talkToEntityMode) {
+        if (options.displayName) {
+            displayName = options.displayName;
+        } else if (talkToEntityMode) {
             if (sender === 'player') {
                 // Get the current POV entity name
                 const currentPovEntity = Chat.getCurrentPovEntity();
