@@ -44,7 +44,11 @@ class Teleporter(Object):
                                 entity_placed = True
                                 break
             if entity_placed:
-                map.remove(entity)
+                # Defensive: only remove from the source map if the entity
+                # is still tracked there. Another handler (or a re-entrant
+                # on_enter) may have already removed it.
+                if entity in getattr(map, 'entities', {}):
+                    map.remove(entity)
             else:
                 map.session.event_manager.received_event({
                                                         "event" : 'console', "target" : target_map, "source": entity,

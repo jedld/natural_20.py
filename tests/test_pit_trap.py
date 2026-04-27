@@ -198,6 +198,42 @@ class TestPitTrap(unittest.TestCase):
         results = trap.area_trigger_handler(self.fighter, [1, 3], True)
         self.assertIsNone(results)
 
+    def test_jump_over_pit_trap_with_running_start(self):
+        """Web UI jump (J key) over a pit trap with a running start should
+        clear the trap without activating it.
+
+        This mirrors how the Flask /action endpoint translates the
+        ``manual_jump = [takeoff_index, landing_index]`` payload sent by
+        the JS client into ``action.jump_index``: only the in-flight
+        squares (takeoff+1 .. landing) should be marked as jump squares so
+        the takeoff itself still counts as a walked square (granting the
+        long-jump running-start budget).
+        """
+        trap = self._get_pit_trap()
+        self.assertFalse(trap.activated)
+        initial_hp = self.fighter.hp()
+
+        # Reposition fighter to (3, 3) so they have running room toward the trap at (1, 3).
+        self.map.move_to(self.fighter, 3, 3, self.battle)
+
+        # Path: [3,3] (start) -> [2,3] (running step / takeoff) -> [1,3] (jump over trap) -> [0,3] (land)
+        move_path = [[3, 3], [2, 3], [1, 3], [0, 3]]
+        # JS sends [takeoff_idx, landing_idx]; server should produce
+        # in-flight indices [2, 3] (excluding the takeoff at index 1).
+        takeoff_idx, landing_idx = 1, 3
+
+        action = MoveAction(self.session, self.fighter, 'move')
+        action.move_path = move_path
+        action.jump_index = list(range(takeoff_idx + 1, landing_idx + 1))
+        action.resolve(self.session, self.map, {'battle': self.battle})
+        self.battle.commit(action)
+
+        # Trap must NOT activate and PC must NOT take damage.
+        self.assertFalse(trap.activated, "pit trap should not activate when jumped over")
+        self.assertEqual(self.fighter.hp(), initial_hp)
+        # PC should have landed on the far side.
+        self.assertEqual(list(self.map.position_of(self.fighter)), [0, 3])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -79,6 +79,16 @@ class Entity(EntityStateEvaluator, Notable):
         self.targettable = True
         self.conversation_controller = None
         self.dialog = False
+        # Phase 3 modifier registry. Each entry is a dict with keys:
+        # ``kind``, ``source``, ``value``, ``advantage``, ``disadvantage``,
+        # ``condition``. ``value`` may be an int, a dice string, or a
+        # callable ``(entity, context) -> int | str | None``.
+        self._modifiers = []
+        # Phase 4: opt-in resource pools keyed by name. Existing
+        # per-attribute counters (second_wind_count, wild_shape_count,
+        # rage_count, …) keep working untouched; this dict is purely
+        # additive.
+        self.resources = {}
         # Attach methods dynamically
         for ability, skills in self.SKILL_AND_ABILITY_MAP.items():
             for skill in skills:
@@ -123,6 +133,122 @@ class Entity(EntityStateEvaluator, Notable):
     def current_concentration(self):
         return self.concentration
     
+    # --- Phase 3 modifier registry --------------------------------------
+
+    def add_modifier(self, kind, source, value=0, *,
+                     advantage=False, disadvantage=False, condition=None):
+        """Register an attack/save/damage/check modifier on this entity.
+
+        ``kind`` is a string like ``'attack_roll'``, ``'save_roll'``,
+        ``'damage_roll'``, ``'ac'``, ``'spell_attack'``. ``value`` may be
+        an int, dice string (e.g. ``'1d4'``), or callable
+        ``(entity, context) -> int | str | None``. ``condition`` may be a
+        callable ``(entity, context) -> bool`` that gates inclusion.
+        """
+        if not hasattr(self, '_modifiers') or self._modifiers is None:
+            self._modifiers = []
+        self._modifiers.append({
+            'kind': str(kind),
+            'source': source,
+            'value': value,
+            'advantage': bool(advantage),
+            'disadvantage': bool(disadvantage),
+            'condition': condition,
+        })
+
+    def remove_modifier(self, source):
+        """Remove every modifier registered under ``source`` (==)."""
+        if not getattr(self, '_modifiers', None):
+            return
+        self._modifiers = [m for m in self._modifiers if m.get('source') is not source]
+
+    def collect_modifiers(self, kind, context=None):
+        """Return all matching modifier entries for ``kind``.
+
+        Each returned dict carries ``value`` resolved to int|str (callable
+        results are evaluated), plus ``advantage`` / ``disadvantage`` flags
+        and the original ``source`` for stacking checks.
+        """
+        out = []
+        mods = getattr(self, '_modifiers', None) or []
+        for m in mods:
+            if m.get('kind') != kind:
+                continue
+            cond = m.get('condition')
+            if cond is not None:
+                try:
+                    if not cond(self, context or {}):
+                        continue
+                except Exception:
+                    continue
+            raw = m.get('value', 0)
+            if callable(raw):
+                try:
+                    raw = raw(self, context or {})
+                except Exception:
+                    raw = None
+            if raw is None:
+                continue
+            out.append({
+                'source': m.get('source'),
+                'value': raw,
+                'advantage': bool(m.get('advantage')),
+                'disadvantage': bool(m.get('disadvantage')),
+            })
+        return out
+
+    # --- Phase 4 resource pool helpers ---------------------------------
+
+    def _resources_dict(self):
+        if not hasattr(self, 'resources') or self.resources is None:
+            self.resources = {}
+        return self.resources
+
+    def register_resource(self, name, max_value, *, restore_on='long_rest', current=None):
+        """Create or update a named ResourcePool on this entity."""
+        from natural20.resource_pool import ResourcePool
+        pools = self._resources_dict()
+        existing = pools.get(name)
+        if existing is not None:
+            existing.max_value = int(max_value)
+            existing.restore_on = restore_on
+            if current is not None:
+                existing.current = int(current)
+            else:
+                existing.current = min(existing.current, existing.max_value)
+            return existing
+        pool = ResourcePool(name, max_value, restore_on=restore_on, current=current)
+        pools[name] = pool
+        return pool
+
+    def get_resource(self, name):
+        return self._resources_dict().get(name)
+
+    def resource_value(self, name, default=0):
+        pool = self._resources_dict().get(name)
+        return pool.current if pool is not None else default
+
+    def has_resource(self, name, n=1):
+        pool = self._resources_dict().get(name)
+        return pool is not None and pool.available(n)
+
+    def consume_resource(self, name, n=1):
+        pool = self._resources_dict().get(name)
+        if pool is None:
+            return False
+        return pool.consume(n)
+
+    def restore_resource(self, name, n=None):
+        pool = self._resources_dict().get(name)
+        if pool is None:
+            return None
+        return pool.restore(n)
+
+    def restore_resources(self, rest_kind):
+        """Refill every pool whose ``restore_on`` matches ``rest_kind``."""
+        for pool in self._resources_dict().values():
+            pool.restore_for(rest_kind)
+
     def kind_of_door(self):
         """
         Returns True if this entity is a kind of door, False otherwise.
@@ -574,9 +700,11 @@ class Entity(EntityStateEvaluator, Notable):
 
         # drop other help actions
         for other_targets in self.helping_with:
-            other_targets.help_actions.remove(self)
+            # help_actions on the recipient is keyed by the helper; the value
+            # is the helper itself (consumed by callers via dict.values()).
+            other_targets.help_actions.pop(self, None)
 
-        target.help_actions[target] = self
+        target.help_actions[self] = self
         self.helping_with.add(target)
 
     # Checks if an item is equipped
@@ -839,7 +967,209 @@ class Entity(EntityStateEvaluator, Notable):
         modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
         return modifier
 
-    def short_rest(self, battle, prompt=False, force=False):
+    # Default radius (feet) used when scanning for hostile creatures that
+    # would prevent a rest from occurring.
+    REST_HOSTILE_RADIUS_FT = 60
+
+    def _resolve_rest_map(self, battle_map):
+        """Return a Map for rest-precondition checks, or None if unavailable."""
+        if battle_map is not None:
+            return battle_map
+        session = getattr(self, 'session', None)
+        if session is None:
+            return None
+        resolver = getattr(session, 'map_for_entity', None)
+        if not callable(resolver):
+            return None
+        try:
+            return resolver(self)
+        except Exception:
+            return None
+
+    def _nearby_hostiles(self, battle, battle_map, radius_ft=None):
+        """Return alive, conscious, opposing entities within ``radius_ft``."""
+        if battle_map is None:
+            return []
+        if radius_ft is None:
+            radius_ft = self.REST_HOSTILE_RADIUS_FT
+        session = getattr(self, 'session', None)
+        try:
+            candidates = battle_map.entities_in_range(self, radius_ft)
+        except Exception:
+            return []
+
+        my_group = getattr(self, 'group', None)
+        if battle is not None:
+            state = None
+            try:
+                state = battle.entity_state_for(self)
+            except Exception:
+                state = None
+            if state and state.get('group'):
+                my_group = state['group']
+
+        hostiles = []
+        for other in candidates:
+            if other is self:
+                continue
+            try:
+                if other.dead() or other.unconscious():
+                    continue
+            except Exception:
+                continue
+
+            if battle is not None:
+                try:
+                    if battle.opposing(self, other):
+                        hostiles.append(other)
+                        continue
+                except Exception:
+                    pass
+
+            other_group = getattr(other, 'group', None)
+            if battle is not None:
+                try:
+                    other_state = battle.entity_state_for(other)
+                    if other_state and other_state.get('group'):
+                        other_group = other_state['group']
+                except Exception:
+                    pass
+
+            # When either side has no group we cannot determine hostility, so
+            # treat the creature as non-hostile.  Campaigns that want a more
+            # restrictive policy should assign group labels.
+            if not my_group or not other_group:
+                continue
+            if session is not None:
+                try:
+                    if not session.opposing(my_group, other_group):
+                        continue
+                except Exception:
+                    continue
+            hostiles.append(other)
+        return hostiles
+
+    def _check_rest_preconditions(self, battle, battle_map, kind):
+        """Validate shared rest preconditions for short and long rests."""
+        if battle is not None and getattr(battle, 'started', False):
+            raise ValueError(f"cannot take a {kind} rest while combat is in progress")
+        hostiles = self._nearby_hostiles(battle, battle_map)
+        if hostiles:
+            names = ", ".join(
+                getattr(h, 'name', None) or getattr(h, 'label', lambda: 'unknown')()
+                for h in hostiles[:3]
+            )
+            raise ValueError(
+                f"cannot take a {kind} rest while hostile creatures are nearby: {names}"
+            )
+
+    def _check_long_rest_location(self, battle_map):
+        """Honor map/campaign opt-outs (``allow_long_rest: false``)."""
+        if battle_map is not None:
+            map_props = getattr(battle_map, 'properties', None) or {}
+            if map_props.get('allow_long_rest') is False:
+                reason = map_props.get('long_rest_denied_message') \
+                    or "long rests are not permitted in this location"
+                raise ValueError(reason)
+        session = getattr(self, 'session', None)
+        if session is not None:
+            game_props = getattr(session, 'game_properties', None) or {}
+            if game_props.get('allow_long_rest') is False:
+                reason = game_props.get('long_rest_denied_message') \
+                    or "long rests are not permitted in this campaign"
+                raise ValueError(reason)
+
+    def _consume_long_rest_rations(self):
+        """Consume one ration from the entity's inventory; raise if absent.
+
+        Only entities with an ``inventory`` mapping (player characters and
+        NPCs that track gear) participate; entities without an inventory are
+        treated as creatures that do not need to eat for long-rest purposes.
+        """
+        inventory = getattr(self, 'inventory', None)
+        if inventory is None:
+            return
+        if self.item_count('rations') < 1:
+            raise ValueError("a long rest requires at least 1 ration to consume")
+        self.deduct_item('rations', 1)
+
+    def rest_status(self, battle=None, battle_map=None, require_rations=False):
+        """Return a structured availability report for short/long rests.
+
+        Does not raise; returns a dict like::
+
+            {
+                'short': {'allowed': bool, 'reasons': [str, ...],
+                          'force_overrides': bool},
+                'long':  {'allowed': bool, 'reasons': [str, ...],
+                          'force_overrides': bool, 'requires_rations': bool,
+                          'rations_available': int},
+            }
+
+        ``force_overrides`` is True when ``force=True`` would bypass every
+        listed reason (currently the case for combat/hostile/location guards;
+        missing rations cannot be force-bypassed).
+        """
+        battle_map = self._resolve_rest_map(battle_map)
+        in_combat = bool(battle is not None and getattr(battle, 'started', False))
+
+        short_reasons = []
+        if in_combat:
+            short_reasons.append("Combat is in progress")
+        hostiles = self._nearby_hostiles(battle, battle_map)
+        if hostiles:
+            names = ", ".join(
+                getattr(h, 'name', None) or getattr(h, 'label', lambda: 'unknown')()
+                for h in hostiles[:3]
+            )
+            short_reasons.append(f"Hostile creatures nearby: {names}")
+
+        long_reasons = list(short_reasons)
+        # Map / campaign opt-out
+        if battle_map is not None:
+            map_props = getattr(battle_map, 'properties', None) or {}
+            if map_props.get('allow_long_rest') is False:
+                long_reasons.append(
+                    map_props.get('long_rest_denied_message')
+                    or "Long rests are not permitted in this location"
+                )
+        session = getattr(self, 'session', None)
+        if session is not None:
+            game_props = getattr(session, 'game_properties', None) or {}
+            if game_props.get('allow_long_rest') is False:
+                long_reasons.append(
+                    game_props.get('long_rest_denied_message')
+                    or "Long rests are not permitted in this campaign"
+                )
+
+        rations_available = 0
+        rations_blocking = False
+        if getattr(self, 'inventory', None) is not None:
+            try:
+                rations_available = int(self.item_count('rations') or 0)
+            except Exception:
+                rations_available = 0
+            if require_rations and rations_available < 1:
+                long_reasons.append("No rations available to consume")
+                rations_blocking = True
+
+        return {
+            'short': {
+                'allowed': not short_reasons,
+                'reasons': short_reasons,
+                'force_overrides': bool(short_reasons),
+            },
+            'long': {
+                'allowed': not long_reasons,
+                'reasons': long_reasons,
+                # Force can bypass everything *except* missing rations.
+                'force_overrides': bool(long_reasons) and not rations_blocking,
+                'requires_rations': bool(require_rations),
+                'rations_available': rations_available,
+            },
+        }
+
+    def short_rest(self, battle, prompt=False, force=False, battle_map=None):
         """Take a short rest (D&D 5e SRD).
 
         Spends hit dice (interactively if the controller exposes
@@ -849,11 +1179,17 @@ class Entity(EntityStateEvaluator, Notable):
         warlock pact slots, etc.), and fires a ``short_rest`` event/trigger
         so registered effects can react.
 
-        A short rest is not allowed while a battle is in progress unless
-        ``force=True`` is supplied (DM override).
+        Restrictions (waived when ``force=True``):
+
+        * A short rest may not begin while a battle is in progress.
+        * No hostile creature (opposing group, alive and conscious) may be
+          within :pyattr:`REST_HOSTILE_RADIUS_FT` of the resting entity.
+
+        ``battle_map`` is used to scan for nearby hostiles; when omitted the
+        current map is resolved from ``self.session.map_for_entity(self)``.
         """
-        if not force and battle is not None and getattr(battle, 'started', False):
-            raise ValueError("cannot take a short rest while combat is in progress")
+        if not force:
+            self._check_rest_preconditions(battle, self._resolve_rest_map(battle_map), 'short')
 
         controller = battle.controller_for(self) if battle is not None else None
 
@@ -891,6 +1227,7 @@ class Entity(EntityStateEvaluator, Notable):
             if callable(hook):
                 hook(battle)
 
+        self.restore_resources('short_rest')
         self.resolve_trigger('short_rest')
         self.event_manager.received_event({'source': self, 'event': 'short_rest'})
 
@@ -1596,7 +1933,22 @@ class Entity(EntityStateEvaluator, Notable):
             ofs_x = -distance
             ofs_y = -distance
         else:
-            raise ValueError(f"Invalid source position {pos_x}, {pos_y}")
+            # Source isn't strictly adjacent (e.g. caller is reach-attacking
+            # from 2 squares away, or token sizes/effects pushed the source
+            # one square off the bounding ring). Fall back to a directional
+            # push along the sign of the delta from the bounding box so the
+            # turn doesn't crash with a 500.
+            if pos_x < x:
+                ofs_x = distance
+            elif pos_x > x + effective_token_size:
+                ofs_x = -distance
+            if pos_y < y:
+                ofs_y = distance
+            elif pos_y > y + effective_token_size:
+                ofs_y = -distance
+            if ofs_x == 0 and ofs_y == 0:
+                # Source overlaps target; nothing to push from.
+                return x, y
 
         # convert to squares
         ofs_x //= map.feet_per_grid
@@ -1899,6 +2251,49 @@ class Entity(EntityStateEvaluator, Notable):
         if self.has_effect('bane'):
             bane_pen = DieRoll.roll("1d4", description="bane", entity=self, battle=battle)
             save_roll += DieRoll.roll("-" + str(bane_pen.result()), entity=self, battle=battle)
+
+        # Generic, additive modifier hook for new effects (Bardic Inspiration,
+        # Bless variants, paladin auras, etc.). Effects register against
+        # 'save_modifier' and may return either a numeric bonus or a
+        # ``DieRoll`` to add to the roll. The hook is consulted last so it
+        # composes with the legacy bless/bane handling above without
+        # changing behavior for entities that have no such effect.
+        if self.has_effect('save_modifier'):
+            mod = self.eval_effect('save_modifier', {
+                'stacked': True, 'value': 0,
+                'ability': save_type, 'battle': battle,
+            })
+            if mod:
+                if hasattr(mod, 'result'):
+                    save_roll += mod
+                else:
+                    sign = '+' if int(mod) >= 0 else ''
+                    save_roll += DieRoll.roll(f"{sign}{int(mod)}",
+                                              description="save_modifier",
+                                              entity=self, battle=battle)
+
+        # Phase 3 modifier registry: any effect that registered a
+        # ``save_roll`` modifier (Bardic Inspiration, paladin auras, etc.)
+        # contributes here. ``value`` may be an int or a dice string.
+        registry_mods = self.collect_modifiers('save_roll', {
+            'ability': save_type, 'battle': battle,
+        })
+        for entry in registry_mods:
+            v = entry['value']
+            if isinstance(v, str) and v:
+                save_roll += DieRoll.roll(v, description=f"save_modifier:{entry.get('source')}",
+                                          entity=self, battle=battle)
+            else:
+                try:
+                    iv = int(v)
+                except Exception:
+                    continue
+                if iv == 0:
+                    continue
+                sign = '+' if iv >= 0 else ''
+                save_roll += DieRoll.roll(f"{sign}{iv}",
+                                          description=f"save_modifier:{entry.get('source')}",
+                                          entity=self, battle=battle)
 
         return save_roll
 
@@ -2338,13 +2733,10 @@ class Entity(EntityStateEvaluator, Notable):
 
 
     def light_properties(self):
-        if not self.equipped_items():
-            return None
-
         bright = [0]
         dim = [0]
 
-        for item in self.equipped_items():
+        for item in (self.equipped_items() or []):
             if not item.get('light_properties'):
                 continue
 
@@ -2578,10 +2970,32 @@ class Entity(EntityStateEvaluator, Notable):
             'group' : self.group,
             'activated' : self.activated,
             'help_actions': self.help_actions,
-            'helping_with': list(self.helping_with)
+            'helping_with': list(self.helping_with),
+            'resources': {name: pool.to_dict() for name, pool in (getattr(self, 'resources', None) or {}).items()},
         }
 
-    def long_rest(self):
+    def long_rest(self, battle=None, battle_map=None, force=False, require_rations=False):
+        """Take a long rest.
+
+        Restrictions (waived when ``force=True``):
+
+        * Combat must not be in progress.
+        * No hostile creature may be within :pyattr:`REST_HOSTILE_RADIUS_FT`.
+        * The current map and/or campaign must not opt out of long rests via
+          ``allow_long_rest: false`` on the map properties or game.yml.
+        * When ``require_rations=True`` the entity must have at least one
+          ``rations`` item in its inventory; the ration is consumed.
+
+        ``require_rations`` defaults to ``False`` so that legacy programmatic
+        callers (and unit tests that do not stage rations) are unaffected;
+        the web layer opts in.
+        """
+        resolved_map = self._resolve_rest_map(battle_map)
+        if not force:
+            self._check_rest_preconditions(battle, resolved_map, 'long')
+            self._check_long_rest_location(resolved_map)
+            if require_rations:
+                self._consume_long_rest_rations()
         self.attributes['hp'] = self.properties['max_hp']
         self.death_saves = 0
         self.death_fails = 0
@@ -2624,6 +3038,7 @@ class Entity(EntityStateEvaluator, Notable):
             if callable(hook):
                 hook(None)
 
+        self.restore_resources('long_rest')
         self.resolve_trigger('long_rest')
         self.event_manager.received_event({'source': self, 'event': 'long_rest'})
 
