@@ -153,6 +153,42 @@ def _optimize_cube_targets(position_choices, entity, battle, map, size_squares):
         selected_positions.append(position_choices[best_position])
     return selected_positions
 
+def _score_squares(squares, entity, battle, map):
+    score = 0
+    for sx, sy in squares:
+        ent = map.entity_at(sx, sy)
+        if ent is None:
+            continue
+        if ent in battle.opponents_of(entity):
+            score += 1
+        elif ent in battle.allies_of(entity):
+            score -= 1
+    return score
+
+def _optimize_radius_targets(position_choices, entity, battle, map, radius_ft):
+    """Pick the center square that maximizes (enemies - allies) inside a sphere."""
+    best_position = None
+    best_score = 1
+    for i, position in enumerate(position_choices):
+        squares = map.squares_in_radius(tuple(position), radius_ft)
+        score = _score_squares(squares, entity, battle, map)
+        if score >= best_score:
+            best_score = score
+            best_position = i
+    return [position_choices[best_position]] if best_position is not None else []
+
+def _optimize_line_targets(position_choices, entity, battle, map, length_ft, width_ft):
+    best_position = None
+    best_score = 1
+    entity_position = map.position_of(entity)
+    for i, position in enumerate(position_choices):
+        squares = map.squares_in_line(entity_position, tuple(position), length_ft, width_ft)
+        score = _score_squares(squares, entity, battle, map)
+        if score >= best_score:
+            best_score = score
+            best_position = i
+    return [position_choices[best_position]] if best_position is not None else []
+
 def build_params(session, entity, battle, build_info, map=None, auto_target=True, match=None, is_verbose=False):
     """
     Build a list (parallel to build_info["param"]) containing all possible
@@ -439,6 +475,64 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                 position_choices = _optimize_cube_targets(position_choices, entity, battle, map, size_squares)
 
             params_list.append(position_choices)
+        elif param_type == "select_radius":
+            # Sphere AoE centered on a chosen square within range.
+            if not map:
+                if is_verbose:
+                    print(f"No map found for {entity.name}")
+                return None
+            spell_range_ft = param.get("range", 60)
+            radius_ft = param.get("radius", 20)
+            require_los = param.get("require_los", True)
+            cur_x, cur_y = map.position_of(entity)
+            max_squares = max(0, int(spell_range_ft) // map.feet_per_grid)
+            position_choices = []
+            for dx in range(-max_squares, max_squares + 1):
+                for dy in range(-max_squares, max_squares + 1):
+                    nx, ny = cur_x + dx, cur_y + dy
+                    if nx < 0 or ny < 0 or nx >= map.size[0] or ny >= map.size[1]:
+                        continue
+                    # Chebyshev distance in squares
+                    if max(abs(dx), abs(dy)) > max_squares:
+                        continue
+                    if require_los and not map.line_of_sight(cur_x, cur_y, nx, ny,
+                                                             passability_mode=True, inclusive=True):
+                        continue
+                    if match and [nx, ny] not in match:
+                        continue
+                    position_choices.append([nx, ny])
+            if len(position_choices) > 0 and auto_target and battle:
+                position_choices = _optimize_radius_targets(position_choices, entity, battle, map, radius_ft)
+            params_list.append(position_choices)
+        elif param_type == "select_line":
+            # Line AoE from caster toward a chosen anchor square.
+            if not map:
+                if is_verbose:
+                    print(f"No map found for {entity.name}")
+                return None
+            length_ft = param.get("range", 30)
+            cur_x, cur_y = map.position_of(entity)
+            length_squares = max(1, int(length_ft) // map.feet_per_grid)
+            position_choices = []
+            # 8 cardinal/diagonal anchors at the line's far end.
+            for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1),
+                           (1, 1), (1, -1), (-1, 1), (-1, -1)]:
+                ax, ay = cur_x + dx * length_squares, cur_y + dy * length_squares
+                ax = max(0, min(map.size[0] - 1, ax))
+                ay = max(0, min(map.size[1] - 1, ay))
+                if [ax, ay] == [cur_x, cur_y]:
+                    continue
+                if match and [ax, ay] not in match:
+                    continue
+                position_choices.append([ax, ay])
+            if len(position_choices) > 0 and auto_target and battle:
+                position_choices = _optimize_line_targets(
+                    position_choices, entity, battle, map,
+                    length_ft, param.get("width", 5))
+            params_list.append(position_choices)
+        elif param_type == "select_emanation":
+            # Emanation centered on caster — only choice is "self".
+            params_list.append([[None, None]])
         else:
             raise ValueError(f"Unknown param type: {param_type}")
 

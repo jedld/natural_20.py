@@ -284,6 +284,17 @@ class MoveAction(Action):
                         visit_count = positions_entered.get(p_key, 0)
                         positions_entered[p_key] = visit_count + 1
 
+                # Broadcast per-step movement so persistent zones (Spike
+                # Growth, Web, etc.) can react. Done here rather than in
+                # ``Map.move_to`` so teleport-style move_to calls (Misty
+                # Step, Teleporter objects) don't fire on every traversed
+                # square.
+                if battle and hasattr(battle, 'trigger_movement_step'):
+                    prev = None
+                    for step in item['path']:
+                        battle.trigger_movement_step(item['source'], prev, step)
+                        prev = tuple(step)
+
                 if item['as_dash'] and item['as_bonus_action']:
                     battle.entity_state_for(item['source'])['bonus_action'] -= 1
                 elif item['as_dash']:

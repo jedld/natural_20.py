@@ -68,7 +68,10 @@ class BlessSpell(Spell):
             })
 
             if not item['source'].current_concentration()==item['effect']:
-                item['source'].concentration_on(item['effect'])
+                if battle is not None and hasattr(battle, 'start_concentration'):
+                    battle.start_concentration(item['source'], item['effect'])
+                else:
+                    item['source'].concentration_on(item['effect'])
 
             item['target'].register_effect('bless', BlessSpell, effect=item['effect'], source=item['source'], duration=60)
             session.event_manager.received_event({ "event" : 'spell_buf',

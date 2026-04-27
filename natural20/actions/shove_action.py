@@ -79,7 +79,13 @@ class ShoveAction(Action):
         shove_loc = None
         additional_effects = []
         if not self.knock_prone:
-            shove_loc = self.target.push_from(map, *map.entity_or_object_pos(self.source))
+            try:
+                shove_loc = self.target.push_from(map, *map.entity_or_object_pos(self.source))
+            except ValueError:
+                # Geometry didn't line up for a clean push (e.g. reach attack,
+                # source moved mid-turn). Treat as a failed shove rather than
+                # crashing the turn loop.
+                shove_loc = None
             if shove_loc:
                 trigger_results = map.area_trigger(self.target, shove_loc, False)
                 additional_effects += trigger_results

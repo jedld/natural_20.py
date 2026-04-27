@@ -1,9 +1,10 @@
 from natural20.spell.spell import Spell
 from natural20.die_roll import DieRoll
-import pdb
+from natural20.spell.extensions.damage_scaling import DamageScalingMixin
+from natural20.spell.extensions.save_for_half import SaveForHalfMixin
 
 
-class ThunderwaveSpell(Spell):
+class ThunderwaveSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
     def build_map(self, orig_action):
         def set_target(target=None):
             action = orig_action.clone()
@@ -26,12 +27,13 @@ class ThunderwaveSpell(Spell):
         }
 
     def _damage(self, battle, crit=False, opts=None):
-        if opts is None:
-            opts = {}
-        at_level = opts.get('at_level', getattr(self.action, 'at_level', 1) or 1)
-        dice = 2 + max(0, at_level - 1)  # 2d8 + 1d8 per slot level above 1st
-        dice = f"{dice}d8"
-        return DieRoll.roll(dice, crit=crit, battle=battle, entity=self.source, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.thunderwave')))
+        # 5e: 2d8 base, +1d8 per slot level above 1st.
+        return self._scaled_damage_roll(
+            battle, "2d8", "1d8",
+            opts=opts, crit=crit,
+            description=self.t('dice_roll.spells.generic_damage',
+                               spell=self.t('spell.thunderwave')),
+        )
 
     def avg_damage(self, battle, opts=None):
         return self._damage(battle, opts=opts).expected()
@@ -81,7 +83,6 @@ class ThunderwaveSpell(Spell):
         return 0.5
 
     def resolve(self, entity, battle, spell_action, battle_map):
-        results = []
         src_pos = battle_map.position_of(entity)
         # Determine direction from selected target to orient the cube
         target_pos = spell_action.target if isinstance(spell_action.target, list) else None
@@ -97,66 +98,31 @@ class ThunderwaveSpell(Spell):
                 if tgt not in entity_targets:
                     entity_targets.append(tgt)
         damage_roll = self._damage(battle, opts={'at_level': spell_action.at_level or 1})
-        # Use caster's spell save DC; default to intelligence unless specified elsewhere
+        # Caster's spell save DC; INT-based to stay consistent with other
+        # wizard spells in this codebase.
         dc = entity.spell_save_dc('intelligence')
-        for tgt in entity_targets:
-            failed = False
-            save = None
-            if tgt.conscious():
-                save = tgt.save_throw('constitution', battle, { 'is_magical': True })
-                # Use INT-based DC consistent with other wizard spells in this codebase
-                failed = save < dc
-            else:
-                failed = True
-            if failed:
-                results.append({
-                    'source': entity,
-                    'target': tgt,
-                    'attack_name': 'thunderwave',
-                    'damage_type': self.properties.get('damage_type', 'thunder'),
-                    'attack_roll': None,
-                    'damage_roll': damage_roll,
-                    'advantage_mod': None,
-                    'adv_info': None,
-                    'damage': damage_roll,
-                    'spell_save': save,
-                    'dc': dc,
-                    'cover_ac': None,
-                    'type': 'spell_damage',
-                    'spell': self.properties
-                })
 
-                # Push 10 ft (2 squares) away from the caster if possible
-                push_to = tgt.push_from(battle_map, src_pos[0], src_pos[1], distance=10)
-                results.append({
-                    'type': 'thunderwave_push',
-                    'source': entity,
-                    'target': tgt,
-                    'refresh_map': True,
-                    'map': battle_map,
-                    'push_to': push_to
-                })
-            else:
-                # Half damage on a successful save
-                half_value = damage_roll.half()
-                results.append({
-                    'source': entity,
-                    'target': tgt,
-                    'attack_name': 'thunderwave',
-                    'damage_type': self.properties.get('damage_type', 'thunder'),
-                    'attack_roll': None,
-                    'damage_roll': damage_roll,
-                    'advantage_mod': None,
-                    'adv_info': None,
-                    'damage': half_value,
-                    'spell_save': save,
-                    'dc': dc,
-                    'cover_ac': None,
-                    'type': 'spell_damage',
-                    'spell': self.properties
-                })
+        def push_on_failure(target, _dmg):
+            push_to = target.push_from(battle_map, src_pos[0], src_pos[1], distance=10)
+            return [{
+                'type': 'thunderwave_push',
+                'source': entity,
+                'target': target,
+                'refresh_map': True,
+                'map': battle_map,
+                'push_to': push_to,
+            }]
 
-        return results
+        return self.resolve_save_for_half(
+            entity_targets,
+            ability='constitution',
+            dc=dc,
+            damage_roll=damage_roll,
+            attack_name='thunderwave',
+            damage_type=self.properties.get('damage_type', 'thunder'),
+            battle=battle,
+            on_failure=push_on_failure,
+        )
 
     @staticmethod
     def apply(battle, item, session=None):
