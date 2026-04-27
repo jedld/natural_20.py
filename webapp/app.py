@@ -4091,6 +4091,26 @@ def get_target():
                 entity_x, entity_y = battle_map.entity_or_object_pos(entity)
                 target_squares = battle_map.squares_in_adjacent_cube((entity_x, entity_y), (x, y), size_squares=3)
                 build_map = build_map['next']([x, y])
+            elif build_map['param'][0]['type'] == 'select_radius':
+                # Sphere AoE centered on the targeted square.
+                radius_ft = build_map['param'][0].get('radius', 20)
+                require_los = build_map['param'][0].get('require_los', False)
+                target_squares = battle_map.squares_in_radius(
+                    (x, y), radius_ft, require_los=require_los)
+                build_map = build_map['next']([x, y])
+            elif build_map['param'][0]['type'] == 'select_line':
+                entity_x, entity_y = battle_map.entity_or_object_pos(entity)
+                length_ft = build_map['param'][0].get('range', 30)
+                width_ft = build_map['param'][0].get('width', 5)
+                target_squares = battle_map.squares_in_line(
+                    (entity_x, entity_y), (x, y), length_ft, width_ft)
+                build_map = build_map['next']([x, y])
+            elif build_map['param'][0]['type'] == 'select_emanation':
+                entity_x, entity_y = battle_map.entity_or_object_pos(entity)
+                radius_ft = build_map['param'][0].get('radius', 10)
+                target_squares = battle_map.squares_in_emanation(
+                    entity, radius_ft, include_origin=True)
+                build_map = build_map['next']([entity_x, entity_y])
             else:
                 raise ValueError(f"Unknown action type {build_map['param'][0]['type']}")
 
@@ -4347,15 +4367,26 @@ def action():
                 move_path = sorted([(int(index), [int(coord[0]), int(coord[1])]) for index, coord in enumerate(path)])
                 move_path = [coords for _, coords in move_path]
                 action.move_path = move_path
-                # store jump indices for backend computation if provided
+                # store jump indices for backend computation if provided.
+                # The web UI sends [takeoff_index, landing_index] where
+                # ``takeoff_index`` is the path index of the square the
+                # entity launches FROM (the last walked square) and
+                # ``landing_index`` is the square it lands ON. The squares
+                # that are actually "in flight" — and therefore the ones
+                # that need to be marked as jump squares so area triggers
+                # treat them as flying — are ``takeoff_index + 1 ..
+                # landing_index`` inclusive. Including the takeoff itself
+                # would (a) burn a square of jump budget on the spot the
+                # PC is standing on, and (b) prevent the long-jump
+                # running-start budget from kicking in (because the
+                # takeoff square is no longer counted as a "walk").
                 try:
                     if isinstance(manual_jump, list) and len(manual_jump) == 2:
-                        # indices are inclusive of path indexes
                         start_i, end_i = int(manual_jump[0]), int(manual_jump[1])
                         if 0 <= start_i <= end_i < len(move_path):
-                            action.jump_index = list(range(start_i, end_i + 1))
+                            action.jump_index = list(range(start_i + 1, end_i + 1))
                     elif isinstance(manual_jump, list):
-                        # already a list of indices
+                        # already a list of in-flight indices
                         action.jump_index = [int(i) for i in manual_jump if 0 <= int(i) < len(move_path)]
                 except Exception:
                     # ignore malformed manual_jump to remain backwards compatible
@@ -4532,6 +4563,35 @@ def action():
                             action_info['range'] = param_details.get('range', 5)
                             action_info['range_max'] = param_details.get('max_range', param_details.get('range', 5))
                             return jsonify(action_info)
+                    elif param_details['type'] == 'select_radius':
+                        if target:
+                            action = action['next'](target)
+                            continue
+                        else:
+                            action_info['action'] = action_type
+                            action_info['type'] = 'select_radius'
+                            action_info['param'] = action['param']
+                            action_info['range'] = param_details.get('range', 60)
+                            action_info['range_max'] = param_details.get('max_range', param_details.get('range', 60))
+                            action_info['radius'] = param_details.get('radius', 20)
+                            return jsonify(action_info)
+                    elif param_details['type'] == 'select_line':
+                        if target:
+                            action = action['next'](target)
+                            continue
+                        else:
+                            action_info['action'] = action_type
+                            action_info['type'] = 'select_line'
+                            action_info['param'] = action['param']
+                            action_info['range'] = param_details.get('range', 30)
+                            action_info['range_max'] = param_details.get('max_range', param_details.get('range', 30))
+                            action_info['width'] = param_details.get('width', 5)
+                            return jsonify(action_info)
+                    elif param_details['type'] == 'select_emanation':
+                        # Emanation centers on the caster — auto-resolve.
+                        entity_x, entity_y = battle_map.entity_or_object_pos(entity)
+                        action = action['next']([entity_x, entity_y])
+                        continue
                     elif param_details['type'] == 'select_target':
                         valid_targets = battle_map.valid_targets_for(entity, param_details)
                         valid_targets = {target.entity_uid: battle_map.entity_or_object_pos(target) for target in valid_targets}
@@ -5282,6 +5342,11 @@ def rest_preview():
 
     battle = current_game.get_current_battle()
     in_combat = bool(battle and getattr(battle, 'started', False))
+    try:
+        availability = entity.rest_status(battle=battle, battle_map=battle_map,
+                                          require_rations=True)
+    except Exception:
+        availability = None
     payload = {
         'success': True,
         'entity_id': entity_id,
@@ -5291,7 +5356,16 @@ def rest_preview():
         'requires_force': in_combat,
         'is_dm': 'dm' in user_role(),
         'state': _entity_rest_snapshot(entity),
+        'availability': availability,
     }
+    if availability is not None:
+        this_kind = availability.get(rest_type) or {}
+        payload['allowed'] = bool(this_kind.get('allowed'))
+        payload['blocking_reasons'] = list(this_kind.get('reasons') or [])
+        payload['force_overrides'] = bool(this_kind.get('force_overrides'))
+        if rest_type == 'long':
+            payload['requires_rations'] = bool(this_kind.get('requires_rations'))
+            payload['rations_available'] = int(this_kind.get('rations_available') or 0)
     arcane = _wizard_arcane_recovery_state(entity)
     if rest_type == 'short' and arcane is not None:
         budget, levels = arcane
@@ -5395,10 +5469,12 @@ def take_rest():
 
     try:
         if rest_type == 'short':
-            entity.short_rest(battle, force=force, prompt=bool(hit_die_picks))
+            entity.short_rest(battle, force=force, prompt=bool(hit_die_picks),
+                              battle_map=battle_map)
             time_advance = 60 * 60  # 1 in-game hour
         else:
-            entity.long_rest()
+            entity.long_rest(battle=battle, battle_map=battle_map, force=force,
+                             require_rations=True)
             time_advance = 8 * 60 * 60  # 8 in-game hours
 
         try:

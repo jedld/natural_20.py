@@ -108,6 +108,26 @@ def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, op
     )
     events.extend(third_party_events)
 
+    # Phase 3 reaction registry: any handler registered via
+    # ``Battle.register_reaction_trigger('attack_roll', ...)`` is fired
+    # here. Handlers may set ``context['force_miss'] = True`` to short-
+    # circuit the attack.
+    if battle is not None and getattr(battle, 'reaction_handlers', None):
+        primary_target = target if not isinstance(target, list) else (target[0] if target else None)
+        ctx = {
+            'target': primary_target,
+            'attacker': source,
+            'attack_roll': attack_roll,
+            'effective_ac': effective_ac,
+            'opts': opts,
+            'force_miss': force_miss,
+        }
+        registry_events = battle.fire_reaction_window('attack_roll', ctx)
+        if registry_events:
+            events.extend(registry_events)
+        if ctx.get('force_miss'):
+            force_miss = True
+
     return force_miss, events
 
 
@@ -313,5 +333,17 @@ def after_take_damage_hook(battle, target, attacker, damage_opts=None):
                 r['source_spell'] = 'hellish_rebuke'
                 damage_event(r, battle)
             events.append(r)
+
+    # Phase 3 reaction registry: trigger 'damage_taken' window for any
+    # handler registered via ``Battle.register_reaction_trigger``.
+    if battle is not None and getattr(battle, 'reaction_handlers', None):
+        ctx = {
+            'target': target,
+            'attacker': attacker,
+            'damage_opts': damage_opts,
+        }
+        registry_events = battle.fire_reaction_window('damage_taken', ctx)
+        if registry_events:
+            events.extend(registry_events)
 
     return events

@@ -498,6 +498,13 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action_list.append(MageHandAction(session, self, 'mage_hand_command'))
         elif action_type == SpeakAction:
           action_list.append(SpeakAction(session, self, 'speak'))
+    # Phase 4: also consult the class-feature registry. Existing branches
+    # above keep working; this is an additive opt-in extension point.
+    try:
+      from natural20.utils.class_feature_registry import collect_class_feature_actions
+      action_list.extend(collect_class_feature_actions(session, self, battle))
+    except Exception:
+      pass
     return action_list
 
 
@@ -973,6 +980,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       'spell_slots': {k: dict(v) for k, v in self.spell_slots.items()},
       '_current_hit_die': dict(self._current_hit_die),
       'class_resources': class_resources,
+      'resources': {name: pool.to_dict() for name, pool in (getattr(self, 'resources', None) or {}).items()},
       '_wild_shape_state': copy.deepcopy(getattr(self, '_wild_shape_state', None)),
       'npc_actions': copy.deepcopy(getattr(self, 'npc_actions', None) or []),
     }
@@ -1001,6 +1009,13 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       player_character._current_hit_die = dict(data['_current_hit_die'])
     for attr, value in (data.get('class_resources') or {}).items():
       setattr(player_character, attr, value)
+    # Phase 4: rehydrate ResourcePool entries.
+    if data.get('resources'):
+      from natural20.resource_pool import ResourcePool
+      player_character.resources = {
+        name: ResourcePool.from_dict(pdata)
+        for name, pdata in data['resources'].items()
+      }
     if data.get('_wild_shape_state') is not None:
       player_character._wild_shape_state = data['_wild_shape_state']
       _wild_shape.reapply_after_load(player_character)

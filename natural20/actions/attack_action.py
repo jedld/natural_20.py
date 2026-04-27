@@ -394,6 +394,34 @@ class AttackAction(Action):
                     bane_roll = DieRoll.roll("1d4", description='dice_roll.bane', entity=self.source, battle=battle)
                     self.attack_roll += DieRoll.roll("-" + str(bane_roll.result()), battle=battle, entity=self.source)
 
+                # Phase 3 modifier registry: any effect that registered an
+                # ``attack_roll`` modifier contributes here.
+                try:
+                    registry_mods = self.source.collect_modifiers('attack_roll', {
+                        'target': target, 'battle': battle,
+                    })
+                except Exception:
+                    registry_mods = []
+                for entry in registry_mods:
+                    v = entry['value']
+                    if isinstance(v, str) and v:
+                        self.attack_roll += DieRoll.roll(
+                            v, description=f"attack_modifier:{entry.get('source')}",
+                            entity=self.source, battle=battle,
+                        )
+                    else:
+                        try:
+                            iv = int(v)
+                        except Exception:
+                            continue
+                        if iv == 0:
+                            continue
+                        sign = '+' if iv >= 0 else ''
+                        self.attack_roll += DieRoll.roll(
+                            f"{sign}{iv}", description=f"attack_modifier:{entry.get('source')}",
+                            entity=self.source, battle=battle,
+                        )
+
             # print(f"{self.source.name} rolls a {attack_roll} to attack {target.name}")
             self.source.resolve_trigger('attack_resolved', {'target': target})
 

@@ -2897,6 +2897,227 @@
     });
   });
 
+  // Rage (Barbarian): explosive fiery aura around the source with embers,
+  // a spinning runic ring, a "RAGE!" battle cry, and a brief map shake.
+  register('rage', function(payload){
+    return new Promise((resolve) => {
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      if (!src) return resolve();
+
+      const tileSize = ($('.tiles-container').data('tile-size') || 64);
+      const baseR = Math.max(36, tileSize * 0.85);
+
+      // Roar SFX
+      try { if (window.SFX && SFX.play) SFX.play('rage_roar'); } catch(e){}
+
+      // Brief map shake
+      const $shake = $('.tiles-container').first();
+      let shakeOrig = null;
+      if ($shake && $shake.length) {
+        try {
+          shakeOrig = $shake.css('transform') || '';
+          const shakeStart = performance.now();
+          const shakeDur = 520;
+          const shake = (now) => {
+            const t = (now - shakeStart) / shakeDur;
+            if (t >= 1) { try { $shake.css('transform', shakeOrig || ''); } catch(e){} return; }
+            const amp = 6 * (1 - t);
+            const dx = (Math.random()*2 - 1) * amp;
+            const dy = (Math.random()*2 - 1) * amp;
+            try { $shake.css('transform', `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`); } catch(e){}
+            requestAnimationFrame(shake);
+          };
+          requestAnimationFrame(shake);
+        } catch(e){ shakeOrig = null; }
+      }
+
+      const { overlay, ctx, destroy } = createOverlay(1103);
+      const start = performance.now();
+      const total = 1500;
+
+      // Pre-seed embers (sparks)
+      const embers = [];
+      const emberCount = 60;
+      for (let i = 0; i < emberCount; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const spd = 90 + Math.random() * 220;
+        embers.push({
+          ang,
+          spd,
+          life: 0.3 + Math.random() * 0.7,
+          birth: Math.random() * 0.35,
+          size: 1 + Math.random() * 2.4,
+          hue: 14 + Math.random() * 28, // 14..42 (red-orange-yellow)
+        });
+      }
+
+      // Floating "RAGE!" text
+      const cry = 'RAGE!';
+
+      const draw = (now) => {
+        const tt = Math.min(1, (now - start) / total);
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+
+        // 1) Pulsing fiery aura (radial gradient) around the source
+        const pulse = 0.5 + 0.5 * Math.sin(now * 0.018);
+        const auraR = baseR * (1.0 + 0.18 * pulse) * (0.7 + 0.3 * Math.min(1, tt * 2));
+        const auraAlpha = (0.85) * (1 - Math.pow(tt, 1.6));
+        const grad = ctx.createRadialGradient(src.x, src.y, baseR * 0.18, src.x, src.y, auraR);
+        grad.addColorStop(0.0, `rgba(255,240,180,${(0.85 * auraAlpha).toFixed(3)})`);
+        grad.addColorStop(0.25, `rgba(255,140,40,${(0.75 * auraAlpha).toFixed(3)})`);
+        grad.addColorStop(0.6, `rgba(220,40,20,${(0.55 * auraAlpha).toFixed(3)})`);
+        grad.addColorStop(1.0, `rgba(120,10,0,0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(src.x, src.y, auraR, 0, Math.PI * 2); ctx.fill();
+
+        // 2) Initial shockwave ring (first 380 ms)
+        if (tt < 0.27) {
+          const wt = tt / 0.27;
+          const ringR = baseR * (0.3 + 1.6 * wt);
+          ctx.beginPath(); ctx.arc(src.x, src.y, ringR, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(255,180,80,${(0.85 * (1 - wt)).toFixed(3)})`;
+          ctx.lineWidth = 4 + 4 * (1 - wt);
+          ctx.stroke();
+        }
+
+        // 3) Two counter-rotating runic rings
+        const ringAlpha = 0.8 * (1 - Math.pow(Math.max(0, tt - 0.15) / 0.85, 2));
+        const ringR1 = baseR * 0.95;
+        const ringR2 = baseR * 1.18;
+        const angA = now * 0.006;
+        const angB = -now * 0.0045;
+        for (let k = 0; k < 6; k++) {
+          const a0 = angA + (k / 6) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.arc(src.x, src.y, ringR1, a0, a0 + Math.PI / 7);
+          ctx.strokeStyle = `rgba(255,210,120,${(0.95 * ringAlpha).toFixed(3)})`;
+          ctx.lineWidth = 3.0; ctx.stroke();
+        }
+        for (let k = 0; k < 8; k++) {
+          const a0 = angB + (k / 8) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.arc(src.x, src.y, ringR2, a0, a0 + Math.PI / 10);
+          ctx.strokeStyle = `rgba(255,90,30,${(0.85 * ringAlpha).toFixed(3)})`;
+          ctx.lineWidth = 2.0; ctx.stroke();
+        }
+
+        // 4) Embers radiating outward
+        const dt = tt; // 0..1 normalized lifetime of effect
+        for (let i = 0; i < embers.length; i++) {
+          const em = embers[i];
+          if (dt < em.birth) continue;
+          const elapsed = (dt - em.birth) / em.life;
+          if (elapsed >= 1) continue;
+          const dist = baseR * 0.25 + em.spd * elapsed * (total / 1000);
+          const x = src.x + Math.cos(em.ang) * dist;
+          const y = src.y + Math.sin(em.ang) * dist - elapsed * 24; // slight rise
+          const a = (1 - elapsed) * (1 - tt * 0.4);
+          const r = em.size * (1 - elapsed * 0.4);
+          ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fillStyle = `hsla(${em.hue.toFixed(0)}, 95%, ${(55 + 10 * (1 - elapsed)).toFixed(0)}%, ${a.toFixed(3)})`;
+          ctx.fill();
+        }
+
+        ctx.restore();
+
+        // 5) "RAGE!" text rising and fading (drawn in source-over for legibility)
+        if (tt < 0.9) {
+          const ct = tt / 0.9;
+          const ease = ct < 0.4 ? (ct / 0.4) : 1;
+          const fade = ct < 0.55 ? 1 : (1 - (ct - 0.55) / 0.45);
+          const ty = src.y - baseR * 1.1 - ease * 28;
+          const scale = 1 + 0.6 * (1 - Math.pow(1 - ease, 3));
+          ctx.save();
+          ctx.translate(src.x, ty);
+          ctx.scale(scale, scale);
+          ctx.font = 'bold 28px "Trebuchet MS", system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.lineWidth = 5;
+          ctx.strokeStyle = `rgba(40,0,0,${(0.85 * fade).toFixed(3)})`;
+          ctx.strokeText(cry, 0, 0);
+          ctx.shadowColor = `rgba(255,120,40,${(0.9 * fade).toFixed(3)})`;
+          ctx.shadowBlur = 18;
+          const tg = ctx.createLinearGradient(0, -16, 0, 16);
+          tg.addColorStop(0, `rgba(255,240,160,${fade.toFixed(3)})`);
+          tg.addColorStop(0.5, `rgba(255,140,40,${fade.toFixed(3)})`);
+          tg.addColorStop(1, `rgba(200,30,10,${fade.toFixed(3)})`);
+          ctx.fillStyle = tg;
+          ctx.fillText(cry, 0, 0);
+          ctx.restore();
+        }
+
+        if (tt < 1) {
+          requestAnimationFrame(draw);
+        } else {
+          try { if ($shake && shakeOrig !== null) $shake.css('transform', shakeOrig || ''); } catch(e){}
+          destroy();
+          resolve();
+        }
+      };
+      requestAnimationFrame(draw);
+    });
+  });
+
+  // End Rage: brief calming exhale of red smoke wisps fading away.
+  register('end_rage', function(payload){
+    return new Promise((resolve) => {
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      if (!src) return resolve();
+      const tileSize = ($('.tiles-container').data('tile-size') || 64);
+      const baseR = Math.max(28, tileSize * 0.7);
+      const { overlay, ctx, destroy } = createOverlay(1103);
+      const start = performance.now();
+      const total = 700;
+      const wisps = [];
+      for (let i = 0; i < 14; i++) {
+        wisps.push({
+          ang: -Math.PI/2 + (Math.random() - 0.5) * Math.PI * 0.7,
+          spd: 30 + Math.random() * 50,
+          birth: Math.random() * 0.25,
+          life: 0.6 + Math.random() * 0.4,
+          size: 6 + Math.random() * 10,
+        });
+      }
+      const draw = (now) => {
+        const tt = Math.min(1, (now - start) / total);
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        // Faint dimming aura
+        const a = 0.45 * (1 - tt);
+        const grad = ctx.createRadialGradient(src.x, src.y, baseR*0.15, src.x, src.y, baseR);
+        grad.addColorStop(0, `rgba(160,30,30,${(0.5*a).toFixed(3)})`);
+        grad.addColorStop(1, `rgba(60,10,10,0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(src.x, src.y, baseR, 0, Math.PI*2); ctx.fill();
+        for (let i = 0; i < wisps.length; i++) {
+          const w = wisps[i];
+          if (tt < w.birth) continue;
+          const e = (tt - w.birth) / w.life;
+          if (e >= 1) continue;
+          const dist = w.spd * e * (total / 1000);
+          const x = src.x + Math.cos(w.ang) * dist + (Math.sin(now*0.01 + i) * 4);
+          const y = src.y + Math.sin(w.ang) * dist;
+          const r = w.size * (0.6 + 0.8 * e);
+          const alpha = (1 - e) * 0.45;
+          const wg = ctx.createRadialGradient(x, y, 0, x, y, r);
+          wg.addColorStop(0, `rgba(180,90,80,${alpha.toFixed(3)})`);
+          wg.addColorStop(1, `rgba(60,30,30,0)`);
+          ctx.fillStyle = wg;
+          ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.restore();
+        if (tt < 1) requestAnimationFrame(draw); else { destroy(); resolve(); }
+      };
+      try { if (window.SFX && SFX.play) SFX.play('rage_calm'); } catch(e){}
+      requestAnimationFrame(draw);
+    });
+  });
+
   // Expose API
   global.SpellEffects = { register, play };
 })(window);

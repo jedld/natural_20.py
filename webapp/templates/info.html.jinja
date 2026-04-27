@@ -480,9 +480,17 @@
                         </tr>
                     </table>
                     {% if not restricted and can_rest_for(entity.entity_uid) %}
-                    <div class="rest-controls" style="margin: 8px 0 12px 0; display: flex; gap: 6px;">
-                        <button type="button" class="hp-save-btn" onclick="openRestModal('{{ entity.entity_uid }}', 'short')">Short Rest</button>
-                        <button type="button" class="hp-save-btn" onclick="openRestModal('{{ entity.entity_uid }}', 'long')">Long Rest</button>
+                    <div class="rest-controls" style="margin: 8px 0 12px 0;">
+                        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                            <button type="button" class="hp-save-btn" id="rest-btn-short"
+                                data-rest-entity="{{ entity.entity_uid }}" data-rest-type="short"
+                                onclick="openRestModal('{{ entity.entity_uid }}', 'short')">Short Rest</button>
+                            <button type="button" class="hp-save-btn" id="rest-btn-long"
+                                data-rest-entity="{{ entity.entity_uid }}" data-rest-type="long"
+                                onclick="openRestModal('{{ entity.entity_uid }}', 'long')">Long Rest</button>
+                            <span id="rest-status-indicator" style="font-size: 12px; color: #b00;"></span>
+                        </div>
+                        <div id="rest-status-detail" style="font-size: 12px; color: #666; margin-top: 4px;"></div>
                     </div>
                     {% endif %}
                     {% if entity.death_saves > 0 or entity.death_fails > 0 %}
@@ -1504,13 +1512,36 @@
                     lines.push('<div style="color:#666; font-size:12px; margin-top:4px;">' +
                         'Leave empty to auto-spend dice until full HP.</div>');
                 }
-                if (data.in_combat) {
+                if (data.in_combat && (!data.blocking_reasons || !data.blocking_reasons.length)) {
                     lines.push('<div style="margin-top:8px; color:#b00;">Combat is in progress.' +
                         (data.is_dm ? ' DM may force a rest below.' : '') + '</div>');
                     if (data.is_dm) {
                         lines.push('<label style="display:block; margin-top:6px;">' +
                             '<input type="checkbox" id="rest-force"> Force rest (DM override)</label>');
                     }
+                }
+                if (data.blocking_reasons && data.blocking_reasons.length) {
+                    const items = data.blocking_reasons
+                        .map(r => '<li>' + escapeHtml(r) + '</li>').join('');
+                    lines.push('<div style="margin-top:8px; padding:6px 8px; ' +
+                        'background:#fdecea; border-left:3px solid #b00; color:#7a1a14;">' +
+                        '<strong>Cannot rest:</strong><ul style="margin:4px 0 0 18px; padding:0;">' +
+                        items + '</ul>' +
+                        (data.force_overrides && data.is_dm
+                            ? '<div style="margin-top:4px; font-size:12px; color:#555;">' +
+                              'A DM force-rest can bypass these restrictions.</div>'
+                            : '') +
+                        '</div>');
+                    if (data.is_dm && data.force_overrides && !document.getElementById('rest-force')) {
+                        lines.push('<label style="display:block; margin-top:6px;">' +
+                            '<input type="checkbox" id="rest-force"> Force rest (DM override)</label>');
+                    }
+                }
+                if (data.type === 'long' && data.requires_rations) {
+                    const ok = (data.rations_available || 0) >= 1;
+                    lines.push('<div style="margin-top:6px; color:' + (ok ? '#444' : '#b00') + ';">' +
+                        'Rations available: ' + (data.rations_available || 0) +
+                        ' (1 will be consumed)</div>');
                 }
                 if (data.arcane_recovery) {
                     const ar = data.arcane_recovery;
@@ -1534,6 +1565,16 @@
                 body.innerHTML = lines.join('');
                 renderArcanePicks();
                 renderHitDiePicks();
+                // Disable confirm if blocked and force can't help (or user isn't DM).
+                const confirmBtn = document.getElementById('rest-modal-confirm');
+                if (confirmBtn) {
+                    const blocked = data.blocking_reasons && data.blocking_reasons.length;
+                    const canForce = data.is_dm && data.force_overrides;
+                    confirmBtn.disabled = blocked && !canForce;
+                    confirmBtn.title = (blocked && !canForce)
+                        ? 'Cannot rest: ' + data.blocking_reasons.join('; ')
+                        : '';
+                }
             }
 
             function renderHitDiePicks() {
@@ -1659,6 +1700,64 @@
                     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
                     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             }
+
+            // ---- Page-load rest availability indicators ----------------
+            function applyRestAvailability(availability, isDm) {
+                ['short', 'long'].forEach(function (kind) {
+                    const btn = document.getElementById('rest-btn-' + kind);
+                    if (!btn) return;
+                    const info = availability && availability[kind];
+                    if (!info) return;
+                    const reasons = info.reasons || [];
+                    if (info.allowed) {
+                        btn.style.opacity = '';
+                        btn.style.textDecoration = '';
+                        btn.title = '';
+                        return;
+                    }
+                    const canForce = isDm && info.force_overrides;
+                    // Visual: dim when truly unavailable, italic-strike when DM-only.
+                    btn.style.opacity = canForce ? '0.85' : '0.5';
+                    btn.title = (canForce ? 'DM force required: ' : 'Cannot rest: ') +
+                        reasons.join('; ');
+                });
+                const indicator = document.getElementById('rest-status-indicator');
+                const detail = document.getElementById('rest-status-detail');
+                if (!indicator || !detail) return;
+                const blockedKinds = ['short', 'long']
+                    .filter(k => availability && availability[k] && !availability[k].allowed);
+                if (blockedKinds.length === 0) {
+                    indicator.textContent = '';
+                    detail.textContent = '';
+                    return;
+                }
+                indicator.textContent = '⚠ Rest restricted';
+                const reasonSet = new Set();
+                blockedKinds.forEach(k => (availability[k].reasons || []).forEach(r => reasonSet.add(r)));
+                detail.textContent = Array.from(reasonSet).join(' · ');
+            }
+
+            window.refreshRestAvailability = function () {
+                const btn = document.getElementById('rest-btn-short') ||
+                            document.getElementById('rest-btn-long');
+                if (!btn) return;
+                const entityId = btn.getAttribute('data-rest-entity');
+                if (!entityId) return;
+                fetch('/rest/preview?entity_id=' + encodeURIComponent(entityId) + '&type=short')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data || !data.success || !data.availability) return;
+                        applyRestAvailability(data.availability, !!data.is_dm);
+                    })
+                    .catch(() => { /* silent: indicators are best-effort */ });
+            };
+
+            document.addEventListener('DOMContentLoaded', function () {
+                if (document.getElementById('rest-btn-short') ||
+                    document.getElementById('rest-btn-long')) {
+                    window.refreshRestAvailability();
+                }
+            });
         })();
     </script>
 </body>

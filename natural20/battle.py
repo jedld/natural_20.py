@@ -100,6 +100,16 @@ class Battle():
         self.current_turn_index = 0
         self.battle_field_events = {}
         self.round = 0
+        # Persistent area-of-effect zones (Spike Growth, Web, Spirit
+        # Guardians, etc.). Spells append via ``register_zone`` and ticks
+        # are driven by ``start_turn`` / ``end_turn`` and movement events.
+        self.active_zones = []
+        # Reaction trigger registry. Maps trigger name (e.g.
+        # 'attack_hit', 'damage_taken') to a list of (handler, priority)
+        # entries. Handlers are invoked by ``fire_reaction_window``.
+        self.reaction_handlers = {}
+        # Phase 4 summons registry: owner_uid (str) -> list[SummonedEntity].
+        self.summons_by_owner = {}
         # Store entity states in a UID-backed map for robust serialization and lookups
         self.entities = EntitiesUIDMap(session)
         self.started = False
@@ -701,6 +711,235 @@ class Battle():
                 object.__getattribute__(handler)(self, source, {**opt, 'ui_controller': self.controller_for(source)})
         if self.maps and self.map_for(source):
             self.map_for(source).activate_map_triggers(event, source, {**opt, 'ui_controller': self.controller_for(source)})
+
+        # Persistent AoE zones: tick on per-turn boundaries; movement
+        # steps are dispatched via ``trigger_movement_step`` instead.
+        if event in ('start_of_turn', 'end_of_turn') and self.active_zones:
+            target = opt.get('target') if isinstance(opt, dict) else None
+            for zone in list(self.active_zones):
+                if zone.expired():
+                    zone.dismiss()
+                    continue
+                if target is None:
+                    continue
+                pos = self.entity_or_object_pos(target)
+                if pos is None or not zone.contains(tuple(pos)):
+                    continue
+                try:
+                    if event == 'start_of_turn':
+                        zone.on_turn_start(target)
+                    else:
+                        zone.on_turn_end(target)
+                except Exception as exc:  # pragma: no cover - defensive
+                    self.event_manager.received_event({
+                        'source': zone, 'event': 'zone_error',
+                        'phase': event, 'error': str(exc),
+                    })
+
+    def register_zone(self, zone):
+        """Register a ``PersistentAoEZone`` so the battle ticks it.
+
+        Returns ``zone`` so spells can chain ``self.battle.register_zone(...)``.
+        """
+        if zone is None:
+            return None
+        if zone not in self.active_zones:
+            self.active_zones.append(zone)
+        return zone
+
+    def unregister_zone(self, zone):
+        if zone in self.active_zones:
+            self.active_zones.remove(zone)
+
+    # --- Concentration tracker -------------------------------------------
+
+    def start_concentration(self, entity, effect, *, save_dc=None, auto_break=True):
+        """Begin concentration for ``entity`` on ``effect``.
+
+        Wraps the legacy ``Entity.concentration_on``: stores ``save_dc`` on
+        the effect, broadcasts a ``concentration_start`` event, and (per
+        5e RAW) auto-drops any prior concentration. ``auto_break=False``
+        disables damage-time concentration checks for unusual effects.
+        """
+        if entity is None or effect is None:
+            return None
+        if save_dc is not None:
+            try:
+                setattr(effect, 'concentration_save_dc', int(save_dc))
+            except Exception:
+                pass
+        try:
+            setattr(effect, 'concentration_auto_break', bool(auto_break))
+        except Exception:
+            pass
+        entity.concentration_on(effect)
+        try:
+            self.event_manager.received_event({
+                'source': entity, 'event': 'concentration_start',
+                'effect': effect,
+            })
+        except Exception:
+            pass
+        return effect
+
+    def end_concentration(self, entity):
+        """End concentration for ``entity`` (no-op if none active)."""
+        if entity is None:
+            return
+        if getattr(entity, 'concentration', None):
+            entity.drop_concentration()
+
+    def concentration_owner_for(self, effect):
+        """Return the entity currently concentrating on ``effect`` or None."""
+        if effect is None:
+            return None
+        for ent in list(self.entities.keys()):
+            if getattr(ent, 'concentration', None) is effect:
+                return ent
+        return None
+
+    # --- Reaction trigger registry ---------------------------------------
+
+    def register_reaction_trigger(self, trigger_name, handler, *, priority=0):
+        """Register ``handler(battle, context) -> list[event_dict] | None``.
+
+        Higher ``priority`` runs first. Handlers are deduplicated by
+        identity, so re-registering the same callable is a no-op.
+        """
+        if not trigger_name or handler is None:
+            return
+        bucket = self.reaction_handlers.setdefault(trigger_name, [])
+        for existing, _ in bucket:
+            if existing is handler:
+                return
+        bucket.append((handler, int(priority)))
+        bucket.sort(key=lambda pair: -pair[1])
+
+    def unregister_reaction_trigger(self, trigger_name, handler):
+        bucket = self.reaction_handlers.get(trigger_name, [])
+        self.reaction_handlers[trigger_name] = [(h, p) for (h, p) in bucket if h is not handler]
+
+    def fire_reaction_window(self, trigger_name, context=None):
+        """Invoke all registered handlers for ``trigger_name``.
+
+        Returns the flat list of event dicts produced. Each handler may
+        also mutate ``context`` (e.g. set ``context['force_miss'] = True``).
+        Exceptions in handlers are logged via the event manager and do not
+        abort the window.
+        """
+        events = []
+        if context is None:
+            context = {}
+        bucket = self.reaction_handlers.get(trigger_name, ())
+        for handler, _priority in list(bucket):
+            try:
+                result = handler(self, context)
+            except Exception as exc:  # pragma: no cover - defensive
+                try:
+                    self.event_manager.received_event({
+                        'source': handler, 'event': 'reaction_error',
+                        'trigger': trigger_name, 'error': str(exc),
+                    })
+                except Exception:
+                    pass
+                continue
+            if not result:
+                continue
+            if isinstance(result, dict):
+                events.append(result)
+            else:
+                events.extend(result)
+        return events
+
+    # --- Phase 4 summon registry ---------------------------------------
+
+    def register_summon(self, summon):
+        """Register a SummonedEntity under its owner's UID."""
+        owner_uid = getattr(summon, 'owner_uid', None)
+        key = str(owner_uid) if owner_uid is not None else '__orphan__'
+        bucket = self.summons_by_owner.setdefault(key, [])
+        if summon not in bucket:
+            bucket.append(summon)
+        return summon
+
+    def unregister_summon(self, summon):
+        for key, bucket in list(self.summons_by_owner.items()):
+            if summon in bucket:
+                bucket.remove(summon)
+                if not bucket:
+                    self.summons_by_owner.pop(key, None)
+                return True
+        return False
+
+    def summons_for(self, owner):
+        owner_uid = getattr(owner, 'entity_uid', None)
+        return list(self.summons_by_owner.get(str(owner_uid), ()))
+
+    def all_summons(self):
+        out = []
+        for bucket in self.summons_by_owner.values():
+            out.extend(bucket)
+        return out
+
+    def tick_summons(self):
+        """Drop expired summons. Safe to call on every round/turn boundary."""
+        for key, bucket in list(self.summons_by_owner.items()):
+            keep = []
+            for s in bucket:
+                if s.is_expired(self):
+                    s.dismiss()
+                    try:
+                        self.event_manager.received_event({
+                            'source': s.entity, 'event': 'summon_expired',
+                            'owner': s.owner, 'source_id': s.source_id,
+                        })
+                    except Exception:
+                        pass
+                else:
+                    keep.append(s)
+            if keep:
+                self.summons_by_owner[key] = keep
+            else:
+                self.summons_by_owner.pop(key, None)
+
+    def zones_at(self, pos):
+        """Return active zones whose footprint contains ``pos``."""
+        if not self.active_zones:
+            return []
+        target = tuple(pos)
+        return [z for z in self.active_zones if not z.expired() and z.contains(target)]
+
+    def trigger_movement_step(self, entity, from_pos, to_pos):
+        """Dispatch a per-square movement event.
+
+        Called by ``Map.move_to`` after the entity has actually moved one
+        square. Persistent zones whose footprint contains the destination
+        receive ``on_enter``. Future reaction-trigger work (Phase 3) will
+        consume the same event for opportunity attacks and difficult
+        terrain.
+        """
+        if not self.active_zones:
+            return
+        if to_pos is None:
+            return
+        target = tuple(to_pos)
+        for zone in list(self.active_zones):
+            if zone.expired():
+                zone.dismiss()
+                continue
+            if not zone.contains(target):
+                continue
+            # Don't fire on_enter when the entity was already inside the
+            # zone (e.g. caster centers a sphere on themselves).
+            if from_pos is not None and zone.contains(tuple(from_pos)):
+                continue
+            try:
+                zone.on_enter(entity)
+            except Exception as exc:  # pragma: no cover - defensive
+                self.event_manager.received_event({
+                    'source': zone, 'event': 'zone_error',
+                    'phase': 'on_enter', 'error': str(exc),
+                })
 
     # Determines if an entity can see someone in battle
     # @param entity1 [Natural20::Entity] observer
