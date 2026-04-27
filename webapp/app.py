@@ -48,6 +48,7 @@ from natural20.actions.rage_action import RageAction, RecklessAttackAction, EndR
 from natural20.actions.disengage_action import DisengageAction, DisengageBonusAction
 from natural20.actions.dash import DashAction, DashBonusAction
 from natural20.actions.dodge_action import DodgeAction
+from natural20.actions.ready_action import ReadyAction
 from natural20.actions.prone_action import ProneAction
 from natural20.actions.spell_action import SpellAction
 from natural20.actions.stand_action import StandAction
@@ -477,6 +478,21 @@ def _emit_narration_overlay(event):
         'message': narration,
         'map_name': map_name,
     })
+    # Persist the narration into every present PC's journal so players have
+    # an after-the-fact record they can search through their character
+    # sheet. Targets default to "all PCs on the relevant map".
+    target_uids = event.get('target_entities')
+    source = event.get('source')
+    source_uid = getattr(source, 'entity_uid', None) if source is not None else None
+    try:
+        _record_narration_for_pcs(
+            narration,
+            map_name=map_name,
+            target_uids=target_uids,
+            source=source_uid,
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug(f"Failed to record narration in journals: {exc}")
 
 event_manager.register_event_listener('narration', _emit_narration_overlay)
 game_session = GameSession.Session(LEVEL, event_manager=event_manager)
@@ -513,6 +529,89 @@ def _shutdown_flush():
         pass
 
 atexit.register(_shutdown_flush)
+
+# ── Battle-end campaign narration ─────────────────────────────────────────
+# When a battle ends, surface campaign-flavored narration to the players.
+# The text comes from the loaded campaign's ``game.yml`` under either
+# ``tpk_narration`` (when the party is wiped) or ``victory_narration`` (when
+# the players win). Each section may provide a ``default`` block and/or a
+# ``by_map`` map keyed by the battle's map name.
+def _select_outcome_narration(battle, outcome):
+    """Look up campaign narration for the given outcome ('tpk' | 'victory').
+
+    Returns a narration dict shaped like the standard narration overlay
+    payload, or ``None`` if the campaign has not declared one for this
+    outcome/map combination.
+    """
+    try:
+        properties = getattr(game_session, 'game_properties', None) or {}
+    except Exception:
+        properties = {}
+    key = 'tpk_narration' if outcome == 'tpk' else 'victory_narration'
+    section = properties.get(key) or {}
+    if not isinstance(section, dict):
+        return None, None
+
+    map_name = None
+    try:
+        battle_map = current_game.get_current_battle_map()
+        if battle_map is not None:
+            map_name = getattr(battle_map, 'name', None)
+    except Exception:
+        map_name = None
+
+    by_map = section.get('by_map') or {}
+    entry = None
+    if map_name and isinstance(by_map, dict):
+        entry = by_map.get(map_name)
+    if not entry:
+        entry = section.get('default')
+    if not entry or not isinstance(entry, dict):
+        return None, map_name
+    text = entry.get('text')
+    if not text:
+        return None, map_name
+    payload = {
+        'on_enter': {
+            'title': entry.get('title'),
+            'text': text,
+            'once': False,
+            'tpk': outcome == 'tpk',
+            'outcome': outcome,
+        }
+    }
+    return payload, map_name
+
+
+def _on_battle_end_narrate(game_manager, session):
+    """Emit a campaign-appropriate narration overlay when a battle ends."""
+    battle = game_manager.get_current_battle()
+    if battle is None:
+        return False
+    try:
+        outcome = 'tpk' if battle.tpk() else 'victory'
+    except Exception:
+        return False
+    narration, map_name = _select_outcome_narration(battle, outcome)
+    if not narration:
+        return False
+    try:
+        socketio.emit('message', {
+            'type': 'narration',
+            'message': narration,
+            'map_name': map_name,
+        })
+    except Exception as exc:  # pragma: no cover - socket emit best-effort
+        logger.warning(f"Failed to emit battle-end narration: {exc}")
+        return False
+    try:
+        _record_narration_for_pcs(narration, map_name=map_name)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug(f"Failed to record battle-end narration: {exc}")
+    return True
+
+
+current_game.register_event_handler('on_battle_end', _on_battle_end_narrate)
 
 # Initialize game context provider for LLM RAG
 game_context_provider = GameContextProvider(game_session, current_game)
@@ -2602,12 +2701,217 @@ def character_details(character_name):
         # Get racial features
         racial_features = character.race_properties.get('race_features', [])
         details['racial_features'] = [f.replace('_', ' ').title() for f in racial_features[:5]]  # Limit to first 5
-        
+
+        # Journal entries (per-PC quest log). Returned in chronological order
+        # so the UI can render newest-first via simple slicing.
+        details['journal'] = list(getattr(character, 'journal', None) or [])
+
         return jsonify(details)
         
     except Exception as e:
         logger.error(f"Error getting character details for {character_name}: {e}")
         return jsonify(error="Failed to load character details"), 500
+
+
+# ── Per-character Journal ─────────────────────────────────────────────────
+def _journal_owner_check(character):
+    """Return (allowed, error_response). Players may only act on their own
+    PCs; DMs may act on any character.
+    """
+    if 'dm' in user_role():
+        return True, None
+    username = session.get('username')
+    if not username:
+        return False, (jsonify(error='Not authenticated'), 401)
+    owned = entities_controlled_by(username)
+    if character in owned:
+        return True, None
+    return False, (jsonify(error='Forbidden'), 403)
+
+
+def _serialize_journal(character, query=None, kind=None, limit=None):
+    if hasattr(character, 'search_journal'):
+        return character.search_journal(query=query, kind=kind, limit=limit)
+    return list(getattr(character, 'journal', None) or [])
+
+
+def _persist_journal_change(character):
+    """Best-effort autosave hook so journal mutations survive a crash."""
+    try:
+        save = getattr(current_game, 'save_game_async', None)
+        if callable(save):
+            save()
+    except Exception as exc:  # pragma: no cover - autosave is best-effort
+        logger.debug(f"Journal autosave skipped: {exc}")
+
+
+def _record_narration_for_pcs(narration, map_name=None, target_uids=None,
+                              source=None):
+    """Append a narration entry to every relevant PC's journal.
+
+    ``target_uids`` constrains the recipients; otherwise every PC currently
+    on ``map_name`` (or every PC in the campaign if no map context exists)
+    receives the entry. Emits a ``journal_update`` socket message so any
+    open journal panels can refresh.
+    """
+    if not isinstance(narration, dict):
+        return
+    entry = narration.get('on_enter') or {}
+    text = entry.get('text')
+    if not text:
+        return
+    title = entry.get('title')
+    tags = []
+    outcome = entry.get('outcome')
+    if outcome:
+        tags.append(outcome)
+    if entry.get('tpk'):
+        tags.append('tpk')
+
+    candidates = []
+    if target_uids:
+        for uid in target_uids:
+            ent = current_game.get_entity_by_uid(uid)
+            if ent is not None:
+                candidates.append(ent)
+    else:
+        seen = set()
+        try:
+            maps = list(current_game.maps.values()) if map_name is None else [
+                m for m in current_game.maps.values() if getattr(m, 'name', None) == map_name
+            ]
+        except Exception:
+            maps = []
+        for m in maps:
+            for ent in getattr(m, 'entities', []) or []:
+                if isinstance(ent, PlayerCharacter) and ent.entity_uid not in seen:
+                    seen.add(ent.entity_uid)
+                    candidates.append(ent)
+
+    affected_uids = []
+    for pc in candidates:
+        if not isinstance(pc, PlayerCharacter):
+            continue
+        if not hasattr(pc, 'add_journal_entry'):
+            continue
+        try:
+            stored = pc.add_journal_entry(
+                text,
+                kind='narration',
+                title=title,
+                source=source,
+                map_name=map_name,
+                tags=tags,
+            )
+            if stored is not None:
+                affected_uids.append(pc.entity_uid)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug(f"Failed to record narration for {pc.entity_uid}: {exc}")
+
+    if affected_uids:
+        try:
+            socketio.emit('message', {
+                'type': 'journal_update',
+                'entity_uids': affected_uids,
+                'reason': 'narration',
+            })
+        except Exception:
+            pass
+
+
+@app.route('/character/<character_name>/journal', methods=['GET'])
+def character_journal_list(character_name):
+    """Return a PC's journal entries. Supports ``?q=`` substring search,
+    ``?kind=`` filter, and ``?limit=`` truncation.
+    """
+    character = current_game.get_entity_by_uid(character_name)
+    if not character:
+        return jsonify(error="Character not found"), 404
+    if not isinstance(character, PlayerCharacter):
+        return jsonify(error="Journals are only available for player characters"), 400
+    allowed, err = _journal_owner_check(character)
+    if not allowed:
+        return err
+    query = request.args.get('q') or request.args.get('query')
+    kind = request.args.get('kind')
+    limit_raw = request.args.get('limit')
+    limit = None
+    if limit_raw:
+        try:
+            limit = int(limit_raw)
+        except (TypeError, ValueError):
+            limit = None
+    entries = _serialize_journal(character, query=query, kind=kind, limit=limit)
+    return jsonify({
+        'entity_uid': character.entity_uid,
+        'count': len(entries),
+        'entries': entries,
+    })
+
+
+@app.route('/character/<character_name>/journal', methods=['POST'])
+def character_journal_add(character_name):
+    """Append a manual journal entry for ``character_name``."""
+    character = current_game.get_entity_by_uid(character_name)
+    if not character:
+        return jsonify(error="Character not found"), 404
+    if not isinstance(character, PlayerCharacter):
+        return jsonify(error="Journals are only available for player characters"), 400
+    allowed, err = _journal_owner_check(character)
+    if not allowed:
+        return err
+    payload = request.get_json(silent=True) or {}
+    text = (payload.get('text') or '').strip()
+    if not text:
+        return jsonify(error='Entry text is required'), 400
+    title = payload.get('title')
+    tags = payload.get('tags') or []
+    if not isinstance(tags, list):
+        tags = [str(tags)]
+    requester_role = 'dm' if 'dm' in user_role() else 'player'
+    kind = payload.get('kind') or ('dm' if requester_role == 'dm' else 'note')
+    entry = character.add_journal_entry(
+        text,
+        kind=kind,
+        title=title,
+        source=session.get('username'),
+        tags=tags,
+    )
+    _persist_journal_change(character)
+    try:
+        socketio.emit('message', {
+            'type': 'journal_update',
+            'entity_uids': [character.entity_uid],
+            'reason': kind,
+        })
+    except Exception:
+        pass
+    return jsonify({'entry': entry, 'count': len(character.journal)})
+
+
+@app.route('/character/<character_name>/journal/<entry_id>', methods=['DELETE'])
+def character_journal_delete(character_name, entry_id):
+    character = current_game.get_entity_by_uid(character_name)
+    if not character:
+        return jsonify(error="Character not found"), 404
+    if not isinstance(character, PlayerCharacter):
+        return jsonify(error="Journals are only available for player characters"), 400
+    allowed, err = _journal_owner_check(character)
+    if not allowed:
+        return err
+    removed = character.remove_journal_entry(entry_id)
+    if not removed:
+        return jsonify(error='Entry not found'), 404
+    _persist_journal_change(character)
+    try:
+        socketio.emit('message', {
+            'type': 'journal_update',
+            'entity_uids': [character.entity_uid],
+            'reason': 'delete',
+        })
+    except Exception:
+        pass
+    return jsonify({'status': 'ok', 'count': len(character.journal)})
 
 def pov_entities():
     global current_game
@@ -4008,6 +4312,8 @@ def action_type_to_class(action_type):
         return EndRageAction
     elif action_type == 'RecklessAttackAction':
         return RecklessAttackAction
+    elif action_type == 'ReadyAction':
+        return ReadyAction
     else:
         raise ValueError(f"Unknown action type {action_type}")
 
@@ -4335,6 +4641,18 @@ def action():
     target_coords = action_request.get('target', None)
     target = None
 
+    # ReadyAction is collected through a chat dialog with the DM rather than
+    # the standard target/param flow. Tell the client to open the dialog.
+    if action_type == 'ReadyAction':
+        return jsonify({
+            'action': 'ReadyAction',
+            'type': 'requires_dialog',
+            'dialog': 'ready_action',
+            'endpoint': '/ready_action',
+            'entity_uid': entity_id,
+            'prompt': 'Describe the trigger and the action you are readying.',
+        })
+
     if target_coords:
         mode = action_request.get('mode', None)
         if mode == 'cone' or mode == 'point_target' or mode == 'cube':
@@ -4402,6 +4720,10 @@ def action():
                         narration_text = narration_entry.get('text', '')
                         if narration_text:
                             output_logger.log(narration_text, visibility={'kind': 'entities', 'entity_uids': [entity.entity_uid]})
+                        try:
+                            _record_narration_for_pcs(area_narration, map_name=battle_map.name, target_uids=[entity.entity_uid])
+                        except Exception:
+                            pass
                     return jsonify(result)
                 else:
                     last_coords = move_path[-1]
@@ -4437,6 +4759,10 @@ def action():
                             narration_text = narration_entry.get('text', '')
                             if narration_text:
                                 output_logger.log(narration_text, visibility={'kind': 'entities', 'entity_uids': [entity.entity_uid]})
+                            try:
+                                _record_narration_for_pcs(area_narration, map_name=battle_map.name, target_uids=[entity.entity_uid])
+                            except Exception:
+                                pass
                         current_game.loop_environment()
                         return jsonify({'status': 'ok'})
                     else:
@@ -4675,6 +5001,62 @@ def action():
             current_game.set_waiting_for_reaction_input([entity, e, e.resolve(), valid_actions_str])
         socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
         return jsonify(status='ok')
+
+
+@app.route('/ready_action', methods=['POST'])
+def ready_action_endpoint():
+    """Declare a 5e Ready (Hold) action.
+
+    Body: ``{ id: <entity_uid>, description: "<player free text>" }``
+
+    The webapp passes the description through the configured LLM (with a
+    rule-based fallback) to produce a structured trigger + action_spec, and
+    if approved commits a :class:`ReadyAction` for the entity.
+    """
+    global current_game
+    from webapp.ready_action_handler import (
+        parse_ready_action_request,
+        make_llm_resolver,
+    )
+
+    payload = request.json or {}
+    entity_id = payload.get('id')
+    description = (payload.get('description') or '').strip()
+    if not entity_id:
+        return jsonify(status='error', message='Missing entity id'), 400
+
+    entity = current_game.get_entity_by_uid(entity_id)
+    if entity is None:
+        return jsonify(status='error', message='Entity not found'), 404
+    battle = current_game.get_current_battle()
+    if battle is None:
+        return jsonify(status='error', message='No active battle'), 400
+    if not ReadyAction.can(entity, battle):
+        return jsonify(status='error',
+                       message='You cannot ready an action right now.'), 400
+
+    parsed = parse_ready_action_request(entity, battle, description, llm_handler)
+    if not parsed.get('approved'):
+        return jsonify(status='rejected',
+                       reason=parsed.get('reason'),
+                       trigger=parsed.get('trigger'),
+                       action_spec=parsed.get('action_spec')), 200
+
+    # Make sure the engine knows how to resolve trigger time (idempotent).
+    if getattr(battle, '_ready_action_resolver', None) is None:
+        battle.set_ready_action_resolver(make_llm_resolver(llm_handler))
+
+    ready = ReadyAction(current_game.game_session, entity, 'ready', opts={
+        'description': description,
+        'trigger': parsed['trigger'],
+        'action_spec': parsed['action_spec'],
+    })
+    pov_entities = entities_controlled_by(session['username'])
+    current_game.commit_and_update(session['username'], ready, pov_entities)
+    return jsonify(status='ok',
+                   reason=parsed.get('reason'),
+                   trigger=parsed['trigger'],
+                   action_spec=parsed['action_spec'])
 
 
 @app.route('/items', methods=['GET'])

@@ -294,6 +294,11 @@ en:
     lockpick_failed: Lockpicking failed and the theives tools are now broken
     longbow_and_arrows: Longbow and Arrows
     martial_weapon_and_shield: (1) Martial Weapon & Shield
+    pit_trap:
+      disarm: Disarm trap (DEX / Thieves' Tools)
+      tools_required: (thieves' tools required)
+      cannot_disarm_from_trap: (move adjacent to disarm)
+      action_required: (action required)
     properties:
       ammunition: Ammunition - You make a ranged attack only if you have ammunition to fire from the weapon
       finesse: Finesse - When making an attack with a finesse weapon, your Strength or Dexterity modifier can be used for the attack and damage roll (Best mod will be automatically be used)

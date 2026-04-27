@@ -3168,3 +3168,31 @@ body[data-role*="dm"] .tile.entity-dragging {
   0%, 100% { opacity: 0.5; }
   50%      { opacity: 1; }
 }
+
+/* TPK ─ blood-red, slower fade so it lands with weight. */
+#narration-overlay.narration-tpk {
+  background: radial-gradient(ellipse at center, rgba(40, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.97) 70%);
+  animation: narration-fade-in 1.6s ease-out;
+}
+#narration-overlay.narration-tpk .narration-title {
+  color: #b03a2e;
+  text-shadow: 0 0 18px rgba(176, 58, 46, 0.55);
+  letter-spacing: 0.22em;
+}
+#narration-overlay.narration-tpk .narration-divider {
+  background: #b03a2e;
+  opacity: 0.8;
+}
+#narration-overlay.narration-tpk .narration-text {
+  color: #e8c9c4;
+  font-style: italic;
+}
+
+/* Victory ─ warm gold accent. */
+#narration-overlay.narration-victory .narration-title {
+  color: #e3c66b;
+  text-shadow: 0 0 12px rgba(227, 198, 107, 0.4);
+}
+#narration-overlay.narration-victory .narration-divider {
+  background: #e3c66b;
+}

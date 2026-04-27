@@ -26,6 +26,11 @@ class SpellAction(Action):
         self.spell_action = None
         self.target = None
         self.spellcasting_class = None
+        # When True, ``resolve`` skips the slot/resource consumption step.
+        # Used by readied spells: the slot was already consumed at ready
+        # time (per RAW: "you cast it as normal but hold its energy"), so
+        # releasing the held spell as a reaction must not deduct it again.
+        self.skip_consume_at_resolve = False
 
     def __str__(self):
         name = "SpellAction: unknown"
@@ -206,6 +211,7 @@ class SpellAction(Action):
         spell_action.at_level = self.at_level
         spell_action.target = self.target
         spell_action.spellcasting_class = self.spellcasting_class
+        spell_action.skip_consume_at_resolve = getattr(self, 'skip_consume_at_resolve', False)
         if self.spell_action:
             spell_action.spell_action = self.spell_action.clone()
             spell_action.spell_action.action = spell_action
@@ -225,7 +231,8 @@ class SpellAction(Action):
         if 'verbal' in self.spell_action.properties.get('components', []):
             self.source.break_stealth()
 
-        self.spell_action.consume(battle)
+        if not getattr(self, 'skip_consume_at_resolve', False):
+            self.spell_action.consume(battle)
 
         return self
 

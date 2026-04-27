@@ -241,6 +241,7 @@ class TestInteractAction(unittest.TestCase):
             'Dash',
             'Disengage',
             'Dodge',
+            'Ready',
             'move to [0, 5]',
             'move to [2, 5]',
             'Prone',

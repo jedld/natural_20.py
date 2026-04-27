@@ -950,7 +950,7 @@ class GameManagement:
                         controller.register_handlers_on(entity)
                         self.battle.add(entity, group, add_to_initiative=True, controller=controller)
 
-                self.socketio.emit('message', { 'type': 'initiative','message': {'index': self.battle.current_turn_index}})
+                self.socketio.emit('message', { 'type': 'initiative','message': {'index': self.battle.current_turn_index if self.battle else None}})
                 self.socketio.emit('message', { 'type': 'turn', 'message': {}})
 
 

@@ -108,6 +108,11 @@ class Battle():
         # 'attack_hit', 'damage_taken') to a list of (handler, priority)
         # entries. Handlers are invoked by ``fire_reaction_window``.
         self.reaction_handlers = {}
+        # Readied (Hold) actions: ``entity_uid`` -> ``ReadyActionState``.
+        # Populated by ``ReadyAction.apply`` and consumed by
+        # ``trigger_event`` when the readier's trigger fires.
+        self.readied_actions = {}
+        self._ready_action_resolver = None
         # Phase 4 summons registry: owner_uid (str) -> list[SummonedEntity].
         self.summons_by_owner = {}
         # Store entity states in a UID-backed map for robust serialization and lookups
@@ -129,6 +134,17 @@ class Battle():
             'b': ['a'],
             'c': ['c']
         }
+        # Bridge ``event_manager``-level lifecycle events (``unconscious``,
+        # ``died``) into a battle-level ``goes_down`` trigger so readied
+        # actions like "use a healing potion if my ally drops" can fire.
+        # Listeners are gated on this battle being alive and having any
+        # readied actions waiting on ``goes_down`` to avoid touching stale
+        # state from prior battles that share the same session event_manager.
+        self._goes_down_listener_installed = False
+        self._object_interaction_listener_installed = False
+        self._install_goes_down_bridge()
+        self._install_object_interaction_bridge()
+        self._install_concentration_break_bridge()
 
     def current_round(self):
         return self.round
@@ -351,6 +367,10 @@ class Battle():
 
         if entity.unconscious() and not entity.stable():
             entity.death_saving_throw(self)
+        # Per RAW the Ready action ends at the start of the readier's next
+        # turn, regardless of whether the trigger fired.
+        if self.readied_actions and entity is not None:
+            self.clear_ready_action(entity)
         self.trigger_event('start_of_turn', self, { "target" : entity })
         
         # check for the stench feature
@@ -412,6 +432,44 @@ class Battle():
             if entity.conscious():
                 groups.add(self.entities[entity]['group'])
         return groups
+
+    def player_groups(self):
+        """
+        Returns the set of groups that contain player characters in this battle.
+        Falls back to the session's default group (the one flagged ``default: true``
+        in game.yml) when no PCs are registered.
+        """
+        groups = set()
+        for entity in self.combat_order:
+            try:
+                is_npc = bool(entity.npc())
+            except Exception:
+                is_npc = True
+            if not is_npc:
+                groups.add(self.entities[entity]['group'])
+        if not groups:
+            try:
+                for name, info in (self.session.groups() or {}).items():
+                    if isinstance(info, dict) and info.get('default'):
+                        groups.add(name)
+                        break
+            except Exception:
+                pass
+        return groups
+
+    def tpk(self):
+        """
+        Total Party Kill: the battle has ended and no player-character group is
+        among the winners. Returns ``False`` if combat is still ongoing or if at
+        least one PC group is still standing.
+        """
+        if not self.battle_ends():
+            return False
+        winners = self.winning_groups()
+        pc_groups = self.player_groups()
+        if not pc_groups:
+            return False
+        return not (pc_groups & winners)
 
     def compute_movement_inefficiency(self, entity):
         positions_entered = self.entities[entity]['positions_entered']
@@ -616,12 +674,69 @@ class Battle():
         elif action.action_type == 'attack':
             if self.animation_log_enabled:
                 self.animation_log.append(action_animator(action))
+            # Fire the ``attacked`` event so any readied actions whose trigger
+            # depends on the readier being attacked can react. Note this fires
+            # after the attack resolves; the readied action is then executed
+            # synchronously inside the trigger dispatch loop.
+            try:
+                target = getattr(action, 'target', None)
+                # Some attacks have multi-target lists; emit one event per
+                # target so triggers tied to a specific readier still fire.
+                if isinstance(target, (list, tuple)):
+                    targets = list(target)
+                else:
+                    targets = [target]
+                for t in targets:
+                    if t is None:
+                        continue
+                    self.trigger_event('attacked', action.source, {
+                        'target': t,
+                        'attack_name': getattr(action, 'using', None) or getattr(action, 'spell_class', None),
+                        'as_reaction': bool(getattr(action, 'as_reaction', False)),
+                    })
+                    # Also fan out as ``ally_attacks`` so a readier with a
+                    # "when my ally hits Y, I also attack Y" trigger fires.
+                    # The readier-side filter (subject_filter='allies' + the
+                    # owner-not-source guard in evaluate_trigger) keeps this
+                    # from firing the attacker's own readied actions.
+                    self.trigger_event('ally_attacks', action.source, {
+                        'target': t,
+                        'attack_name': getattr(action, 'using', None) or getattr(action, 'spell_class', None),
+                        'as_reaction': bool(getattr(action, 'as_reaction', False)),
+                    })
+            except Exception:
+                pass
         elif action.action_type == 'interact':
             self.trigger_event('interact', action)
         else:
             if self.animation_log_enabled:
                 animation_payload = action_animator(action)
                 self.animation_log.append(animation_payload)
+            # Spells that target a creature also count as an "attack" for
+            # readied-trigger purposes (e.g. holding a spell to fire when the
+            # enemy casts at you).
+            if action.action_type == 'spell':
+                try:
+                    target = getattr(action, 'target', None)
+                    if isinstance(target, (list, tuple)):
+                        targets = list(target)
+                    else:
+                        targets = [target]
+                    for t in targets:
+                        if t is None or not hasattr(t, 'entity_uid'):
+                            continue
+                        self.trigger_event('attacked', action.source, {
+                            'target': t,
+                            'attack_name': getattr(action, 'spell_class', None),
+                            'as_reaction': bool(getattr(action, 'as_reaction', False)),
+                        })
+                        self.trigger_event('ally_attacks', action.source, {
+                            'target': t,
+                            'attack_name': getattr(action, 'spell_class', None),
+                            'as_reaction': bool(getattr(action, 'as_reaction', False)),
+                        })
+                except Exception:
+                    pass
 
         self.battle_log.append(action)
         return None
@@ -703,6 +818,148 @@ class Battle():
 
         return source_group1 == source_group2
 
+    def _install_goes_down_bridge(self):
+        """Register a listener that maps event_manager 'unconscious'/'died'
+        events into a battle-level 'goes_down' trigger.
+
+        Idempotent and defensive: if EventManager lacks
+        ``register_event_listener`` (older session/test stubs) the bridge is
+        silently skipped -- readied ``goes_down`` actions then simply will
+        not auto-fire, but no other behaviour is affected.
+        """
+        if self._goes_down_listener_installed:
+            return
+        em = getattr(self, 'event_manager', None)
+        if em is None or not hasattr(em, 'register_event_listener'):
+            return
+        battle_ref = self
+
+        def _on_goes_down(event):
+            try:
+                if not getattr(battle_ref, 'started', False):
+                    return
+                if not getattr(battle_ref, 'readied_actions', None):
+                    return
+                ent = event.get('source') if isinstance(event, dict) else None
+                if ent is None:
+                    return
+                battle_ref.trigger_event('goes_down', ent, {'target': ent})
+            except Exception:
+                # Never let a downstream readied-action error propagate out
+                # of an event_manager broadcast loop.
+                pass
+
+        try:
+            em.register_event_listener(['unconscious', 'died'], _on_goes_down)
+            self._goes_down_listener_installed = True
+        except Exception:
+            pass
+
+    def _install_object_interaction_bridge(self):
+        """Bridge event_manager 'object_interaction' events (door opens,
+        chest unlocks, etc.) into the battle-level trigger pipeline so a
+        readied action like "shoot whoever opens that door" can fire.
+
+        Idempotent and defensive (see ``_install_goes_down_bridge``).
+        """
+        if self._object_interaction_listener_installed:
+            return
+        em = getattr(self, 'event_manager', None)
+        if em is None or not hasattr(em, 'register_event_listener'):
+            return
+        battle_ref = self
+
+        def _on_object_interaction(event):
+            try:
+                if not getattr(battle_ref, 'started', False):
+                    return
+                if not getattr(battle_ref, 'readied_actions', None):
+                    return
+                if not isinstance(event, dict):
+                    return
+                actor = event.get('source')
+                obj = event.get('target')
+                if actor is None and obj is None:
+                    return
+                battle_ref.trigger_event(
+                    'object_interaction',
+                    actor if actor is not None else obj,
+                    {
+                        'target': obj,
+                        'sub_type': event.get('sub_type'),
+                        'result': event.get('result'),
+                    },
+                )
+            except Exception:
+                pass
+
+        try:
+            em.register_event_listener(['object_interaction'], _on_object_interaction)
+            self._object_interaction_listener_installed = True
+        except Exception:
+            pass
+
+    def _install_concentration_break_bridge(self):
+        """Expire any readied spell whose held-spell concentration just
+        ended (e.g. a damage-induced CON save failed).
+
+        Per RAW: *holding onto the spell's magic requires concentration. If
+        your concentration is broken, the spell dissipates without taking
+        effect.* The slot is **not** refunded -- the spell was already cast
+        at ready time. We only mark the readied state expired so it cannot
+        fire later, and emit ``ready_action_dissipated`` for the log.
+        """
+        if getattr(self, '_concentration_break_listener_installed', False):
+            return
+        em = getattr(self, 'event_manager', None)
+        if em is None or not hasattr(em, 'register_event_listener'):
+            return
+        battle_ref = self
+
+        def _on_concentration_end(event):
+            try:
+                if not isinstance(event, dict):
+                    return
+                effect = event.get('effect')
+                if effect is None or not getattr(effect, 'is_held_spell', False):
+                    return
+                owner = event.get('source')
+                if owner is None:
+                    return
+                state = battle_ref.ready_action_for(owner)
+                if state is None or state.expired:
+                    return
+                spec = state.action_spec or {}
+                if (spec.get('kind') or '').lower() != 'spell':
+                    return
+                if spec.get('spell') != getattr(effect, 'spell_slug', None):
+                    return
+                state.expired = True
+                try:
+                    setattr(state, 'last_fizzle_reason',
+                            'concentration broken; the held spell dissipated')
+                except Exception:
+                    pass
+                battle_ref.clear_ready_action(owner)
+                try:
+                    em.received_event({
+                        'source': owner,
+                        'event': 'ready_action_dissipated',
+                        'description': state.description,
+                        'spell': spec.get('spell'),
+                        'reason': 'concentration broken',
+                    })
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        try:
+            em.register_event_listener(['concentration_end'], _on_concentration_end)
+            self._concentration_break_listener_installed = True
+        except Exception:
+            pass
+
     def trigger_event(self, event, source, opt=None):
         if opt is None:
             opt = {}
@@ -735,6 +992,135 @@ class Battle():
                         'source': zone, 'event': 'zone_error',
                         'phase': event, 'error': str(exc),
                     })
+
+        # Readied actions: walk every readied entity and dispatch matching
+        # triggers. We snapshot the dict so resolvers may mutate it.
+        if self.readied_actions:
+            self._dispatch_readied_actions(event, source, opt)
+
+    # ------------------------------------------------------------------
+    # Ready / Hold action support
+    # ------------------------------------------------------------------
+    def register_ready_action(self, entity, state):
+        """Store ``state`` (a ``ReadyActionState``) for ``entity``."""
+        if entity is None or state is None:
+            return
+        uid = str(getattr(entity, 'entity_uid', '') or '')
+        if not uid:
+            return
+        self.readied_actions[uid] = state
+
+    def clear_ready_action(self, entity):
+        if entity is None:
+            return
+        uid = str(getattr(entity, 'entity_uid', '') or '')
+        self.readied_actions.pop(uid, None)
+
+    def ready_action_for(self, entity):
+        if entity is None:
+            return None
+        uid = str(getattr(entity, 'entity_uid', '') or '')
+        return self.readied_actions.get(uid)
+
+    def set_ready_action_resolver(self, resolver):
+        """Register an LLM-backed resolver. ``resolver(state, event_name,
+        event_payload, battle, owner) -> Action | None`` -- returning ``None``
+        means do nothing (the trigger fizzled). The state is left in place
+        unless the resolver also calls ``clear_ready_action``."""
+        self._ready_action_resolver = resolver
+
+    def _dispatch_readied_actions(self, event, source, opt):
+        from natural20.ready_action import (
+            evaluate_trigger,
+            default_resolver,
+        )
+        # Build a minimal payload describing who triggered this event.
+        payload = {'source': source}
+        if isinstance(opt, dict):
+            for key in ('target', 'move_path', 'message', 'targets',
+                        'volume', 'sub_type', 'result'):
+                if key in opt and key not in payload:
+                    payload[key] = opt[key]
+        # ``becomes_visible`` is synthesised: when ``source`` finishes a move,
+        # we ask each readier whether ``source`` was hidden at the start of
+        # the path and is now visible. If so, we re-dispatch as
+        # ``becomes_visible`` for that readier in addition to the normal
+        # ``movement`` event.
+        synth_visibility_uids = set()
+        if event == 'movement' and source is not None and isinstance(opt, dict):
+            move_path = opt.get('move_path') or []
+            start_pos = move_path[0] if move_path else None
+            if start_pos is not None:
+                for uid, state in list(self.readied_actions.items()):
+                    if state is None or state.expired:
+                        continue
+                    if (state.trigger or {}).get('event') != 'becomes_visible':
+                        continue
+                    owner = self.session.entity_registry.get(uid)
+                    if owner is None or owner is source:
+                        continue
+                    try:
+                        map_obj = self.map_for(owner) or self.map_for(source)
+                    except Exception:
+                        map_obj = None
+                    if map_obj is None:
+                        continue
+                    try:
+                        was_visible = map_obj.can_see(owner, source, entity_2_pos=start_pos)
+                        is_visible = map_obj.can_see(owner, source)
+                    except Exception:
+                        was_visible = is_visible = False
+                    if (not was_visible) and is_visible:
+                        synth_visibility_uids.add(uid)
+        for uid, state in list(self.readied_actions.items()):
+            if state is None or state.expired:
+                continue
+            owner = self.session.entity_registry.get(uid)
+            if owner is None:
+                continue
+            # Avoid dispatching on the readier's own actions.
+            if source is owner:
+                continue
+            if not owner.has_reaction(self):
+                continue
+            # Use the synthesised event name when this readier is waiting on a
+            # visibility transition triggered by the current movement.
+            effective_event = 'becomes_visible' if uid in synth_visibility_uids else event
+            if not evaluate_trigger(state, effective_event, payload, self, owner):
+                continue
+            resolver = self._ready_action_resolver or default_resolver
+            try:
+                action = resolver(state, effective_event, payload, self, owner)
+            except Exception as exc:  # pragma: no cover - defensive
+                self.event_manager.received_event({
+                    'source': owner, 'event': 'ready_action_error',
+                    'error': str(exc), 'description': state.description,
+                })
+                action = None
+            state.fire_count += 1
+            state.expired = True
+            self.clear_ready_action(owner)
+            if action is None:
+                self.event_manager.received_event({
+                    'source': owner, 'event': 'ready_action_fizzled',
+                    'description': state.description, 'trigger_event': effective_event,
+                    'reason': getattr(state, 'last_fizzle_reason', None),
+                })
+                continue
+            try:
+                self.event_manager.received_event({
+                    'source': owner, 'event': 'ready_action_fired',
+                    'description': state.description,
+                    'action_spec': dict(state.action_spec or {}),
+                    'trigger_event': effective_event,
+                })
+                self.action(action)
+                self.commit(action)
+            except Exception as exc:  # pragma: no cover - defensive
+                self.event_manager.received_event({
+                    'source': owner, 'event': 'ready_action_error',
+                    'error': str(exc), 'description': state.description,
+                })
 
     def register_zone(self, zone):
         """Register a ``PersistentAoEZone`` so the battle ticks it.
@@ -1105,7 +1491,11 @@ class Battle():
             'battle_log': self.battle_log,
             'animation_log': self.animation_log,
             'session': self.session,
-            'maps': self.maps
+            'maps': self.maps,
+            'readied_actions': {
+                uid: state.to_dict() if hasattr(state, 'to_dict') else dict(state)
+                for uid, state in (self.readied_actions or {}).items()
+            },
         }
 
     def from_dict(data):
@@ -1163,6 +1553,18 @@ class Battle():
 
         battle.battle_log = data.get('battle_log', [])
         battle.animation_log = data.get('animation_log', [])
+
+        # Restore readied actions if present.
+        readied = data.get('readied_actions') or {}
+        if readied:
+            from natural20.ready_action import ReadyActionState
+            for uid, raw in readied.items():
+                try:
+                    state = (raw if isinstance(raw, ReadyActionState)
+                             else ReadyActionState.from_dict(raw or {}))
+                    battle.readied_actions[str(uid)] = state
+                except Exception:
+                    continue
 
         # Backfill entity registry for quick UID lookups
         try:

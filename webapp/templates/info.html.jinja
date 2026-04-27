@@ -253,6 +253,9 @@
             {% if not entity.object() %}
             <button class="tablinks" onclick="openTab(event, 'Spells')">Spells</button>
             <button class="tablinks" onclick="openTab(event, 'Equipment')">Equipment/Inventory</button>
+            {% if entity.__class__.__name__ == 'PlayerCharacter' %}
+            <button class="tablinks" onclick="openTab(event, 'Journal')">Journal</button>
+            {% endif %}
             {% endif %}
         </div>
 
@@ -941,6 +944,60 @@
                 </div>
             </div>
         </div>
+        {% endif %}
+
+        {% if entity.__class__.__name__ == 'PlayerCharacter' %}
+        <div id="Journal" class="tabcontent">
+            <div class="section">
+                <div class="section-header">
+                    <h2>Journal</h2>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content">
+                    <div class="journal-section" data-entity-uid="{{ entity.entity_uid }}">
+                        <div class="journal-controls">
+                            <input type="text" class="journal-search" placeholder="Search journal...">
+                            <select class="journal-kind-filter">
+                                <option value="">All</option>
+                                <option value="narration">Narration</option>
+                                <option value="note">My notes</option>
+                                <option value="dm">From DM</option>
+                                <option value="chat">Chat</option>
+                            </select>
+                        </div>
+                        <div class="journal-entries"><em class="journal-empty">Loading...</em></div>
+                        <form class="journal-add-form">
+                            <textarea class="journal-add-text" rows="2" placeholder="Add a personal note..."></textarea>
+                            <button type="submit" class="journal-add-btn">Add Entry</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <style>
+            .journal-section { display: flex; flex-direction: column; gap: 10px; }
+            .journal-controls { display: flex; gap: 8px; }
+            .journal-search { flex: 1; padding: 6px 8px; border: 1px solid #555; background: #2a2a2a; color: #eee; border-radius: 4px; }
+            .journal-kind-filter { padding: 6px 8px; border: 1px solid #555; background: #2a2a2a; color: #eee; border-radius: 4px; }
+            .journal-entries { max-height: 420px; overflow-y: auto; border: 1px solid #444; border-radius: 4px; padding: 6px; background: #1c1c1c; }
+            .journal-empty { color: #888; font-style: italic; padding: 8px; display: block; }
+            .journal-entry { padding: 8px 10px; margin-bottom: 6px; background: #262626; border-left: 4px solid #777; border-radius: 3px; position: relative; }
+            .journal-entry .journal-entry-meta { font-size: 0.8em; color: #aaa; margin-bottom: 4px; }
+            .journal-entry .journal-entry-text { color: #eee; white-space: pre-wrap; }
+            .journal-entry .journal-entry-title { font-weight: 700; color: #f1c40f; margin-bottom: 2px; }
+            .journal-entry .journal-entry-delete { position: absolute; top: 6px; right: 8px; background: none; border: none; color: #c0392b; cursor: pointer; font-size: 0.9em; }
+            .journal-entry .journal-entry-delete:hover { color: #e74c3c; }
+            .journal-entry.kind-narration { border-left-color: #c97f4a; }
+            .journal-entry.kind-note { border-left-color: #6cb04a; }
+            .journal-entry.kind-dm { border-left-color: #a073d6; }
+            .journal-entry.kind-chat { border-left-color: #4ab0c9; }
+            .journal-tag { display: inline-block; background: #3a3a3a; color: #ddd; padding: 1px 6px; margin-right: 4px; border-radius: 8px; font-size: 0.75em; }
+            .journal-add-form { display: flex; flex-direction: column; gap: 6px; }
+            .journal-add-text { padding: 6px 8px; border: 1px solid #555; background: #2a2a2a; color: #eee; border-radius: 4px; resize: vertical; font-family: inherit; }
+            .journal-add-btn { align-self: flex-end; padding: 6px 14px; background: #8a6d3b; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
+            .journal-add-btn:hover { background: #a0824a; }
+            .journal-add-btn:disabled { background: #555; cursor: not-allowed; }
+        </style>
         {% endif %}
         {% endif %}
     </div>
@@ -1760,5 +1817,146 @@
             });
         })();
     </script>
+
+    {% if entity.__class__.__name__ == 'PlayerCharacter' and not entity.object() %}
+    <script>
+        (function () {
+            const root = document.querySelector('.journal-section[data-entity-uid]');
+            if (!root) return;
+            const entityUid = root.getAttribute('data-entity-uid');
+            const entriesEl = root.querySelector('.journal-entries');
+            const searchEl = root.querySelector('.journal-search');
+            const kindEl = root.querySelector('.journal-kind-filter');
+            const formEl = root.querySelector('.journal-add-form');
+            const textEl = root.querySelector('.journal-add-text');
+            const addBtn = root.querySelector('.journal-add-btn');
+            let debounceId = null;
+
+            function esc(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+
+            function fmtTs(ts) {
+                if (!ts) return '';
+                try {
+                    const d = new Date(ts);
+                    if (isNaN(d.getTime())) return ts;
+                    return d.toLocaleString();
+                } catch (e) { return ts; }
+            }
+
+            function render(entries) {
+                if (!entries || !entries.length) {
+                    entriesEl.innerHTML = '<em class="journal-empty">No entries yet.</em>';
+                    return;
+                }
+                const html = entries.slice().reverse().map(function (e) {
+                    const kind = e.kind || 'note';
+                    const tags = (e.tags || []).map(function (t) {
+                        return '<span class="journal-tag">' + esc(t) + '</span>';
+                    }).join('');
+                    const title = e.title ? '<div class="journal-entry-title">' + esc(e.title) + '</div>' : '';
+                    const meta = '<div class="journal-entry-meta">' + esc(kind) + ' &middot; ' + esc(fmtTs(e.ts)) +
+                        (e.source ? ' &middot; ' + esc(e.source) : '') + '</div>';
+                    return '<div class="journal-entry kind-' + esc(kind) + '" data-id="' + esc(e.id) + '">' +
+                        '<button class="journal-entry-delete" title="Delete">&times;</button>' +
+                        meta + title +
+                        '<div class="journal-entry-text">' + esc(e.text) + '</div>' +
+                        (tags ? '<div>' + tags + '</div>' : '') +
+                        '</div>';
+                }).join('');
+                entriesEl.innerHTML = html;
+            }
+
+            function load() {
+                const params = new URLSearchParams();
+                if (searchEl.value.trim()) params.set('q', searchEl.value.trim());
+                if (kindEl.value) params.set('kind', kindEl.value);
+                fetch('/character/' + encodeURIComponent(entityUid) + '/journal?' + params.toString(), {
+                    credentials: 'same-origin'
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (data && data.entries) render(data.entries);
+                        else entriesEl.innerHTML = '<em class="journal-empty">' + esc(data && data.error || 'Unable to load journal.') + '</em>';
+                    })
+                    .catch(function () {
+                        entriesEl.innerHTML = '<em class="journal-empty">Failed to load journal.</em>';
+                    });
+            }
+
+            function debouncedLoad() {
+                if (debounceId) clearTimeout(debounceId);
+                debounceId = setTimeout(load, 180);
+            }
+
+            searchEl.addEventListener('input', debouncedLoad);
+            kindEl.addEventListener('change', load);
+
+            formEl.addEventListener('submit', function (ev) {
+                ev.preventDefault();
+                const text = (textEl.value || '').trim();
+                if (!text) return;
+                addBtn.disabled = true;
+                fetch('/character/' + encodeURIComponent(entityUid) + '/journal', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        addBtn.disabled = false;
+                        if (data && data.entry) {
+                            textEl.value = '';
+                            load();
+                        } else {
+                            alert((data && data.error) || 'Failed to add entry.');
+                        }
+                    })
+                    .catch(function () {
+                        addBtn.disabled = false;
+                        alert('Failed to add entry.');
+                    });
+            });
+
+            entriesEl.addEventListener('click', function (ev) {
+                const btn = ev.target.closest('.journal-entry-delete');
+                if (!btn) return;
+                const entry = btn.closest('.journal-entry');
+                if (!entry) return;
+                const id = entry.getAttribute('data-id');
+                if (!id) return;
+                if (!confirm('Delete this journal entry?')) return;
+                fetch('/character/' + encodeURIComponent(entityUid) + '/journal/' + encodeURIComponent(id), {
+                    method: 'DELETE',
+                    credentials: 'same-origin'
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function () { load(); })
+                    .catch(function () { alert('Failed to delete entry.'); });
+            });
+
+            // Live refresh from socket events.
+            try {
+                if (window.io) {
+                    const sock = window.__journalSocket || io();
+                    window.__journalSocket = sock;
+                    sock.on('message', function (msg) {
+                        if (msg && msg.type === 'journal_update' &&
+                            Array.isArray(msg.entity_uids) &&
+                            msg.entity_uids.indexOf(entityUid) !== -1) {
+                            load();
+                        }
+                    });
+                }
+            } catch (e) { /* socket optional */ }
+
+            load();
+        })();
+    </script>
+    {% endif %}
 </body>
 </html>
