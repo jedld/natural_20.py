@@ -89,6 +89,7 @@ class TestPlayerCharacter(unittest.TestCase):
             'Dash',
             'Disengage',
             'Dodge',
+            'Ready',
             'Prone',
             'Help',
             'Grapple',
@@ -162,7 +163,7 @@ class TestPlayerCharacter(unittest.TestCase):
 
     def test_fighter_available_actions(self):
         self.player = self.load_fighter_character()
-        expected_actions = ['Dash', 'Disengage', 'Dodge', 'Prone', 'SecondWind', 'Help', 'Grapple', 'Shove', 'UseItem: healing_potion', 'Look', 'Speak']
+        expected_actions = ['Dash', 'Disengage', 'Dodge', 'Ready', 'Prone', 'SecondWind', 'Help', 'Grapple', 'Shove', 'UseItem: healing_potion', 'Look', 'Speak']
         self.assertEqual([str(action) for action in self.player.available_actions(self.session, self.battle)], expected_actions)
 
     def test_fighter_to_h(self):

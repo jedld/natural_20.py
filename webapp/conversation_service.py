@@ -589,6 +589,268 @@ class ConversationService:
             'entity_pov': False,
         }, 200
 
+    # ── Journal chat commands ──────────────────────────────────────────
+    def _emit_dm_private_message(self, speaker, message_text, extra=None):
+        """Send a private DM-voiced message to the speaker (and DMs)."""
+        payload = {
+            'entity_id': None,
+            'speaker_name': 'Dungeon Master',
+            'message': message_text,
+            'narrative': [],
+            'language': 'common',
+            'targets': [getattr(speaker, 'entity_uid', None)],
+            'target_names': [entity_label(speaker)] if speaker is not None else [],
+            'mentioned_targets': [],
+            'mentioned_handles': [],
+            'volume': 'normal',
+            'distance_ft': 0,
+            'visual_only_usernames': [],
+            'system': True,
+        }
+        if isinstance(extra, dict):
+            payload.update(extra)
+        try:
+            usernames = self.entity_audience_usernames([speaker], include_dm=True)
+            self.emit_conversation_to_usernames(usernames, payload, source_entity=None)
+        except Exception:
+            pass
+        return payload
+
+    def _handle_journal_chat_command(self, speaker, raw_message):
+        """Parse and execute a /journal slash command from local chat.
+
+        Returns ``(dict, 200)`` so callers can short-circuit ``talk``.
+        """
+        # Strip leading "/journal" then read sub-command + remainder.
+        body = raw_message[len('/journal'):].strip()
+        if not body:
+            sub = 'help'
+            arg = ''
+        else:
+            parts = body.split(None, 1)
+            sub = parts[0].lower()
+            arg = parts[1].strip() if len(parts) > 1 else ''
+
+        if not hasattr(speaker, 'add_journal_entry'):
+            self._emit_dm_private_message(
+                speaker,
+                "Only player characters can keep a journal.",
+            )
+            return {'success': True, 'journal': 'unsupported'}, 200
+
+        if sub in ('add', 'note', 'log'):
+            if not arg:
+                self._emit_dm_private_message(
+                    speaker,
+                    "Usage: /journal add <your note>",
+                )
+                return {'success': True, 'journal': 'usage'}, 200
+            entry = speaker.add_journal_entry(arg, kind='chat', source='chat')
+            self._emit_dm_private_message(
+                speaker,
+                f"Journal entry recorded ({len(speaker.journal)} total).",
+                extra={'journal_action': 'added', 'journal_entry': entry},
+            )
+            return {'success': True, 'journal': 'added', 'entry': entry}, 200
+
+        if sub in ('search', 'find'):
+            if not arg:
+                self._emit_dm_private_message(
+                    speaker,
+                    "Usage: /journal search <query>",
+                )
+                return {'success': True, 'journal': 'usage'}, 200
+            results = speaker.search_journal(query=arg)
+            if not results:
+                self._emit_dm_private_message(
+                    speaker,
+                    f"No journal entries match \"{arg}\".",
+                )
+                return {'success': True, 'journal': 'empty'}, 200
+            recent = results[-5:]
+            preview_lines = [
+                f"• {self._format_journal_preview(e)}" for e in reversed(recent)
+            ]
+            preview = '\n'.join(preview_lines)
+            extra_count = max(0, len(results) - len(recent))
+            suffix = f"\n(+{extra_count} more)" if extra_count else ''
+            self._emit_dm_private_message(
+                speaker,
+                f"Found {len(results)} journal entries matching \"{arg}\":\n{preview}{suffix}",
+                extra={'journal_action': 'search', 'journal_results': results},
+            )
+            return {'success': True, 'journal': 'search', 'results': results}, 200
+
+        if sub in ('list', 'recent', 'show'):
+            try:
+                limit = int(arg) if arg else 5
+            except ValueError:
+                limit = 5
+            limit = max(1, min(limit, 25))
+            results = speaker.search_journal(limit=limit)
+            if not results:
+                self._emit_dm_private_message(
+                    speaker,
+                    "Your journal is empty.",
+                )
+                return {'success': True, 'journal': 'empty'}, 200
+            preview = '\n'.join(
+                f"• {self._format_journal_preview(e)}" for e in reversed(results)
+            )
+            self._emit_dm_private_message(
+                speaker,
+                f"Last {len(results)} journal entries:\n{preview}",
+                extra={'journal_action': 'list', 'journal_results': results},
+            )
+            return {'success': True, 'journal': 'list', 'results': results}, 200
+
+        # Help / unknown
+        self._emit_dm_private_message(
+            speaker,
+            "Journal commands: /journal add <text>, /journal search <query>, /journal list [N]",
+        )
+        return {'success': True, 'journal': 'help'}, 200
+
+    @staticmethod
+    def _format_journal_preview(entry):
+        text = (entry.get('text') or '').strip().replace('\n', ' ')
+        if len(text) > 140:
+            text = text[:137] + '...'
+        ts = (entry.get('ts') or '')[:19].replace('T', ' ')
+        kind = entry.get('kind') or 'note'
+        return f"[{kind} {ts}] {text}"
+
+    # ── Journal chat commands ──────────────────────────────────────────
+    def _emit_dm_private_message(self, speaker, message_text, extra=None):
+        """Send a private DM-voiced message to the speaker (and DMs)."""
+        payload = {
+            'entity_id': None,
+            'speaker_name': 'Dungeon Master',
+            'message': message_text,
+            'narrative': [],
+            'language': 'common',
+            'targets': [getattr(speaker, 'entity_uid', None)],
+            'target_names': [entity_label(speaker)] if speaker is not None else [],
+            'mentioned_targets': [],
+            'mentioned_handles': [],
+            'volume': 'normal',
+            'distance_ft': 0,
+            'visual_only_usernames': [],
+            'system': True,
+        }
+        if isinstance(extra, dict):
+            payload.update(extra)
+        try:
+            usernames = self.entity_audience_usernames([speaker], include_dm=True)
+            self.emit_conversation_to_usernames(usernames, payload, source_entity=None)
+        except Exception:
+            pass
+        return payload
+
+    def _handle_journal_chat_command(self, speaker, raw_message):
+        """Parse and execute a /journal slash command from local chat.
+
+        Returns ``(dict, 200)`` so callers can short-circuit ``talk``.
+        """
+        # Strip leading "/journal" then read sub-command + remainder.
+        body = raw_message[len('/journal'):].strip()
+        if not body:
+            sub = 'help'
+            arg = ''
+        else:
+            parts = body.split(None, 1)
+            sub = parts[0].lower()
+            arg = parts[1].strip() if len(parts) > 1 else ''
+
+        if not hasattr(speaker, 'add_journal_entry'):
+            self._emit_dm_private_message(
+                speaker,
+                "Only player characters can keep a journal.",
+            )
+            return {'success': True, 'journal': 'unsupported'}, 200
+
+        if sub in ('add', 'note', 'log'):
+            if not arg:
+                self._emit_dm_private_message(
+                    speaker,
+                    "Usage: /journal add <your note>",
+                )
+                return {'success': True, 'journal': 'usage'}, 200
+            entry = speaker.add_journal_entry(arg, kind='chat', source='chat')
+            self._emit_dm_private_message(
+                speaker,
+                f"Journal entry recorded ({len(speaker.journal)} total).",
+                extra={'journal_action': 'added', 'journal_entry': entry},
+            )
+            return {'success': True, 'journal': 'added', 'entry': entry}, 200
+
+        if sub in ('search', 'find'):
+            if not arg:
+                self._emit_dm_private_message(
+                    speaker,
+                    "Usage: /journal search <query>",
+                )
+                return {'success': True, 'journal': 'usage'}, 200
+            results = speaker.search_journal(query=arg)
+            if not results:
+                self._emit_dm_private_message(
+                    speaker,
+                    f"No journal entries match \"{arg}\".",
+                )
+                return {'success': True, 'journal': 'empty'}, 200
+            recent = results[-5:]
+            preview_lines = [
+                f"• {self._format_journal_preview(e)}" for e in reversed(recent)
+            ]
+            preview = '\n'.join(preview_lines)
+            extra_count = max(0, len(results) - len(recent))
+            suffix = f"\n(+{extra_count} more)" if extra_count else ''
+            self._emit_dm_private_message(
+                speaker,
+                f"Found {len(results)} journal entries matching \"{arg}\":\n{preview}{suffix}",
+                extra={'journal_action': 'search', 'journal_results': results},
+            )
+            return {'success': True, 'journal': 'search', 'results': results}, 200
+
+        if sub in ('list', 'recent', 'show'):
+            try:
+                limit = int(arg) if arg else 5
+            except ValueError:
+                limit = 5
+            limit = max(1, min(limit, 25))
+            results = speaker.search_journal(limit=limit)
+            if not results:
+                self._emit_dm_private_message(
+                    speaker,
+                    "Your journal is empty.",
+                )
+                return {'success': True, 'journal': 'empty'}, 200
+            preview = '\n'.join(
+                f"• {self._format_journal_preview(e)}" for e in reversed(results)
+            )
+            self._emit_dm_private_message(
+                speaker,
+                f"Last {len(results)} journal entries:\n{preview}",
+                extra={'journal_action': 'list', 'journal_results': results},
+            )
+            return {'success': True, 'journal': 'list', 'results': results}, 200
+
+        # Help / unknown
+        self._emit_dm_private_message(
+            speaker,
+            "Journal commands: /journal add <text>, /journal search <query>, /journal list [N]",
+        )
+        return {'success': True, 'journal': 'help'}, 200
+
+    @staticmethod
+    def _format_journal_preview(entry):
+        text = (entry.get('text') or '').strip().replace('\n', ' ')
+        if len(text) > 140:
+            text = text[:137] + '...'
+        ts = (entry.get('ts') or '')[:19].replace('T', ' ')
+        kind = entry.get('kind') or 'note'
+        return f"[{kind} {ts}] {text}"
+
     def _emit_player_insight_payload(self, speaker, message_text, target=None,
                                      roll_total=None, dc=None, assessment=None,
                                      reason=None, vague=False, clarification=None,
@@ -834,6 +1096,17 @@ class ConversationService:
         if isinstance(entity, PlayerCharacter):
             self.current_game.increment_game_time(entity)
 
+        # Slash-command shortcut: PCs can ask the DM to manage their personal
+        # journal directly from local chat. These commands never broadcast to
+        # NPCs or other players. Supported forms:
+        #   /journal add <text>      → append a note
+        #   /journal search <query>  → return matching entries (private)
+        #   /journal list [N]        → return the last N entries (default 5)
+        if isinstance(entity, PlayerCharacter) and isinstance(message, str):
+            stripped = message.strip()
+            if stripped.lower().startswith('/journal'):
+                return self._handle_journal_chat_command(entity, stripped)
+
         entity_targets, mentioned_targets = self.resolve_conversation_targets(entity, primary_targets=primary_targets, message=message)
 
         # Player-side meta requests (e.g. "Insight Check on @Garrick about his
@@ -883,6 +1156,29 @@ class ConversationService:
             if visual_whisper_usernames:
                 speaker_payload['visual_only_usernames'] = sorted(visual_whisper_usernames)
         self.emit_conversation_to_usernames(speaker_audience | visual_whisper_usernames, speaker_payload, source_entity=entity)
+
+        # Bridge the spoken message into the battle event pipeline so any
+        # readied "on_command" actions (e.g. familiar drinks a healing potion
+        # when its master shouts "drink!") get a chance to fire. We pass the
+        # raw message text plus the explicit recipient list so triggers can
+        # match on phrase substrings.
+        try:
+            battle = self.current_game.get_current_battle()
+        except Exception:
+            battle = None
+        if battle is not None and getattr(battle, 'started', False) \
+                and getattr(battle, 'readied_actions', None):
+            try:
+                battle.trigger_event('on_command', entity, {
+                    'target': entity,
+                    'message': message,
+                    'targets': list(delivered_targets or []),
+                    'volume': volume,
+                })
+            except Exception:
+                # Conversation must never be blocked by a downstream
+                # readied-action error.
+                pass
 
         eligible_receivers = self.select_conversation_responders(
             processed_conversations,

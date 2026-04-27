@@ -15,6 +15,11 @@ class UseItemAction(Action):
         self.target_item = None
         self.at_level = 0
         self.spell_action = None
+        # When True, ``apply`` consumes the source's reaction instead of
+        # an action -- used by readied (Hold) actions that fire as the
+        # source's reaction (e.g. "ready a healing potion if my ally goes
+        # down").
+        self.as_reaction = False
 
 
     def __str__(self):
@@ -31,6 +36,7 @@ class UseItemAction(Action):
         action.target_item = self.target_item
         action.at_level = self.at_level
         action.spell_action = self.spell_action
+        action.as_reaction = self.as_reaction
         return action
     
     @staticmethod
@@ -94,7 +100,8 @@ class UseItemAction(Action):
             "map": map,
             "battle": battle,
             "type": "use_item",
-            "item": self.target_item
+            "item": self.target_item,
+            "as_reaction": bool(getattr(self, 'as_reaction', False)),
         }
         item_result = self.target_item.resolve(self.source, battle, self, map)
 
@@ -122,4 +129,14 @@ class UseItemAction(Action):
             if item["item"].consumable():
                 item["source"].deduct_item(item["item"].name, 1)
             if battle:
-                battle.entity_state_for(item["source"])["action"] -= 1
+                if item.get("as_reaction"):
+                    # Readied use_item: the action was prepared on the
+                    # previous turn and fires as the source's reaction now.
+                    try:
+                        battle.consume(item["source"], 'reaction')
+                    except Exception:
+                        # Fallback for unusual entity states.
+                        battle.entity_state_for(item["source"])["reaction"] = max(
+                            0, battle.entity_state_for(item["source"]).get("reaction", 0) - 1)
+                else:
+                    battle.entity_state_for(item["source"])["action"] -= 1

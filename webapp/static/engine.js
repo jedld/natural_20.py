@@ -2337,9 +2337,20 @@ const showTargetSelectionModal = (targets, position, actionData = null) => {
 
   // Add target options
   targets.forEach((target, index) => {
+    // Image filenames returned by the server (e.g. "token_crysania.png",
+    // "footlocker.png") are bare names served from /assets/. Avoid
+    // double-prefixing if the value is already an absolute path or URL.
+    let imageSrc = '';
+    if (target.image) {
+      if (/^(https?:)?\/\//i.test(target.image) || target.image.startsWith('/')) {
+        imageSrc = target.image;
+      } else {
+        imageSrc = `/assets/${target.image}`;
+      }
+    }
     const $targetOption = $(`
       <div class="target-option" data-target-id="${target.id}" data-target-type="${target.type}">
-        <img class="target-image" src="${target.image || ''}" alt="${target.name}" style="${!target.image ? 'display: none;' : ''}">
+        <img class="target-image" src="${imageSrc}" alt="${target.name}" style="${!imageSrc ? 'display: none;' : ''}">
         <div class="target-info">
           <div class="target-name">${target.name}</div>
           <div class="target-type">${target.type}</div>
@@ -4860,6 +4871,10 @@ $(document).ready(() => {
       try { alert(data.error); } catch (e) { }
       return;
     }
+    if (data.type === 'requires_dialog' && data.dialog === 'ready_action') {
+      openReadyActionDialog(entity_uid, data);
+      return;
+    }
     const param0 = (Array.isArray(data.param) && data.param.length > 0) ? data.param[0] : null;
     if (!param0 || !param0.type) {
       console.warn('handleAction: missing param/type in response', data);
@@ -5225,6 +5240,132 @@ $(document).ready(() => {
         console.log("Unknown action type:", param0.type);
     }
     console.log("Action request successful:", data);
+  }
+
+  // --- Ready Action chat dialog ---
+  function openReadyActionDialog(entity_uid, info) {
+    $(".popover-menu").hide();
+    closeCenterActionBar();
+
+    const promptText = (info && info.prompt)
+      ? info.prompt
+      : 'Describe the trigger and the action you are readying. (e.g., "When the goblin steps adjacent to me, I attack with my longsword.")';
+
+    // Remove any stale modal
+    $('#readyActionModal').remove();
+
+    const modalHtml = `
+      <div id="readyActionModal" class="modal fade in" tabindex="-1" role="dialog"
+           style="display:block; background:rgba(0,0,0,0.5); z-index:20000;">
+        <div class="modal-dialog" role="document" style="margin-top:80px;">
+          <div class="modal-content">
+            <div class="modal-header" style="background:#2c2c2c; color:#fff;">
+              <h4 class="modal-title">
+                <i class="glyphicon glyphicon-time"></i>
+                Ready an Action &mdash; Dungeon Master
+              </h4>
+            </div>
+            <div class="modal-body">
+              <p id="readyActionPrompt"></p>
+              <div id="readyActionDmReply" class="alert alert-warning"
+                   style="display:none; white-space:pre-wrap;"></div>
+              <textarea id="readyActionInput" class="form-control" rows="4"
+                placeholder="When ... I will ..."></textarea>
+              <div id="readyActionStatus" style="margin-top:8px; color:#888; font-size:90%;"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-default" id="readyActionCancel">Cancel</button>
+              <button type="button" class="btn btn-primary" id="readyActionSubmit">Ready Action</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    const $modal = $(modalHtml).appendTo('body');
+    $modal.find('#readyActionPrompt').text(promptText);
+    const $input = $modal.find('#readyActionInput');
+    const $submit = $modal.find('#readyActionSubmit');
+    const $cancel = $modal.find('#readyActionCancel');
+    const $status = $modal.find('#readyActionStatus');
+    const $dmReply = $modal.find('#readyActionDmReply');
+    setTimeout(() => $input.focus(), 50);
+
+    function close() {
+      $modal.remove();
+    }
+
+    function setBusy(busy) {
+      $submit.prop('disabled', busy);
+      $cancel.prop('disabled', busy);
+      $input.prop('disabled', busy);
+      $status.text(busy ? 'Asking the DM...' : '');
+    }
+
+    function showDmReply(reason, kind) {
+      $dmReply
+        .removeClass('alert-warning alert-danger alert-success alert-info')
+        .addClass(kind === 'ok' ? 'alert-success' : 'alert-warning')
+        .text('DM: ' + (reason || 'No response.'))
+        .show();
+    }
+
+    function submit() {
+      const description = String($input.val() || '').trim();
+      if (!description) {
+        $status.text('Please describe the trigger and action.');
+        return;
+      }
+      $dmReply.hide();
+      setBusy(true);
+      submitReadyAction(entity_uid, description, function (data) {
+        if (data && data.status === 'rejected') {
+          // Keep modal open so the user can revise.
+          showDmReply(data.reason || 'The DM rejected that ready action.', 'reject');
+          setBusy(false);
+          $input.focus();
+          return;
+        }
+        if (data && data.status === 'ok' && data.reason) {
+          // Briefly flash the DM reply before closing so the player sees it.
+          showDmReply(data.reason, 'ok');
+          setBusy(false);
+          setTimeout(close, 1200);
+          return;
+        }
+        close();
+      }, function (err) {
+        $status.text(err || 'Failed to submit. Please try again.');
+        setBusy(false);
+      });
+    }
+
+    $submit.on('click', submit);
+    $cancel.on('click', close);
+    $input.on('keydown', function (e) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        submit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        close();
+      }
+    });
+  }
+
+  function submitReadyAction(entity_uid, description, onDone, onError) {
+    ajaxPost(
+      '/ready_action',
+      { id: entity_uid, description },
+      (data) => {
+        try {
+          if (typeof onDone === 'function') onDone(data);
+        } catch (e) { /* noop */ }
+        if (data && data.status === 'ok') {
+          refreshTurn();
+        }
+      },
+      true,
+    );
   }
 
   $('#centerActionBarClose').on('click', function () {

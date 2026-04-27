@@ -478,6 +478,24 @@ class EventManager:
             'darkness': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} casts Darkness, filling a 15-foot sphere at {event.get('target')} with magical darkness."
             ),
+            'ready_action_declared': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} readies an action: "
+                f"{event.get('description') or (event.get('trigger') or {}).get('description') or 'a reaction'}"
+                f" (trigger: {(event.get('trigger') or {}).get('event', '?')})"
+            ),
+            'ready_action_fired': lambda event: self.output_logger.log(
+                f"{self.show_name(event)}'s readied action triggers"
+                f" ({event.get('trigger_event', '?')}): "
+                f"{event.get('description') or (event.get('state') or {}).get('description', '')}"
+            ),
+            'ready_action_fizzled': lambda event: self.output_logger.log(
+                f"{self.show_name(event)}'s readied action fizzles"
+                f" (trigger: {event.get('trigger_event', '?')})"
+                + (f" \u2014 {event['reason']}" if event.get('reason') else "")
+            ),
+            'ready_action_error': lambda event: self.output_logger.log(
+                f"{self.show_name(event)}'s readied action errored: {event.get('error', 'unknown')}"
+            ),
         }
 
         for event, handler in event_handlers.items():
