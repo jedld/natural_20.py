@@ -1,7 +1,14 @@
 import pdb
 class Container:
     def store(self, battle, source, target, items):
-        for item_with_count in items:
+        # Backwards-compat: legacy callers passed a list of (item, qty) tuples
+        # representing a one-way deposit from source -> target. The web UI now
+        # sends the same bidirectional ``{'from': ..., 'to': ...}`` dict used
+        # by ``transfer`` so the loot modal can both take and deposit in a
+        # single exchange. Detect the dict shape and delegate.
+        if isinstance(items, dict) and ('from' in items or 'to' in items):
+            return self.transfer(battle, source, target, items)
+        for item_with_count in items or []:
             item, qty = item_with_count
             if item not in source.inventory:
                 continue
