@@ -738,10 +738,33 @@ class EventQueue {
       return;
     }
 
+    const isSystemMessage = data.message.system === true || !!data.message.insight_check;
+    const systemSpeakerName = data.message.speaker_name || 'Dungeon Master';
+
     // Check if dialog panel is open and if this entity matches the current dialog
     const $dialogPanel = $('#jrpgDialogPanel');
     const currentDialogEntityId = $('#dialogEntityName').data('entity-id');
     const currentPovEntity = Chat.getCurrentPovEntity();
+
+    // System/DM messages (e.g. private insight check results) should go into
+    // the dialog panel whenever it is open and we are the targeted player,
+    // labelled as the DM rather than the NPC tile name.
+    if (isSystemMessage) {
+      const targetedAtPov = targets && Array.isArray(targets) && targets.includes(currentPovEntity);
+      if ($dialogPanel.is(':visible') && (targetedAtPov || currentDialogEntityId === entity_id)) {
+        try {
+          Chat.addDialogMessage('system', message, 'system', { displayName: systemSpeakerName });
+        } catch (error) {
+          console.error('Error adding system message to dialog panel:', error);
+          Chat.showConversationBubble(entity_id, message);
+        }
+      } else {
+        // No dialog open — surface as a tile bubble so the player still sees it.
+        Chat.showConversationBubble(entity_id, message);
+      }
+      resolve();
+      return;
+    }
 
     // Check if this message should be shown in dialog panel:
     // 1. Dialog panel is open and this entity matches the current dialog entity
