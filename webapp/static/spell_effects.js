@@ -36,7 +36,10 @@
   // Get tile coordinates [x,y] for an entity id
   function entityTileCoords(entityId){
     try {
-      let el = document.querySelector(`[data-entity-id="${entityId}"]`);
+      // Map tiles tag the occupying entity with data-coords-id; prefer that.
+      let el = document.querySelector(`.tile[data-coords-id="${entityId}"]`);
+      if (!el) el = document.querySelector(`[data-entity-id="${entityId}"]`);
+      if (!el) el = document.querySelector(`[data-entity-uid="${entityId}"]`);
       if (!el) el = document.querySelector(`[data-id="${entityId}"]`) || document.getElementById(String(entityId));
       if (!el) return null;
       const tile = el.closest ? (el.closest('.tile, .map-tile, .grid-cell, .cell') || el) : el;
@@ -56,8 +59,12 @@
   // Compute the on-screen center of an entity by id, with fallbacks
   function centerOfEntity(entityId){
     try {
-      // Prefer elements tagged with data-entity-id
-      let el = document.querySelector(`[data-entity-id="${entityId}"]`);
+      // Map tiles tag the occupying entity with data-coords-id; that is the
+      // canonical attribute used elsewhere in engine.js, so prefer it. Other
+      // selectors are kept as fallbacks for non-tile contexts.
+      let el = document.querySelector(`.tile[data-coords-id="${entityId}"]`);
+      if (!el) el = document.querySelector(`[data-entity-id="${entityId}"]`);
+      if (!el) el = document.querySelector(`[data-entity-uid="${entityId}"]`);
       if (!el) {
         // Common alternates
         el = document.querySelector(`[data-id="${entityId}"]`) || document.getElementById(String(entityId));

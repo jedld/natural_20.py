@@ -979,6 +979,13 @@ const Utils = {
     }
 
     var $overlay = $('#narration-overlay');
+    // Outcome-specific styling (e.g. TPK = bloody red title, victory = gold).
+    $overlay.removeClass('narration-tpk narration-victory');
+    if (entry.tpk || entry.outcome === 'tpk') {
+      $overlay.addClass('narration-tpk');
+    } else if (entry.outcome === 'victory') {
+      $overlay.addClass('narration-victory');
+    }
     if (entry.title) {
       $('#narration-title').text(entry.title).show();
       $overlay.find('.narration-divider').show();

@@ -25,6 +25,7 @@ from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.dodge_action import DodgeAction
+from natural20.actions.ready_action import ReadyAction
 from natural20.actions.first_aid_action import FirstAidAction
 from natural20.actions.hide_action import HideAction, HideBonusAction
 from natural20.actions.disengage_action import DisengageAction, DisengageBonusAction
@@ -55,6 +56,7 @@ import yaml
 import os
 import copy
 import uuid
+from datetime import datetime, timezone
 import pdb
 
 
@@ -80,6 +82,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     DisengageAction,
     DisengageBonusAction,
     DodgeAction,
+    ReadyAction,
     MoveAction,
     ProneAction,
     SecondWindAction,
@@ -146,6 +149,13 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         if r not in self.resistances:
           self.resistances.append(r)
     self.entity_uid =  self.properties.get('entity_uid', str(uuid.uuid4()))
+
+    # Per-character journal: a chronological list of dict entries.
+    # Each entry: {id, ts, kind, title, text, source, map_name, tags}.
+    # Auto-populated when the player encounters narration; PCs may also
+    # add manual entries via the character sheet UI or the local /talk
+    # chat slash commands ("/journal add ..."). Survives save/load.
+    self.journal = []
 
     for klass, level in self.properties.get('classes', {}).items():
       setattr(self, f"{klass}_level", level)
@@ -346,6 +356,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action_list = action_list + self._player_character_attack_actions(session, battle, second_weapon=True, auto_target=auto_target)
         elif action_type == DodgeAction:
           action_list.append(DodgeAction(session, self, 'dodge'))
+        elif action_type == ReadyAction:
+          action_list.append(ReadyAction(session, self, 'ready'))
         elif action_type == DisengageAction:
           action_list.append(DisengageAction(session, self, 'disengage'))
         elif action_type == SecondWindAction:
@@ -907,6 +919,77 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         })
     return result
 
+  # ── Journal ────────────────────────────────────────────────────────────
+  def add_journal_entry(self, text, kind='note', title=None, source=None,
+                        map_name=None, tags=None, timestamp=None):
+    """Append an entry to this character's journal.
+
+    Returns the stored entry dict. ``kind`` is a free-form category such as
+    ``'note'`` (player-authored), ``'narration'`` (auto-captured), or
+    ``'dm'`` (added on behalf of the DM). Duplicate consecutive narration
+    entries with identical ``(kind, text, source)`` are de-duplicated to
+    keep the log readable when a narration fires for several PCs at once.
+    """
+    if not isinstance(text, str):
+      text = str(text or '')
+    text = text.strip()
+    if not text:
+      return None
+    if not isinstance(self.journal, list):
+      self.journal = []
+    if kind == 'narration' and self.journal:
+      last = self.journal[-1]
+      if (last.get('kind') == 'narration'
+          and last.get('text') == text
+          and last.get('source') == source):
+        return last
+    entry = {
+      'id': str(uuid.uuid4()),
+      'ts': timestamp or datetime.now(timezone.utc).isoformat(),
+      'kind': kind,
+      'title': title,
+      'text': text,
+      'source': source,
+      'map_name': map_name,
+      'tags': list(tags) if tags else [],
+    }
+    self.journal.append(entry)
+    return entry
+
+  def search_journal(self, query=None, kind=None, limit=None):
+    """Return journal entries matching ``query`` (case-insensitive
+    substring across title/text/tags). When ``query`` is empty the full
+    list is returned in chronological order. ``limit`` truncates the
+    most-recent N entries when supplied.
+    """
+    entries = list(self.journal or [])
+    if kind:
+      entries = [e for e in entries if e.get('kind') == kind]
+    if query:
+      needle = query.strip().lower()
+      if needle:
+        def _matches(entry):
+          for field in ('title', 'text'):
+            value = entry.get(field) or ''
+            if needle in value.lower():
+              return True
+          for tag in entry.get('tags') or []:
+            if needle in str(tag).lower():
+              return True
+          return False
+        entries = [e for e in entries if _matches(e)]
+    if limit is not None and limit > 0:
+      entries = entries[-int(limit):]
+    return entries
+
+  def remove_journal_entry(self, entry_id):
+    """Delete the entry with the matching id. Returns ``True`` on success."""
+    if not entry_id or not isinstance(self.journal, list):
+      return False
+    before = len(self.journal)
+    self.journal = [e for e in self.journal if e.get('id') != entry_id]
+    return len(self.journal) != before
+
   def to_dict(self):
     _serialized_casted_effects = []
     _serialized_effects = {}
@@ -983,6 +1066,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       'resources': {name: pool.to_dict() for name, pool in (getattr(self, 'resources', None) or {}).items()},
       '_wild_shape_state': copy.deepcopy(getattr(self, '_wild_shape_state', None)),
       'npc_actions': copy.deepcopy(getattr(self, 'npc_actions', None) or []),
+      'journal': copy.deepcopy(getattr(self, 'journal', []) or []),
     }
     return base_dict
 
@@ -1023,4 +1107,6 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       player_character.attributes['hp'] = data['hp']
     if data.get('npc_actions'):
       player_character.npc_actions = data['npc_actions']
+    if data.get('journal'):
+      player_character.journal = list(data['journal'])
     return player_character

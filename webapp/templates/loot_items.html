@@ -1,129 +1,333 @@
 <!-- ...existing code... -->
 
-<form method="POST" action="/loot" class="loot-items-form">
+<form method="POST" action="/loot" class="loot-items-form" data-action-type="{{ action_type }}">
   <div class="panel panel-default">
     <div class="panel-heading">
-      <h3 class="panel-title">Transfer Items</h3>
+      <h3 class="panel-title">
+        {% if action_type == 'give' %}
+          Give Items to {{ entity.label() }}
+        {% elif action_type == 'store' %}
+          Deposit Items in {{ target_object.label() }}
+        {% else %}
+          Trade with {{ target_object.label() }}
+        {% endif %}
+      </h3>
     </div>
     <div class="panel-body">
-      <p class="text-info">
-        To transfer items, check the box next to the desired item and enter the quantity you wish to transfer.
-        Click the "Max" button to quickly use up all available quantity of that item.
+      <p class="text-info" style="margin:0 0 8px;">
+        {% if action_type == 'give' %}
+          Pick items to hand over. Adjust the quantity, then confirm.
+        {% else %}
+          Drag items between panels using the <span class="loot-handle-hint">&#x2630;</span> handle, or use
+          <strong>Take&nbsp;All</strong> / <strong>Deposit&nbsp;All</strong>. You can take and deposit in one exchange.
+        {% endif %}
       </p>
-      <div class="row">
-        <!-- Target Object Items -->
-        
-        <div class="col-md-6">
-          <div class="media">
+      <div class="row loot-transfer-row">
+        <!-- LEFT: Container / source items -->
+        <div class="col-md-6 loot-pane loot-pane-take" data-side="take">
+          <div class="media loot-pane-header">
             <div class="media-left">
-              <img class="media-object img-thumbnail" src="{{ url_for('static', filename='/assets/' ~ target_object.profile_image())}}" alt="{{ target_object.label() }}" style="width:64px;height:64px;border:0px">
+              <img class="media-object img-thumbnail" src="{{ url_for('static', filename='/assets/' ~ target_object.profile_image())}}" alt="{{ target_object.label() }}">
             </div>
             <div class="media-body">
-              <h4 class="media-heading">{{ target_object.label() }}'s Items</h4>
+              <h4 class="media-heading">
+                {% if action_type == 'give' %}{{ target_object.label() }}{% else %}&larr; {{ target_object.label() }}{% endif %}
+              </h4>
+              <small class="text-muted">
+                {% if action_type == 'give' %}Your inventory{% else %}Take from this container{% endif %}
+              </small>
             </div>
+            {% if action_type != 'give' %}
+            <div class="media-right">
+              <button type="button" class="btn btn-xs btn-default loot-take-all" title="Take everything">Take All</button>
+            </div>
+            {% endif %}
           </div>
-          <ul class="list-group">
-
+          <ul class="list-group loot-list" data-drop-side="take">
             {% for item in inventory %}
-            <li class="list-group-item">
-              <div class="row">
-                <div class="col-xs-4">
-                  <div class="checkbox">
-                    <label>
-                      <input type="checkbox" name="selected_items_target" value="{{ item.name }}">
-                      <strong>{{ item.label }}</strong>
-                    </label>
-                  </div>
-                </div>
-                <div class="col-xs-3 text-right">
-                  <span class="badge">{{ item.qty }}</span>
-                </div>
-                <div class="col-xs-5">
-                  <div class="input-group">
-                    <input type="number" name="quantity_{{ item.type }}" min="0" max="{{ item.qty }}" class="form-control input-sm transfer-qty" value="0" oninput="checkItem(this)">
-                    <span class="input-group-btn">
-                      <button type="button" class="btn btn-default btn-sm max-btn" onclick="setMax(this)">Max</button>
-                    </span>
-                  </div>
-                </div>
-              </div>
+            <li class="list-group-item loot-item" draggable="true" data-item-name="{{ item.name }}" data-item-qty="{{ item.qty }}">
+              <span class="loot-drag-handle" title="Drag to transfer">&#x2630;</span>
+              <label class="loot-item-name">
+                <input type="checkbox" name="selected_items_target" value="{{ item.name }}">
+                <span class="loot-item-label">{{ item.label }}</span>
+                <span class="badge loot-have" title="In container">{{ item.qty }}</span>
+              </label>
+              <span class="loot-qty-stepper" data-max="{{ item.qty }}">
+                <button type="button" class="loot-qty-btn loot-qty-dec" tabindex="-1" aria-label="Decrease">&minus;</button>
+                <input type="number" name="quantity_{{ item.type }}" min="0" max="{{ item.qty }}" class="transfer-qty" value="0">
+                <button type="button" class="loot-qty-btn loot-qty-inc" tabindex="-1" aria-label="Increase">+</button>
+                <button type="button" class="loot-qty-max" tabindex="-1" title="Max">All</button>
+              </span>
             </li>
+            {% else %}
+            <li class="list-group-item text-muted text-center loot-empty"><em>Empty</em></li>
             {% endfor %}
-
           </ul>
         </div>
-        <!-- Entity's Source Inventory -->
-        <div class="col-md-6">
-          <div class="media">
+
+        {% if action_type != 'give' %}
+        <div class="loot-transfer-indicator hidden-xs" aria-hidden="true">&#8646;</div>
+        {% endif %}
+
+        <!-- RIGHT: Character inventory / deposit side -->
+        <div class="col-md-6 loot-pane loot-pane-deposit" data-side="deposit">
+          <div class="media loot-pane-header">
             <div class="media-left">
-              <img class="media-object img-thumbnail" src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}" alt="{{ entity.label() }}" style="width:64px;height:64px;border: 0px">
+              <img class="media-object img-thumbnail" src="{{ url_for('static', filename='assets/' ~ entity.profile_image()) }}" alt="{{ entity.label() }}">
             </div>
             <div class="media-body">
-              {% if action_type=='give' %}
-              <h4 class="media-heading">Give Items to {{ entity.label() }}</h4>
+              {% if action_type == 'give' %}
+              <h4 class="media-heading">{{ entity.label() }}</h4>
+              <small class="text-muted">Recipient</small>
               {% else %}
-              <h4 class="media-heading">{{ entity.label() }}'s Inventory</h4>
+              <h4 class="media-heading">{{ entity.label() }} &rarr;</h4>
+              <small class="text-muted">Your bag &mdash; drop items into the container</small>
               {% endif %}
             </div>
+            {% if action_type != 'give' %}
+            <div class="media-right">
+              <button type="button" class="btn btn-xs btn-default loot-deposit-all" title="Deposit everything">Deposit All</button>
+            </div>
+            {% endif %}
           </div>
-          <ul class="list-group">
-            {% if action_type!='give' %}
+          <ul class="list-group loot-list" data-drop-side="deposit">
+            {% if action_type != 'give' %}
             {% for item in source_inventory %}
-            <li class="list-group-item">
-              <div class="row">
-                <div class="col-xs-4">
-                  <div class="checkbox">
-                    <label style="white-space: nowrap; display: block;">
-                      <input type="checkbox" name="selected_items_source" value="{{ item.name }}">
-                      <strong>{{ item.name }}</strong>
-                    </label>
-                  </div>
-                </div>
-                <div class="col-xs-3 text-center">
-                  <span class="badge">{{ item.qty }}</span>
-                </div>
-                <div class="col-xs-5">
-                  <div class="input-group">
-                    <input type="number" name="quantity_source_{{ item.name }}" min="0" max="{{ item.qty }}" class="form-control input-sm transfer-qty-source" value="0" oninput="checkItem(this)">
-                    <span class="input-group-btn">
-                      <button type="button" class="btn btn-default btn-sm max-btn" onclick="setMax(this)">Max</button>
-                    </span>
-                  </div>
-                </div>
-              </div>
+            <li class="list-group-item loot-item" draggable="true" data-item-name="{{ item.name }}" data-item-qty="{{ item.qty }}">
+              <span class="loot-drag-handle" title="Drag to transfer">&#x2630;</span>
+              <label class="loot-item-name">
+                <input type="checkbox" name="selected_items_source" value="{{ item.name }}">
+                <span class="loot-item-label">{{ item.name }}</span>
+                <span class="badge loot-have" title="In your bag">{{ item.qty }}</span>
+              </label>
+              <span class="loot-qty-stepper" data-max="{{ item.qty }}">
+                <button type="button" class="loot-qty-btn loot-qty-dec" tabindex="-1" aria-label="Decrease">&minus;</button>
+                <input type="number" name="quantity_source_{{ item.name }}" min="0" max="{{ item.qty }}" class="transfer-qty-source" value="0">
+                <button type="button" class="loot-qty-btn loot-qty-inc" tabindex="-1" aria-label="Increase">+</button>
+                <button type="button" class="loot-qty-max" tabindex="-1" title="Max">All</button>
+              </span>
             </li>
+            {% else %}
+            <li class="list-group-item text-muted text-center loot-empty"><em>Nothing to deposit</em></li>
             {% endfor %}
+            {% else %}
+            <li class="list-group-item text-muted text-center loot-empty"><em>Items will be transferred to {{ entity.label() }}</em></li>
             {% endif %}
           </ul>
         </div>
       </div>
     </div>
     <div class="panel-footer text-right">
-      <button type="submit" class="btn btn-primary action-perform-transfer">Transfer Selected</button>
+      <span class="loot-transfer-summary text-muted pull-left"></span>
+      <button type="submit" class="btn btn-primary action-perform-transfer">Confirm Transfer</button>
     </div>
   </div>
 </form>
 
-<script>
-  // When the "Max" button is clicked, set the associated input's value to its max attribute.
-  function setMax(btn) {
-    // Find the closest input in the same input-group
-    const inputGroup = btn.closest('.input-group');
-    if (inputGroup) {
-      const input = inputGroup.querySelector('input[type="number"]');
-      if (input) {
-        input.value = input.max;
-        checkItem(input);
-      }
-    }
+<style>
+  .loot-transfer-row { position: relative; }
+  .loot-pane-header img { width: 48px; height: 48px; border: 0; }
+  .loot-pane-header .media-heading { margin: 0; font-size: 14px; }
+  .loot-pane-header { margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #eee; }
+  .loot-pane .loot-list { min-height: 80px; max-height: 360px; overflow-y: auto; margin-bottom: 0; }
+  .loot-pane.drag-over { background-color: #eef7ff; outline: 2px dashed #5bc0de; outline-offset: -4px; }
+  .loot-pane .loot-list .list-group-item.loot-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 8px; cursor: default;
   }
+  .loot-item.dragging { opacity: 0.4; }
+  .loot-drag-handle {
+    cursor: grab; color: #aaa; font-size: 13px; padding: 2px 4px;
+    user-select: none; line-height: 1; flex: 0 0 auto;
+  }
+  .loot-drag-handle:hover { color: #555; }
+  .loot-drag-handle:active { cursor: grabbing; }
+  .loot-handle-hint { color: #888; font-family: monospace; }
+  .loot-item-name {
+    flex: 1 1 auto; margin: 0; font-weight: normal;
+    display: flex; align-items: center; gap: 6px; min-width: 0;
+    cursor: pointer;
+  }
+  .loot-item-name input[type="checkbox"] { margin: 0; flex: 0 0 auto; }
+  .loot-item-label {
+    font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1 1 auto; min-width: 0;
+  }
+  .loot-have { background-color: #999; font-weight: normal; flex: 0 0 auto; }
+  .loot-qty-stepper {
+    display: inline-flex; align-items: stretch; flex: 0 0 auto;
+    border: 1px solid #ccc; border-radius: 3px; overflow: hidden;
+    height: 24px; font-size: 12px; background: #fff;
+  }
+  .loot-qty-stepper input[type="number"] {
+    width: 36px; border: 0; border-left: 1px solid #ddd; border-right: 1px solid #ddd;
+    text-align: center; padding: 0 2px; -moz-appearance: textfield;
+    font-size: 12px; height: 22px;
+  }
+  .loot-qty-stepper input[type="number"]::-webkit-outer-spin-button,
+  .loot-qty-stepper input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none; margin: 0;
+  }
+  .loot-qty-btn, .loot-qty-max {
+    background: #f5f5f5; border: 0; padding: 0 6px; cursor: pointer;
+    color: #333; font-size: 12px; line-height: 1;
+  }
+  .loot-qty-btn:hover, .loot-qty-max:hover { background: #e6e6e6; }
+  .loot-qty-max {
+    border-left: 1px solid #ddd; font-weight: 600; color: #337ab7;
+  }
+  .loot-transfer-indicator {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: #fff; border-radius: 50%; width: 38px; height: 38px;
+    line-height: 34px; text-align: center; border: 2px solid #ddd;
+    font-size: 16px; color: #888; z-index: 5; pointer-events: none;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+  .loot-transfer-summary { line-height: 30px; font-style: italic; }
+</style>
 
-  // Check the associated checkbox if a non-zero value is entered
-  function checkItem(input) {
-    const value = parseInt(input.value, 10);
-    const checkbox = input.closest('.list-group-item').querySelector('input[type="checkbox"]');
-    if (checkbox) {
-      checkbox.checked = value > 0;
+<script>
+  (function () {
+    // Re-bind every time this template is injected. Keyed via a flag on the
+    // form so AJAX re-injection rebinds cleanly.
+    const form = document.querySelector('.loot-items-form');
+    if (!form || form.dataset.lootBound === '1') return;
+    form.dataset.lootBound = '1';
+
+    function setQty(input, value) {
+      const max = parseInt(input.max, 10) || 0;
+      let v = parseInt(value, 10);
+      if (isNaN(v) || v < 0) v = 0;
+      if (v > max) v = max;
+      input.value = v;
+      const li = input.closest('.list-group-item');
+      const cb = li ? li.querySelector('input[type="checkbox"]') : null;
+      if (cb) cb.checked = v > 0;
+      updateSummary();
     }
-  }
+
+    function updateSummary() {
+      let take = 0, deposit = 0;
+      form.querySelectorAll('.loot-pane-take input.transfer-qty').forEach(i => {
+        const v = parseInt(i.value, 10); if (v > 0) take += v;
+      });
+      form.querySelectorAll('.loot-pane-deposit input.transfer-qty-source').forEach(i => {
+        const v = parseInt(i.value, 10); if (v > 0) deposit += v;
+      });
+      const summary = form.querySelector('.loot-transfer-summary');
+      if (!summary) return;
+      const parts = [];
+      if (take > 0) parts.push('Take ' + take);
+      if (deposit > 0) parts.push('Deposit ' + deposit);
+      summary.textContent = parts.join(' \u2022 ');
+    }
+
+    // --- Event delegation: stepper buttons, max, row click, qty input ---
+    form.addEventListener('click', (e) => {
+      const dec = e.target.closest('.loot-qty-dec');
+      const inc = e.target.closest('.loot-qty-inc');
+      const max = e.target.closest('.loot-qty-max');
+      const all = e.target.closest('.loot-take-all, .loot-deposit-all');
+      if (dec || inc || max) {
+        e.preventDefault();
+        const stepper = e.target.closest('.loot-qty-stepper');
+        const input = stepper && stepper.querySelector('input[type="number"]');
+        if (!input) return;
+        const cur = parseInt(input.value, 10) || 0;
+        if (dec) setQty(input, cur - 1);
+        else if (inc) setQty(input, cur + 1);
+        else setQty(input, input.max);
+        return;
+      }
+      if (all) {
+        e.preventDefault();
+        const isPaneTake = all.classList.contains('loot-take-all');
+        const paneSel = isPaneTake ? '.loot-pane-take' : '.loot-pane-deposit';
+        const inputSel = isPaneTake ? 'input.transfer-qty' : 'input.transfer-qty-source';
+        form.querySelectorAll(paneSel + ' ' + inputSel).forEach(i => setQty(i, i.max));
+        return;
+      }
+      // Click on the row (away from controls/handle) toggles between 0 and max.
+      const li = e.target.closest('.loot-item');
+      if (li && !e.target.closest('input, button, .loot-drag-handle')) {
+        const input = li.querySelector('input[type="number"]');
+        if (input) setQty(input, (parseInt(input.value, 10) || 0) > 0 ? 0 : input.max);
+      }
+    });
+
+    form.addEventListener('input', (e) => {
+      if (e.target.matches('input[type="number"]')) setQty(e.target, e.target.value);
+    });
+
+    form.addEventListener('change', (e) => {
+      if (e.target.matches('input[type="checkbox"]')) {
+        const li = e.target.closest('.list-group-item');
+        const input = li && li.querySelector('input[type="number"]');
+        if (input) {
+          if (e.target.checked && (parseInt(input.value, 10) || 0) === 0) {
+            setQty(input, 1);
+          } else if (!e.target.checked) {
+            setQty(input, 0);
+          }
+        }
+      }
+    });
+
+    // --- Drag-and-drop using event delegation -----------------------------
+    let dragSrc = null;
+
+    form.addEventListener('dragstart', (e) => {
+      const li = e.target.closest('.loot-item');
+      if (!li) return;
+      dragSrc = li;
+      li.classList.add('dragging');
+      try {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', li.dataset.itemName || 'item');
+      } catch (_) { /* IE quirks */ }
+    });
+
+    form.addEventListener('dragend', () => {
+      if (dragSrc) dragSrc.classList.remove('dragging');
+      dragSrc = null;
+      form.querySelectorAll('.loot-pane.drag-over').forEach(p => p.classList.remove('drag-over'));
+    });
+
+    function allowDrop(e) {
+      if (!dragSrc) return null;
+      const pane = e.target.closest('.loot-pane');
+      if (!pane) return null;
+      const fromPane = dragSrc.closest('.loot-pane');
+      if (fromPane === pane) return null;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      return pane;
+    }
+
+    form.addEventListener('dragenter', (e) => {
+      const pane = allowDrop(e);
+      if (pane) pane.classList.add('drag-over');
+    });
+    form.addEventListener('dragover', (e) => { allowDrop(e); });
+    form.addEventListener('dragleave', (e) => {
+      const pane = e.target.closest('.loot-pane');
+      if (!pane) return;
+      // Only clear when leaving the pane entirely (not when crossing children).
+      if (e.relatedTarget && pane.contains(e.relatedTarget)) return;
+      pane.classList.remove('drag-over');
+    });
+
+    form.addEventListener('drop', (e) => {
+      const pane = e.target.closest('.loot-pane');
+      if (!pane || !dragSrc) return;
+      const fromPane = dragSrc.closest('.loot-pane');
+      if (fromPane === pane) return;
+      e.preventDefault();
+      pane.classList.remove('drag-over');
+      const input = dragSrc.querySelector('input[type="number"]');
+      if (input) setQty(input, input.max);
+    });
+
+    updateSummary();
+  })();
 </script>

@@ -513,6 +513,139 @@
             border-bottom: 1px solid #D4AF37;
             padding-bottom: 5px;
         }
+
+        /* ── Journal ──────────────────────────────────────────────── */
+        .journal-section {
+            background: linear-gradient(180deg, rgba(40, 24, 12, 0.55), rgba(0, 0, 0, 0.35));
+            border-color: #b8860b;
+        }
+        .journal-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .journal-search-input,
+        .journal-kind-filter,
+        .journal-add-text {
+            background: rgba(0, 0, 0, 0.4);
+            color: #f5deb3;
+            border: 1px solid #8B4513;
+            border-radius: 4px;
+            padding: 6px 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+        .journal-search-input { flex: 1 1 160px; }
+        .journal-kind-filter { flex: 0 0 auto; }
+        .journal-search-input:focus,
+        .journal-kind-filter:focus,
+        .journal-add-text:focus {
+            outline: none;
+            border-color: #D4AF37;
+            box-shadow: 0 0 4px rgba(212, 175, 55, 0.6);
+        }
+        .journal-entries {
+            max-height: 320px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-right: 4px;
+            margin-bottom: 10px;
+        }
+        .journal-empty {
+            color: #b9a07a;
+            font-style: italic;
+            margin: 0;
+        }
+        .journal-entry {
+            background: rgba(20, 12, 6, 0.55);
+            border: 1px solid rgba(184, 134, 11, 0.45);
+            border-left: 3px solid #b8860b;
+            border-radius: 4px;
+            padding: 8px 10px;
+            color: #f5deb3;
+            position: relative;
+        }
+        .journal-entry.journal-kind-narration { border-left-color: #c97f4a; }
+        .journal-entry.journal-kind-note { border-left-color: #6cb04a; }
+        .journal-entry.journal-kind-dm { border-left-color: #a073d6; }
+        .journal-entry.journal-kind-chat { border-left-color: #4ab0c9; }
+        .journal-entry-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75rem;
+            color: #b9a07a;
+            margin-bottom: 4px;
+        }
+        .journal-kind-badge {
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: bold;
+            color: #D4AF37;
+        }
+        .journal-entry-ts { margin-left: auto; }
+        .journal-entry-delete {
+            background: none;
+            border: none;
+            color: #b9a07a;
+            font-size: 1.1rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+        .journal-entry-delete:hover { color: #ff6b6b; }
+        .journal-entry-title {
+            font-family: 'Uncial Antiqua', cursive;
+            font-size: 0.95rem;
+            color: #D4AF37;
+            margin-bottom: 2px;
+        }
+        .journal-entry-text {
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .journal-entry-tags {
+            margin-top: 4px;
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .journal-tag {
+            background: rgba(184, 134, 11, 0.25);
+            border: 1px solid rgba(184, 134, 11, 0.5);
+            border-radius: 3px;
+            padding: 1px 6px;
+            font-size: 0.7rem;
+            color: #f5deb3;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .journal-add-form {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .journal-add-text {
+            resize: vertical;
+            min-height: 48px;
+        }
+        .journal-add-btn {
+            align-self: flex-end;
+            background: linear-gradient(180deg, #8B4513, #5a2a0a);
+            color: #f5deb3;
+            border: 1px solid #D4AF37;
+            border-radius: 4px;
+            padding: 6px 14px;
+            font-family: inherit;
+            cursor: pointer;
+        }
+        .journal-add-btn:hover {
+            background: linear-gradient(180deg, #a25420, #6e3410);
+        }
         
         .ability-scores {
             display: grid;
@@ -1037,8 +1170,181 @@
                         <p>${languageText}</p>
                     </div>`;
             }
-            
+
+            // Journal section — quest log + auto-captured narrations.
+            const journalUid = data.name ? data.name.toLowerCase() : '';
+            html += `
+                <div class="details-section journal-section" data-character-uid="${journalUid}">
+                    <h3>Journal</h3>
+                    <div class="journal-controls">
+                        <input type="search" class="journal-search-input" placeholder="Search journal entries..." aria-label="Search journal" />
+                        <select class="journal-kind-filter" aria-label="Filter by entry kind">
+                            <option value="">All entries</option>
+                            <option value="narration">Narration</option>
+                            <option value="note">My notes</option>
+                            <option value="dm">From DM</option>
+                            <option value="chat">Chat</option>
+                        </select>
+                    </div>
+                    <div class="journal-entries" aria-live="polite"><p class="journal-empty">Loading journal...</p></div>
+                    <form class="journal-add-form" autocomplete="off">
+                        <textarea class="journal-add-text" rows="2" placeholder="Add a personal note..." maxlength="2000"></textarea>
+                        <button type="submit" class="journal-add-btn">Add Entry</button>
+                    </form>
+                </div>`;
+
             $('#characterDetailsBody').html(html);
+            initCharacterJournal(journalUid);
+        }
+
+        // ── Journal helpers ────────────────────────────────────────────
+        function escapeHtml(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatJournalTimestamp(ts) {
+            if (!ts) return '';
+            try {
+                const d = new Date(ts);
+                if (isNaN(d.getTime())) return ts;
+                return d.toLocaleString();
+            } catch (e) {
+                return ts;
+            }
+        }
+
+        function renderJournalEntries(entries) {
+            const $list = $('.journal-section .journal-entries');
+            if (!Array.isArray(entries) || entries.length === 0) {
+                $list.html('<p class="journal-empty">No journal entries yet. Encountered narrations and notes will appear here.</p>');
+                return;
+            }
+            const reversed = entries.slice().reverse();
+            const html = reversed.map(entry => {
+                const kind = entry.kind || 'note';
+                const titleHtml = entry.title
+                    ? `<div class="journal-entry-title">${escapeHtml(entry.title)}</div>`
+                    : '';
+                const tagsHtml = (entry.tags || []).map(t => `<span class="journal-tag">${escapeHtml(t)}</span>`).join('');
+                return `
+                    <article class="journal-entry journal-kind-${escapeHtml(kind)}" data-entry-id="${escapeHtml(entry.id || '')}">
+                        <header class="journal-entry-meta">
+                            <span class="journal-kind-badge">${escapeHtml(kind)}</span>
+                            <time class="journal-entry-ts">${escapeHtml(formatJournalTimestamp(entry.ts))}</time>
+                            <button type="button" class="journal-entry-delete" title="Delete entry" aria-label="Delete entry">&times;</button>
+                        </header>
+                        ${titleHtml}
+                        <div class="journal-entry-text">${escapeHtml(entry.text)}</div>
+                        ${tagsHtml ? `<div class="journal-entry-tags">${tagsHtml}</div>` : ''}
+                    </article>`;
+            }).join('');
+            $list.html(html);
+        }
+
+        function loadJournal(characterUid, query, kind) {
+            if (!characterUid) return;
+            const params = {};
+            if (query) params.q = query;
+            if (kind) params.kind = kind;
+            $.ajax({
+                type: 'GET',
+                url: '/character/' + encodeURIComponent(characterUid) + '/journal',
+                data: params,
+                dataType: 'json',
+                success: function(resp) {
+                    renderJournalEntries(resp.entries || []);
+                },
+                error: function(xhr) {
+                    const $list = $('.journal-section .journal-entries');
+                    if (xhr.status === 403) {
+                        $list.html('<p class="journal-empty">You do not have access to this character\'s journal.</p>');
+                    } else {
+                        $list.html('<p class="journal-empty">Could not load journal entries.</p>');
+                    }
+                }
+            });
+        }
+
+        let journalSearchTimer = null;
+        function initCharacterJournal(characterUid) {
+            if (!characterUid) return;
+            const $section = $('.journal-section');
+            $section.attr('data-character-uid', characterUid);
+
+            loadJournal(characterUid, '', '');
+
+            $section.off('input.journal').on('input.journal', '.journal-search-input', function() {
+                const q = $(this).val();
+                const kind = $section.find('.journal-kind-filter').val();
+                clearTimeout(journalSearchTimer);
+                journalSearchTimer = setTimeout(() => loadJournal(characterUid, q, kind), 180);
+            });
+
+            $section.off('change.journal').on('change.journal', '.journal-kind-filter', function() {
+                const kind = $(this).val();
+                const q = $section.find('.journal-search-input').val();
+                loadJournal(characterUid, q, kind);
+            });
+
+            $section.off('submit.journal').on('submit.journal', '.journal-add-form', function(ev) {
+                ev.preventDefault();
+                const $textarea = $section.find('.journal-add-text');
+                const text = ($textarea.val() || '').trim();
+                if (!text) return;
+                $.ajax({
+                    type: 'POST',
+                    url: '/character/' + encodeURIComponent(characterUid) + '/journal',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ text: text }),
+                    success: function() {
+                        $textarea.val('');
+                        const q = $section.find('.journal-search-input').val();
+                        const kind = $section.find('.journal-kind-filter').val();
+                        loadJournal(characterUid, q, kind);
+                    },
+                    error: function(xhr) {
+                        alert('Could not save journal entry: ' + (xhr.responseJSON && xhr.responseJSON.error || xhr.statusText));
+                    }
+                });
+            });
+
+            $section.off('click.journal').on('click.journal', '.journal-entry-delete', function() {
+                const $entry = $(this).closest('.journal-entry');
+                const entryId = $entry.attr('data-entry-id');
+                if (!entryId) return;
+                if (!confirm('Delete this journal entry?')) return;
+                $.ajax({
+                    type: 'DELETE',
+                    url: '/character/' + encodeURIComponent(characterUid) + '/journal/' + encodeURIComponent(entryId),
+                    success: function() { $entry.remove(); }
+                });
+            });
+
+            // Refresh when the server announces a journal_update for this PC
+            // (e.g. a narration just fired). Listen on the global socket if
+            // the page wires one up.
+            try {
+                if (window.socket && !window._journalSocketBound) {
+                    window._journalSocketBound = true;
+                    window.socket.on('message', function(data) {
+                        if (!data || data.type !== 'journal_update') return;
+                        const uid = ($section.attr('data-character-uid') || '').toLowerCase();
+                        if (!uid) return;
+                        const uids = (data.entity_uids || []).map(x => String(x).toLowerCase());
+                        if (uids.indexOf(uid) === -1) return;
+                        const q = $section.find('.journal-search-input').val();
+                        const kind = $section.find('.journal-kind-filter').val();
+                        loadJournal(uid, q, kind);
+                    });
+                }
+            } catch (e) {
+                // ignore — socket integration is best-effort
+            }
         }
         
         // Close character details panel

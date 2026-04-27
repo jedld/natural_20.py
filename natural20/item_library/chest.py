@@ -38,20 +38,11 @@ class Chest(Object):
                 self.front_direction = 'up'
 
     def build_map(self, action, action_object):
-        if action == 'store':
-            return {
-                'action': action_object,
-                'param': [{
-                    'type': 'select_items',
-                    'label': action_object.source.items_label(),
-                    'items': action_object.source.inventory
-                }],
-                'next': lambda items: {
-                    'param': None,
-                    'next': lambda: action_object
-                }
-            }
-        elif action == 'loot':
+        if action in ('loot', 'store'):
+            # Both interactions open the same bidirectional transfer dialog:
+            # players can take from the chest and deposit into it in a single
+            # exchange. The action label only changes which side the UI puts
+            # the visual focus on (loot = take side, store = deposit side).
             def next_action(items):
                 action_object.other_params = items
                 return action_object
@@ -60,7 +51,10 @@ class Chest(Object):
                 'param': [{
                     'type': 'select_items',
                     'label': self.items_label(),
-                    'items': self.inventory
+                    'items': self.inventory,
+                    'mode': 'transfer',
+                    'focus': 'deposit' if action == 'store' else 'take',
+                    'source_items': action_object.source.inventory,
                 }],
                 'next': next_action
             }
