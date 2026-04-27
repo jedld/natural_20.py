@@ -287,6 +287,58 @@
         case 'attack_impact_ranged':
           chord(t0, [880], 0.12, 'sine', 0.45);
           break;
+        case 'rage_roar':
+          // Deep guttural battle cry: low growl glide + filtered noise body + bright snarl
+          (function(){
+            // Low growl glide
+            const o = osc('sawtooth', 110);
+            const g = envGain(t0, 0.04, 0.55, 0.25, 0.55);
+            const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 0.9;
+            o.connect(lp); lp.connect(g); g.connect(master);
+            o.frequency.setValueAtTime(80, t0);
+            o.frequency.exponentialRampToValueAtTime(160, t0 + 0.18);
+            o.frequency.exponentialRampToValueAtTime(95, t0 + 0.85);
+            o.start(t0); o.stop(t0 + 1.0);
+          })();
+          (function(){
+            // Throaty noise body (band-passed)
+            const n = ctx.createBufferSource(); n.buffer = noiseBuffer();
+            const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 600; bp.Q.value = 0.8;
+            const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800; lp.Q.value = 0.7;
+            const g = envGain(t0, 0.02, 0.55, 0.25, 0.6);
+            n.connect(bp); bp.connect(lp); lp.connect(g); g.connect(master);
+            n.start(t0); n.stop(t0 + 0.95);
+          })();
+          (function(){
+            // Bright opening snap (impact)
+            const n = ctx.createBufferSource(); n.buffer = noiseBuffer();
+            const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1500; hp.Q.value = 0.7;
+            const g = envGain(t0, 0.003, 0.04, 0.1, 0.55);
+            n.connect(hp); hp.connect(g); g.connect(master);
+            n.start(t0); n.stop(t0 + 0.2);
+          })();
+          (function(){
+            // Sub-bass thump for chest impact
+            const o = osc('sine', 60);
+            const g = envGain(t0, 0.005, 0.08, 0.18, 0.7);
+            o.connect(g); g.connect(master);
+            o.frequency.setValueAtTime(70, t0);
+            o.frequency.exponentialRampToValueAtTime(40, t0 + 0.25);
+            o.start(t0); o.stop(t0 + 0.4);
+          })();
+          break;
+        case 'rage_calm':
+          // Soft exhale: filtered noise descending in pitch and volume
+          (function(){
+            const n = ctx.createBufferSource(); n.buffer = noiseBuffer();
+            const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700; bp.Q.value = 0.6;
+            const g = envGain(t0, 0.03, 0.35, 0.25, 0.35);
+            n.connect(bp); bp.connect(g); g.connect(master);
+            bp.frequency.setValueAtTime(900, t0);
+            bp.frequency.exponentialRampToValueAtTime(300, t0 + 0.55);
+            n.start(t0); n.stop(t0 + 0.7);
+          })();
+          break;
         default:
           // Unknown cue: do nothing
           break;

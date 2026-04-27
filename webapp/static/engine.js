@@ -5004,6 +5004,52 @@ $(document).ready(() => {
           );
         };
         break;
+      case "select_radius":
+        $(".popover-menu").hide();
+        closeCenterActionBar();
+        $("#modal-1").modal("hide");
+        source = { x: coordsx, y: coordsy, entity_uid };
+        targetModeMaxRange =
+          data.range_max !== undefined ? data.range_max : data.range;
+        targetMode = true;
+        globalActionInfo = action;
+        globalOpts = opts;
+        globalSourceEntity = entity_uid;
+        targetModeCallback = (target) => {
+          ajaxPost(
+            "/action",
+            { id: entity_uid, mode: 'radius', action, opts, target },
+            (data) => {
+              console.log("Action request successful:", data);
+              refreshTurn();
+            },
+            true,
+          );
+        };
+        break;
+      case "select_line":
+        $(".popover-menu").hide();
+        closeCenterActionBar();
+        $("#modal-1").modal("hide");
+        source = { x: coordsx, y: coordsy, entity_uid };
+        targetModeMaxRange =
+          data.range_max !== undefined ? data.range_max : data.range;
+        targetMode = true;
+        globalActionInfo = action;
+        globalOpts = opts;
+        globalSourceEntity = entity_uid;
+        targetModeCallback = (target) => {
+          ajaxPost(
+            "/action",
+            { id: entity_uid, mode: 'line', action, opts, target },
+            (data) => {
+              console.log("Action request successful:", data);
+              refreshTurn();
+            },
+            true,
+          );
+        };
+        break;
       case "select_target":
         $(".popover-menu").hide();
         closeCenterActionBar();

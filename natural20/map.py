@@ -413,6 +413,13 @@ class Map(SerializableObject):
             for obj in self.objects_at(pos_x, pos_y):
                 if obj != entity:
                     if hasattr(obj, 'on_enter'):
+                        # Stop firing on_enter handlers if a previous one
+                        # already moved/removed the entity from this map
+                        # (e.g. a teleporter). Otherwise subsequent handlers
+                        # will attempt to operate on a stale position and
+                        # crash the turn loop.
+                        if entity not in self.entities:
+                            break
                         obj.on_enter(entity, self, battle)
             return True
         return False
@@ -850,6 +857,127 @@ class Map(SerializableObject):
         return squares
 
 
+    def squares_in_radius(
+        self,
+        center_pos: Tuple[int, int],
+        radius_ft: int,
+        require_los: bool = False,
+        include_center: bool = True,
+    ) -> List[Tuple[int, int]]:
+        """Return every grid square inside a sphere of ``radius_ft`` centered on ``center_pos``.
+
+        Distance is measured 5e-style (Chebyshev), each square = ``feet_per_grid`` ft.
+        Optionally filter by line of sight from the center.
+        """
+        cx, cy = center_pos
+        radius_squares = max(0, int(radius_ft) // self.feet_per_grid)
+        w, h = self.size
+        squares: List[Tuple[int, int]] = []
+        for x in range(cx - radius_squares, cx + radius_squares + 1):
+            for y in range(cy - radius_squares, cy + radius_squares + 1):
+                if not (0 <= x < w and 0 <= y < h):
+                    continue
+                if (x, y) == (cx, cy) and not include_center:
+                    continue
+                # Chebyshev distance in squares
+                if max(abs(x - cx), abs(y - cy)) > radius_squares:
+                    continue
+                if require_los and (x, y) != (cx, cy):
+                    if not self.line_of_sight(cx, cy, x, y, passability_mode=True, inclusive=True):
+                        continue
+                squares.append((x, y))
+        return sorted(squares)
+
+    def squares_in_emanation(
+        self,
+        entity,
+        radius_ft: int,
+        require_los: bool = False,
+        include_origin: bool = False,
+    ) -> List[Tuple[int, int]]:
+        """Return squares within ``radius_ft`` of any square the entity occupies.
+
+        Models 5e "emanation" effects (paladin auras, Spirit Guardians, etc.)
+        that originate from a creature and move with it.
+        """
+        if entity not in self.entities:
+            return []
+        radius_squares = max(0, int(radius_ft) // self.feet_per_grid)
+        occupied = set(tuple(s) for s in self.entity_squares(entity))
+        w, h = self.size
+        squares: Set[Tuple[int, int]] = set()
+        for ox, oy in occupied:
+            for x in range(ox - radius_squares, ox + radius_squares + 1):
+                for y in range(oy - radius_squares, oy + radius_squares + 1):
+                    if not (0 <= x < w and 0 <= y < h):
+                        continue
+                    if max(abs(x - ox), abs(y - oy)) > radius_squares:
+                        continue
+                    squares.add((x, y))
+        if not include_origin:
+            squares -= occupied
+        if require_los:
+            squares = {
+                (x, y) for (x, y) in squares
+                if any(self.line_of_sight(ox, oy, x, y, passability_mode=True, inclusive=True)
+                       for (ox, oy) in occupied)
+            }
+        return sorted(squares)
+
+    def squares_in_line(
+        self,
+        origin_pos: Tuple[int, int],
+        direction_pos: Tuple[int, int],
+        length_ft: int,
+        width_ft: int = 5,
+        require_los: bool = False,
+        include_origin: bool = False,
+    ) -> List[Tuple[int, int]]:
+        """Return every square inside a line of ``length_ft`` and ``width_ft``
+        starting at ``origin_pos`` and extending toward ``direction_pos``.
+
+        The line is approximated on the grid by walking Chebyshev steps along
+        the unit direction up to ``length_ft / feet_per_grid`` squares, and
+        fattening the path by half the width on either side perpendicular to
+        the dominant axis.
+        """
+        ox, oy = origin_pos
+        tx, ty = direction_pos
+        if (ox, oy) == (tx, ty):
+            return []
+        length_squares = max(1, int(length_ft) // self.feet_per_grid)
+        width_squares = max(1, int(width_ft) // self.feet_per_grid)
+        half = (width_squares - 1) // 2
+        # Chebyshev-step direction: normalize each axis to {-1, 0, 1}.
+        dx = (tx - ox)
+        dy = (ty - oy)
+        sx = (dx > 0) - (dx < 0)
+        sy = (dy > 0) - (dy < 0)
+        w, h = self.size
+        squares: Set[Tuple[int, int]] = set()
+        # Walk centerline; perpendicular axis = whichever sign is zero, else
+        # both axes (diagonal lines fatten on the cross-diagonal).
+        for step in range(0 if include_origin else 1, length_squares + 1):
+            cx = ox + sx * step
+            cy = oy + sy * step
+            for ux in range(-half, half + 1):
+                for uy in range(-half, half + 1):
+                    # For axial lines fatten perpendicular only.
+                    if sy == 0 and uy != 0 and ux == 0:
+                        pass  # allow vertical thickness
+                    if sx == 0 and ux != 0 and uy == 0:
+                        pass
+                    px, py = cx + ux, cy + uy
+                    if not (0 <= px < w and 0 <= py < h):
+                        continue
+                    squares.add((px, py))
+        if require_los:
+            squares = {
+                (x, y) for (x, y) in squares
+                if self.line_of_sight(ox, oy, x, y, passability_mode=True, inclusive=True)
+            }
+        return sorted(squares)
+
     def find_empty_placeable_position(self, entity, pos_x, pos_y):
         for ofs_x in range(-1, 2):
             for ofs_y in range(-1, 2):
@@ -1141,6 +1269,21 @@ class Map(SerializableObject):
 
         entity_1_squares = self.entity_squares_at_pos(entity, *entity_1_pos) if entity_1_pos else self.entity_squares(entity)
         entity_2_squares = self.entity_squares_at_pos(entity2, *entity_2_pos) if entity_2_pos else self.entity_squares(entity2)
+
+        # Visible (non-secret, non-concealed) doors are always seen by an adjacent
+        # viewer: a closed opaque door would otherwise block line of sight to its
+        # own square, making it impossible to target the door for an attack from
+        # the square next to it. A creature physically next to a door can clearly
+        # see it regardless of the door's own opacity.
+        if (
+            entity2.kind_of_door()
+            and not entity2.concealed()
+            and (not entity2.secret() or viewer_revealed_secret)
+        ):
+            for pos1 in entity_1_squares:
+                for pos2 in entity_2_squares:
+                    if abs(pos1[0] - pos2[0]) <= 1 and abs(pos1[1] - pos2[1]) <= 1:
+                        return True
 
         has_line_of_sight = False
         max_illumination = 0.0

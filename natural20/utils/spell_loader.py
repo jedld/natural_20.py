@@ -36,6 +36,7 @@ def load_spell_class(spell_name):
     from natural20.spell.hellish_rebuke_spell import HellishRebukeSpell
     from natural20.spell.darkness_spell import DarknessSpell
     from natural20.spell.silvery_barbs_spell import SilveryBarbsSpell
+    from natural20.spell.light_spell import LightSpell
     # Create a mapping of spell names to spell classes
     spell_classes = {
         'ShockingGraspSpell': ShockingGraspSpell,
@@ -74,9 +75,41 @@ def load_spell_class(spell_name):
         'HellishRebukeSpell': HellishRebukeSpell,
         'DarknessSpell': DarknessSpell,
         'SilveryBarbsSpell': SilveryBarbsSpell,
+        'LightSpell': LightSpell,
     }
 
     if spell_name not in spell_classes:
         raise Exception(f"spell class not found {spell_name}")
 
     return spell_classes[spell_name]
+
+
+def register_serializable_effects():
+    """Phase 4: register a curated set of effect classes with the
+    serialization registry. Idempotent — safe to call multiple times.
+
+    Only effects that already implement ``to_dict``/``from_dict`` are
+    registered. Other spells keep using their existing serialization
+    paths untouched.
+    """
+    from natural20.utils.effect_registry import register_effect
+    # Lazy imports so the registry stays self-contained.
+    from natural20.spell.bless_spell import BlessSpell
+    from natural20.spell.bane_spell import BaneSpell
+    from natural20.spell.mage_armor_spell import MageArmorSpell
+    from natural20.spell.resistance_spell import ResistanceSpell
+    from natural20.spell.guidance_spell import GuidanceSpell
+    from natural20.spell.spell import Spell
+
+    register_effect('bless', BlessSpell)
+    register_effect('bane', BaneSpell)
+    register_effect('mage_armor', MageArmorSpell)
+    register_effect('resistance', ResistanceSpell)
+    register_effect('guidance', GuidanceSpell)
+    register_effect('spell', Spell)
+
+
+# Note: not auto-registered on import to avoid eager spell-module loads
+# (some spell modules import from natural20.battle/entity which import
+# spell_loader transitively). Callers (Session/tests) opt in by calling
+# ``register_serializable_effects()`` explicitly.
