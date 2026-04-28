@@ -156,7 +156,7 @@
       });
     }
 
-    // Simple spell choices for casters (wizard/cleric/bard): level 1-2
+    // Simple spell choices for casters (wizard/cleric/bard/warlock/sorcerer): level 1-2
     const spellList = kdata.spell_list || {};
     if(spellList && (spellList.cantrip || spellList.level_1)){
       // Decide counts (rough SRD defaults)
@@ -182,6 +182,13 @@
         cantripCount = warlockCantrips[cappedLevel] || 0;
         // Builder currently offers only 1st-level spells; use known count as cap
         level1Prep = warlockKnown[cappedLevel] || 0;
+      } else if(klassLower === 'sorcerer'){
+        // Sorcerer cantrips known: 4 at L1-3, 5 at L4-9, 6 at L10+
+        const sorcCantrips = [0, 4, 4, 4, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6];
+        const sorcKnown    = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 13, 13, 14, 14, 15, 15, 15, 15];
+        const capped = Math.min(level, sorcCantrips.length - 1);
+        cantripCount = sorcCantrips[capped] || 0;
+        level1Prep = sorcKnown[capped] || 0;
       }
 
       const totalCantrips = Array.isArray(spellList.cantrip) ? spellList.cantrip.length : 0;
