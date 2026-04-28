@@ -1,0 +1,58 @@
+---
+hit_die: 1d6
+weapon_proficiencies:
+- dagger
+- dart
+- sling
+- quarterstaff
+- light_crossbow
+saving_throw_proficiency:
+- con
+- cha
+available_skills_choices: 2
+available_skills:
+  - arcana
+  - deception
+  - insight
+  - intimidation
+  - persuasion
+  - religion
+spellcasting_ability: charisma
+spell_list:
+  cantrip:
+    - chill_touch
+    - firebolt
+    - poison_spray
+    - ray_of_frost
+    - shocking_grasp
+  level_1:
+    - burning_hands
+    - magic_missile
+    - shield
+    - silvery_barbs
+    - thunderwave
+  level_2:
+    - misty_step
+class_features:
+  - font_of_magic
+proficiency_bonuses:
+- 2
+- 2
+- 2
+- 2
+- 3
+- 3
+- 3
+- 3
+- 4
+- 4
+- 4
+- 4
+- 5
+- 5
+- 5
+- 5
+- 6
+- 6
+- 6
+- 6

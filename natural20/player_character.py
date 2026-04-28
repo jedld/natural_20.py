@@ -6,6 +6,7 @@ from natural20.entity_class.wizard import Wizard
 from natural20.entity_class.cleric import Cleric
 from natural20.entity_class.paladin import Paladin
 from natural20.entity_class.warlock import Warlock
+from natural20.entity_class.sorcerer import Sorcerer
 from natural20.entity_class.ranger import Ranger
 from natural20.entity_class.monk import Monk
 from natural20.entity_class.bard import Bard
@@ -60,7 +61,7 @@ from datetime import datetime, timezone
 import pdb
 
 
-class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, Ranger, Monk, Bard, Druid, Barbarian, Lootable, Inventory):
+class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, Sorcerer, Ranger, Monk, Bard, Druid, Barbarian, Lootable, Inventory):
   ACTION_LIST = [
     SpellAction,
     AttackAction,
