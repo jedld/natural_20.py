@@ -474,6 +474,41 @@ class AttackAction(Action):
                         damage.rolls[i] = r.result
 
             damage = self.check_weapon_bonuses(battle, weapon, damage, attack_roll)
+
+            # Phase 3 modifier registry: any effect that registered a
+            # ``damage_roll`` modifier (e.g. Divine Favor, Hunter's Mark)
+            # contributes here. Crit doubles dice if value is a dice
+            # expression.
+            try:
+                dmg_mods = self.source.collect_modifiers('damage_roll', {
+                    'target': target, 'battle': battle, 'weapon': weapon,
+                    'attack_roll': attack_roll,
+                })
+            except Exception:
+                dmg_mods = []
+            is_crit = bool(attack_roll is not None and attack_roll.nat_20())
+            for entry in dmg_mods:
+                v = entry['value']
+                if isinstance(v, str) and v:
+                    extra = DieRoll.roll(
+                        v, crit=is_crit,
+                        description=f"damage_modifier:{entry.get('source')}",
+                        entity=self.source, battle=battle,
+                    )
+                    damage += extra
+                else:
+                    try:
+                        iv = int(v)
+                    except Exception:
+                        continue
+                    if iv == 0:
+                        continue
+                    sign = '+' if iv >= 0 else ''
+                    damage += DieRoll.roll(
+                        f"{sign}{iv}",
+                        description=f"damage_modifier:{entry.get('source')}",
+                        entity=self.source, battle=battle,
+                    )
         else:
             damage = DieRoll.roll("0")
 

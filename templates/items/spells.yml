@@ -19,11 +19,11 @@ shield_of_faith:
   spell_class: Natural20::ShieldOfFaith
 divine_smite:
   label: Divine Smite
-  casting_time: instant:bonus_action
+  casting_time: instant:no_action
   components: []
   damage_type: radiant
   description: |
-    Immediately after you hit a creature with a melee weapon attack, you can expend a spell slot to deal radiant damage to the target, in addition to the weapon's damage. The extra damage is 2d8 for a 1st-level slot, plus 1d8 for each spell slot level higher than 1st, to a maximum of 5d8. The damage increases by 1d8 if the target is an undead or a fiend.
+    Immediately after you hit a creature with a melee weapon attack, you can expend one spell slot to deal radiant damage to the target, in addition to the weapon's damage. The extra damage is 2d8 for a 1st-level slot, plus 1d8 for each spell slot level higher than 1st, to a maximum of 5d8. The damage increases by 1d8 if the target is an undead or a fiend, to a maximum of 6d8.
   duration: instant
   level: 1
   name: Divine Smite
@@ -708,3 +708,95 @@ true_strike:
   spell_list_classes:
     - Sorcerer
     - Wizard
+acid_splash:
+  label: Acid Splash
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  damage_type: acid
+  description: |
+    You hurl a bubble of acid. Choose one or two creatures you can see within range. If you choose two, they must be within 5 feet of each other. A target must succeed on a Dexterity saving throw or take 1d6 acid damage. The damage increases by 1d6 at 5th level (2d6), 11th level (3d6), and 17th level (4d6).
+  duration: instant
+  level: 0
+  name: Acid Splash
+  range: 60
+  school: conjuration
+  type: ranged_attack
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
+  spell_class: Natural20::AcidSplash
+vicious_mockery:
+  label: Vicious Mockery
+  casting_time: 1:action
+  components:
+    - verbal
+  damage_type: psychic
+  description: |
+    You unleash a string of insults laced with subtle enchantments at a creature you can see within range. If the target can hear you, it must succeed on a Wisdom saving throw or take 1d4 psychic damage and have disadvantage on the next attack roll it makes before the end of its next turn. The damage increases at 5th level (2d4), 11th level (3d4), and 17th level (4d4).
+  duration: instant
+  level: 0
+  name: Vicious Mockery
+  range: 60
+  school: enchantment
+  type: ranged_attack
+  spell_list_classes:
+    - Bard
+  spell_class: Natural20::ViciousMockery
+divine_favor:
+  label: Divine Favor
+  casting_time: 1:bonus_action
+  components:
+    - verbal
+    - somatic
+  damage_type: radiant
+  description: |
+    Your prayer empowers you with divine radiance. Until the spell ends, your weapon attacks deal an extra 1d4 radiant damage on a hit.
+  duration: 1m
+  level: 1
+  name: Divine Favor
+  range: self
+  school: evocation
+  concentration: true
+  type: buff
+  spell_list_classes:
+    - Paladin
+  spell_class: Natural20::DivineFavor
+hunters_mark:
+  label: Hunter's Mark
+  casting_time: 1:bonus_action
+  components:
+    - verbal
+  damage_type: weapon
+  description: |
+    You choose a creature you can see within range and mystically mark it as your quarry. Until the spell ends, you deal an extra 1d6 damage to the target whenever you hit it with a weapon attack, and you have advantage on any Wisdom (Perception) or Wisdom (Survival) check you make to find it. If the target drops to 0 hit points before this spell ends, you can use a bonus action on a subsequent turn to mark a new creature.
+  duration: 1h
+  level: 1
+  name: Hunter's Mark
+  range: 90
+  school: divination
+  concentration: true
+  type: buff
+  spell_list_classes:
+    - Ranger
+  spell_class: Natural20::HuntersMark
+false_life:
+  label: False Life
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+    - material
+  description: |
+    Bolstering yourself with a necromantic facsimile of life, you gain 1d4 + 4 temporary hit points for the duration. At Higher Levels: When you cast this spell using a spell slot of 2nd level or higher, you gain 5 additional temporary hit points for each slot level above 1st.
+  duration: 1h
+  level: 1
+  name: False Life
+  range: self
+  school: necromancy
+  type: buff
+  spell_list_classes:
+    - Sorcerer
+    - Wizard
+  spell_class: Natural20::FalseLife

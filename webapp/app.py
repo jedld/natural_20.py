@@ -2404,6 +2404,13 @@ def create_character():
                     # Pact Magic: stick to early-level defaults (builder supports levels 1-2)
                     cantrip_cap = 2 if level <= 3 else 3
                     lvl1_cap = 2 if level <= 1 else 3
+                elif klass_lower == 'sorcerer':
+                    # Sorcerer (PHB): cantrips known 4 at L1, 5 at L4, 6 at L10
+                    cantrip_cap = 4 if level < 4 else (5 if level < 10 else 6)
+                    # Spells known: 2 at L1, 3 at L2, 4 at L3, 5 at L4...
+                    sorc_known = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+                                  12, 12, 13, 13, 14, 14, 15, 15, 15, 15]
+                    lvl1_cap = sorc_known[min(level, len(sorc_known)) - 1]
 
                 cantrips = [s for s in selected_cantrips if s in can_list][:cantrip_cap]
                 if cantrips:

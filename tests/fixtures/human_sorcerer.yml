@@ -1,0 +1,29 @@
+---
+name: Kaida
+race: human
+classes:
+  sorcerer: 5
+level: 5
+max_hp: 32
+hp: 32
+ability:
+  str: 8
+  dex: 14
+  con: 14
+  int: 12
+  wis: 10
+  cha: 18
+skills: []
+equipped:
+- dagger
+inventory: []
+token:
+- K
+cantrips:
+  - firebolt
+  - ray_of_frost
+prepared_spells:
+  - magic_missile
+  - shield
+  - burning_hands
+  - misty_step

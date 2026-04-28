@@ -37,6 +37,11 @@ def load_spell_class(spell_name):
     from natural20.spell.darkness_spell import DarknessSpell
     from natural20.spell.silvery_barbs_spell import SilveryBarbsSpell
     from natural20.spell.light_spell import LightSpell
+    from natural20.spell.acid_splash_spell import AcidSplashSpell
+    from natural20.spell.vicious_mockery_spell import ViciousMockerySpell
+    from natural20.spell.divine_favor_spell import DivineFavorSpell
+    from natural20.spell.hunters_mark_spell import HuntersMarkSpell
+    from natural20.spell.false_life_spell import FalseLifeSpell
     # Create a mapping of spell names to spell classes
     spell_classes = {
         'ShockingGraspSpell': ShockingGraspSpell,
@@ -76,6 +81,11 @@ def load_spell_class(spell_name):
         'DarknessSpell': DarknessSpell,
         'SilveryBarbsSpell': SilveryBarbsSpell,
         'LightSpell': LightSpell,
+        'AcidSplashSpell': AcidSplashSpell,
+        'ViciousMockerySpell': ViciousMockerySpell,
+        'DivineFavorSpell': DivineFavorSpell,
+        'HuntersMarkSpell': HuntersMarkSpell,
+        'FalseLifeSpell': FalseLifeSpell,
     }
 
     if spell_name not in spell_classes:

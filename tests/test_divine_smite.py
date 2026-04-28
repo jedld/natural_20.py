@@ -78,8 +78,9 @@ class TestDivineSmite(unittest.TestCase):
         self.assertEqual(smite['damage_type'], 'radiant')
         self.assertEqual(len(smite['damage_roll'].rolls), 2)
 
+        # Divine Smite costs no action — only the spell slot is consumed.
         self.assertEqual(paladin.spell_slots['paladin'][1], initial_slots - 1)
-        self.assertEqual(self.battle.entity_state_for(paladin)['bonus_action'], initial_bonus - 1)
+        self.assertEqual(self.battle.entity_state_for(paladin)['bonus_action'], initial_bonus)
 
         self.battle.commit(attack)
         self.assertLess(enemy.hp(), enemy.max_hp())
@@ -123,6 +124,58 @@ class TestDivineSmite(unittest.TestCase):
 
         smite = next((item for item in attack.result if isinstance(item, dict) and item.get('trigger') == 'divine_smite'), None)
         self.assertIsNotNone(smite)
+        self.battle.commit(attack)
+
+    def test_divine_smite_dice_cap(self):
+        """Per RAW Divine Smite caps at 5d8 (6d8 vs undead/fiend)."""
+        from natural20.actions.divine_smite_action import DivineSmiteAction
+
+        controller = AlwaysSmiteController(self.session)
+        paladin = self._prepare_paladin(controller)
+        goblin = self._prepare_enemy('goblin', [1, 5])
+        skeleton = self._prepare_enemy('skeleton', [2, 5])
+        spell_details = self.session.load_spell('divine_smite')
+
+        # 1st-level slot: 2d8 base
+        action = DivineSmiteAction(self.session, paladin, goblin, 1, spell_details, {})
+        self.assertEqual(action._damage_dice_count(), 2)
+
+        # 4th-level slot: capped at 5d8
+        action = DivineSmiteAction(self.session, paladin, goblin, 4, spell_details, {})
+        self.assertEqual(action._damage_dice_count(), 5)
+
+        # 5th-level slot: still capped at 5d8 (no further increase)
+        action = DivineSmiteAction(self.session, paladin, goblin, 5, spell_details, {})
+        self.assertEqual(action._damage_dice_count(), 5)
+
+        # 4th-level slot vs undead: 5d8 + 1d8 = 6d8
+        action = DivineSmiteAction(self.session, paladin, skeleton, 4, spell_details, {})
+        self.assertEqual(action._damage_dice_count(), 6)
+
+        # 5th-level slot vs undead: still 6d8 (cap)
+        action = DivineSmiteAction(self.session, paladin, skeleton, 5, spell_details, {})
+        self.assertEqual(action._damage_dice_count(), 6)
+
+    def test_divine_smite_doubles_dice_on_crit(self):
+        """A critical hit doubles the Divine Smite damage dice."""
+        controller = AlwaysSmiteController(self.session)
+        paladin = self._prepare_paladin(controller)
+        enemy = self._prepare_enemy('goblin', [1, 5])
+        self.battle.start()
+        paladin.reset_turn(self.battle)
+        enemy.reset_turn(self.battle)
+
+        attack = AttackAction(self.session, paladin, 'attack')
+        attack.target = enemy
+        attack.using = 'warhammer'
+        # Force a natural 20 on the attack roll.
+        DieRoll.fudge(20)
+        self.battle.execute_action(attack)
+
+        smite = next((item for item in attack.result if isinstance(item, dict) and item.get('trigger') == 'divine_smite'), None)
+        self.assertIsNotNone(smite, 'Divine Smite result not found in attack resolution')
+        # Base 2d8 doubled = 4d8 of radiant on a crit.
+        self.assertEqual(len(smite['damage_roll'].rolls), 4)
         self.battle.commit(attack)
 
 

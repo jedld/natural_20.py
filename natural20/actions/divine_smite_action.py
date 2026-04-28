@@ -40,9 +40,7 @@ class DivineSmiteAction(Action):
         return 1.0
 
     def avg_damage(self, battle, opts=None):
-        base_dice = 2 + max(0, self.slot_level - 1)
-        if self._is_fiend_or_undead(self.target):
-            base_dice += 1
+        base_dice = self._damage_dice_count()
         return base_dice * 4.5
 
     def resolve(self, session, map, opts=None):
@@ -50,13 +48,18 @@ class DivineSmiteAction(Action):
             opts = {}
         battle = opts.get('battle')
 
-        damage_dice = 2 + max(0, self.slot_level - 1)
-        if self._is_fiend_or_undead(self.target):
-            damage_dice += 1
+        damage_dice = self._damage_dice_count()
+
+        # Per the standard 5e crit rule, "if an attack involves other damage
+        # dice ... double those dice as well."  Divine Smite damage dice are
+        # therefore doubled when the triggering melee attack was a crit.
+        attack_roll = (self.attack_result or {}).get('attack_roll')
+        is_crit = bool(attack_roll is not None and attack_roll.nat_20())
 
         roll_expression = f"{damage_dice}d8"
         damage_roll = DieRoll.roll(
             roll_expression,
+            crit=is_crit,
             battle=battle,
             entity=self.source,
             description='dice_roll.spells.divine_smite'
@@ -93,6 +96,17 @@ class DivineSmiteAction(Action):
         }]
 
         return self
+
+    # Maximum smite dice per RAW: 5d8 from a 4th+ level slot, +1d8 vs
+    # undead or fiend (capping at 6d8 total).
+    _MAX_BASE_DICE = 5
+
+    def _damage_dice_count(self) -> int:
+        base_dice = 2 + max(0, self.slot_level - 1)
+        base_dice = min(base_dice, self._MAX_BASE_DICE)
+        if self._is_fiend_or_undead(self.target):
+            base_dice += 1
+        return base_dice
 
     @staticmethod
     def _is_fiend_or_undead(target) -> bool:
