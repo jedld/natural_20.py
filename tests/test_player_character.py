@@ -64,6 +64,13 @@ class TestPlayerCharacter(unittest.TestCase):
         player.reset_turn(self.battle)
         return player
 
+    def load_human_sorcerer_character(self):
+        player = PlayerCharacter.load(self.session, 'human_sorcerer.yml')
+        self.battle.add(player, 'a')
+        self.battle.start()
+        player.reset_turn(self.battle)
+        return player
+
     def load_elf_ranger_character(self):
         player = PlayerCharacter.load(self.session, 'elf_ranger.yml')
         self.battle.add(player, 'a')
@@ -419,6 +426,25 @@ class TestPlayerCharacter(unittest.TestCase):
         # Ranger level 5 has 4 slots at 1st level and 2 at 2nd level
         self.assertEqual(self.player.spell_slots_count(1), 4)
         self.assertEqual(self.player.spell_slots_count(2), 2)
+
+    def test_sorcerer_spell_slots_and_modifiers(self):
+        self.player = self.load_human_sorcerer_character()
+        # Sorcerer level 5 (full caster): 4/3/2 first/second/third
+        self.assertEqual(self.player.spell_slots_count(1), 4)
+        self.assertEqual(self.player.spell_slots_count(2), 3)
+        self.assertEqual(self.player.spell_slots_count(3), 2)
+        # Charisma 18 (+4) at PB +3 (level 5) -> spell attack +7, save DC 15
+        self.assertEqual(self.player.spell_attack_modifier('sorcerer'), 7)
+        self.assertEqual(self.player.spell_save_dc('charisma'), 15)
+        # Font of Magic: sorcery points equal class level from level 2
+        self.assertEqual(self.player.max_sorcery_points(), 5)
+        self.assertEqual(self.player.sorcery_points, 5)
+        self.assertTrue(self.player.consume_sorcery_points(2))
+        self.assertEqual(self.player.sorcery_points, 3)
+        self.assertFalse(self.player.consume_sorcery_points(99))
+        # Long rest restores
+        self.player.long_rest_for_sorcerer(self.battle)
+        self.assertEqual(self.player.sorcery_points, 5)
 
 if __name__ == '__main__':
     unittest.main()

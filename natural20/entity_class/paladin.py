@@ -60,9 +60,8 @@ class DivineSmiteEffect:
         if not self._is_valid_melee_hit(entity, hit_result):
             return []
 
-        if entity.total_bonus_actions(battle) <= 0:
-            return []
-
+        # Divine Smite (PHB 2014) costs no action — it is triggered after a
+        # successful melee weapon attack and only spends a spell slot.
         available_slots = self._available_slot_levels(entity)
         if not available_slots:
             return []
@@ -144,7 +143,9 @@ class DivineSmiteEffect:
 
     def _build_action(self, entity, target, slot_level, spell_details, hit_result):
         action = DivineSmiteAction(entity.session, entity, target, slot_level, spell_details, hit_result)
-        action.as_bonus_action = True
+        # Divine Smite has no action cost; flagging it as a bonus action
+        # would incorrectly consume the paladin's bonus action.
+        action.as_bonus_action = False
         return action
 
 class Paladin():
