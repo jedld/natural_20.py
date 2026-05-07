@@ -504,6 +504,31 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             if len(position_choices) > 0 and auto_target and battle:
                 position_choices = _optimize_radius_targets(position_choices, entity, battle, map, radius_ft)
             params_list.append(position_choices)
+        elif param_type == "select_square":
+            # Square AoE centered on a chosen square within range.
+            if not map:
+                if is_verbose:
+                    print(f"No map found for {entity.name}")
+                return None
+            spell_range_ft = param.get("range", 60)
+            require_los = param.get("require_los", True)
+            cur_x, cur_y = map.position_of(entity)
+            max_squares = max(0, int(spell_range_ft) // map.feet_per_grid)
+            position_choices = []
+            for dx in range(-max_squares, max_squares + 1):
+                for dy in range(-max_squares, max_squares + 1):
+                    nx, ny = cur_x + dx, cur_y + dy
+                    if nx < 0 or ny < 0 or nx >= map.size[0] or ny >= map.size[1]:
+                        continue
+                    if max(abs(dx), abs(dy)) > max_squares:
+                        continue
+                    if require_los and not map.line_of_sight(cur_x, cur_y, nx, ny,
+                                                             passability_mode=True, inclusive=True):
+                        continue
+                    if match and [nx, ny] not in match:
+                        continue
+                    position_choices.append([nx, ny])
+            params_list.append(position_choices)
         elif param_type == "select_line":
             # Line AoE from caster toward a chosen anchor square.
             if not map:

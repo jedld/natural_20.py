@@ -466,6 +466,25 @@ class EventManager:
             'thunderwave_push': lambda event: self.output_logger.log(
                 f"{self.show_target_name(event)} is pushed by thunderwave to {event.get('position')}" if event.get('position') else f"{self.show_name(event)} resisted being moved by thunderwave."
             ),
+            'color_spray': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Color Spray and affects "
+                f"{', '.join(self.decorate_name(t) for t in (event.get('targets') or [])) if event.get('targets') else 'no creatures'} "
+                f"(pool {event.get('pool_roll')} = {event.get('pool_total')}, remaining {event.get('remaining')})."
+            ),
+            'witch_bolt': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} latches Witch Bolt onto {self.show_target_name(event)}."
+            ),
+            'witch_bolt_sustain': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} channels Witch Bolt into {self.show_target_name(event)} for {event.get('damage_roll')}={event.get('damage_roll').result()} lightning damage."
+            ),
+            'grease': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Grease at {event.get('target')}, coating {len(event.get('squares') or [])} squares in slippery terrain."
+            ),
+            'grease_save': lambda event: self.output_logger.log(
+                f"{self.show_target_name(event)} "
+                f"{'keeps footing' if event.get('success') else 'slips prone'} "
+                f"in Grease ({event.get('roll')}={event.get('roll').result()} vs DC {event.get('dc')}, {event.get('reason')})."
+            ),
             'rage_start': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} flies into a rage! ({event.get('rounds', 10)} rounds remaining)"
             ),

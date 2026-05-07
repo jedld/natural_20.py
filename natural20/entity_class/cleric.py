@@ -1,5 +1,8 @@
 from collections import OrderedDict
 
+# Import to ensure Channel Divinity actions are registered with the class-feature registry.
+from natural20.actions import turn_undead_action  # noqa: F401
+
 CLERIC_SPELL_SLOT_TABLE = [
     # cantrips, 1st, 2nd, 3rd ... etc
 
@@ -38,6 +41,24 @@ class Cleric:
 
     def channel_divinity(self):
         self.channel_divinity_count -= 1
+
+    def has_channel_divinity(self):
+        return getattr(self, 'channel_divinity_count', 0) > 0
+
+    def divine_domain(self):
+        return self.properties.get('divine_domain')
+
+    def disciple_of_life_bonus(self, spell_level):
+        """Life Domain: Disciple of Life adds 2 + spell_level to healing spells of 1st level or higher."""
+        if not self.class_feature('disciple_of_life'):
+            return 0
+        try:
+            lvl = int(spell_level or 0)
+        except (TypeError, ValueError):
+            return 0
+        if lvl < 1:
+            return 0
+        return 2 + lvl
 
     def cleric_spell_attack_modifier(self):
         return self.proficiency_bonus() + self.wis_mod()

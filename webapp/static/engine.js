@@ -681,6 +681,33 @@ class EventQueue {
           Utils.showNarration(data.message, data.map_name);
           resolve();
           break;
+        case "control_override":
+        case "turn_skipped": {
+          try {
+            const toastText = (data && (data.toast || data.message)) || '';
+            const targetUid = (data && data.target && data.target.uid) || null;
+            const pos = (data && data.position) || null;
+            if (toastText) {
+              showMapToast(toastText, pos, targetUid, 6000);
+            }
+            // Always also drop a console line so it survives in the chat log
+            // even if the toast is missed.
+            const consoleMsg = (data && data.message) || toastText;
+            if (consoleMsg) {
+              $("#console-container #console").append(`<p><em>${consoleMsg}</em></p>`);
+              $("#console-container").scrollTop(
+                $("#console-container")[0].scrollHeight,
+              );
+            }
+            // Refresh the action panel so any disabled actions or skipped
+            // turns reflect the new state for the local player.
+            try { refreshTurn(); } catch (e) { /* non-fatal */ }
+          } catch (e) {
+            console.warn('Failed to surface control override notification', e, data);
+          }
+          resolve();
+          break;
+        }
         default:
           console.log("Unknown message type:", data.type);
           resolve();
@@ -5057,6 +5084,29 @@ $(document).ready(() => {
           ajaxPost(
             "/action",
             { id: entity_uid, mode: 'radius', action, opts, target },
+            (data) => {
+              console.log("Action request successful:", data);
+              refreshTurn();
+            },
+            true,
+          );
+        };
+        break;
+      case "select_square":
+        $(".popover-menu").hide();
+        closeCenterActionBar();
+        $("#modal-1").modal("hide");
+        source = { x: coordsx, y: coordsy, entity_uid };
+        targetModeMaxRange =
+          data.range_max !== undefined ? data.range_max : data.range;
+        targetMode = true;
+        globalActionInfo = action;
+        globalOpts = opts;
+        globalSourceEntity = entity_uid;
+        targetModeCallback = (target) => {
+          ajaxPost(
+            "/action",
+            { id: entity_uid, mode: 'square', action, opts, target },
             (data) => {
               console.log("Action request successful:", data);
               refreshTurn();
