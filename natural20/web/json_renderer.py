@@ -5,6 +5,7 @@ from natural20.battle import Battle
 from natural20.item_library.door_object import DoorObject, DoorObjectWall
 from natural20.item_library.teleporter import Teleporter
 from natural20.item_library.chasm import Chasm
+from natural20.spell.objects.grease_surface import GreaseSurface
 import logging
 class JsonRenderer:
     def __init__(self, map: Map, battle: Battle=None, padding=None, logger=None):
@@ -247,6 +248,14 @@ class JsonRenderer:
                         object_info['teleporter_marker'] = bool(is_visible_teleporter)
                         object_info['teleporter_marker_color'] = (
                             object_entity.marker_color() if is_visible_teleporter else None
+                        )
+
+                        is_grease_surface = isinstance(object_entity, GreaseSurface) or bool(
+                            object_entity.properties.get('grease_surface')
+                        )
+                        object_info['grease_marker'] = bool(is_grease_surface)
+                        object_info['grease_marker_seed'] = (
+                            object_entity.properties.get('grease_seed') if is_grease_surface else None
                         )
 
                         object_info['notes'], _ = object_entity.list_notes(entity_pov=entity_pov)

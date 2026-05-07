@@ -67,6 +67,10 @@
                 <div class="teleporter-marker" aria-hidden="true"
                      style="--teleporter-marker-color: {{ obj['teleporter_marker_color'] }};"></div>
               {% endif %}
+              {% if obj['grease_marker'] %}
+                <div class="grease-marker" aria-hidden="true"
+                     style="--grease-seed: '{{ obj['grease_marker_seed'] or 'seed' }}';"></div>
+              {% endif %}
               {% if obj['notes'] %}
                 <button class="show-note-btn{% if obj['id'] not in read_notes %} unread{% endif %}" onclick="Utils.showNoteModal(this)" 
                         data-name="{{ obj['name'] }}"

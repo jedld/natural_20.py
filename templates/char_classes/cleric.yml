@@ -17,10 +17,19 @@ available_skills:
 - religion
 - survival
 class_features:
+- spellcasting
 - divine_domain
-- channel_divinity
-- destroy_undead
-- divine_intervention
+progression:
+  level_2:
+    class_features:
+      - channel_divinity
+      - channel_divinity_turn_undead
+  level_5:
+    class_features:
+      - destroy_undead
+  level_10:
+    class_features:
+      - divine_intervention
 spellcasting_ability: wisdom
 divine_domain_spell_list:
   life:
@@ -39,6 +48,19 @@ divine_domain_spell_list:
     level_9:
       - mass_cure_wounds
       - raise_dead
+divine_domain_features:
+  life:
+    level_1:
+      - disciple_of_life
+      - heavy_armor_proficiency
+    level_2:
+      - channel_divinity_preserve_life
+    level_6:
+      - blessed_healer
+    level_8:
+      - divine_strike
+    level_17:
+      - supreme_healing
 spell_list:
   cantrip:
     - guidance

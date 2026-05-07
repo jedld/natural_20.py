@@ -280,7 +280,27 @@ class Battle():
             return None
         if 'controller' not in self.entities[entity]:
             return self.entities[entity.owner]['controller']
-        return self.entities[entity]['controller']
+        base = self.entities[entity]['controller']
+        overrides = self.entities[entity].get('_control_overrides') or []
+        if not overrides or base in (None, 'manual'):
+            return base
+        # Lazily build (and cache) a stack wrapper so that callers see
+        # one stable wrapper instance per (entity, override-set).
+        cache = self.entities[entity].get('_wrapped_controller')
+        cache_key = tuple(id(o) for o in overrides)
+        if cache and cache[0] == cache_key:
+            return cache[1]
+        from natural20.controllers.control_override import (
+            ControlOverride,
+            ControlOverrideStack,
+        )
+        if len(overrides) == 1 and isinstance(overrides[0], ControlOverride):
+            wrapped = overrides[0]
+            wrapped.base = base
+        else:
+            wrapped = ControlOverrideStack(base, overrides)
+        self.entities[entity]['_wrapped_controller'] = (cache_key, wrapped)
+        return wrapped
 
 
     def set_controller_for(self, entity, controller):
@@ -288,7 +308,80 @@ class Battle():
             return False
 
         self.entities[entity]['controller'] = controller
+        # Invalidate any cached override wrapper so the new base controller
+        # takes effect on the next ``controller_for`` lookup.
+        self.entities[entity].pop('_wrapped_controller', None)
         return True
+
+    # ------------------------------------------------------------------
+    # Loss-of-control: pluggable controller overrides
+    # ------------------------------------------------------------------
+
+    def push_control_override(self, entity, override):
+        """Attach a :class:`ControlOverride` to ``entity``.
+
+        Multiple overrides stack — see
+        :class:`natural20.controllers.control_override.ControlOverrideStack`.
+        Returns ``True`` if the override was added.
+        """
+        state = self.entity_state_for(entity)
+        if state is None:
+            return False
+        stack = state.setdefault('_control_overrides', [])
+        if override not in stack:
+            stack.append(override)
+            state.pop('_wrapped_controller', None)
+            self.event_manager.received_event({
+                'event': 'control_override_added',
+                'source': override.source if hasattr(override, 'source') else None,
+                'target': entity,
+                'condition': getattr(override, 'condition_id', 'control_override'),
+            })
+        return True
+
+    def pop_control_override(self, entity, override=None, condition_id=None):
+        """Remove an override (by reference or by ``condition_id``).
+
+        Returns the removed override, or ``None`` if nothing matched.
+        """
+        state = self.entity_state_for(entity)
+        if state is None:
+            return None
+        stack = state.get('_control_overrides') or []
+        removed = None
+        for candidate in list(stack):
+            if override is not None and candidate is not override:
+                continue
+            if condition_id is not None and getattr(candidate, 'condition_id', None) != condition_id:
+                continue
+            stack.remove(candidate)
+            removed = candidate
+            break
+        if removed is not None:
+            state.pop('_wrapped_controller', None)
+            self.event_manager.received_event({
+                'event': 'control_override_removed',
+                'source': removed.source if hasattr(removed, 'source') else None,
+                'target': entity,
+                'condition': getattr(removed, 'condition_id', 'control_override'),
+            })
+        return removed
+
+    def active_overrides_for(self, entity):
+        """Return the (possibly empty) list of overrides on ``entity``."""
+        state = self.entity_state_for(entity)
+        if state is None:
+            return []
+        return list(state.get('_control_overrides') or [])
+
+    def clear_control_overrides(self, entity):
+        """Drop every override attached to ``entity``."""
+        state = self.entity_state_for(entity)
+        if state is None:
+            return
+        if state.get('_control_overrides'):
+            state['_control_overrides'] = []
+            state.pop('_wrapped_controller', None)
 
     def combat_ongoing(self):
         return True
@@ -508,12 +601,24 @@ class Battle():
             self.start_turn()
             if self.controller_for(self.current_turn()):
                 self.controller_for(self.current_turn()).begin_turn(self.current_turn())
-            if self.current_turn().conscious():
-                self.current_turn().reset_turn(self)
-                if callback(self.current_turn()):
+            current = self.current_turn()
+            if current.conscious() and not current.incapacitated():
+                current.reset_turn(self)
+                if callback(current):
                     continue
+            elif current.incapacitated() and not current.dead():
+                # Stunned, paralyzed, sleep, petrified, or generic
+                # ``incapacitated``: the entity uses up its turn slot but
+                # takes no actions and has no movement. Emit a hook so
+                # observers (UI, logs, AI) can react.
+                self.event_manager.received_event({
+                    'event': 'turn_skipped',
+                    'target': current,
+                    'reason': 'incapacitated',
+                    'statuses': list(current.statuses),
+                })
 
-            self.current_turn().resolve_trigger('end_of_turn')
+            current.resolve_trigger('end_of_turn')
             # print("Next turn")
             result = self.next_turn(max_rounds)
             # print(f"Result: {result}")

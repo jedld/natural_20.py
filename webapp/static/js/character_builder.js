@@ -51,6 +51,14 @@
 
   const RACES = getRaces();
   const CLASSES = getClasses();
+  const formEl = document.getElementById('character-form');
+  const editMode = (formEl && formEl.dataset && formEl.dataset.editMode === 'true');
+  function getEditCharacter(){
+    const el = document.getElementById('edit-character-data');
+    if(!el) return null;
+    try { return JSON.parse(el.textContent || '{}'); } catch(e){ return null; }
+  }
+  const EDIT_CHARACTER = getEditCharacter();
 
   function subracesFor(raceName){
     try{
@@ -156,40 +164,59 @@
       });
     }
 
-    // Simple spell choices for casters (wizard/cleric/bard/warlock/sorcerer): level 1-2
+    function abilityMod(score){
+      const n = parseInt(score || '10', 10);
+      return Math.floor((n - 10) / 2);
+    }
+
+    function classSpellCaps(klassName, levelNum, klassData){
+      const key = String(klassName || '').toLowerCase();
+      // Includes newly added core classes so builder/editor stays in sync.
+      const tables = {
+        wizard: [[3,2],[3,3],[3,4,2],[4,4,3]],
+        cleric: [[3,2],[3,3],[3,4,2],[4,4,3]],
+        druid: [[2,2],[2,3],[2,4,2],[3,4,3]],
+        bard: [[2,2],[2,3],[2,4,2],[3,4,3]],
+        warlock: [[2,1],[2,2],[2,0,2],[3,0,2]],
+        sorcerer: [[4,2],[4,3],[4,4,2],[5,4,3]],
+        paladin: [[0,0],[0,2],[0,3],[0,3]],
+        ranger: [[0,0],[0,2],[0,3],[0,3]]
+      };
+      const row = (tables[key] && tables[key][Math.max(1, levelNum) - 1]) || [];
+      let cantripCap = parseInt(row[0] || 0, 10) || 0;
+      let level1Cap = parseInt(row[1] || 0, 10) || 0;
+
+      if(key === 'wizard'){
+        level1Cap = Math.max(level1Cap, Math.max(1, levelNum + abilityMod($('#input-int').val())));
+      } else if(key === 'cleric' || key === 'druid' || key === 'paladin'){
+        const spellAbility = String((klassData && klassData.spellcasting_ability) || (key === 'paladin' ? 'charisma' : 'wisdom')).toLowerCase();
+        const short = spellAbility.substring(0,3);
+        level1Cap = Math.max(level1Cap, Math.max(1, levelNum + abilityMod($(`#input-${short}`).val())));
+      } else if(key === 'bard'){
+        const known = [0,4,5,6,7,8,9,10,11,12,14,15,15,16,18,19,19,20,22,22,22];
+        level1Cap = Math.max(level1Cap, known[Math.min(levelNum, known.length - 1)] || 0);
+      } else if(key === 'warlock'){
+        const known = [0,2,3,4,5,6,7,8,9,10,10,11,11,12,12,13,13,14,14,15,15];
+        level1Cap = Math.max(level1Cap, known[Math.min(levelNum, known.length - 1)] || 0);
+      } else if(key === 'sorcerer'){
+        const known = [0,2,3,4,5,6,7,8,9,10,11,12,12,13,13,14,14,15,15,15,15];
+        level1Cap = Math.max(level1Cap, known[Math.min(levelNum, known.length - 1)] || 0);
+      } else if(key === 'ranger'){
+        const known = [0,0,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11];
+        level1Cap = Math.max(level1Cap, known[Math.min(levelNum, known.length - 1)] || 0);
+      }
+
+      const spellbookCap = key === 'wizard' ? (6 + (Math.max(1, levelNum) - 1) * 2) : 0;
+      return { cantripCap, level1Cap, spellbookCap };
+    }
+
+    // Spell choices for classes with spell lists.
     const spellList = kdata.spell_list || {};
     if(spellList && (spellList.cantrip || spellList.level_1)){
-      // Decide counts (rough SRD defaults)
-      let cantripCount = 0;
-      let level1Prep = 0; // prepared/known at start
-      let spellbookCount = 0; // wizard spellbook additions
-      const klassLower = String(klass).toLowerCase();
-      if(klassLower === 'wizard'){
-        cantripCount = level===1 ? 3 : 3; // simple rule
-        spellbookCount = level===1 ? 6 : 8; // 6 at L1, +2 at L2
-        level1Prep = 2; // prepared to start (example minimal)
-      } else if(klassLower === 'cleric'){
-        cantripCount = level===1 ? 3 : 3; // 3 cantrips at early levels
-        level1Prep = level===1 ? 2 : 3; // simple prep guess for early play
-      } else if(klassLower === 'bard'){
-        cantripCount = level===1 ? 2 : 2;
-        level1Prep = level===1 ? 4 : 5; // known spells (approx)
-      } else if(klassLower === 'warlock'){
-        // Warlocks know a small set of spells; Pact Magic handles slots separately
-        const warlockCantrips = [0, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4];
-        const warlockKnown = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15];
-        const cappedLevel = Math.min(level, warlockCantrips.length - 1);
-        cantripCount = warlockCantrips[cappedLevel] || 0;
-        // Builder currently offers only 1st-level spells; use known count as cap
-        level1Prep = warlockKnown[cappedLevel] || 0;
-      } else if(klassLower === 'sorcerer'){
-        // Sorcerer cantrips known: 4 at L1-3, 5 at L4-9, 6 at L10+
-        const sorcCantrips = [0, 4, 4, 4, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6];
-        const sorcKnown    = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 13, 13, 14, 14, 15, 15, 15, 15];
-        const capped = Math.min(level, sorcCantrips.length - 1);
-        cantripCount = sorcCantrips[capped] || 0;
-        level1Prep = sorcKnown[capped] || 0;
-      }
+      const caps = classSpellCaps(klass, level, kdata);
+      let cantripCount = caps.cantripCap;
+      let level1Prep = caps.level1Cap;
+      let spellbookCount = caps.spellbookCap;
 
       const totalCantrips = Array.isArray(spellList.cantrip) ? spellList.cantrip.length : 0;
       if(totalCantrips>0){
@@ -267,6 +294,42 @@
         const note = $('<div class="helper"/>').text(`Your spellbook starts with ${spellbookCount} 1st-level spells. We'll seed it from your choices and fill randomly if needed.`);
         $body.append(note);
       }
+    }
+
+    const featOptions = kdata.feat_choices || kdata.available_feats || [];
+    const featCount = parseInt(kdata.feat_choices_count || kdata.available_feats_choices || 0, 10) || 0;
+    if(Array.isArray(featOptions) && featOptions.length){
+      const wrap = $('<div class="form-group"/>');
+      wrap.append(`<label>Feats${featCount > 0 ? `: choose ${featCount}` : ''}</label>`);
+      const row = $('<div class="row"/>');
+      featOptions.forEach((feat, idx)=>{
+        const col = $('<div class="col-xs-6 col-sm-4 col-md-3"/>');
+        const id = `feat-${idx}`;
+        col.append(`
+          <div class="checkbox">
+            <label>
+              <input type="checkbox" class="cb-feat" data-name="${feat}" id="${id}"> ${feat.replace(/_/g,' ')}
+            </label>
+          </div>`);
+        row.append(col);
+      });
+      wrap.append(row);
+      if(featCount > 0){
+        wrap.append(`<div class="helper" id="feat-helper">${featCount} remaining</div>`);
+      }
+      $body.append(wrap);
+
+      $body.on('change', '.cb-feat', function(){
+        if(featCount <= 0) return;
+        const selected = $body.find('.cb-feat:checked').length;
+        const remaining = Math.max(0, featCount - selected);
+        $('#feat-helper').text(`${remaining} remaining`);
+        if(selected >= featCount){
+          $body.find('.cb-feat:not(:checked)').prop('disabled', true);
+        } else {
+          $body.find('.cb-feat').prop('disabled', false);
+        }
+      });
     }
   }
 
@@ -424,7 +487,10 @@
   $('#class-options').hide();
   $('#race-options').hide();
 
-  $('#cancel-btn').on('click', function(){ window.location.href = '/'; });
+  $('#cancel-btn').on('click', function(){
+    const url = $('#cancel-btn').data('cancel-url') || '/';
+    window.location.href = url;
+  });
 
   $('#character-form').on('submit', function(e){
     e.preventDefault();
@@ -475,7 +541,6 @@
       return;
     }
 
-    const formEl = document.getElementById('character-form');
     const fd = new FormData(formEl);
   // append class options
   const skills = [];
@@ -502,27 +567,73 @@
   const raceLanguages = [];
   $('#race-options-body .cb-race-language:checked').each(function(){ raceLanguages.push($(this).data('name')); });
   if(raceLanguages.length) fd.append('race_languages', JSON.stringify(raceLanguages));
+  const feats = [];
+  $('#class-options-body .cb-feat:checked').each(function(){ feats.push($(this).data('name')); });
+  if(feats.length) fd.append('feats', JSON.stringify(feats));
+
+  const submitUrl = (formEl.dataset && formEl.dataset.submitUrl) ? formEl.dataset.submitUrl : '/create_character';
     $.ajax({
-      type: 'POST', url: '/create_character', data: fd, dataType: 'json',
+      type: 'POST', url: submitUrl, data: fd, dataType: 'json',
       processData: false,
       contentType: false,
       success: function(resp){
         if(resp.error){
           $('#builder-msg').html(`<div class="alert alert-danger">${resp.error}</div>`);
         } else {
-          $('#builder-msg').html(`<div class="alert alert-success">Character created!</div>`);
+          const msg = editMode ? 'Character updated!' : 'Character created!';
+          $('#builder-msg').html(`<div class="alert alert-success">${msg}</div>`);
           // If coming from player flow, go to character_selection. Else back home.
           const next = resp.redirect || '/';
           setTimeout(()=> window.location.href = next, 800);
         }
       },
       error: function(){
-        $('#builder-msg').html(`<div class="alert alert-danger">Failed to create character.</div>`);
+        const msg = editMode ? 'Failed to update character.' : 'Failed to create character.';
+        $('#builder-msg').html(`<div class="alert alert-danger">${msg}</div>`);
       }
     });
   });
 
+  function prefillEditCharacter(){
+    if(!editMode || !EDIT_CHARACTER) return;
+    const ec = EDIT_CHARACTER;
+    $('#name').val(ec.name || '');
+    $('#pronoun').val(ec.pronoun || '');
+    $('#race').val(ec.race || '');
+    $('#race').trigger('change');
+    if(ec.subrace){
+      $('#subrace').val(ec.subrace);
+    }
+    $('#klass').val(ec.klass || '');
+    $('#level').val(String(ec.level || 1));
+
+    const ability = ec.ability || {};
+    abilities.forEach(ab=>{
+      const score = parseInt(ability[ab] || $(`#input-${ab}`).val() || 8, 10);
+      setVal(ab, score);
+    });
+    $('#points-remaining').text('-');
+
+    renderRaceOptions();
+    renderClassOptions();
+
+    const markChecked = (selector, values)=>{
+      const wanted = new Set(values || []);
+      $(selector).each(function(){
+        const name = $(this).data('name');
+        if(wanted.has(name)){
+          $(this).prop('checked', true).trigger('change');
+        }
+      });
+    };
+    markChecked('#class-options-body .cb-skill', ec.skills || []);
+    markChecked('#class-options-body .cb-cantrip', ec.cantrips || []);
+    markChecked('#class-options-body .cb-lvl1', ec.level1_spells || []);
+    markChecked('#class-options-body .cb-feat', ec.feats || []);
+  }
+
   // init
   updatePoints();
   renderRaceOptions();
+  prefillEditCharacter();
 })();

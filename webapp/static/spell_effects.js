@@ -212,6 +212,410 @@
     });
   });
 
+  // Chromatic Orb: configurable elemental orb projectile and impact burst.
+  register('chromatic_orb', function(payload){
+    return new Promise((resolve) => {
+      const targets = ensureArray(payload && payload.target);
+      if (!targets.length) return resolve();
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      const centers = targets.map(centerOfEntity).filter(Boolean);
+      if (!src || !centers.length) return resolve();
+
+      const typeKey = String((payload && payload.damage_type) || (payload && payload.spell && payload.spell.damage_type) || 'acid').toLowerCase();
+      const palettes = {
+        acid: [120, 255, 120],
+        cold: [150, 220, 255],
+        fire: [255, 130, 40],
+        lightning: [200, 235, 255],
+        poison: [145, 220, 110],
+        thunder: [190, 180, 255]
+      };
+      const color = palettes[typeKey] || palettes.acid;
+
+      const { overlay, ctx, destroy } = createOverlay(1102);
+      const target = centers[0];
+      const start = performance.now();
+      const duration = 360;
+
+      const frame = (now) => {
+        const t = Math.min(1, (now - start) / duration);
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+        const x = src.x + (target.x - src.x) * t;
+        const y = src.y + (target.y - src.y) * t;
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.42)`;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+
+        const orbRadius = 6 + 2 * Math.sin(now * 0.03);
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, orbRadius * 2.8);
+        grad.addColorStop(0, `rgba(255,255,255,0.95)`);
+        grad.addColorStop(0.45, `rgba(${color[0]},${color[1]},${color[2]},0.9)`);
+        grad.addColorStop(1, `rgba(${color[0]},${color[1]},${color[2]},0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, orbRadius * 2.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.95)`;
+        ctx.shadowColor = `rgba(${color[0]},${color[1]},${color[2]},0.85)`;
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.arc(x, y, orbRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        if (t < 1) {
+          requestAnimationFrame(frame);
+        } else {
+          impact();
+        }
+      };
+
+      function impact(){
+        const t0 = performance.now();
+        const impactDur = 320;
+        const burst = (now) => {
+          const t = Math.min(1, (now - t0) / impactDur);
+          ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+          const alpha = 1 - t;
+          const r = 18 + 30 * t;
+          ctx.save();
+          ctx.globalCompositeOperation = 'screen';
+          ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha.toFixed(2)})`;
+          ctx.lineWidth = 3 - 1.8 * t;
+          ctx.beginPath();
+          ctx.arc(target.x, target.y, r, 0, Math.PI * 2);
+          ctx.stroke();
+
+          for (let i = 0; i < 8; i++) {
+            const ang = (i / 8) * Math.PI * 2;
+            const len = 12 + 20 * t;
+            ctx.beginPath();
+            ctx.moveTo(target.x, target.y);
+            ctx.lineTo(target.x + Math.cos(ang) * len, target.y + Math.sin(ang) * len);
+            ctx.strokeStyle = `rgba(255,255,255,${(0.6 * alpha).toFixed(2)})`;
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+          }
+          ctx.restore();
+
+          if (t < 1) requestAnimationFrame(burst); else { destroy(); resolve(); }
+        };
+        requestAnimationFrame(burst);
+      }
+
+      requestAnimationFrame(frame);
+    });
+  });
+  register('chromatic orb', function(payload){ return play('chromatic_orb', payload); });
+
+  // Witch Bolt: crackling arc from caster to target.
+  register('witch_bolt', function(payload){
+    return new Promise((resolve) => {
+      const targets = ensureArray(payload && payload.target);
+      if (!targets.length) return resolve();
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      const tgt = centerOfEntity(targets[0]);
+      if (!src || !tgt) return resolve();
+
+      const { overlay, ctx, destroy } = createOverlay(1103);
+      const start = performance.now();
+      const castDur = 560;
+
+      function drawBolt(ax, ay, bx, by, jitter, alpha, width){
+        const dx = bx - ax;
+        const dy = by - ay;
+        const dist = Math.max(1, Math.hypot(dx, dy));
+        const nx = -dy / dist;
+        const ny = dx / dist;
+        const steps = Math.max(7, Math.floor(dist / 24));
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.lineWidth = width;
+        ctx.strokeStyle = `rgba(170,220,255,${alpha.toFixed(2)})`;
+        ctx.beginPath();
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const x = ax + dx * t;
+          const y = ay + dy * t;
+          const amp = jitter * (1 - Math.abs(0.5 - t) * 2);
+          const off = (Math.random() * 2 - 1) * amp;
+          const jx = x + nx * off;
+          const jy = y + ny * off;
+          if (i === 0) ctx.moveTo(jx, jy); else ctx.lineTo(jx, jy);
+        }
+        ctx.stroke();
+
+        ctx.lineWidth = Math.max(1, width * 0.45);
+        ctx.strokeStyle = `rgba(255,255,255,${Math.min(1, alpha * 1.1).toFixed(2)})`;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function frame(now){
+        const t = Math.min(1, (now - start) / castDur);
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+        const lead = 0.22 + 0.78 * t;
+        const tipX = src.x + (tgt.x - src.x) * lead;
+        const tipY = src.y + (tgt.y - src.y) * lead;
+
+        drawBolt(src.x, src.y, tipX, tipY, 18, 0.95 * (1 - t * 0.18), 3.2);
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        const pulse = 8 + 5 * Math.sin(now * 0.026);
+        const grad = ctx.createRadialGradient(tipX, tipY, 1, tipX, tipY, pulse * 3);
+        grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+        grad.addColorStop(0.45, 'rgba(160,210,255,0.8)');
+        grad.addColorStop(1, 'rgba(140,190,255,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(tipX, tipY, pulse * 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        if (t < 1) {
+          requestAnimationFrame(frame);
+          return;
+        }
+
+        const lingerStart = performance.now();
+        const lingerDur = 260;
+        function linger(now2){
+          const t2 = Math.min(1, (now2 - lingerStart) / lingerDur);
+          ctx.clearRect(0, 0, overlay.width, overlay.height);
+          drawBolt(src.x, src.y, tgt.x, tgt.y, 10, 0.5 * (1 - t2), 2.2);
+          if (t2 < 1) requestAnimationFrame(linger); else { destroy(); resolve(); }
+        }
+        requestAnimationFrame(linger);
+      }
+
+      requestAnimationFrame(frame);
+    });
+  });
+  register('witch bolt', function(payload){ return play('witch_bolt', payload); });
+
+  // Sustain tick: shorter pulse along an existing Witch Bolt link.
+  register('witch_bolt_sustain', function(payload){
+    return new Promise((resolve) => {
+      const targets = ensureArray(payload && payload.target);
+      if (!targets.length) return resolve();
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      const tgt = centerOfEntity(targets[0]);
+      if (!src || !tgt) return resolve();
+
+      const { overlay, ctx, destroy } = createOverlay(1103);
+      const start = performance.now();
+      const dur = 280;
+
+      function bolt(now){
+        const t = Math.min(1, (now - start) / dur);
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+        const alpha = 0.9 * (1 - t * 0.4);
+        const jitter = 14 * (1 - t * 0.2);
+        const dx = tgt.x - src.x;
+        const dy = tgt.y - src.y;
+        const dist = Math.max(1, Math.hypot(dx, dy));
+        const nx = -dy / dist;
+        const ny = dx / dist;
+        const steps = Math.max(6, Math.floor(dist / 24));
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.lineWidth = 2.8;
+        ctx.strokeStyle = `rgba(190,230,255,${alpha.toFixed(2)})`;
+        ctx.beginPath();
+        for (let i = 0; i <= steps; i++) {
+          const frac = i / steps;
+          const x = src.x + dx * frac;
+          const y = src.y + dy * frac;
+          const off = (Math.random() * 2 - 1) * jitter * (1 - Math.abs(0.5 - frac) * 2);
+          const jx = x + nx * off;
+          const jy = y + ny * off;
+          if (i === 0) ctx.moveTo(jx, jy); else ctx.lineTo(jx, jy);
+        }
+        ctx.stroke();
+        ctx.lineWidth = 1.4;
+        ctx.strokeStyle = `rgba(255,255,255,${Math.min(1, alpha * 1.2).toFixed(2)})`;
+        ctx.stroke();
+
+        const ring = 10 + 16 * t;
+        ctx.beginPath();
+        ctx.arc(tgt.x, tgt.y, ring, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(170,220,255,${(0.7 * (1 - t)).toFixed(2)})`;
+        ctx.lineWidth = 2 - t;
+        ctx.stroke();
+        ctx.restore();
+
+        if (t < 1) requestAnimationFrame(bolt); else { destroy(); resolve(); }
+      }
+
+      requestAnimationFrame(bolt);
+    });
+  });
+
+  // Color Spray: short cone of prismatic light from caster toward target direction.
+  register('color_spray', function(payload){
+    return new Promise((resolve) => {
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      if (!src) return resolve();
+
+      let angle = 0;
+      const t = payload && payload.target;
+      if (Array.isArray(t) && t.length === 2 && typeof t[0] === 'number' && typeof t[1] === 'number') {
+        const targetCenter = tileCenterByCoords(t[0], t[1]);
+        if (targetCenter) {
+          angle = Math.atan2(targetCenter.y - src.y, targetCenter.x - src.x);
+        }
+      } else if (typeof t === 'string') {
+        const c = centerOfEntity(t);
+        if (c) angle = Math.atan2(c.y - src.y, c.x - src.x);
+      }
+
+      const { overlay, ctx, destroy } = createOverlay(1103);
+      const start = performance.now();
+      const total = 520;
+      const halfAngle = Math.PI / 8; // 22.5 deg visual cone
+      const length = 190;
+      const colors = [
+        [255, 80, 80],
+        [255, 170, 60],
+        [255, 235, 120],
+        [140, 255, 160],
+        [120, 190, 255],
+        [190, 140, 255]
+      ];
+
+      const draw = (now) => {
+        const tNorm = Math.min(1, (now - start) / total);
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+
+        const coneLen = length * (0.55 + 0.45 * tNorm);
+        const alpha = 0.95 * (1 - tNorm * 0.75);
+
+        colors.forEach((rgb, i) => {
+          const bandT0 = i / colors.length;
+          const bandT1 = (i + 1) / colors.length;
+          const a0 = angle - halfAngle + (2 * halfAngle * bandT0);
+          const a1 = angle - halfAngle + (2 * halfAngle * bandT1);
+
+          ctx.beginPath();
+          ctx.moveTo(src.x, src.y);
+          ctx.lineTo(src.x + Math.cos(a0) * coneLen, src.y + Math.sin(a0) * coneLen);
+          ctx.lineTo(src.x + Math.cos(a1) * coneLen, src.y + Math.sin(a1) * coneLen);
+          ctx.closePath();
+          ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${(alpha * 0.22).toFixed(2)})`;
+          ctx.fill();
+        });
+
+        // Sparkling motes in the cone
+        for (let i = 0; i < 28; i++) {
+          const frac = Math.random();
+          const ang = angle + (Math.random() * 2 - 1) * halfAngle;
+          const r = coneLen * frac;
+          const x = src.x + Math.cos(ang) * r;
+          const y = src.y + Math.sin(ang) * r;
+          const col = colors[i % colors.length];
+          ctx.beginPath();
+          ctx.arc(x, y, 1.3 + Math.random() * 1.7, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${(0.55 * (1 - tNorm)).toFixed(2)})`;
+          ctx.fill();
+        }
+
+        ctx.restore();
+        if (tNorm < 1) requestAnimationFrame(draw); else { destroy(); resolve(); }
+      };
+
+      requestAnimationFrame(draw);
+    });
+  });
+  register('color spray', function(payload){ return play('color_spray', payload); });
+
+  // Grease: oily splash burst around a target square.
+  register('grease', function(payload){
+    return new Promise((resolve) => {
+      const src = payload && payload.source ? centerOfEntity(payload.source) : null;
+      let targetCenter = null;
+      const target = payload && payload.target;
+
+      if (Array.isArray(target) && target.length === 2 && typeof target[0] === 'number' && typeof target[1] === 'number') {
+        targetCenter = tileCenterByCoords(target[0], target[1]);
+      } else if (typeof target === 'string') {
+        targetCenter = centerOfEntity(target);
+      }
+
+      if (!targetCenter) targetCenter = src;
+      if (!targetCenter) return resolve();
+
+      const { overlay, ctx, destroy } = createOverlay(1102);
+      const start = performance.now();
+      const duration = 580;
+      const droplets = Array.from({ length: 34 }).map(() => ({
+        a: Math.random() * Math.PI * 2,
+        r: 16 + Math.random() * 54,
+        s: 1 + Math.random() * 2.2,
+        p: Math.random(),
+      }));
+
+      const draw = (now) => {
+        const t = Math.min(1, (now - start) / duration);
+        const fade = 1 - t;
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+
+        const poolR = 16 + 76 * t;
+        const pool = ctx.createRadialGradient(
+          targetCenter.x,
+          targetCenter.y,
+          0,
+          targetCenter.x,
+          targetCenter.y,
+          poolR,
+        );
+        pool.addColorStop(0, `rgba(242,226,156,${(0.42 * fade).toFixed(2)})`);
+        pool.addColorStop(0.5, `rgba(163,133,56,${(0.28 * fade).toFixed(2)})`);
+        pool.addColorStop(1, 'rgba(96,72,25,0)');
+        ctx.fillStyle = pool;
+        ctx.beginPath();
+        ctx.arc(targetCenter.x, targetCenter.y, poolR, 0, Math.PI * 2);
+        ctx.fill();
+
+        droplets.forEach((d, i) => {
+          const prog = Math.min(1, t * 1.18 + d.p * 0.05);
+          const x = targetCenter.x + Math.cos(d.a) * d.r * prog;
+          const y = targetCenter.y + Math.sin(d.a) * d.r * prog;
+          const rr = d.s * (1 - prog * 0.35);
+          ctx.fillStyle = i % 3 === 0
+            ? `rgba(244,229,166,${(0.55 * fade).toFixed(2)})`
+            : `rgba(128,101,36,${(0.45 * fade).toFixed(2)})`;
+          ctx.beginPath();
+          ctx.arc(x, y, rr, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        ctx.restore();
+        if (t < 1) requestAnimationFrame(draw); else { destroy(); resolve(); }
+      };
+
+      requestAnimationFrame(draw);
+    });
+  });
+
   // Eldritch Blast: arcane beams with void ripple impacts, supports multiple beams/targets
   register('eldritch_blast', function(payload){
     return new Promise((resolve) => {

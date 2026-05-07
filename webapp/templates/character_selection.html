@@ -818,6 +818,7 @@
         function updateConfirmState() {
             const ready = selectedCharacter !== null && (!teamSelectionEnabled || selectedTeam !== null);
             $('#confirmButton').prop('disabled', !ready);
+            $('#editButton').prop('disabled', !selectedCharacter);
         }
         
         // Handle character card selection
@@ -886,6 +887,15 @@
         // Handle logout
         $('#logoutButton').on('click', function() {
             window.location.href = '/logout';
+        });
+
+        $('#editButton').on('click', function() {
+            if (!selectedCharacter) {
+                showMessage('Select a character first to edit it.', 'danger');
+                return;
+            }
+            const next = encodeURIComponent('/character_selection');
+            window.location.href = '/character_editor/' + encodeURIComponent(selectedCharacter) + '?next=' + next;
         });
         
         // Handle view character details
@@ -1429,6 +1439,9 @@
                 </a>
                 
                 <div class="action-buttons">
+                    <button type="button" id="editButton" class="btn-dnd" disabled>
+                        Edit Character
+                    </button>
                     <button type="button" id="confirmButton" class="btn-dnd" disabled>
                         Confirm Selection
                     </button>
