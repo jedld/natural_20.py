@@ -26,15 +26,16 @@
   <div class="builder-container">
     <div class="panel panel-dnd">
       <div class="panel-heading">
-        <h3 class="panel-title">New Character</h3>
+        <h3 class="panel-title">{{ 'Edit Character' if edit_mode else 'New Character' }}</h3>
       </div>
       <div class="panel-body">
-  <form id="character-form" class="form" enctype="multipart/form-data">
+  <form id="character-form" class="form" enctype="multipart/form-data" data-edit-mode="{{ 'true' if edit_mode else 'false' }}" data-submit-url="{{ ('/update_character/' ~ editing_character) if edit_mode else '/create_character' }}">
+          <input type="hidden" name="next" value="{{ cancel_url or '/' }}">
           <div class="row">
             <div class="col-sm-6">
               <div class="form-group">
                 <label for="name">Name</label>
-                <input type="text" class="form-control" id="name" name="name" placeholder="Enter character name" required>
+                <input type="text" class="form-control" id="name" name="name" placeholder="Enter character name" required {{ 'readonly' if edit_mode else '' }}>
               </div>
             </div>
             <div class="col-sm-6">
@@ -49,7 +50,7 @@
             <div class="col-sm-4">
               <div class="form-group">
                 <label for="race">Race</label>
-                <select class="form-control" id="race" name="race" required>
+                <select class="form-control" id="race" name="race" required {{ 'disabled' if edit_mode else '' }}>
                   <option value="">-- Select Race --</option>
                   {% for rname, rprops in races.items() %}
                     <option value="{{ rname }}">{{ rprops.label or rname.replace('_', ' ')|title }}</option>
@@ -61,7 +62,7 @@
             <div class="col-sm-4">
               <div class="form-group">
                 <label for="subrace">Subrace</label>
-                <select class="form-control" id="subrace" name="subrace" disabled>
+                <select class="form-control" id="subrace" name="subrace" {{ 'disabled' if edit_mode else 'disabled' }}>
                   <option value="">-- None --</option>
                 </select>
               </div>
@@ -69,7 +70,7 @@
             <div class="col-sm-4">
               <div class="form-group">
                 <label for="klass">Class</label>
-                <select class="form-control" id="klass" name="klass" required>
+                <select class="form-control" id="klass" name="klass" required {{ 'disabled' if edit_mode else '' }}>
                   <option value="">-- Select Class --</option>
                   {% for cname, cprops in classes.items() %}
                     <option value="{{ cname }}">{{ cname|capitalize }}</option>
@@ -94,7 +95,7 @@
             <div class="col-sm-4">
               <div class="form-group">
                 <label for="level">Level</label>
-                <select class="form-control" id="level" name="level" required>
+                <select class="form-control" id="level" name="level" required {{ 'disabled' if edit_mode else '' }}>
                   <option value="1" selected>1</option>
                   <option value="2">2</option>
                 </select>
@@ -167,8 +168,8 @@
           <input type="hidden" name="cha" id="input-cha" value="8">
 
           <div class="text-right" style="margin-top:15px;">
-            <button type="button" class="btn btn-default" id="cancel-btn">Cancel</button>
-            <button type="submit" class="btn btn-primary">Create Character</button>
+            <button type="button" class="btn btn-default" id="cancel-btn" data-cancel-url="{{ cancel_url or '/' }}">Cancel</button>
+            <button type="submit" class="btn btn-primary">{{ 'Save Changes' if edit_mode else 'Create Character' }}</button>
           </div>
         </form>
 
@@ -179,6 +180,9 @@
 
   <script id="races-data" type="application/json">{{ races|tojson|safe }}</script>
   <script id="classes-data" type="application/json">{{ classes|tojson|safe }}</script>
+  {% if edit_mode %}
+  <script id="edit-character-data" type="application/json">{{ edit_character|tojson|safe }}</script>
+  {% endif %}
   <script src="/js/character_builder.js"></script>
 </body>
 </html>

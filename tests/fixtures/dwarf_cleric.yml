@@ -16,6 +16,7 @@ ability:
   int: 10
   wis: 16
   cha: 12
+divine_domain: life
 prepared_spells:
 - sacred_flame
 - cure_wounds

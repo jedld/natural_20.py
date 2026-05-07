@@ -43,5 +43,6 @@ class HealingWordSpell(Spell):
             "target": target,
             "type": "spell_heal",
             "heal_roll": heal_roll,
+            "at_level": getattr(spell_action, 'at_level', 1) or 1,
             "spell": self.properties
         }]

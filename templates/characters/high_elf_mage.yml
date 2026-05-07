@@ -1,4 +1,3 @@
----
 name: Crysania
 race: elf
 subrace: high_elf
@@ -20,28 +19,23 @@ prepared_spells:
 - burning_hands
 - chill_touch
 - firebolt
-- ray_of_frost
-- mage_armor
-- magic_missile
+- chromatic_orb
 - expeditious_retreat
-- shocking_grasp
-- mage_hand
+- mage_armor
 - shield
-- ice_knife
-- find_familiar
-- true_strike
-- poison_spray
-- thunderwave
 languages:
 - common
 - elvish
 - goblin
 spellbook:
+- burning_hands
+- chromatic_orb
+- expeditious_retreat
 - mage_armor
-- magic_missile
 - shield
-- find_familiar
-- mage_hand
+- alarm
+- charm_person
+- color_spray
 equipped:
 - dagger
 inventory:

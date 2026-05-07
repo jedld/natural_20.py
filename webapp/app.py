@@ -495,6 +495,166 @@ def _emit_narration_overlay(event):
         logger.debug(f"Failed to record narration in journals: {exc}")
 
 event_manager.register_event_listener('narration', _emit_narration_overlay)
+
+
+def _humanize_condition(condition_id):
+    if not condition_id:
+        return 'control override'
+    return str(condition_id).replace('_', ' ')
+
+
+def _entity_brief(entity):
+    if entity is None:
+        return None
+    return {
+        'uid': getattr(entity, 'entity_uid', None),
+        'name': getattr(entity, 'label', lambda: getattr(entity, 'name', 'Unknown'))()
+            if callable(getattr(entity, 'label', None)) else getattr(entity, 'name', 'Unknown'),
+    }
+
+
+def _entity_position(entity):
+    """Return ``[x, y]`` for ``entity`` on whichever map it currently lives on."""
+    try:
+        game = globals().get('current_game')
+        if not game or entity is None:
+            return None
+        for m in (getattr(game, 'maps', {}) or {}).values():
+            try:
+                if entity in m.entities:
+                    return list(m.entities[entity])
+            except Exception:
+                continue
+    except Exception:
+        return None
+    return None
+
+
+def _users_controlling(entity):
+    """Usernames whose ``WebController`` is bound to ``entity`` (plus DMs)."""
+    game = globals().get('current_game')
+    if not game or entity is None:
+        return set()
+    users = set()
+    try:
+        ctrl = (game.web_controllers or {}).get(entity)
+        if ctrl is not None and hasattr(ctrl, 'get_users'):
+            for u in ctrl.get_users() or []:
+                if u:
+                    users.add(u)
+    except Exception:
+        pass
+    # Always include any DM-role user so they see the override too.
+    try:
+        for username in (game.username_to_sid or {}).keys():
+            if username and username.lower().startswith('dm'):
+                users.add(username)
+    except Exception:
+        pass
+    return users
+
+
+def _emit_to_users(payload, usernames):
+    """Send a socket ``message`` payload to the SIDs of every named user.
+
+    Falls back to a global broadcast when no usernames resolve to known SIDs
+    so the notification is never silently dropped.
+    """
+    game = globals().get('current_game')
+    sent = False
+    if game and usernames:
+        sid_map = getattr(game, 'username_to_sid', {}) or {}
+        for username in usernames:
+            for sid in sid_map.get(username, []) or []:
+                socketio.emit('message', payload, to=sid)
+                sent = True
+    if not sent:
+        socketio.emit('message', payload)
+
+
+def _emit_control_override_change(event, action):
+    """Notify manual users when a loss-of-control effect starts/ends."""
+    target = event.get('target')
+    source = event.get('source')
+    condition = event.get('condition') or 'control_override'
+    target_brief = _entity_brief(target)
+    source_brief = _entity_brief(source)
+    target_name = (target_brief or {}).get('name') or 'Someone'
+    source_name = (source_brief or {}).get('name') if source_brief else None
+    pretty_condition = _humanize_condition(condition)
+
+    if action == 'added':
+        if source_name and source_name != target_name:
+            log_msg = f"{target_name} is now {pretty_condition} (from {source_name})."
+        else:
+            log_msg = f"{target_name} is now {pretty_condition}."
+        toast_text = f"{target_name}: {pretty_condition}"
+    else:
+        log_msg = f"{target_name} is no longer {pretty_condition}."
+        toast_text = f"{target_name}: {pretty_condition} ended"
+
+    try:
+        output_logger.log(log_msg, visibility='public')
+    except Exception:
+        pass
+
+    payload = {
+        'type': 'control_override',
+        'action': action,
+        'target': target_brief,
+        'source': source_brief,
+        'condition': condition,
+        'condition_label': pretty_condition,
+        'message': log_msg,
+        'toast': toast_text,
+        'position': _entity_position(target),
+    }
+    _emit_to_users(payload, _users_controlling(target))
+
+
+def _on_control_override_added(event):
+    _emit_control_override_change(event, 'added')
+
+
+def _on_control_override_removed(event):
+    _emit_control_override_change(event, 'removed')
+
+
+def _on_turn_skipped(event):
+    target = event.get('target')
+    target_brief = _entity_brief(target)
+    target_name = (target_brief or {}).get('name') or 'Someone'
+    statuses = event.get('statuses') or []
+    reason = event.get('reason') or 'incapacitated'
+    pretty_reason = _humanize_condition(reason)
+    if statuses:
+        pretty_statuses = ', '.join(_humanize_condition(s) for s in statuses)
+        log_msg = f"{target_name}'s turn is skipped ({pretty_reason}: {pretty_statuses})."
+    else:
+        log_msg = f"{target_name}'s turn is skipped ({pretty_reason})."
+
+    try:
+        output_logger.log(log_msg, visibility='public')
+    except Exception:
+        pass
+
+    payload = {
+        'type': 'turn_skipped',
+        'target': target_brief,
+        'reason': reason,
+        'reason_label': pretty_reason,
+        'statuses': list(statuses),
+        'message': log_msg,
+        'toast': f"{target_name}: turn skipped ({pretty_reason})",
+        'position': _entity_position(target),
+    }
+    _emit_to_users(payload, _users_controlling(target))
+
+
+event_manager.register_event_listener('control_override_added', _on_control_override_added)
+event_manager.register_event_listener('control_override_removed', _on_control_override_removed)
+event_manager.register_event_listener('turn_skipped', _on_turn_skipped)
+
 game_session = GameSession.Session(LEVEL, event_manager=event_manager)
 game_session.render_for_text = False # render for text is disabled since we are using a web renderer
 current_soundtrack = None
@@ -2105,6 +2265,227 @@ def delete_map():
         logger.exception('Failed to delete map')
         return jsonify(error=str(e)), 500
 
+
+def _parse_json_list_form(form, key):
+    val = form.get(key)
+    if not val:
+        return []
+    try:
+        data = json.loads(val)
+        if isinstance(data, list):
+            return [str(x) for x in data]
+    except Exception:
+        pass
+    return []
+
+
+def _parse_json_dict_form(form, key):
+    val = form.get(key)
+    if not val:
+        return {}
+    try:
+        data = json.loads(val)
+        if isinstance(data, dict):
+            parsed = {}
+            for k, v in data.items():
+                parsed[str(k)] = int(v)
+            return parsed
+    except Exception:
+        pass
+    return {}
+
+
+def _ability_mod(score):
+    try:
+        return (int(score) - 10) // 2
+    except Exception:
+        return 0
+
+
+def _spell_choice_caps(klass, level, ability, class_def):
+    klass_lower = str(klass or '').lower()
+    lvl = max(1, int(level or 1))
+    caps = {'cantrip_cap': 0, 'level1_cap': 0, 'spellbook_cap': 0}
+
+    try:
+        from natural20.entity_class.wizard import WIZARD_SPELL_SLOT_TABLE
+        from natural20.entity_class.cleric import CLERIC_SPELL_SLOT_TABLE
+        from natural20.entity_class.druid import DRUID_SPELL_SLOT_TABLE
+        from natural20.entity_class.bard import BARD_SPELL_SLOT_TABLE
+        from natural20.entity_class.warlock import WARLOCK_SPELL_SLOT_TABLE
+        from natural20.entity_class.sorcerer import SORCERER_SPELL_SLOT_TABLE
+        from natural20.entity_class.paladin import PALADIN_SPELL_SLOT_TABLE
+        from natural20.entity_class.ranger import RANGER_SPELL_SLOT_TABLE
+    except Exception:
+        WIZARD_SPELL_SLOT_TABLE = []
+        CLERIC_SPELL_SLOT_TABLE = []
+        DRUID_SPELL_SLOT_TABLE = []
+        BARD_SPELL_SLOT_TABLE = []
+        WARLOCK_SPELL_SLOT_TABLE = []
+        SORCERER_SPELL_SLOT_TABLE = []
+        PALADIN_SPELL_SLOT_TABLE = []
+        RANGER_SPELL_SLOT_TABLE = []
+
+    slot_tables = {
+        'wizard': WIZARD_SPELL_SLOT_TABLE,
+        'cleric': CLERIC_SPELL_SLOT_TABLE,
+        'druid': DRUID_SPELL_SLOT_TABLE,
+        'bard': BARD_SPELL_SLOT_TABLE,
+        'warlock': WARLOCK_SPELL_SLOT_TABLE,
+        'sorcerer': SORCERER_SPELL_SLOT_TABLE,
+        'paladin': PALADIN_SPELL_SLOT_TABLE,
+        'ranger': RANGER_SPELL_SLOT_TABLE,
+    }
+
+    table = slot_tables.get(klass_lower) or []
+    row = []
+    if table and lvl <= len(table):
+        row = table[lvl - 1]
+
+    if row:
+        if len(row) > 0:
+            caps['cantrip_cap'] = max(0, int(row[0] or 0))
+        if len(row) > 1:
+            caps['level1_cap'] = max(0, int(row[1] or 0))
+
+    # Known/prepared rules for early levels where engine supports custom builds.
+    if klass_lower == 'wizard':
+        caps['spellbook_cap'] = 6 + (max(1, lvl) - 1) * 2
+        caps['level1_cap'] = max(caps['level1_cap'], max(1, lvl + _ability_mod((ability or {}).get('int', 10))))
+    elif klass_lower in ('cleric', 'druid', 'paladin'):
+        spell_ability = str((class_def or {}).get('spellcasting_ability') or ('wisdom' if klass_lower in ('cleric', 'druid') else 'charisma'))
+        key = spell_ability[:3].lower()
+        caps['level1_cap'] = max(caps['level1_cap'], max(1, lvl + _ability_mod((ability or {}).get(key, 10))))
+    elif klass_lower == 'bard':
+        bard_known = [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14,
+                      15, 15, 16, 18, 19, 19, 20, 22, 22, 22]
+        caps['level1_cap'] = max(caps['level1_cap'], bard_known[min(lvl, len(bard_known) - 1)])
+    elif klass_lower == 'warlock':
+        warlock_known = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10,
+                         11, 11, 12, 12, 13, 13, 14, 14, 15, 15]
+        caps['level1_cap'] = max(caps['level1_cap'], warlock_known[min(lvl, len(warlock_known) - 1)])
+    elif klass_lower == 'sorcerer':
+        sorc_known = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+                      12, 12, 13, 13, 14, 14, 15, 15, 15, 15]
+        caps['level1_cap'] = max(caps['level1_cap'], sorc_known[min(lvl, len(sorc_known) - 1)])
+    elif klass_lower == 'ranger':
+        ranger_known = [0, 0, 2, 3, 3, 4, 4, 5, 5, 6, 6,
+                        7, 7, 8, 8, 9, 9, 10, 10, 11, 11]
+        caps['level1_cap'] = max(caps['level1_cap'], ranger_known[min(lvl, len(ranger_known) - 1)])
+
+    return caps
+
+
+def _apply_class_and_feat_choices(pc, klass, level, classes_def, selected_skills, selected_cantrips, selected_level1, selected_feats):
+    cdef = (classes_def or {}).get(klass, {}) or {}
+
+    # Skills
+    max_skills = int(cdef.get('available_skills_choices', 0) or 0)
+    available_skills = cdef.get('available_skills', []) or []
+    if max_skills and available_skills:
+        valid_skills = [s for s in selected_skills if s in available_skills][:max_skills]
+        if valid_skills:
+            pc['skills'] = valid_skills
+
+    # Spells
+    spell_list = cdef.get('spell_list', {}) or {}
+    can_list = spell_list.get('cantrip', []) or []
+    lvl1_list = spell_list.get('level_1', []) or []
+    caps = _spell_choice_caps(klass, level, pc.get('ability') or {}, cdef)
+
+    cantrip_cap = min(caps['cantrip_cap'], len(can_list)) if can_list else 0
+    level1_cap = min(caps['level1_cap'], len(lvl1_list)) if lvl1_list else 0
+
+    prepared = []
+    if cantrip_cap > 0:
+        prepared.extend([s for s in selected_cantrips if s in can_list][:cantrip_cap])
+    if level1_cap > 0:
+        prepared.extend([s for s in selected_level1 if s in lvl1_list][:level1_cap])
+
+    if prepared:
+        pc['prepared_spells'] = list(dict.fromkeys(prepared))
+    elif 'prepared_spells' in pc:
+        pc.pop('prepared_spells', None)
+
+    if str(klass).lower() == 'wizard':
+        spellbook_cap = max(0, int(caps.get('spellbook_cap') or 0))
+        if spellbook_cap > 0:
+            book = [s for s in lvl1_list if s in (pc.get('prepared_spells') or [])]
+            for spell in lvl1_list:
+                if len(book) >= spellbook_cap:
+                    break
+                if spell not in book:
+                    book.append(spell)
+            pc['spellbook'] = book[:spellbook_cap]
+
+    # Feats
+    feat_options = cdef.get('feat_choices') or cdef.get('available_feats') or []
+    feat_count = int(cdef.get('feat_choices_count') or cdef.get('available_feats_choices') or 0)
+    if feat_options:
+        feats = [f for f in selected_feats if f in feat_options]
+        if feat_count > 0:
+            feats = feats[:feat_count]
+        pc['feats'] = list(dict.fromkeys(feats))
+    elif selected_feats:
+        pc['feats'] = list(dict.fromkeys(selected_feats))
+
+
+def _resolve_character_yaml_path(character_name):
+    chars_dir = os.path.join(game_session.root_path, 'characters')
+    if not os.path.isdir(chars_dir):
+        return None
+
+    direct_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', str(character_name or ''))
+    if direct_name:
+        direct_path = os.path.join(chars_dir, f"{direct_name}.yml")
+        if os.path.exists(direct_path):
+            return direct_path
+
+    target = str(character_name or '').lower()
+    for file_name in os.listdir(chars_dir):
+        if not file_name.endswith('.yml'):
+            continue
+        file_path = os.path.join(chars_dir, file_name)
+        try:
+            with open(file_path, 'r', encoding='utf-8') as fh:
+                data = yaml.safe_load(fh) or {}
+        except Exception:
+            continue
+
+        candidate_uid = str(data.get('entity_uid') or '').lower()
+        candidate_name = str(data.get('name') or '').lower()
+        if candidate_uid == target or candidate_name == target:
+            return file_path
+
+    return None
+
+
+def _can_edit_character(character_name):
+    if builder_only_mode():
+        return True
+    if 'dm' in user_role():
+        return True
+    username = session.get('username')
+    if not username:
+        return False
+    if controller_of(character_name, username):
+        return True
+
+    # Selection-flow editing: allow a logged-in player to edit a selectable
+    # character before confirming ownership, as long as another user has not
+    # already claimed it.
+    entry = selectable_character_entry(character_name)
+    if entry is not None:
+        for controller in CONTROLLERS:
+            if controller.get('entity_uid') != character_name:
+                continue
+            controllers = controller.get('controllers') or []
+            if controllers and username not in controllers:
+                return False
+        return True
+
+    return False
+
 @app.route('/character_builder', methods=['GET'])
 def character_builder():
     if not logged_in():
@@ -2116,10 +2497,143 @@ def character_builder():
         return render_template('character_builder.html',
                                title=TITLE,
                                races=races,
-                               classes=classes)
+                               classes=classes,
+                               edit_mode=False,
+                               cancel_url='/')
     except Exception as e:
         logger.exception('Failed to load character builder')
         return jsonify(error='Failed to load character builder'), 500
+
+
+@app.route('/character_editor/<character_name>', methods=['GET'])
+def character_editor(character_name):
+    if not logged_in():
+        return redirect(url_for('login'))
+    if not _can_edit_character(character_name):
+        return jsonify(error='Forbidden'), 403
+
+    yml_path = _resolve_character_yaml_path(character_name)
+    if not yml_path:
+        return jsonify(error='Character not found'), 404
+
+    try:
+        with open(yml_path, 'r', encoding='utf-8') as fh:
+            pc = yaml.safe_load(fh) or {}
+
+        races = game_session.load_races() or {}
+        classes = game_session.load_classes() or {}
+
+        class_map = pc.get('classes') or {}
+        klass = next(iter(class_map.keys()), None)
+        level = int(class_map.get(klass, pc.get('level', 1))) if klass else int(pc.get('level', 1) or 1)
+
+        spell_list = ((classes.get(klass or '', {}) or {}).get('spell_list') or {})
+        can_list = set(spell_list.get('cantrip') or [])
+        lvl1_list = set(spell_list.get('level_1') or [])
+        prepared = list(pc.get('prepared_spells') or [])
+
+        edit_character = {
+            'name': pc.get('name', ''),
+            'pronoun': pc.get('pronoun', ''),
+            'race': pc.get('race', ''),
+            'subrace': pc.get('subrace', ''),
+            'klass': klass or '',
+            'level': level,
+            'ability': pc.get('ability', {}),
+            'skills': list(pc.get('skills') or []),
+            'cantrips': [s for s in prepared if s in can_list],
+            'level1_spells': [s for s in prepared if s in lvl1_list],
+            'feats': list(pc.get('feats') or []),
+        }
+
+        cancel_url = request.args.get('next') or '/'
+        return render_template(
+            'character_builder.html',
+            title=TITLE,
+            races=races,
+            classes=classes,
+            edit_mode=True,
+            edit_character=edit_character,
+            editing_character=character_name,
+            cancel_url=cancel_url,
+        )
+    except Exception:
+        logger.exception('Failed to load character editor')
+        return jsonify(error='Failed to load character editor'), 500
+
+
+@app.route('/update_character/<character_name>', methods=['POST'])
+def update_character(character_name):
+    if not logged_in():
+        return jsonify(error='Not logged in'), 401
+    if not _can_edit_character(character_name):
+        return jsonify(error='Forbidden'), 403
+
+    yml_path = _resolve_character_yaml_path(character_name)
+    if not yml_path:
+        return jsonify(error='Character not found'), 404
+
+    try:
+        with open(yml_path, 'r', encoding='utf-8') as fh:
+            pc = yaml.safe_load(fh) or {}
+
+        class_map = pc.get('classes') or {}
+        klass = next(iter(class_map.keys()), None)
+        if not klass:
+            return jsonify(error='Character class is missing'), 400
+        level = int(class_map.get(klass, pc.get('level', 1) or 1))
+
+        selected_skills = _parse_json_list_form(request.form, 'skills')
+        selected_cantrips = _parse_json_list_form(request.form, 'cantrips')
+        selected_level1 = _parse_json_list_form(request.form, 'level1_spells')
+        selected_feats = _parse_json_list_form(request.form, 'feats')
+
+        classes_def = game_session.load_classes() or {}
+        cdef = classes_def.get(klass, {}) or {}
+        class_skill_pool = set(cdef.get('available_skills') or [])
+        existing_skills = list(pc.get('skills') or [])
+        non_class_skills = [s for s in existing_skills if s not in class_skill_pool]
+
+        _apply_class_and_feat_choices(
+            pc,
+            klass,
+            level,
+            classes_def,
+            selected_skills,
+            selected_cantrips,
+            selected_level1,
+            selected_feats,
+        )
+
+        if non_class_skills:
+            pc.setdefault('skills', [])
+            for skill in non_class_skills:
+                if skill not in pc['skills']:
+                    pc['skills'].append(skill)
+
+        pronoun = (request.form.get('pronoun') or '').strip()
+        if pronoun:
+            pc['pronoun'] = pronoun
+        else:
+            pc.pop('pronoun', None)
+
+        with open(yml_path, 'w', encoding='utf-8') as fh:
+            yaml.safe_dump(pc, fh, sort_keys=False)
+
+        entity_uid = str(pc.get('entity_uid') or character_name)
+        entity = current_game.get_entity_by_uid(entity_uid)
+        if entity is not None and isinstance(getattr(entity, 'properties', None), dict):
+            for key in ('skills', 'prepared_spells', 'spellbook', 'feats', 'pronoun'):
+                if key in pc:
+                    entity.properties[key] = pc.get(key)
+                elif key in entity.properties:
+                    entity.properties.pop(key, None)
+
+        redirect_to = request.form.get('next') or '/'
+        return jsonify(status='ok', redirect=redirect_to)
+    except Exception:
+        logger.exception('Failed to update character')
+        return jsonify(error='Failed to update character'), 500
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -2222,43 +2736,13 @@ def create_character():
         if subrace:
             subrace_def = (race_def.get('subrace') or {}).get(subrace, {})
 
-        # Parse optional structured selections
-        def _parse_json_list(key):
-            val = request.form.get(key)
-            if not val:
-                return []
-            try:
-                data = json.loads(val)
-                if isinstance(data, list):
-                    return [str(x) for x in data]
-            except Exception:
-                pass
-            return []
-
-        def _parse_json_dict(key):
-            val = request.form.get(key)
-            if not val:
-                return {}
-            try:
-                data = json.loads(val)
-                if isinstance(data, dict):
-                    parsed = {}
-                    for k, v in data.items():
-                        try:
-                            parsed[str(k)] = int(v)
-                        except Exception:
-                            return {}
-                    return parsed
-            except Exception:
-                pass
-            return {}
-
-        selected_skills = _parse_json_list('skills')
-        selected_cantrips = _parse_json_list('cantrips')
-        selected_level1 = _parse_json_list('level1_spells')
-        race_bonus_map = _parse_json_dict('race_ability_bonuses')
-        race_skill_selections = _parse_json_list('race_skills')
-        race_language_selections = _parse_json_list('race_languages')
+        selected_skills = _parse_json_list_form(request.form, 'skills')
+        selected_cantrips = _parse_json_list_form(request.form, 'cantrips')
+        selected_level1 = _parse_json_list_form(request.form, 'level1_spells')
+        selected_feats = _parse_json_list_form(request.form, 'feats')
+        race_bonus_map = _parse_json_dict_form(request.form, 'race_ability_bonuses')
+        race_skill_selections = _parse_json_list_form(request.form, 'race_skills')
+        race_language_selections = _parse_json_list_form(request.form, 'race_languages')
 
         flexible_cfg = subrace_def.get('flexible_ability') or race_def.get('flexible_ability') or {}
         expected_picks = flexible_cfg.get('picks') or []
@@ -2365,81 +2849,22 @@ def create_character():
         # Validate and apply class choices from templates
         try:
             classes_def = game_session.load_classes() or {}
-            cdef = classes_def.get(klass, {})
-            # Skills
-            max_skills = int(cdef.get('available_skills_choices', 0))
-            available_skills = cdef.get('available_skills', []) or []
-            if max_skills and available_skills:
-                valid_skills = [s for s in selected_skills if s in available_skills][:max_skills]
-                if valid_skills:
-                    pc['skills'] = valid_skills
+            _apply_class_and_feat_choices(
+                pc,
+                klass,
+                level,
+                classes_def,
+                selected_skills,
+                selected_cantrips,
+                selected_level1,
+                selected_feats,
+            )
 
             if race_skill_selections:
                 pc.setdefault('skills', [])
                 for skill in race_skill_selections:
                     if skill not in pc['skills']:
                         pc['skills'].append(skill)
-
-            # Spells and early-class specifics
-            spell_list = cdef.get('spell_list', {}) or {}
-            if spell_list:
-                can_list = spell_list.get('cantrip', []) or []
-                lvl1_list = spell_list.get('level_1', []) or []
-                # Very light SRD-based counts for level 1/2
-                klass_lower = klass.lower()
-                cantrip_cap = 0
-                lvl1_cap = 0
-                spellbook_cap = 0
-                if klass_lower == 'wizard':
-                    cantrip_cap = 3
-                    lvl1_cap = 2
-                    spellbook_cap = 6 if level==1 else 8
-                elif klass_lower == 'cleric':
-                    cantrip_cap = 3
-                    lvl1_cap = 2 if level==1 else 3
-                elif klass_lower == 'bard':
-                    cantrip_cap = 2
-                    lvl1_cap = 4 if level==1 else 5
-                elif klass_lower == 'warlock':
-                    # Pact Magic: stick to early-level defaults (builder supports levels 1-2)
-                    cantrip_cap = 2 if level <= 3 else 3
-                    lvl1_cap = 2 if level <= 1 else 3
-                elif klass_lower == 'sorcerer':
-                    # Sorcerer (PHB): cantrips known 4 at L1, 5 at L4, 6 at L10
-                    cantrip_cap = 4 if level < 4 else (5 if level < 10 else 6)
-                    # Spells known: 2 at L1, 3 at L2, 4 at L3, 5 at L4...
-                    sorc_known = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-                                  12, 12, 13, 13, 14, 14, 15, 15, 15, 15]
-                    lvl1_cap = sorc_known[min(level, len(sorc_known)) - 1]
-
-                cantrips = [s for s in selected_cantrips if s in can_list][:cantrip_cap]
-                if cantrips:
-                    # store within prepared_spells for compatibility
-                    pc.setdefault('prepared_spells', [])
-                    pc['prepared_spells'].extend(cantrips)
-
-                lvl1_spells = [s for s in selected_level1 if s in lvl1_list][:lvl1_cap]
-                if lvl1_spells:
-                    pc.setdefault('prepared_spells', [])
-                    # For wizard, also seed spellbook
-                    if klass_lower == 'wizard':
-                        # prepared spells include cantrips + a couple level1
-                        pc['prepared_spells'].extend(lvl1_spells)
-                        # Seed spellbook up to cap
-                        book = list(dict.fromkeys(lvl1_spells))
-                        # add more randomly if needed
-                        import random as _r
-                        pool = [s for s in lvl1_list if s not in book]
-                        while len(book) < spellbook_cap and pool:
-                            pick = _r.choice(pool)
-                            pool.remove(pick)
-                            book.append(pick)
-                        pc['spellbook'] = book
-                    else:
-                        pc['prepared_spells'].extend(lvl1_spells)
-
-                if 'prepared_spells' in pc:
-                    pc['prepared_spells'] = list(dict.fromkeys(pc['prepared_spells']))
         except Exception:
             logger.exception('Failed to apply class choices')
 
@@ -4411,6 +4836,17 @@ def get_target():
                 target_squares = battle_map.squares_in_radius(
                     (x, y), radius_ft, require_los=require_los)
                 build_map = build_map['next']([x, y])
+            elif build_map['param'][0]['type'] == 'select_square':
+                # Square AoE centered on the targeted square.
+                size_ft = int(build_map['param'][0].get('size', 10))
+                side = max(1, size_ft // battle_map.feet_per_grid)
+                target_squares = []
+                for dx in range(side):
+                    for dy in range(side):
+                        tx, ty = x + dx, y + dy
+                        if 0 <= tx < battle_map.size[0] and 0 <= ty < battle_map.size[1]:
+                            target_squares.append([tx, ty])
+                build_map = build_map['next']([x, y])
             elif build_map['param'][0]['type'] == 'select_line':
                 entity_x, entity_y = battle_map.entity_or_object_pos(entity)
                 length_ft = build_map['param'][0].get('range', 30)
@@ -4430,6 +4866,12 @@ def get_target():
         action = build_map
 
         if isinstance(action, AttackSpell):
+            if not isinstance(target, Entity):
+                # Spell attack must resolve to a real creature; otherwise
+                # downstream advantage checks call ``target.has_effect`` on
+                # raw [x, y] coords and crash. Surface as not-targetable.
+                return jsonify(valid_target=False, target_squares=target_squares,
+                               errors=['No valid target at the selected square.'])
             adv_mod, adv_info, attack_mod = action.compute_advantage_info(battle)
             valid_target = target.allow_targeting()
 
@@ -4661,7 +5103,7 @@ def action():
 
     if target_coords:
         mode = action_request.get('mode', None)
-        if mode == 'cone' or mode == 'point_target' or mode == 'cube':
+        if mode == 'cone' or mode == 'point_target' or mode == 'cube' or mode == 'square':
             target = [target_coords['x'], target_coords['y']]
         else:
             if isinstance(target_coords, list):
@@ -4673,11 +5115,19 @@ def action():
                 target = battle_map.entity_by_uid(target_coords)
             else:
                 # Target is coordinates
-                targets = battle_map.entities_at(int(target_coords['x']), int(target_coords['y']))
+                tx, ty = int(target_coords['x']), int(target_coords['y'])
+                targets = battle_map.entities_at(tx, ty)
                 if len(targets) == 1:
                     target = targets[0]
                 elif len(targets) == 0:
-                    target = [target_coords['x'], target_coords['y']]
+                    # ``entities_at`` filters out hidden / non-targetable
+                    # tokens; fall back to the raw token at that square so
+                    # entity-required actions (spell attacks, attacks) can
+                    # still resolve when the caster legitimately can see
+                    # them. If still nothing, surface as a coordinate
+                    # target for AoE actions (cone/cube/grease/etc.).
+                    fallback = battle_map.entity_at(tx, ty)
+                    target = fallback if fallback is not None else [tx, ty]
                 else:
                     target_list = [[target.label(), target.entity_uid] for target in targets]
                     return jsonify(status='multiple_targets', message=f"Multiple entities at {target_coords['x']}, {target_coords['y']}",
@@ -4908,6 +5358,18 @@ def action():
                             action_info['range_max'] = param_details.get('max_range', param_details.get('range', 60))
                             action_info['radius'] = param_details.get('radius', 20)
                             return jsonify(action_info)
+                    elif param_details['type'] == 'select_square':
+                        if target:
+                            action = action['next'](target)
+                            continue
+                        else:
+                            action_info['action'] = action_type
+                            action_info['type'] = 'select_square'
+                            action_info['param'] = action['param']
+                            action_info['range'] = param_details.get('range', 60)
+                            action_info['range_max'] = param_details.get('max_range', param_details.get('range', 60))
+                            action_info['size'] = param_details.get('size', 10)
+                            return jsonify(action_info)
                     elif param_details['type'] == 'select_line':
                         if target:
                             action = action['next'](target)
@@ -4929,6 +5391,23 @@ def action():
                         valid_targets = battle_map.valid_targets_for(entity, param_details)
                         valid_targets = {target.entity_uid: battle_map.entity_or_object_pos(target) for target in valid_targets}
                         if target:
+                            # ``select_target`` requires an actual Entity (or a
+                            # list of entities for multi-target spells). If
+                            # the client clicked an empty square the upstream
+                            # resolver hands us a ``[x, y]`` coordinate pair,
+                            # which would explode deep inside the spell when
+                            # something like ``target.has_effect(...)`` is
+                            # called. Reject those up front with a clear
+                            # error so the UI can prompt the user again.
+                            if not isinstance(target, Entity) and not (
+                                isinstance(target, list)
+                                and target
+                                and all(isinstance(t, Entity) for t in target)
+                            ):
+                                return jsonify(
+                                    status='error',
+                                    error='No valid target at the selected square. Click on a creature.',
+                                ), 400
                             action = action['next'](target)
                             continue
                         else:

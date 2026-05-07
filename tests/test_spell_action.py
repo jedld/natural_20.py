@@ -303,6 +303,237 @@ class TestSpellAction(unittest.TestCase):
         self.assertIs(damage_results[0]['damage'], damage_results[0]['damage_roll'])
         self.assertTrue(damage_results[0]['save_failed'])
 
+    def test_chromatic_orb_selects_damage_type_and_hits(self):
+        random.seed(7002)
+        action_build = SpellAction.build(self.session, self.entity)['next'](['chromatic_orb', 0])
+        self.assertEqual(action_build['param'][0]['type'], 'select_choice')
+
+        target_build = action_build['next']('thunder')
+        self.assertEqual(target_build['param'][0]['type'], 'select_target')
+
+        action = target_build['next'](self.npc)
+        action.resolve(self.session, self.battle_map, {"battle": self.battle})
+
+        self.assertEqual([s['type'] for s in action.result], ['spell_damage'])
+        self.assertEqual(action.result[0]['damage_type'], 'thunder')
+        self.assertEqual(action.result[0]['spell']['damage_type'], 'thunder')
+
+    def test_chromatic_orb_base_damage_is_3d8(self):
+        from natural20.spell.chromatic_orb_spell import ChromaticOrbSpell
+
+        spell_props = self.session.load_spell('chromatic_orb')
+        spell = ChromaticOrbSpell(self.session, self.entity, 'chromatic_orb', spell_props)
+        roll = spell._damage(self.battle, opts={'at_level': 1})
+        self.assertEqual(len(roll.rolls), 3)
+        self.assertEqual(roll.die_sides, 8)
+
+    def test_chromatic_orb_upcast_adds_d8_per_slot_above_1st(self):
+        from natural20.spell.chromatic_orb_spell import ChromaticOrbSpell
+
+        spell_props = self.session.load_spell('chromatic_orb')
+        spell = ChromaticOrbSpell(self.session, self.entity, 'chromatic_orb', spell_props)
+        for at_level, expected in ((2, 4), (3, 5), (5, 7), (9, 11)):
+            roll = spell._damage(self.battle, opts={'at_level': at_level})
+            self.assertEqual(len(roll.rolls), expected,
+                             f"slot {at_level} should be {expected}d8")
+
+    def test_color_spray_pool_is_6d10_base(self):
+        from natural20.spell.color_spray_spell import ColorSpraySpell
+
+        spell_props = self.session.load_spell('color_spray')
+        spell = ColorSpraySpell(self.session, self.entity, 'color_spray', spell_props)
+        roll = spell._pool_roll(self.battle, opts={'at_level': 1})
+        self.assertEqual(len(roll.rolls), 6)
+        self.assertEqual(roll.die_sides, 10)
+
+    def test_color_spray_upcast_adds_d10_per_slot_above_1st(self):
+        from natural20.spell.color_spray_spell import ColorSpraySpell
+
+        spell_props = self.session.load_spell('color_spray')
+        spell = ColorSpraySpell(self.session, self.entity, 'color_spray', spell_props)
+        for at_level, expected in ((2, 7), (3, 8), (5, 10), (9, 14)):
+            roll = spell._pool_roll(self.battle, opts={'at_level': at_level})
+            self.assertEqual(len(roll.rolls), expected,
+                             f"slot {at_level} should be {expected}d10")
+
+    def test_color_spray_applies_blinded_until_end_of_next_turn(self):
+        random.seed(7002)
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[0, 6])
+        self.npc.reset_turn(self.battle)
+        # Build against an explicit cone direction as done by cone spells.
+        action = SpellAction.build(self.session, self.entity)['next'](['color_spray', 0])['next']([0, 7])
+        action.resolve(self.session, self.battle_map, {"battle": self.battle})
+        self.battle.commit(action)
+
+        # One nearby enemy in cone should be blinded by the cast.
+        self.assertTrue(self.npc.blinded())
+
+        # Start of caster next turn: still blinded.
+        self.entity.reset_turn(self.battle)
+        self.assertTrue(self.npc.blinded())
+
+        # End of caster next turn: effect expires.
+        self.entity.resolve_trigger('end_of_turn')
+        self.assertFalse(self.npc.blinded())
+
+    def test_witch_bolt_initial_upcast_adds_d12_per_slot(self):
+        from natural20.spell.witch_bolt_spell import WitchBoltSpell
+
+        spell_props = self.session.load_spell('witch_bolt')
+        spell = WitchBoltSpell(self.session, self.entity, 'witch_bolt', spell_props)
+        for at_level, expected in ((1, 1), (2, 2), (3, 3), (5, 5), (9, 9)):
+            roll = spell._initial_damage(self.battle, opts={'at_level': at_level})
+            self.assertEqual(len(roll.rolls), expected,
+                             f"slot {at_level} should be {expected}d12")
+
+    def test_witch_bolt_sustain_action_available_and_deals_damage(self):
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[0, 6])
+        self.npc.reset_turn(self.battle)
+
+        DieRoll.fudge(8)
+        try:
+            cast = SpellAction.build(self.session, self.entity)['next'](['witch_bolt', 0])['next'](self.npc)
+            cast.resolve(self.session, self.battle_map, {'battle': self.battle})
+            self.battle.commit(cast)
+        finally:
+            DieRoll.unfudge()
+
+        self.assertIsNotNone(self.entity.current_concentration())
+
+        self.entity.reset_turn(self.battle)
+        sustain_action = next((a for a in self.entity.available_actions(self.session, self.battle)
+                               if a.action_type == 'witch_bolt_sustain'), None)
+        self.assertIsNotNone(sustain_action)
+
+        hp_before = self.npc.hp()
+        sustain_action.resolve(self.session, self.battle_map, {'battle': self.battle})
+        self.battle.commit(sustain_action)
+        self.assertLess(self.npc.hp(), hp_before)
+
+    def test_witch_bolt_ends_if_action_used_for_something_else(self):
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[0, 6])
+        self.npc.reset_turn(self.battle)
+
+        DieRoll.fudge(8)
+        try:
+            cast = SpellAction.build(self.session, self.entity)['next'](['witch_bolt', 0])['next'](self.npc)
+            cast.resolve(self.session, self.battle_map, {'battle': self.battle})
+            self.battle.commit(cast)
+        finally:
+            DieRoll.unfudge()
+
+        self.assertIsNotNone(self.entity.current_concentration())
+
+        self.entity.reset_turn(self.battle)
+        dodge = next((a for a in self.entity.available_actions(self.session, self.battle)
+                      if a.action_type == 'dodge'), None)
+        self.assertIsNotNone(dodge)
+        dodge.resolve(self.session, self.battle_map, {'battle': self.battle})
+        self.battle.commit(dodge)
+
+        self.entity.resolve_trigger('end_of_turn')
+        self.assertIsNone(self.entity.current_concentration())
+
+    def test_grease_build_uses_square_selector(self):
+        build = SpellAction.build(self.session, self.entity)['next'](['grease', 0])
+        self.assertEqual(build['param'][0]['type'], 'select_square')
+        self.assertEqual(build['param'][0]['range'], 60)
+        self.assertEqual(build['param'][0]['size'], 10)
+
+    def test_grease_cast_creates_difficult_terrain_and_prones_on_failed_save(self):
+        class _FailRoll:
+            def result(self):
+                return 1
+
+        original_save = self.npc.save_throw
+        self.npc.save_throw = lambda *a, **k: _FailRoll()
+        try:
+            action = SpellAction.build(self.session, self.entity)['next'](['grease', 0])['next']([5, 5])
+            action.resolve(self.session, self.battle_map, {'battle': self.battle})
+            self.battle.commit(action)
+        finally:
+            self.npc.save_throw = original_save
+
+        self.assertTrue(self.npc.prone())
+        self.assertTrue(self.battle_map.difficult_terrain(None, 5, 5))
+        self.assertTrue(self.battle_map.difficult_terrain(None, 6, 6))
+        self.assertEqual(len(self.battle.active_zones), 1)
+
+    def test_grease_entry_save_triggers_when_moving_into_area(self):
+        class _SuccessRoll:
+            def result(self):
+                return 99
+
+        class _FailRoll:
+            def result(self):
+                return 1
+
+        # Cast with an automatic success to avoid immediate prone.
+        original_save = self.npc.save_throw
+        self.npc.save_throw = lambda *a, **k: _SuccessRoll()
+        try:
+            cast = SpellAction.build(self.session, self.entity)['next'](['grease', 0])['next']([5, 5])
+            cast.resolve(self.session, self.battle_map, {'battle': self.battle})
+            self.battle.commit(cast)
+        finally:
+            self.npc.save_throw = original_save
+
+        if self.npc.prone():
+            self.npc.stand()
+
+        self.battle_map.move_to(self.npc, 7, 5, self.battle)
+        self.assertFalse(self.npc.prone())
+
+        self.npc.save_throw = lambda *a, **k: _FailRoll()
+        try:
+            self.battle_map.move_to(self.npc, 6, 5, self.battle)
+        finally:
+            self.npc.save_throw = original_save
+
+        self.assertTrue(self.npc.prone())
+
+    def test_grease_end_of_turn_save_and_expiration_cleanup(self):
+        class _SuccessRoll:
+            def result(self):
+                return 99
+
+        class _FailRoll:
+            def result(self):
+                return 1
+
+        original_save = self.npc.save_throw
+        self.npc.save_throw = lambda *a, **k: _SuccessRoll()
+        try:
+            cast = SpellAction.build(self.session, self.entity)['next'](['grease', 0])['next']([5, 5])
+            cast.resolve(self.session, self.battle_map, {'battle': self.battle})
+            self.battle.commit(cast)
+        finally:
+            self.npc.save_throw = original_save
+
+        if self.npc.prone():
+            self.npc.stand()
+
+        self.npc.save_throw = lambda *a, **k: _FailRoll()
+        try:
+            self.battle.trigger_event('end_of_turn', self.npc, {'target': self.npc})
+        finally:
+            self.npc.save_throw = original_save
+        self.assertTrue(self.npc.prone())
+
+        zone = self.battle.active_zones[0]
+        zone.expiration_round = self.battle.current_round() - 1
+        self.battle.trigger_event('start_of_turn', self.entity, {'target': self.entity})
+        self.assertEqual(len(self.battle.active_zones), 0)
+        for sx, sy in [(5, 5), (6, 5), (5, 6), (6, 6)]:
+            grease_objects = [
+                obj for obj in self.battle_map.objects_at(sx, sy)
+                if getattr(obj, 'properties', {}).get('grease_surface')
+            ]
+            self.assertEqual(len(grease_objects), 0)
+
     def test_compute_hit_probability(self):
         self.npc = self.session.npc('skeleton')
         self.battle.add(self.npc, 'b', position=[0, 6])
