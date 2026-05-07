@@ -420,7 +420,10 @@ class Map(SerializableObject):
                         # crash the turn loop.
                         if entity not in self.entities:
                             break
-                        obj.on_enter(entity, self, battle)
+                        try:
+                            obj.on_enter(entity, self, battle, from_pos=(cur_x, cur_y), to_pos=(pos_x, pos_y))
+                        except TypeError:
+                            obj.on_enter(entity, self, battle)
             return True
         return False
 

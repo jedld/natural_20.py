@@ -47,6 +47,7 @@ from natural20.actions.interact_action import InteractAction
 from natural20.actions.find_familiar_action import FindFamiliarAction
 from natural20.actions.summon_familiar_action import SummonFamiliarAction
 from natural20.actions.mage_hand_action import MageHandAction
+from natural20.actions.witch_bolt_sustain_action import WitchBoltSustainAction
 from natural20.actions.speak_action import SpeakAction
 from natural20.utils.action_builder import autobuild
 from natural20.concern.container import Container
@@ -104,6 +105,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     FindFamiliarAction,
     SummonFamiliarAction,
     MageHandAction,
+    WitchBoltSustainAction,
     SpeakAction
   ]
 
@@ -509,6 +511,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action_list.append(FindFamiliarAction(session, self, 'dismiss_familiar'))
         elif action_type == MageHandAction:
           action_list.append(MageHandAction(session, self, 'mage_hand_command'))
+        elif action_type == WitchBoltSustainAction:
+          action_list.append(WitchBoltSustainAction(session, self, 'witch_bolt_sustain'))
         elif action_type == SpeakAction:
           action_list.append(SpeakAction(session, self, 'speak'))
     # Phase 4: also consult the class-feature registry. Existing branches
@@ -671,7 +675,34 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       raise NotImplementedError(f"unknown action {result['action']}")
 
   def prepared_spells(self):
-    return self.properties.get('cantrips', []) + self.properties.get('prepared_spells', [])
+    base = list(self.properties.get('cantrips', []) + self.properties.get('prepared_spells', []))
+    # Auto-merge cleric divine domain spells up to the highest spell slot level the cleric can cast.
+    domain = self.properties.get('divine_domain')
+    cleric_props = self.class_properties.get('cleric') if hasattr(self, 'class_properties') else None
+    if domain and cleric_props:
+      domain_spells_by_level = (cleric_props.get('divine_domain_spell_list', {}) or {}).get(domain, {}) or {}
+      cleric_level = self.properties.get('classes', {}).get('cleric', 0)
+      for lvl_key, spells in domain_spells_by_level.items():
+        try:
+          required_level = int(str(lvl_key).split('_')[-1])
+        except (ValueError, TypeError):
+          continue
+        # Domain spells become available at the cleric levels listed (1, 3, 5, 7, 9).
+        if cleric_level < required_level:
+          continue
+        for spell in (spells or []):
+          if spell in base:
+            continue
+          # Only merge spells the session knows about so non-comprehensive
+          # spell catalogues (e.g. test fixtures) don't break spell listing.
+          try:
+            details = self.session.load_spell(spell) if hasattr(self, 'session') and self.session is not None else None
+          except Exception:
+            details = None
+          if details is None:
+            continue
+          base.append(spell)
+    return base
 
   # Consumes a character's spell slot
   def consume_spell_slot(self, level, character_class=None, qty=1):
@@ -711,6 +742,22 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       for level in range(1, self.level() + 1):
         h_features = progression.get(f"level_{level}", { "class_features": [] }).get('class_features', [])
         if feature in  h_features:
+          return True
+
+    # Cleric divine domain features (gated by cleric level)
+    domain = self.properties.get('divine_domain')
+    cleric_props = self.class_properties.get('cleric') if hasattr(self, 'class_properties') else None
+    if domain and cleric_props:
+      domain_features = (cleric_props.get('divine_domain_features', {}) or {}).get(domain, {}) or {}
+      cleric_level = self.properties.get('classes', {}).get('cleric', 0)
+      for lvl_key, feats in domain_features.items():
+        try:
+          required_level = int(str(lvl_key).split('_')[-1])
+        except (ValueError, TypeError):
+          continue
+        if cleric_level < required_level:
+          continue
+        if feature in (feats or []):
           return True
 
     return False

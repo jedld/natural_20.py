@@ -47,6 +47,7 @@ class CureWoundsSpell(Spell):
             "target": target,
             "type": "spell_heal",
             "heal_roll": heal_roll,
+            "at_level": getattr(spell_action, 'at_level', 1) or 1,
             "spell": self.properties
         }]
     
@@ -55,8 +56,25 @@ class CureWoundsSpell(Spell):
             session = battle.session
 
         if item['type'] == 'spell_heal':
-            session.event_manager.received_event({'source': item['source'],  \
-                'heal_roll': item['heal_roll'], \
-                'target': item['target'], 'value': item['heal_roll'], 'event': 'spell_heal', 'spell': item['spell']})
-                                                  
-            item['target'].heal(item['heal_roll'].result())
+            heal_value = item['heal_roll'].result()
+            spell_level = item.get('at_level') or item.get('spell', {}).get('level', 1)
+            bonus = 0
+            source = item['source']
+            target = item['target']
+            if hasattr(source, 'disciple_of_life_bonus'):
+                if not (hasattr(target, 'undead') and target.undead()):
+                    is_construct = 'construct' in target.properties.get('race', []) if hasattr(target, 'properties') else False
+                    if not is_construct:
+                        bonus = source.disciple_of_life_bonus(spell_level)
+            total = heal_value + bonus
+            item['heal_value'] = heal_value
+            item['disciple_of_life_bonus'] = bonus
+            item['total_heal'] = total
+
+            session.event_manager.received_event({'source': source,
+                'heal_roll': item['heal_roll'],
+                'target': target, 'value': total,
+                'disciple_of_life_bonus': bonus,
+                'event': 'spell_heal', 'spell': item['spell']})
+
+            target.heal(total)
