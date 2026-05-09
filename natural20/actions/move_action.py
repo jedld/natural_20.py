@@ -21,6 +21,11 @@ class MoveAction(Action):
         self.jump_index = []
         self.as_dash = False
         self.as_bonus_action = False
+        # Out-of-combat exploration: when True the move budget is not
+        # capped by the entity's speed. Only set this when there is no
+        # active battle (or the entity is not a combatant) — the engine
+        # still validates passability tile-by-tile.
+        self.unlimited_movement = False
 
     def to_dict(self):
         hash = super().to_dict()
@@ -28,6 +33,7 @@ class MoveAction(Action):
         hash['jump_index'] = self.jump_index
         hash['as_dash'] = self.as_dash
         hash['as_bonus_action'] = self.as_bonus_action
+        hash['unlimited_movement'] = self.unlimited_movement
         return hash
     
     @staticmethod
@@ -37,6 +43,7 @@ class MoveAction(Action):
         action.jump_index = hash['jump_index']
         action.as_dash = hash['as_dash']
         action.as_bonus_action = hash['as_bonus_action']
+        action.unlimited_movement = hash.get('unlimited_movement', False)
         return action
 
     def __str__(self):
@@ -97,7 +104,12 @@ class MoveAction(Action):
         actual_moves = []
         additional_effects = []
 
-        if self.as_dash:
+        if self.unlimited_movement and battle is None:
+            # Exploration mode: allow paths longer than the entity's speed.
+            # Cap at the map size so we still bound the loop.
+            mx, my = map.size
+            movement_budget = (mx + my) * 4
+        elif self.as_dash:
             movement_budget = (self.source.speed // 5)
         else:
             movement_budget = (self.source.available_movement(battle) // 5)

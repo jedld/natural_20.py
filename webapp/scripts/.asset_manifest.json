@@ -1,0 +1,1092 @@
+{
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/action_surge.png": {
+    "mtime": 1739057045,
+    "sha1": "b8a0f0296b2ae8ad6cc64ed1c3e13b5416c2febf",
+    "size": 7547
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/attack.png": {
+    "mtime": 1739057046,
+    "sha1": "2b119ef8ef3317761a7d97a149920a0da80cbd95",
+    "size": 4613
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/attack_melee.png": {
+    "mtime": 1739057045,
+    "sha1": "13eeceee3e7b49c24969c32f7c4ed683d7ce93b7",
+    "size": 6478
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/attack_ranged.png": {
+    "mtime": 1739057046,
+    "sha1": "8af06f67a9f6a4ca2412604bf1ab4da4f4a4124d",
+    "size": 6092
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/attack_second.png": {
+    "mtime": 1739057046,
+    "sha1": "eefb81fdf485e511a2a238e4d1c9bb0a83413fd5",
+    "size": 4886
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/attack_thrown.png": {
+    "mtime": 1739057046,
+    "sha1": "282b0c6420f23984361e0d76f203e7652a55a572",
+    "size": 9527
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/bardic_inspiration.png": {
+    "mtime": 1777195401,
+    "sha1": "57c080644487145f65b6a074665d832e9910d5fe",
+    "size": 1480726
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/closed_chest.png": {
+    "mtime": 1739870714,
+    "sha1": "260137042b662e2cbdb7bf5fbf0e21a5b758f2ad",
+    "size": 8695
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/dash.png": {
+    "mtime": 1739057047,
+    "sha1": "f64b4c977e89a658a7808b32c70201eb5fd11b5d",
+    "size": 7026
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/dash_bonus.png": {
+    "mtime": 1739057046,
+    "sha1": "f64b4c977e89a658a7808b32c70201eb5fd11b5d",
+    "size": 7026
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/disengage.png": {
+    "mtime": 1739057047,
+    "sha1": "cb9d986bacdd006e2add90341cbd3f5e871ed3b8",
+    "size": 9044
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/disengage_bonus.png": {
+    "mtime": 1739057047,
+    "sha1": "cb9d986bacdd006e2add90341cbd3f5e871ed3b8",
+    "size": 9044
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/dismiss_familiar.png": {
+    "mtime": 1743166888,
+    "sha1": "2acbba1d71c4ed65c6cbbfc7401dc48007acbe00",
+    "size": 10976
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/divine_smite.png": {
+    "mtime": 1748778851,
+    "sha1": "91ef7717475c795f8ed64d074eea04d0401695b2",
+    "size": 7019
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/dodge.png": {
+    "mtime": 1739057047,
+    "sha1": "1103d48947e7329f8f6e1602784afe25f21c4556",
+    "size": 6285
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/drop_grapple.png": {
+    "mtime": 1744069913,
+    "sha1": "7b43fd2564869c5e6215de05e2dc60df49a97dba",
+    "size": 7606
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/escape_grapple.png": {
+    "mtime": 1739057048,
+    "sha1": "cf2a77343ce44022cc00dbaca696480ebcf87db8",
+    "size": 9044
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/first_aid.png": {
+    "mtime": 1739057048,
+    "sha1": "0fead0b53096385e98c4c38d57b105154863361c",
+    "size": 6533
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/flurry_of_blows.png": {
+    "mtime": 1777169496,
+    "sha1": "1035c0219d8ac52308bb90abde1f334bdec7caea",
+    "size": 1913633
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/grapple.png": {
+    "mtime": 1739057048,
+    "sha1": "29b86151e23fdff77547b8555f2866c9cd891acb",
+    "size": 7350
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/ground_interact.png": {
+    "mtime": 1739057048,
+    "sha1": "e2ef1849950f74fe37a9040062b5fa1baf9b0f3a",
+    "size": 5119
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/help.png": {
+    "mtime": 1739057049,
+    "sha1": "5d88a2500aceba59edd3d0e03cc6920be1423cd8",
+    "size": 8558
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/hide.png": {
+    "mtime": 1739057049,
+    "sha1": "65a061e7473b87e42455afbec5eb516db5f5a834",
+    "size": 4759
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/hide_bonus.png": {
+    "mtime": 1739057049,
+    "sha1": "65a061e7473b87e42455afbec5eb516db5f5a834",
+    "size": 4759
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/interact.png": {
+    "mtime": 1739057051,
+    "sha1": "f1accc90abd84f2a743096a7188f41603ad88b7f",
+    "size": 10324
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/interact_close.png": {
+    "mtime": 1739057050,
+    "sha1": "2ee27a153541d5ce63ab90db36b304e3e68fc4d6",
+    "size": 9789
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/interact_give.png": {
+    "mtime": 1739057050,
+    "sha1": "525720e82b84819ebcd9a8f2e04eed00ff2954e8",
+    "size": 8206
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/interact_light.png": {
+    "mtime": 1744504071,
+    "sha1": "74e9a5630432b731b848aa79966674b5c6fffdbf",
+    "size": 10766
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/interact_lock.png": {
+    "mtime": 1739057050,
+    "sha1": "25cbacb0b0a2700952150726e6cfc1039818c0ee",
+    "size": 9754
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/interact_lockpick.png": {
+    "mtime": 1739057050,
+    "sha1": "22148fa5503a27c5605aeb34170063ec9a33b8b8",
+    "size": 6825
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/interact_loot.png": {
+    "mtime": 1739057051,
+    "sha1": "c9d4d1008a1a65f148d42538ba282889025ab96f",
+    "size": 10522
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/interact_open.png": {
+    "mtime": 1739057051,
+    "sha1": "8af64d020b5910a11ead404ff65213b30ee36596",
+    "size": 8454
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/interact_pickup_drop.png": {
+    "mtime": 1739057051,
+    "sha1": "91a57061c069d0471e1e5fd9dbdba547dc438f73",
+    "size": 7698
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/interact_unlock.png": {
+    "mtime": 1739057052,
+    "sha1": "c4883666a83b487364ccf4fab1d659c9a3cb2a65",
+    "size": 9697
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/inventory.png": {
+    "mtime": 1739057052,
+    "sha1": "b3f19206cf1a9f7a7b285a48d60f8d6a20a2da41",
+    "size": 5304
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/lay_on_hands.png": {
+    "mtime": 1748778851,
+    "sha1": "579c0e023e3993a3955357035bca330054135fe1",
+    "size": 7712
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/look.png": {
+    "mtime": 1739057052,
+    "sha1": "dc4cd4763909e244faa4a57183acb9696b5c1942",
+    "size": 4567
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/move copy.png": {
+    "mtime": 1739057160,
+    "sha1": "c2b9837e11ae8ee909e862a7854c64ab2a838ac0",
+    "size": 40389
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/move.png": {
+    "mtime": 1739057052,
+    "sha1": "68b9824ea78819f6ebd5d2045ff3ce3ea937eb34",
+    "size": 7049
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/multiattack.png": {
+    "mtime": 1739057052,
+    "sha1": "84ff25c8eafcb66b4ae3c064055a84bb871f3b3e",
+    "size": 10810
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/open_chest.png": {
+    "mtime": 1739870714,
+    "sha1": "f0b006c439500d35405c8ede27458c9bf55fe305",
+    "size": 11776
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/patient_defense.png": {
+    "mtime": 1777169626,
+    "sha1": "25b243eb1832f239835ec28cc662528a0bf91398",
+    "size": 1882785
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/prone.png": {
+    "mtime": 1739057053,
+    "sha1": "e53b18fea500e08028123b56fdee741b86fc9e7a",
+    "size": 5181
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/push.png": {
+    "mtime": 1739057053,
+    "sha1": "a61e80097d9f16068406051686e3821edf0ecc22",
+    "size": 5255
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/rage.png": {
+    "mtime": 1777167469,
+    "sha1": "d0bfb6faee2fd2c222c5b117efaf9dc73394846a",
+    "size": 2020578
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/reckless_attack.png": {
+    "mtime": 1777167636,
+    "sha1": "cdb774628837d3822bd173902e3a618fcb3faa8c",
+    "size": 2181131
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/second_wind.png": {
+    "mtime": 1739057053,
+    "sha1": "20e58b962719b5464474342eeaaf535d0260252d",
+    "size": 9737
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/shove.png": {
+    "mtime": 1739057053,
+    "sha1": "1d5928bba4d0131d19716fdd7eb87a3e0a467e3c",
+    "size": 8974
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/spell.png": {
+    "mtime": 1739057054,
+    "sha1": "77c089e77ff186fea59b9cbd6f6f3977dd292390",
+    "size": 10639
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/stand.png": {
+    "mtime": 1739057054,
+    "sha1": "acc83566d16f9decda3c9acb1c770e37f9915aaf",
+    "size": 9152
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/step_of_the_wind.png": {
+    "mtime": 1777169749,
+    "sha1": "e9d0bba037f31a83a4c55a9e64422638a707d7ad",
+    "size": 1879091
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/summon_familiar.png": {
+    "mtime": 1743166894,
+    "sha1": "7398b10991361284d7a1e19ee2d57c9c30556ac6",
+    "size": 9853
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/two_weapon_attack.png": {
+    "mtime": 1739057054,
+    "sha1": "eefb81fdf485e511a2a238e4d1c9bb0a83413fd5",
+    "size": 4886
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/two_weapon_attack_second.png": {
+    "mtime": 1739057054,
+    "sha1": "eefb81fdf485e511a2a238e4d1c9bb0a83413fd5",
+    "size": 4886
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/two_weapon_attack_thrown.png": {
+    "mtime": 1739057055,
+    "sha1": "eefb81fdf485e511a2a238e4d1c9bb0a83413fd5",
+    "size": 4886
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/use_item.png": {
+    "mtime": 1739057055,
+    "sha1": "6d32110b3bbe00578943c44f4ad6439663bb49a9",
+    "size": 11992
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/wild_shape.png": {
+    "mtime": 1777166343,
+    "sha1": "a6c2c4837942375cc92475954d5e81627cb59373",
+    "size": 2246971
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/android-chrome-192x192.png": {
+    "mtime": 1731577339,
+    "sha1": "857856dd86d08cef434c99c325bc993299bde12c",
+    "size": 31789
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/android-chrome-512x512.png": {
+    "mtime": 1731577339,
+    "sha1": "d8d260626dd91a31f89cfc24d370cbf5905c7c1e",
+    "size": 218506
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/apple-touch-icon.png": {
+    "mtime": 1731577339,
+    "sha1": "66b7fcaff8e461e12aabc86ae3369bbb2b1b571f",
+    "size": 29084
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/attic_secret_door_door.png": {
+    "mtime": 1754570828,
+    "sha1": "8b2e7c552db6a4f7c813099ad4d717a94cc47e2f",
+    "size": 131
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/barrier_wall.png": {
+    "mtime": 1754570828,
+    "sha1": "6d8a0f15e048b4f239f21eee34944417b7c41507",
+    "size": 97
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/bottom_door_door_bottom.png": {
+    "mtime": 1754570828,
+    "sha1": "7511f79c33ddc8445de1757c3bec59b4452380b4",
+    "size": 193
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/bottom_storage_room_door_bottom.png": {
+    "mtime": 1754570828,
+    "sha1": "98212d47142426e4fcc38d9dc808a7c9cfe99233",
+    "size": 220
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_door_bl.png": {
+    "mtime": 1754571089,
+    "sha1": "72a4bb84b71c5b8dbeddba014b8686df832b5363",
+    "size": 208
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_door_bl_door_bottom.png": {
+    "mtime": 1754570828,
+    "sha1": "a19e8748622fb03a6c98aa0bb95ec7edc56fa149",
+    "size": 200
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_door_br.png": {
+    "mtime": 1754571089,
+    "sha1": "e616cfc1910f747853d141efe18ae340d71390f1",
+    "size": 215
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_door_br_door_bottom.png": {
+    "mtime": 1754570828,
+    "sha1": "5e2644f84eb2c47a2b1d5dd2f76580ab45b599a5",
+    "size": 198
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_door_lb_door_left.png": {
+    "mtime": 1754570828,
+    "sha1": "e616cfc1910f747853d141efe18ae340d71390f1",
+    "size": 215
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_door_lt_door_left.png": {
+    "mtime": 1754570828,
+    "sha1": "2789642f4d57bc0ec88dcb7619af058cf51720fd",
+    "size": 219
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_door_rb_door_right.png": {
+    "mtime": 1754570828,
+    "sha1": "627dbcb62618272fb35c4c9e376b99cf9f5f4d9a",
+    "size": 207
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_door_rt_door_right.png": {
+    "mtime": 1754570828,
+    "sha1": "72a4bb84b71c5b8dbeddba014b8686df832b5363",
+    "size": 208
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_door_tl.png": {
+    "mtime": 1754571089,
+    "sha1": "227a7aba4f7b51c1e2848a0dbd6d8a4d618f7234",
+    "size": 206
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_door_tl_door_top.png": {
+    "mtime": 1754570828,
+    "sha1": "227a7aba4f7b51c1e2848a0dbd6d8a4d618f7234",
+    "size": 206
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_door_tr.png": {
+    "mtime": 1754571089,
+    "sha1": "2789642f4d57bc0ec88dcb7619af058cf51720fd",
+    "size": 219
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_door_tr_door_top.png": {
+    "mtime": 1754570828,
+    "sha1": "1c4a0213f4f5e503dcd5df1995c8da8e254dc3f6",
+    "size": 203
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_gate_bl_door_bottom.png": {
+    "mtime": 1754570828,
+    "sha1": "a19e8748622fb03a6c98aa0bb95ec7edc56fa149",
+    "size": 200
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/corner_gate_br_door_bottom.png": {
+    "mtime": 1754570828,
+    "sha1": "5e2644f84eb2c47a2b1d5dd2f76580ab45b599a5",
+    "size": 198
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/door_l_door_left.png": {
+    "mtime": 1754570828,
+    "sha1": "db7fcc6ab3c43382b7b5489f12e9dd975f3c57cd",
+    "size": 203
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/dungeon_secret_door1_door.png": {
+    "mtime": 1754570828,
+    "sha1": "6d8a0f15e048b4f239f21eee34944417b7c41507",
+    "size": 97
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/left_door_door_left.png": {
+    "mtime": 1754570828,
+    "sha1": "db7fcc6ab3c43382b7b5489f12e9dd975f3c57cd",
+    "size": 203
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/portcullis_b_door_bottom.png": {
+    "mtime": 1754570828,
+    "sha1": "7511f79c33ddc8445de1757c3bec59b4452380b4",
+    "size": 193
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/right_door_door_right.png": {
+    "mtime": 1754570828,
+    "sha1": "9384f8bf12e00bc237e37b4e53f476c5ccc4b8d3",
+    "size": 195
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/right_storage_room_door_right.png": {
+    "mtime": 1754570828,
+    "sha1": "809dac89001385502fd65e8618b7ba7488994dc5",
+    "size": 220
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/stone_wall_b_wall.png": {
+    "mtime": 1754570828,
+    "sha1": "6d8a0f15e048b4f239f21eee34944417b7c41507",
+    "size": 97
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/stone_wall_bl_wall.png": {
+    "mtime": 1754570828,
+    "sha1": "6d8a0f15e048b4f239f21eee34944417b7c41507",
+    "size": 97
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/stone_wall_br_wall.png": {
+    "mtime": 1754570828,
+    "sha1": "6d8a0f15e048b4f239f21eee34944417b7c41507",
+    "size": 97
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/stone_wall_l_wall.png": {
+    "mtime": 1754570828,
+    "sha1": "6d8a0f15e048b4f239f21eee34944417b7c41507",
+    "size": 97
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/stone_wall_lr_wall_right_left.png": {
+    "mtime": 1754570828,
+    "sha1": "4a7b48ac49fa21bae0162120de37b65d5cfd1e29",
+    "size": 134
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/stone_wall_r_wall.png": {
+    "mtime": 1754570828,
+    "sha1": "6d8a0f15e048b4f239f21eee34944417b7c41507",
+    "size": 97
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/stone_wall_t_wall.png": {
+    "mtime": 1754570828,
+    "sha1": "6d8a0f15e048b4f239f21eee34944417b7c41507",
+    "size": 97
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/stone_wall_tb_wall_top_bottom.png": {
+    "mtime": 1754570828,
+    "sha1": "fdff7ca45f005049413a9c3060d9b5475826b45d",
+    "size": 138
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/stone_wall_tl_wall.png": {
+    "mtime": 1754570828,
+    "sha1": "6d8a0f15e048b4f239f21eee34944417b7c41507",
+    "size": 97
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/stone_wall_tr_wall.png": {
+    "mtime": 1754570828,
+    "sha1": "6d8a0f15e048b4f239f21eee34944417b7c41507",
+    "size": 97
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/top_door_door_top.png": {
+    "mtime": 1754570828,
+    "sha1": "7ee4e0b4028c183fd2f967b6e1552607926f2f59",
+    "size": 199
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/top_storage_room_door_top.png": {
+    "mtime": 1754570828,
+    "sha1": "118adc1bb2ddee8773f47144ade72873dc7f1524",
+    "size": 221
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/wooden_door.png": {
+    "mtime": 1754571089,
+    "sha1": "6d8a0f15e048b4f239f21eee34944417b7c41507",
+    "size": 97
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/editor/wooden_door_wall.png": {
+    "mtime": 1754570828,
+    "sha1": "6d8a0f15e048b4f239f21eee34944417b7c41507",
+    "size": 97
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/armor_of_agathys.png": {
+    "mtime": 1762568128,
+    "sha1": "44ec54971bd1b95fd913dbc2243eb86a21ca93e9",
+    "size": 2666457
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/bane.png": {
+    "mtime": 1756979229,
+    "sha1": "d57122e2a096d7af04c50dc2f704f60b67409a68",
+    "size": 1307020
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/bless.png": {
+    "mtime": 1731577339,
+    "sha1": "ab26edb33847b081e4afca2e80effa79d4981f0c",
+    "size": 62502
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/chill_touch.png": {
+    "mtime": 1731577339,
+    "sha1": "d6c75ab284e7ece9bf3d665000731ec914c72ff7",
+    "size": 34929
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/darkness.png": {
+    "mtime": 1777195401,
+    "sha1": "ca8c47d6558fd77398e6340ea472441d2c8df5be",
+    "size": 1422230
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/engulf.png": {
+    "mtime": 1745027811,
+    "sha1": "19906d83f9d84af2492fca55bb5595f54df77624",
+    "size": 1546984
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/expeditious_retreat.png": {
+    "mtime": 1743307622,
+    "sha1": "52dfca30a6bfab2e36fa6cd50124dd37fbc7f199",
+    "size": 59843
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/guidance.png": {
+    "mtime": 1762586809,
+    "sha1": "00c227d6b7e3f5813127231154dc5ebd6d2c0a9e",
+    "size": 2590766
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/guiding_bolt.png": {
+    "mtime": 1731577339,
+    "sha1": "580a8b1d7601a01b0c2862977ffa3d6c3ca4dcb1",
+    "size": 31187
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/mage_armor.png": {
+    "mtime": 1731577339,
+    "sha1": "427238ddbd62a347dd8872bcee2e8a2875f61ac7",
+    "size": 85798
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/protection_from_poison.png": {
+    "mtime": 1739598371,
+    "sha1": "05d147c1af5def8c3766d9d2dc85d95e0de7281a",
+    "size": 363911
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/ray_of_frost.png": {
+    "mtime": 1731577339,
+    "sha1": "b20ae84e0c7325cc5f72b65a613d17c8d82854bb",
+    "size": 76664
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/resistance.png": {
+    "mtime": 1756984136,
+    "sha1": "7e385f783d87b87e117c87c9f73537d45ca7eb42",
+    "size": 1303160
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/shield.png": {
+    "mtime": 1737990439,
+    "sha1": "6b0d20553e2aef1fb70e87f0028902d3b094a913",
+    "size": 82369
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/shield_of_faith.png": {
+    "mtime": 1731577339,
+    "sha1": "96bfa1dc2cc9dbc9bed0a08cf0d0e51e12908e0b",
+    "size": 90721
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/effect/true_strike.png": {
+    "mtime": 1744982354,
+    "sha1": "6bf11cfe0278284432608566739bfa7b4f9d5fb8",
+    "size": 1405635
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/fireplace.png": {
+    "mtime": 1743634829,
+    "sha1": "1fb2647010d5dfd61f959eafd70f576c60b41565",
+    "size": 1811020
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/goblin_ambush.png": {
+    "mtime": 1731577339,
+    "sha1": "7de57ba474b6dfd963c0997729407c3dc03b732f",
+    "size": 1202592
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/goblin_ambush_login.png": {
+    "mtime": 1731577339,
+    "sha1": "df8f2d63a65e0e4663814be747797fe21f98ca88",
+    "size": 1546415
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/interact.png": {
+    "mtime": 1754230955,
+    "sha1": "a3cb9b78c2f7ea0651a1f2caf43440526b8e4c57",
+    "size": 1045079
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/interact_off.png": {
+    "mtime": 1754230992,
+    "sha1": "15e5a2abc48ca5ed5291a26a3241caf8e09b286b",
+    "size": 1031135
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/interact_on.png": {
+    "mtime": 1754230885,
+    "sha1": "864415ce39d840376b567b2f0bb5c3a9613dd67c",
+    "size": 1875262
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/arcane_focus.png": {
+    "mtime": 1739056515,
+    "sha1": "5c0ab64f8568c1d347ceb12669f17a96f930d043",
+    "size": 7928
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/arrows.png": {
+    "mtime": 1739056515,
+    "sha1": "8adfd606a580b97411ea1608bde443c48473bd91",
+    "size": 7827
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/battleaxe.png": {
+    "mtime": 1748778851,
+    "sha1": "f90ba86a90f47e8fc3ac608c8d4b5ba6eaa892cb",
+    "size": 1700643
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/candle.png": {
+    "mtime": 1743630706,
+    "sha1": "edc1df4ba548aaef16bf1744ada431dace89c984",
+    "size": 1517983
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/cats_claws.png": {
+    "mtime": 1777195401,
+    "sha1": "a48b6d57b140ac23eb117ebfe136c36c00cc4ae5",
+    "size": 7772
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/chain_mail.png": {
+    "mtime": 1748778851,
+    "sha1": "25a2eae6892bd7ce997d9ec6512daa17066ca61b",
+    "size": 1404989
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/dagger.png": {
+    "mtime": 1739056515,
+    "sha1": "2ce6133fbb553100082a73119e5c1760e2be740c",
+    "size": 8594
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/dart.png": {
+    "mtime": 1777166821,
+    "sha1": "f6ee1ee7555ff87c75cf0e4b2625f3b96f5d55bb",
+    "size": 1679962
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/greataxe.png": {
+    "mtime": 1777167310,
+    "sha1": "d4a856f5d09ad8b5447902079c70ac932d2fbd8c",
+    "size": 1808737
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/handaxe.png": {
+    "mtime": 1777169222,
+    "sha1": "7f420ada02a425c1824164b8b2d41bda34925f97",
+    "size": 1921126
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/healers_kit.png": {
+    "mtime": 1739583735,
+    "sha1": "8afeda9e162bbc8b0f20b6b73788a44c9785fc2b",
+    "size": 413965
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/healing_potion.png": {
+    "mtime": 1739056516,
+    "sha1": "8096cd6c5a2e0b8828bc7089dc375a82ce1d3506",
+    "size": 8592
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/holy_water.png": {
+    "mtime": 1748778851,
+    "sha1": "4ba7a8c8bfb5a41500581b084e6b60a2c4c88213",
+    "size": 1346864
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/ink.png": {
+    "mtime": 1749458232,
+    "sha1": "6b1b7ff88c43784196aef956164a303fefb77507",
+    "size": 1148892
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/ink_pen.png": {
+    "mtime": 1749472738,
+    "sha1": "15c54277151ccce605e55020f7a207c400e7d45f",
+    "size": 1495006
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/iron_key.png": {
+    "mtime": 1739691451,
+    "sha1": "d1a075fc3389a7a48603efd0f8c16b9dade614d5",
+    "size": 655715
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/iron_key.webp": {
+    "mtime": 1739691439,
+    "sha1": "1414455d09565d2d9e40abfa6e4d999b5ae9867e",
+    "size": 35800
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/javelin.png": {
+    "mtime": 1777169354,
+    "sha1": "612042836adc152a18b652c207be6de27b5f5441",
+    "size": 1953046
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/leather_armor.png": {
+    "mtime": 1739056516,
+    "sha1": "31c1e252347357e3e82f3b48fc3134f4da494224",
+    "size": 9260
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/letter_from_a_dead_friend.png": {
+    "mtime": 1739688042,
+    "sha1": "eeebe87df091d99c94a23552ac01f8606d951723",
+    "size": 659866
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/letter_from_a_dead_friend.webp": {
+    "mtime": 1739688023,
+    "sha1": "a43d77c70b410b2f300800ebbf6a5705b7efe213",
+    "size": 60466
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/longbow.png": {
+    "mtime": 1739056516,
+    "sha1": "9d2310c3216dfba8de94f6e2480c727c06a439d8",
+    "size": 7710
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/longsword.png": {
+    "mtime": 1739056516,
+    "sha1": "6b12c14de93d2bee4c94d0232f02154f5fd99ed7",
+    "size": 5575
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/parchment.png": {
+    "mtime": 1777170237,
+    "sha1": "f9ff7a5e735e423b361d1349064d46ea7f43fa3d",
+    "size": 1414717
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/quarterstaff.png": {
+    "mtime": 1777166656,
+    "sha1": "7a1f60ada6f2ad2481d66afff010b114bb50c87c",
+    "size": 1547135
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/rapier.png": {
+    "mtime": 1739056517,
+    "sha1": "42d8adca1c30a4e3f7596fff58380912aadadf07",
+    "size": 6574
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/scale_mail.png": {
+    "mtime": 1739056517,
+    "sha1": "17011bc27810d250e95e3cb991da46d9c0c2a687",
+    "size": 10835
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/scimitar.png": {
+    "mtime": 1739056517,
+    "sha1": "934665864eb9d77e7228c51b4d998e15b6fb467a",
+    "size": 7713
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/scroll_of_bless.png": {
+    "mtime": 1743950887,
+    "sha1": "3db573158e287ed857876028180e7e5e333a2f09",
+    "size": 2058472
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/scroll_of_protection_from_poison.png": {
+    "mtime": 1743950797,
+    "sha1": "b1a7d63236dd44492ab1bd6dec883ec9cf132cd0",
+    "size": 1590280
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/scroll_of_spiritual_weapon.png": {
+    "mtime": 1743950704,
+    "sha1": "8e7d0a5d8718d3d17f84c516d059327dc249dec1",
+    "size": 1680111
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/shield.png": {
+    "mtime": 1739056517,
+    "sha1": "8864dc1362510ec447e8c55eaa84fb5685ad5282",
+    "size": 9509
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/shortbow.png": {
+    "mtime": 1739056518,
+    "sha1": "9e2d188cf4e84a0fbd99b78b046e064929ef71ed",
+    "size": 9753
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/spear.png": {
+    "mtime": 1739056518,
+    "sha1": "53d29e0dd84722cea23674e92a6dca01157d4912",
+    "size": 6831
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/spellbook.png": {
+    "mtime": 1739056518,
+    "sha1": "fb26aabcb0b276a550727135337ea8767b56d813",
+    "size": 11195
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/thieves_tools.png": {
+    "mtime": 1739056518,
+    "sha1": "fef9893fc80a6308383eda35197e7776f32a8208",
+    "size": 11105
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/torch.png": {
+    "mtime": 1739056519,
+    "sha1": "8eb36297e65aaf131c8e5e7007703067c917f0b8",
+    "size": 6819
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/unarmed_attack.png": {
+    "mtime": 1739056519,
+    "sha1": "a48b6d57b140ac23eb117ebfe136c36c00cc4ae5",
+    "size": 7772
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/items/warhammer.png": {
+    "mtime": 1739056519,
+    "sha1": "8fe06c36dd241e9aa1c2b83e6afb048c14326bcd",
+    "size": 9916
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/new_character.png": {
+    "mtime": 1755617767,
+    "sha1": "855ff290c0b58d94b692875844e62c753fb11292",
+    "size": 1782388
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/objects/fireplace.png": {
+    "mtime": 1743632479,
+    "sha1": "1fb2647010d5dfd61f959eafd70f576c60b41565",
+    "size": 1811020
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/objects/spike_pit.png": {
+    "mtime": 1743026394,
+    "sha1": "fb469466159850413d863eb5f5c4a0a09e4a4c4e",
+    "size": 11977
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/objects/trap_door_closed.png": {
+    "mtime": 1739915393,
+    "sha1": "fbc726cdda2cb35408e69ad910a3717eb46c7bb9",
+    "size": 6881
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/objects/trap_door_opened.png": {
+    "mtime": 1739915393,
+    "sha1": "43406671855ae07e257b624b689966303a91f6ba",
+    "size": 3962
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/objects/wood_chest_closed.png": {
+    "mtime": 1738523109,
+    "sha1": "e1d1d831942d82bea06e1b50a5fd8dc748cf4a1e",
+    "size": 178
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/objects/wood_chest_opened.png": {
+    "mtime": 1738523109,
+    "sha1": "e54b7e33bfe68343e7d2667a26957a3af3e0a9fa",
+    "size": 212
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/objects/wooden_door.png": {
+    "mtime": 1738481462,
+    "sha1": "fa410ea2b525983d924007369c17fe17738c3da3",
+    "size": 221
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/token_adversary.png": {
+    "mtime": 1731577339,
+    "sha1": "2c4db80b7819688b5735f52d2336f93aab4c81fd",
+    "size": 97392
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/token_animated_broom.webp": {
+    "mtime": 1739789306,
+    "sha1": "925ed33ba9a663b2bab56b92f664307c07cd0b36",
+    "size": 189564
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/token_crysania.png": {
+    "mtime": 1731577339,
+    "sha1": "fc262d12a818e56924fd06999421ecd51bbfaa39",
+    "size": 118210
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/token_goblin.png": {
+    "mtime": 1731577339,
+    "sha1": "f9f77629ca19f3b48f8b90ea0da7fd62c2d50df9",
+    "size": 51455
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/token_mage_hand.png": {
+    "mtime": 1776606304,
+    "sha1": "0eff2d52d50668067a4e6e95510d9317f90bb8a0",
+    "size": 2426897
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/token_object.png": {
+    "mtime": 1754570165,
+    "sha1": "a3cb9b78c2f7ea0651a1f2caf43440526b8e4c57",
+    "size": 1045079
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/token_owlbear.png": {
+    "mtime": 1731577339,
+    "sha1": "37dc4c0bfda0bc9ea221e37a3cffee84805b9e20",
+    "size": 77655
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/token_player.png": {
+    "mtime": 1731577339,
+    "sha1": "08a0e7e11243492c2ec42a679c9ae5726c92fc65",
+    "size": 75682
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/token_rumblebelly.png": {
+    "mtime": 1731577339,
+    "sha1": "cc56a5c708f1016a13fa39fcdb295c67ceb45c67",
+    "size": 120510
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/token_spiritual_weapon.png": {
+    "mtime": 1739551136,
+    "sha1": "d24a66043b48981c85314e830c8d36c8a2c547f5",
+    "size": 406496
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/token_wooden_door.png": {
+    "mtime": 1738489560,
+    "sha1": "bf66008f9c322cd6e6d0db33ff49a50bac0922eb",
+    "size": 743506
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/end_turn.webp": {
+    "mtime": 1738535828,
+    "sha1": "91f760f2212bb075c3f059a00e51d9b00ddc931c",
+    "size": 30434
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/favicon-16x16.png": {
+    "mtime": 1731577339,
+    "sha1": "06a6fbf01faf9f44ca4f1321737f1aa0d2a036a1",
+    "size": 580
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/favicon-32x32.png": {
+    "mtime": 1731577339,
+    "sha1": "22cc1304c28285687408a3fda621499fee7982a6",
+    "size": 1233
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/info.png": {
+    "mtime": 1731577339,
+    "sha1": "3b8759bd28efda4c010be0f7fbfe56fb388b4582",
+    "size": 60145
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/red_x.jpg": {
+    "mtime": 1731577339,
+    "sha1": "c2b92b2f29573b70c6f5f242d056f22a9c1e961c",
+    "size": 14269
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/red_x.png": {
+    "mtime": 1731577339,
+    "sha1": "09b65bd54a8f4a857f1695ebd31b973d66609655",
+    "size": 8339
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_armor_of_agathys.png": {
+    "mtime": 1762550513,
+    "sha1": "44ec54971bd1b95fd913dbc2243eb86a21ca93e9",
+    "size": 2666457
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_bane.png": {
+    "mtime": 1757115667,
+    "sha1": "3001144ecefdcf1e09098afb56ea8da475355b1f",
+    "size": 10186
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_bless.png": {
+    "mtime": 1757115667,
+    "sha1": "0ffe41be7f064b48b7b32a451e97d39770541ff9",
+    "size": 23208
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_burning_hands.png": {
+    "mtime": 1757115668,
+    "sha1": "1ee5eed2b26cfe0b716b97a31b52a680b53b84ba",
+    "size": 9277
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_chill_touch.png": {
+    "mtime": 1757115669,
+    "sha1": "14a1a0e85a58651c84779b1ab9c12458cbae66e0",
+    "size": 15564
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_cure_wounds.png": {
+    "mtime": 1757115669,
+    "sha1": "ff24f1dd912de945153aed35dc4a7acb2bfced2b",
+    "size": 24535
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_darkness.png": {
+    "mtime": 1777208036,
+    "sha1": "d1b46facda6c5902fafca07eb51147569990e129",
+    "size": 20716
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_eldritch_blast.png": {
+    "mtime": 1762509665,
+    "sha1": "489ac8cbf530663ba06b3edb7050bb7918178726",
+    "size": 2164578
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_expeditious_retreat.png": {
+    "mtime": 1757115670,
+    "sha1": "807ad0922803929dba78d9fa044898ed9699a0be",
+    "size": 24819
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_find_familiar.png": {
+    "mtime": 1757115670,
+    "sha1": "c34bbf3d65ac73c14f13566b36b4b97c8075f3d7",
+    "size": 26388
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_firebolt.png": {
+    "mtime": 1757115671,
+    "sha1": "cc713a81aab87b6fa997e2b911ce4d3e44bfeeaf",
+    "size": 25872
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_guidance.png": {
+    "mtime": 1762583683,
+    "sha1": "00c227d6b7e3f5813127231154dc5ebd6d2c0a9e",
+    "size": 2590766
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_guiding_bolt.png": {
+    "mtime": 1757115672,
+    "sha1": "36a8a22f81f1cbec418a5807a9f8e2eb30b3c2c2",
+    "size": 14800
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_healing_word.png": {
+    "mtime": 1757115672,
+    "sha1": "4ae5b670466b7145eeb44233f0e978a4e1bc6834",
+    "size": 25331
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_ice_knife.png": {
+    "mtime": 1757115673,
+    "sha1": "b39a51359b61678dbc8f5fe50b8ccf3ace9844c7",
+    "size": 22082
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_inflict_wounds.png": {
+    "mtime": 1757115674,
+    "sha1": "a405f8a32677325a2ad471025ebbf1ef46ba8701",
+    "size": 22159
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_mage_armor.png": {
+    "mtime": 1757115674,
+    "sha1": "2cf0e0a3dc746a7b68a37abbfca3327445d1182e",
+    "size": 28067
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_mage_hand.png": {
+    "mtime": 1762526538,
+    "sha1": "0eff2d52d50668067a4e6e95510d9317f90bb8a0",
+    "size": 2426897
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_magic_missile.png": {
+    "mtime": 1757115675,
+    "sha1": "c8a9663346651a5208c8b7f2e5f6a6c494acb86c",
+    "size": 26027
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_misty_step.png": {
+    "mtime": 1762514724,
+    "sha1": "c0878799ecdd76d01e23e4d7714530e569695eb6",
+    "size": 2241158
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_poison_spray.png": {
+    "mtime": 1757115675,
+    "sha1": "9a7f46a9b5c6f8ba1a8bd85b127837b5d0fe4e02",
+    "size": 10369
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_protection_from_poison.png": {
+    "mtime": 1757115676,
+    "sha1": "8c09d8cc1f04e788b2b9d4d80cf31740e399c7e5",
+    "size": 24562
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_ray_of_frost.png": {
+    "mtime": 1757115677,
+    "sha1": "2efd13b3a3f5916950f8e023308aa68dba066809",
+    "size": 28109
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_resistance.png": {
+    "mtime": 1757115677,
+    "sha1": "b19b20c8c1978a8aa192061005b923856d332a84",
+    "size": 9189
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_sacred_flame.png": {
+    "mtime": 1757115678,
+    "sha1": "177eaceabeb6095adb98289bb1991aada0cfeac8",
+    "size": 15455
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_shield.png": {
+    "mtime": 1757115679,
+    "sha1": "da2f779ec7ee8e55b276fc23da5db7a38530e9ed",
+    "size": 28584
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_shield_of_faith.png": {
+    "mtime": 1757115679,
+    "sha1": "936db8b6dd410c6e1a271e698f3a9affbe2385c0",
+    "size": 29265
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_shocking_grasp.png": {
+    "mtime": 1757115680,
+    "sha1": "25736f9af5c664aff9dbbc77e661e34964ded589",
+    "size": 24793
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_silvery_barbs.png": {
+    "mtime": 1777208053,
+    "sha1": "49d3c9fc1e85d65f2ea2f1d952421bb53a265ca8",
+    "size": 20222
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_spare_the_dying.png": {
+    "mtime": 1757115681,
+    "sha1": "d7f98be5d6943fda3b0d1db5ba03c0a82836707c",
+    "size": 21214
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_spiritual_weapon.png": {
+    "mtime": 1757115682,
+    "sha1": "02c12ea955e16e93ed55345063eb4bb6d98ad0ea",
+    "size": 24545
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_thunderwave.png": {
+    "mtime": 1757115683,
+    "sha1": "b4c6893f8bab81429225c7545cb8e50329b363e5",
+    "size": 21744
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_toll_the_dead.png": {
+    "mtime": 1757115683,
+    "sha1": "ee4ea8bfe58a90acb3e6fe0ed13020a1237c981e",
+    "size": 21322
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_true_strike.png": {
+    "mtime": 1757115684,
+    "sha1": "6cf8e95f39a2fe2dbd0174677892e6d403f49462",
+    "size": 13878
+  }
+}

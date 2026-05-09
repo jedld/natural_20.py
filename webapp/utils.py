@@ -792,6 +792,26 @@ class GameManagement:
             group = entity.properties.get('group')
         return group
 
+    def _is_manually_controlled(self, entity):
+        """Best-effort check for whether ``entity`` is being driven by a
+        human player (WebController) rather than AI/LLM. Used by
+        ``loop_environment`` so manual PCs can lazy-join an active battle
+        on proximity alone."""
+        try:
+            controller = self.controller_registry.get_controller_for_entity(entity)
+        except Exception:
+            controller = None
+        if isinstance(controller, WebController):
+            return True
+        # Fall back to inspecting how a combat controller would be built
+        # for this entity. PCs without a registered web controller default
+        # to manual in webapp setup.
+        try:
+            built = self.controller_registry.build_combat_controller_for_entity(entity)
+        except Exception:
+            built = None
+        return isinstance(built, WebController)
+
     def _hostile_targets_for_action(self, action):
         if not isinstance(action, (AttackAction, SpellAction, ShoveAction, GrappleAction)):
             return set()
@@ -906,6 +926,26 @@ class GameManagement:
                                         not isinstance(entity2, PlayerCharacter)
                                         and battle_map.can_see(entity2, entity1)
                                     )
+
+                                # Lazy-add for manual PCs while a battle is
+                                # already in progress: a human-controlled
+                                # PC who isn't yet in the initiative should
+                                # be pulled in by mere proximity to any
+                                # battle participant, even without line of
+                                # sight (request from the user). NPC AI
+                                # controllers keep the stricter visibility
+                                # rule above and will not lazy-join on
+                                # proximity alone.
+                                if (
+                                    not proximity_trigger
+                                    and self.battle is not None
+                                    and isinstance(entity1, PlayerCharacter)
+                                    and entity1 not in self.battle.entities
+                                    and entity2 in self.battle.entities
+                                    and self._is_manually_controlled(entity1)
+                                ):
+                                    if distance_ft is not None and distance_ft <= self.auto_battle_distance_ft:
+                                        proximity_trigger = True
 
                                 if aggressive_trigger or proximity_trigger or visibility_trigger:
                                     include_allies = aggressive_trigger or proximity_trigger
@@ -1410,7 +1450,15 @@ class GameManagement:
         pov_entity = self.get_pov_entity_for_user(username) or (pov_entities[0] if pov_entities else None)
         pov_map = self.get_map_for_entity(pov_entity)
 
-        if battle:
+        # An entity may be acting on the field while a battle is in progress
+        # without itself being a participant of that battle (e.g. a player
+        # whose PC was missed when initiative was rolled, or a DM-spawned
+        # token that hasn't been added yet). Treat such non-participants as
+        # out-of-battle so they can still move and act; a follow-up
+        # ``loop_environment`` pass will lazy-add them on contact.
+        treat_as_battle = bool(battle and action.source in battle.entities)
+
+        if treat_as_battle:
             # Strict global locking while in battle
             with self.game_state_lock:
                 battle.action(action)
@@ -1445,6 +1493,14 @@ class GameManagement:
                     map_lock.release()
                 except Exception:
                     pass
+            # If a battle is in progress but this entity is acting outside
+            # of it, give the environment a chance to pull them in (e.g.
+            # they walked into combat range).
+            if battle:
+                try:
+                    self.loop_environment()
+                except Exception:
+                    pass
         # did the map change for the current pov?
         # NOTE: We intentionally defer emitting the `switch_map` notification
         # until *after* the move animation event below. The client uses an
@@ -1468,7 +1524,7 @@ class GameManagement:
         except Exception:
             deferred_map_switch = None
 
-        if battle:
+        if treat_as_battle:
             self.socketio.emit('message', {'type': 'move', 'message': { 'animation_log': _coalesce_animation_log(battle.get_animation_logs())}})
             battle.clear_animation_logs()
             # Emit deferred map switch after the move event so the client

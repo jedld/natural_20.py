@@ -47,6 +47,9 @@ class Map(SerializableObject):
         self.session = session
         self.terrain = {}
         self.spawn_points = {}
+        # Player-agnostic spawn slots loaded from `player_spawn_points` in the
+        # map YAML. Each entry: {position: [x, y], group: 'a', taken_by: None}.
+        self.player_spawn_points = []
         self.area_triggers = {}
         self.map = []
         if properties:
@@ -251,6 +254,11 @@ class Map(SerializableObject):
         players = self.properties.get('player') or []
         npcs = self.properties.get('npc') or []
 
+        # Player-agnostic spawn points (used by character selection to place
+        # any chosen PC into a free slot). Accepts entries as either a
+        # bare [x, y] list or {position: [x, y], group: 'a'}.
+        self._load_player_spawn_points(self.properties.get('player_spawn_points') or [])
+
         for player in players:
             column_index, row_index = player['position']
             overrides = player.get('overrides', {})
@@ -434,6 +442,64 @@ class Map(SerializableObject):
         pos_x, pos_y = self.spawn_points[str(position)]['location']
         self.place((pos_x, pos_y), entity, token, battle)
         print(f"place {entity.name} at {pos_x}, {pos_y}")
+
+    # ------------------------------------------------------------------
+    # Player-agnostic spawn slots
+    # ------------------------------------------------------------------
+    def _load_player_spawn_points(self, raw_entries):
+        """Populate self.player_spawn_points from a raw YAML list."""
+        normalized = []
+        for entry in raw_entries:
+            if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+                position = [int(entry[0]), int(entry[1])]
+                meta = {'position': position, 'group': 'a', 'taken_by': None}
+            elif isinstance(entry, dict) and entry.get('position'):
+                pos = entry['position']
+                position = [int(pos[0]), int(pos[1])]
+                meta = {
+                    'position': position,
+                    'group': entry.get('group', 'a'),
+                    'taken_by': entry.get('taken_by'),
+                }
+                if 'name' in entry:
+                    meta['name'] = entry['name']
+            else:
+                continue
+            normalized.append(meta)
+        self.player_spawn_points = normalized
+
+    def available_player_spawn_points(self, group=None):
+        """Return a list of unallocated player spawn point dicts."""
+        return [
+            slot for slot in self.player_spawn_points
+            if not slot.get('taken_by') and (group is None or slot.get('group') == group)
+        ]
+
+    def allocate_player_spawn_point(self, entity_uid, group=None):
+        """Reserve and return the next free spawn slot, or None if full.
+
+        If the entity_uid already holds a slot, that slot is returned (idempotent).
+        """
+        entity_uid = str(entity_uid)
+        for slot in self.player_spawn_points:
+            if str(slot.get('taken_by') or '') == entity_uid:
+                return slot
+        for slot in self.player_spawn_points:
+            if slot.get('taken_by'):
+                continue
+            if group is not None and slot.get('group') != group:
+                continue
+            slot['taken_by'] = entity_uid
+            return slot
+        return None
+
+    def release_player_spawn_point(self, entity_uid):
+        entity_uid = str(entity_uid)
+        for slot in self.player_spawn_points:
+            if str(slot.get('taken_by') or '') == entity_uid:
+                slot['taken_by'] = None
+                return True
+        return False
 
     def place(self, position, entity, token=None, battle=None):
         pos_x, pos_y = position
@@ -1730,7 +1796,13 @@ class Map(SerializableObject):
         battle_map.meta_map = data['meta_map']
         battle_map._compute_lights()
 
-        # Populate central registry for UID-based lookup after deserialization (redundant but safe)
+        # Restore player spawn slots (allocations survive save/load).
+        raw_slots = data.get('player_spawn_points')
+        if raw_slots:
+            battle_map._load_player_spawn_points(raw_slots)
+        else:
+            battle_map._load_player_spawn_points(battle_map.properties.get('player_spawn_points') or [])
+
         try:
             for entity in list(data['entities'].keys()):
                 session.register_entity(entity)
@@ -1807,5 +1879,10 @@ class Map(SerializableObject):
             'meta_map': self.meta_map,
             'area_triggers': self.area_triggers
         }
+
+        # Snapshot player spawn slot allocations so save/load preserves who
+        # owns which slot (slots themselves come from properties on reload).
+        if self.player_spawn_points:
+            map_hash['player_spawn_points'] = [dict(slot) for slot in self.player_spawn_points]
 
         return map_hash

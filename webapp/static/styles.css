@@ -544,7 +544,13 @@
   position: absolute;
   width: 40px;
   height: 40px;
-  z-index: 1000;
+  /* Sit above .effect-img (z-index: 1000) and other tile decorations
+     so DM clicks always reach the button (previously the effect overlay
+     could intercept clicks unless the cursor was right at the border). */
+  z-index: 1100;
+  /* Some tile overlays use pointer-events:none on themselves but their
+     children may swallow clicks. Force this control to receive them. */
+  pointer-events: auto;
 }
 
 .add-to-target {
@@ -1019,6 +1025,9 @@ input.initiative-input.form-control {
   position: absolute;
   top: 5px;
   left: 0;
+  /* Effect overlays are decorative; never let them swallow clicks intended
+     for the add-to-turn-order or other tile controls beneath them. */
+  pointer-events: none;
 }
 
  .effect-img {
@@ -1026,6 +1035,7 @@ input.initiative-input.form-control {
   height: 20px;
   z-index: 1000;
   opacity: 0.8;
+  pointer-events: none;
 }
 
 .level-slot-container {
