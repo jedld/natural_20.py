@@ -56,8 +56,11 @@ class TrapDoor(DoorObject, Teleporter):
         def inside_range():
             if admin:
                 return True
-            ex, ey = self.map.position_of(entity)
-            dx, dy = self.map.position_of(self)
+            try:
+                ex, ey = self.map.position_of(entity)
+                dx, dy = self.map.position_of(self)
+            except ValueError:
+                return False
 
             for x in range(-1, 2):
                 for y in range(-1, 2):

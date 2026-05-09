@@ -112,6 +112,7 @@ from webapp.llm_handler import llm_handler
 from webapp.game_context import GameContextProvider
 from webapp.conversation_service import ConversationService, register_conversation_routes
 from webapp.entity_rag_handler import EntityRAGHandler
+from webapp.mcp import MCPContext, register_mcp_blueprint
 import requests
 import re
 from PIL import Image, ImageDraw
@@ -173,6 +174,20 @@ try:
     Compress(app)
 except ImportError:
     logging.getLogger(__name__).warning("Flask-Compress not installed; responses will not be compressed")
+
+
+# Allow browsers to cache static assets (action icons, token sprites, map
+# PNGs, JS, CSS). Without this, Flask defaults to `Cache-Control: no-cache`,
+# forcing a conditional GET on every asset on every action-bar reveal /
+# tile click. Over high-RTT links (e.g. ngrok) that round-trips dominate
+# perceived UI latency in Firefox especially. JS/CSS already use
+# `?salt=<hash>` cache-busting so a long max-age is safe; image assets
+# rarely change at runtime. Override via N20_STATIC_MAX_AGE.
+try:
+    _static_max_age = int(os.environ.get('N20_STATIC_MAX_AGE', 60 * 60 * 24))
+except (TypeError, ValueError):
+    _static_max_age = 60 * 60 * 24
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = _static_max_age
 
 
 def _env_flag(name, default=False):
@@ -681,6 +696,22 @@ current_game = GameManagement(game_session=game_session,
 _pvp_cfg = index_data.get('pvp_teams') or {}
 current_game.pvp_enabled = bool(_pvp_cfg.get('enabled'))
 
+# ── MCP tool surface ──────────────────────────────────────────────────────
+# Expose the running game over a small HTTP/JSON tool surface under
+# ``/mcp/*`` so an external LLM acting as DM can inspect, mutate and
+# drive entities. See ``webapp/mcp/__init__.py`` for the module layout.
+_mcp_context = MCPContext(
+    game_session_getter=lambda: game_session,
+    current_game_getter=lambda: current_game,
+    socketio_getter=lambda: socketio,
+    output_logger_getter=lambda: output_logger,
+    action_class_resolver=lambda action_type: action_type_to_class(action_type),
+)
+try:
+    register_mcp_blueprint(app, _mcp_context, user_role_fn=lambda: user_role())
+except Exception as _mcp_exc:  # noqa: BLE001 - never block app startup on MCP wiring
+    logger.warning(f"Failed to register MCP blueprint: {_mcp_exc}")
+
 # Ensure pending saves are flushed on process exit
 def _shutdown_flush():
     try:
@@ -1023,7 +1054,60 @@ def ensure_character_entity_loaded(character_name):
             logger.info(f"Materialized selectable character {character_name} from {sheet} on map {map_name}")
             return entity
 
-    return None
+    # Fallback: use selectable_characters config (sheet + overrides) to load the
+    # PC and place it at the next free player_spawn_point on a configured map.
+    selectable = selectable_character_entry(character_name) or {}
+    sheet = selectable.get('sheet')
+    if not sheet:
+        return None
+
+    overrides = dict(selectable.get('overrides') or {})
+    overrides.setdefault('entity_uid', character_name)
+
+    # Determine candidate maps in order of preference.
+    candidate_map_names = []
+    explicit_map = selectable.get('map') or index_data.get('player_spawn_map')
+    if explicit_map and explicit_map in current_game.maps:
+        candidate_map_names.append(explicit_map)
+    for map_name in current_game.maps.keys():
+        if map_name not in candidate_map_names:
+            candidate_map_names.append(map_name)
+
+    chosen_map_name = None
+    chosen_slot = None
+    for map_name in candidate_map_names:
+        map_obj = current_game.maps.get(map_name)
+        if map_obj is None or not getattr(map_obj, 'player_spawn_points', None):
+            continue
+        slot = map_obj.allocate_player_spawn_point(character_name, group=selectable.get('group'))
+        if slot is not None:
+            chosen_map_name = map_name
+            chosen_slot = slot
+            break
+
+    if chosen_slot is None:
+        logger.warning(f"No free player_spawn_point available for {character_name}")
+        return None
+
+    try:
+        entity = PlayerCharacter.load(game_session, sheet, override=overrides)
+    except Exception:
+        # Release slot if PC failed to load so it can be reused.
+        current_game.maps[chosen_map_name].release_player_spawn_point(character_name)
+        logger.exception(f"Failed to load sheet {sheet} for character {character_name}")
+        return None
+
+    game_session.register_entity(entity)
+    current_game.deferred_players[str(character_name)] = {
+        'entity': entity,
+        'map_name': chosen_map_name,
+        'position': list(chosen_slot['position']),
+        'spawn_point': chosen_slot.get('name'),
+    }
+    logger.info(
+        f"Materialized {character_name} from {sheet} at spawn slot {chosen_slot['position']} on map {chosen_map_name}"
+    )
+    return entity
 
 
 def assign_character_team_and_spawn(character_name, team):
@@ -2486,6 +2570,154 @@ def _can_edit_character(character_name):
 
     return False
 
+PREBUILT_CHARACTER_DIR = os.path.join('static', 'assets', 'prebuild_character')
+
+
+def _make_circular_token(pil_img, size=256, ring_width=4, ring_color=(74, 47, 25, 255)):
+    """Convert any PIL image into a circular 256x256 token style PNG.
+
+    Center-crops to a square, scales to ``size``, then masks with a circle so
+    the corners become transparent. Optionally draws a thin dark-brown ring
+    around the circle (matching the existing D&D theme).
+    """
+    img = pil_img.convert('RGBA')
+    w, h = img.size
+    side = min(w, h)
+    left = (w - side) // 2
+    top = (h - side) // 2
+    img = img.crop((left, top, left + side, top + side))
+    img = img.resize((size, size), Image.LANCZOS)
+
+    mask = Image.new('L', (size, size), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, size - 1, size - 1), fill=255)
+
+    out = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    out.paste(img, (0, 0), mask)
+
+    if ring_width and ring_width > 0:
+        draw = ImageDraw.Draw(out)
+        for i in range(ring_width):
+            draw.ellipse(
+                (i, i, size - 1 - i, size - 1 - i),
+                outline=ring_color,
+            )
+
+    return out
+
+
+def _decode_data_url_image(data_url):
+    """Decode a ``data:image/...;base64,...`` URL into a PIL Image, or None."""
+    if not data_url or not isinstance(data_url, str):
+        return None
+    try:
+        if not data_url.startswith('data:'):
+            return None
+        _, _, b64 = data_url.partition(',')
+        if not b64:
+            return None
+        import base64
+        from io import BytesIO
+        return Image.open(BytesIO(base64.b64decode(b64)))
+    except Exception:
+        logger.exception('Failed to decode data URL image')
+        return None
+
+
+def _resolve_prebuilt_character_image(name):
+    """Return absolute filesystem path to a prebuilt character image, or None.
+
+    Strict allow-list against ``PREBUILT_CHARACTER_DIR`` to avoid path traversal.
+    """
+    if not name:
+        return None
+    safe = os.path.basename(str(name))
+    if safe != str(name):
+        return None
+    candidate = os.path.join(PREBUILT_CHARACTER_DIR, safe)
+    if not os.path.isfile(candidate):
+        return None
+    return candidate
+
+
+def _save_character_images(entity_uid, assets_dir, profile_pil=None, token_pil=None):
+    """Persist profile + token images for a character.
+
+    - profile saved to ``assets/characters/<uid>.png``
+    - token saved to ``assets/token_<uid>.png`` (auto-generated from profile
+      when token_pil is None and profile_pil is provided).
+    """
+    if profile_pil is None and token_pil is None:
+        return
+    profiles_dir = os.path.join(assets_dir, 'characters')
+    os.makedirs(profiles_dir, exist_ok=True)
+
+    if profile_pil is not None:
+        profile_path = os.path.join(profiles_dir, f"{entity_uid}.png")
+        profile_pil.convert('RGBA').save(profile_path, format='PNG')
+
+    if token_pil is None and profile_pil is not None:
+        token_pil = _make_circular_token(profile_pil)
+
+    if token_pil is not None:
+        # Token uploads/data-URLs may already be square; normalize to circular
+        # token style so the on-map look stays consistent.
+        if token_pil.size != (256, 256):
+            token_pil = _make_circular_token(token_pil)
+        token_path = os.path.join(assets_dir, f"token_{entity_uid}.png")
+        token_pil.convert('RGBA').save(token_path, format='PNG')
+
+
+def _load_character_image_from_request(req, file_field, prebuilt_field, data_url_field=None):
+    """Resolve a character image from one of the supported input sources.
+
+    Order of precedence:
+      1. ``data_url_field`` (canvas-cropped data URL)
+      2. ``file_field`` (uploaded file)
+      3. ``prebuilt_field`` (prebuilt filename under ``static/assets/prebuild_character``)
+    Returns a PIL Image or None.
+    """
+    if data_url_field:
+        data_url = req.form.get(data_url_field)
+        img = _decode_data_url_image(data_url)
+        if img is not None:
+            return img
+
+    f = req.files.get(file_field) if file_field else None
+    if f and getattr(f, 'filename', ''):
+        try:
+            return Image.open(f.stream)
+        except Exception:
+            logger.exception('Failed to open uploaded image %s', file_field)
+
+    if prebuilt_field:
+        prebuilt = req.form.get(prebuilt_field)
+        path = _resolve_prebuilt_character_image(prebuilt)
+        if path:
+            try:
+                return Image.open(path)
+            except Exception:
+                logger.exception('Failed to open prebuilt image %s', prebuilt)
+
+    return None
+
+
+@app.route('/character_builder/prebuilt_images', methods=['GET'])
+def list_prebuilt_character_images():
+    """Return the gallery of prebuilt character portrait images."""
+    if not logged_in():
+        return jsonify(error='Not logged in'), 401
+    items = []
+    if os.path.isdir(PREBUILT_CHARACTER_DIR):
+        for name in sorted(os.listdir(PREBUILT_CHARACTER_DIR)):
+            if not name.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.gif')):
+                continue
+            items.append({
+                'name': name,
+                'url': url_for('static', filename=f'assets/prebuild_character/{name}'),
+            })
+    return jsonify(images=items)
+
+
 @app.route('/character_builder', methods=['GET'])
 def character_builder():
     if not logged_in():
@@ -2880,26 +3112,26 @@ def create_character():
         with open(yml_path, 'w') as f:
             _yaml.safe_dump(pc, f, sort_keys=False)
 
-        # Save uploaded images, if any
+        # Save provided images (uploaded, prebuilt, or canvas-cropped data URL).
+        # If a portrait was provided but no token, auto-generate a circular
+        # token from the portrait so the on-map look stays consistent.
         try:
             assets_dir = os.path.join(game_session.root_path, 'assets')
             os.makedirs(assets_dir, exist_ok=True)
-            # Profile portrait: assets/characters/<entity_uid>.png
-            profile_file = request.files.get('profile_image')
-            if profile_file and profile_file.filename:
-                profiles_dir = os.path.join(assets_dir, 'characters')
-                os.makedirs(profiles_dir, exist_ok=True)
-                profile_path = os.path.join(profiles_dir, f"{entity_uid}.png")
-                img = Image.open(profile_file.stream).convert('RGBA')
-                img.save(profile_path, format='PNG')
-            # Token image: assets/token_<entity_uid>.png
-            token_file = request.files.get('token_image')
-            if token_file and token_file.filename:
-                token_path = os.path.join(assets_dir, f"token_{entity_uid}.png")
-                timg = Image.open(token_file.stream).convert('RGBA')
-                timg.save(token_path, format='PNG')
+            profile_pil = _load_character_image_from_request(
+                request,
+                file_field='profile_image',
+                prebuilt_field='profile_prebuilt',
+            )
+            token_pil = _load_character_image_from_request(
+                request,
+                file_field='token_image',
+                prebuilt_field='token_prebuilt',
+                data_url_field='token_image_data',
+            )
+            _save_character_images(entity_uid, assets_dir, profile_pil=profile_pil, token_pil=token_pil)
         except Exception:
-            logger.exception('Failed to save uploaded character images')
+            logger.exception('Failed to save character images')
 
     # Load into current session and place on a map (default to 'index')
         if not builder_only_mode():
@@ -2999,7 +3231,21 @@ def select_character():
             if controller_entry and username in controller_entry.get('controllers', []):
                 controller_entry['controllers'].remove(username)
             return jsonify(error=str(exc))
-    
+    else:
+        # Non-PvP flow: materialize the selected character (loads the PC sheet
+        # and reserves a player_spawn_point if needed) so the subsequent
+        # spawn_player_for_user call has something deferred to place.
+        try:
+            if ensure_character_entity_loaded(character_name) is None:
+                if controller_entry and username in controller_entry.get('controllers', []):
+                    controller_entry['controllers'].remove(username)
+                return jsonify(error='No spawn slot available for this character')
+        except Exception as exc:
+            logger.exception(f"Failed to materialize character {character_name}")
+            if controller_entry and username in controller_entry.get('controllers', []):
+                controller_entry['controllers'].remove(username)
+            return jsonify(error=f'Failed to load character: {exc}')
+
     # Update the current_game controllers if needed
     current_game._setup_controllers()
 
@@ -3657,9 +3903,11 @@ def compute_path():
         proc_cache.move_to_end(cache_key)
         return jsonify(cached)
 
-    if battle:
+    if battle and entity in getattr(battle, 'entities', {}):
         available_movement = entity.available_movement(battle)
     else:
+        # Out-of-combat exploration: don't cap path length so users can
+        # plan long traversal routes through the web UI.
         available_movement = None
 
     path_compute = PathCompute(battle, battle_map, entity)
@@ -4630,13 +4878,22 @@ def get_actions():
     if id is None:
         return jsonify(error="No entity id provided"), 400
 
-    entity = battle_map.entity_by_uid(id)
+    entity = current_game.get_entity_by_uid(id)
     if entity:
+        entity_map = current_game.get_map_for_entity(entity) or battle_map
+        if entity_map is None:
+            return jsonify(error="Entity is not currently on a map"), 409
         if 'dm' in user_role() or current_user in entity_owners(entity):
-            available_actions = entity.available_actions(session, battle, auto_target=False, map=battle_map, interact_only=True, admin_actions='dm' in user_role())
+            # If a battle is in progress but this entity hasn't been added
+            # to its initiative yet, treat it as out-of-battle for action
+            # availability so the player isn't locked out (they can still
+            # walk around, interact with objects, etc.). They will be
+            # lazy-joined on contact via loop_environment.
+            effective_battle = battle if (battle and entity in battle.entities) else None
+            available_actions = entity.available_actions(session, effective_battle, auto_target=False, map=entity_map, interact_only=True, admin_actions='dm' in user_role())
             # Create entity map for looking up target entities
-            entity_map = battle_map.entities
-            return render_template('actions.html', entity=entity, battle=battle, session=game_session, map=battle_map, available_actions=available_actions, entity_map=entity_map, is_dm=('dm' in user_role()))
+            entity_lookup = entity_map.entities
+            return render_template('actions.html', entity=entity, battle=effective_battle, session=game_session, map=entity_map, available_actions=available_actions, entity_map=entity_lookup, is_dm=('dm' in user_role()))
         else:
             return jsonify(error="Forbidden"), 403
     object_ = battle_map.object_by_uid(id)
@@ -5082,7 +5339,13 @@ def action():
     at_level = opts.get('at_level')
     choice = action_request.get('choice', opts.get('choice'))
     entity = current_game.get_entity_by_uid(entity_id)
+    if entity is None:
+        return jsonify({'status': 'error', 'message': 'Entity not found'}), 404
+
     battle_map = current_game.get_map_for_entity(entity)
+    if battle_map is None:
+        return jsonify({'status': 'error', 'message': 'Entity is not currently on a map'}), 409
+
     pov_entities = entities_controlled_by(session['username'])
     action_info = {}
     action_hash = None
@@ -5142,6 +5405,11 @@ def action():
                 move_path = sorted([(int(index), [int(coord[0]), int(coord[1])]) for index, coord in enumerate(path)])
                 move_path = [coords for _, coords in move_path]
                 action.move_path = move_path
+                # When this PC isn't a combatant in an active battle, treat
+                # the move as exploration and allow paths longer than the
+                # entity's standard speed so the user can traverse the map.
+                if not battle or entity not in getattr(battle, 'entities', {}):
+                    action.unlimited_movement = True
                 # store jump indices for backend computation if provided.
                 # The web UI sends [takeoff_index, landing_index] where
                 # ``takeoff_index`` is the path index of the square the
@@ -5570,11 +5838,28 @@ def get_info():
     battle_map = current_game.get_map_for_user(session['username'])
     battle = current_game.get_current_battle()
     info_id = request.args.get('id')
+    if not info_id:
+        return jsonify(error="Missing required id"), 400
+
     # Fetch the necessary information based on the info_id
     entity = battle_map.entity_by_uid(info_id)
     if entity is None:
         entity = battle_map.object_by_uid(info_id)
-    all_users = sorted(list(set([l['name'] for l in LOGINS] + list(current_game.username_to_sid.keys()))))
+    if entity is None:
+        return jsonify(error="Entity not found"), 404
+
+    # Filter out None/empty usernames to avoid mixed-type sorting errors.
+    configured_users = [
+        login.get('name')
+        for login in LOGINS
+        if isinstance(login, dict) and isinstance(login.get('name'), str) and login.get('name').strip()
+    ]
+    connected_users = [
+        username
+        for username in (current_game.username_to_sid or {}).keys()
+        if isinstance(username, str) and username.strip()
+    ]
+    all_users = sorted(set(configured_users + connected_users))
     return render_template('info.html.jinja', entity=entity, session=game_session, battle=battle, restricted=False, role=user_role(), all_users=all_users)
 
 @app.route('/entity_info', methods=['GET'])
@@ -5656,15 +5941,98 @@ def add():
     battle = current_game.get_current_battle()
     entity_uid = request.args.get('id')
     entity = battle_map.entity_by_uid(entity_uid)
+    if entity is None:
+        return jsonify(error='Entity not found'), 404
+
     if battle:
+        # Mid-battle add: actually roll initiative for the new entity, build
+        # a controller for it, and slot it in to act NEXT (i.e. at the "top"
+        # of the remaining round) without disturbing the current turn.
+        if 'dm' not in user_role():
+            return jsonify(error='Only DMs can add entities to an active battle'), 403
+
+        # If already in the battle, no-op (idempotent), but still return the
+        # rendered turn-order row so the caller doesn't break.
+        already_in_battle = entity in battle.entities
+
         default_group = 'a' if isinstance(entity, PlayerCharacter) else 'b'
+
+        if not already_in_battle:
+            controller = current_game.build_combat_controller_for_entity(entity)
+            if controller is None:
+                controller = GenericController(current_game.game_session)
+            try:
+                controller.register_handlers_on(entity)
+            except Exception:
+                pass
+
+            with current_game.game_state_lock:
+                # Add to the battle (don't auto-add to initiative; we want to
+                # control placement so the new entity acts next this round).
+                battle.add(entity, default_group, controller=controller)
+                # Roll initiative for the new entity and insert it directly
+                # after the current turn so it acts on this round at the
+                # "top" relative to whoever still has to go.
+                state = battle.entities.get(entity)
+                if state is not None:
+                    try:
+                        state['initiative'] = entity.initiative(battle)
+                    except Exception:
+                        state['initiative'] = 0
+                    # Make sure it's not already in combat_order, then insert
+                    # right after the current actor.
+                    if entity not in battle.combat_order:
+                        insert_at = (battle.current_turn_index + 1) if battle.combat_order else 0
+                        battle.combat_order.insert(insert_at, entity)
+
         socketio.emit('message', {'type': 'initiative', 'message': {'index': battle.current_turn_index}})
-        battle.add(entity, default_group)
-        return ""
+        socketio.emit('message', {'type': 'turn', 'message': {}})
+        socketio.emit('message', {'type': 'refresh_map'})
+        # Return the rendered turn-order row so the existing client code
+        # (which appends the response to #turn-order) keeps working.
+        return render_template('add.html', entity=entity, is_pc=isinstance(entity, PlayerCharacter),
+                               default_controller=('manual' if isinstance(entity, PlayerCharacter)
+                                                   else current_game.effective_npc_combat_controller()))
     else:
         is_pc = isinstance(entity, PlayerCharacter)
         default_controller = 'manual' if is_pc else current_game.effective_npc_combat_controller()
         return render_template('add.html', entity=entity, is_pc=is_pc, default_controller=default_controller)
+
+
+@app.route('/remove_from_battle', methods=['POST'])
+def remove_from_battle():
+    """DM-only: remove an entity from the active battle's initiative without
+    removing it from the map. The entity becomes a non-participant again and
+    can act/move freely (subject to lazy-add rules)."""
+    global current_game
+    if 'dm' not in user_role():
+        return jsonify(error='Only DMs can modify the initiative'), 403
+    battle = current_game.get_current_battle()
+    if not battle:
+        return jsonify(error='No active battle'), 400
+    data = request.get_json(silent=True) or request.form
+    entity_uid = data.get('entity_uid') or data.get('id')
+    if not entity_uid:
+        return jsonify(error='Missing entity_uid'), 400
+    entity = current_game.get_entity_by_uid(entity_uid)
+    if entity is None:
+        return jsonify(error='Entity not found'), 404
+    with current_game.game_state_lock:
+        if entity in battle.entities or entity in battle.combat_order:
+            battle.remove(entity, from_map=False)
+        # If we just removed the last combatant on one side the battle may
+        # be over; check and clean up so non-participants can act freely.
+        try:
+            if battle.battle_ends():
+                current_game.end_current_battle()
+        except Exception:
+            pass
+    socketio.emit('message', {'type': 'initiative',
+                              'message': {'index': battle.current_turn_index if current_game.get_current_battle() else None}})
+    socketio.emit('message', {'type': 'turn', 'message': {}})
+    socketio.emit('message', {'type': 'refresh_map'})
+    return jsonify(status='ok')
+
 
 @app.route('/tracks', methods=['GET'])
 def get_tracks():
@@ -5735,6 +6103,203 @@ def equip():
         return jsonify(status='ok')
 
     return jsonify(error="Entity not found"), 404
+
+
+@app.route('/dm/items_catalog', methods=['GET'])
+def dm_items_catalog():
+    """Return the full catalog of items (weapons + equipment + objects) for DM autocomplete."""
+    if 'dm' not in user_role():
+        return jsonify(error='DM access required'), 403
+
+    query = (request.args.get('q') or '').strip().lower()
+    catalog = []
+
+    def _push(name, payload, category):
+        if not isinstance(payload, dict):
+            return
+        label = payload.get('label') or payload.get('name') or str(name)
+        entry = {
+            'name': str(name),
+            'label': str(label),
+            'category': category,
+            'type': payload.get('type') or payload.get('subtype') or category,
+            'image': payload.get('image') or str(name),
+            'weight': payload.get('weight'),
+            'cost': payload.get('cost'),
+        }
+        if query and query not in entry['name'].lower() and query not in entry['label'].lower():
+            return
+        catalog.append(entry)
+
+    try:
+        for name, payload in (game_session.load_weapons() or {}).items():
+            _push(name, payload, 'weapon')
+    except Exception:
+        pass
+    try:
+        for name, payload in (game_session.load_all_equipments() or {}).items():
+            _push(name, payload, 'equipment')
+    except Exception:
+        pass
+    try:
+        objects = game_session.load_yaml_file('items', 'objects') or {}
+        for name, payload in objects.items():
+            _push(name, payload, 'object')
+    except Exception:
+        pass
+
+    catalog.sort(key=lambda e: (e['category'], e['label'].lower()))
+    return jsonify(items=catalog)
+
+
+def _dm_resolve_entity(entity_id):
+    """Locate an entity (or object with inventory) by uid for DM operations."""
+    global current_game
+    entity = current_game.get_entity_by_uid(entity_id)
+    if entity is not None:
+        return entity
+    maps_attr = getattr(current_game, 'maps', None)
+    if maps_attr:
+        for battle_map in maps_attr.values():
+            try:
+                ent = battle_map.object_by_uid(entity_id)
+            except Exception:
+                ent = None
+            if ent is not None:
+                return ent
+    return None
+
+
+@app.route('/dm/inventory', methods=['GET'])
+def dm_inventory_get():
+    """Return current inventory of an entity for DM editing."""
+    if 'dm' not in user_role():
+        return jsonify(error='DM access required'), 403
+    entity_id = request.args.get('id')
+    if not entity_id:
+        return jsonify(error='Missing id'), 400
+    entity = _dm_resolve_entity(entity_id)
+    if entity is None:
+        return jsonify(error='Entity not found'), 404
+
+    items = []
+    for name, info in (getattr(entity, 'inventory', {}) or {}).items():
+        try:
+            details = game_session.load_thing(name) or {}
+        except Exception:
+            details = {}
+        items.append({
+            'name': str(name),
+            'label': details.get('label') or details.get('name') or str(name),
+            'qty': int(info.get('qty', 0)) if isinstance(info, dict) else 0,
+            'type': details.get('type') or info.get('type') if isinstance(info, dict) else None,
+            'image': details.get('image') or str(name),
+        })
+    items.sort(key=lambda e: e['label'].lower())
+    return jsonify(entity_id=entity_id, items=items)
+
+
+@app.route('/dm/inventory/add', methods=['POST'])
+def dm_inventory_add():
+    """DM: add an item (by catalog name) to an entity's inventory."""
+    if 'dm' not in user_role():
+        return jsonify(success=False, error='DM access required'), 403
+    data = request.get_json(silent=True) or request.form
+    entity_id = (data.get('entity_id') or '').strip()
+    item_name = (data.get('item_name') or '').strip()
+    try:
+        qty = int(data.get('qty', 1))
+    except (TypeError, ValueError):
+        qty = 1
+    if not entity_id or not item_name:
+        return jsonify(success=False, error='entity_id and item_name are required'), 400
+    if qty <= 0:
+        return jsonify(success=False, error='qty must be positive'), 400
+
+    entity = _dm_resolve_entity(entity_id)
+    if entity is None:
+        return jsonify(success=False, error='Entity not found'), 404
+
+    try:
+        source_item = game_session.load_thing(item_name)
+    except Exception:
+        source_item = None
+    if source_item is None:
+        return jsonify(success=False, error=f'Unknown item: {item_name}'), 404
+
+    try:
+        entity.add_item(item_name, amount=qty)
+    except Exception as exc:
+        return jsonify(success=False, error=f'Failed to add item: {exc}'), 500
+
+    try:
+        output_logger.log(
+            f"DM gave {qty} x {source_item.get('label') or source_item.get('name') or item_name} to {entity.label()}",
+            visibility='dm_only',
+        )
+    except Exception:
+        pass
+
+    socketio.emit('message', {'type': 'refresh_map'})
+    new_qty = int((entity.inventory.get(item_name) or {}).get('qty', 0))
+    return jsonify(success=True, item_name=item_name, qty=new_qty)
+
+
+@app.route('/dm/inventory/remove', methods=['POST'])
+def dm_inventory_remove():
+    """DM: remove (or decrement) an item from an entity's inventory."""
+    if 'dm' not in user_role():
+        return jsonify(success=False, error='DM access required'), 403
+    data = request.get_json(silent=True) or request.form
+    entity_id = (data.get('entity_id') or '').strip()
+    item_name = (data.get('item_name') or '').strip()
+    all_flag = bool(data.get('all'))
+    try:
+        qty = int(data.get('qty', 1))
+    except (TypeError, ValueError):
+        qty = 1
+    if not entity_id or not item_name:
+        return jsonify(success=False, error='entity_id and item_name are required'), 400
+
+    entity = _dm_resolve_entity(entity_id)
+    if entity is None:
+        return jsonify(success=False, error='Entity not found'), 404
+
+    inventory = getattr(entity, 'inventory', None) or {}
+    if item_name not in inventory:
+        # Allow removing equipped items as well.
+        try:
+            equipped = list(entity.properties.get('equipped', []) or [])
+        except Exception:
+            equipped = []
+        if item_name in equipped:
+            try:
+                entity.unequip(item_name, transfer_inventory=False)
+            except Exception as exc:
+                return jsonify(success=False, error=f'Failed to unequip: {exc}'), 500
+            socketio.emit('message', {'type': 'refresh_map'})
+            return jsonify(success=True, item_name=item_name, qty=0)
+        return jsonify(success=False, error='Entity does not have that item'), 404
+
+    current_qty = int((inventory.get(item_name) or {}).get('qty', 0))
+    drop = current_qty if all_flag else max(1, qty)
+    try:
+        entity.remove_item(item_name, amount=drop)
+    except Exception as exc:
+        return jsonify(success=False, error=f'Failed to remove item: {exc}'), 500
+
+    try:
+        output_logger.log(
+            f"DM removed {drop} x {item_name} from {entity.label()}",
+            visibility='dm_only',
+        )
+    except Exception:
+        pass
+
+    socketio.emit('message', {'type': 'refresh_map'})
+    new_qty = int((entity.inventory.get(item_name) or {}).get('qty', 0))
+    return jsonify(success=True, item_name=item_name, qty=new_qty)
+
 
 @app.route('/equipment', methods=['GET'])
 def get_equipment():

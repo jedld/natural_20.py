@@ -18,15 +18,19 @@ class FirstAidAction(Action):
         if battle is None or battle.maps is None:
             return []
 
-        adjacent_squares = entity.melee_squares(battle.map_for(entity), adjacent_only=True)
+        battle_map = battle.map_for(entity)
+        if battle_map is None:
+            return []
+
+        adjacent_squares = entity.melee_squares(battle_map, adjacent_only=True)
         entities = []
         for pos in adjacent_squares:
-            entity_pos = battle.map_for(entity).entity_at(*pos)
+            entity_pos = battle_map.entity_at(*pos)
             if entity_pos is None:
                 continue
             if entity_pos == entity:
                 continue
-            if not battle.map_for(entity).can_see(entity, entity_pos):
+            if not battle_map.can_see(entity, entity_pos):
                 continue
             if entity_pos.unconscious() and not entity_pos.stable() and not entity_pos.dead():
                 entities.append(entity_pos)

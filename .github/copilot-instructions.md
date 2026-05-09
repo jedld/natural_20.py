@@ -33,6 +33,13 @@ Important environment variables (used by code):
 - OLLAMA_BASE_URL, OLLAMA_MODEL — defaults used by `webapp/llm_handler.py` and `natural20/llm_controller.py`.
 - OPENAI_API_KEY / ANTHROPIC_API_KEY — used by providers.
 - N20_MCP_URL — optional MCP bridge URL used by `LlmMcpController._call_mcp_tool(prompt, n_actions)` (POST {prompt, n_actions} → {index}).
+- N20_MCP_DM_TOKEN — optional shared secret for the in-process MCP tool surface at `/mcp/*` (see `webapp/mcp/`). When set, callers can authenticate via `X-MCP-Token` header instead of a DM session.
+
+MCP tool catalogue (keep in sync with `webapp/mcp/tools_*.py`; prefer `op`-discriminated tools over many specialised ones to keep the surface small):
+- `tools_world`: `world.list_maps`, `world.get_map`, `world.list_entities`, `world.get_entity`, `world.get_battle`, `world.list_npc_types`.
+- `tools_dm`: `dm.set_hp`, `dm.heal`, `dm.damage`, `dm.add_status`, `dm.remove_status`, `dm.set_property`, `dm.add_item`, `dm.remove_item`, `dm.equipment` (equip|unequip), `dm.set_resource` (action|bonus_action|reaction|spell_slot|temp_hp), `dm.spawn_npc`, `dm.spawn_object`, `dm.remove_entity`, `dm.teleport`, `dm.battle_admin` (add_combatant|remove_combatant|reorder|set_group|next_turn), `dm.set_controller` (manual|ai|llm), `dm.rest` (short|long), `dm.save_load` (save|load|list), `dm.effect`, `dm.sound`, `dm.advance_time`.
+- `tools_actions`: `actions.list_available`, `actions.execute`, `actions.move`, `actions.end_turn`, `actions.start_battle`, `actions.end_battle`.
+When adding a DM-only Flask endpoint, extend the matching `tools_dm` tool (prefer adding an `op` value) so the MCP surface stays in parity.
 
 Prompt/response patterns to preserve when changing LLM logic:
 
