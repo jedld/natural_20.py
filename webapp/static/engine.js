@@ -40,6 +40,13 @@ const ZOOM_STEP = 0.1;
 let isPanning = false;
 let panStart = { x: 0, y: 0 };
 let panStartViewport = { x: 0, y: 0 };
+// Right-click panning: we only commit to a pan once the cursor moves beyond a
+// small drag threshold so a regular right-click is still available for
+// cancel-mode handlers / context menus that need it.
+let rightPanArmed = false;          // mousedown happened with button=2
+let rightPanDragged = false;        // exceeded drag threshold -> actually panning
+let suppressNextContextMenu = false; // set after a real right-drag pan
+const RIGHT_PAN_DRAG_THRESHOLD = 4;  // pixels
 
 // Ghost token system for pending moves
 let pendingMoves = new Map(); // entityId -> { sourceX, sourceY, targetX, targetY, ghostElement }
@@ -2851,7 +2858,7 @@ function initViewportControls() {
   
   // Middle mouse button pan (mousedown)
   $mapArea.on('mousedown', function(e) {
-    // Middle mouse button (button 1)
+    // Middle mouse button (button 1) — immediate pan
     if (e.button === 1) {
       e.preventDefault();
       isPanning = true;
@@ -2859,28 +2866,66 @@ function initViewportControls() {
       panStartViewport = { x: viewportPan.x, y: viewportPan.y };
       $mapArea.addClass('panning');
       $('body').css('cursor', 'grabbing');
+      return;
+    }
+    // Right mouse button (button 2) — arm a pan; only commit once the
+    // cursor is dragged past the threshold. This preserves right-click
+    // semantics (cancel mode / context menu) when the user just clicks.
+    if (e.button === 2) {
+      // Don't arm if a UI overlay owns the click.
+      if ($(e.target).closest('.modal, .panel, .popover-menu, .popover-menu-2, #centerActionBar, #turn-order, #console-container').length) {
+        return;
+      }
+      rightPanArmed = true;
+      rightPanDragged = false;
+      panStart = { x: e.clientX, y: e.clientY };
+      panStartViewport = { x: viewportPan.x, y: viewportPan.y };
     }
   });
   
   // Mouse move for panning
   $(document).on('mousemove.viewport', function(e) {
+    // If a right-button drag is armed, see if we've crossed the threshold
+    // and (if so) promote it into a real pan.
+    if (rightPanArmed && !isPanning) {
+      const ddx = e.clientX - panStart.x;
+      const ddy = e.clientY - panStart.y;
+      if (Math.abs(ddx) > RIGHT_PAN_DRAG_THRESHOLD || Math.abs(ddy) > RIGHT_PAN_DRAG_THRESHOLD) {
+        isPanning = true;
+        rightPanDragged = true;
+        suppressNextContextMenu = true;
+        $mapArea.addClass('panning');
+        $('body').css('cursor', 'grabbing');
+      }
+    }
     if (!isPanning) return;
-    
+
     const dx = e.clientX - panStart.x;
     const dy = e.clientY - panStart.y;
-    
+
     viewportPan.x = panStartViewport.x + dx;
     viewportPan.y = panStartViewport.y + dy;
-    
+
     applyViewportTransform();
   });
-  
+
   // Mouse up to end panning
   $(document).on('mouseup.viewport', function(e) {
     if (e.button === 1 && isPanning) {
       isPanning = false;
       $mapArea.removeClass('panning');
       $('body').css('cursor', '');
+      return;
+    }
+    if (e.button === 2 && rightPanArmed) {
+      rightPanArmed = false;
+      if (isPanning) {
+        isPanning = false;
+        $mapArea.removeClass('panning');
+        $('body').css('cursor', '');
+      }
+      // suppressNextContextMenu remains set so the contextmenu handler
+      // below can swallow the menu that browsers fire after a right-up.
     }
   });
   
@@ -2897,10 +2942,19 @@ function initViewportControls() {
     zoomAtPoint(delta, e.clientX, e.clientY);
   });
   
-  // Prevent context menu on middle click
+  // Prevent context menu on middle click, and on right-drag pans.
+  // NOTE: we only preventDefault here; another contextmenu handler (the
+  // mode-cancel one further below) will consume `suppressNextContextMenu`
+  // so it knows not to also cancel an active target/move mode. Ordering
+  // between the two handlers is not guaranteed, so we keep the flag set.
   $mapArea.on('contextmenu', function(e) {
     if (e.button === 1) {
       e.preventDefault();
+      return;
+    }
+    if (suppressNextContextMenu || rightPanDragged) {
+      e.preventDefault();
+      e.stopPropagation();
     }
   });
   
@@ -4099,6 +4153,14 @@ $(document).ready(() => {
 
   // Cancel interactions on right-click.
   $("#main-map-area").on("contextmenu", function (e) {
+    // If a right-drag pan just finished, swallow the menu without cancelling
+    // an active targeting/move mode.
+    if (suppressNextContextMenu || rightPanDragged) {
+      e.preventDefault();
+      suppressNextContextMenu = false;
+      rightPanDragged = false;
+      return;
+    }
     if (targetMode || multiTargetMode || moveMode) {
       e.preventDefault();
       targetMode = multiTargetMode = moveMode = coneMode = false;
@@ -4279,8 +4341,20 @@ $(document).ready(() => {
     event.stopPropagation();
   });
 
-  $("#turn-order").on("click", ".remove-turn-order-item", function () {
-    $(this).closest("#turn-order-item").remove();
+  $("#turn-order").on("click", ".remove-turn-order-item", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const $item = $(this).closest(".turn-order-item");
+    const entity_uid = $item.data("id");
+    if (!entity_uid) {
+      $item.remove();
+      return;
+    }
+    ajaxPost("/remove_from_battle", { entity_uid: entity_uid }, (data) => {
+      // The DOM row will be replaced when the server-side broadcast
+      // triggers a turn-order refresh; remove eagerly for snappier UX.
+      $item.remove();
+    });
   });
 
   $("#turn-order").on("click", ".token-image", function () {
@@ -5491,6 +5565,30 @@ $(document).ready(() => {
 
   // Add keyboard event handler for movement
   $(document).on("keydown", function (e) {
+    // Space / Enter on the focused (POV) character opens its action bar
+    // when nothing else is open. This lets the player open the action bar
+    // without having to click their token first.
+    if (
+      (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') &&
+      !actionBarState.visible &&
+      !$('.popover-menu:visible').length &&
+      !targetMode && !multiTargetMode && !coneMode && !moveMode &&
+      !keyboardMovementMode &&
+      !isTypingIntoField(e.target)
+    ) {
+      const povUid = $('body').attr('data-pov-entity');
+      if (povUid) {
+        const $povTile = $(`.tile[data-coords-id="${povUid}"]`).first();
+        if ($povTile.length) {
+          e.preventDefault();
+          // Reuse the normal tile-click flow so we get the same occupant
+          // detection and centered action bar rendering.
+          $povTile.trigger('click');
+          return;
+        }
+      }
+    }
+
     // Check for popover menu instead of actions-container
     const $popoverMenu = $(".popover-menu:visible");
     if ($popoverMenu.length || actionBarState.visible) {

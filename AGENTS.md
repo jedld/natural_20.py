@@ -34,6 +34,26 @@ Important environment variables (used by code):
 - OLLAMA_BASE_URL, OLLAMA_MODEL — defaults used by `webapp/llm_handler.py` and `natural20/llm_controller.py`.
 - OPENAI_API_KEY / ANTHROPIC_API_KEY — used by providers.
 - N20_MCP_URL — optional MCP bridge URL used by `LlmMcpController._call_mcp_tool(prompt, n_actions)` (POST {prompt, n_actions} → {index}).
+- N20_MCP_DM_TOKEN — optional shared secret. When set, callers can hit the in-process MCP tool surface at `/mcp/*` by sending header `X-MCP-Token: <value>` instead of an authenticated DM session. The surface is implemented in `webapp/mcp/` as a Flask blueprint with three discovery endpoints (`GET /mcp/manifest`, `GET /mcp/tools/list`, `POST /mcp/tools/call`) and tools split across `tools_world` (inspection), `tools_dm` (mutations) and `tools_actions` (list/execute actions, movement, end_turn, start/end battle). Tools are wrapped in MCP-style envelopes (`{"isError": bool, "content": [...]}`).
+
+MCP tool catalogue (keep this list in sync with `webapp/mcp/tools_*.py`). Design rule: prefer one `op`-discriminated tool over many specialised tools to keep the surface small for token-constrained LLMs.
+  - `tools_world`: `world.list_maps`, `world.get_map`, `world.list_entities`, `world.get_entity`, `world.get_battle`, `world.list_npc_types`.
+  - `tools_dm` (DM mutations — mirror every DM-only Flask endpoint):
+    - HP: `dm.set_hp`, `dm.heal`, `dm.damage`.
+    - Status & properties: `dm.add_status`, `dm.remove_status`, `dm.set_property`.
+    - Inventory: `dm.add_item`, `dm.remove_item`, `dm.equipment` (op=equip|unequip).
+    - Resources: `dm.set_resource` (resource_type=action|bonus_action|reaction|spell_slot|temp_hp; op=set|add|subtract; spell_slot also takes character_class+level) — replaces `/update_action_resources`, `/update_spell_slots`, and the temp_hp branch of `/update_hp`.
+    - Spawning / placement: `dm.spawn_npc`, `dm.spawn_object`, `dm.remove_entity`, `dm.teleport`.
+    - Battle admin: `dm.battle_admin` (op=add_combatant|remove_combatant|reorder|set_group|next_turn) — mirrors `/add`, `/remove_from_battle`, `/reorder_initiative`, `/update_group`, and the DM-side `/next_turn`. `add_combatant` rolls initiative and slots the entity right after the current turn.
+    - Controller assignment: `dm.set_controller` (kind=manual|ai|llm) — mirrors `/update_controller` set; lazy-imports `WebController` / `GenericController` / `LlmMcpController` and registers handlers.
+    - Rest: `dm.rest` (type=short|long, optional `force`, `arcane_picks`, `hit_die_picks`) — mirrors `/rest` including the inline pick controller.
+    - Persistence: `dm.save_load` (op=save|load|list) — mirrors `/admin/save`, `/admin/load`, `/admin/saves`; on load, refreshes the current battle map and re-emits `refresh_map`.
+    - Effects: `dm.effect` (effect, action=start|stop|update, optional `config`, `scope`=global|map, optional `map_name`) — mirrors `/admin/effect`, persists into the module-level `active_effects` / `active_effects_map` caches.
+    - Audio: `dm.sound` (op=list|play|volume|seek) — mirrors `/tracks`, `/sound`, `/volume`, `/seek`.
+    - Time: `dm.advance_time` (op=add|set, `seconds`) — wraps `Session.increment_game_time` for narrative time skips.
+  - `tools_actions`: `actions.list_available`, `actions.execute`, `actions.move`, `actions.end_turn`, `actions.start_battle`, `actions.end_battle`.
+
+  When adding a new DM-only Flask endpoint, also extend the matching `tools_dm` tool (preferring an extra `op` value over a brand-new tool) and update this catalogue.
 
 Prompt/response patterns to preserve when changing LLM logic:
 

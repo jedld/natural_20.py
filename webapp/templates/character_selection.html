@@ -1403,7 +1403,7 @@
                         onerror="this.onerror=null; this.src='/static/assets/goblin_ambush_login.png'">
                         
                         <div class="character-info">
-                            <h3 class="character-name">{{ character.name.title() }}</h3>
+                            <h3 class="character-name">{{ character.name.replace('_', ' ').title() }}</h3>
                             <div class="character-badges">
                                 {% if character.slot_label %}
                                 <span class="slot-label">{{ character.slot_label }}</span>
