@@ -887,7 +887,7 @@
             {% endfor %}
         </div>
 
-        {% if entity.inventory %}
+        {% if entity.inventory or 'dm' in role %}
         <div id="Equipment" class="tabcontent">
             <div class="section">
                 <div class="section-header">
@@ -898,6 +898,52 @@
                     {% include 'equipment.html' %}
                 </div>
             </div>
+
+            {% if 'dm' in role %}
+            <div class="section dm-inventory-section" data-entity-uid="{{ entity.entity_uid }}">
+                <div class="section-header">
+                    <h2>DM Inventory Tools</h2>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content">
+                    <p class="dm-inventory-help" style="font-size: 0.9em; color: #aaa; margin-top: 0;">
+                        Search the game catalog and add or remove items from this entity's inventory.
+                    </p>
+                    <div class="dm-inventory-add-row" style="display:flex; gap:6px; align-items:flex-end; flex-wrap:wrap;">
+                        <div style="flex:1 1 220px; min-width:200px;">
+                            <label style="display:block; font-size:0.8em;">Item</label>
+                            <input type="text"
+                                   class="dm-inventory-item-search"
+                                   list="dm-inventory-catalog-{{ entity.entity_uid }}"
+                                   autocomplete="off"
+                                   placeholder="Type to search weapons, equipment, objects..."
+                                   style="width:100%; box-sizing:border-box;">
+                            <datalist id="dm-inventory-catalog-{{ entity.entity_uid }}"></datalist>
+                        </div>
+                        <div style="width:80px;">
+                            <label style="display:block; font-size:0.8em;">Qty</label>
+                            <input type="number" class="dm-inventory-qty" min="1" value="1" style="width:100%; box-sizing:border-box;">
+                        </div>
+                        <button type="button" class="dm-inventory-add-btn">Add</button>
+                    </div>
+                    <div class="dm-inventory-add-status" style="font-size:0.85em; min-height:1em; margin-top:4px;"></div>
+                    <h3 style="margin-top: 12px;">Current Inventory</h3>
+                    <table class="dm-inventory-table" style="width:100%; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th style="text-align:left;">Item</th>
+                                <th style="text-align:left;">Type</th>
+                                <th style="text-align:right;">Qty</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody class="dm-inventory-tbody">
+                            <tr><td colspan="4" style="color:#888;">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
 
             <div class="section">
                 <div class="section-header">
@@ -1955,6 +2001,175 @@
             } catch (e) { /* socket optional */ }
 
             load();
+        })();
+    </script>
+    {% endif %}
+
+    {% if 'dm' in role %}
+    <script>
+        (function () {
+            const section = document.querySelector('.dm-inventory-section');
+            if (!section) return;
+            const entityUid = section.getAttribute('data-entity-uid');
+            const datalist = section.querySelector('datalist');
+            const searchInput = section.querySelector('.dm-inventory-item-search');
+            const qtyInput = section.querySelector('.dm-inventory-qty');
+            const addBtn = section.querySelector('.dm-inventory-add-btn');
+            const status = section.querySelector('.dm-inventory-add-status');
+            const tbody = section.querySelector('.dm-inventory-tbody');
+
+            let catalog = [];
+            const labelToName = new Map();
+
+            function setStatus(msg, isError) {
+                status.textContent = msg || '';
+                status.style.color = isError ? '#e57373' : '#9ccc65';
+            }
+
+            function renderCatalog() {
+                datalist.innerHTML = '';
+                labelToName.clear();
+                const frag = document.createDocumentFragment();
+                catalog.forEach(function (item) {
+                    const opt = document.createElement('option');
+                    const display = item.label + '  [' + item.category + ']';
+                    opt.value = display;
+                    opt.setAttribute('data-name', item.name);
+                    frag.appendChild(opt);
+                    labelToName.set(display.toLowerCase(), item.name);
+                    labelToName.set(item.label.toLowerCase(), item.name);
+                    labelToName.set(item.name.toLowerCase(), item.name);
+                });
+                datalist.appendChild(frag);
+            }
+
+            function loadCatalog() {
+                fetch('/dm/items_catalog', { credentials: 'same-origin' })
+                    .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+                    .then(function (data) {
+                        catalog = (data && data.items) || [];
+                        renderCatalog();
+                    })
+                    .catch(function () { setStatus('Failed to load catalog', true); });
+            }
+
+            function renderInventory(items) {
+                tbody.innerHTML = '';
+                if (!items || !items.length) {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = '<td colspan="4" style="color:#888;">Inventory is empty.</td>';
+                    tbody.appendChild(tr);
+                    return;
+                }
+                items.forEach(function (it) {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML =
+                        '<td>' + escapeHtml(it.label) + ' <span style="color:#888;font-size:0.8em">(' + escapeHtml(it.name) + ')</span></td>' +
+                        '<td>' + escapeHtml(it.type || '') + '</td>' +
+                        '<td style="text-align:right;">' + it.qty + '</td>' +
+                        '<td style="text-align:right; white-space:nowrap;">' +
+                            '<button type="button" class="dm-inv-remove-one" data-name="' + escapeAttr(it.name) + '">-1</button> ' +
+                            '<button type="button" class="dm-inv-remove-all" data-name="' + escapeAttr(it.name) + '">Remove All</button>' +
+                        '</td>';
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function escapeHtml(s) {
+                return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+                });
+            }
+            function escapeAttr(s) { return escapeHtml(s).replace(/'/g, '&#39;'); }
+
+            function loadInventory() {
+                fetch('/dm/inventory?id=' + encodeURIComponent(entityUid), { credentials: 'same-origin' })
+                    .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+                    .then(function (data) { renderInventory((data && data.items) || []); })
+                    .catch(function () {
+                        tbody.innerHTML = '<tr><td colspan="4" style="color:#e57373;">Failed to load inventory.</td></tr>';
+                    });
+            }
+
+            function resolveItemName(typed) {
+                if (!typed) return null;
+                const key = typed.trim().toLowerCase();
+                if (labelToName.has(key)) return labelToName.get(key);
+                // fall back to fuzzy contains match
+                const match = catalog.find(function (it) {
+                    return it.name.toLowerCase() === key || it.label.toLowerCase() === key;
+                });
+                if (match) return match.name;
+                const partial = catalog.find(function (it) {
+                    return it.label.toLowerCase().indexOf(key) === 0 || it.name.toLowerCase().indexOf(key) === 0;
+                });
+                return partial ? partial.name : null;
+            }
+
+            addBtn.addEventListener('click', function () {
+                const typed = searchInput.value;
+                const itemName = resolveItemName(typed);
+                if (!itemName) {
+                    setStatus('No matching item: ' + typed, true);
+                    return;
+                }
+                const qty = Math.max(1, parseInt(qtyInput.value, 10) || 1);
+                addBtn.disabled = true;
+                fetch('/dm/inventory/add', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ entity_id: entityUid, item_name: itemName, qty: qty })
+                })
+                    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+                    .then(function (res) {
+                        if (!res.ok || !res.body || !res.body.success) {
+                            setStatus((res.body && res.body.error) || 'Failed to add item', true);
+                            return;
+                        }
+                        setStatus('Added ' + qty + ' x ' + itemName + ' (now ' + res.body.qty + ')', false);
+                        searchInput.value = '';
+                        qtyInput.value = '1';
+                        loadInventory();
+                    })
+                    .catch(function () { setStatus('Network error adding item', true); })
+                    .finally(function () { addBtn.disabled = false; });
+            });
+
+            searchInput.addEventListener('keydown', function (ev) {
+                if (ev.key === 'Enter') { ev.preventDefault(); addBtn.click(); }
+            });
+
+            tbody.addEventListener('click', function (ev) {
+                const target = ev.target;
+                if (!(target instanceof HTMLElement)) return;
+                const name = target.getAttribute('data-name');
+                if (!name) return;
+                const isAll = target.classList.contains('dm-inv-remove-all');
+                const isOne = target.classList.contains('dm-inv-remove-one');
+                if (!isAll && !isOne) return;
+                target.disabled = true;
+                fetch('/dm/inventory/remove', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ entity_id: entityUid, item_name: name, qty: 1, all: !!isAll })
+                })
+                    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+                    .then(function (res) {
+                        if (!res.ok || !res.body || !res.body.success) {
+                            setStatus((res.body && res.body.error) || 'Failed to remove', true);
+                            return;
+                        }
+                        setStatus('Removed ' + name + ' (now ' + res.body.qty + ')', false);
+                        loadInventory();
+                    })
+                    .catch(function () { setStatus('Network error removing item', true); })
+                    .finally(function () { target.disabled = false; });
+            });
+
+            loadCatalog();
+            loadInventory();
         })();
     </script>
     {% endif %}

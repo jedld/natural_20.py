@@ -42,7 +42,9 @@ class Session:
         self.conversation_handlers = conversation_handlers or {}
         # Centralized entity registry for UID-based lookup/serialization
         self.entity_registry = EntityRegistry()
-        i18n.load_path.append(os.path.join(self.root_path, 'locales'))
+        locale_path = os.path.join(self.root_path, 'locales')
+        if locale_path not in i18n.load_path:
+            i18n.load_path.append(locale_path)
         i18n.set('filename_format', '{locale}.{format}')
         game_file = os.path.join(self.root_path, 'game.yml')
         if os.path.exists(game_file):
