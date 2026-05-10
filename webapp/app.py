@@ -707,8 +707,11 @@ _mcp_context = MCPContext(
     output_logger_getter=lambda: output_logger,
     action_class_resolver=lambda action_type: action_type_to_class(action_type),
 )
+from webapp.mcp import build_default_registry as _mcp_build_default_registry
+_mcp_registry = _mcp_build_default_registry()
 try:
-    register_mcp_blueprint(app, _mcp_context, user_role_fn=lambda: user_role())
+    register_mcp_blueprint(app, _mcp_context, registry=_mcp_registry,
+                           user_role_fn=lambda: user_role())
 except Exception as _mcp_exc:  # noqa: BLE001 - never block app startup on MCP wiring
     logger.warning(f"Failed to register MCP blueprint: {_mcp_exc}")
 
@@ -852,8 +855,120 @@ def register_game_context_functions():
         "Get current battle information if combat is active"
     )
 
-# Register the functions
-register_game_context_functions()
+    # ── MCP bridge ────────────────────────────────────────────────────
+    # Expose the full MCP tool registry to the DM AI assistant so it
+    # uses the same tool surface as external MCP clients. The model
+    # invokes [FUNCTION_CALL: mcp("tool.name", {"k": "v"})]. The bridge
+    # delegates to the shared ToolRegistry and unwraps the MCP envelope.
+    def mcp_call_bridge(tool_name, arguments=None):
+        """Invoke an MCP tool by name and return its JSON payload (or error text)."""
+        if isinstance(arguments, str):
+            import json as _json
+            try:
+                arguments = _json.loads(arguments) if arguments.strip() else {}
+            except Exception as exc:
+                return f"Invalid JSON arguments: {exc}"
+        if arguments is None:
+            arguments = {}
+        if not isinstance(arguments, dict):
+            return f"Arguments must be a JSON object, got: {type(arguments).__name__}"
+
+        # Compatibility alias: several models emit `entity_name` for DM tools
+        # that actually require `entity_uid`. Resolve it from live entities,
+        # including fuzzy matching for minor typos.
+        manifest = next((m for m in _mcp_registry.list() if m.get('name') == tool_name), None)
+        input_schema = (manifest or {}).get('inputSchema') or {}
+        schema_props = input_schema.get('properties') or {}
+        needs_entity_uid = 'entity_uid' in schema_props
+        if needs_entity_uid and not arguments.get('entity_uid') and isinstance(arguments.get('entity_name'), str):
+            raw_name = arguments.get('entity_name', '').strip()
+            if raw_name:
+                import difflib as _difflib
+
+                candidates = []  # [(uid, name_key), ...]
+                seen_uids = set()
+                cg = _mcp_context.current_game
+                for battle_map in (getattr(cg, 'maps', {}) or {}).values():
+                    for ent in (getattr(battle_map, 'entities', {}) or {}).keys():
+                        uid = str(getattr(ent, 'entity_uid', '') or '').strip()
+                        if not uid or uid in seen_uids:
+                            continue
+                        seen_uids.add(uid)
+                        label = str((ent.label() if hasattr(ent, 'label') else getattr(ent, 'name', '')) or '').strip()
+                        name = str(getattr(ent, 'name', '') or '').strip()
+                        keys = [uid, label, name]
+                        for key in keys:
+                            if key:
+                                candidates.append((uid, key.lower()))
+
+                query = raw_name.lower()
+                # Exact first
+                exact = [uid for uid, key in candidates if key == query]
+                resolved_uid = exact[0] if exact else None
+                # Then substring match
+                if resolved_uid is None:
+                    contains = [uid for uid, key in candidates if query in key]
+                    if len(contains) == 1:
+                        resolved_uid = contains[0]
+                # Finally fuzzy match
+                if resolved_uid is None:
+                    all_keys = sorted(set(key for _, key in candidates))
+                    match = _difflib.get_close_matches(query, all_keys, n=1, cutoff=0.78)
+                    if match:
+                        for uid, key in candidates:
+                            if key == match[0]:
+                                resolved_uid = uid
+                                break
+
+                if resolved_uid:
+                    arguments['entity_uid'] = resolved_uid
+                else:
+                    return f"MCP error: Could not resolve entity_name '{raw_name}' to an entity_uid"
+
+        # Compatibility alias: some models emit `near_entity` for the
+        # *_near tools. Normalize to the expected `target_name` field.
+        if tool_name in ('dm.spawn_npc_near', 'dm.spawn_object_near'):
+            if (arguments.get('target_name') is None and
+                    arguments.get('target_entity_uid') is None and
+                    isinstance(arguments.get('near_entity'), str) and
+                    arguments.get('near_entity').strip()):
+                arguments['target_name'] = arguments.pop('near_entity').strip()
+
+        # Guardrail: models sometimes hallucinate map_name="Unknown" when
+        # context extraction fails. For spawn tools, normalize that to the
+        # active map instead of hard-failing.
+        if tool_name in ('dm.spawn_npc', 'dm.spawn_object'):
+            map_name = arguments.get('map_name')
+            if isinstance(map_name, str) and map_name.strip().lower() in ('unknown', 'none', 'null', ''):
+                arguments.pop('map_name', None)
+
+        envelope = _mcp_registry.call(tool_name, arguments, context=_mcp_context)
+        if envelope.get('isError'):
+            for item in envelope.get('content') or []:
+                if item.get('type') == 'text':
+                    return f"MCP error: {item.get('text')}"
+            return "MCP error (unknown)"
+        for item in envelope.get('content') or []:
+            if item.get('type') == 'json':
+                return item.get('json')
+        return envelope
+
+    llm_handler.register_game_context_function(
+        "mcp",
+        mcp_call_bridge,
+        "Invoke any MCP tool by name. Args: tool_name (str), arguments (JSON object). "
+        "Use this in preference to the legacy get_* functions for richer data."
+    )
+    # Stash the shared registry on the function-info dict so the LLM
+    # system prompt can enumerate the *real* tool catalogue instead of
+    # advertising hand-curated examples that may not exist.
+    if 'mcp' in llm_handler.game_context_functions:
+        llm_handler.game_context_functions['mcp']['mcp_registry'] = _mcp_registry
+
+# NOTE: do NOT call register_game_context_functions() here. The module-level
+# `llm_handler` is reassigned below by initialize_llm_from_env(); any
+# registrations on the imported singleton would be lost when that fresh
+# instance shadows the name. Registration happens after the reassignment.
 
 i18n.set('locale', 'en')
 
@@ -962,6 +1077,8 @@ def initialize_llm_from_env():
 
 # Initialize LLM handler from environment variables
 llm_handler = initialize_llm_from_env()
+# Register game-context + MCP bridge functions on the *active* handler.
+register_game_context_functions()
 llm_conversation_handler = LLMConversationController(llm_handler)
 
 # Initialize Entity RAG Handler

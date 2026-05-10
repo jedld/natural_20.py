@@ -439,6 +439,32 @@ const Chat = Object.assign({}, window.LocalConversationChatBindings || {}, {
         // AI Chatbot Interface Handlers
         let aiInitialized = false;
 
+        // Auto-detect: if the server already initialized a provider via env
+        // vars (LLM_PROVIDER + friends), hide the configuration UI and
+        // enable the chat immediately so the DM never sees the setup form.
+        $.ajax({
+            type: "GET",
+            url: "/ai/provider-info",
+            success: (data) => {
+                if (!data || !data.success || !data.info || !data.info.initialized) {
+                    return;
+                }
+                aiInitialized = true;
+                const info = data.info;
+                const label = info.current_model || info.provider_type || "ready";
+                $(".ai-config-section").hide();
+                $("#ai-status, #draggable-ai-status")
+                    .removeClass("label-default label-danger")
+                    .addClass("label-success")
+                    .text("Ready");
+                $("#chat-input, #send-chat, #draggable-chat-input, #draggable-send-chat")
+                    .prop("disabled", false);
+                const welcome = `AI Assistant is ready (${label}). How can I help with your D&D game?`;
+                const html = `<div class="chat-message system"><strong>AI Assistant:</strong> ${welcome}</div>`;
+                $("#chat-messages, #draggable-chat-messages").html(html);
+            }
+        });
+
         // Initialize AI provider
         $("#initialize-ai, #draggable-initialize-ai").on("click", function () {
             // Determine which panel is active and get the appropriate form values
