@@ -1,4 +1,5 @@
 import random
+import uuid
 from natural20.generic_controller import GenericController
 from natural20.action import Action
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction, LinkedAttackAction
@@ -12,14 +13,29 @@ from natural20.spell.effects.stench_effect import StenchEffect
 import pdb
 from natural20.uid_containers import EntitiesUIDMap
 
+
+def _animation_uid(value):
+    """Normalize ids in animator payloads (SocketIO JSON cannot encode uuid.UUID)."""
+    if value is None:
+        return None
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    if isinstance(value, list):
+        return [_animation_uid(v) for v in value]
+    return value
+
+
 def action_animator(action):
     def target_id(action):
         if hasattr(action, 'target') and action.target:
             if isinstance(action.target, list):
-                return [t.entity_uid if isinstance(t, Entity) else t for t in action.target]
+                return [
+                    _animation_uid(t.entity_uid if isinstance(t, Entity) else t)
+                    for t in action.target
+                ]
             if isinstance(action.target, Entity):
-                return action.target.entity_uid
-            return action.target
+                return _animation_uid(action.target.entity_uid)
+            return _animation_uid(action.target)
         return None
 
     if action and action.action_type == 'attack':
@@ -27,7 +43,7 @@ def action_animator(action):
             'type': 'attack',
             'message': {
                 'target': target_id(action),
-                'source': action.source.entity_uid,
+                'source': _animation_uid(action.source.entity_uid),
                 'ranged': action.ranged_attack(),
                 'type': 'attack',
                 'label': action.label()
@@ -65,7 +81,7 @@ def action_animator(action):
             'type': 'spell',
             'message': {
                 'target': target_id(action),
-                'source': action.source.entity_uid,
+                'source': _animation_uid(action.source.entity_uid),
                 'type': 'spell',
                 'label': action.label(),
                 'spell': spell_name,
@@ -77,7 +93,7 @@ def action_animator(action):
             'type': 'spell',
             'message': {
                 'target': target_id(action),
-                'source': action.source.entity_uid,
+                'source': _animation_uid(action.source.entity_uid),
                 'type': action.action_type,
                 'label': action.label(),
                 'spell': action.action_type

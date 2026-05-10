@@ -1,13 +1,19 @@
 """Tests for the MCP tool surface in webapp/mcp/."""
 
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import pytest
 
 
 @pytest.fixture
 def context_and_registry():
+    from natural20.actions.interact_action import InteractAction
     from webapp.mcp import MCPContext, build_default_registry
+
+    def _action_class_resolver(action_type: str):
+        if action_type == 'InteractAction':
+            return InteractAction
+        return None
 
     fake_entity = MagicMock()
     fake_entity.entity_uid = 'e1'
@@ -48,6 +54,7 @@ def context_and_registry():
     ctx = MCPContext(
         game_session_getter=lambda: fake_session,
         current_game_getter=lambda: fake_game,
+        action_class_resolver=_action_class_resolver,
     )
     registry = build_default_registry()
     return ctx, registry, fake_entity, fake_map, fake_game
@@ -125,3 +132,99 @@ def test_entity_not_found_error(context_and_registry):
     env = registry.call('dm.heal',
                         {'entity_uid': 'missing', 'amount': 5}, context=ctx)
     assert env['isError'] is True
+
+
+def test_world_list_entities_filters_by_npc_type(context_and_registry):
+    ctx, registry, fake_entity, *_ = context_and_registry
+    fake_entity.name = 'Thakbar'
+    fake_entity.label.return_value = 'Thakbar'
+    fake_entity.npc_type = 'goblin'
+
+    env = registry.call(
+        'world.list_entities',
+        {'kind': 'npc', 'npc_type_contains': 'goblin'},
+        context=ctx,
+    )
+    assert env['isError'] is False
+    payload = env['content'][0]['json']
+    assert payload['count'] == 1
+    assert payload['entities'][0]['name'] == 'Thakbar'
+
+
+def test_world_list_entities_npc_type_filter_can_return_zero(context_and_registry):
+    ctx, registry, fake_entity, *_ = context_and_registry
+    fake_entity.npc_type = 'orc'
+
+    env = registry.call(
+        'world.list_entities',
+        {'kind': 'npc', 'npc_type_contains': 'goblin'},
+        context=ctx,
+    )
+    assert env['isError'] is False
+    payload = env['content'][0]['json']
+    assert payload['count'] == 0
+    assert payload['entities'] == []
+
+
+def test_infer_action_type_from_opts_for_interactions():
+    from webapp.mcp.tools_actions import _infer_action_type_from_opts
+
+    assert _infer_action_type_from_opts({'action': 'open'}) == 'InteractAction'
+    assert _infer_action_type_from_opts({'object_action': 'close'}) == 'InteractAction'
+    assert _infer_action_type_from_opts({}) is None
+
+
+def test_execute_interact_dm_direct_omits_entity_uid(context_and_registry):
+    """DM can open doors without naming a PC — anchor falls back to the target object."""
+    ctx, registry, fake_entity, fake_map, fake_game = context_and_registry
+    door = MagicMock()
+    door.entity_uid = 'door-uid'
+    door.label.return_value = 'Door'
+
+    fake_map.entity_by_uid.return_value = None
+    fake_map.object_by_uid.return_value = door
+    fake_game.get_entity_by_uid.return_value = None
+    fake_game.commit_and_update = MagicMock()
+
+    env = registry.call(
+        'actions.execute',
+        {
+            'action_type': 'InteractAction',
+            'target': 'door-uid',
+            'opts': {'action': 'open'},
+        },
+        context=ctx,
+    )
+    assert env['isError'] is False
+    data = env['content'][0]['json']
+    assert data['actor'] == 'dungeon_master'
+    assert data['target_uid'] == 'door-uid'
+    assert 'context_entity_uid' not in data
+    fake_game.commit_and_update.assert_called_once_with('dm', ANY, [door])
+
+
+def test_execute_interact_explicit_context_entity_still_supported(context_and_registry):
+    ctx, registry, fake_entity, fake_map, fake_game = context_and_registry
+    door = MagicMock()
+    door.entity_uid = 'door-uid'
+    door.label.return_value = 'Door'
+
+    fake_map.entity_by_uid.side_effect = lambda uid: fake_entity if uid == 'e1' else None
+    fake_map.object_by_uid.side_effect = lambda uid: door if uid == 'door-uid' else None
+    fake_game.get_entity_by_uid.side_effect = lambda uid: fake_entity if uid == 'e1' else None
+    fake_game.commit_and_update = MagicMock()
+
+    env = registry.call(
+        'actions.execute',
+        {
+            'entity_uid': 'e1',
+            'action_type': 'InteractAction',
+            'target': 'door-uid',
+            'opts': {'action': 'open'},
+        },
+        context=ctx,
+    )
+    assert env['isError'] is False
+    data = env['content'][0]['json']
+    assert data['context_entity_uid'] == 'e1'
+    fake_game.commit_and_update.assert_called_once_with('dm', ANY, [fake_entity])

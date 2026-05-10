@@ -6,7 +6,7 @@ current game state information for the VTT system.
 """
 
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 from natural20.player_character import PlayerCharacter
 logger = logging.getLogger(__name__)
@@ -17,7 +17,189 @@ class GameContextProvider:
     def __init__(self, game_session, current_game):
         self.game_session = game_session
         self.current_game = current_game
-    
+        self._entity_bundle_cache: Optional[Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]] = None
+
+    def begin_chat_context_snapshot(self) -> None:
+        """Invalidate cached entity lists before a new DM chat context build."""
+        self._entity_bundle_cache = None
+
+    def _entity_bundle(self) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Single pass over current map entities for get_entities / players / npcs."""
+        if self._entity_bundle_cache is not None:
+            return self._entity_bundle_cache
+        battle_map = self.current_game.get_current_battle_map()
+        if not battle_map:
+            self._entity_bundle_cache = ([], [], [])
+            return self._entity_bundle_cache
+
+        entities: List[Dict[str, Any]] = []
+        player_characters: List[Dict[str, Any]] = []
+        npcs: List[Dict[str, Any]] = []
+
+        for entity in battle_map.entities:
+            try:
+                entities.append(self._summarize_entity_row(entity, battle_map))
+            except Exception as e:
+                logger.error(f"Error processing entity {entity}: {e}")
+
+            try:
+                if isinstance(entity, PlayerCharacter):
+                    player_characters.append(self._summarize_pc_row(entity, battle_map))
+            except Exception as e:
+                logger.error(f"Error processing player character {entity}: {e}")
+
+            try:
+                if not (hasattr(entity, 'player_character') and entity.player_character):
+                    npcs.append(self._summarize_npc_row(entity, battle_map))
+            except Exception as e:
+                logger.error(f"Error processing NPC {entity}: {e}")
+
+        self._entity_bundle_cache = (entities, player_characters, npcs)
+        return self._entity_bundle_cache
+
+    def _summarize_entity_row(self, entity, battle_map) -> Dict[str, Any]:
+        entity_info = {
+            "name": entity.label() if hasattr(entity, 'label') else str(entity),
+            "type": entity.__class__.__name__,
+            "entity_uid": getattr(entity, 'entity_uid', None),
+            "position": battle_map.entity_or_object_pos(entity) if hasattr(battle_map, 'entity_or_object_pos') else None
+        }
+
+        if hasattr(entity, 'npc_type'):
+            entity_info["npc_type"] = entity.npc_type
+
+        if isinstance(entity, PlayerCharacter):
+            entity_info["player_character"] = True
+            entity_info["classes"] = entity.class_descriptor()
+
+        if hasattr(entity, 'group'):
+            entity_info["group"] = entity.group
+
+        if hasattr(entity, 'hp') and callable(getattr(entity, 'hp')):
+            entity_info["hp"] = entity.hp()
+        elif hasattr(entity, 'hp'):
+            entity_info["hp"] = entity.hp
+
+        if hasattr(entity, 'max_hp') and callable(getattr(entity, 'max_hp')):
+            entity_info["max_hp"] = entity.max_hp()
+        elif hasattr(entity, 'max_hp'):
+            entity_info["max_hp"] = entity.max_hp
+
+        if hasattr(entity, 'ac') and callable(getattr(entity, 'ac')):
+            entity_info["ac"] = entity.ac()
+        elif hasattr(entity, 'ac'):
+            entity_info["ac"] = entity.ac
+
+        if hasattr(entity, 'level') and callable(getattr(entity, 'level')):
+            entity_info["level"] = entity.level()
+        elif hasattr(entity, 'level'):
+            entity_info["level"] = entity.level
+
+        if hasattr(entity, 'dead') and callable(getattr(entity, 'dead')):
+            entity_info["dead"] = entity.dead()
+        elif hasattr(entity, 'dead'):
+            entity_info["dead"] = entity.dead
+
+        if hasattr(entity, 'unconscious') and callable(getattr(entity, 'unconscious')):
+            entity_info["unconscious"] = entity.unconscious()
+        elif hasattr(entity, 'unconscious'):
+            entity_info["unconscious"] = entity.unconscious
+
+        if hasattr(entity, 'prone') and callable(getattr(entity, 'prone')):
+            entity_info["prone"] = entity.prone()
+        elif hasattr(entity, 'prone'):
+            entity_info["prone"] = entity.prone
+
+        if hasattr(entity, 'hidden') and callable(getattr(entity, 'hidden')):
+            entity_info["hidden"] = entity.hidden()
+        elif hasattr(entity, 'hidden'):
+            entity_info["hidden"] = entity.hidden
+
+        return entity_info
+
+    def _summarize_pc_row(self, entity: PlayerCharacter, battle_map) -> Dict[str, Any]:
+        pc_info = {
+            "name": entity.label() if hasattr(entity, 'label') else str(entity),
+            "entity_uid": getattr(entity, 'entity_uid', None),
+            "position": battle_map.entity_or_object_pos(entity) if hasattr(battle_map, 'entity_or_object_pos') else None,
+            "class": entity.class_descriptor()
+        }
+
+        if hasattr(entity, 'hp') and callable(getattr(entity, 'hp')):
+            pc_info["hp"] = entity.hp()
+        elif hasattr(entity, 'hp'):
+            pc_info["hp"] = entity.hp
+
+        if hasattr(entity, 'max_hp') and callable(getattr(entity, 'max_hp')):
+            pc_info["max_hp"] = entity.max_hp()
+        elif hasattr(entity, 'max_hp'):
+            pc_info["max_hp"] = entity.max_hp
+
+        if hasattr(entity, 'armor_class') and callable(getattr(entity, 'armor_class')):
+            pc_info["ac"] = entity.armor_class()
+
+        pc_info["inventory"] = entity.inventory_items(self.game_session)
+        pc_info["equipped"] = entity.equipped_items()
+        pc_info["attributes"] = entity.attributes
+
+        if hasattr(entity, 'current_effects') and callable(getattr(entity, 'current_effects')):
+            pc_info["effects"] = [str(effect['effect']) for effect in entity.current_effects()]
+        elif hasattr(entity, 'current_effects'):
+            pc_info["effects"] = entity.current_effects
+
+        return pc_info
+
+    def _summarize_npc_row(self, entity, battle_map) -> Dict[str, Any]:
+        npc_info = {
+            "name": entity.label() if hasattr(entity, 'label') else str(entity),
+            "entity_uid": getattr(entity, 'entity_uid', None),
+            "position": battle_map.entity_or_object_pos(entity) if hasattr(battle_map, 'entity_or_object_pos') else None,
+            "type": entity.__class__.__name__,
+        }
+
+        if hasattr(entity, 'hp') and callable(getattr(entity, 'hp')):
+            npc_info["hp"] = entity.hp()
+        elif hasattr(entity, 'hp'):
+            npc_info["hp"] = entity.hp
+
+        if hasattr(entity, 'max_hp') and callable(getattr(entity, 'max_hp')):
+            npc_info["max_hp"] = entity.max_hp()
+        elif hasattr(entity, 'max_hp'):
+            npc_info["max_hp"] = entity.max_hp
+
+        if hasattr(entity, 'ac') and callable(getattr(entity, 'ac')):
+            npc_info["ac"] = entity.ac()
+        elif hasattr(entity, 'ac'):
+            npc_info["ac"] = entity.ac
+
+        if hasattr(entity, 'cr'):
+            npc_info["challenge_rating"] = entity.cr
+
+        if hasattr(entity, 'alignment') and callable(getattr(entity, 'alignment')):
+            npc_info["alignment"] = entity.alignment()
+        elif hasattr(entity, 'alignment'):
+            npc_info["alignment"] = entity.alignment
+
+        if hasattr(entity, 'size') and callable(getattr(entity, 'size')):
+            npc_info["size"] = entity.size()
+        elif hasattr(entity, 'size'):
+            npc_info["size"] = entity.size
+
+        if hasattr(entity, 'dead') and callable(getattr(entity, 'dead')):
+            npc_info["dead"] = entity.dead()
+        elif hasattr(entity, 'dead'):
+            npc_info["dead"] = entity.dead
+
+        if hasattr(entity, 'unconscious') and callable(getattr(entity, 'unconscious')):
+            npc_info["unconscious"] = entity.unconscious()
+        elif hasattr(entity, 'unconscious'):
+            npc_info["unconscious"] = entity.unconscious
+
+        if hasattr(entity, 'hostile'):
+            npc_info["hostile"] = getattr(entity, 'hostile', False)
+
+        return npc_info
+
     def get_map_info(self) -> Dict[str, Any]:
         """Get current map information including terrain, layout, and basic details."""
         try:
@@ -41,210 +223,23 @@ class GameContextProvider:
     def get_entities(self) -> List[Dict[str, Any]]:
         """Get all entities on the current map with their positions and basic information."""
         try:
-            battle_map = self.current_game.get_current_battle_map()
-            if not battle_map:
-                return []
-            
-            entities = []
-            for entity in battle_map.entities:
-                try:
-                    entity_info = {
-                        "name": entity.label() if hasattr(entity, 'label') else str(entity),
-                        "type": entity.__class__.__name__,
-                        "entity_uid": getattr(entity, 'entity_uid', None),
-                        "position": battle_map.entity_or_object_pos(entity) if hasattr(battle_map, 'entity_or_object_pos') else None
-                    }
-                    
-                    if hasattr(entity, 'npc_type'):
-                        entity_info["npc_type"] = entity.npc_type
-                    
-                    if isinstance(entity, PlayerCharacter):
-                        entity_info["player_character"] = True
-                        entity_info["classes"] = entity.class_descriptor()
-
-                    if hasattr(entity, 'group'):
-                        entity_info["group"] = entity.group
-
-                    # Add additional entity properties
-                    if hasattr(entity, 'hp') and callable(getattr(entity, 'hp')):
-                        entity_info["hp"] = entity.hp()
-                    elif hasattr(entity, 'hp'):
-                        entity_info["hp"] = entity.hp
-                    
-                    if hasattr(entity, 'max_hp') and callable(getattr(entity, 'max_hp')):
-                        entity_info["max_hp"] = entity.max_hp()
-                    elif hasattr(entity, 'max_hp'):
-                        entity_info["max_hp"] = entity.max_hp
-                    
-                    if hasattr(entity, 'ac') and callable(getattr(entity, 'ac')):
-                        entity_info["ac"] = entity.ac()
-                    elif hasattr(entity, 'ac'):
-                        entity_info["ac"] = entity.ac
-                    
-                    if hasattr(entity, 'level') and callable(getattr(entity, 'level')):
-                        entity_info["level"] = entity.level()
-                    elif hasattr(entity, 'level'):
-                        entity_info["level"] = entity.level
-                    
-                    # Fix bound method calls by ensuring they are executed
-                    if hasattr(entity, 'dead') and callable(getattr(entity, 'dead')):
-                        entity_info["dead"] = entity.dead()
-                    elif hasattr(entity, 'dead'):
-                        entity_info["dead"] = entity.dead
-                    
-                    if hasattr(entity, 'unconscious') and callable(getattr(entity, 'unconscious')):
-                        entity_info["unconscious"] = entity.unconscious()
-                    elif hasattr(entity, 'unconscious'):
-                        entity_info["unconscious"] = entity.unconscious
-                    
-                    if hasattr(entity, 'prone') and callable(getattr(entity, 'prone')):
-                        entity_info["prone"] = entity.prone()
-                    elif hasattr(entity, 'prone'):
-                        entity_info["prone"] = entity.prone
-                    
-                    if hasattr(entity, 'hidden') and callable(getattr(entity, 'hidden')):
-                        entity_info["hidden"] = entity.hidden()
-                    elif hasattr(entity, 'hidden'):
-                        entity_info["hidden"] = entity.hidden
-                    
-                    entities.append(entity_info)
-                    
-                except Exception as e:
-                    logger.error(f"Error processing entity {entity}: {e}")
-                    continue
-            
-            return entities
-            
+            return self._entity_bundle()[0]
         except Exception as e:
             logger.error(f"Error getting entities: {e}")
             return []
-    
+
     def get_player_characters(self) -> List[Dict[str, Any]]:
         """Get information about player characters on the current map."""
         try:
-            battle_map = self.current_game.get_current_battle_map()
-            if not battle_map:
-                return []
-            
-            player_characters = []
-            for entity in battle_map.entities:
-                try:
-                    # Check if this is a player character
-                    if isinstance(entity, PlayerCharacter):
-                        pc_info = {
-                            "name": entity.label() if hasattr(entity, 'label') else str(entity),
-                            "entity_uid": getattr(entity, 'entity_uid', None),
-                            "position": battle_map.entity_or_object_pos(entity) if hasattr(battle_map, 'entity_or_object_pos') else None,
-                            "class": entity.class_descriptor()
-                        }
-                        
-                        # Add HP with proper method handling
-                        if hasattr(entity, 'hp') and callable(getattr(entity, 'hp')):
-                            pc_info["hp"] = entity.hp()
-                        elif hasattr(entity, 'hp'):
-                            pc_info["hp"] = entity.hp
-                        
-                        if hasattr(entity, 'max_hp') and callable(getattr(entity, 'max_hp')):
-                            pc_info["max_hp"] = entity.max_hp()
-                        elif hasattr(entity, 'max_hp'):
-                            pc_info["max_hp"] = entity.max_hp
-                        
-                        if hasattr(entity, 'armor_class') and callable(getattr(entity, 'armor_class')):
-                            pc_info["ac"] = entity.armor_class()
-                        
-                        pc_info["inventory"] = entity.inventory_items(self.game_session)
-                        pc_info["equipped"] = entity.equipped_items()
-                        pc_info["attributes"] = entity.attributes
-                        
-                        # Add current status effects
-                        if hasattr(entity, 'current_effects') and callable(getattr(entity, 'current_effects')):
-                            pc_info["effects"] = [str(effect['effect']) for effect in entity.current_effects()]
-                        elif hasattr(entity, 'current_effects'):
-                            pc_info["effects"] = entity.current_effects
-                        
-                        player_characters.append(pc_info)
-                        
-                except Exception as e:
-                    logger.error(f"Error processing player character {entity}: {e}")
-                    continue
-            
-            return player_characters
-            
+            return self._entity_bundle()[1]
         except Exception as e:
             logger.error(f"Error getting player characters: {e}")
             return []
-    
+
     def get_npcs(self) -> List[Dict[str, Any]]:
         """Get information about NPCs on the current map."""
         try:
-            battle_map = self.current_game.get_current_battle_map()
-            if not battle_map:
-                return []
-            
-            npcs = []
-            for entity in battle_map.entities:
-                try:
-                    # Check if this is an NPC (not a player character)
-                    if not (hasattr(entity, 'player_character') and entity.player_character):
-                        npc_info = {
-                            "name": entity.label() if hasattr(entity, 'label') else str(entity),
-                            "entity_uid": getattr(entity, 'entity_uid', None),
-                            "position": battle_map.entity_or_object_pos(entity) if hasattr(battle_map, 'entity_or_object_pos') else None,
-                            "type": entity.__class__.__name__,
-                        }
-                        
-                        # Add HP with proper method handling
-                        if hasattr(entity, 'hp') and callable(getattr(entity, 'hp')):
-                            npc_info["hp"] = entity.hp()
-                        elif hasattr(entity, 'hp'):
-                            npc_info["hp"] = entity.hp
-                        
-                        if hasattr(entity, 'max_hp') and callable(getattr(entity, 'max_hp')):
-                            npc_info["max_hp"] = entity.max_hp()
-                        elif hasattr(entity, 'max_hp'):
-                            npc_info["max_hp"] = entity.max_hp
-                        
-                        if hasattr(entity, 'ac') and callable(getattr(entity, 'ac')):
-                            npc_info["ac"] = entity.ac()
-                        elif hasattr(entity, 'ac'):
-                            npc_info["ac"] = entity.ac
-                        
-                        # Add NPC-specific information
-                        if hasattr(entity, 'cr'):
-                            npc_info["challenge_rating"] = entity.cr
-                        
-                        if hasattr(entity, 'alignment') and callable(getattr(entity, 'alignment')):
-                            npc_info["alignment"] = entity.alignment()
-                        elif hasattr(entity, 'alignment'):
-                            npc_info["alignment"] = entity.alignment
-                        
-                        if hasattr(entity, 'size') and callable(getattr(entity, 'size')):
-                            npc_info["size"] = entity.size()
-                        elif hasattr(entity, 'size'):
-                            npc_info["size"] = entity.size
-                        
-                        # Fix bound method calls by ensuring they are executed
-                        if hasattr(entity, 'dead') and callable(getattr(entity, 'dead')):
-                            npc_info["dead"] = entity.dead()
-                        elif hasattr(entity, 'dead'):
-                            npc_info["dead"] = entity.dead
-                        
-                        if hasattr(entity, 'unconscious') and callable(getattr(entity, 'unconscious')):
-                            npc_info["unconscious"] = entity.unconscious()
-                        elif hasattr(entity, 'unconscious'):
-                            npc_info["unconscious"] = entity.unconscious
-                        
-                        if hasattr(entity, 'hostile'):
-                            npc_info["hostile"] = getattr(entity, 'hostile', False)
-                        
-                        npcs.append(npc_info)
-                        
-                except Exception as e:
-                    logger.error(f"Error processing NPC {entity}: {e}")
-                    continue
-            
-            return npcs
-            
+            return self._entity_bundle()[2]
         except Exception as e:
             logger.error(f"Error getting NPCs: {e}")
             return []
