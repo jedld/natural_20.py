@@ -2198,37 +2198,43 @@ input.initiative-input.form-control {
     cursor: not-allowed;
 }
 
-/* AI Chatbot Interface Styles */
+/* AI Chatbot Interface Styles
+   Tuned to match the rest of the site (Bootstrap defaults + the
+   muted DM-console palette). Avoid loud purple/blue/orange bubbles. */
 .chat-message {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 4px;
   word-wrap: break-word;
+  font-size: 13px;
+  line-height: 1.45;
+  background-color: #f7f7f9;
+  border-left: 3px solid #d0d4d9;
 }
 
 .chat-message.user {
-  background-color: #e3f2fd;
-  border-left: 4px solid #2196f3;
-  margin-left: 20px;
+  background-color: #eef5ff;
+  border-left-color: #337ab7; /* Bootstrap primary */
+  margin-left: 16px;
 }
 
 .chat-message.assistant {
-  background-color: #f3e5f5;
-  border-left: 4px solid #9c27b0;
-  margin-right: 20px;
+  background-color: #f5f5f5;
+  border-left-color: #5cb85c; /* Bootstrap success */
+  margin-right: 16px;
 }
 
 .chat-message.system {
-  background-color: #fff3e0;
-  border-left: 4px solid #ff9800;
+  background-color: #fcf8e3; /* Bootstrap warning bg */
+  border-left-color: #f0ad4e;
   font-style: italic;
 }
 
 /* Processing indicator styles */
 .chat-message.processing {
-  background-color: #f0f8ff;
-  border-left: 4px solid #4caf50;
-  opacity: 0.8;
+  background-color: #f5f5f5;
+  border-left-color: #5bc0de;
+  opacity: 0.85;
 }
 
 .processing-dots {
@@ -2249,7 +2255,7 @@ input.initiative-input.form-control {
 }
 
 .processing-text {
-  color: #4caf50;
+  color: #31708f;
   font-weight: 500;
 }
 
@@ -2262,33 +2268,41 @@ input.initiative-input.form-control {
   border-radius: 4px;
 }
 
-.ai-config-section h5 {
+.ai-config-section h5,
+.ai-config-section h6 {
   margin-top: 0;
-  margin-bottom: 15px;
+  margin-bottom: 12px;
   color: #333;
 }
 
-#chat-messages {
-  font-family: 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.4;
+#chat-messages,
+#draggable-chat-messages {
+  /* Inherit the site's body font instead of Courier New so the AI
+     Assistant looks like the rest of the DM console. */
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
-#chat-messages::-webkit-scrollbar {
+#chat-messages::-webkit-scrollbar,
+#draggable-chat-messages::-webkit-scrollbar {
   width: 8px;
 }
 
-#chat-messages::-webkit-scrollbar-track {
+#chat-messages::-webkit-scrollbar-track,
+#draggable-chat-messages::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 4px;
 }
 
-#chat-messages::-webkit-scrollbar-thumb {
+#chat-messages::-webkit-scrollbar-thumb,
+#draggable-chat-messages::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 4px;
 }
 
-#chat-messages::-webkit-scrollbar-thumb:hover {
+#chat-messages::-webkit-scrollbar-thumb:hover,
+#draggable-chat-messages::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
 

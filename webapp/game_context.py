@@ -213,7 +213,9 @@ class GameContextProvider:
                         if hasattr(entity, 'cr'):
                             npc_info["challenge_rating"] = entity.cr
                         
-                        if hasattr(entity, 'alignment'):
+                        if hasattr(entity, 'alignment') and callable(getattr(entity, 'alignment')):
+                            npc_info["alignment"] = entity.alignment()
+                        elif hasattr(entity, 'alignment'):
                             npc_info["alignment"] = entity.alignment
                         
                         if hasattr(entity, 'size') and callable(getattr(entity, 'size')):
