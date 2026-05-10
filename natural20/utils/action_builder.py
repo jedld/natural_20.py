@@ -328,7 +328,23 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             possible_objects = []
             if map:
                 nearby_objects = map.objects_near(entity)
-                possible_objects = [obj for obj in nearby_objects if obj.interactable(entity)]
+                # ``objects_near`` may include adjacent creatures; only map/object
+                # types implement ``interactable``.
+                for obj in nearby_objects:
+                    ig = getattr(obj, 'interactable', None)
+                    if not callable(ig):
+                        continue
+                    try:
+                        ok = ig(entity)
+                    except TypeError:
+                        try:
+                            ok = ig()
+                        except Exception:
+                            ok = False
+                    except Exception:
+                        ok = False
+                    if ok:
+                        possible_objects.append(obj)
 
                 if _match:
                     possible_objects = [obj for obj in possible_objects if obj in match]

@@ -25,6 +25,12 @@ class TestNpc(unittest.TestCase):
         random.seed(7003)
         return super().setUp()
 
+    def test_npc_type_resolves_case_insensitive(self):
+        lower = self.session.npc('wolf')
+        titled = self.session.npc('Wolf')
+        self.assertEqual(lower.npc_type, 'wolf')
+        self.assertEqual(titled.npc_type, 'wolf')
+
     def test_stench_effect(self):
         battle = Battle(self.session, self.map)
         fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')

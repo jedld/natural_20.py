@@ -18,8 +18,100 @@ from datetime import datetime
 import re
 import uuid
 import pdb
+import threading
+from pathlib import Path
+
 logger = logging.getLogger('werkzeug')
 logger.setLevel(logging.INFO)
+
+_PROMPTS_DIR = Path(__file__).resolve().parent / 'prompts'
+_PROMPT_CACHE: Dict[str, str] = {}
+
+
+def _load_prompt_file(filename: str) -> str:
+    """Load UTF-8 text from ``webapp/prompts/<filename>`` (cached)."""
+    if filename not in _PROMPT_CACHE:
+        path = _PROMPTS_DIR / filename
+        if not path.is_file():
+            raise FileNotFoundError(f'Missing LLM prompt file: {path}')
+        _PROMPT_CACHE[filename] = path.read_text(encoding='utf-8')
+    return _PROMPT_CACHE[filename]
+
+
+def _append_legacy_context_block(prompt: str, context: Optional[Dict[str, Any]]) -> str:
+    """Append snapshot lines used by legacy provider ``_build_system_prompt`` helpers."""
+    if context:
+        prompt += f"\n\nCurrent Map: {context.get('current_map', 'Unknown')}"
+        if context.get('battle'):
+            prompt += f"\nBattle Status: Active (Current Turn: {context.get('current_turn', 'Unknown')})"
+        else:
+            prompt += "\nBattle Status: No active battle"
+
+        if context.get('entities'):
+            prompt += f"\nEntities on Map: {len(context['entities'])}"
+
+        if context.get('pov_entity'):
+            prompt += f"\nCurrent POV: {context['pov_entity']}"
+
+    prompt += "\n\nHow can I help you with your D&D game today?"
+    return prompt
+
+
+_campaign_prompt_tls = threading.local()
+
+
+def set_campaign_prompt_root(path: Optional[str]) -> None:
+    """Bind the active campaign directory for per-campaign prompt overrides.
+
+    The Flask app sets this from ``game_session.root_path`` on each request.
+    When unset (tests, scripts), bundled defaults under ``webapp/prompts/`` apply.
+    """
+    if path:
+        _campaign_prompt_tls.root = os.path.abspath(path)
+    else:
+        _campaign_prompt_tls.root = None
+
+
+def get_campaign_prompt_root() -> Optional[str]:
+    return getattr(_campaign_prompt_tls, 'root', None)
+
+
+def read_prompt_with_campaign_override(bundled_filename: str, campaign_filename: str) -> str:
+    """Return campaign override text if ``<campaign_root>/<campaign_filename>`` exists, else bundled."""
+    root = get_campaign_prompt_root()
+    if root:
+        candidate = Path(root) / campaign_filename
+        if candidate.is_file():
+            try:
+                return candidate.read_text(encoding='utf-8')
+            except OSError as exc:
+                logger.warning('[LLMHandler] Could not read campaign prompt %s: %s', candidate, exc)
+    return _load_prompt_file(bundled_filename)
+
+
+def read_npc_system_prompt(fallback_templates_dir: Optional[str] = None) -> str:
+    """Load NPC conversation system template: active campaign first, then templates dir.
+
+    Expected file name: ``npc_system_prompt.txt``. Uses :func:`get_campaign_prompt_root`
+    first, then ``fallback_templates_dir`` (typically the app's ``LEVEL`` / ``TEMPLATE_DIR``).
+    """
+    roots: List[str] = []
+    cr = get_campaign_prompt_root()
+    if cr:
+        roots.append(cr)
+    fd = fallback_templates_dir or os.environ.get('TEMPLATE_DIR')
+    if fd:
+        abs_fd = os.path.abspath(fd)
+        if abs_fd not in roots:
+            roots.append(abs_fd)
+    for root in roots:
+        p = Path(root) / 'npc_system_prompt.txt'
+        if p.is_file():
+            try:
+                return p.read_text(encoding='utf-8')
+            except OSError as exc:
+                logger.warning('[LLMHandler] Could not read NPC prompt %s: %s', p, exc)
+    return ''
 
 
 class SessionLogger:
@@ -300,75 +392,10 @@ class OpenAIProvider(LLMProvider):
     
     def _build_system_prompt(self, context: Optional[Dict[str, Any]] = None) -> str:
         """Build a strict system prompt enforcing function calling."""
-        prompt = '''You are an AI assistant for a D&D Virtual Tabletop (VTT).
-You have access to the following functions:
-- get_map_info()
-- get_entities()
-- get_player_characters()
-- get_npcs()
-- get_entity_details(entity_name)
-- get_battle_status()
-
-IMPORTANT RULES:
-1. **NEVER use thinking tags like <think> or reasoning blocks**
-2. **NEVER explain your reasoning or thought process**
-3. **For any question about the game state, respond ONLY with function calls in this exact format:**
-   [FUNCTION_CALL: function_name(arguments_if_any)]
-4. **Do NOT answer from your own knowledge or make up information**
-5. **Do NOT provide explanations or context - just the function calls**
-6. **If multiple functions are needed, list each on a separate line**
-7. **For general questions, use get_map_info() and get_entities() to provide context**
-8. **For entity details, use get_entity_details("entity_name") with quotes around the name**
-
-EXAMPLES:
-User: "Who are the characters?"
-Assistant: [FUNCTION_CALL: get_player_characters()]
-[FUNCTION_CALL: get_npcs()]
-
-User: "What is the current map?"
-Assistant: [FUNCTION_CALL: get_map_info()]
-
-User: "Tell me about the entity named 'Goblin King'"
-Assistant: [FUNCTION_CALL: get_entity_details("Goblin King")]
-
-User: "What's the battle status?"
-Assistant: [FUNCTION_CALL: get_battle_status()]
-
-User: "Set RumbleBelly HP to 1"
-Assistant: [FUNCTION_CALL: mcp("dm.set_hp", {"entity_uid": "rumblebelly", "hp": 1})]
-
-User: "Please describe yourself"
-Assistant: [FUNCTION_CALL: get_map_info()]
-[FUNCTION_CALL: get_entities()]
-
-User: "Hello"
-Assistant: [FUNCTION_CALL: get_map_info()]
-[FUNCTION_CALL: get_entities()]
-
-User: "Give me basic information about the current game"
-Assistant: [FUNCTION_CALL: get_map_info()]
-[FUNCTION_CALL: get_entities()]
-
-REMEMBER: 
-- Respond ONLY with function calls, no explanations, no thinking, no reasoning
-- Use quotes around string arguments like entity names
-- Always use the exact function names listed above'''
-        
-        if context:
-            prompt += f"\n\nCurrent Map: {context.get('current_map', 'Unknown')}"
-            if context.get('battle'):
-                prompt += f"\nBattle Status: Active (Current Turn: {context.get('current_turn', 'Unknown')})"
-            else:
-                prompt += "\nBattle Status: No active battle"
-            
-            if context.get('entities'):
-                prompt += f"\nEntities on Map: {len(context['entities'])}"
-            
-            if context.get('pov_entity'):
-                prompt += f"\nCurrent POV: {context['pov_entity']}"
-        
-        prompt += "\n\nHow can I help you with your D&D game today?"
-        return prompt
+        prompt = read_prompt_with_campaign_override(
+            'dm_assistant_system_legacy.txt', 'dm_system_prompt_legacy.txt'
+        ).rstrip()
+        return _append_legacy_context_block(prompt, context)
 
 
 class AnthropicProvider(LLMProvider):
@@ -448,72 +475,10 @@ class AnthropicProvider(LLMProvider):
     
     def _build_system_prompt(self, context: Optional[Dict[str, Any]] = None) -> str:
         """Build a strict system prompt enforcing function calling."""
-        prompt = '''You are an AI assistant for a D&D Virtual Tabletop (VTT).
-You have access to the following functions:
-- get_map_info()
-- get_entities()
-- get_player_characters()
-- get_npcs()
-- get_entity_details(entity_name)
-- get_battle_status()
-
-IMPORTANT RULES:
-1. **NEVER use thinking tags like <think> or reasoning blocks**
-2. **NEVER explain your reasoning or thought process**
-3. **For any question about the game state, respond ONLY with function calls in this exact format:**
-   [FUNCTION_CALL: function_name(arguments_if_any)]
-4. **Do NOT answer from your own knowledge or make up information**
-5. **Do NOT provide explanations or context - just the function calls**
-6. **If multiple functions are needed, list each on a separate line**
-7. **For general questions, use get_map_info() and get_entities() to provide context**
-8. **For entity details, use get_entity_details("entity_name") with quotes around the name**
-
-EXAMPLES:
-User: "Who are the characters?"
-Assistant: [FUNCTION_CALL: get_player_characters()]
-[FUNCTION_CALL: get_npcs()]
-
-User: "What is the current map?"
-Assistant: [FUNCTION_CALL: get_map_info()]
-
-User: "Tell me about the entity named 'Goblin King'"
-Assistant: [FUNCTION_CALL: get_entity_details("Goblin King")]
-
-User: "What's the battle status?"
-Assistant: [FUNCTION_CALL: get_battle_status()]
-
-User: "Please describe yourself"
-Assistant: [FUNCTION_CALL: get_map_info()]
-[FUNCTION_CALL: get_entities()]
-
-User: "Hello"
-Assistant: [FUNCTION_CALL: get_map_info()]
-[FUNCTION_CALL: get_entities()]
-
-User: "Give me basic information about the current game"
-Assistant: [FUNCTION_CALL: get_map_info()]
-[FUNCTION_CALL: get_entities()]
-
-REMEMBER: 
-- Respond ONLY with function calls, no explanations, no thinking, no reasoning
-- Use quotes around string arguments like entity names
-- Always use the exact function names listed above'''
-        
-        if context:
-            prompt += f"\n\nCurrent Map: {context.get('current_map', 'Unknown')}"
-            if context.get('battle'):
-                prompt += f"\nBattle Status: Active (Current Turn: {context.get('current_turn', 'Unknown')})"
-            else:
-                prompt += "\nBattle Status: No active battle"
-            
-            if context.get('entities'):
-                prompt += f"\nEntities on Map: {len(context['entities'])}"
-            
-            if context.get('pov_entity'):
-                prompt += f"\nCurrent POV: {context['pov_entity']}"
-        
-        prompt += "\n\nHow can I help you with your D&D game today?"
-        return prompt
+        prompt = read_prompt_with_campaign_override(
+            'dm_assistant_system_legacy.txt', 'dm_system_prompt_legacy.txt'
+        ).rstrip()
+        return _append_legacy_context_block(prompt, context)
 
 
 class OllamaProvider(LLMProvider):
@@ -594,7 +559,9 @@ class OllamaProvider(LLMProvider):
                     direct_payload = {
                         "model": self.model,
                         "messages": [
-                            {"role": "system", "content": "You are a D&D VTT assistant. Respond with function calls in format [FUNCTION_CALL: function_name()]. No explanations."},
+                            {"role": "system", "content": read_prompt_with_campaign_override(
+                                'ollama_empty_response_system.txt', 'dm_ollama_empty_retry_system_prompt.txt'
+                            ).strip()},
                             {"role": "user", "content": user_message}
                         ],
                         "stream": False,
@@ -670,72 +637,10 @@ class OllamaProvider(LLMProvider):
     
     def _build_system_prompt(self, context: Optional[Dict[str, Any]] = None) -> str:
         """Build a strict system prompt enforcing function calling."""
-        prompt = '''You are an AI assistant for a D&D Virtual Tabletop (VTT).
-You have access to the following functions:
-- get_map_info()
-- get_entities()
-- get_player_characters()
-- get_npcs()
-- get_entity_details(entity_name)
-- get_battle_status()
-
-IMPORTANT RULES:
-1. **NEVER use thinking tags like <think> or reasoning blocks**
-2. **NEVER explain your reasoning or thought process**
-3. **For any question about the game state, respond ONLY with function calls in this exact format:**
-   [FUNCTION_CALL: function_name(arguments_if_any)]
-4. **Do NOT answer from your own knowledge or make up information**
-5. **Do NOT provide explanations or context - just the function calls**
-6. **If multiple functions are needed, list each on a separate line**
-7. **For general questions, use get_map_info() and get_entities() to provide context**
-8. **For entity details, use get_entity_details("entity_name") with quotes around the name**
-
-EXAMPLES:
-User: "Who are the characters?"
-Assistant: [FUNCTION_CALL: get_player_characters()]
-[FUNCTION_CALL: get_npcs()]
-
-User: "What is the current map?"
-Assistant: [FUNCTION_CALL: get_map_info()]
-
-User: "Tell me about the entity named 'Goblin King'"
-Assistant: [FUNCTION_CALL: get_entity_details("Goblin King")]
-
-User: "What's the battle status?"
-Assistant: [FUNCTION_CALL: get_battle_status()]
-
-User: "Please describe yourself"
-Assistant: [FUNCTION_CALL: get_map_info()]
-[FUNCTION_CALL: get_entities()]
-
-User: "Hello"
-Assistant: [FUNCTION_CALL: get_map_info()]
-[FUNCTION_CALL: get_entities()]
-
-User: "Give me basic information about the current game"
-Assistant: [FUNCTION_CALL: get_map_info()]
-[FUNCTION_CALL: get_entities()]
-
-REMEMBER: 
-- Respond ONLY with function calls, no explanations, no thinking, no reasoning
-- Use quotes around string arguments like entity names
-- Always use the exact function names listed above'''
-        
-        if context:
-            prompt += f"\n\nCurrent Map: {context.get('current_map', 'Unknown')}"
-            if context.get('battle'):
-                prompt += f"\nBattle Status: Active (Current Turn: {context.get('current_turn', 'Unknown')})"
-            else:
-                prompt += "\nBattle Status: No active battle"
-            
-            if context.get('entities'):
-                prompt += f"\nEntities on Map: {len(context['entities'])}"
-            
-            if context.get('pov_entity'):
-                prompt += f"\nCurrent POV: {context['pov_entity']}"
-        
-        prompt += "\n\nHow can I help you with your D&D game today?"
-        return prompt
+        prompt = read_prompt_with_campaign_override(
+            'dm_assistant_system_legacy.txt', 'dm_system_prompt_legacy.txt'
+        ).rstrip()
+        return _append_legacy_context_block(prompt, context)
 
 
 class LlamaCppProvider(LLMProvider):
@@ -908,6 +813,19 @@ class LLMHandler:
         self.game_context_functions = {}
         self.conversation_history = []
         self.session_logger = SessionLogger()  # Create session logger
+
+    @staticmethod
+    def _only_first_message_may_be_system(messages: List[Dict[str, str]]) -> None:
+        """Mutate roles in place.
+
+        llama.cpp applies a Jinja chat template that raises unless every
+        ``system`` message is at the beginning of the transcript. Function-call
+        traces were previously stored as ``system``, which breaks the second
+        LLM request after tool execution.
+        """
+        for i in range(1, len(messages)):
+            if messages[i].get('role') == 'system':
+                messages[i]['role'] = 'user'
     
     def initialize_provider(self, provider_name: str, config: Dict[str, Any]) -> bool:
         """Initialize a specific LLM provider."""
@@ -954,6 +872,8 @@ class LLMHandler:
             messages = [{"role": "system", "content": system_prompt}]
             messages.extend(self.conversation_history)
             logger.debug(f"[LLMHandler] Messages sent to provider: {messages}")
+
+        self._only_first_message_may_be_system(messages)
         
         provider_info = self.get_provider_info()
         self.session_logger.log_request(messages, provider_info)
@@ -1040,6 +960,9 @@ class LLMHandler:
                 mutation_fallback = self._maybe_execute_entity_mutation_from_context(message, function_calls)
                 if mutation_fallback:
                     function_calls.append(mutation_fallback)
+                item_fallback = self._maybe_execute_dm_add_item_from_context(message, function_calls)
+                if item_fallback:
+                    function_calls.append(item_fallback)
                 self.conversation_history.extend(function_calls)
                 # Format the function results into a user-friendly response
                 formatted_response = self._format_function_results(function_calls, context, message)
@@ -1115,25 +1038,9 @@ class LLMHandler:
         # debugging advice). We therefore prepend a formatting-focused system
         # prompt, restate the original user question, and supply the function
         # results as system context for the model to summarise.
-        format_system_prompt = (
-            "You are an AI assistant for a D&D Virtual Tabletop (VTT). "
-            "The previous turn invoked one or more game-state functions on "
-            "the user's behalf. Their raw outputs are provided below as "
-            "system messages. Use ONLY that data to answer the user's "
-            "original question in clear, concise natural language. "
-            "Do NOT emit any [FUNCTION_CALL: ...] tokens. "
-            "CRITICAL: If any function output contains an error string "
-            "(starts with 'MCP error:', 'Unknown function:', 'Error "
-            "executing', 'Invalid', or returns a JSON object with an "
-            "'error'/'isError' key), you MUST report the failure to the "
-            "user verbatim and MUST NOT claim the action succeeded. "
-            "Never invent successful outcomes. Never describe entities, "
-            "changes, or events that are not present in the function "
-            "output. IMPORTANT: An empty list/object from a successful "
-            "function call is valid data, not an execution failure. "
-            "For list/count questions, interpret empty results as zero "
-            "matches and say that explicitly."
-        )
+        format_system_prompt = read_prompt_with_campaign_override(
+            'function_results_format_system.txt', 'dm_function_results_system_prompt.txt'
+        ).strip()
         messages: List[Dict[str, str]] = [
             {"role": "system", "content": format_system_prompt}
         ]
@@ -1508,7 +1415,7 @@ class LLMHandler:
         for func_name, arg_str in matches:
             call_key = f"{func_name}:{arg_str}"
             if call_key in function_results:
-                function_results_list.append({"role": "system", "content": f"[FUNCTION_CALL: {func_name}({arg_str})]: {function_results[call_key]}"})
+                function_results_list.append({"role": "user", "content": f"[FUNCTION_CALL: {func_name}({arg_str})]: {function_results[call_key]}"})
         return function_results_list
 
     def _maybe_execute_entity_mutation_from_context(self, original_message: str,
@@ -1545,24 +1452,29 @@ class LLMHandler:
         if not entities_payload:
             return None
 
-        # Pattern A: set <entity> <attribute> to <value>
-        match = re.search(r"set\s+(.+?)\s+([a-zA-Z_ ]+?)\s+(?:to|=)\s+(.+)$",
-                          original_message, flags=re.IGNORECASE)
-        attr_name = None
-        raw_value = None
+        # Pattern B first: set <attribute> of/for <entity> to <value>
+        # (Before Pattern A so "Set temp hp for Alice to 7" is not parsed as
+        # entity "temp" + attribute "hp for Alice".)
+        match = re.search(
+            r"set\s+([a-zA-Z_ ]+?)\s+(?:of|for)\s+(.+?)\s+(?:to|=)\s+(.+)$",
+            original_message,
+            flags=re.IGNORECASE,
+        )
         if match:
-            raw_name = match.group(1).strip().strip('"\'')
-            attr_name = match.group(2).strip().lower()
-            raw_value = match.group(3).strip()
-
-        # Pattern B: set <attribute> of/for <entity> to <value>
-        if not match:
-            match = re.search(r"set\s+([a-zA-Z_ ]+?)\s+(?:of|for)\s+(.+?)\s+(?:to|=)\s+(.+)$",
-                              original_message, flags=re.IGNORECASE)
-            if not match:
-                return None
             attr_name = match.group(1).strip().lower()
             raw_name = match.group(2).strip().strip('"\'')
+            raw_value = match.group(3).strip()
+        else:
+            # Pattern A: set <entity> <attribute> to <value>
+            match = re.search(
+                r"set\s+(.+?)\s+([a-zA-Z_ ]+?)\s+(?:to|=)\s+(.+)$",
+                original_message,
+                flags=re.IGNORECASE,
+            )
+            if not match:
+                return None
+            raw_name = match.group(1).strip().strip('"\'')
+            attr_name = match.group(2).strip().lower()
             raw_value = match.group(3).strip()
 
         if not attr_name or raw_value is None:
@@ -1664,13 +1576,170 @@ class LLMHandler:
 
         args_repr = json.dumps(tool_args, ensure_ascii=False)
         return {
-            'role': 'system',
+            'role': 'user',
             'content': (
                 f"[FUNCTION_CALL: mcp(\"{tool_name}\", {args_repr})]: "
                 f"Function mcp returned: {result}"
             ),
         }
-    
+
+    def _entities_from_function_results(self,
+                                        function_results_list: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+        """Parse entity lists from get_entities or MCP world.list_entities traces."""
+        collected: List[Dict[str, Any]] = []
+        seen_uid: set = set()
+        for item in function_results_list:
+            content = str(item.get('content', ''))
+            for prefix in (
+                'Function get_entities returned: ',
+                'Function mcp returned: ',
+            ):
+                if prefix not in content:
+                    continue
+                payload_str = content.split(prefix, 1)[1].strip()
+                try:
+                    parsed = ast.literal_eval(payload_str)
+                except Exception:
+                    continue
+                if isinstance(parsed, dict) and isinstance(parsed.get('entities'), list):
+                    for ent in parsed['entities']:
+                        if isinstance(ent, dict):
+                            uid = str(ent.get('entity_uid') or '').strip()
+                            if uid and uid not in seen_uid:
+                                seen_uid.add(uid)
+                                collected.append(ent)
+                elif isinstance(parsed, list):
+                    for ent in parsed:
+                        if isinstance(ent, dict):
+                            uid = str(ent.get('entity_uid') or '').strip()
+                            if uid and uid not in seen_uid:
+                                seen_uid.add(uid)
+                                collected.append(ent)
+                break
+        return collected
+
+    def _maybe_execute_dm_add_item_from_context(
+        self,
+        original_message: str,
+        function_results_list: List[Dict[str, str]],
+    ) -> Optional[Dict[str, str]]:
+        """Recover dm.add_item when the model only ran read tools for a potion grant."""
+        if not original_message:
+            return None
+        lower_msg = original_message.lower()
+        grant_words = ('give', 'grant', 'hand', 'add')
+        if not any(w in lower_msg for w in grant_words):
+            return None
+        potion_intent = (
+            'health potion' in lower_msg
+            or 'healing potion' in lower_msg
+            or 'potion of healing' in lower_msg
+            or (
+                'potion' in lower_msg
+                and any(k in lower_msg for k in ('healing', 'health'))
+            )
+        )
+        if not potion_intent:
+            return None
+        if any('dm.add_item' in str(item.get('content', '')) for item in function_results_list):
+            return None
+
+        entities_payload = self._entities_from_function_results(function_results_list)
+        if not entities_payload:
+            return None
+
+        qty = 1
+        qm = re.search(
+            r'(\d+)\s*(?:x\s*)?(?:health|healing)?\s*(?:potion|potions)\b',
+            lower_msg,
+        )
+        if qm:
+            qty = max(1, int(qm.group(1)))
+
+        item_name = 'healing_potion'
+
+        def _resolve_uid_for_grant() -> Optional[str]:
+            if len(entities_payload) == 1:
+                uid = str(entities_payload[0].get('entity_uid') or '').strip()
+                return uid or None
+
+            raw_query = None
+            gm = re.search(
+                r"(?i)(?:give|grant|hand|add)\s+['\"]?([a-zA-Z0-9][a-zA-Z0-9'\- ]{0,48}?)['\"]?\s+"
+                r'(?:a|the|their)\s+(?:health\s+|healing\s+)?potion',
+                original_message,
+            )
+            if gm:
+                raw_query = gm.group(1).strip()
+            if not raw_query:
+                gm2 = re.search(
+                    r'(?i)(?:give|grant|hand|add)\s+([a-zA-Z0-9][a-zA-Z0-9\'\-]+)',
+                    original_message,
+                )
+                if gm2:
+                    tail = gm2.group(1).strip().lower()
+                    if tail not in ('to', 'a', 'the', 'me', 'us', 'them'):
+                        raw_query = gm2.group(1).strip()
+            if not raw_query:
+                return None
+            if raw_query.lower().endswith("'s"):
+                raw_query = raw_query[:-2].strip()
+
+            query = raw_query.lower()
+            candidates: List[tuple] = []
+            for ent in entities_payload:
+                uid = str(ent.get('entity_uid') or '').strip()
+                if not uid:
+                    continue
+                for key in (ent.get('name'), ent.get('label'), ent.get('entity_uid')):
+                    if key:
+                        candidates.append((uid, str(key).lower()))
+
+            if not candidates:
+                return None
+
+            exact = [uid for uid, key in candidates if key == query]
+            if exact:
+                return exact[0]
+            contains = [uid for uid, key in candidates if query in key]
+            if len(contains) == 1:
+                return contains[0]
+            keys = sorted(set(key for _, key in candidates))
+            near = difflib.get_close_matches(query, keys, n=1, cutoff=0.72)
+            if near:
+                for uid, key in candidates:
+                    if key == near[0]:
+                        return uid
+            return None
+
+        resolved_uid = _resolve_uid_for_grant()
+        if not resolved_uid:
+            return None
+
+        mcp_info = self.game_context_functions.get('mcp')
+        if not mcp_info or 'function' not in mcp_info:
+            return None
+
+        tool_name = 'dm.add_item'
+        tool_args: Dict[str, Any] = {
+            'entity_uid': resolved_uid,
+            'item_name': item_name,
+            'qty': qty,
+        }
+        try:
+            result = mcp_info['function'](tool_name, tool_args)
+        except Exception as exc:
+            result = f'Error executing {tool_name} fallback: {exc}'
+
+        args_repr = json.dumps(tool_args, ensure_ascii=False)
+        return {
+            'role': 'user',
+            'content': (
+                f"[FUNCTION_CALL: mcp(\"{tool_name}\", {args_repr})]: "
+                f"Function mcp returned: {result}"
+            ),
+        }
+
     def get_available_models(self) -> List[str]:
         """Get available models for the current provider."""
         if not self.current_provider:
@@ -1762,7 +1831,18 @@ class LLMHandler:
     def get_game_context(self) -> Dict[str, Any]:
         """Get comprehensive game context using registered functions."""
         context = {}
-        
+        # One snapshot per context build: GameContextProvider walks the map once for
+        # get_entities / get_player_characters / get_npcs instead of three passes.
+        for func_info in self.game_context_functions.values():
+            fn = func_info.get('function')
+            inst = getattr(fn, '__self__', None)
+            if inst is not None and hasattr(inst, 'begin_chat_context_snapshot'):
+                try:
+                    inst.begin_chat_context_snapshot()
+                except Exception:
+                    logger.exception('[LLMHandler] begin_chat_context_snapshot failed')
+                break
+
         for name, func_info in self.game_context_functions.items():
             try:
                 fn = func_info['function']
@@ -1795,6 +1875,65 @@ class LLMHandler:
                 context[name] = {"error": str(e)}
         
         return context
+
+    def _format_compact_entity_roster(self, entities: List[Dict[str, Any]]) -> str:
+        """Bounded name/uid/position/HP lines for the DM system prompt (reduces redundant get_entities)."""
+        if not entities:
+            return ""
+        try:
+            max_chars = int(os.getenv("N20_DM_ENTITY_ROSTER_MAX_CHARS", "6000"))
+        except ValueError:
+            max_chars = 6000
+        try:
+            max_rows = int(os.getenv("N20_DM_ENTITY_ROSTER_MAX_ROWS", "120"))
+        except ValueError:
+            max_rows = 120
+
+        sorted_ents = sorted(
+            [e for e in entities if isinstance(e, dict)],
+            key=lambda e: (
+                str(e.get('name') or e.get('entity_uid') or '').lower(),
+                str(e.get('entity_uid') or ''),
+            ),
+        )
+        if not sorted_ents:
+            return ""
+
+        rows: List[str] = []
+        total = len(sorted_ents)
+        for ent in sorted_ents[:max_rows]:
+            name = str(ent.get('name') or '?').replace('\n', ' ')
+            uid = str(ent.get('entity_uid') or '?').replace('\n', ' ')
+            typ = str(ent.get('type') or '?').replace('\n', ' ')
+            pos = ent.get('position')
+            pos_s = str(pos) if pos is not None else '?'
+            hp = ent.get('hp')
+            max_hp = ent.get('max_hp')
+            parts = [f"- {name}", f"uid={uid}", typ, f"pos={pos_s}"]
+            if hp is not None and max_hp is not None:
+                parts.append(f"{hp}/{max_hp} HP")
+            elif hp is not None:
+                parts.append(f"{hp} HP")
+            rows.append(' | '.join(parts))
+
+        lines = [
+            'Current map entity roster (use `entity_uid` for dm.* / MCP; inventory, spells, '
+            'other maps, or full detail still require tools):',
+        ]
+        lines.extend(rows)
+        if total > max_rows:
+            lines.append(
+                f'... and {total - max_rows} more not listed '
+                f'(set N20_DM_ENTITY_ROSTER_MAX_ROWS or use get_entities / world.get_map).'
+            )
+
+        body = '\n'.join(lines)
+        if len(body) > max_chars:
+            trimmed = body[:max_chars]
+            cut = trimmed.rsplit('\n', 1)[0]
+            body = cut + '\n... [entity roster truncated by N20_DM_ENTITY_ROSTER_MAX_CHARS]'
+
+        return '\n\n' + body
 
     def _build_system_prompt(self, context: Optional[Dict[str, Any]] = None) -> str:
         """Build a strict system prompt enforcing function calling."""
@@ -1832,64 +1971,10 @@ class LLMHandler:
                 "(MCP tool catalogue not available; rely on the legacy get_* helpers above.)"
             )
 
-        prompt = (
-            "You are an AI assistant for a D&D Virtual Tabletop (VTT).\n"
-            "You have access to the following functions:\n"
-            "- get_map_info()\n"
-            "- get_entities()\n"
-            "- get_player_characters()\n"
-            "- get_npcs()\n"
-            "- get_entity_details(entity_name)\n"
-            "- get_battle_status()\n\n"
-            + mcp_section + "\n\n"
-            + '''IMPORTANT RULES:
-1. **NEVER use thinking tags like <think> or reasoning blocks**
-2. **NEVER explain your reasoning or thought process**
-3. **For any question about the game state, respond ONLY with function calls in this exact format:**
-   [FUNCTION_CALL: function_name(arguments_if_any)]
-4. **Do NOT answer from your own knowledge or make up information**
-5. **Do NOT provide explanations or context - just the function calls**
-6. **If multiple functions are needed, list each on a separate line**
-7. **For general questions, use get_map_info() and get_entities() to provide context**
-8. **For entity details, use get_entity_details("entity_name") with quotes around the name**
-9. **MCP arguments must be a single valid JSON object literal**
-10. **Never invent map names (e.g., "Unknown") in dm.spawn_* calls; use session current map or omit map_name**
-11. **For DM mutation tools (e.g., dm.set_hp/dm.set_property/dm.set_resource), pass entity_uid from get_entities/world.list_entities; do not use entity_name unless no uid exists**
-
-EXAMPLES:
-User: "Who are the characters?"
-Assistant: [FUNCTION_CALL: get_player_characters()]
-[FUNCTION_CALL: get_npcs()]
-
-User: "What is the current map?"
-Assistant: [FUNCTION_CALL: get_map_info()]
-
-User: "How many goblins are there?"
-Assistant: [FUNCTION_CALL: mcp("world.list_entities", {"kind": "npc", "npc_type_contains": "goblin"})]
-
-User: "Tell me about the entity named 'Goblin King'"
-Assistant: [FUNCTION_CALL: get_entity_details("Goblin King")]
-
-User: "What's the battle status?"
-Assistant: [FUNCTION_CALL: get_battle_status()]
-
-User: "Please describe yourself"
-Assistant: [FUNCTION_CALL: get_map_info()]
-[FUNCTION_CALL: get_entities()]
-
-User: "Hello"
-Assistant: [FUNCTION_CALL: get_map_info()]
-[FUNCTION_CALL: get_entities()]
-
-User: "Give me basic information about the current game"
-Assistant: [FUNCTION_CALL: get_map_info()]
-[FUNCTION_CALL: get_entities()]
-
-REMEMBER: 
-- Respond ONLY with function calls, no explanations, no thinking, no reasoning
-- Use quotes around string arguments like entity names
-- Always use the exact function names listed above'''
+        template = read_prompt_with_campaign_override(
+            'dm_assistant_system.template.txt', 'dm_system_prompt.txt'
         )
+        prompt = template.replace('<<<MCP_SECTION>>>', mcp_section)
 
         if context:
             # Context can be provided in different shapes depending on caller.
@@ -1915,6 +2000,9 @@ REMEMBER:
             entities_ctx = context.get('entities') or context.get('get_entities')
             if isinstance(entities_ctx, list):
                 prompt += f"\nEntities on Map: {len(entities_ctx)}"
+                roster_block = self._format_compact_entity_roster(entities_ctx)
+                if roster_block:
+                    prompt += roster_block
             
             pov_ctx = context.get('pov_entity')
             if pov_ctx is None and isinstance(session_ctx, dict):

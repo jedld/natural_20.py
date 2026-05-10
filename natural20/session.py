@@ -292,9 +292,48 @@ class Session:
                 return yaml.safe_load(f)
         return None
 
+    def _canonical_npc_type(self, npc_type: str) -> str:
+        """Resolve npc YAML stem case-insensitively (e.g. Wolf -> wolf)."""
+        raw = npc_type.strip()
+        if not raw:
+            return npc_type
+
+        def _index_yml_stems(folder: str) -> dict:
+            if not os.path.isdir(folder):
+                return {}
+            idx = {}
+            for fn in os.listdir(folder):
+                if fn.endswith('.yml'):
+                    stem = os.path.splitext(fn)[0]
+                    idx[stem.lower()] = stem
+            return idx
+
+        keys = (raw.lower(), raw.lower().replace(' ', '_'))
+
+        search_roots = [os.path.join(self.root_path, 'npcs')]
+        try:
+            import natural20 as _n20
+
+            _pkg = os.path.dirname(os.path.abspath(_n20.__file__))
+            search_roots.append(
+                os.path.normpath(os.path.join(_pkg, '..', 'templates', 'npcs'))
+            )
+        except Exception:
+            pass
+
+        for folder in search_roots:
+            idx = _index_yml_stems(folder)
+            for k in keys:
+                if k in idx:
+                    return idx[k]
+
+        return raw
+
     def npc(self, npc_type, options=None):
         if options is None:
             options = {}
+        if isinstance(npc_type, str):
+            npc_type = self._canonical_npc_type(npc_type)
         return Npc(self, npc_type, options)
 
     def load_npcs(self):
