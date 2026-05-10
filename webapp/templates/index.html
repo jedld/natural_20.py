@@ -1168,6 +1168,19 @@
             <div class="tab-content" id="dmConsoleTabContent">
               <!-- Command Console Tab -->
               <div class="tab-pane fade show active" id="command-panel" role="tabpanel" aria-labelledby="command-tab">
+                {% if 'dm' in role %}
+                <div class="form-group" style="margin-bottom: 12px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+                  <label for="default-npc-controller" style="margin-right: 8px;">Default NPC controller</label>
+                  <select class="form-control" id="default-npc-controller" style="width: auto; max-width: 220px; display: inline-block; vertical-align: middle;" {% if NPC_LLM_COMBAT_ENABLED %}disabled{% endif %}>
+                    <option value="manual" {% if DEFAULT_NPC_CONTROLLER == 'manual' %}selected{% endif %}>Manual</option>
+                    <option value="ai" {% if DEFAULT_NPC_CONTROLLER == 'ai' %}selected{% endif %}>AI</option>
+                    <option value="llm" {% if DEFAULT_NPC_CONTROLLER == 'llm' %}selected{% endif %}>LLM</option>
+                  </select>
+                  {% if NPC_LLM_COMBAT_ENABLED %}
+                  <small class="text-muted" style="margin-left: 8px;">NPC combat uses LLM via <code>NPC_LLM_COMBAT_ENABLED</code></small>
+                  {% endif %}
+                </div>
+                {% endif %}
                 <form id="command-form">
                   <div class="form-group">
                     <label for="command-input">Command</label>
@@ -1186,67 +1199,6 @@
               
               <!-- AI Assistant Tab -->
               <div class="tab-pane fade" id="ai-panel" role="tabpanel" aria-labelledby="ai-tab">
-                <!-- AI Configuration Section -->
-                <div class="ai-config-section" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
-                  <h5><i class="glyphicon glyphicon-cog"></i> AI Configuration</h5>
-                  <div class="row">
-                    <div class="col-md-6">
-                      <div class="form-group">
-                        <label for="ai-provider-select">Provider</label>
-                        <select class="form-control" id="ai-provider-select">
-                          <option value="llama_cpp">llama.cpp (Local)</option>
-                          <option value="ollama">Ollama (Local)</option>
-                          <option value="mock">Mock (Testing)</option>
-                          <option value="openai">OpenAI GPT</option>
-                          <option value="anthropic">Anthropic Claude</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div class="col-md-6">
-                      <div class="form-group">
-                        <label for="default-npc-controller">Default NPC Controller</label>
-                        <select class="form-control" id="default-npc-controller" {% if NPC_LLM_COMBAT_ENABLED %}disabled{% endif %}>
-                          <option value="manual" {% if DEFAULT_NPC_CONTROLLER == 'manual' %}selected{% endif %}>Manual</option>
-                          <option value="ai" {% if DEFAULT_NPC_CONTROLLER == 'ai' %}selected{% endif %}>AI</option>
-                          <option value="llm" {% if DEFAULT_NPC_CONTROLLER == 'llm' %}selected{% endif %}>LLM</option>
-                        </select>
-                        {% if NPC_LLM_COMBAT_ENABLED %}
-                        <small class="form-text text-muted">NPC combat is globally forced to use the LLM controller via the `NPC_LLM_COMBAT_ENABLED` flag.</small>
-                        {% endif %}
-                      </div>
-                    </div>
-                    <div class="col-md-6">
-                      <div class="form-group">
-                        <label for="ai-api-key">API Key / URL</label>
-                        <input type="text" class="form-control" id="ai-api-key" placeholder="Enter API key or local provider URL">
-                        <small class="form-text text-muted">For Ollama, leave empty for localhost:11434. For llama.cpp, leave empty for http://localhost:8011.</small>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="row" id="model-selection-row" style="display: none; margin-bottom: 10px;">
-                    <div class="col-xs-8">
-                      <div class="form-group" style="margin-bottom: 0;">
-                        <label for="ai-model-select" style="font-size: 12px;">Model:</label>
-                        <select class="form-control input-sm" id="ai-model-select" style="font-size: 12px;">
-                          <option value="">Loading models...</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div class="col-xs-4">
-                      <div class="form-group" style="margin-bottom: 0;">
-                        <label style="font-size: 12px;">&nbsp;</label>
-                        <button type="button" class="btn btn-xs btn-info" id="draggable-refresh-models" style="width: 100%;">
-                          <i class="glyphicon glyphicon-refresh"></i>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <button type="button" class="btn btn-sm btn-primary" id="initialize-ai">
-                    <i class="glyphicon glyphicon-play"></i> Initialize AI
-                  </button>
-                  <span id="ai-status" class="label label-default" style="margin-left: 10px;">Not initialized</span>
-                </div>
-                
                 <!-- Chat Interface -->
                 <div class="chat-interface">
                   <div class="chat-transcript-actions">
@@ -1257,9 +1209,9 @@
                       <i class="glyphicon glyphicon-list-alt"></i> Select All
                     </button>
                   </div>
-                  <div id="chat-messages" class="chat-transcript" style="height: 250px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #fff; margin-bottom: 10px;">
+                    <div id="chat-messages" class="chat-transcript" style="height: 250px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #fff; margin-bottom: 10px;">
                     <div class="chat-message system">
-                      <strong>AI Assistant:</strong> Welcome! I'm here to help you with your D&D game. I can assist with game mechanics, story development, battle management, and more. What would you like help with?
+                      <strong>AI Assistant:</strong> Connecting to the server LLM (same as NPC/dialog features)…
                     </div>
                   </div>
                   
@@ -1537,51 +1489,6 @@
       </div>
       
       <div class="panel-body" style="padding: 15px; height: calc(100% - 60px); display: flex; flex-direction: column; overflow: hidden;">
-        <!-- AI Configuration Section -->
-        <div class="ai-config-section" style="margin-bottom: 15px; flex-shrink: 0;">
-          <h6 style="margin-top: 0; margin-bottom: 10px; color: #333;">AI Configuration</h6>
-          
-          <div class="form-group" style="margin-bottom: 10px;">
-            <label for="draggable-ai-provider-select" style="font-size: 12px;">Provider:</label>
-            <select class="form-control input-sm" id="draggable-ai-provider-select" style="font-size: 12px;">
-              <option value="llama_cpp">llama.cpp (Local)</option>
-              <option value="ollama">Ollama (Local)</option>
-            </select>
-          </div>
-          
-          <div class="form-group" style="margin-bottom: 10px;">
-            <label for="draggable-ai-api-key" style="font-size: 12px;">API Key/URL:</label>
-            <input type="text" class="form-control input-sm" id="draggable-ai-api-key" placeholder="Enter API key or local provider URL" style="font-size: 12px;">
-            <small class="help-block" style="font-size: 11px; margin-top: 2px;"></small>
-          </div>
-          
-          <div class="row" id="draggable-model-selection-row" style="display: none; margin-bottom: 10px;">
-            <div class="col-xs-8">
-              <div class="form-group" style="margin-bottom: 0;">
-                <label for="draggable-ai-model-select" style="font-size: 12px;">Model:</label>
-                <select class="form-control input-sm" id="draggable-ai-model-select" style="font-size: 12px;">
-                  <option value="">Loading models...</option>
-                </select>
-              </div>
-            </div>
-            <div class="col-xs-4">
-              <div class="form-group" style="margin-bottom: 0;">
-                <label style="font-size: 12px;">&nbsp;</label>
-                <button type="button" class="btn btn-xs btn-info" id="draggable-refresh-models" style="width: 100%;">
-                  <i class="glyphicon glyphicon-refresh"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          <div style="margin-bottom: 10px;">
-            <button type="button" class="btn btn-xs btn-primary" id="draggable-initialize-ai">
-              <i class="glyphicon glyphicon-play"></i> Initialize AI
-            </button>
-            <span id="draggable-ai-status" class="label label-default" style="margin-left: 10px; font-size: 11px;">Not initialized</span>
-          </div>
-        </div>
-        
         <!-- Chat Interface -->
         <div class="chat-interface" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
           <div class="chat-transcript-actions">
@@ -1594,7 +1501,7 @@
           </div>
           <div id="draggable-chat-messages" class="chat-transcript" style="flex: 1; overflow-y: auto; border: 1px solid #ddd; padding: 8px; background: #fff; margin-bottom: 8px; font-size: 12px; min-height: 0;">
             <div class="chat-message system">
-              <strong>AI Assistant:</strong> Welcome! I'm here to help you with your D&D game. Initialize the AI to get started.
+              <strong>AI Assistant:</strong> Connecting to the server LLM…
             </div>
           </div>
           

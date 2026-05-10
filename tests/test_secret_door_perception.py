@@ -106,10 +106,13 @@ class TestSecretDoorPerceptionDeathHouse(unittest.TestCase):
     def test_can_see_at_exact_dc_boundary(self):
         """Perception exactly at DC should succeed (>=, not >)."""
         pc = self._load_character('characters/high_elf_fighter.yml', 'test_fighter', 3, 8)
-        with patch.object(pc, 'passive_perception', return_value=15):
-            self.assertTrue(self.map.can_see(pc, self.secret_door))
+        # Below DC first: revealing the door requires a successful check; if we
+        # called can_see with PP>=DC first, perception_results would persist and
+        # the low-PP case would still see the door as already revealed.
         with patch.object(pc, 'passive_perception', return_value=14):
             self.assertFalse(self.map.can_see(pc, self.secret_door))
+        with patch.object(pc, 'passive_perception', return_value=15):
+            self.assertTrue(self.map.can_see(pc, self.secret_door))
 
     # --- Renderer tests ---
 

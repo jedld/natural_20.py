@@ -51,7 +51,7 @@ MCP tool catalogue (keep this list in sync with `webapp/mcp/tools_*.py`). Design
     - Effects: `dm.effect` (effect, action=start|stop|update, optional `config`, `scope`=global|map, optional `map_name`) — mirrors `/admin/effect`, persists into the module-level `active_effects` / `active_effects_map` caches.
     - Audio: `dm.sound` (op=list|play|volume|seek) — mirrors `/tracks`, `/sound`, `/volume`, `/seek`.
     - Time: `dm.advance_time` (op=add|set, `seconds`) — wraps `Session.increment_game_time` for narrative time skips.
-  - `tools_actions`: `actions.list_available`, `actions.execute`, `actions.move`, `actions.end_turn`, `actions.start_battle`, `actions.end_battle`.
+  - `tools_actions`: `actions.list_available`, `actions.execute` (for `InteractAction` with `target`, `entity_uid` optional — omit or `dungeon_master` for DM-direct door/object interaction), `actions.move`, `actions.end_turn`, `actions.start_battle`, `actions.end_battle`.
 
   When adding a new DM-only Flask endpoint, also extend the matching `tools_dm` tool (preferring an extra `op` value over a brand-new tool) and update this catalogue.
 

@@ -64,6 +64,15 @@ def _coalesce_animation_log(animation_log):
                 continue
         coalesced.append(entry)
     return coalesced
+
+
+def _json_safe_uid(uid):
+    """Normalize ids for SocketIO payloads (uuid.UUID is not JSON-serializable)."""
+    if uid is None:
+        return None
+    return str(uid)
+
+
 from natural20.utils.conversation import audible_entities
 from typing import Optional, Dict, Any
 from natural20.session import Session
@@ -231,7 +240,11 @@ class SocketIOOutputLogger:
         }
 
     def _scoped_visibility(self, entity_uids=None, usernames=None):
-        entity_uids = sorted(set(uid for uid in (entity_uids or []) if uid))
+        # Coerce to str so sorted() never mixes uuid.UUID with str (e.g. DM
+        # scratch entities vs slug uids like "rumblebelly").
+        entity_uids = sorted(
+            {str(uid) for uid in (entity_uids or []) if uid is not None and uid != ''}
+        )
         usernames = sorted(set(name for name in (usernames or []) if name))
         if not entity_uids and not usernames:
             return self._public_visibility()
@@ -257,11 +270,11 @@ class SocketIOOutputLogger:
         if username and username in set(visibility.get('usernames') or []):
             return True
 
-        visible_uids = set(visibility.get('entity_uids') or [])
+        visible_uids = {str(u) for u in (visibility.get('entity_uids') or [])}
         if not visible_uids:
             return False
 
-        controlled_uids = set(self._controlled_entity_uids_for_username(username))
+        controlled_uids = {str(u) for u in self._controlled_entity_uids_for_username(username)}
         return bool(controlled_uids.intersection(visible_uids))
 
     def _entry_visible_to_entity(self, entry, entity):
@@ -284,8 +297,8 @@ class SocketIOOutputLogger:
         if not entity_uid:
             return False
 
-        visible_uids = set(visibility.get('entity_uids') or [])
-        return entity_uid in visible_uids
+        visible_uids = {str(u) for u in (visibility.get('entity_uids') or [])}
+        return str(entity_uid) in visible_uids
 
     def _combat_visible_entity_uids(self, payload):
         source = payload.get('source')
@@ -1519,7 +1532,7 @@ class GameManagement:
                     entity_uid = getattr(pov_entity, 'entity_uid', None)
                     deferred_map_switch = {
                         'sids': list(self.username_to_sid.get(username, [])),
-                        'payload': {'map': new_battle_map.name, 'entity_uid': entity_uid},
+                        'payload': {'map': new_battle_map.name, 'entity_uid': _json_safe_uid(entity_uid)},
                     }
         except Exception:
             deferred_map_switch = None
@@ -1584,7 +1597,9 @@ class GameManagement:
                         # Look action can reveal notes and concealed entities, refresh the map
                         request_map_refresh = True
                     elif result_item.get("type") == "message":
-                        self.socketio.emit('message', {"type": "message_toaster", "source": result_item["source"].entity_uid, "message": result_item["message"], "position": result_item["position"]})
+                        _src = result_item.get("source")
+                        _src_uid = getattr(_src, "entity_uid", None) if _src is not None else None
+                        self.socketio.emit('message', {"type": "message_toaster", "source": _json_safe_uid(_src_uid), "message": result_item["message"], "position": result_item["position"]})
                     elif result_item.get('refresh_map'):
                         request_map_refresh = True
             if request_map_refresh:
@@ -1666,6 +1681,6 @@ class GameManagement:
                 # client can auto-center on it once the new map renders
                 # (handles teleporters / stairs / ladders).
                 entity_uid = getattr(pov_entity, 'entity_uid', None)
-                payload = {'map': new_battle_map.name, 'entity_uid': entity_uid}
+                payload = {'map': new_battle_map.name, 'entity_uid': _json_safe_uid(entity_uid)}
                 for sid in sids:
                     self.socketio.emit('message', {'type': 'switch_map', 'message': payload}, to=sid)
