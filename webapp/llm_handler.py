@@ -8,6 +8,9 @@ in the DM console. It's designed to be extensible for different LLM providers.
 import os
 import json
 import logging
+import inspect
+import ast
+import difflib
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any, Callable
 import requests
@@ -330,6 +333,9 @@ Assistant: [FUNCTION_CALL: get_entity_details("Goblin King")]
 
 User: "What's the battle status?"
 Assistant: [FUNCTION_CALL: get_battle_status()]
+
+User: "Set RumbleBelly HP to 1"
+Assistant: [FUNCTION_CALL: mcp("dm.set_hp", {"entity_uid": "rumblebelly", "hp": 1})]
 
 User: "Please describe yourself"
 Assistant: [FUNCTION_CALL: get_map_info()]
@@ -930,7 +936,14 @@ class LLMHandler:
             return error_msg
         if isinstance(message, list):
             self.conversation_history = message
-            messages = message
+            # When a list is passed, we need to ensure system message is first
+            # Check if the first message is already a system message
+            if not message or message[0].get('role') != 'system':
+                system_prompt = self._build_system_prompt(context)
+                messages = [{"role": "system", "content": system_prompt}]
+                messages.extend(self.conversation_history)
+            else:
+                messages = message
         else:
             self.conversation_history.append({"role": "user", "content": message})
             logger.debug(f"[LLMHandler] Conversation history: {self.conversation_history}")
@@ -952,9 +965,13 @@ class LLMHandler:
         last_done_reason = None
         last_raw_response = None
         
+        # Build a separate conversation for continuation that preserves message order
+        # System message must always be first, followed by user/assistant pairs
+        continuation_messages = list(messages)  # Copy the original messages
+        
         while continuation_count < max_continuations:
             # Get response from provider
-            raw_response = self.current_provider.send_message(messages)
+            raw_response = self.current_provider.send_message(continuation_messages)
             logger.info(f"[LLMHandler] Raw response from provider: {raw_response}")
             # self.session_logger.log_response(raw_response, provider_info, partial=True)
 
@@ -989,7 +1006,7 @@ class LLMHandler:
                     is_truncated = True
                 # Check if the response seems incomplete (ends with common incomplete phrases)
                 elif any(trimmed.endswith(phrase) for phrase in [
-                    "To determine", "I need to", "Let me", "Based on", "The user", 
+                    "To determine", "I need to", "Let me", "Based on", "The user",
                     "This shows", "We can see", "It appears", "The data", "Looking at"
                 ]):
                     is_truncated = True
@@ -997,7 +1014,10 @@ class LLMHandler:
             if not is_truncated:
                 break
             
-            messages.append({"role": "assistant", "content": raw_response})
+            # For continuation, add the assistant response and a user prompt to continue
+            # This maintains proper message ordering: system -> user/assistant pairs -> user
+            continuation_messages.append({"role": "assistant", "content": content})
+            continuation_messages.append({"role": "user", "content": "Please continue your response from where you left off."})
 
             continuation_count += 1
             logger.info(f"[LLMHandler] Requesting continuation from LLM (count: {continuation_count})")
@@ -1017,6 +1037,9 @@ class LLMHandler:
             
             # Check if any function calls were actually processed
             if function_calls:
+                mutation_fallback = self._maybe_execute_entity_mutation_from_context(message, function_calls)
+                if mutation_fallback:
+                    function_calls.append(mutation_fallback)
                 self.conversation_history.extend(function_calls)
                 # Format the function results into a user-friendly response
                 formatted_response = self._format_function_results(function_calls, context, message)
@@ -1041,19 +1064,115 @@ class LLMHandler:
         if not processed_response:
             logger.warning("[LLMHandler] _format_function_results called with empty response list")
             return "No function results to format."
-        
+
+        # Deterministic short-circuit for count queries so we don't depend on
+        # a second model pass for simple arithmetic over already-returned MCP
+        # payloads.
+        parsed_payloads: List[Dict[str, Any]] = []
+        for msg in processed_response:
+            content = str(msg.get('content', ''))
+            marker = ' returned: '
+            idx = content.find(marker)
+            if idx < 0:
+                continue
+            payload_str = content[idx + len(marker):].strip()
+            try:
+                payload = ast.literal_eval(payload_str)
+            except Exception:
+                continue
+            if isinstance(payload, dict):
+                parsed_payloads.append(payload)
+
+        if original_message:
+            lowered = original_message.lower()
+            is_count_query = any(tok in lowered for tok in (
+                'how many', 'count', 'number of', 'how much'
+            ))
+            if is_count_query:
+                subject = 'matches'
+                m = re.search(r'how many\s+([a-zA-Z_\- ]+?)\s+(?:are|is)\b', lowered)
+                if m:
+                    subject = m.group(1).strip()
+
+                for payload in parsed_payloads:
+                    if isinstance(payload.get('count'), int):
+                        n = int(payload['count'])
+                        noun = subject
+                        if n == 1 and noun.endswith('s'):
+                            noun = noun[:-1]
+                        return f"There {'is' if n == 1 else 'are'} {n} {noun} on the current map."
+                    if isinstance(payload.get('entities'), list):
+                        n = len(payload['entities'])
+                        noun = subject
+                        if n == 1 and noun.endswith('s'):
+                            noun = noun[:-1]
+                        return f"There {'is' if n == 1 else 'are'} {n} {noun} on the current map."
+
+        # Build a proper messages list for the formatting request. Without the
+        # original user question and a system prompt the model has no idea
+        # what was asked and tends to hallucinate (e.g. treating the raw
+        # function output as a programming-error report and offering generic
+        # debugging advice). We therefore prepend a formatting-focused system
+        # prompt, restate the original user question, and supply the function
+        # results as system context for the model to summarise.
+        format_system_prompt = (
+            "You are an AI assistant for a D&D Virtual Tabletop (VTT). "
+            "The previous turn invoked one or more game-state functions on "
+            "the user's behalf. Their raw outputs are provided below as "
+            "system messages. Use ONLY that data to answer the user's "
+            "original question in clear, concise natural language. "
+            "Do NOT emit any [FUNCTION_CALL: ...] tokens. "
+            "CRITICAL: If any function output contains an error string "
+            "(starts with 'MCP error:', 'Unknown function:', 'Error "
+            "executing', 'Invalid', or returns a JSON object with an "
+            "'error'/'isError' key), you MUST report the failure to the "
+            "user verbatim and MUST NOT claim the action succeeded. "
+            "Never invent successful outcomes. Never describe entities, "
+            "changes, or events that are not present in the function "
+            "output. IMPORTANT: An empty list/object from a successful "
+            "function call is valid data, not an execution failure. "
+            "For list/count questions, interpret empty results as zero "
+            "matches and say that explicitly."
+        )
+        messages: List[Dict[str, str]] = [
+            {"role": "system", "content": format_system_prompt}
+        ]
+        if original_message:
+            messages.append({"role": "user", "content": original_message})
+        # Some model backends under-weight or mishandle synthetic `system`
+        # messages from tool traces; provide an explicit user-side block.
+        function_results_block = "\n".join(
+            str(msg.get('content', '')) for msg in processed_response
+        )
+        messages.append({
+            "role": "user",
+            "content": "Function results:\n" + function_results_block,
+        })
+        if original_message:
+            messages.append({
+                "role": "user",
+                "content": (
+                    "Using only the function results above, answer my "
+                    "previous question concisely."
+                ),
+            })
+
         # Log the formatting request
         provider_info = self.get_provider_info()
-        self.session_logger.log_request(processed_response, provider_info)
+        self.session_logger.log_request(messages, provider_info)
         
         # --- CONTINUATION LOGIC FOR FORMATTING ---
         full_response = ""
         continuation_count = 0
         max_continuations = 5
         
+        # Build a separate conversation for continuation that preserves message order
+        # System message must always be first, followed by user/assistant pairs
+        continuation_messages = list(messages)  # Copy the original messages
+        
         while continuation_count < max_continuations:
             # Get response from provider
-            raw_response = self.current_provider.send_message(processed_response)
+            raw_response = self.current_provider.send_message(continuation_messages)
             logger.info(f"[LLMHandler] Formatting response from provider: {raw_response}")
             self.session_logger.log_response(raw_response, provider_info, partial=True)
             # Try to detect done_reason if available
@@ -1087,7 +1206,7 @@ class LLMHandler:
                     is_truncated = True
                 # Check if the response seems incomplete (ends with common incomplete phrases)
                 elif any(trimmed.endswith(phrase) for phrase in [
-                    "To determine", "I need to", "Let me", "Based on", "The user", 
+                    "To determine", "I need to", "Let me", "Based on", "The user",
                     "This shows", "We can see", "It appears", "The data", "Looking at"
                 ]):
                     is_truncated = True
@@ -1095,8 +1214,10 @@ class LLMHandler:
             if not is_truncated:
                 break
             
-            # Add a follow-up message to continue
-            processed_response.append({"role": "assistant", "content": content})
+            # For continuation, add the assistant response and a user prompt to continue
+            # This maintains proper message ordering: system -> user/assistant pairs -> user
+            continuation_messages.append({"role": "assistant", "content": content})
+            continuation_messages.append({"role": "user", "content": "Please continue your response from where you left off."})
             continuation_count += 1
             logger.info(f"[LLMHandler] Requesting continuation for formatting (count: {continuation_count})")
         
@@ -1106,16 +1227,221 @@ class LLMHandler:
         logger.info(f"[LLMHandler] Final formatted response: {formatted_response}")
         return formatted_response
 
+    def _extract_function_calls(self, response: str) -> List[tuple]:
+        """Find all [FUNCTION_CALL: name(args)] tokens in `response`.
+
+        Supports dotted MCP-style names (``world.list_entities``) and
+        argument bodies that contain nested parens, brackets, braces or
+        quoted strings (e.g. JSON object literals as a single argument).
+        Returns a list of ``(name, raw_arg_string)`` tuples.
+        """
+        results: List[tuple] = []
+        marker = '[FUNCTION_CALL:'
+        idx = 0
+        n = len(response)
+        while True:
+            start = response.find(marker, idx)
+            if start < 0:
+                break
+            i = start + len(marker)
+            # Skip whitespace, then read the dotted identifier.
+            while i < n and response[i].isspace():
+                i += 1
+            name_start = i
+            while i < n and (response[i].isalnum() or response[i] in '._'):
+                i += 1
+            name = response[name_start:i]
+            while i < n and response[i].isspace():
+                i += 1
+            arg_str = ''
+            if i < n and response[i] == '(':
+                depth = 1
+                i += 1
+                arg_start = i
+                in_quotes = False
+                quote_char = None
+                while i < n and depth > 0:
+                    ch = response[i]
+                    if in_quotes:
+                        if ch == '\\' and i + 1 < n:
+                            i += 2
+                            continue
+                        if ch == quote_char:
+                            in_quotes = False
+                    else:
+                        if ch in ('"', "'"):
+                            in_quotes = True
+                            quote_char = ch
+                        elif ch in '([{':
+                            depth += 1
+                        elif ch in ')]}':
+                            depth -= 1
+                            if depth == 0:
+                                break
+                    i += 1
+                arg_str = response[arg_start:i]
+                if i < n and response[i] in ')]}':
+                    i += 1
+            elif i < n and response[i] == ',':
+                # Compatibility syntax occasionally emitted by models:
+                # [FUNCTION_CALL: tool.name, {"k": "v"}]
+                i += 1
+                while i < n and response[i].isspace():
+                    i += 1
+                arg_start = i
+                depth = 0
+                in_quotes = False
+                quote_char = None
+                while i < n:
+                    ch = response[i]
+                    if in_quotes:
+                        if ch == '\\' and i + 1 < n:
+                            i += 2
+                            continue
+                        if ch == quote_char:
+                            in_quotes = False
+                    else:
+                        if ch in ('"', "'"):
+                            in_quotes = True
+                            quote_char = ch
+                        elif ch in '([{':
+                            depth += 1
+                        elif ch in ')]}' and depth > 0:
+                            depth -= 1
+                        elif ch == ']' and depth == 0:
+                            break
+                    i += 1
+                arg_str = response[arg_start:i]
+            # Tolerate a trailing ``]`` or skip ahead to one.
+            while i < n and response[i] != ']':
+                if not response[i].isspace():
+                    break
+                i += 1
+            if i < n and response[i] == ']':
+                i += 1
+            if name:
+                results.append((name, arg_str.strip()))
+            idx = i if i > start else start + len(marker)
+        return results
+
+    def _parse_function_args(self, arg_str: str) -> tuple:
+        """Parse an argument string into ``(args, kwargs)``.
+
+        Handles quoted strings, JSON object/array literals, ``key=value``
+        kwargs, booleans, ints and floats. Falls back to the raw token
+        for anything that doesn't parse as JSON.
+        """
+        args: List[Any] = []
+        kwargs: Dict[str, Any] = {}
+        if not arg_str or not arg_str.strip():
+            return args, kwargs
+
+        parts: List[str] = []
+        current = ''
+        depth = 0
+        in_quotes = False
+        quote_char = None
+        for ch in arg_str:
+            if in_quotes:
+                current += ch
+                if ch == '\\':
+                    continue
+                if ch == quote_char:
+                    in_quotes = False
+                continue
+            if ch in ('"', "'"):
+                in_quotes = True
+                quote_char = ch
+                current += ch
+            elif ch in '([{':
+                depth += 1
+                current += ch
+            elif ch in ')]}':
+                depth -= 1
+                current += ch
+            elif ch == ',' and depth == 0:
+                if current.strip():
+                    parts.append(current.strip())
+                current = ''
+            else:
+                current += ch
+        if current.strip():
+            parts.append(current.strip())
+
+        def _coerce(token: str) -> Any:
+            t = token.strip()
+            if not t:
+                return t
+            if (t.startswith('"') and t.endswith('"')) or \
+               (t.startswith("'") and t.endswith("'")):
+                # Try JSON-decoding double-quoted strings to handle escapes;
+                # fall back to a naive strip for single quotes.
+                if t.startswith('"'):
+                    try:
+                        import json as _json
+                        return _json.loads(t)
+                    except Exception:
+                        return t[1:-1]
+                return t[1:-1]
+            if t[0] in '{[':
+                try:
+                    import json as _json
+                    return _json.loads(t)
+                except Exception:
+                    return t
+            low = t.lower()
+            if low in ('true', 'false'):
+                return low == 'true'
+            if low == 'null' or low == 'none':
+                return None
+            try:
+                return int(t)
+            except ValueError:
+                pass
+            try:
+                return float(t)
+            except ValueError:
+                pass
+            return t
+
+        for part in parts:
+            # key=value detection (only at depth 0; the splitter above
+            # already guarantees that).
+            eq = -1
+            in_q = False
+            qc = None
+            d = 0
+            for k, ch in enumerate(part):
+                if in_q:
+                    if ch == qc:
+                        in_q = False
+                    continue
+                if ch in ('"', "'"):
+                    in_q = True
+                    qc = ch
+                    continue
+                if ch in '([{':
+                    d += 1
+                elif ch in ')]}':
+                    d -= 1
+                elif ch == '=' and d == 0:
+                    eq = k
+                    break
+            if eq > 0 and part[:eq].strip().isidentifier():
+                key = part[:eq].strip()
+                kwargs[key] = _coerce(part[eq + 1:])
+            else:
+                args.append(_coerce(part))
+        return args, kwargs
+
     def _process_function_calls(self, response: str, context: Optional[Dict[str, Any]] = None) -> List[Dict[str, str]]:
         """Process function calls in the LLM response."""
         function_results_list = []
         logger.info(f"[LLMHandler] _process_function_calls called with: {response}")
-        
-        # Find all function calls in the response - improved regex to handle arguments better
-        function_call_pattern = r'\[FUNCTION_CALL:\s*(\w+)(?:\(([^)]*)\))?\]'
-        matches = re.findall(function_call_pattern, response)
+
+        matches = self._extract_function_calls(response)
         logger.info(f"[LLMHandler] Found {len(matches)} function call matches: {matches}")
-        
+
         if not matches:
             logger.info("[LLMHandler] No function calls found, returning empty list")
             return []
@@ -1135,59 +1461,40 @@ class LLMHandler:
                 
             logger.info(f"[LLMHandler] Processing function: {func_name} with args: '{arg_str}'")
             try:
+                # Compatibility shim: if the model emits a bare dotted MCP
+                # tool name (e.g. world.list_entities(...)) instead of
+                # mcp("world.list_entities", {...}), route it via `mcp`.
+                execute_name = func_name
+                execute_args = []
+                execute_kwargs = {}
+
                 if func_name in self.game_context_functions:
-                    # Parse arguments using improved logic
-                    args = []
-                    kwargs = {}
-                    
-                    if arg_str and arg_str.strip():
-                        # Handle quoted strings and simple arguments
-                        arg_parts = []
-                        current_part = ""
-                        in_quotes = False
-                        quote_char = None
-                        
-                        for char in arg_str:
-                            if char in ['"', "'"] and not in_quotes:
-                                in_quotes = True
-                                quote_char = char
-                            elif char == quote_char and in_quotes:
-                                in_quotes = False
-                                quote_char = None
-                            elif char == ',' and not in_quotes:
-                                if current_part.strip():
-                                    arg_parts.append(current_part.strip())
-                                current_part = ""
-                            else:
-                                current_part += char
-                        
-                        if current_part.strip():
-                            arg_parts.append(current_part.strip())
-                        
-                        # Convert arguments to appropriate types
-                        for part in arg_parts:
-                            part = part.strip()
-                            if part.startswith('"') and part.endswith('"'):
-                                args.append(part[1:-1])
-                            elif part.startswith("'") and part.endswith("'"):
-                                args.append(part[1:-1])
-                            elif part.lower() in ['true', 'false']:
-                                args.append(part.lower() == 'true')
-                            elif part.isdigit():
-                                args.append(int(part))
-                            elif part.replace('.', '').isdigit():
-                                args.append(float(part))
-                            else:
-                                args.append(part)
-                    
-                    logger.info(f"[LLMHandler] Calling function {func_name} with args: {args}")
+                    execute_args, execute_kwargs = self._parse_function_args(arg_str)
+                elif '.' in func_name and 'mcp' in self.game_context_functions:
+                    args, kwargs = self._parse_function_args(arg_str)
+                    if kwargs:
+                        mcp_args = kwargs
+                    elif len(args) == 0:
+                        mcp_args = {}
+                    elif len(args) == 1 and isinstance(args[0], dict):
+                        mcp_args = args[0]
+                    else:
+                        raise ValueError(
+                            f"Invalid MCP arguments for {func_name}. "
+                            "Use a JSON object or keyword arguments."
+                        )
+                    execute_name = 'mcp'
+                    execute_args = [func_name, mcp_args]
+
+                if execute_name in self.game_context_functions:
+                    logger.info(f"[LLMHandler] Calling function {execute_name} with args: {execute_args} kwargs: {execute_kwargs}")
                     # Execute the function
-                    result = self.game_context_functions[func_name]['function'](*args, **kwargs)
-                    logger.info(f"[LLMHandler] Function {func_name} returned: {result}")
-                    
-                    # Log the function call
-                    self.session_logger.log_function_call(func_name, args, result)
-                    
+                    result = self.game_context_functions[execute_name]['function'](*execute_args, **execute_kwargs)
+                    logger.info(f"[LLMHandler] Function {execute_name} returned: {result}")
+
+                    # Log the original requested function name for traceability.
+                    self.session_logger.log_function_call(func_name, execute_args, result)
+
                     function_results[call_key] = f"Function {func_name} returned: {result}"
                 else:
                     logger.info(f"[LLMHandler] Unknown function: {func_name}")
@@ -1203,6 +1510,166 @@ class LLMHandler:
             if call_key in function_results:
                 function_results_list.append({"role": "system", "content": f"[FUNCTION_CALL: {func_name}({arg_str})]: {function_results[call_key]}"})
         return function_results_list
+
+    def _maybe_execute_entity_mutation_from_context(self, original_message: str,
+                                                    function_results_list: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
+        """Recover a missed entity mutation when model only called read tools.
+
+        Handles intents like:
+        - set <entity> hp to <n>          -> dm.set_hp
+        - set <entity> temp hp to <n>     -> dm.set_resource(temp_hp)
+        - set <entity> <attribute> to <v> -> dm.set_property
+        """
+        if not original_message:
+            return None
+        lower_msg = original_message.lower()
+        if not any(tok in lower_msg for tok in ('set', 'make', 'change', 'adjust')):
+            return None
+        if any('dm.set_' in str(item.get('content', '')) for item in function_results_list):
+            return None
+
+        entities_payload = None
+        for item in function_results_list:
+            content = str(item.get('content', ''))
+            if 'Function get_entities returned:' not in content:
+                continue
+            marker = 'Function get_entities returned:'
+            payload_str = content.split(marker, 1)[1].strip()
+            try:
+                parsed = ast.literal_eval(payload_str)
+            except Exception:
+                parsed = None
+            if isinstance(parsed, list):
+                entities_payload = parsed
+                break
+        if not entities_payload:
+            return None
+
+        # Pattern A: set <entity> <attribute> to <value>
+        match = re.search(r"set\s+(.+?)\s+([a-zA-Z_ ]+?)\s+(?:to|=)\s+(.+)$",
+                          original_message, flags=re.IGNORECASE)
+        attr_name = None
+        raw_value = None
+        if match:
+            raw_name = match.group(1).strip().strip('"\'')
+            attr_name = match.group(2).strip().lower()
+            raw_value = match.group(3).strip()
+
+        # Pattern B: set <attribute> of/for <entity> to <value>
+        if not match:
+            match = re.search(r"set\s+([a-zA-Z_ ]+?)\s+(?:of|for)\s+(.+?)\s+(?:to|=)\s+(.+)$",
+                              original_message, flags=re.IGNORECASE)
+            if not match:
+                return None
+            attr_name = match.group(1).strip().lower()
+            raw_name = match.group(2).strip().strip('"\'')
+            raw_value = match.group(3).strip()
+
+        if not attr_name or raw_value is None:
+            return None
+
+        if raw_name.lower().endswith("'s"):
+            raw_name = raw_name[:-2].strip()
+
+        def _coerce_value(text: str):
+            t = text.strip().strip('"\'')
+            low = t.lower()
+            if low in ('true', 'yes', 'on'):
+                return True
+            if low in ('false', 'no', 'off'):
+                return False
+            try:
+                return int(t)
+            except Exception:
+                pass
+            try:
+                return float(t)
+            except Exception:
+                pass
+            return t
+
+        value = _coerce_value(raw_value)
+
+        query = raw_name.lower()
+        candidates: List[tuple] = []
+        for ent in entities_payload:
+            if not isinstance(ent, dict):
+                continue
+            uid = str(ent.get('entity_uid') or '').strip()
+            if not uid:
+                continue
+            for key in (ent.get('name'), ent.get('entity_uid')):
+                if key:
+                    candidates.append((uid, str(key).lower()))
+
+        if not candidates:
+            return None
+
+        resolved_uid = None
+        exact = [uid for uid, key in candidates if key == query]
+        if exact:
+            resolved_uid = exact[0]
+        if resolved_uid is None:
+            contains = [uid for uid, key in candidates if query in key]
+            if len(contains) == 1:
+                resolved_uid = contains[0]
+        if resolved_uid is None:
+            keys = sorted(set(key for _, key in candidates))
+            near = difflib.get_close_matches(query, keys, n=1, cutoff=0.78)
+            if near:
+                for uid, key in candidates:
+                    if key == near[0]:
+                        resolved_uid = uid
+                        break
+        if resolved_uid is None:
+            return None
+
+        mcp_info = self.game_context_functions.get('mcp')
+        if not mcp_info or 'function' not in mcp_info:
+            return None
+
+        normalized_attr = re.sub(r'\s+', '_', attr_name.strip().lower())
+        if normalized_attr in ('hit_points', 'hit_point'):
+            normalized_attr = 'hp'
+
+        tool_name = None
+        tool_args: Dict[str, Any] = {}
+        if normalized_attr == 'hp':
+            if not isinstance(value, (int, float)):
+                return None
+            tool_name = 'dm.set_hp'
+            tool_args = {'entity_uid': resolved_uid, 'hp': int(value)}
+        elif normalized_attr in ('temp_hp', 'temporary_hp', 'temp_hit_points', 'temporary_hit_points'):
+            if not isinstance(value, (int, float)):
+                return None
+            tool_name = 'dm.set_resource'
+            tool_args = {
+                'entity_uid': resolved_uid,
+                'resource_type': 'temp_hp',
+                'op': 'set',
+                'value': int(value),
+            }
+        else:
+            tool_name = 'dm.set_property'
+            tool_args = {
+                'entity_uid': resolved_uid,
+                'key': normalized_attr,
+                'value': value,
+            }
+
+        try:
+            result = mcp_info['function'](tool_name, tool_args)
+        except Exception as exc:
+            result = f'Error executing {tool_name} fallback: {exc}'
+
+        args_repr = json.dumps(tool_args, ensure_ascii=False)
+        return {
+            'role': 'system',
+            'content': (
+                f"[FUNCTION_CALL: mcp(\"{tool_name}\", {args_repr})]: "
+                f"Function mcp returned: {result}"
+            ),
+        }
     
     def get_available_models(self) -> List[str]:
         """Get available models for the current provider."""
@@ -1298,9 +1765,28 @@ class LLMHandler:
         
         for name, func_info in self.game_context_functions.items():
             try:
-                # Only call functions that take no arguments (for context snapshot)
-                if func_info['function'].__code__.co_argcount == 0:
-                    result = func_info['function']()
+                fn = func_info['function']
+                sig = inspect.signature(fn)
+                params = list(sig.parameters.values())
+                has_varargs = any(
+                    p.kind in (
+                        inspect.Parameter.VAR_POSITIONAL,
+                        inspect.Parameter.VAR_KEYWORD,
+                    )
+                    for p in params
+                )
+                required_params = [
+                    p for p in params
+                    if p.kind in (
+                        inspect.Parameter.POSITIONAL_ONLY,
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                        inspect.Parameter.KEYWORD_ONLY,
+                    ) and p.default is inspect._empty
+                ]
+
+                # Only call plain zero-arg snapshot-safe functions.
+                if not has_varargs and not required_params:
+                    result = fn()
                     context[name] = result
                 else:
                     logger.debug(f"[LLMHandler] Skipping function {name} in context snapshot (requires arguments)")
@@ -1312,16 +1798,51 @@ class LLMHandler:
 
     def _build_system_prompt(self, context: Optional[Dict[str, Any]] = None) -> str:
         """Build a strict system prompt enforcing function calling."""
-        prompt = '''You are an AI assistant for a D&D Virtual Tabletop (VTT).
-You have access to the following functions:
-- get_map_info()
-- get_entities()
-- get_player_characters()
-- get_npcs()
-- get_entity_details(entity_name)
-- get_battle_status()
+        # Build the MCP tool catalogue from the registry that backs the
+        # `mcp` bridge function (registered by webapp.app). This guarantees
+        # the model only ever sees tools that actually exist, preventing
+        # hallucinations like `world.create_entity` which then silently
+        # error out and get summarised as a fake success.
+        mcp_catalog_lines: List[str] = []
+        mcp_info = self.game_context_functions.get('mcp')
+        if mcp_info and mcp_info.get('mcp_registry') is not None:
+            try:
+                for manifest in mcp_info['mcp_registry'].list():
+                    name = manifest.get('name', '')
+                    desc = (manifest.get('description') or '').strip().splitlines()[0] if manifest.get('description') else ''
+                    if desc:
+                        mcp_catalog_lines.append(f"- mcp(\"{name}\", {{...}}) — {desc}")
+                    else:
+                        mcp_catalog_lines.append(f"- mcp(\"{name}\", {{...}})")
+            except Exception:  # noqa: BLE001
+                logger.exception("[LLMHandler] Failed to enumerate MCP registry for system prompt")
 
-IMPORTANT RULES:
+        if mcp_catalog_lines:
+            mcp_section = (
+                "You ALSO have access to the full MCP tool surface via:\n"
+                "- mcp(\"tool.name\", { \"arg\": value, ... })\n\n"
+                "ALL available MCP tools (use ONLY these names; do not invent\n"
+                "tool names like world.create_entity):\n"
+                + "\n".join(mcp_catalog_lines)
+            )
+        else:
+            mcp_section = (
+                "You ALSO have access to the full MCP tool surface via:\n"
+                "- mcp(\"tool.name\", { \"arg\": value, ... })\n"
+                "(MCP tool catalogue not available; rely on the legacy get_* helpers above.)"
+            )
+
+        prompt = (
+            "You are an AI assistant for a D&D Virtual Tabletop (VTT).\n"
+            "You have access to the following functions:\n"
+            "- get_map_info()\n"
+            "- get_entities()\n"
+            "- get_player_characters()\n"
+            "- get_npcs()\n"
+            "- get_entity_details(entity_name)\n"
+            "- get_battle_status()\n\n"
+            + mcp_section + "\n\n"
+            + '''IMPORTANT RULES:
 1. **NEVER use thinking tags like <think> or reasoning blocks**
 2. **NEVER explain your reasoning or thought process**
 3. **For any question about the game state, respond ONLY with function calls in this exact format:**
@@ -1331,6 +1852,9 @@ IMPORTANT RULES:
 6. **If multiple functions are needed, list each on a separate line**
 7. **For general questions, use get_map_info() and get_entities() to provide context**
 8. **For entity details, use get_entity_details("entity_name") with quotes around the name**
+9. **MCP arguments must be a single valid JSON object literal**
+10. **Never invent map names (e.g., "Unknown") in dm.spawn_* calls; use session current map or omit map_name**
+11. **For DM mutation tools (e.g., dm.set_hp/dm.set_property/dm.set_resource), pass entity_uid from get_entities/world.list_entities; do not use entity_name unless no uid exists**
 
 EXAMPLES:
 User: "Who are the characters?"
@@ -1339,6 +1863,9 @@ Assistant: [FUNCTION_CALL: get_player_characters()]
 
 User: "What is the current map?"
 Assistant: [FUNCTION_CALL: get_map_info()]
+
+User: "How many goblins are there?"
+Assistant: [FUNCTION_CALL: mcp("world.list_entities", {"kind": "npc", "npc_type_contains": "goblin"})]
 
 User: "Tell me about the entity named 'Goblin King'"
 Assistant: [FUNCTION_CALL: get_entity_details("Goblin King")]
@@ -1362,89 +1889,82 @@ REMEMBER:
 - Respond ONLY with function calls, no explanations, no thinking, no reasoning
 - Use quotes around string arguments like entity names
 - Always use the exact function names listed above'''
-        
+        )
+
         if context:
-            prompt += f"\n\nCurrent Map: {context.get('current_map', 'Unknown')}"
-            if context.get('battle'):
-                prompt += f"\nBattle Status: Active (Current Turn: {context.get('current_turn', 'Unknown')})"
+            # Context can be provided in different shapes depending on caller.
+            session_ctx = context.get('session') if isinstance(context.get('session'), dict) else {}
+            map_info_ctx = context.get('get_map_info') if isinstance(context.get('get_map_info'), dict) else {}
+            current_map = (
+                context.get('current_map')
+                or session_ctx.get('current_map')
+                or map_info_ctx.get('name')
+                or 'Unknown'
+            )
+            prompt += f"\n\nCurrent Map: {current_map}"
+
+            battle_ctx = context.get('battle')
+            battle_status_ctx = context.get('get_battle_status') if isinstance(context.get('get_battle_status'), dict) else {}
+            battle_active = bool(battle_ctx) or bool(battle_status_ctx.get('active'))
+            current_turn = context.get('current_turn') or battle_status_ctx.get('current_turn') or 'Unknown'
+            if battle_active:
+                prompt += f"\nBattle Status: Active (Current Turn: {current_turn})"
             else:
                 prompt += "\nBattle Status: No active battle"
             
-            if context.get('entities'):
-                prompt += f"\nEntities on Map: {len(context['entities'])}"
+            entities_ctx = context.get('entities') or context.get('get_entities')
+            if isinstance(entities_ctx, list):
+                prompt += f"\nEntities on Map: {len(entities_ctx)}"
             
-            if context.get('pov_entity'):
-                prompt += f"\nCurrent POV uids: {context['pov_entity']}"
+            pov_ctx = context.get('pov_entity')
+            if pov_ctx is None and isinstance(session_ctx, dict):
+                pov_ctx = session_ctx.get('pov_entity')
+            if pov_ctx:
+                prompt += f"\nCurrent POV uids: {pov_ctx}"
         
         prompt += "\n\nHow can I help you with your D&D game today?"
         return prompt
 
     def parse_and_execute_function_calls(self, response: str) -> dict:
         """Parse all [FUNCTION_CALL: ...] in the response and execute them."""
-        pattern = r'\[FUNCTION_CALL: ([^\(\\)]+)(?:\(([^\)]*)\))?\]'
-        matches = re.findall(pattern, response)
+        matches = self._extract_function_calls(response)
         results = {}
-        
+
         for func_name, arg_str in matches:
             func_name = func_name.strip()
-            args = []
-            kwargs = {}
-            
-            # Parse arguments
-            if arg_str:
-                # Simple argument parsing - split by comma and handle quoted strings
-                arg_parts = []
-                current_part = ""
-                in_quotes = False
-                quote_char = None
-                
-                for char in arg_str:
-                    if char in ['"', "'"] and not in_quotes:
-                        in_quotes = True
-                        quote_char = char
-                    elif char == quote_char and in_quotes:
-                        in_quotes = False
-                        quote_char = None
-                    elif char == ',' and not in_quotes:
-                        if current_part.strip():
-                            arg_parts.append(current_part.strip())
-                        current_part = ""
-                    else:
-                        current_part += char
-                
-                if current_part.strip():
-                    arg_parts.append(current_part.strip())
-                
-                # Convert arguments to appropriate types
-                for part in arg_parts:
-                    part = part.strip()
-                    if part.startswith('"') and part.endswith('"'):
-                        args.append(part[1:-1])
-                    elif part.startswith("'") and part.endswith("'"):
-                        args.append(part[1:-1])
-                    elif part.lower() in ['true', 'false']:
-                        args.append(part.lower() == 'true')
-                    elif part.isdigit():
-                        args.append(int(part))
-                    elif part.replace('.', '').isdigit():
-                        args.append(float(part))
-                    else:
-                        args.append(part)
-            
+            args, kwargs = self._parse_function_args(arg_str)
+            execute_name = func_name
+            execute_args = args
+            execute_kwargs = kwargs
+
+            if func_name not in self.game_context_functions and '.' in func_name and 'mcp' in self.game_context_functions:
+                if kwargs:
+                    mcp_args = kwargs
+                elif len(args) == 0:
+                    mcp_args = {}
+                elif len(args) == 1 and isinstance(args[0], dict):
+                    mcp_args = args[0]
+                else:
+                    mcp_args = None
+                if mcp_args is not None:
+                    execute_name = 'mcp'
+                    execute_args = [func_name, mcp_args]
+                    execute_kwargs = {}
+
             # Check if function exists in registry
-            if func_name not in self.game_context_functions:
+            if execute_name not in self.game_context_functions:
                 result = f'Unknown function: {func_name}'
             else:
-                func_info = self.game_context_functions[func_name]
+                func_info = self.game_context_functions[execute_name]
                 if 'function' not in func_info:
-                    result = f'Invalid function info for: {func_name}'
+                    result = f'Invalid function info for: {execute_name}'
                 else:
                     try:
                         # Call the function with parsed arguments
                         func = func_info['function']
-                        result = func(*args, **kwargs)
+                        result = func(*execute_args, **execute_kwargs)
                     except Exception as e:
-                        logger.error(f"Error executing function {func_name}: {e}")
+                        logger.error(f"Error executing function {execute_name}: {e}")
                         result = f'Error executing {func_name}: {str(e)}'
             
             # Store result with function signature for clarity

@@ -69,63 +69,168 @@ def register(registry: ToolRegistry) -> None:
     @tool(
         registry,
         name='world.get_map',
-        description='Return a per-map summary including all entities, their positions, '
-                    'statuses and HP. Use this as the canonical "where is everyone" tool.',
+        description='Return a per-map summary including entities, their positions, '
+                    'statuses and HP. Supports filtering by entity kind (player/npc/any), '
+                    'object kind, name substring, and position bounding box. '
+                    'Use filters to efficiently query large maps - e.g., filter by kind="npc" '
+                    'to see only enemies, or use bbox to focus on a specific area.',
         input_schema={
             'type': 'object',
             'properties': {
                 'map_name': {'type': 'string',
                               'description': 'Map name (omit for the default index map)'},
+                'entity_kind': {'type': 'string', 'enum': ['player', 'npc', 'any'],
+                                'description': 'Filter entities by kind: "player" for player characters, '
+                                               '"npc" for NPCs/enemies, "any" for all (default)'},
+                'object_kind': {'type': 'string',
+                                'description': 'Filter objects by class name substring (case-insensitive), '
+                                               'e.g., "door" to find all door objects'},
+                'name_contains': {'type': 'string',
+                                  'description': 'Filter entities by name substring (case-insensitive)'},
+                'bbox': {'type': 'object',
+                         'description': 'Bounding box filter: only include entities/objects within this rectangular area. '
+                                        'Format: {"x_min": int, "x_max": int, "y_min": int, "y_max": int}. '
+                                        'Coordinates are inclusive.',
+                         'properties': {
+                             'x_min': {'type': 'integer'},
+                             'x_max': {'type': 'integer'},
+                             'y_min': {'type': 'integer'},
+                             'y_max': {'type': 'integer'},
+                         }},
             },
         },
         category='world',
     )
-    def get_map(context: MCPContext, map_name: Optional[str] = None):
+    def get_map(context: MCPContext,
+                map_name: Optional[str] = None,
+                entity_kind: str = 'any',
+                object_kind: Optional[str] = None,
+                name_contains: Optional[str] = None,
+                bbox: Optional[Dict[str, int]] = None):
         battle_map = context.resolve_map(map_name)
         if battle_map is None:
             raise tool_error(f'Map not found: {map_name}')
+        
+        # Parse filters
+        wanted_kind = (entity_kind or 'any').lower()
+        name_needle = (name_contains or '').lower().strip()
+        object_kind_needle = (object_kind or '').lower().strip()
+        
+        # Parse bounding box
+        x_min, x_max, y_min, y_max = None, None, None, None
+        if bbox:
+            x_min = bbox.get('x_min')
+            x_max = bbox.get('x_max')
+            y_min = bbox.get('y_min')
+            y_max = bbox.get('y_max')
+        
+        def _in_bbox(pos):
+            """Check if position is within bounding box."""
+            if pos is None:
+                return False
+            if x_min is not None and pos[0] < x_min:
+                return False
+            if x_max is not None and pos[0] > x_max:
+                return False
+            if y_min is not None and pos[1] < y_min:
+                return False
+            if y_max is not None and pos[1] > y_max:
+                return False
+            return True
+        
         entities: List[Dict[str, Any]] = []
         for ent in (getattr(battle_map, 'entities', {}) or {}).keys():
+            # Filter by kind
+            is_npc = bool(getattr(ent, 'is_npc', lambda: False)())
+            if wanted_kind == 'npc' and not is_npc:
+                continue
+            if wanted_kind == 'player' and is_npc:
+                continue
+            
+            # Filter by name
+            label = (ent.label() if hasattr(ent, 'label') else getattr(ent, 'name', '')) or ''
+            if name_needle and name_needle not in label.lower():
+                continue
+            
+            # Filter by position
+            try:
+                pos = battle_map.entity_or_object_pos(ent)
+                if not _in_bbox(pos):
+                    continue
+            except Exception:
+                if bbox is not None:
+                    continue
+            
             entities.append(_entity_summary(ent, context))
+        
         objects: List[Dict[str, Any]] = []
         for obj in (getattr(battle_map, 'interactable_objects', {}) or {}).keys():
+            # Filter by object kind
+            obj_kind = obj.__class__.__name__.lower()
+            if object_kind_needle and object_kind_needle not in obj_kind:
+                continue
+            
             try:
                 pos = battle_map.entity_or_object_pos(obj)
             except Exception:
                 pos = None
+            
+            # Filter by position
+            if not _in_bbox(pos):
+                continue
+            
             objects.append({
                 'entity_uid': getattr(obj, 'entity_uid', None),
                 'name': getattr(obj, 'name', None),
                 'kind': obj.__class__.__name__,
                 'position': list(pos) if pos else None,
             })
+        
         return {
             'name': getattr(battle_map, 'name', map_name),
             'size': list(getattr(battle_map, 'size', []) or []),
             'feet_per_grid': getattr(battle_map, 'feet_per_grid', None),
             'entities': entities,
             'objects': objects,
+            'filters_applied': {
+                'entity_kind': wanted_kind,
+                'object_kind': object_kind,
+                'name_contains': name_contains,
+                'bbox': bbox,
+            },
+            'counts': {
+                'entities': len(entities),
+                'objects': len(objects),
+            },
         }
 
     @tool(
         registry,
         name='world.list_entities',
         description='List all entities across all maps. Optional filter by kind '
-                    '(player, npc) or by case-insensitive name substring.',
+                    '(player, npc), by case-insensitive name substring, '
+                    'or by NPC archetype (npc_type) substring.',
         input_schema={
             'type': 'object',
             'properties': {
                 'kind': {'type': 'string', 'enum': ['player', 'npc', 'any']},
                 'name_contains': {'type': 'string'},
+                'npc_type_contains': {
+                    'type': 'string',
+                    'description': 'Case-insensitive substring match against '
+                                   'entity.npc_type (NPC archetype id), e.g. "goblin".',
+                },
             },
         },
         category='world',
     )
     def list_entities(context: MCPContext, kind: str = 'any',
-                      name_contains: Optional[str] = None):
+                      name_contains: Optional[str] = None,
+                      npc_type_contains: Optional[str] = None):
         cg = context.current_game
         wanted = (kind or 'any').lower()
         needle = (name_contains or '').lower().strip()
+        npc_needle = (npc_type_contains or '').lower().strip()
         rows = []
         for map_name, m in (getattr(cg, 'maps', {}) or {}).items():
             for ent in (getattr(m, 'entities', {}) or {}).keys():
@@ -138,6 +243,10 @@ def register(registry: ToolRegistry) -> None:
                 if needle and needle not in label.lower() and needle not in (
                         getattr(ent, 'name', '') or '').lower():
                     continue
+                if npc_needle:
+                    npc_type = str(getattr(ent, 'npc_type', '') or '').lower()
+                    if npc_needle not in npc_type:
+                        continue
                 summary = _entity_summary(ent, context, include_position=False)
                 summary['map'] = map_name
                 try:
@@ -146,7 +255,15 @@ def register(registry: ToolRegistry) -> None:
                 except Exception:
                     summary['position'] = None
                 rows.append(summary)
-        return {'entities': rows}
+        return {
+            'entities': rows,
+            'count': len(rows),
+            'filters': {
+                'kind': wanted,
+                'name_contains': name_contains,
+                'npc_type_contains': npc_type_contains,
+            },
+        }
 
     @tool(
         registry,
@@ -239,6 +356,24 @@ def register(registry: ToolRegistry) -> None:
                     if fname.endswith('.yml'):
                         names.append(fname[:-4])
         return {'npc_types': names}
+
+    @tool(
+        registry,
+        name='world.list_object_types',
+        description='List all interactable object archetypes available to '
+                    'the campaign (usable as the "object_type" argument when '
+                    'calling dm.spawn_object).',
+        input_schema={'type': 'object', 'properties': {}},
+        category='world',
+    )
+    def list_object_types(context: MCPContext):
+        sess = context.game_session
+        try:
+            objects = sess.load_yaml_file('items', 'objects') or {}
+        except Exception:
+            objects = {}
+        names = sorted(str(k) for k in objects.keys())
+        return {'object_types': names}
 
 
 def _serialise_properties(props) -> Dict[str, Any]:

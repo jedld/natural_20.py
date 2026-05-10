@@ -222,6 +222,73 @@ def register(registry: ToolRegistry) -> None:
 
     @tool(
         registry,
+        name='dm.spawn_npc_near',
+        description='Spawn an NPC near a target entity (by uid or name). '
+                    'Finds the first placeable nearby tile and returns the new entity uid.',
+        input_schema={
+            'type': 'object',
+            'required': ['npc_type'],
+            'oneOf': [
+                {'required': ['target_entity_uid']},
+                {'required': ['target_name']},
+            ],
+            'properties': {
+                'npc_type': {'type': 'string'},
+                'target_entity_uid': {'type': 'string'},
+                'target_name': {'type': 'string'},
+                'group': {'type': 'string', 'default': 'b'},
+                'rand_life': {'type': 'boolean', 'default': True},
+                'max_distance': {'type': 'integer', 'minimum': 1, 'maximum': 5, 'default': 1},
+                'include_diagonals': {'type': 'boolean', 'default': True},
+            },
+        },
+        category='dm',
+    )
+    def spawn_npc_near(context: MCPContext, npc_type: str,
+                       target_entity_uid: Optional[str] = None,
+                       target_name: Optional[str] = None,
+                       group: str = 'b', rand_life: bool = True,
+                       max_distance: int = 1,
+                       include_diagonals: bool = True):
+        target, battle_map, target_pos = _resolve_target_on_map(
+            context, target_entity_uid=target_entity_uid, target_name=target_name
+        )
+        try:
+            npc = context.game_session.npc(npc_type, {'rand_life': bool(rand_life)})
+        except FileNotFoundError:
+            raise tool_error(f'NPC type "{npc_type}" not found')
+        except Exception as exc:
+            raise tool_error(f'Failed to create NPC: {exc}')
+
+        battle = _safe_call(lambda: context.current_game.get_current_battle())
+        found = _find_nearby_placeable_position(
+            battle_map,
+            npc,
+            int(target_pos[0]),
+            int(target_pos[1]),
+            max_distance=max(1, int(max_distance)),
+            include_diagonals=bool(include_diagonals),
+            battle=battle,
+        )
+        if found is None:
+            raise tool_error('No free placeable tile found near target entity')
+
+        x, y = found
+        battle_map.add(npc, x, y, group=group)
+        context.log_dm(
+            f"DM spawned {npc_type} near {target.label()} at ({x},{y}) on {battle_map.name}"
+        )
+        context.emit_refresh()
+        return {
+            'entity_uid': npc.entity_uid,
+            'npc_type': npc_type,
+            'map': battle_map.name,
+            'position': [x, y],
+            'near': {'entity_uid': target.entity_uid, 'name': target.label()},
+        }
+
+    @tool(
+        registry,
         name='dm.spawn_object',
         description='Spawn an interactable object (catalog name from items/objects.yml) at (x, y).',
         input_schema={
@@ -255,6 +322,75 @@ def register(registry: ToolRegistry) -> None:
         context.log_dm(f"DM spawned object {object_type} at ({x},{y}) on {battle_map.name}")
         context.emit_refresh()
         return {'object_type': object_type, 'position': [x, y], 'map': battle_map.name}
+
+    @tool(
+        registry,
+        name='dm.spawn_object_near',
+        description='Spawn an interactable object near a target entity (by uid or name). '
+                    'Finds the first nearby tile where placement succeeds.',
+        input_schema={
+            'type': 'object',
+            'required': ['object_type'],
+            'oneOf': [
+                {'required': ['target_entity_uid']},
+                {'required': ['target_name']},
+            ],
+            'properties': {
+                'object_type': {'type': 'string'},
+                'target_entity_uid': {'type': 'string'},
+                'target_name': {'type': 'string'},
+                'max_distance': {'type': 'integer', 'minimum': 1, 'maximum': 5, 'default': 1},
+                'include_diagonals': {'type': 'boolean', 'default': True},
+            },
+        },
+        category='dm',
+    )
+    def spawn_object_near(context: MCPContext, object_type: str,
+                          target_entity_uid: Optional[str] = None,
+                          target_name: Optional[str] = None,
+                          max_distance: int = 1,
+                          include_diagonals: bool = True):
+        target, battle_map, target_pos = _resolve_target_on_map(
+            context, target_entity_uid=target_entity_uid, target_name=target_name
+        )
+        try:
+            object_info = context.game_session.load_object(object_type)
+        except Exception as exc:
+            raise tool_error(f'Unknown object: {object_type} ({exc})')
+
+        candidates = _nearby_offsets(
+            max_distance=max(1, int(max_distance)),
+            include_diagonals=bool(include_diagonals),
+        )
+        tx, ty = int(target_pos[0]), int(target_pos[1])
+        found = None
+        for dx, dy in candidates:
+            x, y = tx + dx, ty + dy
+            if x < 0 or y < 0 or x >= battle_map.size[0] or y >= battle_map.size[1]:
+                continue
+            if battle_map.entity_at(x, y):
+                continue
+            try:
+                battle_map.place_object(object_info, x, y, object_meta={'name': object_type})
+                found = (x, y)
+                break
+            except Exception:
+                continue
+
+        if found is None:
+            raise tool_error('No suitable tile found to place object near target entity')
+
+        x, y = found
+        context.log_dm(
+            f"DM spawned object {object_type} near {target.label()} at ({x},{y}) on {battle_map.name}"
+        )
+        context.emit_refresh()
+        return {
+            'object_type': object_type,
+            'map': battle_map.name,
+            'position': [x, y],
+            'near': {'entity_uid': target.entity_uid, 'name': target.label()},
+        }
 
     @tool(
         registry,
@@ -1028,6 +1164,85 @@ def _resolve(context: MCPContext, entity_uid: str):
     if ent is None:
         raise tool_error(f'Entity not found: {entity_uid}')
     return ent
+
+
+def _resolve_target_on_map(context: MCPContext,
+                           target_entity_uid: Optional[str] = None,
+                           target_name: Optional[str] = None):
+    if target_entity_uid:
+        target = _resolve(context, target_entity_uid)
+    elif target_name:
+        target = _resolve_by_name(context, target_name)
+    else:
+        raise tool_error('Provide target_entity_uid or target_name')
+
+    battle_map = context.map_for_entity(target)
+    if battle_map is None:
+        raise tool_error('Target entity is not currently on any map')
+    pos = battle_map.entity_or_object_pos(target)
+    if pos is None:
+        raise tool_error('Target entity position is unknown on current map')
+    return target, battle_map, pos
+
+
+def _resolve_by_name(context: MCPContext, target_name: str):
+    current_map = context.resolve_map(None)
+    if current_map is None:
+        raise tool_error('No active map available')
+
+    query = str(target_name).strip().lower()
+    if not query:
+        raise tool_error('target_name cannot be empty')
+
+    exact = []
+    contains = []
+    for ent in (current_map.entities or {}).keys():
+        label = str(_safe_call(lambda: ent.label()) or '').strip()
+        ent_name = str(getattr(ent, 'name', '') or '').strip()
+        hay = [label.lower(), ent_name.lower()]
+        if query in hay:
+            exact.append(ent)
+        elif any(query in part for part in hay if part):
+            contains.append(ent)
+
+    matches = exact if exact else contains
+    if not matches:
+        raise tool_error(f'No entity named "{target_name}" found on current map')
+    if len(matches) > 1:
+        names = ', '.join(str(_safe_call(lambda: e.label()) or e.entity_uid) for e in matches[:5])
+        raise tool_error(f'Ambiguous target_name "{target_name}"; matches: {names}')
+    return matches[0]
+
+
+def _nearby_offsets(max_distance: int = 1, include_diagonals: bool = True):
+    offsets = []
+    max_distance = max(1, int(max_distance))
+    for dist in range(1, max_distance + 1):
+        if include_diagonals:
+            for dy in range(-dist, dist + 1):
+                for dx in range(-dist, dist + 1):
+                    if dx == 0 and dy == 0:
+                        continue
+                    if max(abs(dx), abs(dy)) != dist:
+                        continue
+                    offsets.append((dx, dy))
+        else:
+            offsets.extend([(dist, 0), (0, dist), (-dist, 0), (0, -dist)])
+    offsets.sort(key=lambda t: (abs(t[0]) + abs(t[1]), abs(t[1]), abs(t[0]), t[1], t[0]))
+    return offsets
+
+
+def _find_nearby_placeable_position(battle_map, entity, tx: int, ty: int,
+                                    max_distance: int = 1,
+                                    include_diagonals: bool = True,
+                                    battle=None):
+    for dx, dy in _nearby_offsets(max_distance=max_distance, include_diagonals=include_diagonals):
+        x, y = tx + dx, ty + dy
+        if x < 0 or y < 0 or x >= battle_map.size[0] or y >= battle_map.size[1]:
+            continue
+        if battle_map.placeable(entity, x, y, battle):
+            return (x, y)
+    return None
 
 
 def _safe_call(fn):
