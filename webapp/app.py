@@ -103,12 +103,16 @@ import uuid
 from utils import SocketIOOutputLogger, GameManagement
 from datetime import datetime
 from webapp.llm_conversation_controller import LLMConversationController
-from webapp.llm_handler import LLMHandler, LlamaCppProvider
+from webapp.llm_handler import (
+    LLMHandler,
+    LlamaCppProvider,
+    llm_handler,
+    read_npc_system_prompt,
+    set_campaign_prompt_root,
+)
 import threading
 import pdb
 import traceback
-# Import the LLM handler
-from webapp.llm_handler import llm_handler
 from webapp.game_context import GameContextProvider
 from webapp.conversation_service import ConversationService, register_conversation_routes
 from webapp.entity_rag_handler import EntityRAGHandler
@@ -696,6 +700,17 @@ current_game = GameManagement(game_session=game_session,
 _pvp_cfg = index_data.get('pvp_teams') or {}
 current_game.pvp_enabled = bool(_pvp_cfg.get('enabled'))
 
+
+@app.before_request
+def _n20_bind_campaign_prompt_root():
+    """Per-request campaign directory for DM/NPC LLM prompt file overrides."""
+    try:
+        gs = getattr(current_game, 'game_session', None)
+        rp = getattr(gs, 'root_path', None) if gs else None
+        set_campaign_prompt_root(rp)
+    except Exception:
+        set_campaign_prompt_root(None)
+
 # ── MCP tool surface ──────────────────────────────────────────────────────
 # Expose the running game over a small HTTP/JSON tool surface under
 # ``/mcp/*`` so an external LLM acting as DM can inspect, mutate and
@@ -925,9 +940,14 @@ def register_game_context_functions():
                 else:
                     return f"MCP error: Could not resolve entity_name '{raw_name}' to an entity_uid"
 
-        # Compatibility alias: some models emit `near_entity` for the
-        # *_near tools. Normalize to the expected `target_name` field.
+        # Compatibility aliases: some models emit `target_uid` or
+        # `near_entity` for the *_near tools. Normalize to the expected
+        # fields used by the MCP schema.
         if tool_name in ('dm.spawn_npc_near', 'dm.spawn_object_near'):
+            if (arguments.get('target_entity_uid') is None and
+                    isinstance(arguments.get('target_uid'), str) and
+                    arguments.get('target_uid').strip()):
+                arguments['target_entity_uid'] = arguments.pop('target_uid').strip()
             if (arguments.get('target_name') is None and
                     arguments.get('target_entity_uid') is None and
                     isinstance(arguments.get('near_entity'), str) and
@@ -976,103 +996,88 @@ i18n.set('locale', 'en')
 for extension in EXTENSIONS:
     extension.init(app, current_game, game_session)
 
-# Initialize the LLM conversation handler
-# Initialize the LLM with API key from environment variable
-if os.path.exists(os.path.join(LEVEL, 'npc_system_prompt.txt')):
-    with open(os.path.join(LEVEL, 'npc_system_prompt.txt')) as f:
-        CONVERSATION_SYSTEM_PROMPT = f.read()
-else:
-    CONVERSATION_SYSTEM_PROMPT = ""
+def configure_llm_handler_from_environment(handler: LLMHandler) -> bool:
+    """Apply ``LLM_PROVIDER`` and related env vars to an existing handler.
 
-def initialize_llm_from_env():
-    """Initialize LLM handler from environment variables."""
-    llm_handler = LLMHandler()
-    
-    # Check for LLM provider configuration
+    Used at process startup and when the DM UI asks to sync from server config.
+    Returns True if a provider was initialized successfully.
+    """
     llm_provider = os.environ.get('LLM_PROVIDER', 'llama_cpp').lower()
-    
+
     if llm_provider == 'openai':
-        # OpenAI configuration
         api_key = os.environ.get('OPENAI_API_KEY')
         base_url = os.environ.get('OPENAI_BASE_URL')
         model = os.environ.get('OPENAI_MODEL', 'gpt-4o')
-        
+
         if not api_key:
             logger.warning("OPENAI_API_KEY not set, LLM features will be disabled")
-            return llm_handler
-        
-        config = {
-            'api_key': api_key,
-            'model': model
-        }
+            return False
+
+        config = {'api_key': api_key, 'model': model}
         if base_url:
             config['base_url'] = base_url
-            
-        success = llm_handler.initialize_provider('openai', config)
+
+        success = handler.initialize_provider('openai', config)
         if success:
             logger.info(f"Initialized OpenAI provider with model: {model}")
         else:
             logger.error("Failed to initialize OpenAI provider")
-            
-    elif llm_provider == 'anthropic':
-        # Anthropic configuration
+        return success
+
+    if llm_provider == 'anthropic':
         api_key = os.environ.get('ANTHROPIC_API_KEY')
         model = os.environ.get('ANTHROPIC_MODEL', 'claude-3-5-sonnet-20241022')
-        
+
         if not api_key:
             logger.warning("ANTHROPIC_API_KEY not set, LLM features will be disabled")
-            return llm_handler
-        
-        config = {
-            'api_key': api_key,
-            'model': model
-        }
-        
-        success = llm_handler.initialize_provider('anthropic', config)
+            return False
+
+        config = {'api_key': api_key, 'model': model}
+        success = handler.initialize_provider('anthropic', config)
         if success:
             logger.info(f"Initialized Anthropic provider with model: {model}")
         else:
             logger.error("Failed to initialize Anthropic provider")
-            
-    elif llm_provider == 'ollama':
-        # Ollama configuration
+        return success
+
+    if llm_provider == 'ollama':
         base_url = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
         model = os.environ.get('OLLAMA_MODEL', 'gemma3:27b')
-        
-        config = {
-            'base_url': base_url,
-            'model': model
-        }
-        
-        success = llm_handler.initialize_provider('ollama', config)
+        config = {'base_url': base_url, 'model': model}
+        success = handler.initialize_provider('ollama', config)
         if success:
             logger.info(f"Initialized Ollama provider with model: {model} at {base_url}")
         else:
             logger.error(f"Failed to initialize Ollama provider: {config}")
+        return success
 
-    elif llm_provider in ('llama_cpp', 'llama.cpp', 'llamacpp'):
-        # llama.cpp OpenAI-compatible server configuration
+    if llm_provider in ('llama_cpp', 'llama.cpp', 'llamacpp'):
         base_url = os.environ.get('LLAMA_CPP_BASE_URL', 'http://localhost:8011')
         model = os.environ.get('LLAMA_CPP_MODEL', os.environ.get('N20_LLM_MODEL'))
         api_key = os.environ.get('LLAMA_CPP_API_KEY', 'llama-cpp')
 
-        config = {
-            'base_url': base_url,
-            'api_key': api_key,
-        }
+        config = {'base_url': base_url, 'api_key': api_key}
         if model:
             config['model'] = model
 
-        success = llm_handler.initialize_provider('llama_cpp', config)
+        success = handler.initialize_provider('llama_cpp', config)
         if success:
-            logger.info(f"Initialized llama.cpp provider with model: {getattr(llm_handler.current_provider, 'current_model', model)} at {base_url}")
+            logger.info(
+                f"Initialized llama.cpp provider with model: "
+                f"{getattr(handler.current_provider, 'current_model', model)} at {base_url}"
+            )
         else:
             logger.error(f"Failed to initialize llama.cpp provider: {config}")
-            
-    else:
-        logger.warning(f"Unknown LLM provider: {llm_provider}, using mock provider")
-        llm_handler.initialize_provider('mock', {})
-    
+        return success
+
+    logger.warning(f"Unknown LLM provider: {llm_provider}, using mock provider")
+    return handler.initialize_provider('mock', {})
+
+
+def initialize_llm_from_env():
+    """Construct a handler and configure it from environment variables."""
+    llm_handler = LLMHandler()
+    configure_llm_handler_from_environment(llm_handler)
     return llm_handler
 
 # Initialize LLM handler from environment variables
@@ -2018,7 +2023,11 @@ conversation_service = ConversationService(
     logger=logger,
 )
 
-register_conversation_routes(app, conversation_service, lambda: CONVERSATION_SYSTEM_PROMPT)
+register_conversation_routes(
+    app,
+    conversation_service,
+    lambda: read_npc_system_prompt(LEVEL),
+)
 
 def visible_log_messages_for_username(username, roles=None):
     if roles is None:
@@ -7193,6 +7202,28 @@ def ai_initialize():
         logger.error(f"Error initializing AI: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+
+@app.route('/ai/initialize-from-env', methods=['POST'])
+def ai_initialize_from_env():
+    """Re-apply ``LLM_PROVIDER`` / API keys to the shared handler (same as NPC/dialog LLM)."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    try:
+        # Avoid blocking HTTP calls to Ollama/llama.cpp again if startup already succeeded.
+        if getattr(llm_handler, 'current_provider', None):
+            info = llm_handler.get_provider_info()
+            return jsonify({'success': bool(info.get('initialized')), 'info': info})
+        ok = configure_llm_handler_from_environment(llm_handler)
+        info = llm_handler.get_provider_info()
+        return jsonify({
+            'success': bool(ok and info.get('initialized')),
+            'info': info,
+        })
+    except Exception as e:
+        logger.error(f"Error syncing LLM from environment: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
 @app.route('/ai/chat', methods=['POST'])
 def ai_chat():
     """Send a message to the AI and get a response."""
@@ -7223,8 +7254,6 @@ def ai_chat():
         return jsonify({'success': True, 'response': response})
         
     except Exception as e:
-        pdb.set_trace()
-        print(f"Error in AI chat: {e}")
         logger.error(f"Error in AI chat: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
