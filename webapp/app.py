@@ -32,6 +32,7 @@ except ImportError:
     # python-dotenv not installed, continue without it
     pass
 from natural20.ai.path_compute import PathCompute
+from natural20.ai.pathfinding_cost_map import build_pathfinding_snapshot
 from natural20.web.json_renderer import JsonRenderer
 from natural20.web.web_controller import WebController, ManualControl
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction, LinkedAttackAction
@@ -3400,8 +3401,8 @@ def select_character():
 def character_details(character_name):
     """Get detailed information about a character for preview"""
     try:
-        # Load the character from the game session
-        character = current_game.get_entity_by_uid(character_name)
+        # Load the character from the game session (may need to materialize from sheet)
+        character = ensure_character_entity_loaded(character_name)
         
         if not character:
             return jsonify(error="Character not found"), 404
@@ -4086,6 +4087,41 @@ def compute_path():
     return jsonify(path_data)
 
 
+@app.route('/path/cost_map', methods=['GET'])
+def path_cost_map():
+    """Return a pathfinding snapshot for client-side A* (see webapp/static/path_compute.js)."""
+    global current_game
+    battle_map = current_game.get_map_for_user(session['username'])
+    battle = current_game.get_current_battle()
+
+    try:
+        source_x = int(request.args.get('from[x]'))
+        source_y = int(request.args.get('from[y]'))
+    except (TypeError, ValueError):
+        return jsonify(error='from[x] and from[y] are required'), 400
+
+    entity = battle_map.entity_at(source_x, source_y)
+    if entity is None:
+        return jsonify(error='No entity at source'), 400
+
+    if battle and entity in getattr(battle, 'entities', {}):
+        available_movement = entity.available_movement(battle)
+    else:
+        available_movement = None
+
+    snapshot = build_pathfinding_snapshot(
+        battle_map,
+        entity,
+        battle,
+        ignore_opposing=False,
+    )
+    return jsonify({
+        'snapshot': snapshot,
+        'available_movement': available_movement,
+        'feet_per_grid': battle_map.feet_per_grid,
+    })
+
+
 @app.route('/jump_info', methods=['GET'])
 def jump_info():
     """Return jump distance information for an entity.
@@ -4403,8 +4439,8 @@ def start_battle_with_initiative():
         battle.start()
     else:
         print("skipping default battle start")
-    current_game.execute_game_loop()
-    return jsonify(status='ok')
+    scheduled = current_game.execute_game_loop()
+    return jsonify(status='ok', game_loop='scheduled' if scheduled else 'already_running')
 
 
 @app.route('/end_turn', methods=['POST'])
@@ -4430,18 +4466,7 @@ def end_turn():
 
 def continue_game():
     global current_game
-    # Use the lock to make the operation atomic
-    with current_game.game_state_lock:
-        battle = current_game.get_current_battle()
-        current_game.game_loop()
-
-        current_turn = battle.current_turn()
-    socketio.emit('message', { 'type': 'initiative', 'message': { 'index': battle.current_turn_index} })
-    logs = battle.get_animation_logs()
-    if logs:
-        socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid, 'animation_log' : logs }})
-    battle.clear_animation_logs()
-    socketio.emit('message', { 'type': 'turn', 'message': {}})
+    current_game.schedule_continue_game_loop()
 
 @app.route('/turn_order', methods=['GET'])
 def get_turn_order():
@@ -4454,7 +4479,6 @@ def next_turn():
     global current_game
     battle = current_game.get_current_battle()
     if battle:
-        # Use the lock to make the operation atomic
         with current_game.game_state_lock:
             current_turn = battle.current_turn()
             if current_game.waiting_for_user_input():
@@ -4464,18 +4488,11 @@ def next_turn():
                 battle.next_turn()
                 if battle.battle_ends():
                     current_game.end_current_battle()
+                    return jsonify(status='ok')
 
-            current_game.game_loop()
-            socketio.emit('message', { 'type': 'initiative','message': {'index': battle.current_turn_index}})
-            _logs = battle.get_animation_logs()
-            if _logs:
-                socketio.emit('message', { 'type': 'move', 'message': {'id': current_turn.entity_uid,
-                                                                'animation_log' : _logs }})
-            socketio.emit('message', { 'type': 'turn', 'message': {}})
-            battle.clear_animation_logs()
+        if current_game.get_current_battle():
+            current_game.schedule_continue_game_loop()
 
-    # with open('save.yml','w+') as f:
-    #     f.write(yaml.dump(battle_map.to_dict()))
     return jsonify(status='ok')
 
 @app.route('/reorder_initiative', methods=['POST'])
@@ -5343,16 +5360,12 @@ def handle_reaction():
             current_game.end_turn_state = False
             battle.next_turn()
 
-        current_game.ai_loop()
-        continue_game()
+        current_game.schedule_after_reaction()
     except AsyncReactionHandler as e:
         for _, entity, valid_actions in e.resolve():
             valid_actions_str = [[str(action.uid), str(action), action] for action in valid_actions]
             current_game.waiting_for_reaction = [entity, e, e.resolve(), valid_actions_str]
         socketio.emit('message', {'type': 'reaction', 'message': {'id': entity.entity_uid, 'reaction': e.reaction_type}})
-    except ManualControl:
-        logger.info("waiting for user to end turn.")
-        current_game.set_waiting_for_user_input(True)
 
     return jsonify(status='ok')
 
@@ -7247,8 +7260,7 @@ def ai_chat():
             'current_map': current_game.get_map_for_user(session['username']).name,
             'pov_entity': current_pov_entity.entity_uid if current_pov_entity else None
         }
-        print("Context:", context)
-        # Send message to AI with RAG context
+        # Send message to AI with RAG context (offloaded so Socket.IO stays responsive)
         response = llm_handler.send_message(message, context)
         
         return jsonify({'success': True, 'response': response})

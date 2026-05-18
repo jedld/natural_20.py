@@ -1574,7 +1574,8 @@ class Map(SerializableObject):
 
     def opaque(self, pos_x, pos_y, origin=None):
         if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
-            raise ValueError(f"Invalid position: {pos_x},{pos_y} should not exceed (0 - {self.size[0]- 1 }),(0 - {self.size[1] - 1})")
+            # Out-of-bounds positions are treated as opaque (blocking line of sight)
+            return True
 
         if self.base_map[pos_x][pos_y] == '#':
             return True

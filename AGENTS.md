@@ -23,7 +23,16 @@ Developer workflows and commands (verified in repo README):
 - Run webapp (dev):
   - copy `webapp/env.example` → `webapp/.env` and set provider vars, or export env vars
   - `cd webapp && python -m flask run` (defaults to port 5000)
-  - production gunicorn example in README: `gunicorn --worker-class eventlet --workers 1 --bind 0.0.0.0:5001 --timeout 120 app:app` with `TEMPLATE_DIR` env.
+- Run webapp (production with gunicorn):
+  - `cd webapp && TEMPLATE_DIR=../user_levels/<level> CORS_ORIGINS="http://localhost:5000,http://127.0.0.1:5000,http://localhost:5001,http://127.0.0.1:5001,https://*.ngrok.io,https://*.ngrok-free.app,https://*.ngrok-free.dev" gunicorn --worker-class eventlet --workers 1 --bind 0.0.0.0:5001 --timeout 120 app:app`
+  - Replace `<level>` with the target campaign folder (e.g., `templates`, `user_levels/death_house`, `user_levels/pvp`).
+- Run webapp + ngrok in tmux (production remote access):
+  1. `tmux new-session -d -s n20`
+  2. `tmux send-keys -t n20 'cd webapp && TEMPLATE_DIR=../user_levels/<level> CORS_ORIGINS="http://localhost:5000,http://127.0.0.1:5000,http://localhost:5001,http://127.0.0.1:5001,https://*.ngrok.io,https://*.ngrok-free.app,https://*.ngrok-free.dev" gunicorn --worker-class eventlet --workers 1 --bind 0.0.0.0:5001 --timeout 120 app:app' Enter`
+  3. `tmux split-window -t n20 -v`
+  4. `tmux send-keys -t n20.1 'ngrok http 5001' Enter`
+  5. Check ngrok URL: `tmux capture-pane -t n20.1 -p` (look for `Forwarding https://...`)
+  6. Attach to view: `tmux attach -t n20`
 - Tests:
   - Python: `pytest` (supports `-n auto` for parallel runs)
   - JS unit tests for `webapp/static/engine.js`: `npm install` then `npx jest` (Node 18+ recommended). See README section "JavaScript tests".

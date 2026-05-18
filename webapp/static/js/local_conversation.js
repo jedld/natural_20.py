@@ -835,7 +835,7 @@ window.LocalConversationChatBindings = {
         Chat.refreshLocalConversationPresence({ silent: true });
         Chat.localConversation.refreshTimerId = window.setInterval(function () {
             Chat.refreshLocalConversationPresence({ silent: true });
-        }, 5000);
+        }, 10000);
 
         Chat.setLocalConversationMinimized(Chat.localConversation.minimized);
     },

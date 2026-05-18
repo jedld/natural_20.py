@@ -22,7 +22,7 @@ from natural20.utils.serialization import Serialization
 import gzip
 import threading
 import queue
-from natural20.action import Action
+from natural20.action import Action, AsyncReactionHandler
 
 
 def _coalesce_animation_log(animation_log):
@@ -523,6 +523,8 @@ class GameManagement:
         self.gzip = False
         self.read_notes = set()
         self.game_state_lock = threading.Lock()
+        self._game_loop_task_guard = threading.Lock()
+        self._game_loop_task_running = False
         # Per-map locks for non-battle actions to reduce contention across maps
         self.map_state_locks = {}
         self._map_state_locks_guard = threading.Lock()
@@ -758,19 +760,115 @@ class GameManagement:
         })
         self.socketio.emit('message', {'type': 'turn', 'message': {}})
 
-    def execute_game_loop(self):
-        self.output_logger.log("Battle started.", visibility='public')
-        self.game_loop()
-        self.socketio.emit('message',{'type': 'initiative', 'message': {}})
+    def _try_begin_game_loop_task(self) -> bool:
+        with self._game_loop_task_guard:
+            if self._game_loop_task_running:
+                return False
+            self._game_loop_task_running = True
+            return True
 
-        if self.battle:
+    def _end_game_loop_task(self) -> None:
+        with self._game_loop_task_guard:
+            self._game_loop_task_running = False
+
+    def game_loop_task_running(self) -> bool:
+        with self._game_loop_task_guard:
+            return self._game_loop_task_running
+
+    def emit_post_game_loop_updates(self, *, battle_start: bool = False) -> None:
+        battle = self.get_current_battle()
+        if not battle:
+            return
+
+        if battle_start:
+            self.socketio.emit('message', {'type': 'initiative', 'message': {}})
+        else:
             self.socketio.emit('message', {
-                'type': 'move',
-                'message': { 'animation_log' : _coalesce_animation_log(self.battle.get_animation_logs()) }
-                })
-            self.battle.clear_animation_logs()
+                'type': 'initiative',
+                'message': {'index': battle.current_turn_index},
+            })
 
-        self.socketio.emit('message',{ 'type': 'turn', 'message': {}})
+        logs = battle.get_animation_logs()
+        if logs:
+            move_message = {'animation_log': _coalesce_animation_log(logs)}
+            if not battle_start:
+                current_turn = battle.current_turn()
+                if current_turn is not None:
+                    move_message['id'] = current_turn.entity_uid
+            self.socketio.emit('message', {'type': 'move', 'message': move_message})
+        battle.clear_animation_logs()
+        self.socketio.emit('message', {'type': 'turn', 'message': {}})
+
+    def _run_game_loop_once(self, *, battle_start: bool = False) -> None:
+        if battle_start:
+            self.output_logger.log("Battle started.", visibility='public')
+        with self.game_state_lock:
+            self.game_loop()
+        self.emit_post_game_loop_updates(battle_start=battle_start)
+
+    def _game_loop_background(self, *, battle_start: bool = False) -> None:
+        try:
+            self._run_game_loop_once(battle_start=battle_start)
+        except Exception:
+            self.logger.exception("background game loop failed")
+        finally:
+            self._end_game_loop_task()
+
+    def schedule_game_loop(self, *, battle_start: bool = False) -> bool:
+        """Run ``game_loop`` off the HTTP greenlet; returns False if one is already running."""
+        if not self._try_begin_game_loop_task():
+            self.logger.debug("skipped scheduling game loop: task already running")
+            return False
+        self.socketio.start_background_task(self._game_loop_background, battle_start=battle_start)
+        return True
+
+    def execute_game_loop(self, *, blocking: bool = False) -> bool:
+        """Start advancing combat turns until manual control or battle end.
+
+        By default runs asynchronously so HTTP/WebSocket handlers stay responsive.
+        Pass ``blocking=True`` for gym/tests that need a synchronous run.
+        """
+        if blocking:
+            self._run_game_loop_once(battle_start=True)
+            return True
+        return self.schedule_game_loop(battle_start=True)
+
+    def schedule_continue_game_loop(self) -> bool:
+        return self.schedule_game_loop(battle_start=False)
+
+    def schedule_after_reaction(self) -> bool:
+        """Continue AI turns after a reaction resolves (runs ai_loop then game_loop)."""
+        if not self._try_begin_game_loop_task():
+            self.logger.debug("skipped scheduling post-reaction loop: task already running")
+            return False
+        self.socketio.start_background_task(self._after_reaction_background)
+        return True
+
+    def _after_reaction_background(self) -> None:
+        try:
+            with self.game_state_lock:
+                self.ai_loop()
+                self.game_loop()
+            self.emit_post_game_loop_updates(battle_start=False)
+        except ManualControl:
+            self.logger.info("waiting for user to end turn.")
+        except AsyncReactionHandler as e:
+            entity = None
+            for _, ent, valid_actions in e.resolve():
+                entity = ent
+                valid_actions_str = [
+                    [str(action.uid), str(action), action] for action in valid_actions
+                ]
+                self.waiting_for_reaction = [ent, e, e.resolve(), valid_actions_str]
+            if entity is not None:
+                self.socketio.emit('message', {
+                    'type': 'reaction',
+                    'message': {'id': entity.entity_uid, 'reaction': e.reaction_type},
+                })
+        except Exception:
+            self.logger.exception("post-reaction game loop failed")
+        finally:
+            self._end_game_loop_task()
 
     def refresh_client_map(self):
         width, height = self.battle_map.size
@@ -994,7 +1092,7 @@ class GameManagement:
                             self.play_soundtrack(soundtrack['name'])
                             break
                     self.battle.start()
-                    self.execute_game_loop()
+                    self.schedule_game_loop(battle_start=True)
                 else:
                     for entity, group in add_to_initiative:
                         controller = self.build_combat_controller_for_entity(entity)

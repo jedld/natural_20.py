@@ -21,6 +21,8 @@ import pdb
 import threading
 from pathlib import Path
 
+from natural20.concurrency import run_blocking
+
 logger = logging.getLogger('werkzeug')
 logger.setLevel(logging.INFO)
 
@@ -813,6 +815,7 @@ class LLMHandler:
         self.game_context_functions = {}
         self.conversation_history = []
         self.session_logger = SessionLogger()  # Create session logger
+        self._send_lock = threading.Lock()
 
     @staticmethod
     def _only_first_message_may_be_system(messages: List[Dict[str, str]]) -> None:
@@ -847,6 +850,10 @@ class LLMHandler:
     def send_message(self, message, context: Optional[Dict[str, Any]] = None) -> str:
         """Send a message to the LLM and get a response, automatically handling truncated responses."""
         logger.debug(f"[LLMHandler] send_message called with message: {message}")
+        with self._send_lock:
+            return run_blocking(self._send_message_impl, message, context)
+
+    def _send_message_impl(self, message, context: Optional[Dict[str, Any]] = None) -> str:
         if not self.current_provider:
             logger.error("[LLMHandler] No LLM provider initialized.")
             error_msg = "AI assistant is not initialized. Please initialize a provider first."

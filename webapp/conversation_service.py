@@ -1,5 +1,6 @@
 from flask import jsonify, request, session
 import re
+import time
 
 from natural20.player_character import PlayerCharacter
 from natural20.utils.conversation import (
@@ -108,6 +109,8 @@ class ConversationService:
         self._entities_controlled_by_getter = entities_controlled_by_getter
         self._logins_getter = logins_getter
         self.logger = logger
+        self._conversation_presence_cache: dict = {}
+        self._CONVERSANCE_PRESENCE_CACHE_TTL = 3.0
 
     @property
     def current_game(self):
@@ -1273,6 +1276,16 @@ class ConversationService:
         if not entity_id:
             return {'error': 'Entity ID is required'}, 400
 
+        cache_key = (entity_id, volume, range_value)
+        now = time.monotonic()
+        cached = self._conversation_presence_cache.get(cache_key)
+        if cached is not None:
+            age = now - cached['_ts']
+            if age < self._CONVERSANCE_PRESENCE_CACHE_TTL:
+                cached_result = cached.copy()
+                del cached_result['_ts']
+                return cached_result, 200
+
         entity = self.current_game.get_entity_by_uid(entity_id)
         if not entity:
             return {'error': 'Entity not found'}, 404
@@ -1285,7 +1298,7 @@ class ConversationService:
         louder_voice_entities = [entry for entry in audible if entry.get('status') == 'requires_louder_voice']
         heard_only_entities = [entry for entry in audible if entry.get('status') == 'too_far']
 
-        return {
+        result = {
             'speaker': {
                 'id': entity.entity_uid,
                 'name': entity_label(entity),
@@ -1297,7 +1310,11 @@ class ConversationService:
             'reachable_entities': reachable_entities,
             'requires_louder_voice_entities': louder_voice_entities,
             'heard_only_entities': heard_only_entities,
-        }, 200
+        }
+
+        self._conversation_presence_cache[cache_key] = result.copy()
+        self._conversation_presence_cache[cache_key]['_ts'] = now
+        return result, 200
 
     def nearby_entities_response(self, entity_id, volume=None, range_value=None):
         normalized_volume = normalize_speech_mode(mode=volume, distance_ft=range_value)

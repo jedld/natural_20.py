@@ -124,7 +124,7 @@ def start_battle(game_manager, session):
 
 def _on_session_ready(game_manager, session):
     start_battle(game_manager, session)
-    game_manager.execute_game_loop()
+    game_manager.execute_game_loop(blocking=True)
 
 def _on_battle_end(game_manager, session):
     print("battle ended")
@@ -138,7 +138,7 @@ def _on_battle_end(game_manager, session):
 
     def restart_callback(x):
         start_battle(game_manager, session)
-        game_manager.execute_game_loop()
+        game_manager.execute_game_loop(blocking=True)
 
     game_manager.prompt(f"Battle ended {winner_msg}. Starting new battle...",
                         callback=restart_callback)
