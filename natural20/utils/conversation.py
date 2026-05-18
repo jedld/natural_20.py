@@ -204,6 +204,13 @@ def _wall_like_object(obj, origin=None):
         return False
 
 
+# Simple dict-based cache for acoustic profiles keyed on positions.
+# Key: (source_uid, listener_uid, source_pos, listener_pos, map_id)
+# Positions in the key ensure automatic cache misses when entities move.
+_acoustic_cache: dict = {}
+_ACOUSTIC_CACHE_MAX_SIZE = 256
+
+
 def acoustic_profile(source, listener, battle_map):
     profile = {
         'penalty_ft': 0,
@@ -220,6 +227,14 @@ def acoustic_profile(source, listener, battle_map):
     listener_pos = _map_position_for(listener, battle_map)
     if source_pos is None or listener_pos is None:
         return profile
+
+    # Check cache
+    source_uid = getattr(source, 'entity_uid', None) or id(source)
+    listener_uid = getattr(listener, 'entity_uid', None) or id(listener)
+    cache_key = (source_uid, listener_uid, source_pos, listener_pos, id(battle_map))
+    cached = _acoustic_cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     try:
         path = battle_map.squares_in_path(*source_pos, *listener_pos, inclusive=True)
@@ -277,6 +292,13 @@ def acoustic_profile(source, listener, battle_map):
         label = 'opaque object' if profile['opaque_objects'] == 1 else 'opaque objects'
         parts.append(f"{profile['opaque_objects']} {label}")
     profile['summary'] = ', '.join(parts)
+
+    # Store in cache (evict oldest if full)
+    if len(_acoustic_cache) >= _ACOUSTIC_CACHE_MAX_SIZE:
+        oldest_key = next(iter(_acoustic_cache))
+        del _acoustic_cache[oldest_key]
+    _acoustic_cache[cache_key] = profile
+
     return profile
 
 
@@ -343,6 +365,30 @@ def conversation_reachability(source, battle_map, mode=None, distance_ft=None, i
             distance_to_source = battle_map.distance(source, listener) * battle_map.feet_per_grid
         except Exception:
             distance_to_source = selected_distance
+
+        # Early-exit: if raw distance already exceeds the absolute maximum hearing
+        # range (shout + best hearing modifier), skip the expensive acoustic profile
+        # since penalties can only make it worse.
+        max_possible_hearing = SPEECH_BASE_RANGES['shout'] + MAX_HEARING_MODIFIER
+        if distance_to_source > max_possible_hearing:
+            reachability.append({
+                'entity': listener,
+                'distance_ft': int(distance_to_source),
+                'adjusted_distance_ft': int(distance_to_source),
+                'effective_distance_ft': int(effective_hearing_distance(listener, SPEECH_BASE_RANGES['shout'])),
+                'passive_perception': passive_perception_for(listener),
+                'hearing_modifier_ft': hearing_modifier_for(listener),
+                'reachable_now': False,
+                'reachable_with_shout': False,
+                'minimum_volume': None,
+                'status': 'too_far',
+                'acoustic_penalty_ft': 0,
+                'acoustic_summary': '',
+                'closed_doors': 0,
+                'walls': 0,
+                'opaque_objects': 0,
+            })
+            continue
 
         acoustic = acoustic_profile(source, listener, battle_map)
         adjusted_distance = int(distance_to_source + acoustic['penalty_ft'])

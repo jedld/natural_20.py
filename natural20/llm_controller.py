@@ -1371,7 +1371,8 @@ class LlmMcpController(GenericController):
 					{"role": "system", "content": instructions},
 					{"role": "user", "content": prompt},
 				]
-				text = prov.send_message(messages)  # type: ignore[attr-defined]
+				from natural20.concurrency import run_blocking
+				text = run_blocking(prov.send_message, messages)  # type: ignore[attr-defined]
 				idx = self._local_parse_choice_from_text(text, len(available_actions))
 				if idx is not None:
 					return idx
@@ -2064,7 +2065,13 @@ class LlmMcpController(GenericController):
 		except Exception:
 			return None
 		try:
-			resp = requests.post(url, json={"prompt": prompt, "n_actions": n_actions}, timeout=8)
+			from natural20.concurrency import run_blocking
+			resp = run_blocking(
+				requests.post,
+				url,
+				json={"prompt": prompt, "n_actions": n_actions},
+				timeout=8,
+			)
 			if resp.status_code != 200:
 				return None
 			data = resp.json()
