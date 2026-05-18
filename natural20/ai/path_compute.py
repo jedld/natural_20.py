@@ -15,7 +15,38 @@ class PathCompute:
         # Tiles on which hazards (e.g. visible chasms) are intentionally allowed
         # because the caller asked to path *to* them. Populated per query.
         self._allowed_hazard_tiles = set()
+        # Per-query caches to avoid redundant expensive Map method calls during A*.
+        # These are cleared on each compute_path call so they don't leak across queries.
+        self._objects_cache = {}          # (x, y, reveal_concealed) -> list
+        self._difficult_cache = {}        # (x, y) -> bool
+        self._passable_cache = {}         # (x, y, allow_squeeze, origin_tuple) -> bool
    
+    def _clear_caches(self):
+        """Reset per-query caches."""
+        self._objects_cache.clear()
+        self._difficult_cache.clear()
+        self._passable_cache.clear()
+
+    def _cached_objects_at(self, x, y, reveal_concealed=False):
+        """Return cached result of ``map.objects_at`` for the given tile."""
+        key = (x, y, reveal_concealed)
+        cached = self._objects_cache.get(key)
+        if cached is not None:
+            return cached
+        result = self.map.objects_at(x, y, reveal_concealed=reveal_concealed)
+        self._objects_cache[key] = result
+        return result
+
+    def _cached_difficult_terrain(self, x, y):
+        """Return cached difficult-terrain check for the tile."""
+        key = (x, y)
+        cached = self._difficult_cache.get(key)
+        if cached is not None:
+            return cached
+        result = self.map.difficult_terrain(self.entity, x, y, self.battle)
+        self._difficult_cache[key] = result
+        return result
+
     def compute_path(self, source_x, source_y, destination_x, destination_y,
                      available_movement_cost=None,
                      accumulated_path=None,
@@ -34,6 +65,9 @@ class PathCompute:
             A list of (x, y) for the path or None if no path exists.
             If available_movement_cost is given, trims path that exceeds the cost in feet.
         """
+        # Reset per-query caches so they don't leak across calls.
+        self._clear_caches()
+
         # Validate and clamp coordinates to avoid out-of-bounds access
         if not (0 <= source_x < self.max_x and 0 <= source_y < self.max_y):
             return None
@@ -140,6 +174,9 @@ class PathCompute:
             If a destination is unreachable, its path will be None.
             If available_movement_cost is given, paths are trimmed to not exceed the cost in feet.
         """
+        # Reset per-query caches so they don't leak across calls.
+        self._clear_caches()
+
         # Validate source and filter destinations to map bounds
         if not (0 <= source_x < self.max_x and 0 <= source_y < self.max_y):
             return {dest: None for dest in destinations}
@@ -239,7 +276,7 @@ class PathCompute:
 
     def _is_door_tile(self, x, y) -> bool:
         try:
-            objs = self.map.objects_at(x, y)
+            objs = self._cached_objects_at(x, y)
         except Exception:
             return False
         for obj in objs:
@@ -263,10 +300,10 @@ class PathCompute:
             except Exception:
                 pass
         try:
-            objs = self.map.objects_at(x, y, reveal_concealed=False)
+            objs = self._cached_objects_at(x, y, reveal_concealed=False)
         except TypeError:
             try:
-                objs = self.map.objects_at(x, y)
+                objs = self._cached_objects_at(x, y)
             except Exception:
                 return False
         except Exception:
@@ -275,6 +312,19 @@ class PathCompute:
             if isinstance(obj, Chasm) and not obj.concealed():
                 return True
         return False
+
+    def _cached_passable(self, nx, ny, origin, allow_squeeze):
+        """Return cached result of ``map.bidirectionally_passable`` for neighbor checks."""
+        origin_tuple = (origin[0], origin[1]) if isinstance(origin, (list, tuple)) else origin
+        key = (nx, ny, allow_squeeze, origin_tuple, self.ignore_opposing)
+        cached = self._passable_cache.get(key)
+        if cached is not None:
+            return cached
+        result = self.map.bidirectionally_passable(
+            self.entity, nx, ny, origin, self.battle, allow_squeeze,
+            ignore_opposing=self.ignore_opposing)
+        self._passable_cache[key] = bool(result)
+        return result
 
     def get_neighbors(self, x, y, door_navigation: bool = False):
         """
@@ -294,10 +344,8 @@ class PathCompute:
                 return True
             ax, ay = x + dx, y          # horizontal neighbor
             bx, by = x, y + dy    # vertical neighbor
-            adj1_ok = self.map.bidirectionally_passable(self.entity, ax, ay, (x, y), self.battle, allow_squeeze,
-                                                        ignore_opposing=self.ignore_opposing)
-            adj2_ok = self.map.bidirectionally_passable(self.entity, bx, by, (x, y), self.battle, allow_squeeze,
-                                                        ignore_opposing=self.ignore_opposing)
+            adj1_ok = self._cached_passable(ax, ay, (x, y), allow_squeeze)
+            adj2_ok = self._cached_passable(bx, by, (x, y), allow_squeeze)
             # If door navigation is on, treat door tiles as acceptable for the orthogonal clearance
             if door_navigation:
                 if not adj1_ok and self._is_door_tile(ax, ay):
@@ -322,15 +370,13 @@ class PathCompute:
 
                 # Try normal passable
                 if diagonal_clear(dx, dy, allow_squeeze=False) and \
-                   (self.map.bidirectionally_passable(self.entity, nx, ny, (x, y), self.battle, False,
-                                    ignore_opposing=self.ignore_opposing) or
+                   (self._cached_passable(nx, ny, (x, y), False) or
                     (door_navigation and self._is_door_tile(nx, ny))):
-                    move_cost = self.base_move_cost(nx, ny, src = (x, y))
+                    move_cost = self.base_move_cost(nx, ny, src=(x, y))
                     neighbors.append(((nx, ny), move_cost))
                 # Otherwise, if not normal passable, check if passable with squeeze
                 elif diagonal_clear(dx, dy, allow_squeeze=True) and \
-                     (self.map.bidirectionally_passable(self.entity, nx, ny, (x, y), self.battle, True,
-                                    ignore_opposing=self.ignore_opposing) or
+                     (self._cached_passable(nx, ny, (x, y), True) or
                       (door_navigation and self._is_door_tile(nx, ny))):
                     # e.g., let's define squeeze cost = 2
                     move_cost = self.base_move_cost(nx, ny, src = (x, y)) + 1
@@ -344,7 +390,8 @@ class PathCompute:
         """
         If the terrain is difficult or the entity is prone, adjust cost accordingly.
         """
-        cost = 2 if self.map.difficult_terrain(self.entity, x, y, self.battle) and not self.entity.is_flying() else 1
+        is_difficult = self._cached_difficult_terrain(x, y)
+        cost = 2 if is_difficult and not self.entity.is_flying() else 1
         if self.entity.prone():
             cost += 1
         if src:

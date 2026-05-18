@@ -8,6 +8,7 @@ including inventory queries, observation requests, and language parsing.
 import re
 import json
 import logging
+import time
 from typing import List, Tuple, Dict, Any, Optional
 from natural20.action import Action
 from natural20.actions.interact_action import InteractAction
@@ -1469,6 +1470,10 @@ class EntityRAGHandler:
                     })
             
             response = []
+            # Short-lived cache for can_see results to avoid repeated LoS ray traces
+            # within a single get_nearby_entities call (same speaker, same map state).
+            _visibility_cache: Dict[Tuple[str, str], bool] = {}
+
             for audience_entry in audience_entries:
                 nearby_entity = audience_entry['entity']
                 # Hide entities the speaker cannot see; otherwise listing them in the
@@ -1476,7 +1481,13 @@ class EntityRAGHandler:
                 # may still be able to hear the speaker.
                 try:
                     if battle_map is not None and hasattr(battle_map, 'can_see'):
-                        if not battle_map.can_see(entity, nearby_entity):
+                        vis_key = (entity.entity_uid, nearby_entity.entity_uid)
+                        if vis_key in _visibility_cache:
+                            visible = _visibility_cache[vis_key]
+                        else:
+                            visible = battle_map.can_see(entity, nearby_entity)
+                            _visibility_cache[vis_key] = visible
+                        if not visible:
                             continue
                 except Exception:
                     pass

@@ -46,7 +46,7 @@ class JsonRenderer:
         entity_pov_locations = None
         width, height = self.map.size
 
-        # Per-render memoization for Map.light_at (called up to 9× per tile via
+        # Per-render memoization for Map.light_at (called up to 9x per tile via
         # the soft-shadow neighbor loop).
         _map_light_at = self.map.light_at
         _light_cache = {}
@@ -56,6 +56,28 @@ class JsonRenderer:
             if v is None:
                 v = _map_light_at(x, y)
                 _light_cache[key] = v
+            return v
+
+        # Per-render memoization for can_see_square (called per tile per POV entity).
+        _can_see_square_cache: dict = {}
+
+        def cached_can_see_square(entity, pos, force_dark_vision=False, inclusive=None):
+            key = (id(entity), pos, force_dark_vision, inclusive)
+            v = _can_see_square_cache.get(key)
+            if v is None:
+                v = self.map.can_see_square(entity, pos, force_dark_vision=force_dark_vision, inclusive=inclusive)
+                _can_see_square_cache[key] = v
+            return v
+
+        # Per-render memoization for can_see(entity, target) (called per object/entity).
+        _can_see_entity_cache: dict = {}
+
+        def cached_can_see(entity, target, allow_dark_vision=True, active_perception=0):
+            key = (id(entity), id(target), allow_dark_vision, active_perception)
+            v = _can_see_entity_cache.get(key)
+            if v is None:
+                v = self.map.can_see(entity, target, allow_dark_vision=allow_dark_vision, active_perception=active_perception)
+                _can_see_entity_cache[key] = v
             return v
 
         if entity_pov is not None and len(entity_pov) > 0:
@@ -93,7 +115,14 @@ class JsonRenderer:
                         entity_pov = [entity_pov]
 
                     entity_pov = [e for e in entity_pov if e]
-                    distance_to_square = min([np.linalg.norm(np.array((x, y)) - np.array((pos[0], pos[1]))) for pos in entity_pov_locations]) if entity_pov_locations else None
+                    # Optimized distance: avoid numpy array allocation per tile
+                    if entity_pov_locations:
+                        distance_to_square = min(
+                            ((x - pos[0]) ** 2 + (y - pos[1]) ** 2) ** 0.5
+                            for pos in entity_pov_locations
+                        )
+                    else:
+                        distance_to_square = None
 
                     if distance_to_square is not None and any([e.darkvision(distance_to_square * self.map.feet_per_grid) for e in entity_pov if e]):
                         has_darkvision = True
@@ -101,21 +130,22 @@ class JsonRenderer:
                         has_darkvision = False
 
                     if len(entity_pov) > 0:
-                        if x < 0 or y < 0 or x >= self.map.size[0] or y >= self.map.size[1]:
-                            result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 0.0, 'soft_shadow_direction': soft_shadow_direction})
-                            continue
-
-                        if not any([self.map.can_see_square(entity, (x, y)) for entity in entity_pov]):
-                            if any([self.map.can_see_square(entity, (x, y), force_dark_vision=True) for entity in entity_pov]):
+                        if not any([cached_can_see_square(entity, (x, y)) for entity in entity_pov]):
+                            if any([cached_can_see_square(entity, (x, y), force_dark_vision=True) for entity in entity_pov]):
                                 result_row.append({'x': x, 'y': y, 'difficult': self.map.difficult_terrain(entity, x, y), 'line_of_sight': True, 'light': 0.0, 'opacity': 0.95, 'soft_shadow_direction': soft_shadow_direction})
                                 continue
                             # check if there is a door like object in the square
                             if self.map.kind_of_door(x, y):
                                 hidden_door_tile = True
-                                hidden_door_line_of_sight = any([self.map.can_see_square(entity, (x, y), force_dark_vision=True, inclusive=False) for entity in entity_pov])
+                                hidden_door_line_of_sight = any([cached_can_see_square(entity, (x, y), force_dark_vision=True, inclusive=False) for entity in entity_pov])
                             else:
                                 result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 1.0, 'soft_shadow_direction': soft_shadow_direction})
                                 continue
+
+                # Guard against out-of-bounds coordinates (e.g., padding extending beyond map)
+                if x < 0 or y < 0 or x >= self.map.size[0] or y >= self.map.size[1]:
+                    result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 0.0, 'soft_shadow_direction': soft_shadow_direction})
+                    continue
 
                 object_entities = self.map.objects_at(x, y)
                 entity = self.map.entity_at(x, y)
@@ -147,6 +177,8 @@ class JsonRenderer:
                     'x': x,
                     'y': y,
                     'difficult': False if hidden_door_tile else self.map.difficult_terrain(entity, x, y),
+                    'blocked': self.map.base_map[x][y] == '#',
+                    'door': bool(self.map.kind_of_door(x, y)),
                     'line_of_sight': hidden_door_line_of_sight if hidden_door_tile else True,
                     'light': light,
                     'soft_shadow_direction': soft_shadow_direction,
@@ -166,7 +198,7 @@ class JsonRenderer:
                                 getattr(object_entity, 'perception_results', {}).get(entity_p, {}).get('revealed')
                                 for entity_p in entity_pov
                             ])
-                            visible_to_pov = any([self.map.can_see(entity_p, object_entity, allow_dark_vision=True,
+                            visible_to_pov = any([cached_can_see(entity_p, object_entity, allow_dark_vision=True,
                                                                    active_perception=self.battle.active_perception_for(entity_p) if self.battle and entity_p in self.battle.entities else 0)
                                                   for entity_p in entity_pov])
                             visible_to_pov = visible_to_pov or viewer_revealed_secret
@@ -276,7 +308,7 @@ class JsonRenderer:
 
                 if entity:
                     if entity_pov and len(entity_pov) > 0:
-                        visible_to_pov = any([self.map.can_see(entity_p, entity, allow_dark_vision=True) for entity_p in entity_pov])
+                        visible_to_pov = any([cached_can_see(entity_p, entity, allow_dark_vision=True) for entity_p in entity_pov])
                         if not visible_to_pov or hidden_door_tile:
                             result_row.append(shared_attributes)
                             continue

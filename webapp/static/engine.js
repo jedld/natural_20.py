@@ -70,9 +70,109 @@ function setMovePathCache(key, value) {
 function clearMovePathCache() {
   move_path_cache = {};
   move_path_cache_keys = [];
+  invalidateLocalPathCostMap();
   if (typeof Utils !== 'undefined' && typeof Utils.invalidateMovementGridCache === 'function') {
     Utils.invalidateMovementGridCache();
   }
+}
+
+/** Precomputed passability grid for client-side A* (path_compute.js). */
+let localPathCostMap = null;
+let localPathMovementBudget = null;
+
+function invalidateLocalPathCostMap() {
+  localPathCostMap = null;
+  localPathMovementBudget = null;
+}
+
+function loadLocalPathCostMap(fromCoords, done) {
+  if (typeof PathComputeModule === 'undefined') {
+    if (done) done(false);
+    return;
+  }
+  Utils.ajaxGet(
+    '/path/cost_map',
+    { 'from[x]': fromCoords.x, 'from[y]': fromCoords.y },
+    (data) => {
+      if (data && data.snapshot) {
+        localPathCostMap = PathComputeModule.PathfindingCostMap.fromSnapshot(data.snapshot);
+        localPathMovementBudget = data.available_movement;
+        if (done) done(true);
+        return;
+      }
+      invalidateLocalPathCostMap();
+      if (done) done(false);
+    }
+  );
+}
+
+function tryBuildLocalPathCostMapFromTiles() {
+  if (typeof PathComputeModule === 'undefined') {
+    return false;
+  }
+  const tiles = document.querySelectorAll('.tile');
+  if (!tiles.length) {
+    return false;
+  }
+  const ent = document.body.getAttribute('data-pov-entity');
+  const prone = document.body.getAttribute('data-pov-prone') === 'true';
+  const flying = document.body.getAttribute('data-pov-flying') === 'true';
+  localPathCostMap = PathComputeModule.PathfindingCostMap.fromTiles(tiles, {
+    entity: { prone, flying },
+    feet_per_grid: 5,
+  });
+  return !!localPathCostMap;
+}
+
+function computeLocalPathResponse(from, to, accumulatedPath) {
+  if (!localPathCostMap && !tryBuildLocalPathCostMapFromTiles()) {
+    return null;
+  }
+  if (typeof PathComputeModule === 'undefined') {
+    return null;
+  }
+  const pc = new PathComputeModule.PathCompute(localPathCostMap);
+  const accumulated = accumulatedPath || [];
+  const opts = {
+    accumulated_path: accumulated,
+    available_movement_cost: localPathMovementBudget,
+  };
+  let path = pc.computePath(from.x, from.y, to.x, to.y, opts);
+  const reached =
+    path &&
+    path.length > 0 &&
+    path[path.length - 1][0] === to.x &&
+    path[path.length - 1][1] === to.y;
+  if (!reached) {
+    path = pc.computePath(from.x, from.y, to.x, to.y, Object.assign({}, opts, { door_navigation: true }));
+  }
+  if (!path) {
+    return null;
+  }
+  const cm = localPathCostMap;
+  const terrain_info = path.map(([x, y]) => ({
+    x,
+    y,
+    difficult: !!cm.difficult[cm._idx(x, y)],
+  }));
+  let budget = 0;
+  if (localPathMovementBudget != null) {
+    let g = 0;
+    for (let i = 1; i < path.length; i++) {
+      g += pc._baseMoveCost(path[i][0], path[i][1], path[i - 1]);
+    }
+    const spent = g * cm.feetPerGrid;
+    budget = localPathMovementBudget - spent;
+  }
+  return {
+    path,
+    cost: {
+      budget: localPathMovementBudget != null ? budget : 0,
+      original_budget: localPathMovementBudget,
+    },
+    placeable: true,
+    terrain_info,
+  };
 }
 let currentPathXhr = null;     // in-flight /path jqXHR, aborted on new hover
 let lastHoverCoords = null;    // last (x,y) processed by movement-mode hover
@@ -477,6 +577,7 @@ class EventQueue {
           break;
         }
         case "refresh_map": {
+          invalidateLocalPathCostMap();
           // Ensure map refresh runs within the queue and completes before next event
           try {
             Utils.refreshTileSet(false, false, 0, 0, null, () => {
@@ -2721,6 +2822,16 @@ function handleDirectWSADMovement(event) {
     };
 
     const makePathRequest = () => {
+      const localData = computeLocalPathResponse(
+        source,
+        { x: newX, y: newY },
+        accumulatedPath.length > 0 ? accumulatedPath : []
+      );
+      if (localData) {
+        move_path_cache[cacheKey] = localData;
+        applyMovementData(localData);
+        return;
+      }
       Utils.ajaxGet(
         "/path",
         {
@@ -2869,13 +2980,14 @@ function initViewportControls() {
       return;
     }
     // Right mouse button (button 2) — arm a pan; only commit once the
-    // cursor is dragged past the threshold. This preserves right-click
-    // semantics (cancel mode / context menu) when the user just clicks.
+    // cursor is dragged past the threshold. preventDefault on mousedown
+    // blocks the browser context menu so panning works cleanly.
     if (e.button === 2) {
       // Don't arm if a UI overlay owns the click.
       if ($(e.target).closest('.modal, .panel, .popover-menu, .popover-menu-2, #centerActionBar, #turn-order, #console-container').length) {
         return;
       }
+      e.preventDefault();
       rightPanArmed = true;
       rightPanDragged = false;
       panStart = { x: e.clientX, y: e.clientY };
@@ -2942,13 +3054,15 @@ function initViewportControls() {
     zoomAtPoint(delta, e.clientX, e.clientY);
   });
   
-  // Prevent context menu on middle click, and on right-drag pans.
-  // NOTE: we only preventDefault here; another contextmenu handler (the
-  // mode-cancel one further below) will consume `suppressNextContextMenu`
-  // so it knows not to also cancel an active target/move mode. Ordering
-  // between the two handlers is not guaranteed, so we keep the flag set.
+  // Prevent context menu on right-click (used for map panning) and middle
+  // click.  Right-click is exclusively used for panning, so we always
+  // suppress the browser context menu for it.  NOTE: another contextmenu
+  // handler (the mode-cancel one further below) will consume
+  // `suppressNextContextMenu` so it knows not to also cancel an active
+  // target/move mode.  Ordering between the two handlers is not
+  // guaranteed, so we keep the flag set.
   $mapArea.on('contextmenu', function(e) {
-    if (e.button === 1) {
+    if (e.button === 2 || e.button === 1) {
       e.preventDefault();
       return;
     }
@@ -3947,6 +4061,9 @@ $(document).ready(() => {
           return;
         }
         lastHoverCoords = { x: coordsx, y: coordsy };
+        if (!localPathCostMap) {
+          loadLocalPathCostMap(source, function () {});
+        }
         const cacheKey = `${source.x}-${source.y}-${coordsx}-${coordsy}-${pivotPoints.join("-")}`;
 
         // Function to process and draw movement path
@@ -4033,6 +4150,16 @@ $(document).ready(() => {
             if (!lastHoverCoords ||
                 lastHoverCoords.x !== pendingDest.x ||
                 lastHoverCoords.y !== pendingDest.y) {
+              return;
+            }
+            const localData = computeLocalPathResponse(source, pendingDest, accumulatedPath);
+            if (localData) {
+              setMovePathCache(cacheKey, localData);
+              if (lastHoverCoords &&
+                  lastHoverCoords.x === pendingDest.x &&
+                  lastHoverCoords.y === pendingDest.y) {
+                processMovementData(localData);
+              }
               return;
             }
             // Fetch path data from server using a jqXHR we can abort.
@@ -4153,6 +4280,12 @@ $(document).ready(() => {
 
   // Cancel interactions on right-click.
   $("#main-map-area").on("contextmenu", function (e) {
+    // Always suppress the browser context menu for right-click (button 2)
+    // since right-click is exclusively used for map panning.
+    if (e.button === 2) {
+      e.preventDefault();
+      return;
+    }
     // If a right-drag pan just finished, swallow the menu without cancelling
     // an active targeting/move mode.
     if (suppressNextContextMenu || rightPanDragged) {
