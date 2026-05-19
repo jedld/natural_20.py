@@ -151,6 +151,24 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       for r in sub.get('resistances', []) or []:
         if r not in self.resistances:
           self.resistances.append(r)
+    
+    # Draconic ancestry support (Dragonborn race feature)
+    # Only load ancestry for Dragonborn (other races have subraces too)
+    if race_file == 'dragonborn':
+      self._draconic_ancestry = self.properties.get('ancestry') or self.subrace()
+    else:
+      self._draconic_ancestry = None
+    # Wire damage resistance from draconic ancestry (5e 2014 Dragonborn)
+    if self.class_feature('damage_resistance') and self.race_properties.get('draconic_ancestries'):
+      ancestry_key = self._draconic_ancestry
+      if ancestry_key and ancestry_key in self.race_properties.get('draconic_ancestries', {}):
+        damage_type = self.race_properties['draconic_ancestries'][ancestry_key].get('damage_type')
+        if damage_type and damage_type not in self.resistances:
+          self.resistances.append(damage_type)
+    
+    # Breath weapon usage tracking (once per short/long rest)
+    self.breath_weapon_used = False
+    
     self.entity_uid =  self.properties.get('entity_uid', str(uuid.uuid4()))
 
     # Per-character journal: a chronological list of dict entries.
@@ -843,6 +861,25 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
 
     return bool(self.race_properties.get('darkvision', None) and (self.race_properties['darkvision'] >= distance))
 
+  def get_draconic_ancestry(self):
+    """Return the draconic ancestry key for this character (Dragonborn only).
+    
+    Returns the ancestry key (e.g. 'red', 'blue', 'brass') or None.
+    """
+    return getattr(self, '_draconic_ancestry', None)
+
+  def get_draconic_ancestry_info(self, ancestry_key=None):
+    """Return the draconic ancestry config dict for the given key.
+    
+    Looks up the ancestry in race_properties['draconic_ancestries'].
+    Returns None if not a dragonborn or ancestry not found.
+    """
+    if ancestry_key is None:
+      ancestry_key = self.get_draconic_ancestry()
+    if not ancestry_key:
+      return None
+    return self.race_properties.get('draconic_ancestries', {}).get(ancestry_key)
+
   def next_spell_slot_level(self, character_class, minimum_level):
     if minimum_level <= 0:
       return 0
@@ -1079,6 +1116,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       'reckless_attack_active',
       'relentless_endurance_used',
       'feline_agility_used',
+      'breath_weapon_used',
     ):
       if hasattr(self, attr):
         class_resources[attr] = getattr(self, attr)

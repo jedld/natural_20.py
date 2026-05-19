@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from natural20.action import Action
 from natural20.die_roll import DieRoll
+from natural20.utils.class_feature_registry import register_class_feature
 
 
 class BreathWeaponAction(Action):
@@ -11,6 +12,7 @@ class BreathWeaponAction(Action):
     
     Supports cone and line AoE shapes with proper map targeting.
     Uses spell save DC formula: 8 + proficiency bonus + ability modifier.
+    Usage limited to once per short/long rest per 5e 2014 rules.
     """
 
     # Damage dice by character level per 5e SRD
@@ -55,6 +57,34 @@ class BreathWeaponAction(Action):
         # Breath weapon uses an Action, not a bonus action
         self.as_bonus_action = False
 
+    @staticmethod
+    def can(entity, battle, opt=None):
+        """Check if entity can use breath weapon.
+        
+        Requirements:
+        - Entity must have 'breath_weapon' race feature
+        - Entity must have draconic ancestry configured
+        - Breath weapon must not have been used this rest (usage tracking)
+        - Entity must have an action available in battle
+        """
+        if not hasattr(entity, 'class_feature'):
+            return False
+        if not entity.class_feature('breath_weapon'):
+            return False
+        # Check ancestry is configured
+        if not entity.get_draconic_ancestry():
+            return False
+        # Check usage limit (once per short/long rest)
+        # Always checked regardless of battle state since it's a rest-based limit
+        if hasattr(entity, 'breath_weapon_used'):
+            if entity.breath_weapon_used:
+                return False
+        # Check action availability in battle
+        if battle and hasattr(entity, 'has_action'):
+            if not entity.has_action(battle):
+                return False
+        return True
+
     def label(self) -> str:
         return f"Breath Weapon ({self.ancestry.title()})"
 
@@ -90,13 +120,24 @@ class BreathWeaponAction(Action):
         """
         save_ability = self.save_ability
         
-        # Try to use entity's spell_save_dc method if available
-        if hasattr(self.source, 'spell_save_dc'):
-            return self.source.spell_save_dc(save_ability)
+        # Expand short ability names to full names for ability_mod()
+        ability_name_map = {
+            'str': 'strength', 'strength': 'strength',
+            'dex': 'dexterity', 'dexterity': 'dexterity',
+            'con': 'constitution', 'constitution': 'constitution',
+            'int': 'intelligence', 'intelligence': 'intelligence',
+            'wis': 'wisdom', 'wisdom': 'wisdom',
+            'cha': 'charisma', 'charisma': 'charisma',
+        }
+        full_ability_name = ability_name_map.get(save_ability, save_ability)
         
-        # Fallback: calculate manually
-        proficiency_bonus = getattr(self.source, 'proficiency_bonus', 2)
-        ability_mod = self.source.ability_modifier(save_ability)
+        # Calculate manually: 8 + proficiency + ability modifier
+        proficiency_bonus = getattr(self.source, 'proficiency_bonus', lambda: 2)
+        if callable(proficiency_bonus):
+            proficiency_bonus = proficiency_bonus()
+        ability_mod = self.source.ability_mod(full_ability_name)
+        if ability_mod is None:
+            ability_mod = 0
         return 8 + proficiency_bonus + ability_mod
 
     def resolve(self, session, map, opts=None):
@@ -151,6 +192,10 @@ class BreathWeaponAction(Action):
                 })
 
         self.result = results
+        
+        # Mark breath weapon as used (once per short/long rest)
+        if hasattr(self.source, 'breath_weapon_used'):
+            self.source.breath_weapon_used = True
         
         # Emit battle event
         if session and hasattr(session, 'event_manager'):
@@ -316,3 +361,35 @@ class BreathWeaponAction(Action):
             level=data.get('level', 1),
             range_feet=data.get('range_feet'),
         )
+
+
+def _breath_weapon_builder(session, entity, feature_id):
+    """Build a BreathWeaponAction from entity's draconic ancestry."""
+    ancestry_key = entity.get_draconic_ancestry()
+    if not ancestry_key:
+        return None
+    
+    ancestry_info = entity.get_draconic_ancestry_info(ancestry_key)
+    if not ancestry_info:
+        return None
+    
+    return BreathWeaponAction(
+        session=session,
+        source=entity,
+        target=None,
+        ancestry=ancestry_key,
+        damage_type=ancestry_info.get('damage_type', 'fire'),
+        save_ability=ancestry_info.get('save', 'dex'),
+        shape=ancestry_info.get('shape', 'cone'),
+        level=entity.level() if hasattr(entity, 'level') else 1,
+    )
+
+
+# Register with the class-feature registry so PlayerCharacter.available_actions
+# surfaces this action automatically when the entity has the breath_weapon feature.
+register_class_feature(
+    feature_id='breath_weapon',
+    action_class=BreathWeaponAction,
+    provides=lambda entity: BreathWeaponAction.can(entity, None),
+    builder=_breath_weapon_builder,
+)

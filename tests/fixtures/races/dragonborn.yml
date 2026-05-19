@@ -1,0 +1,68 @@
+label: Dragonborn
+base_speed: 30
+size: medium
+darkvision: 60
+attribute_bonus:
+  cha: 2
+  str: 1
+skills: []
+languages:
+  - common
+  - draconic
+race_features:
+  - draconic_ancestry
+  - breath_weapon
+  - damage_resistance
+
+# Draconic Ancestry options
+draconic_ancestries:
+  black:
+    damage_type: acid
+    save: dex
+    shape: line
+    label: Black Dragon
+  blue:
+    damage_type: lightning
+    save: dex
+    shape: line
+    label: Blue Dragon
+  brass:
+    damage_type: fire
+    save: dex
+    shape: line
+    label: Brass Dragon
+  bronze:
+    damage_type: lightning
+    save: dex
+    shape: line
+    label: Bronze Dragon
+  copper:
+    damage_type: acid
+    save: dex
+    shape: line
+    label: Copper Dragon
+  gold:
+    damage_type: fire
+    save: dex
+    shape: cone
+    label: Gold Dragon
+  green:
+    damage_type: poison
+    save: con
+    shape: cone
+    label: Green Dragon
+  red:
+    damage_type: fire
+    save: dex
+    shape: cone
+    label: Red Dragon
+  silver:
+    damage_type: cold
+    save: con
+    shape: cone
+    label: Silver Dragon
+  white:
+    damage_type: cold
+    save: con
+    shape: cone
+    label: White Dragon
