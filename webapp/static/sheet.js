@@ -187,4 +187,204 @@ $(document).ready(function () {
             suggestionsList.hide();
         }
     });
+
+    // Container Management Functionality
+    
+    // Load items catalog for autocomplete
+    $.get('/dm/items_catalog', function(data) {
+        const datalist = $('#items-catalog');
+        if (data.success && data.items) {
+            data.items.forEach(item => {
+                datalist.append(`<option value="${item.name}"></option>`);
+            });
+        }
+    });
+
+    // Toggle container contents view
+    $('.equipment-container').on('click', '.container-toggle-btn', function(e) {
+        e.preventDefault();
+        const entityUid = $(this).data('entity');
+        const containerName = $(this).data('container');
+        const containerId = containerName.replace(/\s+/g, '-');
+        
+        // Fetch container contents
+        $.get('/dm/container/contents', {
+            entity_id: entityUid,
+            container_name: containerName
+        }, function(response) {
+            if (response.success) {
+                const containerDiv = $(`#container-${containerId}`);
+                const itemsList = containerDiv.find('.container-items-list');
+                
+                // Clear loading message
+                itemsList.empty();
+                
+                if (response.contents.length === 0) {
+                    itemsList.append('<li class="container-empty">Container is empty</li>');
+                } else {
+                    response.contents.forEach(content => {
+                        itemsList.append(`
+                            <li class="container-item" data-item-name="${content.type}">
+                                <span class="container-item-name">${content.type}</span>
+                                <span class="container-item-qty">x${content.qty || 1}</span>
+                                <button class="btn btn-sm btn-danger remove-container-item"
+                                        data-entity="${entityUid}"
+                                        data-container="${containerName}"
+                                        data-item="${content.type}">
+                                    Remove
+                                </button>
+                            </li>
+                        `);
+                    });
+                }
+                
+                // Show container contents
+                containerDiv.slideDown(200);
+                $(this).text('Hide Contents');
+            } else {
+                alert('Failed to load container contents: ' + response.error);
+            }
+        }).fail(function() {
+            alert('Error loading container contents');
+        });
+    });
+
+    // Close container contents view
+    $('.equipment-container').on('click', '.container-close-btn', function(e) {
+        e.preventDefault();
+        const containerId = $(this).data('container');
+        $(`#container-${containerId}`).slideUp(200);
+        $(`.container-toggle-btn[data-container="${containerId.replace(/-/g, ' ')}"]`).text('View Contents');
+    });
+
+    // Open add item modal
+    $('.equipment-container').on('click', '.container-add-btn', function(e) {
+        e.preventDefault();
+        const entityUid = $(this).data('entity');
+        const containerName = $(this).data('container');
+        
+        $('#modal-entity-id').val(entityUid);
+        $('#modal-container-name').val(containerName);
+        $('#container-modal-title').text(`Add Item to ${containerName}`);
+        $('#container-modal').fadeIn(200);
+    });
+
+    // Close modal
+    $('.modal-close').on('click', function() {
+        $('#container-modal').fadeOut(200);
+    });
+
+    // Handle add item form submission
+    $('#container-add-form').on('submit', function(e) {
+        e.preventDefault();
+        const formData = $(this).serialize();
+        
+        $.post('/dm/container/add', formData, function(response) {
+            if (response.success) {
+                // Close modal
+                $('#container-modal').fadeOut(200);
+                
+                // Reset form
+                $('#modal-item-name').val('');
+                $('#modal-item-qty').val('1');
+                
+                // Refresh container contents
+                const containerName = $('#modal-container-name').val();
+                const entityUid = $('#modal-entity-id').val();
+                const containerId = containerName.replace(/\s+/g, '-');
+                
+                $.get('/dm/container/contents', {
+                    entity_id: entityUid,
+                    container_name: containerName
+                }, function(resp) {
+                    if (resp.success) {
+                        const containerDiv = $(`#container-${containerId}`);
+                        const itemsList = containerDiv.find('.container-items-list');
+                        
+                        itemsList.empty();
+                        
+                        if (resp.contents.length === 0) {
+                            itemsList.append('<li class="container-empty">Container is empty</li>');
+                        } else {
+                            resp.contents.forEach(content => {
+                                itemsList.append(`
+                                    <li class="container-item" data-item-name="${content.type}">
+                                        <span class="container-item-name">${content.type}</span>
+                                        <span class="container-item-qty">x${content.qty || 1}</span>
+                                        <button class="btn btn-sm btn-danger remove-container-item"
+                                                data-entity="${entityUid}"
+                                                data-container="${containerName}"
+                                                data-item="${content.type}">
+                                            Remove
+                                        </button>
+                                    </li>
+                                `);
+                            });
+                        }
+                    }
+                });
+            } else {
+                alert('Failed to add item: ' + response.error);
+            }
+        }).fail(function() {
+            alert('Error adding item to container');
+        });
+    });
+
+    // Remove item from container
+    $('.equipment-container').on('click', '.remove-container-item', function(e) {
+        e.preventDefault();
+        const entityUid = $(this).data('entity');
+        const containerName = $(this).data('container');
+        const itemName = $(this).data('item');
+        
+        if (confirm(`Remove ${itemName} from ${containerName}?`)) {
+            $.post('/dm/container/remove', {
+                entity_id: entityUid,
+                container_name: containerName,
+                item_name: itemName,
+                qty: 1
+            }, function(response) {
+                if (response.success) {
+                    // Refresh container contents
+                    const containerId = containerName.replace(/\s+/g, '-');
+                    
+                    $.get('/dm/container/contents', {
+                        entity_id: entityUid,
+                        container_name: containerName
+                    }, function(resp) {
+                        if (resp.success) {
+                            const containerDiv = $(`#container-${containerId}`);
+                            const itemsList = containerDiv.find('.container-items-list');
+                            
+                            itemsList.empty();
+                            
+                            if (resp.contents.length === 0) {
+                                itemsList.append('<li class="container-empty">Container is empty</li>');
+                            } else {
+                                resp.contents.forEach(content => {
+                                    itemsList.append(`
+                                        <li class="container-item" data-item-name="${content.type}">
+                                            <span class="container-item-name">${content.type}</span>
+                                            <span class="container-item-qty">x${content.qty || 1}</span>
+                                            <button class="btn btn-sm btn-danger remove-container-item"
+                                                    data-entity="${entityUid}"
+                                                    data-container="${containerName}"
+                                                    data-item="${content.type}">
+                                                Remove
+                                            </button>
+                                        </li>
+                                    `);
+                                });
+                            }
+                        }
+                    });
+                } else {
+                    alert('Failed to remove item: ' + response.error);
+                }
+            }).fail(function() {
+                alert('Error removing item from container');
+            });
+        }
+    });
 });
