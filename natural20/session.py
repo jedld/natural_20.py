@@ -434,6 +434,13 @@ class Session:
     def load_all_equipments(self):
         return self.load_yaml_file('items', 'equipment')
 
+    def load_equipment_packs(self):
+        """Load equipment packs from items/equipment_packs.yml"""
+        try:
+            return self.load_yaml_file('items', 'equipment_packs')
+        except FileNotFoundError:
+            return {}
+
     def load_object(self, object_name):
         if object_name not in self.objects:
             objects = self.load_yaml_file('items', 'objects')

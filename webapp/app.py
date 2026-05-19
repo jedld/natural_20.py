@@ -2853,10 +2853,12 @@ def character_builder():
     try:
         races = game_session.load_races()
         classes = game_session.load_classes()
+        equipment_packs = game_session.load_equipment_packs()
         return render_template('character_builder.html',
                                title=TITLE,
                                races=races,
                                classes=classes,
+                               equipment_packs=equipment_packs,
                                edit_mode=False,
                                cancel_url='/')
     except Exception as e:
@@ -2881,6 +2883,7 @@ def character_editor(character_name):
 
         races = game_session.load_races() or {}
         classes = game_session.load_classes() or {}
+        equipment_packs = game_session.load_equipment_packs() or {}
 
         class_map = pc.get('classes') or {}
         klass = next(iter(class_map.keys()), None)
@@ -2911,6 +2914,7 @@ def character_editor(character_name):
             title=TITLE,
             races=races,
             classes=classes,
+            equipment_packs=equipment_packs,
             edit_mode=True,
             edit_character=edit_character,
             editing_character=character_name,
@@ -3218,6 +3222,18 @@ def create_character():
                 selected_level1,
                 selected_feats,
             )
+
+            # Apply equipment pack if selected
+            equipment_pack_id = (request.form.get('equipment_pack') or '').strip()
+            if equipment_pack_id:
+                equipment_packs = game_session.load_equipment_packs() or {}
+                pack = equipment_packs.get(equipment_pack_id)
+                if pack and 'items' in pack:
+                    for item_id, qty in pack['items'].items():
+                        pc.setdefault('inventory', []).append({
+                            'item': item_id,
+                            'qty': int(qty)
+                        })
 
             if race_skill_selections:
                 pc.setdefault('skills', [])
@@ -6438,6 +6454,87 @@ def dm_inventory_remove():
     socketio.emit('message', {'type': 'refresh_map'})
     new_qty = int((entity.inventory.get(item_name) or {}).get('qty', 0))
     return jsonify(success=True, item_name=item_name, qty=new_qty)
+
+
+@app.route('/dm/container/contents', methods=['GET'])
+def dm_container_contents():
+    """DM: get contents of a container item."""
+    if 'dm' not in user_role():
+        return jsonify(success=False, error='DM access required'), 403
+    
+    entity_id = request.args.get('entity_id', '').strip()
+    container_name = request.args.get('container_name', '').strip()
+    
+    if not entity_id or not container_name:
+        return jsonify(success=False, error='entity_id and container_name are required'), 400
+    
+    entity = _dm_resolve_entity(entity_id)
+    if entity is None:
+        return jsonify(success=False, error='Entity not found'), 404
+    
+    if not hasattr(entity, 'is_container') or not entity.is_container(container_name):
+        return jsonify(success=False, error='Item is not a container'), 404
+    
+    contents = entity.get_container_contents(container_name)
+    return jsonify(success=True, contents=contents)
+
+
+@app.route('/dm/container/add', methods=['POST'])
+def dm_container_add():
+    """DM: add an item to a container."""
+    if 'dm' not in user_role():
+        return jsonify(success=False, error='DM access required'), 403
+    
+    data = request.get_json(silent=True) or request.form
+    entity_id = (data.get('entity_id') or '').strip()
+    container_name = (data.get('container_name') or '').strip()
+    item_name = (data.get('item_name') or '').strip()
+    try:
+        qty = int(data.get('qty', 1))
+    except (TypeError, ValueError):
+        qty = 1
+    
+    if not entity_id or not container_name or not item_name:
+        return jsonify(success=False, error='entity_id, container_name, and item_name are required'), 400
+    
+    entity = _dm_resolve_entity(entity_id)
+    if entity is None:
+        return jsonify(success=False, error='Entity not found'), 404
+    
+    if not entity.add_to_container(container_name, item_name, qty):
+        return jsonify(success=False, error='Failed to add item to container'), 500
+    
+    socketio.emit('message', {'type': 'refresh_map'})
+    return jsonify(success=True)
+
+
+@app.route('/dm/container/remove', methods=['POST'])
+def dm_container_remove():
+    """DM: remove an item from a container."""
+    if 'dm' not in user_role():
+        return jsonify(success=False, error='DM access required'), 403
+    
+    data = request.get_json(silent=True) or request.form
+    entity_id = (data.get('entity_id') or '').strip()
+    container_name = (data.get('container_name') or '').strip()
+    item_name = (data.get('item_name') or '').strip()
+    try:
+        qty = int(data.get('qty', 1))
+    except (TypeError, ValueError):
+        qty = 1
+    
+    if not entity_id or not container_name or not item_name:
+        return jsonify(success=False, error='entity_id, container_name, and item_name are required'), 400
+    
+    entity = _dm_resolve_entity(entity_id)
+    if entity is None:
+        return jsonify(success=False, error='Entity not found'), 404
+    
+    if not entity.remove_from_container(container_name, item_name, qty):
+        return jsonify(success=False, error='Failed to remove item from container'), 500
+    
+    socketio.emit('message', {'type': 'refresh_map'})
+    return jsonify(success=True)
 
 
 @app.route('/equipment', methods=['GET'])

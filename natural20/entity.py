@@ -2379,6 +2379,9 @@ class Entity(EntityStateEvaluator, Notable):
                 'qty': 0,
                 'type': source_item.type if source_item else ammo_type
             }
+            # Preserve container contents if source_item is a container
+            if source_item and isinstance(source_item, dict) and 'contents' in source_item:
+                self.inventory[ammo_type]['contents'] = source_item['contents'].copy()
 
         qty = self.inventory[ammo_type].get('qty', 1)
         self.inventory[ammo_type]['qty'] = qty + amount

@@ -632,8 +632,71 @@
     markChecked('#class-options-body .cb-feat', ec.feats || []);
   }
 
+  // Equipment Pack Preview Functionality
+  function setupEquipmentPackPreview() {
+    const packSelect = document.getElementById('equipment_pack');
+    const previewPanel = document.getElementById('equipment_pack_preview');
+    const previewName = document.getElementById('preview_pack_name');
+    const previewCost = document.getElementById('preview_pack_cost');
+    const previewItems = document.getElementById('preview_items');
+    
+    if (!packSelect || !previewPanel) return;
+    
+    // Get equipment packs data from the page
+    const packsDataEl = document.getElementById('equipment-packs-data');
+    if (!packsDataEl) return;
+    
+    let equipmentPacks = {};
+    try {
+      equipmentPacks = JSON.parse(packsDataEl.textContent || '{}');
+    } catch(e) {
+      console.error('Failed to parse equipment packs data:', e);
+      return;
+    }
+    
+    packSelect.addEventListener('change', function() {
+      const selectedPackId = this.value;
+      
+      if (!selectedPackId || !equipmentPacks[selectedPackId]) {
+        previewPanel.style.display = 'none';
+        return;
+      }
+      
+      const pack = equipmentPacks[selectedPackId];
+      
+      // Update preview header
+      previewName.textContent = pack.name;
+      previewCost.textContent = `${pack.cost} gp`;
+      
+      // Build items list
+      previewItems.innerHTML = '';
+      
+      if (pack.items && Array.isArray(pack.items)) {
+        pack.items.forEach(item => {
+          const li = document.createElement('li');
+          li.className = 'preview-item';
+          
+          // Handle both object format {item_name: qty} and string format
+          if (typeof item === 'object') {
+            const itemName = Object.keys(item)[0];
+            const qty = item[itemName];
+            li.innerHTML = `<span class="item-name">${itemName.replace(/_/g, ' ')}</span> <span class="item-qty">×${qty}</span>`;
+          } else {
+            li.textContent = item.replace(/_/g, ' ');
+          }
+          
+          previewItems.appendChild(li);
+        });
+      }
+      
+      // Show preview panel
+      previewPanel.style.display = 'block';
+    });
+  }
+  
   // init
   updatePoints();
   renderRaceOptions();
   prefillEditCharacter();
+  setupEquipmentPackPreview();
 })();

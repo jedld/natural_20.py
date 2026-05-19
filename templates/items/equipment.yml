@@ -278,3 +278,324 @@ wooden_door_key:
   name: Wooden Door Key
   type: tool
   weight: 0.05
+# Equipment pack items
+backpack:
+  cost: 2
+  name: Backpack
+  type: container
+  weight: 5
+bedroll:
+  cost: 0.1
+  name: Bedroll
+  type: bedding
+  weight: 7
+clothes_common:
+  cost: 5
+  name: Clothes, Common
+  type: clothing
+  weight: 3
+clothes_traveler:
+  cost: 2
+  name: Clothes, Traveler's
+  type: clothing
+  weight: 4
+torch:
+  cost: 0.05
+  name: Torch
+  type: light_source
+  weight: 1
+rope:
+  cost: 1
+  name: Rope (50 ft)
+  type: climbing
+  weight: 10
+pitons:
+  cost: 0.05
+  name: Piton
+  type: climbing
+  weight: 0.1
+soap:
+  cost: 0.02
+  name: Soap
+  type: toiletry
+  weight: 0.1
+hammer:
+  cost: 1
+  name: Hammer
+  type: tool
+  weight: 3
+tongs:
+  cost: 0.5
+  name: Tongs
+  type: tool
+  weight: 2
+bellows:
+  cost: 10
+  name: Bellows
+  type: tool
+  weight: 10
+anvil:
+  cost: 30
+  name: Anvil
+  type: tool
+  weight: 50
+whetstone:
+  cost: 0.05
+  name: Whetstone
+  type: tool
+  weight: 1
+incense:
+  cost: 1
+  name: Incense
+  type: religious
+  weight: 0.1
+scale:
+  cost: 0.5
+  name: Scale
+  type: tool
+  weight: 0.5
+charcoal:
+  cost: 0.02
+  name: Charcoal
+  type: tool
+  weight: 0.1
+chisels:
+  cost: 0.5
+  name: Chisels
+  type: tool
+  weight: 1
+awls:
+  cost: 0.5
+  name: Awls
+  type: tool
+  weight: 1
+knives:
+  cost: 0.5
+  name: Knives
+  type: tool
+  weight: 1
+needles:
+  cost: 0.5
+  name: Needles
+  type: tool
+  weight: 0.1
+thread:
+  cost: 0.5
+  name: Thread
+  type: tool
+  weight: 0.1
+scissors:
+  cost: 0.5
+  name: Scissors
+  type: tool
+  weight: 0.5
+tweezers:
+  cost: 0.5
+  name: Tweezers
+  type: tool
+  weight: 0.1
+paper:
+  cost: 0.2
+  name: Sheet of Paper
+  type: writing
+  weight: 0.02
+book:
+  cost: 25
+  name: Book
+  type: writing
+  weight: 2
+pot:
+  cost: 2
+  name: Pot
+  type: cooking
+  weight: 5
+pan:
+  cost: 2
+  name: Pan
+  type: cooking
+  weight: 3
+knife:
+  cost: 0.5
+  name: Knife
+  type: cooking
+  weight: 1
+cutting_board:
+  cost: 1
+  name: Cutting Board
+  type: cooking
+  weight: 3
+salt:
+  cost: 0.05
+  name: Salt
+  type: cooking
+  weight: 0.1
+pepper:
+  cost: 0.1
+  name: Pepper
+  type: cooking
+  weight: 0.1
+wig:
+  cost: 5
+  name: Wig
+  type: disguise
+  weight: 0.5
+makeup:
+  cost: 5
+  name: Makeup
+  type: disguise
+  weight: 0.1
+costume_pieces:
+  cost: 10
+  name: Costume Pieces
+  type: disguise
+  weight: 5
+props:
+  cost: 5
+  name: Props
+  type: disguise
+  weight: 3
+herb_pouch:
+  cost: 2
+  name: Herb Pouch
+  type: tool
+  weight: 1
+wooden_bowl:
+  cost: 1
+  name: Wooden Bowl
+  type: tool
+  weight: 2
+animal_claw:
+  cost: 0.5
+  name: Animal Claw
+  type: tool
+  weight: 0.1
+dice:
+  cost: 1
+  name: Dice Set
+  type: gaming
+  weight: 0.1
+cards:
+  cost: 1
+  name: Playing Cards
+  type: gaming
+  weight: 0.1
+board:
+  cost: 5
+  name: Game Board
+  type: gaming
+  weight: 2
+pieces:
+  cost: 2
+  name: Game Pieces
+  type: gaming
+  weight: 1
+blowpipe:
+  cost: 2
+  name: Blowpipe
+  type: tool
+  weight: 1
+crucible:
+  cost: 10
+  name: Crucible
+  type: tool
+  weight: 5
+loupe:
+  cost: 5
+  name: Loupe
+  type: tool
+  weight: 0.1
+vials:
+  cost: 1
+  name: Vial
+  type: tool
+  weight: 0.5
+drying_rack:
+  cost: 2
+  name: Drying Rack
+  type: tool
+  weight: 5
+mortar_pestle:
+  cost: 2
+  name: Mortar and Pestle
+  type: tool
+  weight: 3
+scales:
+  cost: 5
+  name: Scales
+  type: tool
+  weight: 2
+compass:
+  cost: 5
+  name: Compass
+  type: navigation
+  weight: 0.5
+sea_charts:
+  cost: 10
+  name: Sea Charts
+  type: navigation
+  weight: 2
+astrolabe:
+  cost: 15
+  name: Astrolabe
+  type: navigation
+  weight: 2
+dividers:
+  cost: 5
+  name: Dividers
+  type: navigation
+  weight: 1
+wheel:
+  cost: 10
+  name: Potter's Wheel
+  type: tool
+  weight: 20
+kiln:
+  cost: 25
+  name: Kiln
+  type: tool
+  weight: 50
+clay:
+  cost: 1
+  name: Clay
+  type: tool
+  weight: 5
+plumb_bob:
+  cost: 1
+  name: Plumb Bob
+  type: tool
+  weight: 0.5
+square:
+  cost: 1
+  name: Square
+  type: tool
+  weight: 1
+chisel_set:
+  cost: 2
+  name: Chisel Set
+  type: tool
+  weight: 2
+costume:
+  cost: 10
+  name: Costume
+  type: disguise
+  weight: 5
+whetstone_oil:
+  cost: 0.1
+  name: Whetstone Oil
+  type: tool
+  weight: 0.1
+whetstone_water:
+  cost: 0.05
+  name: Whetstone Water
+  type: tool
+  weight: 0.1
+torch_mount:
+  cost: 0.5
+  name: Torch Mount
+  type: tool
+  weight: 1
+lute:
+  cost: 10
+  name: Lute
+  type: instrument
+  weight: 3
