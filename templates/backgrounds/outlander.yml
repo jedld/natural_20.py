@@ -1,0 +1,49 @@
+name: Outlander
+description: >
+  "You grew up in the wilds, far from civilization and the comforts
+  of town and technology. You've witnessed the migration of
+  herd-animals larger than elephant, survived weather more extreme
+  than your companions could imagine, and viewed sights that
+  would dazzle the natives of a metropolitan area like Waterdeep.
+  In your home region, you dealt with dragons on a weekly basis."
+label: Outlander
+skill_proficiencies:
+  - athletics
+  - survival
+tool_proficiencies: []
+languages: []
+languages_pool:
+  - common
+  - elvish
+  - dwarvish
+  - gnomish
+  - halfling
+  - orcish
+  - draconic
+  - deep_speech
+  - infernal
+  - celestical
+  - primordial
+  - abyssal
+  - sylvan
+  - undercommon
+  - giant
+  - goblin
+  - kobold
+feature:
+  name: Wanderer
+  description: >
+    "You have an excellent memory for maps and geography, and you
+    can recall the general layout of terrain, urban areas, and
+    other settlements. You can find food, fresh water, and
+    shelter for yourself and your adventuring party in
+    settlements and the wilds."
+  type: background_feature
+equipment:
+  - staff
+  - hunting_trap
+  - trophy_from_animal
+  - traveler_clothes
+  - 10_gp
+language_count: 1
+language_choice_count: 1

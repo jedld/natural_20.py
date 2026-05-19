@@ -5,6 +5,7 @@ import time
 from natural20.player_character import PlayerCharacter
 from natural20.utils.conversation import (
     entity_label,
+    format_entity_gear_for_conversation,
     mention_handle_for,
     normalize_speech_mode,
     resolve_named_targets,
@@ -110,7 +111,7 @@ class ConversationService:
         self._logins_getter = logins_getter
         self.logger = logger
         self._conversation_presence_cache: dict = {}
-        self._CONVERSANCE_PRESENCE_CACHE_TTL = 3.0
+        self._CONVERSANCE_PRESENCE_CACHE_TTL = 10.0  # Increased from 3s to reduce recalculation during polling
 
     @property
     def current_game(self):
@@ -516,6 +517,7 @@ class ConversationService:
 
         stance_text = self.conversation_attitude_toward_speaker(receiver, speaker)
         pressure_text = self.conversation_pressure_summary(receiver)
+        gear_text = format_entity_gear_for_conversation(receiver, self.game_session)
         return (
             "\n\nConversation response rules:\n"
             "- You may choose not to speak. If you do not want to respond, output exactly [NO_RESPONSE].\n"
@@ -536,12 +538,14 @@ class ConversationService:
             "- You may ask someone to make a social check with [REQUEST_CHECK: skill=persuasion, target=speaker] or [REQUEST_CHECK: skill=intimidation, target=@handle]. This is logged to the relevant players.\n"
             "- You may create a persistent short-term autonomous task with [SET_GOAL: short description].\n"
             "- During autonomous follow-up you may end that task with [GOAL_COMPLETE] or [GOAL_GIVE_UP].\n"
+            "- Only describe wielding, drawing, brandishing, or threatening with weapons and items listed under your gear below. Do not invent equipment.\n"
             f"- Current stance toward the speaker: {stance_text}.\n"
             f"- Current pressures and circumstances: {pressure_text}.\n"
             f"- Languages you ({entity_label(receiver)}) speak: {receiver_languages_text}.\n"
             f"- {speaker_language_text}\n"
             f"- Languages you share with the speaker: {shared_text}.\n"
             f"- Nearby handles you can address right now: {handles_text}.\n"
+            f"\nYour gear and inventory (authoritative; do not contradict):\n{gear_text}\n"
         )
 
     def conversation_recipient_usernames(self, entity, include_requester=True):
@@ -649,6 +653,13 @@ class ConversationService:
                 )
                 return {'success': True, 'journal': 'usage'}, 200
             entry = speaker.add_journal_entry(arg, kind='chat', source='chat')
+            if entry:
+                db = getattr(self.current_game, 'campaign_log_db', None)
+                if db is not None:
+                    try:
+                        db.append_journal_entry(speaker.entity_uid, entry)
+                    except Exception as exc:
+                        self.logger.debug(f"Campaign journal log skipped: {exc}")
             self._emit_dm_private_message(
                 speaker,
                 f"Journal entry recorded ({len(speaker.journal)} total).",
@@ -780,6 +791,13 @@ class ConversationService:
                 )
                 return {'success': True, 'journal': 'usage'}, 200
             entry = speaker.add_journal_entry(arg, kind='chat', source='chat')
+            if entry:
+                db = getattr(self.current_game, 'campaign_log_db', None)
+                if db is not None:
+                    try:
+                        db.append_journal_entry(speaker.entity_uid, entry)
+                    except Exception as exc:
+                        self.logger.debug(f"Campaign journal log skipped: {exc}")
             self._emit_dm_private_message(
                 speaker,
                 f"Journal entry recorded ({len(speaker.journal)} total).",
@@ -1082,6 +1100,41 @@ class ConversationService:
             },
         }, 200
 
+    def _persist_conversation_line(
+        self,
+        speaker,
+        message,
+        *,
+        targets=None,
+        volume=None,
+        language=None,
+        narrative=None,
+        username=None,
+    ):
+        db = getattr(self.current_game, 'campaign_log_db', None)
+        if db is None or not message:
+            return
+        target_labels = []
+        for target in targets or []:
+            try:
+                target_labels.append(entity_label(target))
+            except Exception:
+                target_labels.append(getattr(target, 'entity_uid', str(target)))
+        try:
+            db.append_conversation(
+                speaker_uid=getattr(speaker, 'entity_uid', None),
+                speaker_label=entity_label(speaker),
+                message=message,
+                targets=[getattr(t, 'entity_uid', None) for t in (targets or [])],
+                target_labels=target_labels,
+                volume=volume,
+                language=language,
+                username=username,
+                narrative=narrative,
+            )
+        except Exception as exc:
+            self.logger.debug(f"Campaign conversation log skipped: {exc}")
+
     def talk_response(self, data, conversation_system_prompt):
         entity_id = data.get('entity_id')
         message = data.get('message')
@@ -1159,6 +1212,14 @@ class ConversationService:
             if visual_whisper_usernames:
                 speaker_payload['visual_only_usernames'] = sorted(visual_whisper_usernames)
         self.emit_conversation_to_usernames(speaker_audience | visual_whisper_usernames, speaker_payload, source_entity=entity)
+        self._persist_conversation_line(
+            entity,
+            message,
+            targets=delivered_targets,
+            volume=volume,
+            language=language,
+            username=session.get('username'),
+        )
 
         # Bridge the spoken message into the battle event pipeline so any
         # readied "on_command" actions (e.g. familiar drinks a healing potion
@@ -1196,12 +1257,14 @@ class ConversationService:
         for receiver in eligible_receivers:
             attributes = receiver.ability_scores
             attributes_str = "\n".join([f"{key}: {value}" for key, value in attributes.items()])
+            gear_summary = format_entity_gear_for_conversation(receiver, self.game_session)
             system_prompt = conversation_system_prompt.format(
                 backstory=receiver.backstory(),
                 name=receiver.label(),
                 attributes=attributes_str,
                 alignment=receiver.alignment().replace("_", " "),
                 languages=", ".join(receiver.languages()),
+                gear=gear_summary,
             )
             system_prompt += self.conversation_response_prompt(receiver, entity)
             llm_conversation_handler.create_conversation(receiver.entity_uid, system_prompt)
@@ -1257,6 +1320,14 @@ class ConversationService:
                     narrative=reply_plan.get('narrative') or [],
                 ),
                 source_entity=receiver,
+            )
+            self._persist_conversation_line(
+                receiver,
+                reply_plan['message'],
+                targets=reply_plan['targets'],
+                volume=reply_plan['volume'],
+                language=reply_plan['language'],
+                narrative=reply_plan.get('narrative') or [],
             )
             self.entity_rag_handler.apply_response_plan_directives(reply_plan, receiver, speaker=entity)
 

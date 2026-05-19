@@ -1418,6 +1418,14 @@ class EntityRAGHandler:
         
         return context
     
+    # Module-level LRU cache for nearby entities queries to reduce repeated
+    # LoS ray-tracing during rapid polling from the web client.
+    from functools import lru_cache
+    
+    @staticmethod
+    def _nearby_cache_key(entity_uid: str, range_ft: int, volume: str, include_extended: bool) -> str:
+        return f"{entity_uid}:{range_ft}:{volume}:{include_extended}"
+    
     def get_nearby_entities(self, entity: Entity, range_ft: int = 30, volume: Optional[str] = None, include_extended: bool = False) -> List[Dict[str, Any]]:
         """
         Get nearby entities for an entity.
@@ -1429,6 +1437,14 @@ class EntityRAGHandler:
         Returns:
             List of nearby entity information
         """
+        # Short-lived cache keyed by entity + parameters to avoid redundant
+        # conversation_reachability + can_see calculations during polling.
+        cache_key = self._nearby_cache_key(entity.entity_uid, range_ft, volume or '', include_extended)
+        if hasattr(self, '_nearby_cache'):
+            cached_ts, cached_result = self._nearby_cache.get(cache_key, (0, None))
+            if cached_result is not None and (time.monotonic() - cached_ts) < 5.0:
+                return cached_result
+        
         try:
             battle_map = self.current_game.get_map_for_entity(entity)
             try:
@@ -1511,6 +1527,11 @@ class EntityRAGHandler:
                     'mention_handle': mention_handle_for(nearby_entity),
                     'conversable': nearby_entity.conversable()
                 })
+            
+            # Store result in cache for subsequent polling requests
+            if not hasattr(self, '_nearby_cache'):
+                self._nearby_cache = {}
+            self._nearby_cache[cache_key] = (time.monotonic(), response)
             
             return response
         except Exception as e:

@@ -5,6 +5,9 @@ WEBAPP_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'webapp')
 if WEBAPP_DIR not in sys.path:
     sys.path.insert(0, WEBAPP_DIR)
 
+template_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'templates'))
+os.environ.setdefault('TEMPLATE_DIR', template_root)
+
 from webapp import app as app_module
 
 
@@ -101,3 +104,14 @@ def test_conversation_prompt_includes_attitude_and_pressure_context(monkeypatch)
     assert 'active effects: sanctuary' in prompt
     assert 'active goal: Protect the children' in prompt
     assert 'currently in combat' in prompt
+
+
+def test_conversation_prompt_includes_gear_and_inventory_rule(monkeypatch):
+    monkeypatch.setattr(app_module, 'entity_rag_handler', FakeEntityRagHandler())
+    monkeypatch.setattr(app_module, 'current_game', FakeCurrentGame())
+    monkeypatch.setattr(app_module, 'entity_owners', lambda entity: [])
+
+    prompt = app_module.conversation_response_prompt(FakeReceiver(), FakeSpeaker())
+
+    assert 'Your gear and inventory (authoritative; do not contradict):' in prompt
+    assert 'Do not invent equipment.' in prompt

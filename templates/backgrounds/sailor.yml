@@ -1,0 +1,35 @@
+name: Sailor
+description: >
+  "You sailed on a seagoing vessel for years. In that time, you
+  faced down mighty storms, creature of the deep, and those who
+  want to do humanity harm. Your first love is the distant line
+  of a horizon, but the time has come to try your hand in something
+  new and see a new world."
+label: Sailor
+skill_proficiencies:
+  - athletics
+  - perception
+tool_proficiencies:
+  - navigational_tools
+  - vehicles_water
+languages:
+  - None
+feature:
+  name: Ship's Passage
+  description: >
+    "When you need transportation, you can call upon fellow
+    sailors to provide it. You and your traveling companions can
+    travel on a ship of your own design at no cost, just as you
+    might if you were a member of the crew. You might need to
+    sail the ship yourself, or you may need to secure your own
+    passage, but either way, you can arrange travel for a group
+    of up to a dozen people."
+  type: background_feature
+equipment:
+  - belaying_pin
+  - 25_feet_of_silk_rope
+  - lucky_charm
+  - common_clothes
+  - 10_gp
+language_count: 0
+language_choice_count: 0

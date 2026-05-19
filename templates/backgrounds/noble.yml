@@ -1,0 +1,49 @@
+name: Noble
+description: >
+  "You understand wealth, power, and privilege. You carry a noble
+  title, and your family owns land, collects taxes, and wields
+  significant political influence. You might be a pampered aristocrat
+  unfamiliar with hardship, a former merchant raised to wealth, or
+  a fallen noble trying to regain favor. Regardless, you have a
+  strong sense of entitlement and expect the best of everything."
+label: Noble
+skill_proficiencies:
+  - history
+  - persuasion
+tool_proficiencies:
+  - one_gaming_set
+languages: []
+languages_pool:
+  - common
+  - elvish
+  - dwarvish
+  - gnomish
+  - halfling
+  - orcish
+  - draconic
+  - deep_speech
+  - infernal
+  - celestical
+  - primordial
+  - abyssal
+  - sylvan
+  - undercommon
+  - giant
+  - goblin
+  - kobold
+feature:
+  name: Position of Privilege
+  description: >
+    "Thanks to your noble birth, people assume you have the right
+    to achieve your goals, and that the means will adjust
+    themselves. Common folk make every effort to accommodate you
+    and avoid your wrath, and people in authority are often
+    related to or connected with you."
+  type: background_feature
+equipment:
+  - expensive_clothes
+  - signet_ring
+  - scroll_of_genealogy
+  - 25_gp
+language_count: 1
+language_choice_count: 1

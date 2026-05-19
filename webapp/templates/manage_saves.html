@@ -31,6 +31,22 @@
       </div>
     </div>
 
+    <div class="panel panel-danger">
+      <div class="panel-heading">Campaign Text Logs (SQLite)</div>
+      <div class="panel-body">
+        <p class="text-muted">
+          Persists combat log lines, NPC/PC chat, DM Assistant chat, and player journal entries
+          for this campaign.
+        </p>
+        <p id="campaign-log-counts" class="small text-muted">Loading counts…</p>
+        <label class="checkbox-inline" style="margin-right: 12px;">
+          <input type="checkbox" id="reset-clear-conversation-buffers"> Also clear live NPC/PC conversation buffers
+        </label>
+        <button type="button" class="btn btn-danger btn-sm" id="reset-campaign-logs">Reset All Campaign Logs</button>
+        <span id="campaign-log-status" class="text-muted" style="margin-left:10px;"></span>
+      </div>
+    </div>
+
     <div class="panel panel-default">
       <div class="panel-heading">Available Saves</div>
       <div class="panel-body save-list">
@@ -56,6 +72,33 @@
 <script>
 function humanSize(bytes){ if(bytes==null) return ''; var i = Math.floor(Math.log(bytes)/Math.log(1024)); return (bytes/Math.pow(1024,i)).toFixed(1)*1 + ' ' + ['B','kB','MB','GB','TB'][i]; }
 function formatTime(ts){ if(!ts) return ''; var d = new Date(ts*1000); return d.toLocaleString(); }
+
+function renderCampaignLogCounts(counts) {
+  var labels = {
+    combat: 'Combat log',
+    conversation: 'NPC/PC chat',
+    dm_assistant: 'DM Assistant',
+    journal: 'Player journals'
+  };
+  var parts = [];
+  Object.keys(labels).forEach(function(key) {
+    var n = (counts && counts[key]) || 0;
+    parts.push(labels[key] + ': ' + n);
+  });
+  $('#campaign-log-counts').text(parts.join(' · ') || 'No log entries yet.');
+}
+
+function loadCampaignLogStatus() {
+  $.getJSON('/admin/campaign-logs/status', function(resp) {
+    if (resp && resp.success) {
+      renderCampaignLogCounts(resp.counts || {});
+    } else {
+      $('#campaign-log-counts').text('Could not load log counts.');
+    }
+  }).fail(function() {
+    $('#campaign-log-counts').text('Could not load log counts.');
+  });
+}
 
 function loadSaves(){
   $.getJSON('/admin/saves', function(resp){
@@ -88,7 +131,32 @@ $('#save-form').submit(function(e){
 });
 
 $('#refresh-saves').click(loadSaves);
-$(function(){ loadSaves(); });
+
+$('#reset-campaign-logs').click(function() {
+  if (!confirm('Reset ALL campaign text logs for this campaign? This cannot be undone.')) {
+    return;
+  }
+  $('#campaign-log-status').text('Resetting...');
+  $.ajax({
+    url: '/admin/campaign-logs/reset',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({
+      clear_live_conversation_buffers: $('#reset-clear-conversation-buffers').is(':checked')
+    })
+  }).done(function(resp) {
+    if (resp && resp.success) {
+      $('#campaign-log-status').text('Campaign logs reset.');
+      renderCampaignLogCounts({});
+    } else {
+      $('#campaign-log-status').text('Reset failed.');
+    }
+  }).fail(function(xhr) {
+    $('#campaign-log-status').text('Error: ' + (xhr.responseJSON && xhr.responseJSON.error || xhr.statusText));
+  });
+});
+
+$(function(){ loadSaves(); loadCampaignLogStatus(); });
 </script>
 </body>
 </html>

@@ -1,0 +1,50 @@
+name: Sage
+description: >
+  "You spent years learning the lore of the multiverse. You scoured
+  manuscripts, consulted wizards, and traveled to far-flung
+  libraries to pursue your studies. Your efforts have made you
+  a master in your fields of expertise. Your fields of study are
+  unrelated, perhaps seeming so as to be contradictory, but you
+  persevered where others might have given up."
+label: Sage
+skill_proficiencies:
+  - arcana
+  - history
+tool_proficiencies: []
+languages: []
+languages_pool:
+  - common
+  - elvish
+  - dwarvish
+  - gnomish
+  - halfling
+  - orcish
+  - draconic
+  - deep_speech
+  - infernal
+  - celestical
+  - primordial
+  - abyssal
+  - sylvan
+  - undercommon
+  - giant
+  - goblin
+  - kobold
+feature:
+  name: Researcher
+  description: >
+    "When you hear someone is looking for information or archives,
+    you know how to get in contact with them. Regardless of what
+    the information being sought is, you know how to find it —
+    unless the sages involved consider it too dangerous to
+    produce."
+  type: background_feature
+equipment:
+  - bottle_of_ink
+  - quill
+  - small_knife
+  - letter_from_colleague
+  - common_clothes
+  - 10_gp
+language_count: 2
+language_choice_count: 2

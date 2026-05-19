@@ -1,0 +1,32 @@
+name: Entertainer
+description: >
+  "You thrive in front of an audience. You know how to capture
+  attention and hold it. Moreover, you make it look easy, with
+  colorful vocabulary, polished gestures, and careful attention
+  to strong posture. Your poetic talents are remarkable, whether
+  for insulting your foes or making the common folk dance."
+label: Entertainer
+skill_proficiencies:
+  - acrobatics
+  - performance
+tool_proficiencies:
+  - one_musical_instrument
+languages:
+  - None
+feature:
+  name: By Popular Demand
+  description: >
+    You can always find a place to perform, usually in an inn or
+    tavern, but sometimes in a noble's castle or even the ruins of
+    a long-forgotten dungeon (which is usually because you've been
+    hired to scare the new tenants out). You and your companions
+    can sleep and eat for free while you're performing, meaning
+    you don't need food or shelter for those days.
+  type: background_feature
+equipment:
+  - musical_instrument
+  - favor_of_fan
+  - costume
+  - 15_gp
+language_count: 0
+language_choice_count: 0

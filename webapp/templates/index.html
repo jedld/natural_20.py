@@ -939,7 +939,7 @@
             {% else %}
                 <img src="{{ background_path }}" class="background-image" style="width: {{ background_width }}px; object-fit: cover; object-position: top;">
             {% endif %}
-            <div id="tiles-area" class="tiles-container actions-container" data-width="{{ background_width }}" data-height="{{ background_height }}" data-tile-size="{{tile_size_px}}" style="position: absolute; top: -{{tile_size_px + top_offset_px}}px; left: -{{tile_size_px + left_offset_px}}px;"></div>
+            <div id="tiles-area" class="tiles-container actions-container" data-width="{{ background_width }}" data-height="{{ background_height }}" data-tile-size="{{tile_size_px}}" style="position: absolute; top: -{{tile_size_px + top_offset_px}}px; left: -{{tile_size_px + left_offset_px}}px;">{% include 'map.html' %}</div>
         </div>
     </div>
         <div id="multi-target-confirm-bar" class="multi-target-confirm-bar" style="display: none;" role="region" aria-live="polite" aria-label="Spell targeting">

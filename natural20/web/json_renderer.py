@@ -7,6 +7,8 @@ from natural20.item_library.teleporter import Teleporter
 from natural20.item_library.chasm import Chasm
 from natural20.spell.objects.grease_surface import GreaseSurface
 import logging
+from natural20.web.terrain_tooltip import build_terrain_tooltip
+
 class JsonRenderer:
     def __init__(self, map: Map, battle: Battle=None, padding=None, logger=None):
         self.map = map
@@ -89,7 +91,7 @@ class JsonRenderer:
                     for pos in self.map.entity_squares(entity):
                         entity_pov_locations.append(pos)
 
-        self.logger.info(f"entity_pov_locations: {entity_pov_locations}")
+        self.logger.debug(f"entity_pov_locations: {entity_pov_locations}")
         if self.padding:
             width += self.padding[0]
             height += self.padding[1]
@@ -310,6 +312,10 @@ class JsonRenderer:
                     if entity_pov and len(entity_pov) > 0:
                         visible_to_pov = any([cached_can_see(entity_p, entity, allow_dark_vision=True) for entity_p in entity_pov])
                         if not visible_to_pov or hidden_door_tile:
+                            shared_attributes['terrain_tooltip'] = build_terrain_tooltip(
+                                shared_attributes, self.map, self.battle,
+                                entity=entity, map_objects=object_entities,
+                            )
                             result_row.append(shared_attributes)
                             continue
 
@@ -349,10 +355,18 @@ class JsonRenderer:
                             'team_group': team_group,
                             'team_border_tint': team_border_tint
                         })
+                    attributes['terrain_tooltip'] = build_terrain_tooltip(
+                        attributes, self.map, self.battle,
+                        entity=entity, map_objects=object_entities,
+                    )
                     result_row.append(attributes)
 
                 else:
                     render_objects(entity_pov=entity_pov, shared_attrs=shared_attributes, objects=object_entities, current_entity=entity)
+                    shared_attributes['terrain_tooltip'] = build_terrain_tooltip(
+                        shared_attributes, self.map, self.battle,
+                        map_objects=object_entities,
+                    )
                     result_row.append(shared_attributes)
             result.append(result_row)
         return result
