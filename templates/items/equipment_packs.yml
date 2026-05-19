@@ -1,0 +1,332 @@
+---
+# Equipment Packs from 5th SRD
+# https://5thsrd.org/adventuring/equipment/equipment_packs/
+
+academic_pack:
+  name: "Academic's Pack"
+  cost: 4
+  items:
+    - ink: 1
+    - ink_pen: 1
+    - parchment: 50
+    - paper: 1
+
+artisan_pack:
+  name: "Artisan's Pack"
+  cost: 10
+  items:
+    - scale: 1
+    - charcoal: 1
+    - chisels: 1
+    - awls: 1
+    - knives: 1
+    - needles: 1
+    - thread: 1
+    - scissors: 1
+    - tweezers: 1
+
+artisan_tools:
+  name: "Artisan's Tools"
+  cost: 10
+  items:
+    - scale: 1
+    - charcoal: 1
+    - chisels: 1
+    - awls: 1
+    - knives: 1
+    - needles: 1
+    - thread: 1
+    - scissors: 1
+    - tweezers: 1
+
+backpack:
+  name: "Backpack"
+  cost: 2
+  items:
+    - backpack: 1
+
+battlesmith_pack:
+  name: "Battlesmith's Pack"
+  cost: 12
+  items:
+    - hammer: 1
+    - tongs: 1
+    - bellows: 1
+    - anvil: 1
+    - whetstone: 1
+    - whetstone_oil: 1
+    - whetstone_water: 1
+
+cleric_pack:
+  name: "Cleric's Pack"
+  cost: 10
+  items:
+    - holy_symbol: 1
+    - incense: 1
+    - holy_water: 5
+    - rations: 2
+    - waterskin: 1
+    - backpack: 1
+
+commoner_pack:
+  name: "Commoner's Pack"
+  cost: 10
+  items:
+    - clothes_common: 1
+    - soap: 1
+    - rations: 2
+    - waterskin: 1
+    - backpack: 1
+    - bedroll: 1
+
+cook_utensils:
+  name: "Cook's Utensils"
+  cost: 1
+  items:
+    - pot: 1
+    - pan: 1
+    - knife: 1
+    - cutting_board: 1
+    - salt: 1
+    - pepper: 1
+
+disguise_kit:
+  name: "Disguise Kit"
+  cost: 25
+  items:
+    - wig: 1
+    - makeup: 1
+    - costume_pieces: 1
+    - props: 1
+
+druid_pack:
+  name: "Druid's Pack"
+  cost: 8
+  items:
+    - herb_pouch: 1
+    - wooden_bowl: 1
+    - animal_claw: 1
+    - rations: 2
+    - waterskin: 1
+    - backpack: 1
+
+dungeoneer_pack:
+  name: "Dungeoneer's Pack"
+  cost: 12
+  items:
+    - torch: 10
+    - rope: 1
+    - pitons: 10
+    - rations: 10
+    - waterskin: 1
+    - torch_mount: 1
+    - backpack: 1
+
+entertainer_pack:
+  name: "Entertainer's Pack"
+  cost: 10
+  items:
+    - costume: 1
+    - props: 1
+    - rations: 2
+    - waterskin: 1
+    - backpack: 1
+
+explorer_pack:
+  name: "Explorer's Pack"
+  cost: 10
+  items:
+    - bedroll: 1
+    - rations: 10
+    - waterskin: 1
+    - torch: 5
+    - rope: 1
+    - pitons: 10
+    - backpack: 1
+
+gaming_set:
+  name: "Gaming Set"
+  cost: 25
+  items:
+    - dice: 1
+    - cards: 1
+    - board: 1
+    - pieces: 1
+
+glassblowers_tools:
+  name: "Glassblower's Tools"
+  cost: 30
+  items:
+    - blowpipe: 1
+    - crucible: 1
+    - tongs: 1
+    - bellows: 1
+    - whetstone: 1
+
+herbalism_kit:
+  name: "Herbalism Kit"
+  cost: 5
+  items:
+    - drying_rack: 1
+    - mortar_pestle: 1
+    - scales: 1
+    - vials: 5
+
+hillfolk_pack:
+  name: "Hillfolk's Pack"
+  cost: 10
+  items:
+    - clothes_traveler: 1
+    - rations: 2
+    - waterskin: 1
+    - backpack: 1
+    - bedroll: 1
+
+instrument:
+  name: "Musical Instrument"
+  cost: 10
+  items:
+    - lute: 1
+
+jeweler_tools:
+  name: "Jeweler's Tools"
+  cost: 25
+  items:
+    - loupe: 1
+    - tweezers: 1
+    - hammer: 1
+    - anvil: 1
+    - bellows: 1
+    - tongs: 1
+
+leatherworker_tools:
+  name: "Leatherworker's Tools"
+  cost: 5
+  items:
+    - awls: 1
+    - knives: 1
+    - needles: 1
+    - thread: 1
+    - scissors: 1
+
+mason_tools:
+  name: "Mason's Tools"
+  cost: 10
+  items:
+    - hammer: 1
+    - chisel: 1
+    - plumb_bob: 1
+    - square: 1
+    - chisel_set: 1
+
+navigator_tools:
+  name: "Navigator's Tools"
+  cost: 25
+  items:
+    - compass: 1
+    - sea_charts: 1
+    - astrolabe: 1
+    - dividers: 1
+
+poisoner_kit:
+  name: "Poisoner's Kit"
+  cost: 1
+  items:
+    - vials: 5
+    - mortar_pestle: 1
+    - scales: 1
+
+potter_tools:
+  name: "Potter's Tools"
+  cost: 10
+  items:
+    - wheel: 1
+    - kiln: 1
+    - clay: 1
+    - tongs: 1
+    - bellows: 1
+
+priest_pack:
+  name: "Priest's Pack"
+  cost: 10
+  items:
+    - holy_symbol: 1
+    - incense: 1
+    - holy_water: 5
+    - rations: 2
+    - waterskin: 1
+    - backpack: 1
+
+scholar_pack:
+  name: "Scholar's Pack"
+  cost: 10
+  items:
+    - ink: 1
+    - ink_pen: 1
+    - parchment: 50
+    - paper: 1
+    - book: 1
+
+sailors_pack:
+  name: "Sailor's Pack"
+  cost: 10
+  items:
+    - rope: 1
+    - torch: 5
+    - rations: 2
+    - waterskin: 1
+    - backpack: 1
+    - bedroll: 1
+
+spy_pack:
+  name: "Spy's Pack"
+  cost: 10
+  items:
+    - disguise_kit: 1
+    - thieves_tools: 1
+    - rations: 2
+    - waterskin: 1
+    - backpack: 1
+    - bedroll: 1
+
+survival_pack:
+  name: "Survival Pack"
+  cost: 10
+  items:
+    - bedroll: 1
+    - rations: 10
+    - waterskin: 1
+    - torch: 5
+    - rope: 1
+    - pitons: 10
+    - backpack: 1
+
+thieves_pack:
+  name: "Thieves' Pack"
+  cost: 10
+  items:
+    - clothes_common: 1
+    - rations: 2
+    - waterskin: 1
+    - backpack: 1
+    - bedroll: 1
+    - thieves_tools: 1
+
+warrior_pack:
+  name: "Warrior's Pack"
+  cost: 10
+  items:
+    - clothes_traveler: 1
+    - rations: 2
+    - waterskin: 1
+    - backpack: 1
+    - bedroll: 1
+    - whetstone: 1
+
+woodcarver_tools:
+  name: "Woodcarver's Tools"
+  cost: 1
+  items:
+    - chisels: 1
+    - knives: 1
+    - whetstone: 1

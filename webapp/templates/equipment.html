@@ -94,8 +94,11 @@
 <h2 class="unequipped-items-title">Unequipped Items</h2>
 <ul class="unequipped-items-list tile-inventory">
 {% for item in entity.unequipped_items() %}
-    <li class="tile-item" data-tooltip="{{ item['label'] }}">
+    <li class="tile-item {% if entity.is_container(item['name']) %}container-item{% endif %}" data-tooltip="{{ item['label'] }}" data-item-name="{{ item['name'] }}">
         <div class="item-icon-container">
+            {% if entity.is_container(item['name']) %}
+            <span class="container-indicator" title="Container">📦</span>
+            {% endif %}
             <img class="item-icon" src="{{ item.get('icon', '/assets/items/' ~ item['image'] ~ '.png') }}" alt="{{ item['label'] }}">
             <div class="item-quantity">{{ 'x ' ~ item.get('qty', 1) }}</div>
         </div>
@@ -108,6 +111,47 @@
         {% else %}
         <p>Cannot equip this item</p>
         {% endif %}
+        {% if entity.is_container(item['name']) %}
+        <button class="container-toggle-btn" data-entity="{{ entity.entity_uid }}" data-container="{{ item['name'] }}">View Contents</button>
+        {% endif %}
     </li>
+    {% if entity.is_container(item['name']) %}
+    <div class="container-contents" id="container-{{ item['name'] | replace(' ', '-') }}" style="display: none;">
+        <div class="container-contents-header">
+            <strong>{{ item['label'] }} Contents</strong>
+            <button class="container-close-btn" data-container="{{ item['name'] | replace(' ', '-') }}">×</button>
+        </div>
+        <ul class="container-items-list">
+            <li class="container-loading">Loading...</li>
+        </ul>
+        <div class="container-actions">
+            <button class="container-add-btn" data-entity="{{ entity.entity_uid }}" data-container="{{ item['name'] }}">+ Add Item</button>
+        </div>
+    </div>
+    {% endif %}
 {% endfor %}
 </ul>
+
+<!-- Container Management Modal -->
+<div id="container-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="modal-close">&times;</span>
+        <h3 id="container-modal-title">Add Item to Container</h3>
+        <form id="container-add-form">
+            <input type="hidden" id="modal-entity-id" name="entity_id">
+            <input type="hidden" id="modal-container-name" name="container_name">
+            <div class="form-group">
+                <label for="modal-item-name">Item Name:</label>
+                <input type="text" id="modal-item-name" name="item_name" class="form-control" required list="items-catalog">
+                <datalist id="items-catalog">
+                    <!-- Populated via AJAX -->
+                </datalist>
+            </div>
+            <div class="form-group">
+                <label for="modal-item-qty">Quantity:</label>
+                <input type="number" id="modal-item-qty" name="qty" class="form-control" value="1" min="1">
+            </div>
+            <button type="submit" class="btn btn-primary">Add Item</button>
+        </form>
+    </div>
+</div>
