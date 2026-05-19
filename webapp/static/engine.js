@@ -211,7 +211,12 @@ let actionBarState = {
 
 function isTypingIntoField(target) {
   const $target = $(target);
-  return $target.is('input, textarea, select, [contenteditable="true"]') || $target.closest('.modal, #jrpgDialogPanel, #command-form').length > 0;
+  return (
+    $target.is('input, textarea, select, [contenteditable="true"]') ||
+    $target.closest(
+      '.modal, #jrpgDialogPanel, #command-form, #ai-chat-panel, #chat-form, #draggable-chat-form'
+    ).length > 0
+  );
 }
 
 function setActionBarInstructions(message) {
@@ -2717,8 +2722,10 @@ function resetKeyboardMovement() {
 // Handle direct WSAD movement on focused entity (without needing to click first)
 function handleDirectWSADMovement(event) {
   // Check if we're in a text input or already in another mode
-  const $focused = $(document.activeElement);
-  if ($focused.is('input, textarea, [contenteditable]') || targetMode || multiTargetMode || coneMode || talkToEntityMode) {
+  if (isTypingIntoField(event.target) || isTypingIntoField(document.activeElement)) {
+    return;
+  }
+  if (targetMode || multiTargetMode || coneMode || talkToEntityMode) {
     return;
   }
 
@@ -3451,7 +3458,9 @@ $(document).ready(() => {
     console.error('Socket error:', error);
   });
 
-  enqueueTileRefresh();
+  if ($('.tiles-container .tile').length === 0) {
+    enqueueTileRefresh();
+  }
 
   // --- Effects Toggle UI (top-right unobtrusive button) ---
   try {
@@ -5754,8 +5763,11 @@ $(document).ready(() => {
           }
         }
 
-        // Handle movement keys
-        if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", "W", "A", "S", "D"].includes(e.key)) {
+        // Handle movement keys (skip while typing in chat/command inputs)
+        if (
+          !isTypingIntoField(e.target) &&
+          ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", "W", "A", "S", "D"].includes(e.key)
+        ) {
           e.preventDefault(); // Prevent page scrolling
           console.log("Movement key pressed:", e.key);
           handleKeyboardMovement(e.key, entity_uid, coordsx, coordsy);
@@ -6910,7 +6922,10 @@ function makeFloatingWindowsDraggable() {
     }
 
     // Handle WSAD/Arrow keys for direct movement
-    if (['w', 'a', 's', 'd', 'W', 'A', 'S', 'D', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+    if (
+      !isTypingIntoField(event.target) &&
+      ['w', 'a', 's', 'd', 'W', 'A', 'S', 'D', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)
+    ) {
       handleDirectWSADMovement(event);
     }
 

@@ -1,0 +1,53 @@
+name: Hermit
+description: >
+  "You lived in seclusion — either in a secluded habitation or,
+  more recently, wandering alone — for a substantial period.
+  Dwelling outside the fringes of society, away from the clamor
+  and concerns of civilization, imbues a unique perspective on
+  things that few possess. You learned to be content with simple
+  things, and you are able to predict the actions and model the
+  thought processes of those who aren't yet free from the influence
+  of culture and society."
+label: Hermit
+skill_proficiencies:
+  - medicine
+  - religion
+tool_proficiencies: []
+languages: []
+languages_pool:
+  - common
+  - elvish
+  - dwarvish
+  - gnomish
+  - halfling
+  - orcish
+  - draconic
+  - deep_speech
+  - infernal
+  - celestical
+  - primordial
+  - abyssal
+  - sylvan
+  - undercommon
+  - giant
+  - goblin
+  - kobold
+feature:
+  name: Discovery
+  description: >
+    "The seclusion you enjoyed while living like a hermit led to
+    a significant discovery — the nature of a local mystery, the
+    existence of hitherto-unknown creatures, a cache of previously
+    lost treasure, or a secret society — that you can reveal to
+    others. The exact nature of the discovery is up to you, but
+    it should have an effect on your interactions with NPCs and
+    possibly alter the course of the campaign."
+  type: background_feature
+equipment:
+  - scroll_case_full_of_notes
+  - winter_blanket
+  - common_clothes
+  - herbs_and_spell_components
+  - 5_gp
+language_count: 1
+language_choice_count: 1

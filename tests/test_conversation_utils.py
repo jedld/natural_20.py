@@ -1,4 +1,12 @@
-from natural20.utils.conversation import audible_entities, conversation_reachability, mention_handle_for, resolve_mention_targets
+from natural20.event_manager import EventManager
+from natural20.session import Session
+from natural20.utils.conversation import (
+    audible_entities,
+    conversation_reachability,
+    format_entity_gear_for_conversation,
+    mention_handle_for,
+    resolve_mention_targets,
+)
 
 
 class FakeEntity:
@@ -202,3 +210,24 @@ def test_conversation_reachability_applies_wall_acoustic_penalty():
     assert entry['status'] == 'too_far'
     assert entry['minimum_volume'] is None
     assert entry['acoustic_summary'] == '1 wall tile'
+
+
+def test_format_entity_gear_for_conversation_lists_equipped_and_carried():
+    event_manager = EventManager()
+    event_manager.standard_cli()
+    game_session = Session(root_path='tests/fixtures', event_manager=event_manager)
+    goblin = game_session.npc('goblin', {'name': 'Gruk'})
+
+    summary = format_entity_gear_for_conversation(goblin, game_session)
+
+    assert 'Equipped:' in summary
+    assert 'Scimitar' in summary
+    assert 'Shortbow' in summary
+    assert 'Leather' in summary
+    assert 'Carried (not equipped):' in summary
+    assert 'Arrows' in summary or 'arrows' in summary.lower()
+    assert 'spear' not in summary.lower()
+
+
+def test_format_entity_gear_for_conversation_handles_empty_entity():
+    assert format_entity_gear_for_conversation(None, None) == 'None recorded.'

@@ -1,0 +1,37 @@
+name: Soldier
+description: >
+  "War has been your life for so long that you have come to see
+  your home through the contrast of a soldier's experience.
+  Honor, bravery, and loyalty are your highest virtues, and
+  discipline, both in yourself and others, is the absolute
+  key to success. You may have been a mercenary, a member of
+  a noble house's standing army, or a guard in a border town."
+label: Soldier
+skill_proficiencies:
+  - athletics
+  - intimidation
+tool_proficiencies:
+  - one_gaming_set
+  - vehicles_land
+languages:
+  - None
+feature:
+  name: Military Rank
+  description: >
+    "You are a respected leader of trained soldiers. You can
+    invoke your authority to receive an audience and a fair
+    hearing before any military commanding officer if you
+    still serve the same branch of the military. If your
+    military organization has a formal chain of command,
+    you can communicate along that chain without
+    interference."
+  type: background_feature
+equipment:
+  - pack_bundle
+  - sword_or_other_martial_melee_weapon
+  - shield
+  - four_emblems_of_rank
+  - common_clothes
+  - 10_gp
+language_count: 0
+language_choice_count: 0

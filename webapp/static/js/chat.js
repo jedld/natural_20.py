@@ -135,11 +135,65 @@ const Chat = Object.assign({}, window.LocalConversationChatBindings || {}, {
                 break;
         }
 
-        const messageHtml = `<div class="${messageClass}">${prefix} ${cleanedContent}</div>`;
+        const messageHtml = `<div class="${messageClass}">${prefix} ${Chat.escapeHtml(cleanedContent)}</div>`;
         $chatContainer.append(messageHtml);
 
         // Scroll to bottom
         $chatContainer.scrollTop($chatContainer[0].scrollHeight);
+    },
+    assistantChatTargets: function () {
+        const targets = [];
+        if ($("#chat-messages").length) {
+            targets.push(false);
+        }
+        if ($("#draggable-chat-messages").length) {
+            targets.push(true);
+        }
+        return targets;
+    },
+    showAssistantWelcomeBanner: function (label) {
+        const modelLabel = label || "ready";
+        const welcomeText =
+            "Ready (" +
+            modelLabel +
+            "). Uses the same server LLM as NPCs and dialogs. How can I help with your D&D game?";
+        const welcome =
+            '<div class="chat-message system"><strong>AI Assistant:</strong> ' +
+            Chat.escapeHtml(welcomeText) +
+            "</div>";
+        Chat.assistantChatTargets().forEach(function (isDraggable) {
+            const $chatContainer = isDraggable ? $("#draggable-chat-messages") : $("#chat-messages");
+            $chatContainer.html(welcome);
+        });
+    },
+    renderAssistantChatHistory: function (history) {
+        Chat.assistantChatTargets().forEach(function (isDraggable) {
+            const $chatContainer = isDraggable ? $("#draggable-chat-messages") : $("#chat-messages");
+            $chatContainer.empty();
+            history.forEach(function (msg) {
+                if (msg && (msg.role === "user" || msg.role === "assistant")) {
+                    Chat.addChatMessage(msg.role, msg.content, isDraggable);
+                }
+            });
+        });
+    },
+    loadAssistantChatHistory: function (modelLabel) {
+        $.ajax({
+            type: "GET",
+            url: "/ai/history",
+            dataType: "json",
+            timeout: 15000,
+            success: function (data) {
+                if (data && data.success && Array.isArray(data.history) && data.history.length > 0) {
+                    Chat.renderAssistantChatHistory(data.history);
+                    return;
+                }
+                Chat.showAssistantWelcomeBanner(modelLabel);
+            },
+            error: function () {
+                Chat.showAssistantWelcomeBanner(modelLabel);
+            },
+        });
     },
     getCurrentPovEntity: () => {
         // Try to get from the floating portraits
@@ -258,20 +312,7 @@ const Chat = Object.assign({}, window.LocalConversationChatBindings || {}, {
                     "disabled",
                     false
                 );
-                const welcomeText =
-                    "Ready (" +
-                    label +
-                    "). Uses the same server LLM as NPCs and dialogs. How can I help with your D&D game?";
-                const welcome =
-                    '<div class="chat-message system"><strong>AI Assistant:</strong> ' +
-                    Chat.escapeHtml(welcomeText) +
-                    "</div>";
-                if ($("#chat-messages").length) {
-                    $("#chat-messages").html(welcome);
-                }
-                if ($("#draggable-chat-messages").length) {
-                    $("#draggable-chat-messages").html(welcome);
-                }
+                Chat.loadAssistantChatHistory(label);
             } catch (err) {
                 console.error("[Chat] applyAssistantReady failed:", err);
                 showAssistantUnavailable("Assistant UI failed to update. Check the browser console.");
@@ -434,10 +475,13 @@ const Chat = Object.assign({}, window.LocalConversationChatBindings || {}, {
 
         // Clear chat history
         $("#clear-chat, #draggable-clear-chat").on("click", function () {
-            const isDraggable = $(this).attr("id") === "draggable-clear-chat";
             if (confirm("Are you sure you want to clear the chat history?")) {
-                const $chatContainer = isDraggable ? $("#draggable-chat-messages") : $("#chat-messages");
-                $chatContainer.html('<div class="chat-message system"><strong>AI Assistant:</strong> Chat history cleared. How can I help you?</div>');
+                const cleared =
+                    '<div class="chat-message system"><strong>AI Assistant:</strong> Chat history cleared. How can I help you?</div>';
+                Chat.assistantChatTargets().forEach(function (isDraggable) {
+                    const $chatContainer = isDraggable ? $("#draggable-chat-messages") : $("#chat-messages");
+                    $chatContainer.html(cleared);
+                });
 
                 // Clear server-side history
                 $.ajax({

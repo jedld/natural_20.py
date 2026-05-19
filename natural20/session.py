@@ -441,6 +441,19 @@ class Session:
         except FileNotFoundError:
             return {}
 
+    def load_backgrounds(self):
+        """Load backgrounds from backgrounds/ directory as YAML files."""
+        backgrounds_dir = os.path.join(self.root_path, 'backgrounds')
+        backgrounds = {}
+        if not os.path.isdir(backgrounds_dir):
+            return backgrounds
+        for file in os.listdir(backgrounds_dir):
+            if file.endswith('.yml'):
+                background_name = os.path.splitext(file)[0]
+                with open(os.path.join(backgrounds_dir, file), 'r') as f:
+                    backgrounds[background_name] = yaml.safe_load(f)
+        return backgrounds
+
     def load_object(self, object_name):
         if object_name not in self.objects:
             objects = self.load_yaml_file('items', 'objects')

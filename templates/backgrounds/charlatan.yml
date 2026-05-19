@@ -1,0 +1,47 @@
+name: Charlatan
+description: >
+  You are a scoundrel who has found profit in turning your hand to
+  fraud, deception, and sleight of hand. You know all the tricks.
+  Your crimes have never been serious enough to attract a long-term
+  pursuer, and you have gotten away with it time and time again.
+label: Charlatan
+skill_proficiencies:
+  - deception
+  - stealth
+tool_proficiencies:
+  - disguises_kit
+  - forgery_kit
+languages: []
+languages_pool:
+  - common
+  - elvish
+  - dwarvish
+  - gnomish
+  - halfling
+  - orcish
+  - draconic
+  - deep_speech
+  - infernal
+  - celestical
+  - primordial
+  - abyssal
+  - sylvan
+  - undercommon
+  - giant
+  - goblin
+  - kobold
+feature:
+  name: False Identity
+  description: >
+    You have created a second identity that includes documentation,
+    familiar faces, and necessary funds to support you in a specific
+    setting. You can sell this identity to someone else if you no
+    longer need it.
+  type: background_feature
+equipment:
+  - fine_clothes
+  - disguises_kit
+  - tools_of_the_criminal
+  - 15_gp
+language_count: 1
+language_choice_count: 1

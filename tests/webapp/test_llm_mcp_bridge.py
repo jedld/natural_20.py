@@ -137,6 +137,26 @@ def test_comma_style_bare_dotted_name_routes_to_mcp(handler):
     assert any(v == {'ok': True} for v in results.values())
 
 
+def test_count_query_short_circuits_after_mcp_process(handler):
+    captured = {}
+
+    class FakeMcp:
+        def __call__(self, tool_name, arguments=None):
+            captured['tool'] = tool_name
+            return {'entities': [], 'count': 8, 'filters': {'kind': 'npc'}}
+
+    handler.register_game_context_function('mcp', FakeMcp(), 'fake')
+    response = (
+        '[FUNCTION_CALL: mcp("world.list_entities", '
+        '{"kind": "npc", "npc_type_contains": "goblin"})]'
+    )
+    processed = handler._process_function_calls(response, None)
+    out = handler._try_count_query_reply('How many goblins are there?', processed)
+    assert captured['tool'] == 'world.list_entities'
+    assert out == 'There are 8 goblins on the current map.'
+    assert '_payload' in processed[0]
+
+
 def test_format_function_results_count_query_uses_payload_count(handler):
     class NeverCalledProvider:
         def send_message(self, _messages):
@@ -152,6 +172,21 @@ def test_format_function_results_count_query_uses_payload_count(handler):
     }]
     out = handler._format_function_results(processed, original_message='How many goblins are there?')
     assert out == 'There are 8 goblins on the current map.'
+
+
+def test_format_function_results_count_query_uses_structured_payload(handler):
+    class NeverCalledProvider:
+        def send_message(self, _messages):
+            raise AssertionError('provider should not be called for deterministic count formatting')
+
+    handler.current_provider = NeverCalledProvider()
+    processed = [{
+        'role': 'user',
+        'content': '[FUNCTION_CALL: mcp("world.list_entities", {"kind": "npc"})]: Function mcp returned: {...}',
+        '_payload': {'entities': [{'name': 'a'}], 'count': 3},
+    }]
+    out = handler._format_function_results(processed, original_message='How many goblins are there?')
+    assert out == 'There are 3 goblins on the current map.'
 
 
 def test_format_function_results_count_query_uses_entities_length(handler):

@@ -1,0 +1,34 @@
+name: Folk Hero
+description: >
+  "You come from a humble social level, but you are destined for so
+  much more. Already the people of your home village regard you as
+  the champion of a promising sort, and your legend will be the
+  talk of the courts and halls of the nobility if you pursue an
+  adventuring career. You will, inevitably, have a price on your
+  head before long."
+label: Folk Hero
+skill_proficiencies:
+  - animal_handling
+  - survival
+tool_proficiencies:
+  - one_artisans_tools
+  - vehicles_land
+languages:
+  - None
+feature:
+  name: Rustic Hospitality
+  description: >
+    "Since you come from the ranks of the common folk, you fit in
+    among them with ease. You can find a place to hide, rest, or
+    recuperate in any humble settlement, unless you have shown
+    yourself to be a danger to the people there. You are also
+    familiar with the local geography."
+  type: background_feature
+equipment:
+  - artisans_tools
+  - shovel
+  - iron_pot
+  - common_clothes
+  - 10_gp
+language_count: 0
+language_choice_count: 0

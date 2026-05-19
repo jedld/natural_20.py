@@ -58,7 +58,8 @@ class GameEntityRegistry:
         return spawned
 
     def get_pov_entity_for_user(self, username):
-        self.manager.logger.info(f"Getting POV entity for {username}")
+        # Reduced logging verbosity - info-level logging on every lookup was causing I/O overhead
+        # self.manager.logger.debug(f"Getting POV entity for {username}")
         return self.manager.pov_entity_for_user.get(username, None)
 
     def set_pov_entity_for_user(self, username, entity):

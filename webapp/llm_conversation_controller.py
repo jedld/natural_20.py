@@ -149,7 +149,9 @@ class LLMConversationController:
         ]
 
         try:
-            raw_response = self.llm_hander.send_message(messages)
+            raw_response = self.llm_hander.send_message(
+                messages, context={'response_mode': 'conversation'},
+            )
         except Exception:
             return None
 
@@ -212,7 +214,9 @@ class LLMConversationController:
         messages.extend(conversation["messages"])
         
         try:
-            response_content = self.llm_hander.send_message(messages)
+            response_content = self.llm_hander.send_message(
+                messages, context={'response_mode': 'conversation'},
+            )
             
              # Add the response to the conversation history
             self.add_message(conversation_id, "assistant", response_content)
