@@ -1,0 +1,41 @@
+---
+name: Dabron
+race: dragonborn
+subrace: red
+pronoun: he/him/his
+classes:
+  fighter: 1
+description: A red dragonborn fighter
+level: 1
+hit_die: inherit
+max_hp: 12
+ability:
+  str: 16
+  dex: 12
+  con: 14
+  int: 10
+  wis: 10
+  cha: 14
+saving_throw_proficiencies:
+- strength
+- constitution
+attributes:
+- dueling
+skills:
+- athletics
+- intimidation
+weapon_proficiencies:
+- martial
+- simple
+languages:
+- common
+- draconic
+token:
+- D
+equipped:
+- longsword
+- chain_mail
+- shield
+inventory:
+- type: healing_potion
+  qty: 1

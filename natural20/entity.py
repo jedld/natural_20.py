@@ -1227,6 +1227,10 @@ class Entity(EntityStateEvaluator, Notable):
             if callable(hook):
                 hook(battle)
 
+        # Reset breath weapon usage on short rest (Dragonborn racial trait)
+        if hasattr(self, 'breath_weapon_used'):
+            self.breath_weapon_used = False
+
         self.restore_resources('short_rest')
         self.resolve_trigger('short_rest')
         self.event_manager.received_event({'source': self, 'event': 'short_rest'})
@@ -3013,6 +3017,9 @@ class Entity(EntityStateEvaluator, Notable):
         # Tabaxi Feline Agility recharges on a long rest as a fallback.
         if hasattr(self, 'feline_agility_used'):
             self.feline_agility_used = False
+        # Reset breath weapon usage on long rest (Dragonborn racial trait)
+        if hasattr(self, 'breath_weapon_used'):
+            self.breath_weapon_used = False
 
         # Recover spent hit dice: floor(level/2), minimum 1, capped at max
         # per die type.  PCs track per-class hit-die maxima; NPCs use a
