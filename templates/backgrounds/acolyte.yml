@@ -1,0 +1,58 @@
+name: Acolyte
+description: >
+  You have spent your life in the service of a temple to a specific god or gods.
+  You act as an intermediary between the higher powers and the people,
+  performing sacred rituals in a grand cathedral or making the rounds of the
+  faithful in a hall of healing. Your closest friends and companions are your
+  fellow worshippers, and you are valued by the priests of the temple.
+label: Acolyte
+skill_proficiencies:
+  - religion
+  - insight
+tool_proficiencies: []
+languages: []
+languages_pool:
+  - common
+  - elvish
+  - dwarvish
+  - gnomish
+  - halfling
+  - orcish
+  - draconic
+  - deep_speech
+  - infernal
+  - celestical
+  - primordial
+  - abyssal
+  - sylvan
+  - undercommon
+  - giant
+  - goblin
+  - kobold
+  - merfolk
+  - auran
+  - ignan
+  - aquan
+  - terran
+  - shadowtongue
+feature:
+  name: Shelter of the Faithful
+  description: >
+    As an acolyte, you command the respect of those who share your faith,
+    and you can perform the religious ceremonies of your deity. You and
+    your adventuring companions can expect to receive free healing and care
+    at a temple, shrine, or other established presence of your faith, in
+    exchange for an offering of some value. (It's not uncommon to offer
+    money, food, or precious metals as tithes to the temple, at an amount
+    equal to 5d10 gp per character.) You may also bury the dead of your
+    faith in consecrated ground owned by the church.
+  type: background_feature
+equipment:
+  - holy_symbol
+  - prayer_book
+  - 5_sticks_of_incense
+  - vestments
+  - common_clothes
+  - 15_gp
+language_count: 2
+language_choice_count: 2

@@ -854,19 +854,23 @@ class LLMHandler:
             return run_blocking(self._send_message_impl, message, context)
 
     def _send_message_impl(self, message, context: Optional[Dict[str, Any]] = None) -> str:
+        response_mode = (context or {}).get('response_mode', 'dm')
+        is_npc_conversation = response_mode == 'conversation'
+
         if not self.current_provider:
             logger.error("[LLMHandler] No LLM provider initialized.")
             error_msg = "AI assistant is not initialized. Please initialize a provider first."
             self.session_logger.log_error(error_msg, "No provider initialized")
             return error_msg
         if isinstance(message, list):
-            self.conversation_history = message
+            if not is_npc_conversation:
+                self.conversation_history = message
             # When a list is passed, we need to ensure system message is first
             # Check if the first message is already a system message
             if not message or message[0].get('role') != 'system':
                 system_prompt = self._build_system_prompt(context)
                 messages = [{"role": "system", "content": system_prompt}]
-                messages.extend(self.conversation_history)
+                messages.extend(message if is_npc_conversation else self.conversation_history)
             else:
                 messages = message
         else:
@@ -951,13 +955,13 @@ class LLMHandler:
         
         # --- CONTINUATION LOGIC END ---
         # Clean the full response
-        cleaned_response = self._clean_response(full_response)
+        cleaned_response = self._clean_response(full_response, response_mode=response_mode)
         logger.info(f"[LLMHandler] Cleaned response: {cleaned_response}")
 
         # Check if the response contains function calls
         has_function_calls = "[FUNCTION_CALL:" in cleaned_response
 
-        if has_function_calls:
+        if has_function_calls and not is_npc_conversation:
             logger.info("[LLMHandler] Found function calls, processing...")
             logger.info(f"[LLMHandler] Function calls found in: {cleaned_response}")
             function_calls = self._process_function_calls(cleaned_response, context)
@@ -971,6 +975,10 @@ class LLMHandler:
                 if item_fallback:
                     function_calls.append(item_fallback)
                 self.conversation_history.extend(function_calls)
+                count_reply = self._try_count_query_reply(message, function_calls)
+                if count_reply:
+                    self.conversation_history.append({"role": "assistant", "content": count_reply})
+                    return count_reply
                 # Format the function results into a user-friendly response
                 formatted_response = self._format_function_results(function_calls, context, message)
                 self.conversation_history.append({"role": "assistant", "content": formatted_response})
@@ -978,12 +986,14 @@ class LLMHandler:
             else:
                 # Function calls were found but none were processed (e.g., unknown functions)
                 logger.info("[LLMHandler] No valid function calls processed, returning original response")
-                self.conversation_history.append({"role": "assistant", "content": cleaned_response})
+                if not is_npc_conversation:
+                    self.conversation_history.append({"role": "assistant", "content": cleaned_response})
                 self.session_logger.log_response(cleaned_response, provider_info, partial=False)
                 return cleaned_response
         else:
             # No function calls, return the cleaned response directly
-            self.conversation_history.append({"role": "assistant", "content": cleaned_response})
+            if not is_npc_conversation:
+                self.conversation_history.append({"role": "assistant", "content": cleaned_response})
             self.session_logger.log_response(cleaned_response, provider_info, partial=False)
             return cleaned_response
 
@@ -995,48 +1005,9 @@ class LLMHandler:
             logger.warning("[LLMHandler] _format_function_results called with empty response list")
             return "No function results to format."
 
-        # Deterministic short-circuit for count queries so we don't depend on
-        # a second model pass for simple arithmetic over already-returned MCP
-        # payloads.
-        parsed_payloads: List[Dict[str, Any]] = []
-        for msg in processed_response:
-            content = str(msg.get('content', ''))
-            marker = ' returned: '
-            idx = content.find(marker)
-            if idx < 0:
-                continue
-            payload_str = content[idx + len(marker):].strip()
-            try:
-                payload = ast.literal_eval(payload_str)
-            except Exception:
-                continue
-            if isinstance(payload, dict):
-                parsed_payloads.append(payload)
-
-        if original_message:
-            lowered = original_message.lower()
-            is_count_query = any(tok in lowered for tok in (
-                'how many', 'count', 'number of', 'how much'
-            ))
-            if is_count_query:
-                subject = 'matches'
-                m = re.search(r'how many\s+([a-zA-Z_\- ]+?)\s+(?:are|is)\b', lowered)
-                if m:
-                    subject = m.group(1).strip()
-
-                for payload in parsed_payloads:
-                    if isinstance(payload.get('count'), int):
-                        n = int(payload['count'])
-                        noun = subject
-                        if n == 1 and noun.endswith('s'):
-                            noun = noun[:-1]
-                        return f"There {'is' if n == 1 else 'are'} {n} {noun} on the current map."
-                    if isinstance(payload.get('entities'), list):
-                        n = len(payload['entities'])
-                        noun = subject
-                        if n == 1 and noun.endswith('s'):
-                            noun = noun[:-1]
-                        return f"There {'is' if n == 1 else 'are'} {n} {noun} on the current map."
+        count_reply = self._try_count_query_reply(original_message, processed_response)
+        if count_reply:
+            return count_reply
 
         # Build a proper messages list for the formatting request. Without the
         # original user question and a system prompt the model has no idea
@@ -1409,21 +1380,123 @@ class LLMHandler:
                     # Log the original requested function name for traceability.
                     self.session_logger.log_function_call(func_name, execute_args, result)
 
-                    function_results[call_key] = f"Function {func_name} returned: {result}"
+                    function_results[call_key] = {
+                        'text': f"Function {func_name} returned: {self._serialize_function_result(result)}",
+                        'payload': result if isinstance(result, dict) else None,
+                    }
                 else:
                     logger.info(f"[LLMHandler] Unknown function: {func_name}")
                     self.session_logger.log_error(f"Unknown function: {func_name}", "Function not found in registry")
-                    function_results[call_key] = f"Unknown function: {func_name}"
+                    function_results[call_key] = {
+                        'text': f"Unknown function: {func_name}",
+                        'payload': None,
+                    }
             except Exception as e:
                 logger.error(f"[LLMHandler] Error executing {func_name}: {str(e)}")
                 self.session_logger.log_error(f"Error executing {func_name}: {str(e)}", "Function execution error")
-                function_results[call_key] = f"Error executing {func_name}: {str(e)}"
+                function_results[call_key] = {
+                    'text': f"Error executing {func_name}: {str(e)}",
+                    'payload': None,
+                }
 
         for func_name, arg_str in matches:
             call_key = f"{func_name}:{arg_str}"
             if call_key in function_results:
-                function_results_list.append({"role": "user", "content": f"[FUNCTION_CALL: {func_name}({arg_str})]: {function_results[call_key]}"})
+                entry = function_results[call_key]
+                msg = {
+                    "role": "user",
+                    "content": f"[FUNCTION_CALL: {func_name}({arg_str})]: {entry['text']}",
+                }
+                if entry.get('payload') is not None:
+                    msg['_payload'] = entry['payload']
+                function_results_list.append(msg)
         return function_results_list
+
+    @staticmethod
+    def _serialize_function_result(result: Any) -> str:
+        if isinstance(result, (dict, list)):
+            try:
+                return json.dumps(result, ensure_ascii=False, default=str)
+            except Exception:
+                pass
+        return repr(result)
+
+    def _parse_payloads_from_function_results(
+        self, processed_response: List[Dict[str, str]]
+    ) -> List[Dict[str, Any]]:
+        """Extract structured dict payloads from function-call trace messages."""
+        parsed_payloads: List[Dict[str, Any]] = []
+        for msg in processed_response:
+            payload = msg.get('_payload')
+            if isinstance(payload, dict):
+                parsed_payloads.append(payload)
+                continue
+            content = str(msg.get('content', ''))
+            for prefix in (
+                'Function mcp returned: ',
+                'Function get_entities returned: ',
+                'Function world.list_entities returned: ',
+            ):
+                if prefix not in content:
+                    continue
+                payload_str = content.split(prefix, 1)[1].strip()
+                parsed = None
+                try:
+                    parsed = json.loads(payload_str)
+                except Exception:
+                    try:
+                        parsed = ast.literal_eval(payload_str)
+                    except Exception:
+                        parsed = None
+                if isinstance(parsed, dict):
+                    parsed_payloads.append(parsed)
+                break
+            else:
+                marker = ' returned: '
+                idx = content.find(marker)
+                if idx < 0:
+                    continue
+                payload_str = content[idx + len(marker):].strip()
+                try:
+                    parsed = json.loads(payload_str)
+                except Exception:
+                    try:
+                        parsed = ast.literal_eval(payload_str)
+                    except Exception:
+                        parsed = None
+                if isinstance(parsed, dict):
+                    parsed_payloads.append(parsed)
+        return parsed_payloads
+
+    def _try_count_query_reply(
+        self, original_message: Optional[str], processed_response: List[Dict[str, str]]
+    ) -> Optional[str]:
+        """Answer 'how many …' directly from MCP payloads without a second LLM pass."""
+        if not original_message:
+            return None
+        lowered = original_message.lower()
+        if not any(tok in lowered for tok in ('how many', 'count', 'number of', 'how much')):
+            return None
+
+        subject = 'matches'
+        m = re.search(r'how many\s+([a-zA-Z_\- ]+?)\s+(?:are|is)\b', lowered)
+        if m:
+            subject = m.group(1).strip()
+
+        for payload in self._parse_payloads_from_function_results(processed_response):
+            if isinstance(payload.get('count'), int):
+                n = int(payload['count'])
+            elif isinstance(payload.get('entities'), list):
+                n = len(payload['entities'])
+            else:
+                continue
+            noun = subject
+            if n == 1 and noun.endswith('s'):
+                noun = noun[:-1]
+            reply = f"There {'is' if n == 1 else 'are'} {n} {noun} on the current map."
+            logger.info('[LLMHandler] Count-query short-circuit: %s', reply)
+            return reply
+        return None
 
     def _maybe_execute_entity_mutation_from_context(self, original_message: str,
                                                     function_results_list: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
@@ -1595,34 +1668,34 @@ class LLMHandler:
         """Parse entity lists from get_entities or MCP world.list_entities traces."""
         collected: List[Dict[str, Any]] = []
         seen_uid: set = set()
+
+        def _add_entities(entities):
+            for ent in entities or []:
+                if isinstance(ent, dict):
+                    uid = str(ent.get('entity_uid') or '').strip()
+                    if uid and uid not in seen_uid:
+                        seen_uid.add(uid)
+                        collected.append(ent)
+
+        for payload in self._parse_payloads_from_function_results(function_results_list):
+            if isinstance(payload.get('entities'), list):
+                _add_entities(payload['entities'])
+
         for item in function_results_list:
             content = str(item.get('content', ''))
-            for prefix in (
-                'Function get_entities returned: ',
-                'Function mcp returned: ',
-            ):
-                if prefix not in content:
-                    continue
-                payload_str = content.split(prefix, 1)[1].strip()
+            prefix = 'Function get_entities returned: '
+            if prefix not in content:
+                continue
+            payload_str = content.split(prefix, 1)[1].strip()
+            try:
+                parsed = json.loads(payload_str)
+            except Exception:
                 try:
                     parsed = ast.literal_eval(payload_str)
                 except Exception:
-                    continue
-                if isinstance(parsed, dict) and isinstance(parsed.get('entities'), list):
-                    for ent in parsed['entities']:
-                        if isinstance(ent, dict):
-                            uid = str(ent.get('entity_uid') or '').strip()
-                            if uid and uid not in seen_uid:
-                                seen_uid.add(uid)
-                                collected.append(ent)
-                elif isinstance(parsed, list):
-                    for ent in parsed:
-                        if isinstance(ent, dict):
-                            uid = str(ent.get('entity_uid') or '').strip()
-                            if uid and uid not in seen_uid:
-                                seen_uid.add(uid)
-                                collected.append(ent)
-                break
+                    parsed = None
+            if isinstance(parsed, list):
+                _add_entities(parsed)
         return collected
 
     def _maybe_execute_dm_add_item_from_context(
@@ -1825,6 +1898,36 @@ class LLMHandler:
     def get_conversation_history(self) -> List[Dict[str, Any]]:
         """Get the conversation history."""
         return self.conversation_history
+
+    @staticmethod
+    def displayable_conversation_history(
+        history: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, str]]:
+        """Return user/assistant turns suitable for the DM Assistant chat UI."""
+        rows: List[Dict[str, str]] = []
+        for msg in history or []:
+            role = str(msg.get('role') or '').strip()
+            content = str(msg.get('content') or '').strip()
+            if not content:
+                continue
+            if role == 'user' and '[FUNCTION_CALL:' in content:
+                continue
+            if role in ('user', 'assistant'):
+                rows.append({'role': role, 'content': content})
+        return rows
+
+    @staticmethod
+    def conversation_history_for_storage(
+        history: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, str]]:
+        """Strip non-JSON-safe extras before persisting in Flask session."""
+        stored: List[Dict[str, str]] = []
+        for msg in history or []:
+            role = str(msg.get('role') or '').strip()
+            if not role:
+                continue
+            stored.append({'role': role, 'content': str(msg.get('content') or '')})
+        return stored
     
     def register_game_context_function(self, name: str, function: Callable, description: str):
         """Register a function that can be called to get game context."""
@@ -2068,19 +2171,24 @@ class LLMHandler:
         
         return results
 
-    def _clean_response(self, response: str) -> str:
+    def _clean_response(self, response: str, response_mode: str = 'dm') -> str:
         """Clean the response by removing thinking tags and unwanted content."""
         original_response = response
+        is_npc_conversation = response_mode == 'conversation'
+        empty_fallback = '...' if is_npc_conversation else (
+            "I'm here to help with your D&D game! What would you like to know?"
+        )
         
         # Remove thinking tags and their content
         response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL)
         response = re.sub(r'<reasoning>.*?</reasoning>', '', response, flags=re.DOTALL)
         response = re.sub(r'<thought>.*?</thought>', '', response, flags=re.DOTALL)
         
-        # Remove reasoning blocks that start with "Okay, so" or similar
-        response = re.sub(r'Okay, so.*?(?=\[FUNCTION_CALL:|$)', '', response, flags=re.DOTALL)
-        response = re.sub(r'Let me.*?(?=\[FUNCTION_CALL:|$)', '', response, flags=re.DOTALL)
-        response = re.sub(r'I need to.*?(?=\[FUNCTION_CALL:|$)', '', response, flags=re.DOTALL)
+        if not is_npc_conversation:
+            # DM assistant only: strip common reasoning preambles before function calls
+            response = re.sub(r'Okay, so.*?(?=\[FUNCTION_CALL:|$)', '', response, flags=re.DOTALL)
+            response = re.sub(r'Let me.*?(?=\[FUNCTION_CALL:|$)', '', response, flags=re.DOTALL)
+            response = re.sub(r'I need to.*?(?=\[FUNCTION_CALL:|$)', '', response, flags=re.DOTALL)
         
         # Check if there are function calls in the response
         has_function_calls = "[FUNCTION_CALL:" in response
@@ -2119,9 +2227,9 @@ class LLMHandler:
                 if function_patterns:
                     response = '\n'.join(function_patterns)
                 else:
-                    response = "I'm here to help with your D&D game! What would you like to know?"
+                    response = empty_fallback
             else:
-                response = "I'm here to help with your D&D game! What would you like to know?"
+                response = empty_fallback
         
         logger.debug(f"[LLMHandler] Cleaned response: {repr(response)}")
         return response

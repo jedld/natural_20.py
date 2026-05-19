@@ -76,6 +76,7 @@ def _json_safe_uid(uid):
 from natural20.utils.conversation import audible_entities
 from typing import Optional, Dict, Any
 from natural20.session import Session
+from natural20.campaign_log_db import CampaignLogDB
 from webapp.game_management_components import GameControllerRegistry, GameEntityRegistry, ShortTermGoalManager
 
 class SocketIOOutputLogger:
@@ -89,11 +90,15 @@ class SocketIOOutputLogger:
         self._role_lookup = None
         self._controlled_entities_lookup = None
         self._event_context = None
+        self._campaign_log_db_getter = None
 
     def configure_visibility(self, game_getter=None, role_lookup=None, controlled_entities_lookup=None):
         self._game_getter = game_getter
         self._role_lookup = role_lookup
         self._controlled_entities_lookup = controlled_entities_lookup
+
+    def configure_persistence(self, campaign_log_db_getter=None):
+        self._campaign_log_db_getter = campaign_log_db_getter
 
     def get_all_logs(self, username=None, roles=None):
         return [entry['message'] for entry in self.get_visible_entries(username=username, roles=roles)]
@@ -159,7 +164,25 @@ class SocketIOOutputLogger:
         }
 
         self.logging_queue.append(entry)
+        self._persist_combat_entry(entry)
         self._emit_entry(entry)
+
+    def _persist_combat_entry(self, entry):
+        getter = self._campaign_log_db_getter
+        if not getter:
+            return
+        try:
+            db = getter()
+            if db is None:
+                return
+            db.append(
+                'combat',
+                entry.get('message', ''),
+                created_at=entry.get('timestamp'),
+                visibility=entry.get('visibility'),
+            )
+        except Exception:
+            pass
 
     def _emit_entry(self, entry):
         game = self._current_game()
@@ -580,6 +603,16 @@ class GameManagement:
             self.save_dir = tmpdir
             self.logger.warning(f"SAVE_DIR not writable. Falling back to {self.save_dir}")
 
+        self.campaign_log_db = CampaignLogDB(
+            os.path.join(self.save_dir, 'campaign_logs.sqlite')
+        )
+        if self.output_logger:
+            try:
+                snapshot = self.campaign_log_db.combat_log_snapshot(1000)
+                if snapshot:
+                    self.output_logger.restore_log_snapshot(snapshot)
+            except Exception as exc:
+                self.logger.debug(f"Combat log restore skipped: {exc}")
 
         self.logger.info(f"Loading map from {self.map_location}")
         self.battle_map = Map(game_session, self.map_location, name='index')
@@ -1251,6 +1284,26 @@ class GameManagement:
                 lock = threading.RLock()
                 self.map_state_locks[map_key] = lock
             return lock
+
+    def reset_campaign_logs(self, *, clear_live_conversation_buffers: bool = False) -> Dict[str, int]:
+        """Wipe persisted campaign logs (combat, chat, DM assistant, journals)."""
+        before = {}
+        try:
+            before = self.campaign_log_db.counts_by_category()
+        except Exception:
+            before = {}
+        self.campaign_log_db.clear_all()
+        if self.output_logger:
+            self.output_logger.clear_logs()
+        if clear_live_conversation_buffers:
+            try:
+                for battle_map in (self.maps or {}).values():
+                    for ent in list(getattr(battle_map, 'entities', []) or []):
+                        if hasattr(ent, 'clear_conversation_buffer'):
+                            ent.clear_conversation_buffer()
+            except Exception as exc:
+                self.logger.debug(f"Conversation buffer clear skipped: {exc}")
+        return before
 
     def save_game(self, name: Optional[str] = None):
         # Snapshot state and determine filename under lock, then write outside the lock

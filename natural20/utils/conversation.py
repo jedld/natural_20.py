@@ -439,6 +439,65 @@ def audible_entities(source, battle_map, distance_ft=None, mode=None, include_so
     ]
 
 
+def _item_display_label(item):
+    return (item.get('label') or item.get('name') or 'Unknown item').strip()
+
+
+def format_entity_gear_for_conversation(entity, session):
+    """Summarize equipped gear and carried inventory for NPC dialog prompts."""
+    if entity is None:
+        return 'None recorded.'
+
+    lines = []
+    equipped_keys = set()
+
+    try:
+        equipped = list(entity.equipped_items()) if hasattr(entity, 'equipped_items') else []
+    except Exception:
+        equipped = []
+
+    if equipped:
+        lines.append('Equipped:')
+        for item in equipped:
+            name_key = item.get('name')
+            if name_key:
+                equipped_keys.add(str(name_key))
+            label = _item_display_label(item)
+            item_type = item.get('type') or item.get('subtype') or 'item'
+            lines.append(f'  - {label} ({item_type})')
+
+    carried = []
+    if session is not None and hasattr(entity, 'inventory_items'):
+        try:
+            inventory = entity.inventory_items(session) or []
+        except Exception:
+            inventory = []
+        for item in inventory:
+            name_key = item.get('name')
+            if name_key and str(name_key) in equipped_keys:
+                continue
+            label = _item_display_label(item)
+            qty = item.get('qty', 1)
+            try:
+                qty = int(qty)
+            except (TypeError, ValueError):
+                qty = 1
+            if qty > 1:
+                carried.append(f'{label} x{qty}')
+            else:
+                carried.append(label)
+
+    if carried:
+        lines.append('Carried (not equipped):')
+        for entry in carried:
+            lines.append(f'  - {entry}')
+
+    if not lines:
+        return 'Unarmed and carrying nothing.'
+
+    return '\n'.join(lines)
+
+
 def delivered_conversations(source, message, battle_map, distance_ft=None, mode=None, targets=None, language='common'):
     delivered = []
     for audience_entry in audible_entities(source, battle_map, distance_ft=distance_ft, mode=mode):

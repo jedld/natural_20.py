@@ -51,6 +51,13 @@
 
   const RACES = getRaces();
   const CLASSES = getClasses();
+
+  function getBackgrounds(){
+    const el = document.getElementById('backgrounds-data');
+    if(!el) return {};
+    try { return JSON.parse(el.textContent || '{}'); } catch(e){ return {}; }
+  }
+  const BACKGROUNDS = getBackgrounds();
   const formEl = document.getElementById('character-form');
   const editMode = (formEl && formEl.dataset && formEl.dataset.editMode === 'true');
   function getEditCharacter(){
@@ -483,9 +490,84 @@
 
   $('#klass, #level').on('change', renderClassOptions);
   $('#race, #subrace').on('change', renderRaceOptions);
+  $('#background').on('change', renderBackgroundOptions);
   // initial hide
   $('#class-options').hide();
   $('#race-options').hide();
+  $('#background-options').hide();
+
+  // ---------- Background Options ----------
+  function renderBackgroundOptions(){
+    const bg = $('#background').val();
+    const $panel = $('#background-options');
+    const $body = $('#background-options-body');
+    $body.empty();
+    $body.off();
+    if(!bg || !BACKGROUNDS[bg]){
+      $panel.hide();
+      return;
+    }
+    const bdata = BACKGROUNDS[bg];
+    $panel.show();
+
+    // Description
+    if(bdata.description){
+      $body.append(`<p class="helper" style="margin-bottom:10px;">${bdata.description.substring(0, 200)}${bdata.description.length > 200 ? '...' : ''}</p>`);
+    }
+
+    // Skill proficiencies (always granted)
+    if(bdata.skill_proficiencies && bdata.skill_proficiencies.length){
+      const skillsLabel = bdata.skill_proficiencies.map(s => s.replace(/_/g,' ')).join(', ');
+      $body.append(`<div class="form-group"><label>Skill Proficiencies</label><div class="helper">${skillsLabel}</div></div>`);
+    }
+
+    // Tool proficiencies (always granted)
+    if(bdata.tool_proficiencies && bdata.tool_proficiencies.length){
+      const toolsLabel = bdata.tool_proficiencies.map(t => t.replace(/_/g,' ')).join(', ');
+      $body.append(`<div class="form-group"><label>Tool Proficiencies</label><div class="helper">${toolsLabel}</div></div>`);
+    }
+
+    // Feature
+    if(bdata.feature && bdata.feature.name){
+      $body.append(`<div class="form-group"><label>Feature: ${bdata.feature.name}</label><div class="helper">${bdata.feature.description.substring(0, 150)}${bdata.feature.description.length > 150 ? '...' : ''}</div></div>`);
+    }
+
+    // Language choices
+    const choiceCount = parseInt(bdata.language_choice_count || 0, 10);
+    const pool = bdata.languages_pool || [];
+    if(choiceCount > 0 && pool.length){
+      const langWrap = $('<div class="form-group"/>');
+      langWrap.append(`<label>Background Languages: choose ${choiceCount}</label>`);
+      const row = $('<div class="row"/>');
+      // Deduplicate pool
+      const uniquePool = [...new Set(pool)];
+      uniquePool.forEach((lang, idx)=>{
+        const col = $('<div class="col-xs-6 col-sm-4 col-md-3"/>');
+        const id = `bg-language-${idx}`;
+        col.append(`
+          <div class="checkbox">
+            <label>
+              <input type="checkbox" class="cb-bg-language" data-name="${lang}" id="${id}"> ${lang.replace(/_/g,' ')}
+            </label>
+          </div>`);
+        row.append(col);
+      });
+      langWrap.append(row);
+      langWrap.append(`<div class="helper" id="bg-language-helper">${choiceCount} remaining</div>`);
+      $body.append(langWrap);
+
+      $body.on('change', '.cb-bg-language', function(){
+        const selected = $body.find('.cb-bg-language:checked').length;
+        const remaining = Math.max(0, choiceCount - selected);
+        $('#bg-language-helper').text(`${remaining} remaining`);
+        if(selected >= choiceCount){
+          $body.find('.cb-bg-language:not(:checked)').prop('disabled', true);
+        } else {
+          $body.find('.cb-bg-language').prop('disabled', false);
+        }
+      });
+    }
+  }
 
   $('#cancel-btn').on('click', function(){
     const url = $('#cancel-btn').data('cancel-url') || '/';
@@ -570,6 +652,22 @@
   const feats = [];
   $('#class-options-body .cb-feat:checked').each(function(){ feats.push($(this).data('name')); });
   if(feats.length) fd.append('feats', JSON.stringify(feats));
+
+  // Background language choices
+  const bgLanguages = [];
+  $('#background-options-body .cb-bg-language:checked').each(function(){ bgLanguages.push($(this).data('name')); });
+  if(bgLanguages.length) fd.append('background_languages', JSON.stringify(bgLanguages));
+
+  // Validate background selection
+  const bgVal = $('#background').val();
+  const bgDef = bgVal ? BACKGROUNDS[bgVal] : null;
+  if(bgDef){
+    const expectedBgLang = parseInt(bgDef.language_choice_count || 0, 10);
+    if(expectedBgLang > 0 && bgLanguages.length !== expectedBgLang){
+      $('#builder-msg').html(`<div class="alert alert-danger">Choose ${expectedBgLang} background language${expectedBgLang > 1 ? 's' : ''}.</div>`);
+      return;
+    }
+  }
 
   const submitUrl = (formEl.dataset && formEl.dataset.submitUrl) ? formEl.dataset.submitUrl : '/create_character';
     $.ajax({
@@ -697,6 +795,7 @@
   // init
   updatePoints();
   renderRaceOptions();
+  renderBackgroundOptions();
   prefillEditCharacter();
   setupEquipmentPackPreview();
 })();

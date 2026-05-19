@@ -187,6 +187,29 @@
           </div>
 
           <div class="row">
+            <div class="col-sm-6">
+              <div class="form-group">
+                <label for="background">Background</label>
+                <select class="form-control" id="background" name="background" required>
+                  <option value="">-- Select Background --</option>
+                  {% for bname, bprops in backgrounds.items() %}
+                    <option value="{{ bname }}">{{ bprops.label or bprops.name or bname.replace('_', ' ')|title }}</option>
+                  {% endfor %}
+                </select>
+                <div class="helper">Background grants skill proficiencies, tools, and possibly languages.</div>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div id="background-options" class="panel panel-dnd" style="display:none; margin-top:2px;">
+                <div class="panel-heading"><strong>Background Details</strong></div>
+                <div class="panel-body" id="background-options-body">
+                  <!-- Dynamic background options render here -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
             <div class="col-sm-4">
               <div class="form-group">
                 <label for="level">Level</label>
@@ -335,6 +358,7 @@
 
   <script id="races-data" type="application/json">{{ races|tojson|safe }}</script>
   <script id="classes-data" type="application/json">{{ classes|tojson|safe }}</script>
+  <script id="backgrounds-data" type="application/json">{{ backgrounds|tojson|safe }}</script>
   {% if edit_mode %}
   <script id="edit-character-data" type="application/json">{{ edit_character|tojson|safe }}</script>
   {% endif %}

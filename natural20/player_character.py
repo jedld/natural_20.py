@@ -136,6 +136,31 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     if self.subrace() and self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('race_features'):
       self.race_properties['race_features'] = self.race_properties.get('race_features', []) + self.race_properties['subrace'][self.subrace()]['race_features']
 
+    # -- Background loading --------------------------------------------------
+    from natural20.background import Background
+    self.background: Background | None = None
+    self.background_data: dict = {}
+    bg_key = self.properties.get('background')
+    if bg_key:
+      backgrounds = session.load_backgrounds()
+      bg_def = backgrounds.get(bg_key)
+      if bg_def:
+        self.background = Background(bg_def)
+        self.background_data = bg_def
+        # Merge background skill proficiencies into the skills list so the
+        # existing proficiency checks pick them up automatically.
+        for skill in self.background.skill_proficiencies:
+          if skill not in self.properties.setdefault('skills', []):
+            self.properties['skills'].append(skill)
+        # Merge background tool proficiencies.
+        for tool in self.background.tool_proficiencies:
+          if tool not in self.properties.setdefault('tool_proficiencies', []):
+            self.properties['tool_proficiencies'].append(tool)
+        # Merge background languages (fixed ones).
+        for lang in self.background.languages:
+          if lang not in self.properties.setdefault('languages', []):
+            self.properties['languages'].append(lang)
+
     self.ability_scores = self.properties.get('ability', {})
     self.load_inventory()
     self.class_properties = {}
@@ -826,6 +851,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     if self.race_properties.get('skills') and prof in self.race_properties['skills']:
       return True
     if prof in self.weapon_proficiencies():
+      return True
+    # Background tool proficiencies
+    if self.background and prof in self.background.tool_proficiencies:
+      return True
+    if prof in self.properties.get('tool_proficiencies', []):
       return True
 
     return super().proficient(prof)

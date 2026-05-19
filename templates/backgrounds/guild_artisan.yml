@@ -1,0 +1,49 @@
+name: Guild Artisan
+description: >
+  "You are a member of an artisans' guild or a similar organization
+  that promotes craftsmanship. You have trained from childhood in
+  the art of creating things and identified with the ideas, the
+  people, and the products of your guild. You joined the guild as
+  an apprentice, and through work and dedication, you have become
+  a journeyman."
+label: Guild Artisan
+skill_proficiencies:
+  - insight
+  - persuasion
+tool_proficiencies:
+  - one_artisans_tools
+languages: []
+languages_pool:
+  - common
+  - elvish
+  - dwarvish
+  - gnomish
+  - halfling
+  - orcish
+  - draconic
+  - deep_speech
+  - infernal
+  - celestical
+  - primordial
+  - abyssal
+  - sylvan
+  - undercommon
+  - giant
+  - goblin
+  - kobold
+feature:
+  name: Guild Membership
+  description: >
+    "As a member of a guild, you have access to other former
+    apprentices and journeyman who are now established where you
+    can't easily go: in another town, city, or even on another
+    continent. These contacts can provide you with food, shelter,
+    a mule, local representation, and the latest news."
+  type: background_feature
+equipment:
+  - artisans_tools
+  - letter_of_introduction_from_guild
+  - common_clothes
+  - 15_gp
+language_count: 1
+language_choice_count: 1

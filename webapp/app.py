@@ -701,6 +701,10 @@ current_game = GameManagement(game_session=game_session,
 _pvp_cfg = index_data.get('pvp_teams') or {}
 current_game.pvp_enabled = bool(_pvp_cfg.get('enabled'))
 
+output_logger.configure_persistence(
+    campaign_log_db_getter=lambda: getattr(current_game, 'campaign_log_db', None)
+)
+
 
 @app.before_request
 def _n20_bind_campaign_prompt_root():
@@ -1053,7 +1057,7 @@ def configure_llm_handler_from_environment(handler: LLMHandler) -> bool:
         return success
 
     if llm_provider in ('llama_cpp', 'llama.cpp', 'llamacpp'):
-        base_url = os.environ.get('LLAMA_CPP_BASE_URL', 'http://localhost:8011')
+        base_url = os.environ.get('LLAMA_CPP_BASE_URL', 'http://localhost:8016')
         model = os.environ.get('LLAMA_CPP_MODEL', os.environ.get('N20_LLM_MODEL'))
         api_key = os.environ.get('LLAMA_CPP_API_KEY', 'llama-cpp')
 
@@ -2061,51 +2065,19 @@ output_logger.configure_visibility(
 )
 
 def describe_terrain(tile):
-    battle_map = current_game.get_map_for_user(session['username'])
-    battle = current_game.get_current_battle()
-    description = []
-    if tile.get('difficult'):
-        description.append("Difficult Terrain")
+    """Legacy Jinja helper; tooltips are precomputed in JsonRenderer."""
+    from flask import g
+    from natural20.web.terrain_tooltip import build_terrain_tooltip
 
-    lights = battle_map.light_at(tile['x'], tile['y'])
-    # Assuming `map` is accessible and has a method `thing_at(x, y)` returning an object with a `label` attribute
-    things = battle_map.thing_at(tile['x'], tile['y'])
-    if things:
-        for thing in things:
-            description.append(thing.label())
-            if isinstance(thing, Object):
-                if thing.dead():
-                    description.append("Destroyed")
-            if not isinstance(thing, Object):
-                # obtain buffs and status effects on entity
-                if thing.prone():
-                    description.append("Prone")
-                if thing.hidden():
-                    description.append("Hiding")
-                if thing.unconscious() and not thing.stable():
-                    description.append("Unconscious")
-                if thing.dead():
-                    description.append("Dead")
-                if thing.grappled():
-                    description.append("Grappled")
-                if thing.dodge(battle):
-                    description.append("Dodge")
-                if thing.stable():
-                    description.append("Unconscious (but Stable)")
-                for effect in thing.current_effects():
-                    effect_class = effect['effect']
-                    description.append(str(effect_class))
-    if (lights == 0.0):
-        if battle_map.magical_darkness_at(tile['x'], tile['y']):
-            description.append("Magical Darkness (heavily obscured)")
-        else:
-            description.append("Darkness (heavily obscured)")
-    elif (lights == 0.5):
-        description.append("Dim Light")
-    else:
-        description.append("Bright Light")
-
-    return "".join(f"<p>{d}</p>" for d in description)
+    if not hasattr(g, '_describe_terrain_ctx'):
+        g._describe_terrain_ctx = (
+            current_game.get_map_for_user(session['username']),
+            current_game.get_current_battle(),
+        )
+    battle_map, battle = g._describe_terrain_ctx
+    if tile.get('terrain_tooltip') is not None:
+        return tile['terrain_tooltip']
+    return build_terrain_tooltip(tile, battle_map, battle)
 
 app.add_template_global(describe_terrain, name='describe_terrain')
 
@@ -2853,11 +2825,13 @@ def character_builder():
     try:
         races = game_session.load_races()
         classes = game_session.load_classes()
+        backgrounds = game_session.load_backgrounds()
         equipment_packs = game_session.load_equipment_packs()
         return render_template('character_builder.html',
                                title=TITLE,
                                races=races,
                                classes=classes,
+                               backgrounds=backgrounds,
                                equipment_packs=equipment_packs,
                                edit_mode=False,
                                cancel_url='/')
@@ -3107,6 +3081,14 @@ def create_character():
         race_skill_selections = _parse_json_list_form(request.form, 'race_skills')
         race_language_selections = _parse_json_list_form(request.form, 'race_languages')
 
+        # Background handling
+        background_key = (request.form.get('background') or '').strip()
+        background_language_selections = _parse_json_list_form(request.form, 'background_languages')
+        backgrounds_def = game_session.load_backgrounds() or {}
+        background_def = backgrounds_def.get(background_key) if background_key else None
+        if background_key and background_def is None:
+            return jsonify(error='Unknown background selection'), 400
+
         flexible_cfg = subrace_def.get('flexible_ability') or race_def.get('flexible_ability') or {}
         expected_picks = flexible_cfg.get('picks') or []
         if expected_picks:
@@ -3205,7 +3187,29 @@ def create_character():
         if subrace:
             pc['subrace'] = subrace
 
+        # Background assignment
+        if background_key and background_def:
+            pc['background'] = background_key
+            # Background skill proficiencies are auto-added to skills list
+            for skill in background_def.get('skill_proficiencies', []):
+                pc.setdefault('skills', [])
+                if skill not in pc['skills']:
+                    pc['skills'].append(skill)
+            # Background tool proficiencies
+            for tool in background_def.get('tool_proficiencies', []):
+                pc.setdefault('tool_proficiencies', [])
+                if tool not in pc['tool_proficiencies']:
+                    pc['tool_proficiencies'].append(tool)
+            # Background fixed languages
+            for lang in background_def.get('languages', []):
+                pc.setdefault('languages', [])
+                if lang not in pc['languages']:
+                    pc['languages'].append(lang)
+
         languages = list(dict.fromkeys(base_languages + race_language_selections))
+        # Add background language choices
+        if background_language_selections:
+            languages = list(dict.fromkeys(languages + background_language_selections))
         if languages:
             pc['languages'] = languages
 
@@ -3566,6 +3570,16 @@ def _persist_journal_change(character):
         logger.debug(f"Journal autosave skipped: {exc}")
 
 
+def _log_journal_entry_to_campaign_db(character, entry):
+    db = getattr(current_game, 'campaign_log_db', None)
+    if db is None or not entry:
+        return
+    try:
+        db.append_journal_entry(getattr(character, 'entity_uid', None), entry)
+    except Exception as exc:
+        logger.debug(f"Campaign journal log skipped: {exc}")
+
+
 def _record_narration_for_pcs(narration, map_name=None, target_uids=None,
                               source=None):
     """Append a narration entry to every relevant PC's journal.
@@ -3626,6 +3640,7 @@ def _record_narration_for_pcs(narration, map_name=None, target_uids=None,
             )
             if stored is not None:
                 affected_uids.append(pc.entity_uid)
+                _log_journal_entry_to_campaign_db(pc, stored)
         except Exception as exc:  # pragma: no cover - defensive
             logger.debug(f"Failed to record narration for {pc.entity_uid}: {exc}")
 
@@ -3698,6 +3713,8 @@ def character_journal_add(character_name):
         source=session.get('username'),
         tags=tags,
     )
+    if entry:
+        _log_journal_entry_to_campaign_db(character, entry)
     _persist_journal_change(character)
     try:
         socketio.emit('message', {
@@ -3823,10 +3840,14 @@ def index():
 
     current_pov_entity = current_game.get_pov_entity_for_user(session['username'])
     return render_template('index.html', tiles=my_2d_array, tile_size_px=TILE_PX,
+                           pov_entity=current_pov_entity,
                            background_path=f"assets/{background}",
                            background_width=tiles_dimension_width,
                            messages=messages,
                            current_map=battle_map.name,
+                           current_map_name=battle_map.name,
+                           read_notes=current_game.read_notes,
+                           is_setup=False,
                         background_height=tiles_dimension_height,
                            battle=battle,
                            entity_ids=entity_ids,
@@ -4983,22 +5004,22 @@ def update():
     # Get current POV entity
     pov_entity = current_game.get_pov_entity_for_user(session['username'])
     _pov_entities = render_pov_entities()
-    
+
     # Handle POV changes
     if entity and ('dm' in user_role() or entity in entities_controlled_by(session['username'], battle_map)):
-        # Set new POV to selected entity
         current_game.set_pov_entity_for_user(session['username'], entity)
+        pov_entity = entity
         _pov_entities = render_pov_entities()
     elif is_pov and not entity:
         current_game.set_pov_entity_for_user(session['username'], None)
         pov_entity = None
         _pov_entities = render_pov_entities()
 
-    if not 'dm' in user_role() and pov_entity is None and (_pov_entities is None or len(_pov_entities) == 0):
+    if 'dm' not in user_role() and pov_entity is None and (_pov_entities is None or len(_pov_entities) == 0):
         user_entities = entities_controlled_by(session['username'], battle_map)
         _pov_entities = user_entities if user_entities else []
 
-    logger.info(f"entity: {entity}, pov_entity: {pov_entity}, _pov_entities: {_pov_entities}")
+    logger.debug(f"entity: {entity}, pov_entity: {pov_entity}, _pov_entities: {_pov_entities}")
     _t_render = time.perf_counter()
     my_2d_array = [renderer.render(entity_pov=_pov_entities)]
     _t_after_render = time.perf_counter()
@@ -7335,6 +7356,48 @@ def ai_initialize_from_env():
         return jsonify({'success': False, 'error': str(e)})
 
 
+DM_AI_CHAT_SESSION_KEY = 'dm_ai_chat_history'
+
+
+def _restore_dm_ai_history_from_session():
+    """Reload in-memory DM assistant history after page refresh or worker swap."""
+    if 'dm' not in user_role():
+        return
+    if llm_handler.get_conversation_history():
+        return
+    stored = session.get(DM_AI_CHAT_SESSION_KEY)
+    if stored:
+        llm_handler.conversation_history = list(stored)
+        return
+    db = getattr(current_game, 'campaign_log_db', None)
+    if db is not None:
+        try:
+            rows = db.dm_assistant_history_for_llm()
+            if rows:
+                llm_handler.conversation_history = rows
+        except Exception as exc:
+            logger.debug(f"DM assistant history restore from DB skipped: {exc}")
+
+
+def _persist_dm_ai_history_to_session():
+    if 'dm' not in user_role():
+        return
+    session[DM_AI_CHAT_SESSION_KEY] = LLMHandler.conversation_history_for_storage(
+        llm_handler.get_conversation_history()
+    )
+    session.modified = True
+
+
+def _log_dm_assistant_turn(role, content):
+    db = getattr(current_game, 'campaign_log_db', None)
+    if db is None:
+        return
+    try:
+        db.append_dm_turn(role, content, username=session.get('username'))
+    except Exception as exc:
+        logger.debug(f"DM assistant campaign log skipped: {exc}")
+
+
 @app.route('/ai/chat', methods=['POST'])
 def ai_chat():
     """Send a message to the AI and get a response."""
@@ -7346,7 +7409,10 @@ def ai_chat():
         
         if not message:
             return jsonify({'success': False, 'error': 'Message is required'})
-        
+
+        _restore_dm_ai_history_from_session()
+        _log_dm_assistant_turn('user', message)
+
         # Get comprehensive game context using the LLM handler's RAG system
         context = llm_handler.get_game_context()
         username = session.get('username')
@@ -7360,7 +7426,9 @@ def ai_chat():
         }
         # Send message to AI with RAG context (offloaded so Socket.IO stays responsive)
         response = llm_handler.send_message(message, context)
-        
+        _log_dm_assistant_turn('assistant', response)
+        _persist_dm_ai_history_to_session()
+
         return jsonify({'success': True, 'response': response})
         
     except Exception as e:
@@ -7397,11 +7465,61 @@ def ai_clear_history():
     
     try:
         llm_handler.clear_history()
+        session.pop(DM_AI_CHAT_SESSION_KEY, None)
+        session.modified = True
+        db = getattr(current_game, 'campaign_log_db', None)
+        if db is not None:
+            db.clear_category('dm_assistant')
         return jsonify({'success': True})
         
     except Exception as e:
         logger.error(f"Error clearing AI history: {e}")
         return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/admin/campaign-logs/reset', methods=['POST'])
+def admin_reset_campaign_logs():
+    """DM-only wipe of persisted campaign logs (combat, chat, assistant, journals)."""
+    if not session.get('username'):
+        return jsonify(error='Unauthorized'), 401
+    if 'dm' not in user_role():
+        return jsonify(error='Forbidden'), 403
+    payload = request.get_json(silent=True) or {}
+    clear_buffers = bool(payload.get('clear_live_conversation_buffers'))
+    try:
+        removed = current_game.reset_campaign_logs(
+            clear_live_conversation_buffers=clear_buffers,
+        )
+        llm_handler.clear_history()
+        session.pop(DM_AI_CHAT_SESSION_KEY, None)
+        session.modified = True
+        try:
+            socketio.emit('message', {'type': 'console', 'messages': []})
+        except Exception:
+            pass
+        return jsonify(success=True, removed_counts=removed)
+    except Exception as e:
+        logger.error(f"Error resetting campaign logs: {e}")
+        return jsonify(success=False, error=str(e)), 500
+
+
+@app.route('/admin/campaign-logs/status', methods=['GET'])
+def admin_campaign_logs_status():
+    if not session.get('username'):
+        return jsonify(error='Unauthorized'), 401
+    if 'dm' not in user_role():
+        return jsonify(error='Forbidden'), 403
+    try:
+        db = getattr(current_game, 'campaign_log_db', None)
+        counts = db.counts_by_category() if db is not None else {}
+        return jsonify(
+            success=True,
+            db_path=getattr(db, 'db_path', None),
+            counts=counts,
+        )
+    except Exception as e:
+        return jsonify(success=False, error=str(e)), 500
+
 
 @app.route('/ai/history', methods=['GET'])
 def ai_get_history():
@@ -7410,7 +7528,10 @@ def ai_get_history():
         return jsonify({'success': False, 'error': 'DM access required'}), 403
     
     try:
-        history = llm_handler.get_conversation_history()
+        _restore_dm_ai_history_from_session()
+        history = LLMHandler.displayable_conversation_history(
+            llm_handler.get_conversation_history()
+        )
         return jsonify({'success': True, 'history': history})
         
     except Exception as e:
