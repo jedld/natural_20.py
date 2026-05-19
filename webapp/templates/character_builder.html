@@ -50,6 +50,71 @@
     .stamp-controls label { display:block; margin-top:6px; font-size:12px; }
     .stamp-controls input[type=range] { width:100%; }
     .stamp-source-row { display:flex; gap:6px; margin-bottom:8px; align-items:center; flex-wrap:wrap; }
+    /* Equipment Pack Preview */
+    .equipment-pack-preview {
+      margin-top: 12px;
+      padding: 12px;
+      background: #1a1a1a;
+      border: 1px solid #444;
+      border-radius: 4px;
+      animation: fadeIn 0.2s ease-in;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #444;
+    }
+    .preview-header h4 {
+      margin: 0;
+      color: #d4af37;
+      font-size: 16px;
+    }
+    .preview-cost-badge {
+      background: #3a2a1a;
+      color: #f5deb3;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .preview-items-list {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .preview-items-list ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .preview-item {
+      padding: 6px 8px;
+      margin: 2px 0;
+      background: #2a2a2a;
+      border-radius: 3px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+    .preview-item:hover {
+      background: #333;
+    }
+    .item-name {
+      color: #eee;
+      text-transform: capitalize;
+    }
+    .item-qty {
+      color: #9cdcfe;
+      font-weight: bold;
+      margin-left: 8px;
+    }
   </style>
 </head>
 <body>
@@ -229,6 +294,34 @@
           <input type="hidden" name="wis" id="input-wis" value="8">
           <input type="hidden" name="cha" id="input-cha" value="8">
 
+          <hr>
+
+          <div class="row">
+            <div class="col-sm-12">
+              <div class="form-group">
+                <label for="equipment_pack">Equipment Pack (optional)</label>
+                <select class="form-control" id="equipment_pack" name="equipment_pack">
+                  <option value="">-- Select Equipment Pack --</option>
+                  {% for pack_id, pack_data in equipment_packs.items() %}
+                    <option value="{{ pack_id }}" data-cost="{{ pack_data.cost }}">{{ pack_data.name }} ({{ pack_data.cost }} gp)</option>
+                  {% endfor %}
+                </select>
+                <div class="helper">Selecting a pack will add all items to your character's inventory.</div>
+                
+                <!-- Equipment Pack Preview Panel -->
+                <div id="equipment_pack_preview" class="equipment-pack-preview" style="display: none;">
+                  <div class="preview-header">
+                    <h4 id="preview_pack_name"></h4>
+                    <span id="preview_pack_cost" class="preview-cost-badge"></span>
+                  </div>
+                  <div class="preview-items-list">
+                    <ul id="preview_items"></ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="text-right" style="margin-top:15px;">
             <button type="button" class="btn btn-default" id="cancel-btn" data-cancel-url="{{ cancel_url or '/' }}">Cancel</button>
             <button type="submit" class="btn btn-primary">{{ 'Save Changes' if edit_mode else 'Create Character' }}</button>
@@ -276,6 +369,16 @@
       </div>
     </div>
   </div>
+
+  <!-- Equipment Packs Data for JavaScript -->
+  <script id="equipment-packs-data" type="application/json">
+    {{ equipment_packs | tojson }}
+  </script>
+
+  <!-- Equipment Packs Data for JavaScript -->
+  <script id="equipment-packs-data" type="application/json">
+    {{ equipment_packs | tojson }}
+  </script>
 
   <script src="/js/character_builder.js"></script>
   <script src="/js/character_builder_images.js"></script>
