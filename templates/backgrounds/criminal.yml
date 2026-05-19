@@ -1,0 +1,31 @@
+name: Criminal
+description: >
+  "You are an experienced criminal with a history of breaking the law.
+  You have spent a great deal of time among other criminals and still
+  have contacts within the criminal class. You're far closer than most
+  people to the world of murder, theft, and destruction that pervades
+  the underworld, and you maintain what passes for ethics and honor
+  among your colleagues."
+label: Criminal
+skill_proficiencies:
+  - deception
+  - stealth
+tool_proficiencies:
+  - one_gaming_set
+  - thieves_tools
+languages:
+  - None
+feature:
+  name: Criminal Contact
+  description: >
+    You have a reliable and trustworthy contact who acts as your liaison
+    to a network of other criminals. You know how to get messages to
+    and from them, even over great distances; specifically, you know
+    the right people to buy goods, services, and information.
+  type: background_feature
+equipment:
+  - crowbar
+  - dark_common_clothes_with_hood
+  - 15_gp
+language_count: 0
+language_choice_count: 0
