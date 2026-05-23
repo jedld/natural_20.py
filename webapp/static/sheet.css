@@ -716,3 +716,21 @@ th, td {
 #container-modal .btn-primary:hover {
     background-color: #6b4423;
 }
+
+/* Magic item styling */
+.magic-indicator {
+    color: #9b59b6;
+    font-size: 0.8em;
+    margin-left: 4px;
+}
+
+.magic-bonus {
+    color: #9b59b6;
+    font-weight: bold;
+    font-size: 0.85em;
+}
+
+.magic-item {
+    border-left: 3px solid #9b59b6;
+    background-color: rgba(155, 89, 182, 0.05);
+}

@@ -13,12 +13,16 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from beyond_importer import (  # noqa: E402
     BeyondImporter,
+    _item_slug_from_name,
     _load_known_items,
     _load_known_spells,
+    _normalize_background,
     _slug,
+    parse_character_id_from_url,
 )
 
 FIXTURE = ROOT / "tests" / "fixtures" / "dndbeyond_wizard.json"
+FULL_FIXTURE = ROOT / "tests" / "fixtures" / "dndbeyond.json"
 
 
 @pytest.fixture
@@ -28,7 +32,21 @@ def payload():
 
 @pytest.fixture
 def importer():
+    import beyond_importer as bi
+
+    bi._ITEM_CACHE = None
+    bi._SPELL_CACHE = None
     return BeyondImporter()
+
+
+def test_parse_character_id_from_url_accepts_common_links():
+    assert parse_character_id_from_url(
+        'https://www.dndbeyond.com/characters/14191568'
+    ) == 14191568
+    assert parse_character_id_from_url(
+        'https://dndbeyond.com/characters/999001/'
+    ) == 999001
+    assert parse_character_id_from_url('not-a-url') is None
 
 
 def test_slug_handles_apostrophes_and_punctuation():
@@ -49,6 +67,7 @@ def test_classes_and_subclass(importer, payload):
     assert out["classes"] == {"wizard": 2}
     assert out["level"] == 2
     assert out["arcane_tradition"] == "school_of_evocation"
+    assert out["background"] == "sage"
 
 
 def test_multiclass_levels_are_summed(importer, payload):
@@ -204,6 +223,65 @@ def test_known_items_and_spells_caches_populate():
     assert "dagger" in items
     assert "spellbook" in items
     assert "magic_missile" in spells
+
+
+def test_item_slug_strips_magic_bonus_and_aliases_leather():
+    assert _item_slug_from_name("Leather, +2") == "leather_armor"
+    assert _item_slug_from_name("Scimitar, +1") == "scimitar"
+    assert _item_slug_from_name("Rations (1 day)") == "rations"
+
+
+def test_background_alias_maps_criminal_spy():
+    assert _normalize_background("criminal_spy") == "criminal"
+
+
+def test_full_fixture_imports_flavor_and_gear(tmp_path):
+    importer = BeyondImporter()
+    payload = json.loads(FULL_FIXTURE.read_text())["data"]
+    out = importer.convert_to_yaml(payload)
+
+    assert out["race"] == "halfling"
+    assert out["subrace"] == "lightfoot"
+    assert out["background"] == "criminal"
+    assert out["roguish_archetype"] == "swashbuckler"
+    assert "backstory" in out
+    assert "Phandalin" in out["backstory"]
+    assert "description" in out
+    assert "Appearance: Cute" in out["description"]
+
+    types = {entry["type"] for entry in out["inventory"]}
+    assert "leather_armor" in types
+    assert "scimitar" in types
+    assert "crowbar" in types
+    assert "waterskin" in types
+    assert out["tool_proficiencies"] == out["tools"]
+
+
+def test_sorcerer_known_spells_are_treated_as_prepared():
+    importer = BeyondImporter()
+    payload = {
+        "name": "Sorcerer",
+        "stats": [{"id": i, "value": 10} for i in range(1, 7)],
+        "bonusStats": [], "overrideStats": [],
+        "race": {"fullName": "Human", "baseRaceName": "Human"},
+        "classes": [
+            {"id": 1, "level": 3, "definition": {"name": "Sorcerer"}}
+        ],
+        "modifiers": {},
+        "inventory": [],
+        "classSpells": [{
+            "characterClassId": 1,
+            "spells": [
+                {"prepared": False, "definition": {"name": "Fire Bolt", "level": 0}},
+                {"prepared": False, "definition": {"name": "Magic Missile", "level": 1}},
+            ],
+        }],
+        "spells": {},
+        "baseHitPoints": 10,
+    }
+    out = importer.convert_to_yaml(payload)
+    assert "firebolt" in out["cantrips"]
+    assert "magic_missile" in out["prepared_spells"]
 
 
 def test_cli_writes_yaml(tmp_path):
