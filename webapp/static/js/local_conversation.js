@@ -9,7 +9,8 @@ window.LocalConversationChatBindings = {
         reachableEntities: [],
         louderVoiceEntities: [],
         heardOnlyEntities: [],
-        refreshTimerId: null,
+        _debounceTimeoutId: null,
+        _debounceDelayMs: 500,
         mentionAutocomplete: {
             query: '',
             tokenStart: -1,
@@ -726,6 +727,18 @@ window.LocalConversationChatBindings = {
             }
         });
     },
+    /* Debounced refresh triggered by game-state events (movement, map changes, etc.).
+       Replaces the previous 10-second polling interval. */
+    scheduleLocalConversationPresenceRefresh: function () {
+        const state = Chat.localConversation;
+        if (state._debounceTimeoutId !== null) {
+            window.clearTimeout(state._debounceTimeoutId);
+        }
+        state._debounceTimeoutId = window.setTimeout(function () {
+            state._debounceTimeoutId = null;
+            Chat.refreshLocalConversationPresence({ silent: true });
+        }, state._debounceDelayMs);
+    },
     sendLocalConversationMessage: function () {
         const currentPovEntity = Chat.getCurrentPovEntity();
         const message = ($('#localConversationInput').val() || '').trim();
@@ -833,9 +846,6 @@ window.LocalConversationChatBindings = {
         });
 
         Chat.refreshLocalConversationPresence({ silent: true });
-        Chat.localConversation.refreshTimerId = window.setInterval(function () {
-            Chat.refreshLocalConversationPresence({ silent: true });
-        }, 10000);
 
         Chat.setLocalConversationMinimized(Chat.localConversation.minimized);
     },

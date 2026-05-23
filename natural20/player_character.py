@@ -863,24 +863,39 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
   def equipped_ac(self):
     with open(os.path.join(self.session.root_path, 'items', 'equipment.yml')) as file:
       equipments = yaml.safe_load(file)
-    equipped_meta = [equipments[e] for e in self.equipped if e in equipments]
-    armor = next((equipment for equipment in equipped_meta if equipment['type'] == 'armor'), None)
-    shield = next((equipment for equipment in equipped_meta if equipment['type'] == 'shield'), None)
+    # Also load magic items (magic armor, shields, accessories)
+    magic_items = self.session.load_all_magic_items() if hasattr(self.session, 'load_all_magic_items') else {}
+    # Merge: magic items override base equipment for same keys
+    all_items = {**equipments, **magic_items}
+    equipped_meta = [all_items[e] for e in self.equipped if e in all_items]
+    # Reverse to prefer last-equipped armor/shield (most recently equipped wins)
+    armor = next((equipment for equipment in reversed(equipped_meta) if equipment['type'] == 'armor'), None)
+    shield = next((equipment for equipment in reversed(equipped_meta) if equipment['type'] == 'shield'), None)
+
+    # Collect magic AC bonus from accessories (Ring of Protection, Cloak of Protection, etc.)
+    accessory_ac_bonus = 0
+    for e in self.equipped:
+      item = all_items.get(e)
+      if item and item.get('type') == 'accessory' and item.get('magic_bonus', 0):
+        accessory_ac_bonus += item.get('magic_bonus', 0)
 
     # Monk - Unarmored Defense (5e SRD): while wearing no armor and no
     # shield, AC = 10 + DEX modifier + WIS modifier.
     if armor is None and shield is None and self.class_feature('unarmored_defense_monk'):
-      return 10 + self.dex_mod() + self.wis_mod()
+      return 10 + self.dex_mod() + self.wis_mod() + accessory_ac_bonus
 
     # Barbarian - Unarmored Defense (5e SRD): while wearing no armor,
     # AC = 10 + DEX modifier + CON modifier.  A shield is allowed and
     # adds its AC bonus on top.
     if armor is None and self.class_feature('unarmored_defense_barbarian'):
-      return 10 + self.dex_mod() + self.con_mod() + (0 if shield is None else shield['bonus_ac'])
+      shield_ac = 0 if shield is None else shield['bonus_ac'] + shield.get('magic_bonus', 0)
+      return 10 + self.dex_mod() + self.con_mod() + shield_ac + accessory_ac_bonus
 
-    armor_ac = 10 + self.dex_mod() if armor is None else armor['ac'] + min(self.dex_mod(), armor['mod_cap'] if 'mod_cap' in armor else self.dex_mod()) + (1 if self.class_feature('defense') else 0)
+    armor_ac = 10 + self.dex_mod() if armor is None else armor['ac'] + armor.get('magic_bonus', 0) + min(self.dex_mod(), armor['mod_cap'] if 'mod_cap' in armor else self.dex_mod()) + (1 if self.class_feature('defense') else 0)
 
-    return armor_ac + (0 if shield is None else shield['bonus_ac'])
+    shield_ac = 0 if shield is None else shield['bonus_ac'] + shield.get('magic_bonus', 0)
+
+    return armor_ac + shield_ac + accessory_ac_bonus
 
   def any_class_feature(self, features):
     return any(self.class_feature(f) for f in features)

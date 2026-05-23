@@ -49,6 +49,11 @@
       "name": "betty",
       "file": "characters/betty.png",
       "description": "A half-orc barbarian whose savage strikes leave foes broken and battered."
+    },
+    {
+      "name": "ddb-999001",
+      "file": "characters/ddb-999001.png",
+      "description": "ddb-999001"
     }
   ],
   "logins": [

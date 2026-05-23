@@ -96,6 +96,10 @@ Extending spells and character classes:
   - Thunderwave specifics (baseline reference): 15‑ft cube originating from the caster (directional), CON save, half damage on success and no push, failed save pushes 10 ft away using `Entity.push_from(...)`, damage `2d8 + 1d8` per slot above 1st.
 - To add a player class, create a mixin in `natural20/entity_class/` (see `wizard.py` for slot tables and rest hooks), add a YAML config in `templates/char_classes/`, and update `PlayerCharacter` usage if the class introduces custom actions or resources. Slot accounting should integrate with `PlayerCharacter.spell_slots` and class-specific `initialize_<klass>` routines.
 
+Documentation
+
+For Agents and Humans alike please add,edit or update related information in the docs folder. Update it when information useful to humans and agents alike will benefit from dedicated documentation as well as to update or correct misleading entries. Also create skills for routine tasks.
+
 Small gotchas discovered in the repo:
 
 - Prompts can be long; `N20_LLM_PROMPT_MAX_CHARS` truncation logic is present in `LlmMcpController` — preserve or respect it when modifying prompt construction.

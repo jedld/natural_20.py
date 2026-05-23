@@ -37,6 +37,11 @@ def damage_modifier(entity, weapon, second_hand=False):
     if second_hand and not entity.class_feature('two_weapon_fighting'):
         damage_mod = min(damage_mod, 0)
 
+    # Magic weapon bonus to damage rolls
+    magic_bonus = weapon.get('magic_bonus', 0)
+    if magic_bonus:
+        damage_mod += magic_bonus
+
     # compute damage roll using versatile weapon property
     if 'versatile' in weapon.get('properties', []) and entity.used_hand_slots() <= 1.0:
         damage_roll = weapon.get('damage_2')
