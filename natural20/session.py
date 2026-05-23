@@ -29,6 +29,7 @@ class Session:
         self.equipment = {}
         self.objects = {}
         self.thing = {}
+        self.magic_items = {}  # magic_items.yml cache
         self.char_classes = {}
         self.spells = {}
         self.settings = {
@@ -401,7 +402,38 @@ class Session:
             self.char_classes[klass] = self.load_yaml_file('char_classes', klass)
         return self.char_classes[klass]
 
+    def load_magic_item(self, item):
+        """Load a single magic item from items/magic_items.yml."""
+        if item not in self.magic_items:
+            try:
+                magic = self.load_yaml_file('items', 'magic_items')
+            except FileNotFoundError:
+                magic = {}
+            self.magic_items[item] = magic.get(item)
+            if self.magic_items[item] is not None:
+                # Magic weapons and armor are equippable
+                if self.magic_items[item].get('type') in ['shield', 'armor'] or \
+                   self.magic_items[item].get('subtype') == 'weapon':
+                    self.magic_items[item]['equippable'] = True
+                self.magic_items[item].setdefault('id', item)
+        return self.magic_items[item]
+
+    def load_all_magic_items(self):
+        """Load all magic items from items/magic_items.yml."""
+        try:
+            return self.load_yaml_file('items', 'magic_items')
+        except FileNotFoundError:
+            return {}
+
     def load_weapon(self, weapon):
+        # Check magic items first (magic weapons live in magic_items.yml)
+        magic = self.load_magic_item(weapon)
+        if magic is not None and magic.get('subtype') == 'weapon':
+            if weapon not in self.weapons:
+                self.weapons[weapon] = magic
+                self.weapons[weapon]['equippable'] = True
+                self.weapons[weapon].setdefault('id', weapon)
+            return self.weapons[weapon]
         if weapon not in self.weapons:
             weapons = self.load_yaml_file('items', 'weapons')
             self.weapons[weapon] = weapons.get(weapon)
@@ -417,10 +449,18 @@ class Session:
 
     def load_thing(self, item):
         if item not in self.thing:
-            self.thing[item] = self.load_weapon(item) or self.load_equipment(item) or self.load_object(item)
+            # Magic items have highest priority
+            self.thing[item] = self.load_magic_item(item) or self.load_weapon(item) or self.load_equipment(item) or self.load_object(item)
         return self.thing[item]
 
     def load_equipment(self, item):
+        # Check magic items first (magic armor/shields/accessories)
+        magic = self.load_magic_item(item)
+        if magic is not None and magic.get('type') in ['shield', 'armor', 'accessory']:
+            if item not in self.equipment:
+                self.equipment[item] = magic
+                self.equipment[item]['equippable'] = True
+            return self.equipment[item]
         if item not in self.equipment:
             equipment = self.load_yaml_file('items', 'equipment')
             self.equipment[item] = equipment.get(item)

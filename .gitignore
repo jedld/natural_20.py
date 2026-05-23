@@ -25,3 +25,4 @@ last_save.txt
 env.list
 coverage/
 .playwright-mcp/
+webapp/saves/
