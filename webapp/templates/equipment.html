@@ -1,9 +1,9 @@
 {% for item in entity.equipped_items() %}
 {% if item['damage'] and not item['ac'] %}
-<table class="equipped-item-stats">
+<table class="equipped-item-stats{% if item.get('magical') %} magic-item{% endif %}">
     <thead>
         <tr>
-            <th style="width: 60px;">{{ item['label'] }}</th>
+            <th style="width: 60px;">{{ item['label'] }}{% if item.get('magical') %} <span class="magic-indicator" title="Magical">✦</span>{% endif %}</th>
             <th>To Hit</th>
             <th>Damage</th>
             <th>Type</th>
@@ -15,12 +15,12 @@
             <td>
                 <div class="tile-item">
                 <img class="item-icon"
-                         src="{{ item.get('icon', '/assets/items/' ~ item['image'] ~ '.png') }}"
-                         alt="{{ item['label'] }}">
+                          src="{{ item.get('icon', '/assets/items/' ~ item['image'] ~ '.png') }}"
+                          alt="{{ item['label'] }}">
                 </div>
             </td>
             <td class="auto-die-roll" data-entity="{{ entity.entity_uid }}" data-description="Attack Roll">
-                1d20&nbsp;+&nbsp;{{ entity.attack_roll_mod(item) }}
+                1d20&nbsp;+&nbsp;{{ entity.attack_roll_mod(item) }}{% if item.get('magic_bonus', 0) > 0 %} <span class="magic-bonus" title="+{{ item['magic_bonus'] }} magic bonus">(+{{ item['magic_bonus'] }})</span>{% endif %}
             </td>
             <td>
             {% if entity.is_two_handed_weapon(item) %}
@@ -28,6 +28,7 @@
             {% else %}
                 {{ item['damage'] }}
             {% endif %}
+            {% if item.get('magic_bonus', 0) > 0 %} <span class="magic-bonus" title="+{{ item['magic_bonus'] }} magic bonus">+{{ item['magic_bonus'] }}</span>{% endif %}
             </td>
             <td>{{ item['damage_type'] }}</td>
             {% if item['range_max'] %}
@@ -39,9 +40,9 @@
     </tbody>
 </table>
 {% elif item['ac'] or item['bonus_ac'] %}
-<table>
+<table class="{% if item.get('magical') %}magic-item{% endif %}">
     <tr>
-        <th style="width: 60px;">{{ item['label'] }}</th>
+        <th style="width: 60px;">{{ item['label'] }}{% if item.get('magical') %} <span class="magic-indicator" title="Magical">✦</span>{% endif %}</th>
         <th>AC</th>
         <th>Stealth Disadvantage</th>
     </tr>
@@ -49,11 +50,11 @@
         <td>
             <div class="tile-item">
             <img class="item-icon"
-                     src="{{ item.get('icon', '/assets/items/' ~ item['image'] ~ '.png') }}"
-                     alt="{{ item['label'] }}">
+                      src="{{ item.get('icon', '/assets/items/' ~ item['image'] ~ '.png') }}"
+                      alt="{{ item['label'] }}">
             </div>
         </td>
-        <td>{{ item['ac'] or item['bonus_ac'] }}</td>
+        <td>{{ item['ac'] or item['bonus_ac'] }}{% if item.get('magic_bonus', 0) > 0 %} <span class="magic-bonus" title="+{{ item['magic_bonus'] }} magic bonus">(+{{ item['magic_bonus'] }})</span>{% endif %}</td>
         <td>{{ "Yes" if item['stealth_disadvantage'] else "" }}</td>
     </tr>
 </table>

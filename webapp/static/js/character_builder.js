@@ -658,6 +658,14 @@
   $('#background-options-body .cb-bg-language:checked').each(function(){ bgLanguages.push($(this).data('name')); });
   if(bgLanguages.length) fd.append('background_languages', JSON.stringify(bgLanguages));
 
+  // Append inventory
+  if(typeof window.getInventoryForSubmit === 'function'){
+    const inv = window.getInventoryForSubmit();
+    if(inv && inv.length){
+      fd.append('inventory', JSON.stringify(inv));
+    }
+  }
+
   // Validate background selection
   const bgVal = $('#background').val();
   const bgDef = bgVal ? BACKGROUNDS[bgVal] : null;
@@ -792,10 +800,230 @@
     });
   }
   
+  function setupDndBeyondImport(){
+    if(editMode) return;
+    const $btn = $('#ddb-import-btn');
+    const $url = $('#ddb-url');
+    const $cobalt = $('#ddb-cobalt');
+    const $status = $('#ddb-import-status');
+    if(!$btn.length || !$url.length) return;
+
+    $btn.on('click', function(){
+      const sheetUrl = ($url.val() || '').trim();
+      if(!sheetUrl){
+        $('#builder-msg').html('<div class="alert alert-danger">Enter a D&amp;D Beyond character sheet URL.</div>');
+        return;
+      }
+      $btn.prop('disabled', true);
+      $status.text('Importing…');
+      $('#builder-msg').html('<div class="alert alert-info">Fetching character from D&amp;D Beyond…</div>');
+
+      $.ajax({
+        type: 'POST',
+        url: '/character_builder/import_dndbeyond',
+        contentType: 'application/json',
+        data: JSON.stringify({
+          url: sheetUrl,
+          cobalt_token: ($cobalt.val() || '').trim() || undefined,
+        }),
+        dataType: 'json',
+        success: function(resp){
+          if(resp.error){
+            $('#builder-msg').html(`<div class="alert alert-danger">${resp.error}</div>`);
+            $status.text('');
+            $btn.prop('disabled', false);
+            return;
+          }
+          let html = `<div class="alert alert-success">Imported <strong>${resp.character_name || 'character'}</strong>.</div>`;
+          if(resp.warnings && resp.warnings.length){
+            const list = resp.warnings.map(w => `<li>${$('<div>').text(w).html()}</li>`).join('');
+            html += `<div class="alert alert-warning" style="margin-top:8px;"><strong>Some data was skipped:</strong><ul style="margin:8px 0 0 18px;">${list}</ul></div>`;
+          }
+          $('#builder-msg').html(html);
+          $status.text('Done');
+          const next = resp.redirect || '/';
+          setTimeout(()=> { window.location.href = next; }, resp.warnings && resp.warnings.length ? 1800 : 900);
+        },
+        error: function(xhr){
+          let msg = 'Failed to import from D&amp;D Beyond.';
+          try {
+            const body = xhr.responseJSON || JSON.parse(xhr.responseText || '{}');
+            if(body.error) msg = body.error;
+          } catch(e) { /* ignore */ }
+          $('#builder-msg').html(`<div class="alert alert-danger">${msg}</div>`);
+          $status.text('');
+          $btn.prop('disabled', false);
+        }
+      });
+    });
+  }
+
+  // ---- Inventory Manager ----
+  function setupInventoryManager(){
+    // State
+    let availableItems = {};  // id -> {id, name, type, cost, weight, category}
+    let inventory = [];       // [{item: id, qty: n}]
+
+    // DOM refs
+    const $search = $('#inventory-item-search');
+    const $select = $('#inventory-item-select');
+    const $qty = $('#inventory-item-qty');
+    const $addBtn = $('#add-inventory-item-btn');
+    const $info = $('#inventory-item-info');
+    const $emptyMsg = $('#inventory-empty-msg');
+    const $table = $('#inventory-table');
+    const $tbody = $('#inventory-tbody');
+    const $summary = $('#inventory-summary');
+    const $totalWeight = $('#inventory-total-weight');
+
+    // Load items from server
+    $.ajax({
+      url: '/character_builder/items',
+      method: 'GET',
+      dataType: 'json',
+      timeout: 10000,
+    }).done(function(resp){
+      availableItems = resp.items || {};
+      populateItemSelect();
+      // Load existing inventory for edit mode
+      if(editMode && EDIT_CHARACTER && EDIT_CHARACTER.inventory){
+        inventory = EDIT_CHARACTER.inventory.map(function(entry){
+          return { item: entry.item || entry.type, qty: entry.qty || 1 };
+        });
+        renderInventory();
+      }
+    }).fail(function(jqXHR, textStatus, errorThrown){
+      console.error('Failed to load inventory items:', textStatus, errorThrown, jqXHR.status, jqXHR.responseText);
+      $select.html('<option value="">-- Failed to load items (' + textStatus + ') --</option>');
+    });
+
+    function populateItemSelect(filter){
+      $select.empty();
+      const items = Object.values(availableItems).sort(function(a, b){
+        return a.name.localeCompare(b.name);
+      });
+      const filtered = filter
+        ? items.filter(function(it){ return it.name.toLowerCase().indexOf(filter) >= 0; })
+        : items;
+      $select.append('<option value="">-- Select an item --</option>');
+      filtered.forEach(function(it){
+        const cat = it.category || it.type || '';
+        $select.append(`<option value="${it.id}">${it.name} (${cat})</option>`);
+      });
+    }
+
+    // Search filter
+    $search.on('input', function(){
+      populateItemSelect($(this).val().toLowerCase().trim());
+    });
+
+    // Show item info on select
+    $select.on('change', function(){
+      const id = $(this).val();
+      if(!id || !availableItems[id]){
+        $info.html('Select an item to see details.');
+        return;
+      }
+      const it = availableItems[id];
+      $info.html(`
+        <strong>${it.name}</strong><br>
+        Type: ${it.type || '—'}<br>
+        Cost: ${it.cost || '—'} gp<br>
+        Weight: ${it.weight || 0} lbs
+      `);
+    });
+
+    // Add item
+    $addBtn.on('click', function(){
+      const id = $select.val();
+      if(!id){
+        alert('Please select an item.');
+        return;
+      }
+      const q = parseInt($qty.val() || '1', 10);
+      if(q < 1){
+        alert('Quantity must be at least 1.');
+        return;
+      }
+      // Check if already in inventory
+      const existing = inventory.find(function(e){ return e.item === id; });
+      if(existing){
+        existing.qty += q;
+      } else {
+        inventory.push({ item: id, qty: q });
+      }
+      renderInventory();
+      $select.val('');
+      $qty.val('1');
+      $info.html('Item added!');
+      setTimeout(function(){ $info.html('Select an item to see details.'); }, 1200);
+    });
+
+    // Render inventory table
+    function renderInventory(){
+      $tbody.empty();
+      if(inventory.length === 0){
+        $emptyMsg.show();
+        $table.hide();
+        $summary.hide();
+        return;
+      }
+      $emptyMsg.hide();
+      $table.show();
+      let totalWeight = 0;
+      inventory.forEach(function(entry, idx){
+        const it = availableItems[entry.item] || { name: entry.item, type: '', cost: '', weight: 0 };
+        const w = parseFloat(it.weight || 0);
+        totalWeight += w * entry.qty;
+        const tr = $(`
+          <tr data-idx="${idx}">
+            <td>${it.name}</td>
+            <td>${it.type || '—'}</td>
+            <td><input type="number" class="form-control inv-qty" value="${entry.qty}" min="0" max="999" style="width:80px;display:inline-block;"></td>
+            <td>${it.cost || '—'}</td>
+            <td>${(w * entry.qty).toFixed(1)}</td>
+            <td>
+              <button type="button" class="btn btn-danger btn-xs inv-remove">Remove</button>
+            </td>
+          </tr>
+        `);
+        $tbody.append(tr);
+      });
+      $summary.show();
+      $totalWeight.text(`Total weight: ${totalWeight.toFixed(1)} lbs`);
+
+      // Qty change
+      $tbody.on('input', '.inv-qty', function(){
+        const idx = parseInt($(this).closest('tr').data('idx'), 10);
+        const q = parseInt($(this).val() || '0', 10);
+        if(q <= 0){
+          inventory.splice(idx, 1);
+        } else {
+          inventory[idx].qty = q;
+        }
+        renderInventory();
+      });
+
+      // Remove
+      $tbody.on('click', '.inv-remove', function(){
+        const idx = parseInt($(this).closest('tr').data('idx'), 10);
+        inventory.splice(idx, 1);
+        renderInventory();
+      });
+    }
+
+    // Expose inventory for form submission
+    window.getInventoryForSubmit = function(){
+      return inventory;
+    };
+  }
+
   // init
   updatePoints();
   renderRaceOptions();
   renderBackgroundOptions();
   prefillEditCharacter();
   setupEquipmentPackPreview();
+  setupDndBeyondImport();
+  setupInventoryManager();
 })();

@@ -118,6 +118,11 @@ from webapp.game_context import GameContextProvider
 from webapp.conversation_service import ConversationService, register_conversation_routes
 from webapp.entity_rag_handler import EntityRAGHandler
 from webapp.mcp import MCPContext, register_mcp_blueprint
+from webapp.dndbeyond_import import (
+    import_character_from_dndbeyond,
+    parse_character_id_from_url,
+    prepare_imported_pc_dict,
+)
 import requests
 import re
 from PIL import Image, ImageDraw
@@ -1057,7 +1062,7 @@ def configure_llm_handler_from_environment(handler: LLMHandler) -> bool:
         return success
 
     if llm_provider in ('llama_cpp', 'llama.cpp', 'llamacpp'):
-        base_url = os.environ.get('LLAMA_CPP_BASE_URL', 'http://localhost:8016')
+        base_url = os.environ.get('LLAMA_CPP_BASE_URL', 'http://localhost:8011')
         model = os.environ.get('LLAMA_CPP_MODEL', os.environ.get('N20_LLM_MODEL'))
         api_key = os.environ.get('LLAMA_CPP_API_KEY', 'llama-cpp')
 
@@ -2817,6 +2822,72 @@ def list_prebuilt_character_images():
     return jsonify(images=items)
 
 
+@app.route('/character_builder/items', methods=['GET'])
+def character_builder_items():
+    """Return available items (weapons + equipment) for the character builder inventory manager."""
+    if not logged_in():
+        return jsonify(error='Not logged in'), 401
+
+    try:
+        weapons = game_session.load_weapons() or {}
+        equipment = game_session.load_all_equipments() or {}
+        items = {}
+
+        # Merge weapons and equipment into a single catalog
+        for key, data in weapons.items():
+            items[key] = {
+                'id': key,
+                'name': data.get('name', key.replace('_', ' ').title()),
+                'type': data.get('type', data.get('subtype', 'weapon')),
+                'cost': data.get('cost', ''),
+                'weight': data.get('weight', 0),
+                'category': 'weapon',
+            }
+
+        for key, data in equipment.items():
+            if key not in items:  # Don't overwrite weapons
+                items[key] = {
+                    'id': key,
+                    'name': data.get('name', key.replace('_', ' ').title()),
+                    'type': data.get('type', data.get('subtype', 'equipment')),
+                    'cost': data.get('cost', ''),
+                    'weight': data.get('weight', 0),
+                    'category': 'equipment',
+                }
+
+        # Add campaign-specific custom items if configured in game.yml
+        game_props = getattr(game_session, 'game_properties', None) or {}
+        custom_items = game_props.get('inventory_items') or {}
+        allow_custom = game_props.get('allow_custom_inventory', True)
+
+        if allow_custom and custom_items:
+            for key, data in custom_items.items():
+                if isinstance(data, dict):
+                    items[key] = {
+                        'id': key,
+                        'name': data.get('name', key.replace('_', ' ').title()),
+                        'type': data.get('type', 'custom'),
+                        'cost': data.get('cost', ''),
+                        'weight': data.get('weight', 0),
+                        'category': 'custom',
+                    }
+                else:
+                    # Simple string value treated as item name
+                    items[key] = {
+                        'id': key,
+                        'name': str(data) if not isinstance(data, str) else data,
+                        'type': 'custom',
+                        'cost': '',
+                        'weight': 0,
+                        'category': 'custom',
+                    }
+
+        return jsonify(items=items, allow_custom_inventory=allow_custom)
+    except Exception as e:
+        logger.exception('Failed to load character builder items')
+        return jsonify(error='Failed to load items'), 500
+
+
 @app.route('/character_builder', methods=['GET'])
 def character_builder():
     if not logged_in():
@@ -2858,6 +2929,7 @@ def character_editor(character_name):
         races = game_session.load_races() or {}
         classes = game_session.load_classes() or {}
         equipment_packs = game_session.load_equipment_packs() or {}
+        backgrounds = game_session.load_backgrounds() or {}
 
         class_map = pc.get('classes') or {}
         klass = next(iter(class_map.keys()), None)
@@ -2880,6 +2952,7 @@ def character_editor(character_name):
             'cantrips': [s for s in prepared if s in can_list],
             'level1_spells': [s for s in prepared if s in lvl1_list],
             'feats': list(pc.get('feats') or []),
+            'inventory': list(pc.get('inventory') or []),
         }
 
         cancel_url = request.args.get('next') or '/'
@@ -2888,6 +2961,7 @@ def character_editor(character_name):
             title=TITLE,
             races=races,
             classes=classes,
+            backgrounds=backgrounds,
             equipment_packs=equipment_packs,
             edit_mode=True,
             edit_character=edit_character,
@@ -2954,6 +3028,17 @@ def update_character(character_name):
         else:
             pc.pop('pronoun', None)
 
+        # Update inventory from character builder
+        inventory_json = (request.form.get('inventory') or '').strip()
+        if inventory_json:
+            try:
+                import json as _json
+                custom_inventory = _json.loads(inventory_json)
+                if custom_inventory:
+                    pc['inventory'] = custom_inventory
+            except Exception:
+                logger.exception('Failed to parse custom inventory for update')
+
         with open(yml_path, 'w', encoding='utf-8') as fh:
             yaml.safe_dump(pc, fh, sort_keys=False)
 
@@ -2965,6 +3050,12 @@ def update_character(character_name):
                     entity.properties[key] = pc.get(key)
                 elif key in entity.properties:
                     entity.properties.pop(key, None)
+        # Refresh entity inventory if loaded in session
+        if entity is not None and hasattr(entity, 'inventory') and 'inventory' in pc:
+            try:
+                entity.load_inventory()
+            except Exception:
+                pass
 
         redirect_to = request.form.get('next') or '/'
         return jsonify(status='ok', redirect=redirect_to)
@@ -3031,6 +3122,147 @@ def character_selection():
                          taken_characters=taken_characters,
                          pvp_team_config=pvp_team_config(),
                          pvp_team_counts=pvp_team_counts())
+
+def _register_new_character_in_campaign(pc, safe_name):
+    """Place a new PC on the default map and expose it on the selection screen."""
+    global index_data
+    entity_uid = pc.get('entity_uid') or safe_name.lower()
+
+    if builder_only_mode():
+        return
+
+    try:
+        pc_entity = PlayerCharacter.load(game_session, f'characters/{safe_name}.yml')
+        target_map = game_session.maps.get('index') or next(iter(game_session.maps.values()))
+        width, height = target_map.size
+        pos = None
+        for y in range(height):
+            for x in range(width):
+                if not target_map.entity_at(x, y):
+                    pos = (x, y)
+                    break
+            if pos:
+                break
+        if not pos:
+            pos = (0, 0)
+        target_map.add(pc_entity, pos[0], pos[1], group='a')
+    except Exception:
+        logger.exception('Failed to place new character on map')
+
+    try:
+        index_json_path = os.path.join(game_session.root_path, 'index.json')
+        if os.path.exists(index_json_path):
+            with open(index_json_path, 'r') as jf:
+                idx = json.load(jf)
+        else:
+            idx = {}
+        selectable = idx.get('selectable_characters') or []
+        lower = str(entity_uid).lower()
+        if not any(c.get('name', '').lower() == lower for c in selectable):
+            selectable.append({
+                'name': lower,
+                'file': f'characters/{lower}.png',
+                'description': pc.get('description', lower),
+            })
+        idx['selectable_characters'] = selectable
+        with open(index_json_path, 'w') as jf:
+            json.dump(idx, jf, indent=2)
+        try:
+            index_data['selectable_characters'] = selectable
+        except Exception:
+            logger.exception('Failed to update in-memory selectable_characters')
+    except Exception:
+        logger.exception('Failed to update index.json with new character')
+
+
+@app.route('/character_builder/import_dndbeyond', methods=['POST'])
+def import_dndbeyond_character():
+  """Import a character sheet from a D&D Beyond URL and save it as campaign YAML."""
+  if not logged_in():
+    return jsonify(error='Not logged in'), 401
+
+  payload = request.get_json(silent=True) or {}
+  url = (payload.get('url') or request.form.get('url') or '').strip()
+  cobalt_token = (
+      (payload.get('cobalt_token') or request.form.get('cobalt_token') or '').strip()
+      or os.environ.get('DND_BEYOND_COBALT_TOKEN')
+      or os.environ.get('COBALT_SESSION')
+      or None
+  )
+
+  character_id = parse_character_id_from_url(url)
+  if character_id is None:
+    return jsonify(
+        error='Paste a D&D Beyond character sheet URL like '
+              'https://www.dndbeyond.com/characters/12345678'
+    ), 400
+
+  try:
+    pc, import_warnings = import_character_from_dndbeyond(
+      character_id,
+      cobalt_token=cobalt_token,
+    )
+  except RuntimeError as exc:
+    return jsonify(error=str(exc)), 500
+  except Exception as exc:
+    logger.exception('D&D Beyond import failed for character %s', character_id)
+    message = str(exc).strip() or 'Failed to import character from D&D Beyond'
+    if '401' in message or '403' in message or 'Unauthorized' in message:
+      message = (
+          'Could not access that character. For private sheets, paste your '
+          'CobaltSession cookie value (browser devtools → Application → Cookies '
+          '→ dndbeyond.com → CobaltSession) or set DND_BEYOND_COBALT_TOKEN on the server.'
+      )
+    return jsonify(error=message), 502
+
+  pc, safe_name = prepare_imported_pc_dict(pc)
+  if not pc.get('name'):
+    return jsonify(error='Imported character has no name'), 400
+
+  races_def = game_session.load_races() or {}
+  if pc.get('race') and pc['race'] not in races_def:
+    return jsonify(
+        error=f"Race '{pc.get('race')}' is not available in this campaign"
+    ), 400
+
+  classes_def = game_session.load_classes() or {}
+  for klass in (pc.get('classes') or {}):
+    if klass not in classes_def:
+      return jsonify(
+          error=f"Class '{klass}' is not available in this campaign"
+      ), 400
+
+  backgrounds_def = game_session.load_backgrounds() or {}
+  bg = pc.get('background')
+  if bg and bg not in backgrounds_def:
+    return jsonify(
+        error=f"Background '{bg}' is not available in this campaign"
+    ), 400
+
+  chars_dir = os.path.join(game_session.root_path, 'characters')
+  os.makedirs(chars_dir, exist_ok=True)
+  yml_path = os.path.join(chars_dir, f'{safe_name}.yml')
+  if os.path.exists(yml_path):
+    return jsonify(error='A character with that name already exists'), 400
+
+  with open(yml_path, 'w', encoding='utf-8') as fh:
+    yaml.safe_dump(pc, fh, sort_keys=False, allow_unicode=True)
+
+  _register_new_character_in_campaign(pc, safe_name)
+
+  if builder_only_mode():
+    redirect_to = url_for('character_builder')
+  else:
+    redirect_to = '/character_selection' if 'dm' not in user_role() else '/'
+
+  return jsonify(
+      status='ok',
+      redirect=redirect_to,
+      character_name=pc.get('name'),
+      character_file=f'characters/{safe_name}.yml',
+      warnings=import_warnings,
+  )
+
 
 @app.route('/create_character', methods=['POST'])
 def create_character():
@@ -3239,6 +3471,17 @@ def create_character():
                             'qty': int(qty)
                         })
 
+            # Apply custom inventory from character builder
+            inventory_json = (request.form.get('inventory') or '').strip()
+            if inventory_json:
+                try:
+                    import json as _json
+                    custom_inventory = _json.loads(inventory_json)
+                    if custom_inventory:
+                        pc['inventory'] = custom_inventory
+                except Exception:
+                    logger.exception('Failed to parse custom inventory')
+
             if race_skill_selections:
                 pc.setdefault('skills', [])
                 for skill in race_skill_selections:
@@ -3280,53 +3523,7 @@ def create_character():
         except Exception:
             logger.exception('Failed to save character images')
 
-    # Load into current session and place on a map (default to 'index')
-        if not builder_only_mode():
-            try:
-                pc_entity = PlayerCharacter.load(game_session, f'characters/{safe_name}.yml')
-                target_map = game_session.maps.get('index') or next(iter(game_session.maps.values()))
-                # find a free tile
-                width, height = target_map.size
-                pos = None
-                for y in range(height):
-                    for x in range(width):
-                        if not target_map.entity_at(x, y):
-                            pos = (x, y); break
-                    if pos: break
-                if not pos:
-                    pos = (0, 0)
-                target_map.add(pc_entity, pos[0], pos[1], group='a')
-            except Exception:
-                logger.exception('Failed to place new character on map')
-
-            # Update index.json selectable_characters so it shows in selection page
-            try:
-                index_json_path = os.path.join(game_session.root_path, 'index.json')
-                if os.path.exists(index_json_path):
-                    with open(index_json_path, 'r') as jf:
-                        idx = json.load(jf)
-                else:
-                    idx = {}
-                selectable = idx.get('selectable_characters') or []
-                # If not present, add basic entry (use entity_uid for consistency)
-                lower = entity_uid
-                if not any(c.get('name','').lower()==lower for c in selectable):
-                    selectable.append({
-                        'name': lower,
-                        'file': f'characters/{lower}.png',
-                        'description': pc.get('description', lower)
-                    })
-                idx['selectable_characters'] = selectable
-                with open(index_json_path, 'w') as jf:
-                    json.dump(idx, jf, indent=2)
-                # Also update in-memory index_data so UI sees it immediately
-                try:
-                    global index_data
-                    index_data['selectable_characters'] = selectable
-                except Exception:
-                    logger.exception('Failed to update in-memory selectable_characters')
-            except Exception:
-                logger.exception('Failed to update index.json with new character')
+        _register_new_character_in_campaign(pc, safe_name)
 
         # Optionally redirect to selection if a player
         if builder_only_mode():
@@ -4209,7 +4406,7 @@ def jump_info():
 
 # Configure paths that don't require login
 ALLOWED_PATHS = ['/login', '/health']
-ALLOWED_PREFIXES = ['/favicon.ico', '/static/assets', '/assets/', '/libs/']
+ALLOWED_PREFIXES = ['/favicon.ico', '/static/assets', '/assets/', '/libs/', '/character_builder/']
 
 @app.before_request
 def require_login():

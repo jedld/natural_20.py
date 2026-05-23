@@ -314,6 +314,21 @@ pitons:
   name: Piton
   type: climbing
   weight: 0.1
+crowbar:
+  cost: 2
+  name: Crowbar
+  type: tool
+  weight: 5
+tinderbox:
+  cost: 0.5
+  name: Tinderbox
+  type: tool
+  weight: 1
+waterskin:
+  cost: 0.2
+  name: Waterskin
+  type: container
+  weight: 5
 soap:
   cost: 0.02
   name: Soap

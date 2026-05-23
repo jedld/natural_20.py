@@ -717,18 +717,28 @@ class Entity(EntityStateEvaluator, Notable):
     # @param item_name [String,Symbol]
     def equip(self, item_name, ignore_inventory=False):
         self.properties['equipped'] = self.properties.get('equipped', [])
+        item_name_str = str(item_name)
         if ignore_inventory:
-            self.properties['equipped'].append(str(item_name))
+            self.properties['equipped'].append(item_name_str)
             self.resolve_trigger('equip')
             return
         item = self.deduct_item(item_name)
         if item:
-            self.properties['equipped'].append(str(item_name))
+            self.properties['equipped'].append(item_name_str)
             self.resolve_trigger('equip')
             loaded_item = self.session.load_equipment(item_name)
             if loaded_item and loaded_item.get('effect'):
                 for effect in loaded_item['effect']:
                     self.add_equiped_effect(item_name, effect)
+        else:
+            # Fallback: try to load from session (magic items not in inventory)
+            loaded_item = self.session.load_thing(item_name)
+            if loaded_item:
+                self.properties['equipped'].append(item_name_str)
+                self.resolve_trigger('equip')
+                if loaded_item.get('effect'):
+                    for effect in loaded_item['effect']:
+                        self.add_equiped_effect(item_name, effect)
 
     def add_equiped_effect(self, item_name, effect):
         loaded_item = self.session.load_equipment(item_name)
@@ -1315,10 +1325,48 @@ class Entity(EntityStateEvaluator, Notable):
             return 0
         return int(self.strength() / 2)
 
-    def resistant_to(self, damage_type):
-        return damage_type in self.effective_resistances()
-    
-    def immune_to(self, damage_type):
+    def resistant_to(self, damage_type, source=None, weapon=None):
+        """Check if entity resists the given damage type.
+
+        ``source`` is the attacking entity (used to check for magical
+        weapons/equipment). ``weapon`` is the weapon dict (optional —
+        inferred from ``source`` when omitted).
+
+        Creatures with "non-magical bludgeoning/piercing/slashing"
+        resistances ignore the resistance when the attacker wields a
+        magical weapon (``magical: true`` in the weapon definition).
+        """
+        for res in self.effective_resistances():
+            # Handle "non-magical <type>" resistances
+            if res.startswith('non-magical '):
+                base_type = res[len('non-magical '):]
+                if base_type == damage_type and not self._is_attack_magical(source, weapon):
+                    return True
+            elif res == damage_type:
+                return True
+        return False
+
+    def _is_attack_magical(self, source=None, weapon=None):
+        """Return True when the attack originates from a magical source.
+
+        Magical weapons (``magical: true``) and spells count as magical.
+        """
+        if weapon is not None:
+            if weapon.get('magical', False):
+                return True
+        if source is not None:
+            # Check equipped weapons for magical property
+            if hasattr(source, 'equipped_weapons') and hasattr(source, 'session'):
+                for wkey in source.equipped_weapons(source.session):
+                    w = source.session.load_weapon(wkey)
+                    if w and w.get('magical', False):
+                        return True
+            # Spells are inherently magical
+            if hasattr(source, 'current_spell') and source.current_spell:
+                return True
+        return False
+
+    def immune_to(self, damage_type, source=None, weapon=None):
         return damage_type in self.effective_immunities()
 
     def effective_immunities(self):
@@ -2017,8 +2065,8 @@ class Entity(EntityStateEvaluator, Notable):
             for effect in item.get('effect', []):
                 if effect == 'protection':
                     effect_obj = ProtectionEffect(self)
-                if hasattr(effect_obj, effect_type):
-                    return True
+                    if hasattr(effect_obj, effect_type):
+                        return True
 
         if effect_type not in self.effects:
             return False
@@ -2095,6 +2143,11 @@ class Entity(EntityStateEvaluator, Notable):
 
         if self.proficient_with_weapon(weapon):
             modifier += self.proficiency_bonus()
+
+        # Magic weapon bonus to attack rolls
+        magic_bonus = weapon.get('magic_bonus', 0)
+        if magic_bonus:
+            modifier += magic_bonus
 
         return modifier
 
@@ -2525,7 +2578,10 @@ class Entity(EntityStateEvaluator, Notable):
                 'damage_type': damage_type})
             return
 
-        if self.resistant_to(damage_type):
+        # Extract source and weapon from item context for magical attack checks
+        _source = item.get('source') if item else None
+        _weapon = item.get('weapon') if item else None
+        if self.resistant_to(damage_type, source=_source, weapon=_weapon):
             total_damage = int(dmg // 2)
         elif self.vulnerable_to(damage_type):
             total_damage = dmg * 2

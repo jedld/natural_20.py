@@ -115,6 +115,58 @@
       font-weight: bold;
       margin-left: 8px;
     }
+    .ddb-import-panel {
+      margin-bottom: 18px;
+      padding: 12px 14px;
+      background: #242424;
+      border: 1px solid #70532f;
+      border-radius: 4px;
+    }
+    .ddb-import-panel h4 {
+      margin: 0 0 8px 0;
+      color: #f5deb3;
+      font-size: 16px;
+    }
+    .ddb-import-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .ddb-import-actions .form-control {
+      flex: 1 1 280px;
+      min-width: 200px;
+    }
+    /* ----- Inventory table dark theme overrides ----- */
+    #inventory-table,
+    #inventory-table > thead > tr > th,
+    #inventory-table > tbody > tr > td {
+      border-color: #444;
+    }
+    #inventory-table > thead > tr > th {
+      background: #3a2a1a;
+      color: #f5deb3;
+      border-bottom: 2px solid #70532f;
+    }
+    #inventory-table > tbody > tr > td {
+      background: #2a2a2a;
+      color: #eee;
+    }
+    #inventory-table > tbody > tr:nth-child(odd) > td {
+      background: #2a2a2a;
+    }
+    #inventory-table > tbody > tr:nth-child(even) > td {
+      background: #333;
+    }
+    #inventory-table > tbody > tr:hover > td {
+      background: #3a3a3a;
+    }
+    #inventory-table .form-control {
+      background: #1b1b1b;
+      color: #eee;
+      border-color: #555;
+    }
   </style>
 </head>
 <body>
@@ -124,6 +176,33 @@
         <h3 class="panel-title">{{ 'Edit Character' if edit_mode else 'New Character' }}</h3>
       </div>
       <div class="panel-body">
+        {% if not edit_mode %}
+        <div class="ddb-import-panel">
+          <h4>Import from D&amp;D Beyond</h4>
+          <p class="helper" style="margin-bottom:8px;">
+            Paste a public character sheet URL (for example
+            <code>https://www.dndbeyond.com/characters/12345678</code>).
+            The full sheet is imported as YAML — classes, inventory, spells, and backstory included.
+            Private sheets need your <code>CobaltSession</code> cookie from dndbeyond.com (optional below).
+          </p>
+          <div class="form-group" style="margin-bottom:8px;">
+            <label for="ddb-url">Character sheet URL</label>
+            <input type="url" class="form-control" id="ddb-url" name="ddb_url"
+                   placeholder="https://www.dndbeyond.com/characters/…" autocomplete="off">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label for="ddb-cobalt">CobaltSession cookie <span class="text-muted">(optional, for private characters)</span></label>
+            <input type="password" class="form-control" id="ddb-cobalt" name="ddb_cobalt"
+                   placeholder="Leave blank for public sheets or if the server has DND_BEYOND_COBALT_TOKEN set"
+                   autocomplete="off">
+          </div>
+          <div class="ddb-import-actions">
+            <button type="button" class="btn btn-warning" id="ddb-import-btn">Import from D&amp;D Beyond</button>
+            <span class="helper" id="ddb-import-status"></span>
+          </div>
+        </div>
+        {% endif %}
+
   <form id="character-form" class="form" enctype="multipart/form-data" data-edit-mode="{{ 'true' if edit_mode else 'false' }}" data-submit-url="{{ ('/update_character/' ~ editing_character) if edit_mode else '/create_character' }}">
           <input type="hidden" name="next" value="{{ cancel_url or '/' }}">
           <div class="row">
@@ -339,6 +418,75 @@
                   </div>
                   <div class="preview-items-list">
                     <ul id="preview_items"></ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <hr>
+
+          <!-- Inventory Management Section -->
+          <div class="row">
+            <div class="col-sm-12">
+              <div class="form-group">
+                <h4 style="color: #d4af37; margin-bottom: 10px;">Inventory Management</h4>
+                <p class="helper">Add, remove, and manage items in your character's inventory.</p>
+                
+                <!-- Add Item Panel -->
+                <div class="panel panel-dnd" style="margin-bottom: 12px;">
+                  <div class="panel-heading"><strong>Add Item to Inventory</strong></div>
+                  <div class="panel-body">
+                    <div class="row">
+                      <div class="col-sm-5">
+                        <div class="form-group">
+                          <label for="inventory-item-search">Search Items</label>
+                          <input type="text" class="form-control" id="inventory-item-search" placeholder="Type to search weapons and equipment...">
+                          <select class="form-control" id="inventory-item-select" size="6" style="margin-top: 6px;">
+                            <option value="">-- Loading items... --</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div class="col-sm-4">
+                        <div class="form-group">
+                          <label for="inventory-item-qty">Quantity</label>
+                          <input type="number" class="form-control" id="inventory-item-qty" value="1" min="1" max="999">
+                        </div>
+                        <div class="form-group">
+                          <button type="button" class="btn btn-primary btn-sm" id="add-inventory-item-btn">Add Item</button>
+                        </div>
+                      </div>
+                      <div class="col-sm-3">
+                        <div id="inventory-item-info" class="helper" style="padding: 10px; background: #1a1a1a; border-radius: 4px; min-height: 60px;">
+                          Select an item to see details.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Current Inventory Panel -->
+                <div class="panel panel-dnd">
+                  <div class="panel-heading"><strong>Current Inventory</strong></div>
+                  <div class="panel-body">
+                    <div id="inventory-empty-msg" class="helper">No items in inventory yet.</div>
+                    <table class="table table-striped" id="inventory-table" style="display: none;">
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th>Type</th>
+                          <th>Qty</th>
+                          <th>Cost</th>
+                          <th>Weight</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody id="inventory-tbody">
+                      </tbody>
+                    </table>
+                    <div id="inventory-summary" class="helper" style="display: none; margin-top: 8px; text-align: right;">
+                      <span id="inventory-total-weight"></span>
+                    </div>
                   </div>
                 </div>
               </div>

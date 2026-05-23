@@ -6,11 +6,16 @@ the public D&D Beyond character API (or a saved JSON file) into the YAML schema
 consumed by :class:`natural20.player_character.PlayerCharacter`.
 
 The importer focuses on producing data the engine actually reads — race /
-subrace, stats, multiclass levels, skill / tool / language proficiencies,
-expertise, weapon and armor proficiencies, resistances, prepared spells,
-cantrips, spellbook contents, equipped gear and inventory.  Unknown items and
+subrace (including dragonborn ancestry), background, description/backstory,
+stats, multiclass levels, skill / tool / language proficiencies, expertise,
+weapon and armor proficiencies, resistances, prepared spells, cantrips,
+spellbook contents (wizards), equipped gear and inventory.  Unknown items and
 spells are filtered (with warnings) so the resulting YAML can be loaded
 without surprising lookup failures.
+
+Common D&D Beyond naming quirks (magic ``+N`` suffixes, ``Leather`` vs
+``leather_armor``, Criminal/Spy backgrounds, domain subclasses) are normalized
+to the engine's canonical IDs.
 """
 from __future__ import annotations
 
@@ -59,7 +64,40 @@ _RACE_OVERRIDES: Dict[str, Tuple[str, Optional[str]]] = {
     "stout halfling": ("halfling", "stout"),
     "rock gnome": ("gnome", "rock_gnome"),
     "forest gnome": ("gnome", "forest_gnome"),
+    "variant human": ("human", None),
+    "standard human": ("human", None),
+    "black dragonborn": ("dragonborn", "black"),
+    "blue dragonborn": ("dragonborn", "blue"),
+    "brass dragonborn": ("dragonborn", "brass"),
+    "bronze dragonborn": ("dragonborn", "bronze"),
+    "copper dragonborn": ("dragonborn", "copper"),
+    "gold dragonborn": ("dragonborn", "gold"),
+    "green dragonborn": ("dragonborn", "green"),
+    "red dragonborn": ("dragonborn", "red"),
+    "silver dragonborn": ("dragonborn", "silver"),
+    "white dragonborn": ("dragonborn", "white"),
 }
+
+# D&D Beyond background display names -> templates/backgrounds/*.yml keys.
+_BACKGROUND_ALIASES: Dict[str, str] = {
+    "criminal_spy": "criminal",
+    "criminal": "criminal",
+    "folk_hero": "folk_hero",
+    "guild_artisan_guild_merchant": "guild_artisan",
+    "guild_artisan": "guild_artisan",
+    "noble_knight": "noble",
+    "sailor_pirate": "sailor",
+    "soldier": "soldier",
+    "acolyte": "acolyte",
+    "charlatan": "charlatan",
+    "entertainer": "entertainer",
+    "hermit": "hermit",
+    "outlander": "outlander",
+    "sage": "sage",
+}
+
+# Classes that treat all known leveled spells as available without preparation.
+_ALWAYS_PREPARED_CASTERS = frozenset({"sorcerer", "ranger", "bard", "warlock"})
 
 _SUBCLASS_KEY_BY_CLASS: Dict[str, str] = {
     "barbarian": "primal_path",
@@ -183,6 +221,42 @@ _ITEM_ALIASES: Dict[str, str] = {
     "thieve_s_tools": "thieves_tools",
     "holy_symbol_amulet": "holy_symbol",
     "crossbow_bolts": "bolts",
+    "leather": "leather_armor",
+    "studded_leather_armor": "studded_leather",
+    "studded_leather": "studded_leather",
+    "chain_mail_armor": "chain_mail",
+    "chain_shirt_armor": "chain_shirt",
+    "rations_1_day": "rations",
+    "ration_1_day": "rations",
+    "rope_hempen_50_feet": "rope",
+    "hempen_rope_50_feet": "rope",
+    "piton": "pitons",
+    "quiver_of_20_arrows": "arrows",
+    "quiver": "arrows",
+    "arcane_focus_crystal": "crystal",
+    "arcane_focus_orb": "orb",
+    "arcane_focus_rod": "rod",
+    "arcane_focus_staff": "staff",
+    "arcane_focus_wand": "wand",
+    "holy_symbol_emblem": "holy_symbol",
+    "holy_symbol_reliquary": "holy_symbol",
+    "holy_symbol_symbol": "holy_symbol",
+}
+
+# Subclass slugs that differ between DDB naming and engine YAML keys.
+_SUBCLASS_ALIASES: Dict[str, str] = {
+    "life_domain": "life",
+    "knowledge_domain": "knowledge",
+    "light_domain": "light",
+    "nature_domain": "nature",
+    "tempest_domain": "tempest",
+    "trickery_domain": "trickery",
+    "war_domain": "war",
+    "grave_domain": "grave",
+    "forge_domain": "forge",
+    "order_domain": "order",
+    "peace_domain": "peace",
+    "twilight_domain": "twilight",
 }
 
 # Spell name aliases (DDB -> engine canonical).  Both keys/values are slugged.
@@ -192,6 +266,25 @@ _SPELL_ALIASES: Dict[str, str] = {
 
 _ITEM_CACHE: Optional[Set[str]] = None
 _SPELL_CACHE: Optional[Set[str]] = None
+
+_DDB_CHARACTER_URL_RE = re.compile(
+    r"(?:https?://)?(?:www\.)?dndbeyond\.com/characters/(?P<id>\d+)",
+    re.IGNORECASE,
+)
+
+
+def parse_character_id_from_url(url: str) -> Optional[int]:
+    """Extract a D&D Beyond numeric character id from a sheet URL."""
+    if not url:
+        return None
+    text = str(url).strip()
+    match = _DDB_CHARACTER_URL_RE.search(text)
+    if not match:
+        return None
+    try:
+        return int(match.group("id"))
+    except (TypeError, ValueError):
+        return None
 
 
 def _slug(value: Any) -> str:
@@ -252,8 +345,31 @@ def _normalize_weapon_prof(slug: str) -> str:
     return _WEAPON_PROF_ALIASES.get(slug, slug)
 
 
+def _strip_magic_bonus_suffix(name: str) -> str:
+    """Remove trailing +N enchantment markers from DDB item display names."""
+    return re.sub(r",?\s*\+\d+\s*$", "", str(name), flags=re.IGNORECASE).strip()
+
+
+def _item_slug_from_name(name: str) -> str:
+    cleaned = _strip_magic_bonus_suffix(name)
+    slug = _slug(cleaned)
+    return _ITEM_ALIASES.get(slug, slug)
+
+
 def _normalize_item(slug: str) -> str:
     return _ITEM_ALIASES.get(slug, slug)
+
+
+def _normalize_background(slug: str) -> str:
+    return _BACKGROUND_ALIASES.get(slug, slug)
+
+
+def _normalize_subclass(klass: str, subclass_name: str) -> str:
+    slug = _slug(subclass_name)
+    slug = _SUBCLASS_ALIASES.get(slug, slug)
+    if klass == "cleric" and slug.endswith("_domain"):
+        slug = slug[: -len("_domain")]
+    return slug
 
 
 class BeyondImporter:
@@ -350,6 +466,7 @@ class BeyondImporter:
         cantrips, prepared, spellbook = self._extract_spells(
             character_data, classes_map)
         spell_slots = self._compute_spell_slots(classes_map, subclass_fields)
+        flavor = self._extract_character_flavor(character_data)
 
         name = character_data.get("name") or "Unnamed"
         token_letter = (str(name).strip()[:1] or "P").upper()
@@ -360,12 +477,21 @@ class BeyondImporter:
         }
         if subrace:
             yaml_data["subrace"] = subrace
+            if race == "dragonborn":
+                yaml_data["ancestry"] = subrace
+        display_name = (character_data.get("socialName") or "").strip()
+        if display_name and display_name != name:
+            yaml_data["display_name"] = display_name
         gender = character_data.get("gender")
         if gender:
             yaml_data["gender"] = gender
         pronoun = self._extract_pronoun(character_data)
         if pronoun:
             yaml_data["pronoun"] = pronoun
+        if flavor.get("description"):
+            yaml_data["description"] = flavor["description"]
+        if flavor.get("backstory"):
+            yaml_data["backstory"] = flavor["backstory"]
 
         yaml_data["classes"] = classes_map
         yaml_data["level"] = total_level
@@ -389,6 +515,7 @@ class BeyondImporter:
             yaml_data["expertise"] = sorted(expertise)
         if tools:
             yaml_data["tools"] = sorted(tools)
+            yaml_data["tool_proficiencies"] = sorted(tools)
         if weapon_profs:
             yaml_data["weapon_proficiencies"] = sorted(weapon_profs)
         if languages:
@@ -409,7 +536,8 @@ class BeyondImporter:
 
         background = (character_data.get("background") or {}).get("definition") or {}
         if background.get("name"):
-            yaml_data["background"] = _slug(background["name"])
+            yaml_data["background"] = _normalize_background(
+                _slug(background["name"]))
 
         yaml_data["equipped"] = equipped_items
         yaml_data["inventory"] = inventory
@@ -452,8 +580,50 @@ class BeyondImporter:
             total += level
             subdef = c.get("subclassDefinition")
             if subdef and subdef.get("name"):
-                subclasses[name] = _slug(subdef["name"])
+                subclasses[name] = _normalize_subclass(name, subdef["name"])
         return classes_map, total, subclasses
+
+    def _extract_character_flavor(self, data: Dict[str, Any]) -> Dict[str, str]:
+        """Pull description/backstory text used by NPC dialog and character sheets."""
+        flavor: Dict[str, str] = {}
+        notes = data.get("notes") or {}
+        if isinstance(notes, dict):
+            backstory = (notes.get("backstory") or "").strip()
+            if backstory:
+                flavor["backstory"] = backstory
+
+        traits = data.get("traits") or {}
+        if isinstance(traits, dict):
+            pieces: List[str] = []
+            appearance = (traits.get("appearance") or "").strip()
+            if appearance:
+                pieces.append(f"Appearance: {appearance}")
+            for key, label in (
+                ("personalityTraits", "Personality"),
+                ("ideals", "Ideals"),
+                ("bonds", "Bonds"),
+                ("flaws", "Flaws"),
+            ):
+                value = traits.get(key)
+                if not value:
+                    continue
+                if isinstance(value, list):
+                    lines: List[str] = []
+                    for item in value:
+                        if isinstance(item, dict):
+                            line = (item.get("description") or "").strip()
+                        else:
+                            line = str(item).strip()
+                        if line:
+                            lines.append(line)
+                    text = "\n".join(lines)
+                else:
+                    text = str(value).strip()
+                if text:
+                    pieces.append(f"{label}: {text}")
+            if pieces:
+                flavor["description"] = "\n\n".join(pieces)
+        return flavor
 
     def _extract_ability_scores(self, data: Dict[str, Any],
                                 modifiers: List[Dict[str, Any]]) -> Dict[str, int]:
@@ -553,7 +723,7 @@ class BeyondImporter:
         for item in data.get("inventory") or []:
             definition = item.get("definition") or {}
             name = definition.get("name") or ""
-            slug = _normalize_item(_slug(name))
+            slug = _item_slug_from_name(name)
             if slug not in known:
                 self._warn(f"unknown item dropped: {name!r} ({slug})")
                 continue
@@ -588,6 +758,11 @@ class BeyondImporter:
             level = definition.get("level", 0) or 0
             is_prepared = bool(spell_obj.get("prepared")) or force_prepared
             always_prep = bool(spell_obj.get("alwaysPrepared"))
+            treat_as_prepared = (
+                owner_class in _ALWAYS_PREPARED_CASTERS
+                or is_prepared
+                or always_prep
+            )
             if level == 0:
                 if slug not in seen_cantrip:
                     seen_cantrip.add(slug)
@@ -596,7 +771,7 @@ class BeyondImporter:
             if owner_class == "wizard" and slug not in seen_book:
                 seen_book.add(slug)
                 spellbook.append(slug)
-            if is_prepared or always_prep:
+            if treat_as_prepared:
                 if slug not in seen_prepared:
                     seen_prepared.add(slug)
                     prepared.append(slug)

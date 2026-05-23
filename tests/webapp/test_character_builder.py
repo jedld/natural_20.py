@@ -378,3 +378,64 @@ def test_update_character_editor_saves_spells_and_feats():
     finally:
         if os.path.exists(char_path):
             os.remove(char_path)
+
+
+def test_import_dndbeyond_route_saves_character(monkeypatch):
+    from webapp.dndbeyond_import import import_character_from_dndbeyond
+
+    wizard_fixture = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), '..', '..', 'tests', 'fixtures', 'dndbeyond_wizard.json')
+    )
+
+    def _fake_import(character_id, cobalt_token=None):
+        pc, warnings = import_character_from_dndbeyond(
+            character_id,
+            input_path=wizard_fixture,
+        )
+        pc = dict(pc)
+        pc['name'] = f"DDB Import {uuid.uuid4().hex[:8]}"
+        return pc, warnings
+
+    monkeypatch.setattr('webapp.app.import_character_from_dndbeyond', _fake_import)
+
+    app.config['TESTING'] = True
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess['username'] = 'dm'
+
+    response = client.post(
+        '/character_builder/import_dndbeyond',
+        json={'url': 'https://www.dndbeyond.com/characters/999001'},
+    )
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body.get('status') == 'ok'
+    assert body.get('character_name', '').startswith('DDB Import')
+
+    char_file = body.get('character_file', '')
+    assert char_file.startswith('characters/')
+    char_path = os.path.join(game_session.root_path, char_file)
+    try:
+        assert os.path.exists(char_path)
+        with open(char_path, 'r', encoding='utf-8') as fh:
+            saved = yaml.safe_load(fh)
+        assert saved['race'] == 'elf'
+        assert saved['classes'] == {'wizard': 2}
+        assert saved.get('background') == 'sage'
+    finally:
+        if os.path.exists(char_path):
+            os.remove(char_path)
+
+
+def test_import_dndbeyond_route_rejects_bad_url():
+    app.config['TESTING'] = True
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess['username'] = 'dm'
+
+    response = client.post(
+        '/character_builder/import_dndbeyond',
+        json={'url': 'https://example.com/not-a-ddb-character'},
+    )
+    assert response.status_code == 400
+    assert 'dndbeyond.com/characters' in (response.get_json() or {}).get('error', '').lower()
