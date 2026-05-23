@@ -587,7 +587,7 @@ class EventQueue {
           try {
             Utils.refreshTileSet(false, false, 0, 0, null, () => {
               try { updateDraggableEntityClasses(); } catch (_) { }
-              try { Chat.refreshLocalConversationPresence({ silent: true }); } catch (_) { }
+              try { Chat.scheduleLocalConversationPresenceRefresh(); } catch (_) { }
               try { cleanupAllPendingMoves(); } catch (_) { }
               // Clean up any leftover moving sprites and ensure originals are visible
               try {
@@ -627,8 +627,14 @@ class EventQueue {
           this.processConversationEvent(data, resolve);
           break;
         }
+        case "conversation_refresh": {
+          try { Chat.scheduleLocalConversationPresenceRefresh(); } catch (_) { }
+          resolve();
+          break;
+        }
         case "move": {
           this.processMoveEvent(data, resolve);
+          try { Chat.scheduleLocalConversationPresenceRefresh(); } catch (_) { }
           break;
         }
         case "spell": {
@@ -696,6 +702,7 @@ class EventQueue {
           if (data.message && data.message.game_time !== undefined) {
             updateGameTimeDisplay(data.message.game_time);
           }
+          try { Chat.scheduleLocalConversationPresenceRefresh(); } catch (_) { }
           resolve();
           break;
         case "focus":
@@ -783,6 +790,7 @@ class EventQueue {
               };
               setTimeout(tryCenter, 50);
             }
+            try { Chat.scheduleLocalConversationPresenceRefresh(); } catch (_) { }
             resolve();
           });
           break;
@@ -2894,6 +2902,29 @@ function applyViewportTransform() {
       'transform': `translate(${viewportPan.x}px, ${viewportPan.y}px) scale(${viewportZoom})`,
       'transform-origin': '0 0'
     });
+  }
+  // Redraw movement path overlay so it follows the panned/zoomed map
+  redrawMovementPathOverlay();
+}
+
+// Redraw the current movement path on the global canvas (called after pan/zoom)
+function redrawMovementPathOverlay() {
+  if (typeof globalCtx === 'undefined' || !globalCtx || typeof globalCanvas === 'undefined' || !globalCanvas) {
+    return;
+  }
+  if (typeof Utils === 'undefined' || typeof Utils.drawMovementPath !== 'function') {
+    return;
+  }
+  // Keyboard movement mode
+  if (typeof keyboardMovementMode !== 'undefined' && keyboardMovementMode &&
+      typeof keyboardMovementPath !== 'undefined' && keyboardMovementPath && keyboardMovementPath.length > 0) {
+    Utils.drawMovementPath(globalCtx, keyboardMovementPath, 0, true, null);
+    return;
+  }
+  // Mouse-based movement mode
+  if (typeof moveMode !== 'undefined' && moveMode &&
+      typeof movePath !== 'undefined' && movePath && movePath.length > 0) {
+    Utils.drawMovementPath(globalCtx, movePath, 0, true, null);
   }
 }
 
