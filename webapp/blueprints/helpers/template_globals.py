@@ -153,7 +153,7 @@ def filter_for(tile):
 # ---------------------------------------------------------------------------
 
 def interact_flavors(action):
-    from natural20.action import InteractAction
+    from natural20.actions.interact_action import InteractAction
     if isinstance(action, InteractAction):
         if action.object_action == 'give':
             return action.target.profile_image()
@@ -161,7 +161,8 @@ def interact_flavors(action):
 
 
 def action_flavors(action):
-    from natural20.action import AttackAction, InteractAction
+    from natural20.actions.attack_action import AttackAction
+    from natural20.actions.interact_action import InteractAction
     if isinstance(action, AttackAction):
         if action.second_hand():
             return "_second"
