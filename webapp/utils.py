@@ -633,25 +633,36 @@ class GameManagement:
         self._goal_thread.start()
 
         if self.soundtracks:
-            # load each soundtrack and determine its duration
+            loaded_soundtracks = []
             for track in self.soundtracks:
                 track['duration'] = 0
-                # strip leading and trailing spaces
                 track['name'] = track['name'].strip()
                 track['start_time'] = int(time.time())
                 if 'volume' not in track or track['volume'] is None:
                     track['volume'] = 0
-                # load mp3 file
-                audio_path = self.game_session.root_path + '/assets/' + track['file']
-                if not os.path.exists(audio_path):
-                    self.logger.error(f"Soundtrack {track['name']} not found at {audio_path}")
-                    raise Exception(f"Soundtrack {track['name']} not found at {audio_path}")
-                    
-                audio = MP3(audio_path)
-                track['duration'] = int(audio.info.length)
-                self.logger.info(f"Loaded soundtrack {track['name']} with duration {track['duration']}")
+                audio_path = os.path.join(
+                    self.game_session.root_path, 'assets', track['file'].lstrip('/')
+                )
+                if not os.path.isfile(audio_path):
+                    self.logger.warning(
+                        f"Soundtrack {track['name']} not found at {audio_path}; skipping"
+                    )
+                    continue
+                try:
+                    audio = MP3(audio_path)
+                    track['duration'] = max(1, int(audio.info.length or 0))
+                except Exception as exc:
+                    self.logger.warning(
+                        f"Soundtrack {track['name']} could not be loaded from {audio_path}: {exc}"
+                    )
+                    continue
+                self.logger.info(
+                    f"Loaded soundtrack {track['name']} with duration {track['duration']}"
+                )
+                loaded_soundtracks.append(track)
                 if 'background' in track['name']:
                     self.current_soundtrack = track
+            self.soundtracks = loaded_soundtracks
         self._setup_controllers()
         if self.defer_player_spawn:
             self._defer_all_players()
@@ -1241,7 +1252,8 @@ class GameManagement:
                         self.current_soundtrack = soundtrack
                         break
                     else:
-                        time_s = (time.time() - self.current_soundtrack['start_time']) % self.current_soundtrack['duration']
+                        duration = max(1, int(self.current_soundtrack.get('duration') or 1))
+                        time_s = (time.time() - self.current_soundtrack['start_time']) % duration
                         self.current_soundtrack['time'] = time_s
                         self.logger.info(f"Playing soundtrack {self.current_soundtrack}")
                         self.socketio.emit('message', { 'type': 'track', 'message': self.current_soundtrack})

@@ -172,8 +172,8 @@ def index():
     width_px = (map_width + 2) * tile_px
     height_px = (map_height + 2) * tile_px
     if current_game.current_soundtrack:
-        time_s = (time.time() - current_game.current_soundtrack
-                  ['start_time']) % current_game.current_soundtrack['duration']
+        duration = max(1, int(current_game.current_soundtrack.get('duration') or 1))
+        time_s = (time.time() - current_game.current_soundtrack['start_time']) % duration
         current_game.current_soundtrack['time'] = int(time_s)
 
     current_pov_entity = current_game.get_pov_entity_for_user(session['username'])
