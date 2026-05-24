@@ -24,16 +24,16 @@
 
 ## Completed (PR 3 - Assets Blueprint Extraction)
 - `webapp/blueprints/assets.py` ✅ (9 routes)
-- `tests/webapp/test_assets_blueprint.py` — not yet added
+- `tests/webapp/test_assets_blueprint.py` ✅
 
 ## Completed (PR 4 - Auth Blueprint Extraction)
 - `webapp/blueprints/auth.py` ✅ (4 routes)
 - `url_for` references updated to `auth.*` / `navigation.*` ✅
-- `tests/webapp/test_auth_blueprint.py` — not yet added
+- `tests/webapp/test_auth_blueprint.py` ✅
 
 ## Completed (PR 5 - AI Blueprint Extraction)
 - `webapp/blueprints/ai.py` ✅ (13 routes)
-- `tests/webapp/test_ai_blueprint.py` — not yet added
+- `tests/webapp/test_ai_blueprint.py` ✅
 
 ## Completed (PR 6 - Navigation Blueprint Extraction)
 - `webapp/blueprints/navigation.py` ✅ (12 routes)
@@ -76,6 +76,7 @@
 - Removed duplicate template-global and auth helper code from `app.py`
 - Smoke tests: `test_assets_blueprint.py`, `test_auth_blueprint.py`, `test_ai_blueprint.py` ✅
 - `AGENTS.md` updated with blueprint architecture table ✅
+- `docs/WEBAPP_BLUEPRINTS.md` added ✅
 - Backward-compat re-exports kept on `app` module (`PlayerCharacter`, `autofill_pvp_battle_turn_order`, effect filters, `origin_allowed`, …)
 - Full webapp suite: **180 passed** (1 pre-existing LLM router failure)
 
