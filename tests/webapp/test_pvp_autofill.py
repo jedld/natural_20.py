@@ -60,6 +60,13 @@ def test_autofill_pvp_battle_turn_order_includes_claimed_characters(monkeypatch)
         battle_map=battle_map,
     )
 
+    controllers_data = [{
+        'entity_uid': 'claimed',
+        'controllers': ['alice'],
+        'team': 'a',
+        'spawn_point': 'spawn_point_1',
+    }]
+
     monkeypatch.setattr(app_module, 'current_game', current_game)
     monkeypatch.setattr(app_module, 'PlayerCharacter', FakePlayerCharacter)
     monkeypatch.setattr(app_module, 'user_role', lambda: ['dm'])
@@ -70,12 +77,24 @@ def test_autofill_pvp_battle_turn_order_includes_claimed_characters(monkeypatch)
             'b': {'capacity': 1, 'spawn_points': ['spawn_point_2'], 'map': 'index'},
         },
     })
-    monkeypatch.setattr(app_module, 'CONTROLLERS', [{
-        'entity_uid': 'claimed',
-        'controllers': ['alice'],
-        'team': 'a',
-        'spawn_point': 'spawn_point_1',
-    }])
+    monkeypatch.setattr(app_module, 'CONTROLLERS', controllers_data)
+
+    # Also patch runtime_state and pvp module since extracted helpers use them
+    from webapp.blueprints.helpers import runtime_state, pvp
+    pvp_config = {
+        'enabled': True,
+        'teams': {
+            'a': {'capacity': 1, 'spawn_points': ['spawn_point_1'], 'map': 'index'},
+            'b': {'capacity': 1, 'spawn_points': ['spawn_point_2'], 'map': 'index'},
+        },
+    }
+    monkeypatch.setitem(runtime_state._globals, 'current_game', current_game)
+    monkeypatch.setitem(runtime_state._globals, 'CONTROLLERS', controllers_data)
+    monkeypatch.setitem(runtime_state._globals, 'index_data', {'pvp_teams': pvp_config})
+    # Patch user_role in the pvp module
+    monkeypatch.setattr(pvp, 'user_role', lambda: ['dm'])
+    # Patch PlayerCharacter in pvp module so isinstance() checks pass for FakePlayerCharacter
+    monkeypatch.setattr(pvp, 'PlayerCharacter', FakePlayerCharacter)
 
     turn_order = app_module.autofill_pvp_battle_turn_order([])
 

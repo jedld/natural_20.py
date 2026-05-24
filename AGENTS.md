@@ -3,7 +3,30 @@
 This repository is a D&D simulation and VTT used for AI research. Focus on two layers:
 
 - Core engine (Python package `natural20/`) — game models, map, battle loop, controllers, and entity registry. Key files: `natural20/session.py`, `natural20/battle.py`, `natural20/entity.py`, `natural20/controller.py`, `natural20/generic_controller.py`, `natural20/llm_controller.py`.
-- Web layer (Flask + small JS VTT) — `webapp/` contains the Flask app, LLM provider adapters, and the DM/chat handlers. Key files: `webapp/app.py`, `webapp/llm_handler.py`, `webapp/llm_conversation_handler.py`, `webapp/*` tests.
+- Web layer (Flask + small JS VTT) — `webapp/` contains the Flask app, LLM provider adapters, and the DM/chat handlers. Key files: `webapp/app.py` (bootstrap), `webapp/blueprints/*` (domain routes), `webapp/blueprints/helpers/*` (shared state and utilities), `webapp/llm_handler.py`, `webapp/conversation_service.py`, `webapp/*` tests.
+
+### Webapp layout (post-refactor)
+
+`webapp/app.py` is the composition root (~300 lines): Flask/SocketIO setup, campaign load, `GameManagement` init, blueprint registration, MCP wiring, and perf hooks. Domain HTTP routes live in blueprints:
+
+| Blueprint | Module | Routes (examples) |
+|---|---|---|
+| `assets` | `blueprints/assets.py` | `/assets/*`, `/create_map`, `/upload_map_background`, `/delete_map` |
+| `auth` | `blueprints/auth.py` | `/login`, `/logout`, `/character_selection`, `/select_character` |
+| `ai` | `blueprints/ai.py` | `/ai/*` |
+| `navigation` | `blueprints/navigation.py` | `/`, `/command`, `/path`, `/switch_map`, `/update` |
+| `character` | `blueprints/character.py` | `/character_builder/*`, journal CRUD |
+| `battle` | `blueprints/battle.py` | `/start`, `/action`, `/target`, combat log, turn order |
+| `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, inventory, `/rest`, audio |
+| SocketIO | `blueprints/socketio_handlers.py` | `connect`, `register`, `message`, `disconnect`, `request_effects` |
+
+Shared helpers under `webapp/blueprints/helpers/`:
+
+- `runtime_state.py` — lazy getters/setters for app globals (`get_current_game()`, `get_socketio()`, …)
+- `auth_utils.py`, `template_globals.py`, `action_utils.py`, `effects.py`, `special_effects.py`
+- `campaign_config.py`, `cors_config.py`, `perf.py`, `conversation_wiring.py`
+
+Blueprints must not import each other; use `runtime_state` accessors instead of importing from `webapp.app`. Endpoint names are prefixed by blueprint (e.g. `battle.start_battle`, `dm.admin_save`). After route moves, regenerate parity baselines: `python scripts/generate_baseline_artifacts.py`.
 
 Core patterns and conventions (do not invent alternatives):
 

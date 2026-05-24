@@ -1,0 +1,1102 @@
+[
+  {
+    "endpoint": "navigation.index",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/"
+  },
+  {
+    "endpoint": "static",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/<path:filename>"
+  },
+  {
+    "endpoint": "battle.action",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/action"
+  },
+  {
+    "endpoint": "battle.get_actions",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/actions"
+  },
+  {
+    "endpoint": "dm.add",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/add"
+  },
+  {
+    "endpoint": "dm.admin_reset_campaign_logs",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/admin/campaign-logs/reset"
+  },
+  {
+    "endpoint": "dm.admin_campaign_logs_status",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/admin/campaign-logs/status"
+  },
+  {
+    "endpoint": "dm.admin_effect",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/admin/effect"
+  },
+  {
+    "endpoint": "dm.admin_load",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/admin/load"
+  },
+  {
+    "endpoint": "dm.admin_manage_saves",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/admin/manage_saves"
+  },
+  {
+    "endpoint": "dm.admin_perf",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/admin/perf"
+  },
+  {
+    "endpoint": "dm.admin_perf_reset",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/admin/perf/reset"
+  },
+  {
+    "endpoint": "dm.admin_save",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/admin/save"
+  },
+  {
+    "endpoint": "dm.list_saves",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/admin/saves"
+  },
+  {
+    "endpoint": "ai.ai_get_available_actions",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/available-actions"
+  },
+  {
+    "endpoint": "ai.ai_chat",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/ai/chat"
+  },
+  {
+    "endpoint": "ai.ai_clear_history",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/ai/clear-history"
+  },
+  {
+    "endpoint": "ai.ai_get_context",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/context"
+  },
+  {
+    "endpoint": "ai.ai_get_entity_details",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/entity-details"
+  },
+  {
+    "endpoint": "ai.ai_get_history",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/history"
+  },
+  {
+    "endpoint": "ai.ai_initialize",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/ai/initialize"
+  },
+  {
+    "endpoint": "ai.ai_initialize_from_env",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/ai/initialize-from-env"
+  },
+  {
+    "endpoint": "ai.ai_get_llama_cpp_models",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/llama_cpp/models"
+  },
+  {
+    "endpoint": "ai.ai_get_ollama_models",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/ollama/models"
+  },
+  {
+    "endpoint": "ai.ai_get_provider_info",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/provider-info"
+  },
+  {
+    "endpoint": "ai.ai_set_model",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/ai/set-model"
+  },
+  {
+    "endpoint": "ai.ai_get_terrain_info",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/terrain-info"
+  },
+  {
+    "endpoint": "battle.combat_log",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/api/combat-log"
+  },
+  {
+    "endpoint": "assets.get_asset",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/assets/<path:asset_name>"
+  },
+  {
+    "endpoint": "assets.serve_editor_image",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/assets/editor/<filename>"
+  },
+  {
+    "endpoint": "assets.serve_item_image",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/assets/items/<filename>"
+  },
+  {
+    "endpoint": "assets.serve_map_image",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/assets/maps/<path:filename>"
+  },
+  {
+    "endpoint": "assets.serve_object_image",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/assets/objects/<filename>"
+  },
+  {
+    "endpoint": "assets.serve_sound_file",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/assets/sounds/<filename>"
+  },
+  {
+    "endpoint": "dm.get_available_npcs",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/available_npcs"
+  },
+  {
+    "endpoint": "dm.get_available_objects",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/available_objects"
+  },
+  {
+    "endpoint": "dm.available_pcs",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/available_pcs"
+  },
+  {
+    "endpoint": "battle.start_battle_with_initiative",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/battle"
+  },
+  {
+    "endpoint": "character.character_journal_add",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/character/<character_name>/journal"
+  },
+  {
+    "endpoint": "character.character_journal_list",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character/<character_name>/journal"
+  },
+  {
+    "endpoint": "character.character_journal_delete",
+    "methods": [
+      "DELETE",
+      "OPTIONS"
+    ],
+    "rule": "/character/<character_name>/journal/<entry_id>"
+  },
+  {
+    "endpoint": "character.character_builder",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character_builder"
+  },
+  {
+    "endpoint": "character.import_dndbeyond_character",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/character_builder/import_dndbeyond"
+  },
+  {
+    "endpoint": "character.character_builder_items",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character_builder/items"
+  },
+  {
+    "endpoint": "character.list_prebuilt_character_images",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character_builder/prebuilt_images"
+  },
+  {
+    "endpoint": "character.character_details",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character_details/<character_name>"
+  },
+  {
+    "endpoint": "character.character_editor",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character_editor/<character_name>"
+  },
+  {
+    "endpoint": "auth.character_selection",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character_selection"
+  },
+  {
+    "endpoint": "battle.get_combat_log",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/combat-log"
+  },
+  {
+    "endpoint": "navigation.command",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/command"
+  },
+  {
+    "endpoint": "conversation_presence",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/conversation_presence"
+  },
+  {
+    "endpoint": "character.create_character",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/create_character"
+  },
+  {
+    "endpoint": "assets.create_map",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/create_map"
+  },
+  {
+    "endpoint": "dm.delete_entity",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/delete_entity"
+  },
+  {
+    "endpoint": "assets.delete_map",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/delete_map"
+  },
+  {
+    "endpoint": "dialog_history",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/dialog_history"
+  },
+  {
+    "endpoint": "dm.dm_container_add",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/dm/container/add"
+  },
+  {
+    "endpoint": "dm.dm_container_contents",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/dm/container/contents"
+  },
+  {
+    "endpoint": "dm.dm_container_remove",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/dm/container/remove"
+  },
+  {
+    "endpoint": "dm.dm_inventory_get",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/dm/inventory"
+  },
+  {
+    "endpoint": "dm.dm_inventory_add",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/dm/inventory/add"
+  },
+  {
+    "endpoint": "dm.dm_inventory_remove",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/dm/inventory/remove"
+  },
+  {
+    "endpoint": "dm.dm_items_catalog",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/dm/items_catalog"
+  },
+  {
+    "endpoint": "dm.dm_move_entity",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/dm_move_entity"
+  },
+  {
+    "endpoint": "battle.end_turn",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/end_turn"
+  },
+  {
+    "endpoint": "battle.get_entity_info",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/entity_info"
+  },
+  {
+    "endpoint": "dm.equip",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/equip"
+  },
+  {
+    "endpoint": "dm.get_equipment",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/equipment"
+  },
+  {
+    "endpoint": "navigation.focus",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/focus"
+  },
+  {
+    "endpoint": "battle.get_game_time",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/game_time"
+  },
+  {
+    "endpoint": "dm.get_users",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/get_users"
+  },
+  {
+    "endpoint": "health",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/health"
+  },
+  {
+    "endpoint": "battle.get_hiding_spots",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/hide"
+  },
+  {
+    "endpoint": "battle.get_info",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/info"
+  },
+  {
+    "endpoint": "battle.get_items",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/items"
+  },
+  {
+    "endpoint": "navigation.jump_info",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/jump_info"
+  },
+  {
+    "endpoint": "auth.login",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/login"
+  },
+  {
+    "endpoint": "auth.logout",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/logout"
+  },
+  {
+    "endpoint": "battle.manual_roll",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/manual_roll"
+  },
+  {
+    "endpoint": "navigation.mark_note_read",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/mark_note_read"
+  },
+  {
+    "endpoint": "mcp.manifest",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/mcp/manifest"
+  },
+  {
+    "endpoint": "mcp.tools_call",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/mcp/tools/call"
+  },
+  {
+    "endpoint": "mcp.tools_list",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/mcp/tools/list"
+  },
+  {
+    "endpoint": "dm.move_entity",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/move_entity"
+  },
+  {
+    "endpoint": "nearby_entities",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/nearby_entities"
+  },
+  {
+    "endpoint": "battle.next_turn",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/next_turn"
+  },
+  {
+    "endpoint": "navigation.compute_path",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/path"
+  },
+  {
+    "endpoint": "navigation.path_cost_map",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/path/cost_map"
+  },
+  {
+    "endpoint": "battle.get_reaction",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/reaction"
+  },
+  {
+    "endpoint": "battle.handle_reaction",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/reaction"
+  },
+  {
+    "endpoint": "battle.read_letter",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/read_letter"
+  },
+  {
+    "endpoint": "battle.ready_action_endpoint",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/ready_action"
+  },
+  {
+    "endpoint": "navigation.refresh_portraits",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/refresh-portraits"
+  },
+  {
+    "endpoint": "navigation.reload_map",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/reload_map"
+  },
+  {
+    "endpoint": "dm.remove_from_battle",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/remove_from_battle"
+  },
+  {
+    "endpoint": "battle.reorder_initiative",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/reorder_initiative"
+  },
+  {
+    "endpoint": "battle.reset_narrations",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/reset_narrations"
+  },
+  {
+    "endpoint": "navigation.response",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/response"
+  },
+  {
+    "endpoint": "dm.take_rest",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/rest"
+  },
+  {
+    "endpoint": "dm.rest_preview",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/rest/preview"
+  },
+  {
+    "endpoint": "dm.seek",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/seek"
+  },
+  {
+    "endpoint": "auth.select_character",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/select_character"
+  },
+  {
+    "endpoint": "dm.sound",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/sound"
+  },
+  {
+    "endpoint": "dm.spawn_npc",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/spawn_npc"
+  },
+  {
+    "endpoint": "dm.spawn_object",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/spawn_object"
+  },
+  {
+    "endpoint": "battle.get_spell",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/spells"
+  },
+  {
+    "endpoint": "battle.start_battle",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/start"
+  },
+  {
+    "endpoint": "battle.stop_battle",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/stop"
+  },
+  {
+    "endpoint": "navigation.switch_map",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/switch_map"
+  },
+  {
+    "endpoint": "battle.switch_pov",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/switch_pov"
+  },
+  {
+    "endpoint": "talk",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/talk"
+  },
+  {
+    "endpoint": "battle.get_target",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/target"
+  },
+  {
+    "endpoint": "battle.get_targets_at_position",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/targets_at_position"
+  },
+  {
+    "endpoint": "dm.get_tracks",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/tracks"
+  },
+  {
+    "endpoint": "battle.get_turn",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/turn"
+  },
+  {
+    "endpoint": "battle.get_turn_order",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/turn_order"
+  },
+  {
+    "endpoint": "dm.unequip",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/unequip"
+  },
+  {
+    "endpoint": "navigation.update",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/update"
+  },
+  {
+    "endpoint": "dm.update_action_resources",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_action_resources"
+  },
+  {
+    "endpoint": "character.update_character",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_character/<character_name>"
+  },
+  {
+    "endpoint": "dm.update_controller",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_controller"
+  },
+  {
+    "endpoint": "dm.update_group",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_group"
+  },
+  {
+    "endpoint": "dm.update_hp",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_hp"
+  },
+  {
+    "endpoint": "dm.update_npc",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_npc"
+  },
+  {
+    "endpoint": "dm.update_npc_default_controller",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_npc_default_controller"
+  },
+  {
+    "endpoint": "dm.update_spell_slots",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_spell_slots"
+  },
+  {
+    "endpoint": "assets.upload_map_background",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/upload_map_background"
+  },
+  {
+    "endpoint": "dm.usable_items",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/usable_items"
+  },
+  {
+    "endpoint": "dm.set_volume",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/volume"
+  }
+]
