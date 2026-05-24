@@ -70,6 +70,13 @@ class GameEntityRegistry:
     def switch_map_for_user(self, username, map_name):
         self.manager.logger.info(f"Switching map for {username} to {map_name}")
         self.manager.current_map_for_user[username] = (map_name, self.manager.maps[map_name])
+        try:
+            from natural20.companion import sync_companions_on_map_switch
+            game_properties = getattr(self.manager.game_session, 'game_properties', None)
+            if game_properties:
+                sync_companions_on_map_switch(self.manager.game_session, game_properties, username, map_name)
+        except Exception:
+            pass
 
     def get_map_for_user(self, username):
         if 'index' not in self.manager.maps:

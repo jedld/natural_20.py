@@ -1715,6 +1715,11 @@ class Entity(EntityStateEvaluator, Notable):
 
         battle.event_manager.received_event({'source': self, 'event': 'start_of_turn'})
         self.resolve_trigger('start_of_turn')
+        try:
+            from natural20.combat_script import process_combat_script
+            process_combat_script(self, battle)
+        except Exception:
+            pass
         self._cleanup_effects()
 
         if not self.has_multiattack():
@@ -1920,6 +1925,16 @@ class Entity(EntityStateEvaluator, Notable):
     
     def prone(self):
         return 'prone' in self.statuses
+
+    def use_reckless_attack(self):
+        self.reckless_attack_active = True
+
+    def is_reckless(self):
+        if bool(getattr(self, 'reckless_attack_active', False)):
+            return True
+        if self.properties.get('reckless'):
+            return True
+        return 'reckless' in getattr(self, 'statuses', [])
     
     def do_prone(self):
         if not self.immune_to_condition('prone'):

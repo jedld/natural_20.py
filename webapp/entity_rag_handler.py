@@ -32,6 +32,12 @@ from natural20.utils.conversation import (
 logger = logging.getLogger('werkzeug')
 CONTROL_DIRECTIVE_PATTERN = re.compile(r'\[(no_response|to|volume)(?:\s*:\s*([^\]]*))?\]', re.IGNORECASE)
 ACTION_DIRECTIVE_PATTERN = re.compile(r'\[(approach|interact|request_check|set_goal|goal_complete|goal_give_up)(?:\s*:\s*([^\]]*))?\]', re.IGNORECASE)
+
+REQUEST_CHECK_SKILLS = frozenset({
+    'acrobatics', 'animal_handling', 'arcana', 'athletics', 'deception', 'history',
+    'insight', 'intimidation', 'investigation', 'medicine', 'nature', 'perception',
+    'performance', 'persuasion', 'religion', 'sleight_of_hand', 'stealth', 'survival',
+})
 INSIGHT_DIRECTIVE_PATTERN = re.compile(r'\[insight(?:\s*:\s*([^\]]*))?\]', re.IGNORECASE)
 ASIDE_DIRECTIVE_PATTERN = re.compile(r'\[(aside|narration|stage_direction)(?:\s*:\s*([^\]]*))?\]', re.IGNORECASE)
 NARRATIVE_FIRST_PERSON_SUBSTITUTIONS = [
@@ -536,7 +542,7 @@ class EntityRAGHandler:
                     dc = int(params['dc']) if params.get('dc') is not None else None
                 except (TypeError, ValueError):
                     dc = None
-                if skill in {'persuasion', 'intimidation'} and target is not None:
+                if skill in REQUEST_CHECK_SKILLS and target is not None:
                     directives['request_check'] = {
                         'skill': skill,
                         'target': target,
@@ -880,7 +886,7 @@ class EntityRAGHandler:
             "- [APPROACH: target=@handle, distance=5] to move up to full movement speed until you are within the requested distance.\n"
             "- [INTERACT: target=<name or @handle>, action=<interaction>] to use an interactable object.\n"
             "- [INSIGHT: target=speaker] or [INSIGHT: target=@handle] to privately assess whether someone seems truthful before responding.\n"
-            "- [REQUEST_CHECK: skill=persuasion, target=speaker] or [REQUEST_CHECK: skill=intimidation, target=@handle] to ask for a social check.\n"
+            "- [REQUEST_CHECK: skill=persuasion|intimidation|arcana|investigation|..., target=speaker|@handle, dc=optional] to ask for a skill check.\n"
             "- [SET_GOAL: new short goal] to replace your current short-term goal.\n"
             "- [GOAL_COMPLETE] when the current goal is done.\n"
             "- [GOAL_GIVE_UP] when the current goal cannot be completed or is no longer worth pursuing.\n"

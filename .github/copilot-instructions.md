@@ -3,7 +3,9 @@
 This repository is a D&D simulation and VTT used for AI research. Focus on two layers:
 
 - Core engine (Python package `natural20/`) — game models, map, battle loop, controllers, and entity registry. Key files: `natural20/session.py`, `natural20/battle.py`, `natural20/entity.py`, `natural20/controller.py`, `natural20/generic_controller.py`, `natural20/llm_controller.py`.
-- Web layer (Flask + small JS VTT) — `webapp/` contains the Flask app, LLM provider adapters, and the DM/chat handlers. Key files: `webapp/app.py`, `webapp/llm_handler.py`, `webapp/llm_conversation_handler.py`, `webapp/*` tests.
+- Web layer (Flask + small JS VTT) — `webapp/` contains the Flask app, LLM provider adapters, and the DM/chat handlers. Key files: `webapp/app.py` (bootstrap only), `webapp/blueprints/*` (domain routes), `webapp/blueprints/helpers/*` (shared state/utilities), `webapp/llm_handler.py`, `webapp/conversation_service.py`, `docs/WEBAPP_BLUEPRINTS.md`, `webapp/*` tests.
+
+Webapp layout: `app.py` registers blueprints (`assets`, `auth`, `ai`, `navigation`, `character`, `battle`, `dm`) and SocketIO handlers (`socketio_handlers.py`). Shared state via `blueprints/helpers/runtime_state.py`. See `docs/WEBAPP_BLUEPRINTS.md` for route placement and parity-test workflow.
 
 Core patterns and conventions (do not invent alternatives):
 

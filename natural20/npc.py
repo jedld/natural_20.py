@@ -150,8 +150,20 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
     def spell_slots_count(self, level, character_class=None):
         if self.familiar():
             return self.owner.spell_slots_count(level, character_class)
-        else:
-            return 0
+        slots = self.properties.get('spell_slots') or {}
+        key = str(level)
+        return int(slots.get(key, slots.get(level, 0)))
+
+    def consume_spell_slot(self, level, character_class=None, qty=1):
+        if self.familiar():
+            return self.owner.consume_spell_slot(level, character_class=character_class, qty=qty)
+        slots = self.properties.setdefault('spell_slots', {})
+        key = str(level)
+        current = int(slots.get(key, slots.get(level, 0)))
+        if current < qty:
+            return False
+        slots[key] = current - qty
+        return True
         
     def hp(self):
         if self.linked_hp:

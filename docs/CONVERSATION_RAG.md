@@ -2,7 +2,7 @@
 
 This document describes the Retrieval-Augmented Generation facilities used by NPC conversation mode in the web app.
 
-The primary implementation lives in `webapp/entity_rag_handler.py`, and the conversation flow is wired through `webapp/app.py`.
+The primary implementation lives in `webapp/entity_rag_handler.py`. Bootstrap wiring is in `webapp/blueprints/helpers/conversation_wiring.py` (called from `webapp/app.py`); route handlers live in `webapp/conversation_service.py`.
 
 ## Scope
 
@@ -28,8 +28,9 @@ When a message is posted to `/talk`:
 
 Relevant code:
 
-- `webapp/app.py`
-- `webapp/entity_rag_handler.py`
+- `webapp/conversation_service.py` — `/talk` handler and conversation delivery
+- `webapp/blueprints/helpers/conversation_wiring.py` — service setup at app startup
+- `webapp/entity_rag_handler.py` — RAG plan parsing
 
 ## Inline Control Tags
 
@@ -423,7 +424,8 @@ These are general LLM support endpoints, not the inline conversation command sys
 ## Source Files
 
 - `webapp/entity_rag_handler.py`
-- `webapp/app.py`
+- `webapp/conversation_service.py`
+- `webapp/blueprints/helpers/conversation_wiring.py`
 - `natural20/utils/conversation.py`
 - `tests/webapp/test_entity_rag_handler.py`
 - `tests/webapp/test_talk_route_recipients.py`

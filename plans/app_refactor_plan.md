@@ -1,5 +1,7 @@
 # webapp/app.py Refactor Plan
 
+> **Status: completed (PRs 1–11).** `webapp/app.py` is ~320 lines (bootstrap). Domain routes live in `webapp/blueprints/*`; see `docs/WEBAPP_BLUEPRINTS.md` and `plans/pr_status.md`.
+
 ## Executive Summary
 
 This plan refactors `webapp/app.py` from a monolith into domain blueprints and helper modules **without changing API paths or runtime behavior**. The implementation should be done incrementally with a strict safety net: route parity checks, phased extraction, and targeted regression tests after each move.

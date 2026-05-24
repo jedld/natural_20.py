@@ -1,5 +1,7 @@
 # Execution Plan: PR 2 (Complete), PR 3, PR 4
 
+> **Superseded:** All PRs through 11 are complete. Do not use line references in this file. See `docs/WEBAPP_BLUEPRINTS.md` and `plans/pr_status.md`.
+
 ## Overview
 
 PR 1 (Baseline Parity Harness) is complete. PR 2 (Helper Extraction Foundation) is partially done with 4 of 8 helper modules extracted. This plan details the remaining work for PR 2 and the next two blueprint extractions (PR 3: Assets, PR 4: Auth).

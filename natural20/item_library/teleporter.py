@@ -61,6 +61,13 @@ class Teleporter(Object):
                 entity_placed = True
         if entity_placed:
             self.resolve_trigger('activate', { "target": entity })
+            try:
+                from natural20.companion import sync_companions_for_entity
+                game_properties = getattr(map.session, 'game_properties', None)
+                if game_properties:
+                    sync_companions_for_entity(map.session, game_properties, entity)
+            except Exception:
+                pass
 
     def placeable(self):
         return True
