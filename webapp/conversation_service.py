@@ -534,6 +534,7 @@ class ConversationService:
         stance_text = self.conversation_attitude_toward_speaker(receiver, speaker)
         pressure_text = self.conversation_pressure_summary(receiver)
         gear_text = format_entity_gear_for_conversation(receiver, self.game_session)
+        witnessed_text = self.entity_rag_handler.witnessed_events_summary(receiver)
         return (
             "\n\nConversation response rules:\n"
             "- You may choose not to speak. If you do not want to respond, output exactly [NO_RESPONSE].\n"
@@ -551,6 +552,8 @@ class ConversationService:
             "- You may move toward someone or something with [APPROACH: target=@handle, distance=5]. This moves up to one full out-of-combat move.\n"
             "- You may use an object with [INTERACT: target=<name or @handle>, action=<interaction>].\n"
             "- You may offer an item with [OFFER_ITEM: item=<item_slug>, target=speaker|@handle]. This creates an Accept Item Yes/No prompt for the target.\n"
+            f"{self.entity_rag_handler.offer_item_guidance_for_conversation(receiver, speaker)}\n"
+            f"{witnessed_text}"
             "- You may privately assess whether someone seems truthful with [INSIGHT: target=speaker] or [INSIGHT: target=@handle]. The server will roll insight, use DM-only context, and regenerate your reply with the result.\n"
             "- You may ask someone to make a social check with [REQUEST_CHECK: skill=persuasion, target=speaker] or [REQUEST_CHECK: skill=intimidation, target=@handle]. This is logged to the relevant players.\n"
             "- You may create a persistent short-term autonomous task with [SET_GOAL: short description].\n"

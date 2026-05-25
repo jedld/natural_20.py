@@ -16,7 +16,24 @@ class TestEntityRAGHandler(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.mock_game_session = Mock()
+        self.mock_game_session.game_time = 0
+        self.mock_game_session.load_state.return_value = {}
+        self.mock_game_session.game_properties = {
+            'conversation_item_offers': {
+                'scroll_speak_animals_modified': {
+                    'aliases': ['scroll_speak_animals'],
+                    'block_when': [
+                        'offer_completed',
+                        'target_has_item',
+                        'target_effect_animal_communication',
+                    ],
+                },
+            },
+        }
         self.mock_current_game = Mock()
+        self.mock_current_game.output_logger = Mock()
+        self.mock_current_game.output_logger.get_visible_entries_for_entity.return_value = []
+        self.mock_current_game.get_map_for_entity.return_value = None
         self.mock_current_game.output_logger = Mock()
         self.rag_handler = EntityRAGHandler(self.mock_game_session, self.mock_current_game)
     
@@ -345,6 +362,19 @@ class TestEntityRAGHandler(unittest.TestCase):
         self.assertEqual(plan['request_check']['dc'], 14)
         self.assertEqual(plan['message'], 'Convince me.')
 
+    def test_resolve_named_target_matches_speaker_handle_without_map(self):
+        speaker = Mock()
+        speaker.entity_uid = 'aldric'
+        speaker.label.return_value = 'Aldric'
+
+        actor = Mock()
+        actor.entity_uid = 'finethir'
+        self.mock_game_session.entity_by_uid.return_value = None
+        self.mock_current_game.get_map_for_entity.return_value = None
+
+        target = self.rag_handler.resolve_named_target(actor, '@aldric', speaker=speaker)
+        self.assertIs(target, speaker)
+
     def test_build_conversation_response_plan_parses_offer_item_directive(self):
         speaker = Mock()
         speaker.entity_uid = "speaker"
@@ -613,6 +643,32 @@ class TestEntityRAGHandler(unittest.TestCase):
         self.mock_current_game.advance_world_time.assert_called_once_with(seconds=6, trigger_environment=False)
         self.assertEqual(result['executed_actions'], ['approach', 'interact'])
 
+    def test_apply_response_plan_offers_item_even_during_battle(self):
+        actor = Mock()
+        actor.entity_uid = "npc-1"
+        actor.inventory = {'scroll_speak_animals_modified': {'qty': 1}}
+
+        target = Mock()
+        target.entity_uid = "pc-1"
+
+        self.mock_current_game.get_current_battle.return_value = Mock()
+        self.mock_current_game.entity_owners.return_value = ['player1']
+        self.mock_current_game.prompt = Mock()
+
+        plan = {
+            'set_goal': None,
+            'goal_complete': False,
+            'goal_give_up': False,
+            'approach': None,
+            'interact': None,
+            'request_check': None,
+            'offer_item': {'item': 'scroll_speak_animals_modified', 'target': target, 'auto_use': False},
+        }
+
+        result = self.rag_handler.apply_response_plan_directives(plan, actor, speaker=target, advance_time=False)
+        self.assertEqual(result['executed_actions'], ['offer_item'])
+        self.mock_current_game.prompt.assert_called_once()
+
     def test_apply_response_plan_directives_offers_item_via_prompt(self):
         actor = Mock()
         actor.entity_uid = "npc-1"
@@ -669,6 +725,7 @@ class TestEntityRAGHandler(unittest.TestCase):
 
         actor.deduct_item.assert_called_once_with('scroll_speak_animals_modified', 1)
         target.add_item.assert_called_once_with('scroll_speak_animals_modified', 1)
+        self.mock_game_session.save_state.assert_called()
         self.mock_current_game.socketio.emit.assert_called()
 
     def test_offer_item_prompt_callback_ok_payload_transfers_item(self):
@@ -730,6 +787,85 @@ class TestEntityRAGHandler(unittest.TestCase):
 
         actor.deduct_item.assert_called_once_with('scroll_speak_animals_modified', 1)
         target.add_item.assert_called_once_with('scroll_speak_animals_modified', 1)
+
+    def test_can_offer_item_blocks_when_target_has_animal_communication(self):
+        actor = Mock()
+        actor.entity_uid = 'finethir'
+        actor.inventory = {'scroll_speak_animals_modified': {'qty': 1}}
+
+        target = Mock()
+        target.entity_uid = 'aldric'
+        target.inventory = {}
+
+        self.mock_game_session.load_state.return_value = {}
+        with patch('natural20.utils.conversation_offers.has_animal_communication', return_value=True):
+            allowed, reason = self.rag_handler._can_offer_item(
+                actor,
+                target,
+                'scroll_speak_animals_modified',
+            )
+
+        self.assertFalse(allowed)
+        self.assertEqual(reason, 'target_effect_animal_communication')
+
+    def test_can_offer_item_blocks_after_completed_offer(self):
+        actor = Mock()
+        actor.entity_uid = 'finethir'
+        actor.inventory = {'scroll_speak_animals_modified': {'qty': 1}}
+
+        target = Mock()
+        target.entity_uid = 'aldric'
+        target.inventory = {}
+
+        self.mock_game_session.load_state.return_value = {
+            'completed': {'finethir:aldric:scroll_speak_animals_modified': 12},
+        }
+        allowed, reason = self.rag_handler._can_offer_item(
+            actor,
+            target,
+            'scroll_speak_animals_modified',
+        )
+        self.assertFalse(allowed)
+        self.assertEqual(reason, 'offer_completed')
+
+    def test_apply_response_plan_skips_repeat_scroll_offer_when_target_has_effect(self):
+        actor = Mock()
+        actor.entity_uid = 'finethir'
+        actor.inventory = {'scroll_speak_animals_modified': {'qty': 1}}
+
+        target = Mock()
+        target.entity_uid = 'aldric'
+        target.inventory = {}
+
+        self.mock_current_game.get_current_battle.return_value = None
+        self.mock_current_game.entity_owners.return_value = ['player1']
+        self.mock_current_game.prompt = Mock()
+        self.mock_game_session.load_state.return_value = {}
+
+        plan = {
+            'set_goal': None,
+            'goal_complete': False,
+            'goal_give_up': False,
+            'approach': None,
+            'interact': None,
+            'request_check': None,
+            'offer_item': {
+                'item': 'scroll_speak_animals_modified',
+                'target': target,
+                'auto_use': False,
+            },
+        }
+
+        with patch('natural20.utils.conversation_offers.has_animal_communication', return_value=True):
+            result = self.rag_handler.apply_response_plan_directives(
+                plan,
+                actor,
+                speaker=target,
+                advance_time=False,
+            )
+
+        self.assertEqual(result['executed_actions'], [])
+        self.mock_current_game.prompt.assert_not_called()
 
     def test_offer_item_prompt_callback_decline_does_not_transfer_item(self):
         actor = Mock()

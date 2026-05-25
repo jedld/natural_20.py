@@ -2,6 +2,7 @@ import unittest
 
 from natural20.actions.lay_on_hands_action import LayOnHandsAction
 from natural20.battle import Battle
+from natural20.utils.action_builder import autobuild
 from natural20.event_manager import EventManager
 from natural20.map import Map
 from natural20.player_character import PlayerCharacter
@@ -71,6 +72,15 @@ class TestLayOnHandsAction(unittest.TestCase):
             self.assertFalse(self.ally.poisoned())
         self.assertEqual(self.paladin.lay_on_hands_count, initial_pool - 5)
         self.assertIn('poisoned', action.result[0].get('conditions', []))
+
+    def test_autobuild_heal_choices(self):
+        self.ally.take_damage(3, battle=self.battle)
+        actions = autobuild(self.session, LayOnHandsAction, self.paladin, self.battle)
+        self.assertTrue(actions)
+        for action in actions:
+            self.assertEqual(action.mode, 'heal')
+            self.assertGreater(action.heal_amt, 0)
+            self.assertFalse(action.errors)
 
 
 if __name__ == '__main__':

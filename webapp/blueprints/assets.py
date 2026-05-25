@@ -22,20 +22,38 @@ from .helpers.auth_utils import user_role
 assets_bp = Blueprint('assets', __name__)
 
 
+def _resolve_map_background_path(game_session, filename):
+    """Find a campaign map background under assets/maps/ or assets/."""
+    root = game_session.root_path
+    candidates = []
+    basename, ext = os.path.splitext(filename)
+    if ext:
+        candidates.append(filename)
+    else:
+        candidates.append(filename)
+    for suffix in ('.png', '.jpg', '.jpeg', '.webp'):
+        alt = f'{basename}{suffix}'
+        if alt not in candidates:
+            candidates.append(alt)
+
+    search_dirs = (
+        os.path.join(root, 'assets', 'maps'),
+        os.path.join(root, 'assets'),
+    )
+    for name in candidates:
+        for directory in search_dirs:
+            full_path = os.path.join(directory, name)
+            if os.path.exists(full_path):
+                return full_path, directory, name
+    return None, None, None
+
+
 @assets_bp.route('/assets/maps/<path:filename>', endpoint='serve_map_image')
 def serve_map_image(filename):
     game_session = get_game_session()
-    maps_directory = os.path.join(game_session.root_path, "assets", "maps")
-    # Primary location for map backgrounds.
-    primary_path = os.path.join(maps_directory, filename)
-    if os.path.exists(primary_path):
-        return send_from_directory(maps_directory, filename)
-
-    # Backward compatibility: some campaigns store map backgrounds directly
-    # under assets/ and still reference them through /assets/maps/.
-    fallback_path = os.path.join(game_session.root_path, "assets", filename)
-    if os.path.exists(fallback_path):
-        return send_file(fallback_path)
+    full_path, directory, resolved_name = _resolve_map_background_path(game_session, filename)
+    if full_path:
+        return send_from_directory(directory, resolved_name)
 
     return jsonify(error="File not found"), 404
 

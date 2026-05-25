@@ -18,7 +18,24 @@ from natural20.entity import Entity
 from natural20.player_character import PlayerCharacter
 from natural20.session import Session
 from natural20.concern.generic_event_handler import GenericEventHandler
-from natural20.utils.animal_communication import grant_animal_communication
+from natural20.utils.animal_communication import (
+    animal_communication_expires_at,
+    grant_animal_communication,
+)
+from natural20.utils.conversation_offers import (
+    accept_effect_for_item,
+    canonical_item_slug,
+    evaluate_offer_block,
+    merged_offer_configs,
+    offer_guidance_lines,
+    on_accept_auto_use,
+    record_completed_item_offer,
+)
+from natural20.utils.conversation_witness import (
+    format_witnessed_actions_summary,
+    log_witnessed_action,
+    witnessed_action_lines,
+)
 from natural20.utils.conversation import (
     SPEECH_MODE_ORDER,
     audible_entities,
@@ -69,11 +86,6 @@ NON_OBSERVABLE_TRUST_PATTERN = re.compile(
 
 
 class EntityRAGHandler:
-    ITEM_ALIASES = {
-        'scroll_speak_animals': 'scroll_speak_animals_modified',
-        'scroll of speak with animals (modified)': 'scroll_speak_animals_modified',
-    }
-
     """
     Handles RAG (Retrieval-Augmented Generation) operations for entity conversations.
     
@@ -640,6 +652,8 @@ class EntityRAGHandler:
                 if item_raw:
                     target_spec = params.get('target') or params.get('entity') or 'speaker'
                     target = self.resolve_named_target(actor, target_spec, speaker=speaker, include_objects=False)
+                    if target is None and speaker is not None:
+                        target = speaker
                     directives['offer_item'] = {
                         'item': self._canonical_item_slug(item_raw),
                         'target': target,
@@ -682,10 +696,11 @@ class EntityRAGHandler:
             return False
         return str(value).strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
 
+    def _game_properties(self) -> Dict[str, Any]:
+        return getattr(self.game_session, 'game_properties', None) or {}
+
     def _canonical_item_slug(self, item_slug: str) -> str:
-        normalized = str(item_slug or '').strip()
-        lowered = normalized.lower()
-        return self.ITEM_ALIASES.get(lowered, lowered.replace(' ', '_'))
+        return canonical_item_slug(item_slug, merged_offer_configs(self._game_properties()))
 
     def resolve_named_target(self, actor: Entity, target_spec: Optional[str], speaker: Entity = None, include_objects: bool = False):
         if not target_spec:
@@ -696,12 +711,19 @@ class EntityRAGHandler:
         if lowered in {'speaker', 'you'}:
             return speaker
 
-        try:
-            target = self.game_session.entity_by_uid(normalized)
-            if target is not None:
-                return target
-        except Exception:
-            pass
+        for uid_candidate in (normalized, lowered):
+            try:
+                target = self.game_session.entity_by_uid(uid_candidate)
+                if target is not None:
+                    return target
+            except Exception:
+                pass
+
+        if speaker is not None:
+            speaker_uid = str(getattr(speaker, 'entity_uid', '') or '').strip().lower()
+            speaker_handle = mention_handle_for(speaker).lower()
+            if lowered == speaker_uid or lowered == speaker_handle:
+                return speaker
 
         battle_map = self.current_game.get_map_for_entity(actor)
         if battle_map is None:
@@ -892,6 +914,31 @@ class EntityRAGHandler:
             result['goal_status'] = 'abandoned'
             self.current_game.complete_short_term_goal(actor, status='abandoned', reason='Abandoned by LLM')
 
+        offer_item = plan.get('offer_item')
+        if offer_item and offer_item.get('item'):
+            offer_target = offer_item.get('target') or speaker
+            if offer_target is not None:
+                can_offer, block_reason = self._can_offer_item(
+                    actor,
+                    offer_target,
+                    offer_item['item'],
+                )
+                if can_offer and self._offer_item_with_prompt(
+                    actor,
+                    offer_target,
+                    offer_item['item'],
+                    auto_use=bool(offer_item.get('auto_use')),
+                ):
+                    result['executed_actions'].append('offer_item')
+                elif not can_offer:
+                    logger.info(
+                        'Offer item suppressed for %s -> %s (%s): %s',
+                        entity_label(actor),
+                        entity_label(offer_target),
+                        offer_item['item'],
+                        block_reason,
+                    )
+
         if self.current_game.get_current_battle() is None:
             execution_username = self._execution_username_for(actor)
             pov_entities = [actor]
@@ -905,16 +952,6 @@ class EntityRAGHandler:
                     dc=request_check.get('dc'),
                 )
                 result['executed_actions'].append('request_check')
-
-            offer_item = plan.get('offer_item')
-            if offer_item and offer_item.get('target') is not None and offer_item.get('item'):
-                if self._offer_item_with_prompt(
-                    actor,
-                    offer_item['target'],
-                    offer_item['item'],
-                    auto_use=bool(offer_item.get('auto_use')),
-                ):
-                    result['executed_actions'].append('offer_item')
 
             approach_directive = plan.get('approach')
             if approach_directive and approach_directive.get('target') is not None:
@@ -946,6 +983,48 @@ class EntityRAGHandler:
 
         return result
 
+    def _inventory_qty(self, entity: Entity, item_slug: str) -> int:
+        inventory = getattr(entity, 'inventory', None) or {}
+        try:
+            return int((inventory.get(item_slug) or {}).get('qty') or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _can_offer_item(self, actor: Entity, target: Entity, item_slug: str) -> Tuple[bool, str]:
+        return evaluate_offer_block(
+            self.game_session,
+            actor,
+            target,
+            item_slug,
+            game_properties=self._game_properties(),
+            actor_has_map_item=self._find_offerable_map_object(actor, item_slug) is not None,
+        )
+
+    def offer_item_guidance_for_conversation(self, actor: Entity, speaker: Entity = None) -> str:
+        """Prompt lines from campaign ``conversation_item_offers`` (and optional NPC overrides)."""
+        lines = offer_guidance_lines(
+            self.game_session,
+            actor,
+            speaker,
+            game_properties=self._game_properties(),
+            actor_has_map_item_fn=lambda entity, slug: self._find_offerable_map_object(entity, slug) is not None,
+        )
+        return '\n'.join(lines)
+
+    def witnessed_events_summary(self, observer: Entity, *, limit: int = 10) -> str:
+        """Recent console lines the NPC was scoped to witness (item trades, scroll use, etc.)."""
+        output_logger = getattr(self.current_game, 'output_logger', None)
+        lines = witnessed_action_lines(output_logger, observer, limit=limit)
+        return format_witnessed_actions_summary(lines)
+
+    def _offer_item_aliases(self, item_slug: str) -> set:
+        aliases = {str(item_slug or '').strip().lower()}
+        cfg = merged_offer_configs(self._game_properties()).get(item_slug) or {}
+        if isinstance(cfg, dict):
+            for alias in cfg.get('aliases') or []:
+                aliases.add(str(alias).strip().lower().replace(' ', '_'))
+        return aliases
+
     def _find_offerable_map_object(self, actor: Entity, item_slug: str):
         try:
             battle_map = self.current_game.get_map_for_entity(actor)
@@ -954,28 +1033,42 @@ class EntityRAGHandler:
         if battle_map is None:
             return None
 
-        aliases = {item_slug}
-        for alias, canonical in self.ITEM_ALIASES.items():
-            if canonical == item_slug:
-                aliases.add(alias)
+        raw_objects = getattr(battle_map, 'interactable_objects', None)
+        if not isinstance(raw_objects, dict):
+            return None
 
-        for obj in list(getattr(battle_map, 'interactable_objects', {}).keys()):
+        aliases = self._offer_item_aliases(item_slug)
+        for obj in list(raw_objects.keys()):
             obj_type = str(getattr(obj, 'type', '') or '').strip().lower()
             obj_name = str(getattr(obj, '_name', '') or '').strip().lower()
             if obj_type in aliases or obj_name in aliases:
                 return obj
         return None
 
-    def _emit_offer_result_message(self, actor: Entity, target: Entity, message: str) -> None:
-        event_manager = getattr(self.game_session, 'event_manager', None)
-        if event_manager is None:
-            return
-        event_manager.received_event({
-            'event': 'message',
-            'source': actor,
-            'target': target,
-            'message': message,
-        })
+    def _log_witnessed_offer_outcome(self, actor: Entity, target: Entity, message: str) -> None:
+        output_logger = getattr(self.current_game, 'output_logger', None)
+        log_witnessed_action(
+            output_logger,
+            self.game_session,
+            message,
+            source=actor,
+            target=target,
+        )
+
+    def _apply_offer_accept_effect(self, actor: Entity, target: Entity, item_slug: str) -> Optional[str]:
+        game_properties = self._game_properties()
+        if not (on_accept_auto_use(item_slug, game_properties=game_properties, actor=actor)):
+            return None
+        effect = accept_effect_for_item(item_slug, game_properties=game_properties, actor=actor)
+        if effect == 'animal_communication':
+            grant_animal_communication(self.game_session, entity=target)
+            target.deduct_item(item_slug, 1)
+            expiration = animal_communication_expires_at(self.game_session, target)
+            return (
+                f"{entity_label(target)} reads the scroll and can understand beasts "
+                f"until game time {expiration}."
+            )
+        return None
 
     def _is_offer_accept_response(self, payload: Dict[str, Any]) -> bool:
         raw = (payload or {}).get('response', '')
@@ -1004,8 +1097,11 @@ class EntityRAGHandler:
         }
 
     def _offer_item_with_prompt(self, actor: Entity, target: Entity, item_slug: str, auto_use: bool = False) -> bool:
-        actor_inventory = getattr(actor, 'inventory', {}) or {}
-        source_qty = int((actor_inventory.get(item_slug) or {}).get('qty') or 0)
+        can_offer, _reason = self._can_offer_item(actor, target, item_slug)
+        if not can_offer:
+            return False
+
+        source_qty = self._inventory_qty(actor, item_slug)
         map_object = None
         if source_qty <= 0:
             map_object = self._find_offerable_map_object(actor, item_slug)
@@ -1032,7 +1128,11 @@ class EntityRAGHandler:
             accepted = self._is_offer_accept_response(payload)
 
             if not accepted:
-                self._emit_offer_result_message(actor, target, f"{entity_label(target)} declines the offered item.")
+                self._log_witnessed_offer_outcome(
+                    actor,
+                    target,
+                    f"{entity_label(target)} declines the offered item.",
+                )
                 _emit_offer_ui_refresh()
                 return
 
@@ -1048,15 +1148,21 @@ class EntityRAGHandler:
                     pass
 
             target.add_item(item_slug, 1)
+            record_completed_item_offer(self.game_session, actor, target, item_slug)
 
-            if auto_use and item_slug == 'scroll_speak_animals_modified':
-                grant_animal_communication(self.game_session, entity=target)
-                target.deduct_item(item_slug, 1)
-                self._emit_offer_result_message(actor, target, f"{entity_label(target)} uses the scroll and can understand beasts for 8 hours.")
+            effect_message = None
+            if auto_use:
+                effect_message = self._apply_offer_accept_effect(actor, target, item_slug)
+            if effect_message:
+                self._log_witnessed_offer_outcome(actor, target, effect_message)
                 _emit_offer_ui_refresh()
                 return
 
-            self._emit_offer_result_message(actor, target, f"{entity_label(target)} accepts {item_slug.replace('_', ' ')}.")
+            self._log_witnessed_offer_outcome(
+                actor,
+                target,
+                f"{entity_label(target)} accepts {item_slug.replace('_', ' ')}.",
+            )
             _emit_offer_ui_refresh()
 
         self.current_game.prompt(
@@ -1125,7 +1231,8 @@ class EntityRAGHandler:
             "- [INTERACT: target=<name or @handle>, action=<interaction>] to use an interactable object.\n"
             "- [INSIGHT: target=speaker] or [INSIGHT: target=@handle] to privately assess whether someone seems truthful before responding.\n"
             "- [REQUEST_CHECK: skill=persuasion|intimidation|arcana|investigation|..., target=speaker|@handle, dc=optional] to ask for a skill check.\n"
-            "- [OFFER_ITEM: item=scroll_speak_animals_modified, target=speaker] to offer an item and trigger a Yes/No acceptance prompt.\n"
+            "- [OFFER_ITEM: item=<item_slug>, target=speaker] to offer an item you still possess (triggers Accept Yes/No once per item per listener).\n"
+            f"{self.offer_item_guidance_for_conversation(entity, requester)}\n"
             "- [SET_GOAL: new short goal] to replace your current short-term goal.\n"
             "- [GOAL_COMPLETE] when the current goal is done.\n"
             "- [GOAL_GIVE_UP] when the current goal cannot be completed or is no longer worth pursuing.\n"
