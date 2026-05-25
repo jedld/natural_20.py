@@ -30,6 +30,7 @@ let globalCanvas = null;
 let globalCtx = null;
 let talkToEntityMode = false; // Flag to track when user is talking to an entity
 let dialogMessageProcessing = false; // Flag to track if a dialog message is being processed
+let activeDialogWaitingId = null; // Waiting indicator cleared when NPC reply arrives over socket
 
 // Pan and Zoom state (Roll20-style viewport)
 let viewportPan = { x: 0, y: 0 };
@@ -927,7 +928,7 @@ class EventQueue {
 
   processConversationEvent(data, resolve) {
     // Handle real-time conversation updates
-    const { entity_id, message, targets, visual_only } = data.message;
+    const { entity_id, message, targets, visual_only, narrative } = data.message;
 
     // Validate required fields
     if (!entity_id || !message) {
@@ -1003,8 +1004,9 @@ class EventQueue {
           }
         }
 
-        // Add the message to the dialog chat
-        Chat.addDialogMessage('entity', message, 'entity');
+        // Add the message to the dialog chat (spoken line + optional narrative asides)
+        Chat.addDialogMessage('entity', message, 'entity', { narrative: narrative });
+        clearDialogWaitingState();
       } catch (error) {
         console.error('Error adding message to dialog modal:', error);
         // Fallback to showing conversation bubble
@@ -6445,6 +6447,7 @@ $(document).ready(() => {
 
     // Add waiting indicator
     const waitingId = addWaitingIndicator();
+    activeDialogWaitingId = waitingId;
 
     // Set up timeout indicators for longer processing times
     const timeout1 = setTimeout(() => {
@@ -6474,6 +6477,7 @@ $(document).ready(() => {
     $.ajax({
       url: '/talk',
       type: 'POST',
+      timeout: 120000,
       contentType: 'application/json',
       data: JSON.stringify({
         entity_id: sourceEntityId,
@@ -6489,18 +6493,8 @@ $(document).ready(() => {
         clearTimeout(timeout2);
         clearTimeout(timeout3);
 
-        // Remove waiting indicator
-        removeWaitingIndicator(waitingId);
-
-        // Re-enable input and send button
-        $input.prop('disabled', false);
-        $sendButton.prop('disabled', false).html('<i class="glyphicon glyphicon-send"></i> Send');
-        $languageSelect.prop('disabled', false);
-        $inputContainer.removeClass('disabled');
+        clearDialogWaitingState();
         $input.focus();
-
-        // Reset processing flag
-        dialogMessageProcessing = false;
 
         if (data.success) {
           // Add entity response if provided
@@ -6511,24 +6505,19 @@ $(document).ready(() => {
           Chat.addDialogMessage('system', 'Message sent successfully.', 'system');
         }
       },
-      error: () => {
+      error: (xhr, status) => {
         // Clear timeouts
         clearTimeout(timeout1);
         clearTimeout(timeout2);
         clearTimeout(timeout3);
 
-        // Remove waiting indicator
-        removeWaitingIndicator(waitingId);
-
-        // Re-enable input and send button
-        $input.prop('disabled', false);
-        $sendButton.prop('disabled', false).html('<i class="glyphicon glyphicon-send"></i> Send');
-        $languageSelect.prop('disabled', false);
-        $inputContainer.removeClass('disabled');
+        clearDialogWaitingState();
         $input.focus();
 
-        // Reset processing flag
-        dialogMessageProcessing = false;
+        if (status === 'timeout') {
+          Chat.addDialogMessage('system', 'The server is taking too long to respond. The reply may still arrive shortly.', 'system');
+          return;
+        }
 
         Chat.addDialogMessage('system', 'Failed to send message.', 'system');
       }
@@ -6625,6 +6614,28 @@ $(document).ready(() => {
         $(this).remove();
       });
     }
+    if (activeDialogWaitingId === waitingId) {
+      activeDialogWaitingId = null;
+    }
+  }
+
+  function clearDialogWaitingState() {
+    if (!activeDialogWaitingId) {
+      return;
+    }
+    const waitingId = activeDialogWaitingId;
+    activeDialogWaitingId = null;
+    removeWaitingIndicator(waitingId);
+
+    const $input = $('#dialogChatInput');
+    const $sendButton = $('#dialogSendMessage');
+    const $languageSelect = $('#dialogLanguageSelect');
+    const $inputContainer = $('.chat-input-container');
+    $input.prop('disabled', false);
+    $sendButton.prop('disabled', false).html('<i class="glyphicon glyphicon-send"></i> Send');
+    $languageSelect.prop('disabled', false);
+    $inputContainer.removeClass('disabled');
+    dialogMessageProcessing = false;
   }
 
   // Load dialog history
