@@ -187,7 +187,14 @@ class EntityRAGHandler:
         ]
 
         try:
-            raw_response = llm_handler.send_message(messages)
+            raw_response = llm_handler.send_message(
+                messages,
+                context={
+                    'response_mode': 'conversation',
+                    'skip_continuation': True,
+                    'log_label': 'semantic_keyword_match',
+                },
+            )
             text = str(raw_response or '').strip()
             match = re.search(r'\{.*\}', text, re.DOTALL)
             if match:
@@ -278,6 +285,14 @@ class EntityRAGHandler:
             return resolved_targets
         return [speaker] if speaker is not None else []
 
+    def _log_conversation_plan(self, receiver: Entity, event: str, level: int = logging.INFO, **fields) -> None:
+        receiver_name = entity_label(receiver) if receiver is not None else 'unknown'
+        extras = ' '.join(f"{key}={value!r}" for key, value in fields.items())
+        message = f"[ConversationPlan] {receiver_name}: {event}"
+        if extras:
+            message = f"{message} ({extras})"
+        logger.log(level, message)
+
     def plan_response_volume(self, receiver: Entity, targets: List[Entity], volume: Optional[str] = None) -> Tuple[Optional[str], List[Entity]]:
         if not targets:
             return None, []
@@ -337,13 +352,32 @@ class EntityRAGHandler:
             'goal_give_up': False,
         }
         if not response:
+            self._log_conversation_plan(receiver, 'skip empty LLM response')
+            return plan
+
+        self._log_conversation_plan(
+            receiver,
+            'building reply plan',
+            level=logging.DEBUG,
+            raw_preview=(response or '')[:160],
+        )
+
+        pre_controls = self.parse_response_controls(response)
+        if pre_controls['no_response'] and not (pre_controls['response'] or '').strip():
+            self._log_conversation_plan(receiver, 'skip [NO_RESPONSE]')
             return plan
 
         language, processed_response = self.parse_language_from_response(response)
         if hasattr(receiver, 'languages') and receiver.languages():
             language = self.validate_language_for_entity(language, receiver)
 
-        processed_response = self._process_rag_commands(processed_response, speaker, receiver, llm_conversation_handler)
+        processed_response = self._process_rag_commands(
+            processed_response,
+            speaker,
+            receiver,
+            llm_conversation_handler,
+            include_keywords=False,
+        )
         rerendered_language, processed_response = self.parse_language_from_response(processed_response)
         if rerendered_language != 'common' or language == 'common':
             if hasattr(receiver, 'languages') and receiver.languages():
@@ -365,6 +399,7 @@ class EntityRAGHandler:
 
         controls = self.parse_response_controls(processed_response)
         if controls['no_response']:
+            self._log_conversation_plan(receiver, 'skip [NO_RESPONSE] after directive parse')
             return plan
 
         message, narrative = self.extract_narrative_asides(
@@ -380,11 +415,38 @@ class EntityRAGHandler:
         if plan['request_check'] is None and inferred_request_check is not None:
             plan['request_check'] = inferred_request_check
         if not message:
+            self._log_conversation_plan(
+                receiver,
+                'skip empty spoken line after aside extraction',
+                controls_preview=(controls.get('response') or '')[:160],
+            )
             return plan
 
         targets = self.resolve_response_targets(receiver, speaker=speaker, target_spec=controls.get('target_spec'))
         volume, targets = self.plan_response_volume(receiver, targets, volume=controls.get('volume'))
+        if (not targets or not volume) and speaker is not None:
+            self._log_conversation_plan(
+                receiver,
+                'volume plan retrying with shout toward speaker',
+                speaker=entity_label(speaker),
+            )
+            volume, targets = self.plan_response_volume(receiver, [speaker], volume='shout')
+        if (not targets or not volume) and speaker is not None:
+            volume, targets = 'shout', [speaker]
+            self._log_conversation_plan(
+                receiver,
+                'volume plan forced shout fallback toward speaker',
+                speaker=entity_label(speaker),
+            )
+
         if not targets or not volume:
+            self._log_conversation_plan(
+                receiver,
+                'skip unreachable targets',
+                target_spec=controls.get('target_spec'),
+                resolved_target_ids=[getattr(t, 'entity_uid', t) for t in (targets or [])],
+                volume=volume,
+            )
             return plan
 
         plan.update({
@@ -395,7 +457,27 @@ class EntityRAGHandler:
             'volume': volume,
             'skip': False,
         })
+        self._log_conversation_plan(
+            receiver,
+            'reply plan ready',
+            language=language,
+            volume=volume,
+            target_ids=[getattr(t, 'entity_uid', t) for t in targets],
+            message_preview=message[:160],
+            narrative_count=len(narrative or []),
+        )
         return plan
+
+    @staticmethod
+    def _looks_like_stage_direction(line: str) -> bool:
+        text = (line or '').strip()
+        if not text:
+            return False
+        if text.startswith(('*', '(', '[')):
+            return True
+        if re.match(r'^(?:They|She|He|The)\b', text):
+            return True
+        return False
 
     def extract_narrative_asides(self, response_text: str, llm_conversation_handler=None) -> Tuple[str, List[str]]:
         asides = []
@@ -415,8 +497,23 @@ class EntityRAGHandler:
         if '\n' not in cleaned:
             return cleaned, []
 
+        lines = [line.strip() for line in cleaned.split('\n') if line.strip()]
+        if lines and not any(self._looks_like_stage_direction(line) for line in lines):
+            joined = ' '.join(lines)
+            logger.debug(
+                '[ConversationPlan] joined %s dialogue lines without narrative LLM preview=%r',
+                len(lines),
+                joined[:120],
+            )
+            return joined, []
+
+        logger.info(
+            '[ConversationPlan] requesting narrative LLM split preview=%r',
+            cleaned[:160],
+        )
         split = self._extract_narrative_asides_via_llm(cleaned, llm_conversation_handler)
         if split is None:
+            logger.debug('[ConversationPlan] narrative LLM split unavailable; using raw spoken line')
             return cleaned, []
 
         spoken = (split.get('spoken') or '').strip()
@@ -450,7 +547,14 @@ class EntityRAGHandler:
         ]
 
         try:
-            raw_response = llm_handler.send_message(messages)
+            raw_response = llm_handler.send_message(
+                messages,
+                context={
+                    'response_mode': 'conversation',
+                    'skip_continuation': True,
+                    'log_label': 'narrative_split',
+                },
+            )
         except Exception:
             return None
 
@@ -1321,7 +1425,58 @@ class EntityRAGHandler:
             # Fallback to common if parsing fails
             return "common", response
 
-    def _process_rag_commands(self, response: str, speaker: Entity, receiver: Entity, llm_conversation_handler) -> str:
+    def apply_conversation_keywords(
+        self,
+        response: str,
+        receiver: Entity,
+        speaker: Entity = None,
+        llm_conversation_handler=None,
+    ) -> None:
+        """Fire keyword side effects after NPC speech is delivered (literal match only)."""
+        try:
+            keyword_entries = receiver.conversation_keywords()
+        except Exception:
+            keyword_entries = []
+
+        if not isinstance(keyword_entries, (list, tuple)):
+            keyword_entries = []
+
+        matched_entries = []
+        for keywords in keyword_entries:
+            keyword = str(keywords.get('keyword', '')).strip()
+            if not keyword:
+                continue
+            if self._keyword_matched_by_text(response, keyword):
+                matched_entries.append(keywords)
+
+        if not matched_entries:
+            self._log_conversation_plan(
+                receiver,
+                'no literal keyword matches in delivered speech',
+                level=logging.DEBUG,
+                speech_preview=(response or '')[:120],
+            )
+            return
+
+        for keywords in matched_entries:
+            keyword = str(keywords.get('keyword', '')).strip()
+            self._log_conversation_plan(
+                receiver,
+                'applying conversation keyword side effect',
+                keyword=keyword,
+            )
+            generic_handler = GenericEventHandler(self.game_session, receiver, keywords)
+            generic_handler.handle(receiver, opts={'speaker': speaker})
+
+    def _process_rag_commands(
+        self,
+        response: str,
+        speaker: Entity,
+        receiver: Entity,
+        llm_conversation_handler,
+        *,
+        include_keywords: bool = True,
+    ) -> str:
         """
         Process RAG commands in the response and generate appropriate responses.
 
@@ -1359,6 +1514,9 @@ class EntityRAGHandler:
 
         if not isinstance(keyword_entries, (list, tuple)):
             keyword_entries = []
+
+        if not include_keywords:
+            return response
 
         matched_entries = []
         for keywords in keyword_entries:

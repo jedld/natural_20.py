@@ -19,6 +19,7 @@ import re
 import uuid
 import pdb
 import threading
+import time
 from pathlib import Path
 
 from natural20.concurrency import run_blocking
@@ -815,7 +816,6 @@ class LLMHandler:
         self.game_context_functions = {}
         self.conversation_history = []
         self.session_logger = SessionLogger()  # Create session logger
-        self._send_lock = threading.Lock()
 
     @staticmethod
     def _only_first_message_may_be_system(messages: List[Dict[str, str]]) -> None:
@@ -847,11 +847,48 @@ class LLMHandler:
             return True
         return False
     
+    @staticmethod
+    def _response_looks_complete(content: str, done_reason: Optional[str] = None) -> bool:
+        """Return True when an LLM chunk should be treated as finished (no continuation)."""
+        if done_reason == 'length':
+            return False
+        if not content or not str(content).strip():
+            return True
+
+        trimmed = str(content).strip()
+        if trimmed[0] in '{[':
+            try:
+                json.loads(trimmed)
+                return True
+            except json.JSONDecodeError:
+                if trimmed[-1] in '}]':
+                    return True
+
+        if trimmed.endswith('...'):
+            return False
+        if '<think>' in content and '</think>' not in content:
+            return False
+        if len(trimmed) > 100 and trimmed[-1] not in '.!?]\n}':
+            return False
+        if len(trimmed) > 20 and trimmed[-1] not in '.!?]\n}':
+            return False
+        if any(trimmed.endswith(phrase) for phrase in (
+            'To determine', 'I need to', 'Let me', 'Based on', 'The user',
+            'This shows', 'We can see', 'It appears', 'The data', 'Looking at',
+        )):
+            return False
+        return True
+
     def send_message(self, message, context: Optional[Dict[str, Any]] = None) -> str:
         """Send a message to the LLM and get a response, automatically handling truncated responses."""
         logger.debug(f"[LLMHandler] send_message called with message: {message}")
-        with self._send_lock:
-            return run_blocking(self._send_message_impl, message, context)
+        response_mode = (context or {}).get('response_mode', 'dm')
+        # NPC /talk replies run synchronously in the request greenlet. Offloading to
+        # eventlet tpool and then waiting on the result has been observed to stall after
+        # the provider returns, leaving /talk hung and the dialog spinner stuck.
+        if response_mode == 'conversation':
+            return self._send_message_impl(message, context)
+        return run_blocking(self._send_message_impl, message, context)
 
     def _send_message_impl(self, message, context: Optional[Dict[str, Any]] = None) -> str:
         response_mode = (context or {}).get('response_mode', 'dm')
@@ -885,16 +922,28 @@ class LLMHandler:
             logger.debug(f"[LLMHandler] Messages sent to provider: {messages}")
 
         self._only_first_message_may_be_system(messages)
-        
+
         provider_info = self.get_provider_info()
-        self.session_logger.log_request(messages, provider_info)
+        if not is_npc_conversation:
+            self.session_logger.log_request(messages, provider_info)
+
+        log_label = (context or {}).get('log_label') or (
+            'npc_conversation' if is_npc_conversation else 'dm_chat'
+        )
+        request_started = time.monotonic()
+        if is_npc_conversation or (context or {}).get('skip_continuation'):
+            logger.info(
+                "[LLMHandler] send start label=%s messages=%s skip_continuation=%s",
+                log_label,
+                len(messages),
+                bool((context or {}).get('skip_continuation')),
+            )
         
         # --- CONTINUATION LOGIC START ---
         full_response = ""
         continuation_count = 0
         max_continuations = 5
-        last_done_reason = None
-        last_raw_response = None
+        skip_continuation = bool((context or {}).get('skip_continuation'))
         
         # Build a separate conversation for continuation that preserves message order
         # System message must always be first, followed by user/assistant pairs
@@ -904,7 +953,6 @@ class LLMHandler:
             # Get response from provider
             raw_response = self.current_provider.send_message(continuation_messages)
             logger.info(f"[LLMHandler] Raw response from provider: {raw_response}")
-            # self.session_logger.log_response(raw_response, provider_info, partial=True)
 
             # Try to detect done_reason if available (for OpenAI, Ollama, etc.)
             done_reason = None
@@ -918,31 +966,7 @@ class LLMHandler:
             # Append content to full_response
             full_response += (content if content else "")
             
-            # Heuristic: If done_reason is 'length' or response ends abruptly, continue
-            is_truncated = False
-            if done_reason and done_reason == 'length':
-                is_truncated = True
-            elif content and len(content) > 0:
-                # Check for various truncation indicators
-                trimmed = content.strip()
-                
-                # If the content ends with ... or is very long without proper ending
-                if len(trimmed) > 100 and not trimmed[-1] in ".!?]\n":
-                    is_truncated = True
-                # Check if response ends mid-sentence (no proper ending punctuation)
-                elif len(trimmed) > 20 and not trimmed[-1] in ".!?]\n":
-                    is_truncated = True
-                # Check if thinking tags are incomplete (no closing tag)
-                elif "<think>" in content and "</think>" not in content:
-                    is_truncated = True
-                # Check if the response seems incomplete (ends with common incomplete phrases)
-                elif any(trimmed.endswith(phrase) for phrase in [
-                    "To determine", "I need to", "Let me", "Based on", "The user",
-                    "This shows", "We can see", "It appears", "The data", "Looking at"
-                ]):
-                    is_truncated = True
-            
-            if not is_truncated:
+            if skip_continuation or self._response_looks_complete(content or '', done_reason):
                 break
             
             # For continuation, add the assistant response and a user prompt to continue
@@ -956,6 +980,15 @@ class LLMHandler:
         # --- CONTINUATION LOGIC END ---
         # Clean the full response
         cleaned_response = self._clean_response(full_response, response_mode=response_mode)
+        elapsed_ms = (time.monotonic() - request_started) * 1000.0
+        if is_npc_conversation or (context or {}).get('skip_continuation'):
+            logger.info(
+                "[LLMHandler] send complete label=%s elapsed_ms=%.1f continuations=%s preview=%r",
+                log_label,
+                elapsed_ms,
+                continuation_count,
+                (cleaned_response or '')[:160],
+            )
         logger.info(f"[LLMHandler] Cleaned response: {cleaned_response}")
 
         # Check if the response contains function calls
@@ -988,13 +1021,18 @@ class LLMHandler:
                 logger.info("[LLMHandler] No valid function calls processed, returning original response")
                 if not is_npc_conversation:
                     self.conversation_history.append({"role": "assistant", "content": cleaned_response})
-                self.session_logger.log_response(cleaned_response, provider_info, partial=False)
+                    self.session_logger.log_response(cleaned_response, provider_info, partial=False)
                 return cleaned_response
         else:
             # No function calls, return the cleaned response directly
             if not is_npc_conversation:
                 self.conversation_history.append({"role": "assistant", "content": cleaned_response})
-            self.session_logger.log_response(cleaned_response, provider_info, partial=False)
+                self.session_logger.log_response(cleaned_response, provider_info, partial=False)
+            elif logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    "[LLMHandler] skipping session transcript write for NPC conversation label=%s",
+                    log_label,
+                )
             return cleaned_response
 
     def _format_function_results(self, processed_response: List[Dict[str, str]], context: Optional[Dict[str, Any]] = None, original_message: str = None) -> str:
@@ -1071,32 +1109,7 @@ class LLMHandler:
             # Append content to full_response
             full_response += (content if content else "")
 
-            # Heuristic: If done_reason is 'length' or response ends abruptly, continue
-            is_truncated = False
-            if done_reason and done_reason == 'length':
-                is_truncated = True
-            elif content and len(content) > 0:
-                # Check for various truncation indicators
-                trimmed = content.strip()
-                # If the content ends with ... or is very long without proper ending
-                if trimmed.endswith("..."):
-                    is_truncated = True
-                elif len(trimmed) > 100 and not trimmed[-1] in ".!?\n":
-                    is_truncated = True
-                # Check if response ends mid-sentence (no proper ending punctuation)
-                elif len(trimmed) > 20 and not trimmed[-1] in ".!?\n":
-                    is_truncated = True
-                # Check if thinking tags are incomplete (no closing tag)
-                elif "<think>" in content and "</think>" not in content:
-                    is_truncated = True
-                # Check if the response seems incomplete (ends with common incomplete phrases)
-                elif any(trimmed.endswith(phrase) for phrase in [
-                    "To determine", "I need to", "Let me", "Based on", "The user",
-                    "This shows", "We can see", "It appears", "The data", "Looking at"
-                ]):
-                    is_truncated = True
-            
-            if not is_truncated:
+            if self._response_looks_complete(content or '', done_reason):
                 break
             
             # For continuation, add the assistant response and a user prompt to continue

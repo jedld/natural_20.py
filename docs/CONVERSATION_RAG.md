@@ -32,6 +32,30 @@ Relevant code:
 - `webapp/blueprints/helpers/conversation_wiring.py` — service setup at app startup
 - `webapp/entity_rag_handler.py` — RAG plan parsing
 
+## Debugging logs
+
+Conversation traffic uses the `n20.conversation` logger, which shares the Flask/werkzeug console handlers configured in `webapp/app.py`. Grep for these prefixes while reproducing `/talk` issues:
+
+| Prefix | Source | What it tells you |
+|--------|--------|-------------------|
+| `[Talk]` | `conversation_service.py` | Inbound message, eligible responders, per-NPC timing, emit vs skip |
+| `[ConversationPlan]` | `entity_rag_handler.py` | Why a reply plan was built or skipped (NO_RESPONSE, volume, empty line) |
+| `[LLMConversation]` | `llm_conversation_controller.py` | NPC `generate_response` start/end and latency |
+| `[LLMHandler]` | `llm_handler.py` | Provider round-trips (`label=npc_reply:…`, `narrative_split`, etc.) |
+
+Healthy second-turn flow should look like:
+
+1. `[Talk] inbound speaker=gomerin …`
+2. `[Talk] delivered_to=['rose_durst2'] eligible_responders=[…]`
+3. `[LLMConversation] generating NPC reply conversation_id=rose_durst2 …`
+4. `[LLMHandler] send complete label=npc_reply:rose_durst2 …`
+5. `[ConversationPlan] Rose Durst: reply plan ready …`
+6. `[Talk] emitted reply from Rose Durst to_usernames=[…]`
+
+If step 5 is missing, check for `[ConversationPlan] … skip …` immediately after the LLM preview. If step 6 is missing but step 5 shows `skip=False`, the failure is after plan build (emit/delivery).
+
+If logs show `[LLMHandler] Cleaned response` but never `[LLMHandler] send complete` / `[Talk] raw LLM response`, the `/talk` request hung inside the LLM handler return path. NPC conversation calls run synchronously in the request greenlet (not eventlet `tpool`) and skip DM session transcript writes to avoid observed post-response stalls under gunicorn+eventlet.
+
 ## Inline Control Tags
 
 These are not general tool calls. They are compact tags interpreted by the server after the model responds.

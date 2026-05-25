@@ -105,6 +105,11 @@ app.config['NPC_LLM_COMBAT_ENABLED'] = _env_flag('NPC_LLM_COMBAT_ENABLED', False
 
 logger = logging.getLogger('werkzeug')
 logger.setLevel(logging.INFO)
+conversation_logger = logging.getLogger('n20.conversation')
+conversation_logger.setLevel(logging.INFO)
+for _handler in logger.handlers:
+    conversation_logger.addHandler(_handler)
+conversation_logger.propagate = False
 
 allowed_origins = get_allowed_origins()
 CORS(app, resources={r"/*": {"origins": allowed_origins, "supports_credentials": True}})

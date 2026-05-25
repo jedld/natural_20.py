@@ -281,6 +281,71 @@ class TestEntityRAGHandler(unittest.TestCase):
         self.assertTrue(plan['skip'])
         self.assertEqual(plan['message'], "")
 
+    def test_no_response_skips_keyword_llm_lookup(self):
+        mock_receiver = Mock()
+        mock_receiver.languages.return_value = ["common"]
+        mock_receiver.conversation_keywords.return_value = [{'keyword': 'monster'}]
+
+        llm_conversation_handler = Mock()
+        llm_conversation_handler.llm_hander = Mock()
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "[NO_RESPONSE]",
+            mock_receiver,
+            speaker=Mock(),
+            llm_conversation_handler=llm_conversation_handler,
+        )
+
+        self.assertTrue(plan['skip'])
+        llm_conversation_handler.llm_hander.send_message.assert_not_called()
+
+    def test_build_conversation_response_plan_falls_back_to_speaker_when_volume_plan_fails(self):
+        speaker = Mock()
+        speaker.entity_uid = "gomerin"
+        speaker.label.return_value = "Gomerin"
+
+        receiver = Mock()
+        receiver.entity_uid = "rose_durst2"
+        receiver.languages.return_value = ["common"]
+
+        self.rag_handler.plan_response_volume = Mock(return_value=(None, []))
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "[in common] Yes... it's terrible. We're scared.",
+            receiver,
+            speaker=speaker,
+            llm_conversation_handler=Mock(),
+        )
+
+        self.assertFalse(plan['skip'])
+        self.assertEqual(plan['message'], "Yes... it's terrible. We're scared.")
+        self.assertEqual(plan['targets'], [speaker])
+        self.assertEqual(plan['volume'], 'shout')
+
+    def test_build_conversation_response_plan_skips_semantic_keyword_llm(self):
+        speaker = Mock()
+        speaker.entity_uid = "gomerin"
+
+        receiver = Mock()
+        receiver.entity_uid = "rose_durst2"
+        receiver.languages.return_value = ["common"]
+        receiver.conversation_keywords.return_value = [{'keyword': 'basement'}]
+
+        llm_conversation_handler = Mock()
+        llm_conversation_handler.llm_hander = Mock()
+
+        self.rag_handler.plan_response_volume = Mock(return_value=('normal', [speaker]))
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "[in common] In the basement! My parents keep it trapped down there.",
+            receiver,
+            speaker=speaker,
+            llm_conversation_handler=llm_conversation_handler,
+        )
+
+        self.assertFalse(plan['skip'])
+        llm_conversation_handler.llm_hander.send_message.assert_not_called()
+
     def test_build_conversation_response_plan_parses_targets_and_volume(self):
         speaker = Mock()
         speaker.entity_uid = "speaker"
@@ -556,6 +621,17 @@ class TestEntityRAGHandler(unittest.TestCase):
         self.assertIsNotNone(plan['request_check'])
         self.assertEqual(plan['request_check']['skill'], 'intimidation')
         self.assertEqual(plan['request_check']['target'], speaker)
+
+    def test_multiline_dialogue_joins_without_llm_split(self):
+        spoken, narrative = self.rag_handler.extract_narrative_asides(
+            "Shh... shh, Thorn. Don't cry. It's okay.\nThere's a monster in our house!",
+            llm_conversation_handler=Mock(),
+        )
+        self.assertEqual(
+            spoken,
+            "Shh... shh, Thorn. Don't cry. It's okay. There's a monster in our house!",
+        )
+        self.assertEqual(narrative, [])
 
     def test_extract_narrative_asides_via_llm_fallback(self):
         receiver = Mock()
