@@ -27,3 +27,9 @@ class TestAssetsBlueprint:
         client = app.test_client()
         response = client.get('/assets/maps/does-not-exist.png')
         assert response.status_code == 404
+
+    def test_serve_map_image_falls_back_to_assets_root(self):
+        client = app.test_client()
+        # templates/assets/goblin_ambush.png exists in this test fixture.
+        response = client.get('/assets/maps/goblin_ambush.png')
+        assert response.status_code == 200

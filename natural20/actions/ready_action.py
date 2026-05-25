@@ -35,6 +35,9 @@ class ReadyAction(Action):
     def label(self):
         return 'Ready an Action'
 
+    def button_image(self):
+        return 'ready'
+
     @staticmethod
     def can(entity, battle):
         if not battle:

@@ -265,3 +265,26 @@ class TestNpc(unittest.TestCase):
         available_actions = [action.name() for action in npc.available_actions(session, battle)]
 
         assert available_actions == ['attack', 'move'], available_actions
+
+    def test_damage_vulnerability_doubles_damage(self):
+        npc = self.session.npc('skeleton')
+        start_hp = npc.hp()
+
+        npc.take_damage(5, session=self.session, damage_type='bludgeoning')
+
+        self.assertEqual(start_hp - npc.hp(), 10)
+
+    def test_resistance_and_vulnerability_cancel_out(self):
+        npc = self.session.npc('skeleton')
+        npc.resistances = ['bludgeoning']
+        start_hp = npc.hp()
+
+        npc.take_damage(5, session=self.session, damage_type='bludgeoning')
+
+        self.assertEqual(start_hp - npc.hp(), 5)
+
+    def test_npc_damage_resistances_field_is_supported(self):
+        ghast = self.session.npc('ghast')
+
+        self.assertIn('necrotic', ghast.resistances)
+        self.assertTrue(ghast.resistant_to('necrotic'))

@@ -34,6 +34,28 @@ import pdb
 
 import copy
 
+
+def _normalize_damage_traits(value):
+    """Normalize damage trait input to a lowercase list of strings."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        # Allow shorthand like "fire, cold" on custom sheets.
+        items = [part.strip() for part in value.split(',')]
+    elif isinstance(value, (list, tuple, set)):
+        items = list(value)
+    else:
+        return []
+
+    normalized = []
+    for item in items:
+        if item is None:
+            continue
+        cleaned = str(item).strip().lower()
+        if cleaned and cleaned not in normalized:
+            normalized.append(cleaned)
+    return normalized
+
 class Npc(Entity, Multiattack, Lootable, EventLoader):
     ACTION_LIST = [
         AttackAction, DashAction, DashBonusAction, DisengageAction,
@@ -76,7 +98,9 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         self.battle_defaults = self.properties.get("battle_defaults", None)
         self.hidden_stealth = self.properties.get("hidden_stealth", None)
         self.opt = opt
-        self.resistances = self.properties.get("resistances", [])
+        self.resistances = _normalize_damage_traits(
+            self.properties.get("resistances", self.properties.get("damage_resistances", []))
+        )
         self.linked_hp = self.properties.get("linked_hp", None)
         self.statuses = []
         _conversation_buffer = self.properties.get("conversation_buffer", [])
@@ -86,8 +110,12 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         self.is_concealed = self.properties.get("concealed", False)
         self.dialogue = self.properties.get("dialogue", [])
         self.condition_immunities = self.properties.get("condition_immunities", [])
-        self.damage_vulnerabilities = self.properties.get("damage_vulnerabilities", [])
-        self.damage_immunities = self.properties.get("damage_immunities", [])
+        self.damage_vulnerabilities = _normalize_damage_traits(
+            self.properties.get("damage_vulnerabilities", self.properties.get("vulnerabilities", []))
+        )
+        self.damage_immunities = _normalize_damage_traits(
+            self.properties.get("damage_immunities", self.properties.get("immunities", []))
+        )
         self.dialog = self.properties.get("dialog", False)
 
         if self.properties.get("speed_fly"):

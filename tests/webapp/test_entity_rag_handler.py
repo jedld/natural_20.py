@@ -7,6 +7,7 @@ This module provides tests to verify the EntityRAGHandler functionality.
 import unittest
 from unittest.mock import Mock, MagicMock
 from webapp.entity_rag_handler import EntityRAGHandler
+from unittest.mock import patch
 
 
 class TestEntityRAGHandler(unittest.TestCase):
@@ -197,6 +198,58 @@ class TestEntityRAGHandler(unittest.TestCase):
         mock_llm_handler.add_message.assert_called()
         mock_llm_handler.generate_response.assert_called()
 
+    def test_process_entity_response_passes_speaker_to_plan_builder(self):
+        receiver = Mock()
+        receiver.languages.return_value = ["common"]
+        speaker = Mock()
+
+        with patch.object(self.rag_handler, 'build_conversation_response_plan', return_value={
+            'language': 'common',
+            'message': 'ok',
+        }) as mock_builder:
+            self.rag_handler.process_entity_response("hello", receiver, speaker=speaker, llm_conversation_handler=Mock())
+
+        self.assertTrue(mock_builder.called)
+        self.assertIs(mock_builder.call_args.kwargs.get('speaker'), speaker)
+
+    def test_keyword_hook_matches_phrase_with_connector_words(self):
+        receiver = Mock()
+        receiver.conversation_keywords.return_value = [
+            {
+                'keyword': 'hunters closing in',
+                'update_state': [{'target': 'session', 'state': {'wild_sheep_scene2_started': True}}],
+            }
+        ]
+
+        response = "The hunters are closing in."
+
+        with patch('webapp.entity_rag_handler.GenericEventHandler') as handler_cls:
+            handler_instance = Mock()
+            handler_cls.return_value = handler_instance
+            updated = self.rag_handler._process_rag_commands(response, speaker=Mock(), receiver=receiver, llm_conversation_handler=None)
+
+        self.assertTrue(handler_instance.handle.called)
+        self.assertEqual(updated, response)
+
+    def test_keyword_hook_llm_semantic_fallback(self):
+        receiver = Mock()
+        receiver.conversation_keywords.return_value = [
+            {'keyword': 'hunters closing in', 'update_state': [{'target': 'session', 'state': {'wild_sheep_scene2_started': True}}]}
+        ]
+
+        llm_conversation_handler = Mock()
+        llm_conversation_handler.llm_hander = Mock()
+        llm_conversation_handler.llm_hander.send_message.return_value = '{"matched_keywords": ["hunters closing in"]}'
+
+        response = "Those trackers are almost here."
+
+        with patch('webapp.entity_rag_handler.GenericEventHandler') as handler_cls:
+            handler_instance = Mock()
+            handler_cls.return_value = handler_instance
+            self.rag_handler._process_rag_commands(response, speaker=Mock(), receiver=receiver, llm_conversation_handler=llm_conversation_handler)
+
+        self.assertTrue(handler_instance.handle.called)
+
     def test_build_conversation_response_plan_supports_no_response(self):
         mock_receiver = Mock()
         mock_receiver.languages.return_value = ["common"]
@@ -291,6 +344,32 @@ class TestEntityRAGHandler(unittest.TestCase):
         self.assertEqual(plan['request_check']['target'], request_target)
         self.assertEqual(plan['request_check']['dc'], 14)
         self.assertEqual(plan['message'], 'Convince me.')
+
+    def test_build_conversation_response_plan_parses_offer_item_directive(self):
+        speaker = Mock()
+        speaker.entity_uid = "speaker"
+
+        receiver = Mock()
+        receiver.entity_uid = "thorn"
+        receiver.languages.return_value = ["common"]
+
+        offer_target = Mock()
+        offer_target.entity_uid = "pc-1"
+
+        self.rag_handler.resolve_named_target = Mock(return_value=offer_target)
+        self.rag_handler.plan_response_volume = Mock(return_value=('normal', [speaker]))
+
+        plan = self.rag_handler.build_conversation_response_plan(
+            "[OFFER_ITEM: item=scroll_speak_animals, target=speaker] Please take this.",
+            receiver,
+            speaker=speaker,
+            llm_conversation_handler=Mock(),
+        )
+
+        self.assertIsNotNone(plan['offer_item'])
+        self.assertEqual(plan['offer_item']['item'], 'scroll_speak_animals_modified')
+        self.assertEqual(plan['offer_item']['target'], offer_target)
+        self.assertEqual(plan['message'], 'Please take this.')
 
     def test_handle_insight_request_logs_and_regenerates_response(self):
         speaker = Mock()
@@ -533,6 +612,154 @@ class TestEntityRAGHandler(unittest.TestCase):
         self.assertEqual(self.mock_current_game.commit_and_update.call_count, 2)
         self.mock_current_game.advance_world_time.assert_called_once_with(seconds=6, trigger_environment=False)
         self.assertEqual(result['executed_actions'], ['approach', 'interact'])
+
+    def test_apply_response_plan_directives_offers_item_via_prompt(self):
+        actor = Mock()
+        actor.entity_uid = "npc-1"
+        actor.inventory = {'scroll_speak_animals_modified': {'qty': 1}}
+
+        target = Mock()
+        target.entity_uid = "pc-1"
+
+        self.mock_current_game.get_current_battle.return_value = None
+        self.mock_current_game.entity_owners.return_value = ['player1']
+        self.mock_current_game.prompt = Mock()
+
+        plan = {
+            'set_goal': None,
+            'goal_complete': False,
+            'goal_give_up': False,
+            'approach': None,
+            'interact': None,
+            'request_check': None,
+            'offer_item': {'item': 'scroll_speak_animals_modified', 'target': target, 'auto_use': False},
+        }
+
+        result = self.rag_handler.apply_response_plan_directives(plan, actor, speaker=None, advance_time=False)
+
+        self.assertEqual(result['executed_actions'], ['offer_item'])
+        self.mock_current_game.prompt.assert_called_once()
+
+    def test_offer_item_prompt_callback_accept_transfers_item(self):
+        actor = Mock()
+        actor.entity_uid = "npc-1"
+        actor.inventory = {'scroll_speak_animals_modified': {'qty': 1}}
+
+        target = Mock()
+        target.entity_uid = "pc-1"
+
+        self.mock_current_game.get_current_battle.return_value = None
+        self.mock_current_game.entity_owners.return_value = ['player1']
+        self.mock_current_game.prompt = Mock()
+        self.mock_current_game.socketio = Mock()
+
+        plan = {
+            'set_goal': None,
+            'goal_complete': False,
+            'goal_give_up': False,
+            'approach': None,
+            'interact': None,
+            'request_check': None,
+            'offer_item': {'item': 'scroll_speak_animals_modified', 'target': target, 'auto_use': False},
+        }
+
+        self.rag_handler.apply_response_plan_directives(plan, actor, speaker=None, advance_time=False)
+        callback = self.mock_current_game.prompt.call_args.kwargs['callback']
+        callback({'response': 'Yes'})
+
+        actor.deduct_item.assert_called_once_with('scroll_speak_animals_modified', 1)
+        target.add_item.assert_called_once_with('scroll_speak_animals_modified', 1)
+        self.mock_current_game.socketio.emit.assert_called()
+
+    def test_offer_item_prompt_callback_ok_payload_transfers_item(self):
+        actor = Mock()
+        actor.entity_uid = "npc-1"
+        actor.inventory = {'scroll_speak_animals_modified': {'qty': 1}}
+
+        target = Mock()
+        target.entity_uid = "pc-1"
+
+        self.mock_current_game.get_current_battle.return_value = None
+        self.mock_current_game.entity_owners.return_value = ['player1']
+        self.mock_current_game.prompt = Mock()
+        self.mock_current_game.socketio = Mock()
+
+        plan = {
+            'set_goal': None,
+            'goal_complete': False,
+            'goal_give_up': False,
+            'approach': None,
+            'interact': None,
+            'request_check': None,
+            'offer_item': {'item': 'scroll_speak_animals_modified', 'target': target, 'auto_use': False},
+        }
+
+        self.rag_handler.apply_response_plan_directives(plan, actor, speaker=None, advance_time=False)
+        callback = self.mock_current_game.prompt.call_args.kwargs['callback']
+        callback({'response': 'OK.'})
+
+        actor.deduct_item.assert_called_once_with('scroll_speak_animals_modified', 1)
+        target.add_item.assert_called_once_with('scroll_speak_animals_modified', 1)
+
+    def test_offer_item_prompt_callback_boolean_true_payload_transfers_item(self):
+        actor = Mock()
+        actor.entity_uid = "npc-1"
+        actor.inventory = {'scroll_speak_animals_modified': {'qty': 1}}
+
+        target = Mock()
+        target.entity_uid = "pc-1"
+
+        self.mock_current_game.get_current_battle.return_value = None
+        self.mock_current_game.entity_owners.return_value = ['player1']
+        self.mock_current_game.prompt = Mock()
+        self.mock_current_game.socketio = Mock()
+
+        plan = {
+            'set_goal': None,
+            'goal_complete': False,
+            'goal_give_up': False,
+            'approach': None,
+            'interact': None,
+            'request_check': None,
+            'offer_item': {'item': 'scroll_speak_animals_modified', 'target': target, 'auto_use': False},
+        }
+
+        self.rag_handler.apply_response_plan_directives(plan, actor, speaker=None, advance_time=False)
+        callback = self.mock_current_game.prompt.call_args.kwargs['callback']
+        callback({'response': True})
+
+        actor.deduct_item.assert_called_once_with('scroll_speak_animals_modified', 1)
+        target.add_item.assert_called_once_with('scroll_speak_animals_modified', 1)
+
+    def test_offer_item_prompt_callback_decline_does_not_transfer_item(self):
+        actor = Mock()
+        actor.entity_uid = "npc-1"
+        actor.inventory = {'scroll_speak_animals_modified': {'qty': 1}}
+
+        target = Mock()
+        target.entity_uid = "pc-1"
+
+        self.mock_current_game.get_current_battle.return_value = None
+        self.mock_current_game.entity_owners.return_value = ['player1']
+        self.mock_current_game.prompt = Mock()
+        self.mock_current_game.socketio = Mock()
+
+        plan = {
+            'set_goal': None,
+            'goal_complete': False,
+            'goal_give_up': False,
+            'approach': None,
+            'interact': None,
+            'request_check': None,
+            'offer_item': {'item': 'scroll_speak_animals_modified', 'target': target, 'auto_use': False},
+        }
+
+        self.rag_handler.apply_response_plan_directives(plan, actor, speaker=None, advance_time=False)
+        callback = self.mock_current_game.prompt.call_args.kwargs['callback']
+        callback({'response': 'No'})
+
+        actor.deduct_item.assert_not_called()
+        target.add_item.assert_not_called()
 
     def test_sanitize_insight_reason_strips_dm_only_disclosures(self):
         fallback = 'fallback reason'

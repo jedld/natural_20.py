@@ -748,7 +748,7 @@ class GameManagement:
         self.socketio.emit('message', {'type': 'reset', 'message': {}})
 
     def reload_map_for_user(self,  username):
-        map_name, _ = self.current_map_for_user.get(username, ('index', self.maps['index']))
+        map_name, _ = self.entity_registry._default_map_for_user(username)
         self.current_map_for_user[username] = (map_name, self.maps[map_name])
         self.maps[map_name] = Map(self.game_session, self.other_maps[map_name], name=map_name)
 
@@ -785,10 +785,23 @@ class GameManagement:
             return False
         return any(results)
 
-    def prompt(self, message, callback=None):
+    def prompt(self, message, callback=None, options=None, usernames=None):
         callback_id = uuid.uuid4().hex
         self.callbacks[callback_id] = callback
-        self.socketio.emit('message', {'type': 'prompt', 'message': message, 'callback': callback_id})
+        payload = {'type': 'prompt', 'message': message, 'callback': callback_id}
+        if options:
+            payload['options'] = options
+
+        if usernames:
+            delivered = False
+            for username in usernames:
+                for sid in self.username_to_sid.get(str(username).lower(), []):
+                    self.socketio.emit('message', payload, to=sid)
+                    delivered = True
+            if delivered:
+                return
+
+        self.socketio.emit('message', payload)
 
     def push_animation(self):
         self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': _coalesce_animation_log(self.battle.get_animation_logs())}})
@@ -1711,7 +1724,11 @@ class GameManagement:
             # Lighting or visibility may have changed (e.g. fire damage lighting a fireplace)
             self.socketio.emit('message', {'type': 'refresh_map'})
         else:
-            self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
+            # For out-of-battle movement, the route emits the real path-based
+            # move event. Emitting an empty move here causes duplicate move
+            # processing on the client and can race visual reconciliation.
+            if action.action_type != 'move':
+                self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
             # check if spell and send animation log
             # Note: skip 'move' payloads here. action_animator returns a
             # {'type': 'move', 'token_image': ...} envelope (without a
