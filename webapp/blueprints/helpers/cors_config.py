@@ -35,6 +35,7 @@ def get_allowed_origins():
             "http://127.0.0.1:5000",
             "http://localhost:5001",
             "http://127.0.0.1:5001",
+            "http://jedld-lab:5001",
             "https://0ad1d39fb719.ngrok.app",
             "https://*.ngrok.io",
             "https://*.ngrok-free.app",

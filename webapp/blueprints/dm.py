@@ -1225,7 +1225,9 @@ def usable_items():
     entity_id = request.args.get('id', None)
     if not entity_id:
         return jsonify({"error": "entity_id parameter is required"}), 400
-    entity = battle_map.entity_by_uid(entity_id)
+    entity = battle_map.entity_by_uid(entity_id) if battle_map is not None else None
+    if entity is None:
+        entity = get_current_game().get_entity_by_uid(entity_id)
 
     if not entity:
         return jsonify({"error": f"Entity with id {entity_id} not found"}), 404

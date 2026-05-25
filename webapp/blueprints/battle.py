@@ -1120,7 +1120,9 @@ def get_turn():
         else:
             return render_template('turn.jinja', battle=battle, game_session=get_current_game().game_session, username=session['username'], readonly=True)
     else:
-        return jsonify(error="No battle in progress"), 400
+        # Exploration mode (no active battle): keep endpoint successful so
+        # client refresh calls don't flood console with 400 errors.
+        return "", 200
 
 @battle_bp.route('/game_time')
 def get_game_time():

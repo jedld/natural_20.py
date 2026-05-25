@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from natural20.action import Action
 from natural20.item_library.healing_potion import HealingPotion
+from natural20.item_library.speak_with_animals_scroll import SpeakWithAnimalsScroll
 from natural20.item_library.spell_scroll import SpellScroll
 import pdb
 
@@ -85,6 +86,8 @@ class UseItemAction(Action):
             klass = HealingPotion
         elif item_class == 'SpellScroll':
             klass = SpellScroll
+        elif item_class == 'SpeakWithAnimalsScroll':
+            klass = SpeakWithAnimalsScroll
         else:
             raise Exception(f"item class {item_class} not found")
         return klass

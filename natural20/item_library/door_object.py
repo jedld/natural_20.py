@@ -9,7 +9,11 @@ class DoorObject(Object):
         self.front_direction = self.properties.get("front_direction", "auto")
         self.privacy_lock = self.properties.get("privacy_lock", False)
         self.door_blocking = self.properties.get("door_blocking", False)
-        self.state = self.properties.get("state", "closed")
+        state = self.properties.get("state", "closed")
+        # Normalize "open" -> "opened" (map YAML often uses the shorter form)
+        if state == "open":
+            state = "opened"
+        self.state = state
         self.lockable = self.properties.get("lockable", 'key' in self.properties.keys())
         self.locked = self.properties.get("locked", False)
         self.key_name = self.properties.get("key")
@@ -390,6 +394,7 @@ class DoorObject(Object):
         state_aliases = {
             "conclealed": "concealed",
             "unconclealed": "unconcealed",
+            "open": "opened",
         }
         state = state_aliases.get(state, state)
         super().update_state(state)

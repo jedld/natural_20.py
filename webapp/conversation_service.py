@@ -3,6 +3,7 @@ import re
 import time
 
 from natural20.player_character import PlayerCharacter
+from natural20.utils.animal_communication import has_animal_communication
 from natural20.utils.conversation import (
     entity_label,
     format_entity_gear_for_conversation,
@@ -29,6 +30,10 @@ PLAYER_INSIGHT_PATTERNS = [
     re.compile(r'\binsight\s+check\s+(?:on|against|of|for)\b', re.IGNORECASE),
     re.compile(r'\broll(?:ing)?\s+insight\b', re.IGNORECASE),
 ]
+
+BEAST_DIALECT_TO_BASE_LANGUAGE = {
+    'sheep': 'beast',
+}
 
 # Pulls a "target" and an optional "purpose" clause out of an insight request.
 # We try a few common phrasings; whichever matches first wins.
@@ -111,7 +116,7 @@ class ConversationService:
         self._logins_getter = logins_getter
         self.logger = logger
         self._conversation_presence_cache: dict = {}
-        self._CONVERSANCE_PRESENCE_CACHE_TTL = 10.0  # Increased from 3s to reduce recalculation during polling
+        self._CONVERSANCE_PRESENCE_CACHE_TTL = 15.0  # Reduce expensive acoustic recomputation on debounced refreshes
 
     @property
     def current_game(self):
@@ -246,12 +251,23 @@ class ConversationService:
     def listener_understands_language(self, listener, language):
         if listener is None:
             return False
+        normalized_language = str(language or 'common').strip().lower()
+        if normalized_language in {'animal', 'animals', 'beasts', 'beast_speech'}:
+            normalized_language = 'beast'
         try:
             languages = getattr(listener, 'languages', lambda: [])() or []
         except Exception:
             languages = []
         normalized_languages = {str(item).strip().lower() for item in languages if item}
-        return str(language or 'common').strip().lower() in normalized_languages
+
+        if normalized_language == 'beast' and has_animal_communication(self.game_session, entity=listener):
+            return True
+
+        base_language = BEAST_DIALECT_TO_BASE_LANGUAGE.get(normalized_language)
+        if base_language and base_language in normalized_languages:
+            return True
+
+        return normalized_language in normalized_languages
 
     def render_conversation_payload_for_username(self, username, source_entity, payload):
         payload_for_user = dict(payload)
@@ -534,6 +550,7 @@ class ConversationService:
             "- You may speak a different language with [in <language>]. Pick a language your intended listeners actually understand. If a listener does not share your current language, switch to a common tongue you both know (typically [in common]) so they can reply, unless you are deliberately keeping them out of the conversation.\n"
             "- You may move toward someone or something with [APPROACH: target=@handle, distance=5]. This moves up to one full out-of-combat move.\n"
             "- You may use an object with [INTERACT: target=<name or @handle>, action=<interaction>].\n"
+            "- You may offer an item with [OFFER_ITEM: item=<item_slug>, target=speaker|@handle]. This creates an Accept Item Yes/No prompt for the target.\n"
             "- You may privately assess whether someone seems truthful with [INSIGHT: target=speaker] or [INSIGHT: target=@handle]. The server will roll insight, use DM-only context, and regenerate your reply with the result.\n"
             "- You may ask someone to make a social check with [REQUEST_CHECK: skill=persuasion, target=speaker] or [REQUEST_CHECK: skill=intimidation, target=@handle]. This is logged to the relevant players.\n"
             "- You may create a persistent short-term autonomous task with [SET_GOAL: short description].\n"

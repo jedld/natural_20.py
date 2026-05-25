@@ -26,7 +26,18 @@ assets_bp = Blueprint('assets', __name__)
 def serve_map_image(filename):
     game_session = get_game_session()
     maps_directory = os.path.join(game_session.root_path, "assets", "maps")
-    return send_from_directory(maps_directory, filename)
+    # Primary location for map backgrounds.
+    primary_path = os.path.join(maps_directory, filename)
+    if os.path.exists(primary_path):
+        return send_from_directory(maps_directory, filename)
+
+    # Backward compatibility: some campaigns store map backgrounds directly
+    # under assets/ and still reference them through /assets/maps/.
+    fallback_path = os.path.join(game_session.root_path, "assets", filename)
+    if os.path.exists(fallback_path):
+        return send_file(fallback_path)
+
+    return jsonify(error="File not found"), 404
 
 
 @assets_bp.route('/assets/sounds/<filename>', endpoint='serve_sound_file')

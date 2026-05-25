@@ -601,7 +601,16 @@ class Entity(EntityStateEvaluator, Notable):
         languages = self.properties.get('languages', [])
         # Ensure we always return a list, never None
         if languages is None:
-            return []
+            languages = []
+
+        # Speak With Animals (modified) grants temporary beast comprehension.
+        try:
+            from natural20.utils.animal_communication import has_animal_communication
+            if has_animal_communication(self.session, entity=self):
+                return sorted(set(list(languages) + ['beast']))
+        except Exception:
+            pass
+
         return languages
 
     def long_jump_distance(self):
@@ -2118,7 +2127,12 @@ class Entity(EntityStateEvaluator, Notable):
 
                         result.append(position)
         else:
-            step = self.melee_distance() // map.feet_per_grid
+            melee_distance = self.melee_distance()
+            if melee_distance is None or melee_distance <= 0:
+                # Entities with no melee attack still interact with adjacent squares.
+                melee_distance = 5
+            feet_per_grid = map.feet_per_grid if map.feet_per_grid and map.feet_per_grid > 0 else 5
+            step = max(1, int(melee_distance // feet_per_grid))
             cur_x, cur_y = target_position or map.entity_or_object_pos(self)
             for x_off in range(-step, step+1):
                 for y_off in range(-step, step+1):
@@ -2596,9 +2610,15 @@ class Entity(EntityStateEvaluator, Notable):
         # Extract source and weapon from item context for magical attack checks
         _source = item.get('source') if item else None
         _weapon = item.get('weapon') if item else None
-        if self.resistant_to(damage_type, source=_source, weapon=_weapon):
+        resistant = self.resistant_to(damage_type, source=_source, weapon=_weapon)
+        vulnerable = self.vulnerable_to(damage_type)
+
+        # D&D 5e (2014): resistance and vulnerability cancel out.
+        if resistant and vulnerable:
+            total_damage = dmg
+        elif resistant:
             total_damage = int(dmg // 2)
-        elif self.vulnerable_to(damage_type):
+        elif vulnerable:
             total_damage = dmg * 2
         else:
             total_damage = dmg
@@ -2688,7 +2708,8 @@ class Entity(EntityStateEvaluator, Notable):
             if self.concentration:
                 # make a concentration check
                 concentration_check = self.save_throw('constitution', battle)
-                diffculty_class = max([10, dmg // 2])
+                # Concentration DC is based on damage actually taken.
+                diffculty_class = max([10, total_damage // 2])
                 if concentration_check.result() < diffculty_class:
                     session.event_manager.received_event({'source': self,
                                                        'event': 'concentration_check',

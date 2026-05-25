@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 
@@ -10,6 +11,34 @@ from natural20.web.web_controller import WebController
 class GameEntityRegistry:
     def __init__(self, manager):
         self.manager = manager
+
+    def _campaign_default_map_key(self):
+        maps = self.manager.maps
+        if 'index' in maps:
+            return 'index'
+        props = getattr(self.manager.game_session, 'game_properties', {}) or {}
+        starting = props.get('starting_map') or ''
+        if starting:
+            key = os.path.splitext(os.path.basename(starting))[0]
+            if key in maps:
+                return key
+            for map_key, map_path in (props.get('maps') or {}).items():
+                if map_key in maps and (
+                    str(map_path).endswith(key)
+                    or str(starting).endswith(f'{map_key}.yml')
+                ):
+                    return map_key
+        if maps:
+            return next(iter(maps))
+        return None
+
+    def _default_map_for_user(self, username):
+        if username and username in self.manager.current_map_for_user:
+            return self.manager.current_map_for_user[username]
+        default_key = self._campaign_default_map_key()
+        if default_key is None:
+            raise KeyError('No maps loaded for campaign')
+        return default_key, self.manager.maps[default_key]
 
     def defer_all_players(self):
         deferred_ids = set()
@@ -79,9 +108,7 @@ class GameEntityRegistry:
             pass
 
     def get_map_for_user(self, username):
-        if 'index' not in self.manager.maps:
-            return list(self.manager.maps.values())[0]
-        _name, battle_map = self.manager.current_map_for_user.get(username, ('index', self.manager.maps['index']))
+        _name, battle_map = self._default_map_for_user(username)
         return battle_map
 
     def get_map_for_entity(self, entity):
@@ -106,7 +133,7 @@ class GameEntityRegistry:
         return None
 
     def get_background_image_for_user(self, username):
-        name, battle_map = self.manager.current_map_for_user.get(username, ('index', self.manager.maps['index']))
+        name, battle_map = self._default_map_for_user(username)
         if battle_map.background_image():
             return 'maps/' + battle_map.background_image()
         return 'maps/' + name + '.png'
