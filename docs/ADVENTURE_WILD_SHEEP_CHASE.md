@@ -16,7 +16,7 @@ Requires `LLM_PROVIDER` (and related env vars) for `/talk` with Finethir, Guz, a
 
 | Adventure element | Implementation |
 |-------------------|----------------|
-| Scene 1 hook + scroll | Narration + `scroll_speak_animals` note + LLM Finethir |
+| Scene 1 hook + scroll | Narration + `scroll_speak_animals` note + LLM Finethir; `game.yml` `conversation_item_offers` blocks repeat offers after accept/use; witnessed accept/use lines feed Finethir's `/talk` context |
 | Scene 2 Guz fight | `town_market` tavern + market; tables (half cover), crowd (difficult terrain); **Guz `reckless: true`** (advantage both ways) |
 | Quest accept | LLM keyword `agreed to help` → session state + road teleporter + signpost; **Finethir companion travel** via `game.yml` `companions` |
 | Scene 3 treehouse | 5 linked maps, placeholder `background_image` per map |

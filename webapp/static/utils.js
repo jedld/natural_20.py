@@ -56,7 +56,7 @@ const Utils = {
   },
 
 
-  refreshTileSet: function (is_setup = false, pov = false, x = 0, y = 0, entity_uid = null, callback = null) {
+  refreshTileSet: function (is_setup = false, pov = false, x = 0, y = 0, entity_uid = null, callback = null, forceFullRefresh = false) {
     if (!window.tileUpdateSequence) {
       window.tileUpdateSequence = 0;
     }
@@ -66,8 +66,9 @@ const Utils = {
     // Capture any active map toasts so we can restore them after refresh
     const _activeToasts = Utils.collectAllToasts ? Utils.collectAllToasts() : [];
 
-    // Check if optimization is disabled (for debugging)
-    if (window.disableTileOptimization || is_setup) {
+    // Full DOM replace when debugging, battle setup, or post-move reconcile — not
+    // the same as is_setup (which also enables add-to-initiative plus buttons).
+    if (window.disableTileOptimization || is_setup || forceFullRefresh) {
       Utils.ajaxGet('/update', { is_setup, pov, x, y, entity_uid }, (data) => {
         // Only apply if this is still the most recent request
         if (currentSequence >= (window.lastAppliedSequence || 0)) {

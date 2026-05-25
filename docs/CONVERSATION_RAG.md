@@ -265,6 +265,35 @@ Time and environment integration:
 - Execution reuses `current_game.commit_and_update(...)` for actions.
 - World updates continue to flow through the normal out-of-combat path, including `loop_environment()` and the standard `turn` socket event carrying updated `game_time`.
 
+## Witnessed Actions (NPC memory)
+
+Nearby NPCs receive scoped console lines when players accept or decline item offers, use items, and similar actions they could overhear.
+
+- Logging: `natural20.utils.conversation_witness.log_witnessed_action(...)` with entity-scoped visibility.
+- Prompt injection: `EntityRAGHandler.witnessed_events_summary(...)` is appended in `conversation_response_prompt(...)` as **Recent events you witnessed nearby**.
+
+Campaigns do not implement this per adventure; the engine surfaces whatever was logged while the NPC was in scope.
+
+## Campaign-Configurable Item Offers
+
+Repeat-offer guards and LLM guidance for `[OFFER_ITEM]` come from the active campaign `game.yml`, not hardcoded adventure logic.
+
+```yaml
+conversation_offer_guidance:
+  target_has_item: "- {target} already carries the {item_label}; do not offer it again."
+
+conversation_item_offers:
+  scroll_speak_animals_modified:
+    item_label: modified Speak with Animals scroll
+    aliases: [scroll_speak_animals]
+    block_when: [offer_completed, target_has_item, target_effect_animal_communication]
+    accept_effect: animal_communication
+```
+
+Optional per-NPC overrides: `conversation_item_offers` on the entity YAML `properties` / map `overrides`.
+
+Implementation: `natural20/utils/conversation_offers.py`, used by `webapp/entity_rag_handler.py`.
+
 ## Keyword-Triggered Event RAG
 
 Entities may also define `conversation_keywords()` entries.

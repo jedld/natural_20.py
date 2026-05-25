@@ -129,6 +129,15 @@ maps:
 # Directory containing player character sheets
 player_profiles: characters
 
+# Optional: conversation item offers for LLM NPCs ([OFFER_ITEM] guards + guidance)
+conversation_offer_guidance:
+  target_has_item: "- {target} already carries the {item_label}; do not offer it again."
+conversation_item_offers:
+  my_quest_item:
+    item_label: brass key
+    aliases: [quest_key]
+    block_when: [offer_completed, target_has_item]
+
 # Faction/group definitions
 groups:
   a:                             # Players (default group)

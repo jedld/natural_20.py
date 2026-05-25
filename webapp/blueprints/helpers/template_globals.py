@@ -205,6 +205,36 @@ def casting_time(casting_time):
     return f"{qty}{r_str}"
 
 
+def format_languages(entity):
+    """Return a display string of languages known by ``entity``, or empty string."""
+    langs = []
+    try:
+        if hasattr(entity, 'languages') and callable(entity.languages):
+            langs = entity.languages() or []
+    except Exception:
+        langs = []
+    if not langs:
+        props = getattr(entity, 'properties', None) or {}
+        langs = props.get('languages') or []
+    if isinstance(langs, str):
+        langs = [langs]
+    formatted = []
+    for lang in langs:
+        label = str(lang).strip().replace('_', ' ')
+        if label:
+            formatted.append(label.title())
+    # Preserve order while deduplicating (PlayerCharacter.languages already sorts).
+    seen = set()
+    unique = []
+    for label in formatted:
+        key = label.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(label)
+    return ', '.join(unique)
+
+
 def format_game_time(total_seconds):
     """Format game time in seconds to a human-readable format."""
     if total_seconds is None:
@@ -266,6 +296,7 @@ def register_template_globals(flask_app):
     flask_app.add_template_global(filter_for, name='filter_for')
     flask_app.add_template_global(action_flavors, name='action_flavors')
     flask_app.add_template_global(entity_owners, name='entity_owners')
+    flask_app.add_template_global(format_languages, name='format_languages')
     flask_app.add_template_global(t, name='t')
     flask_app.add_template_global(describe_terrain, name='describe_terrain')
     flask_app.add_template_global(process_action_hash, name='process_action_hash')

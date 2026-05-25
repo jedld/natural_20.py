@@ -3,6 +3,8 @@ from natural20.utils.animal_communication import (
     DEFAULT_DURATION_SECONDS,
     grant_animal_communication,
 )
+from natural20.utils.conversation import entity_label
+from natural20.utils.conversation_witness import log_witnessed_action
 
 
 class SpeakWithAnimalsScroll(Object):
@@ -45,7 +47,12 @@ class SpeakWithAnimalsScroll(Object):
             duration_seconds=int(result.get('duration_seconds', self.properties.get('duration_seconds', DEFAULT_DURATION_SECONDS))),
         )
 
+        witness_message = (
+            f"{entity_label(entity)} reads a scroll and can understand beasts until game time {expiration}."
+        )
+        output_logger = None
         if getattr(session_obj, 'event_manager', None) is not None:
+            output_logger = getattr(session_obj.event_manager, 'output_logger', None)
             session_obj.event_manager.received_event(
                 {
                     'event': 'message',
@@ -54,3 +61,10 @@ class SpeakWithAnimalsScroll(Object):
                     'message': f"You can understand beasts until game time {expiration}.",
                 }
             )
+        log_witnessed_action(
+            output_logger,
+            session_obj,
+            witness_message,
+            source=entity,
+            target=entity,
+        )

@@ -570,11 +570,12 @@ class EventQueue {
             const y = msg.y || 0;
             const entity_uid = msg.entity_uid || null;
             const cb = typeof msg.callback === 'function' ? msg.callback : null;
+            const forceFullRefresh = !!msg.force_full_refresh;
             Utils.refreshTileSet(is_setup, pov, x, y, entity_uid, () => {
               try { cleanupMovementSprites(); } catch (_) { }
               try { if (cb) cb(); } catch (_) { }
               resolve();
-            });
+            }, forceFullRefresh);
           } catch (e) {
             console.warn('refresh_tiles failed, continuing', e);
             resolve();
@@ -1118,25 +1119,28 @@ class EventQueue {
     const finishMoveAnimation = (done) => {
       cleanupMovementSprites();
       restoreHiddenOriginals();
+      try { $('.add-to-target, .add-to-turn-order').hide(); } catch (_) { }
       try { if (typeof done === 'function') done(); } catch (_) { }
     };
 
     const refreshAfterMove = (done) => {
       try {
-        Utils.refreshTileSet(true, false, 0, 0, null, () => {
+        // forceFullRefresh bypasses tile diffing; is_setup must stay false so
+        // /update does not render battle-setup "add to initiative" plus buttons.
+        Utils.refreshTileSet(false, false, 0, 0, null, () => {
           try {
             // Non-battle move events can arrive slightly before server-side
             // loop_environment side-effects settle. Reconcile once more
             // after a short delay to avoid transient disappear/snap states.
             setTimeout(() => {
-              Utils.refreshTileSet(true, false, 0, 0, null, () => {
+              Utils.refreshTileSet(false, false, 0, 0, null, () => {
                 finishMoveAnimation(done);
-              });
+              }, true);
             }, 140);
           } catch (_) {
             finishMoveAnimation(done);
           }
-        });
+        }, true);
       } catch (_) {
         finishMoveAnimation(done);
       }
@@ -1611,7 +1615,8 @@ function enqueueTileRefresh(opts = {}) {
         opts.x || 0,
         opts.y || 0,
         opts.entity_uid || null,
-        typeof opts.callback === 'function' ? opts.callback : null
+        typeof opts.callback === 'function' ? opts.callback : null,
+        !!opts.force_full_refresh
       );
     } catch (_) { }
   }
@@ -1808,13 +1813,13 @@ const switchPOV = (entity_uid, canvas) => {
     }
     // update the pov entity id in the body data
     $('body').attr('data-pov-entity', data.pov_entity);
-    // When map changes, use is_setup=true to force full tile refresh (bypass optimization)
+    // Full refresh on map change without enabling battle-setup plus buttons.
     Utils.refreshTileSet(
-      (is_setup = isMapChange),
-      (pov = true),
-      (x = 0),
-      (y = 0),
-      (entity_uid = entity_uid),
+      false,
+      true,
+      0,
+      0,
+      entity_uid,
       () => {
         // Clean up any pending move ghosts and reset tile positioning to prevent artifacts
         try { if (typeof cleanupAllPendingMoves === 'function') cleanupAllPendingMoves(); } catch (e) { }
@@ -1826,6 +1831,7 @@ const switchPOV = (entity_uid, canvas) => {
         centerOnTile($tile);
         try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { }
       },
+      isMapChange
     );
   });
 };
