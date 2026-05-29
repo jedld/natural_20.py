@@ -253,6 +253,12 @@ const Chat = Object.assign({}, window.LocalConversationChatBindings || {}, {
     addDialogMessage: function (sender, content, type, options) {
         const timestamp = new Date().toLocaleTimeString();
         options = options || {};
+        const narrativeEntries = Array.isArray(options.narrative)
+            ? options.narrative.filter((entry) => `${entry || ''}`.trim().length > 0)
+            : [];
+        const narrativeHtml = narrativeEntries.map((entry) => (
+            `<div class="dialog-message-aside">${Chat.escapeHtml(entry)}</div>`
+        )).join('');
 
         // Determine the display name based on mode and sender
         let displayName = sender;
@@ -288,7 +294,8 @@ const Chat = Object.assign({}, window.LocalConversationChatBindings || {}, {
         const messageHtml = `
       <div class="dialog-chat-message ${type}">
         <div class="message-sender">${displayName}</div>
-        <div class="message-content">${content}</div>
+        <div class="message-content">${Chat.escapeHtml(content)}</div>
+        ${narrativeHtml}
         <div class="message-timestamp">${timestamp}</div>
       </div>
     `;

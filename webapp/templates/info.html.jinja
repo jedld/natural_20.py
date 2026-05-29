@@ -294,6 +294,13 @@
                             <th>Race</th>
                             <td>{{ entity.race() }}</td>
                         </tr>
+                        {% set languages_display = format_languages(entity) %}
+                        {% if languages_display %}
+                        <tr>
+                            <th>Languages</th>
+                            <td>{{ languages_display }}</td>
+                        </tr>
+                        {% endif %}
                         {% endif %}
                     </table>
                 </div>

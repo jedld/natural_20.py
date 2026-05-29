@@ -1,6 +1,15 @@
 from natural20.action import Action
 import pdb
 
+# Fallback labels/images when the target object has no YAML ``buttons`` entry
+# (e.g. Lootable ``give`` / ground-object ``pickup_drop``).
+_DEFAULT_INTERACT_BUTTONS = {
+    'give': {'label': 'Give', 'image': 'interact_give'},
+    'pickup_drop': {'label': 'Transfer', 'image': 'interact_pickup_drop'},
+    'loot': {'label': 'Loot', 'image': 'interact_loot'},
+}
+
+
 class InteractAction(Action):
     def __init__(self, session, source, action_type, opts=None):
         super().__init__(session, source, action_type, opts)
@@ -38,13 +47,16 @@ class InteractAction(Action):
         else:
             return self.object_action[1].get('prompt')
 
+    def _button_info(self):
+        if not (self.target and self.object_action):
+            return None
+        name = self.object_action_name()
+        return self.target.buttons.get(name) or _DEFAULT_INTERACT_BUTTONS.get(name)
+
     def button_label(self):
-        if self.target and self.object_action:
-            button_info = self.target.buttons.get(self.object_action_name())
-            if button_info:
-                return button_info.get('label', self.object_action_name())
-            else:
-                print("No button info for", self.object_action_name())
+        button_info = self._button_info()
+        if button_info:
+            return button_info.get('label', self.object_action_name())
         return None
 
     def button_prompt(self):
@@ -53,10 +65,9 @@ class InteractAction(Action):
         return None
 
     def button_image(self):
-        if self.target and self.object_action_name():
-            button_info = self.target.buttons.get(self.object_action_name())
-            if button_info:
-                return button_info.get('image')
+        button_info = self._button_info()
+        if button_info:
+            return button_info.get('image')
         return None
 
     @staticmethod

@@ -49,7 +49,7 @@ This feature allows DMs to drag and drop objects onto the battle map similar to 
 ## Files Modified:
 
 ### Backend:
-- `webapp/app.py` - Added new routes and object handling logic
+- `webapp/blueprints/dm.py` — `/available_objects`, `/spawn_object` routes and object handling logic
 
 ### Frontend:
 - `webapp/templates/index.html` - Added object spawner UI components

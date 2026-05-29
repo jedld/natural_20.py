@@ -10,7 +10,7 @@ window.LocalConversationChatBindings = {
         louderVoiceEntities: [],
         heardOnlyEntities: [],
         _debounceTimeoutId: null,
-        _debounceDelayMs: 500,
+        _debounceDelayMs: 1000,
         mentionAutocomplete: {
             query: '',
             tokenStart: -1,

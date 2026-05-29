@@ -1,7 +1,11 @@
 import json
+import logging
 import re
+import time
 
 from webapp.llm_handler import LLMHandler
+
+logger = logging.getLogger('werkzeug')
 
 
 class LLMConversationController:
@@ -214,16 +218,38 @@ class LLMConversationController:
         messages.extend(conversation["messages"])
         
         try:
-            response_content = self.llm_hander.send_message(
-                messages, context={'response_mode': 'conversation'},
+            started = time.monotonic()
+            history_count = len(conversation.get('messages', []))
+            logger.info(
+                "[LLMConversation] generating NPC reply conversation_id=%s history_messages=%s",
+                conversation_id,
+                history_count,
             )
-            
-             # Add the response to the conversation history
+            response_content = self.llm_hander.send_message(
+                messages,
+                context={
+                    'response_mode': 'conversation',
+                    'log_label': f'npc_reply:{conversation_id}',
+                },
+            )
+            elapsed_ms = (time.monotonic() - started) * 1000.0
+            logger.info(
+                "[LLMConversation] NPC reply complete conversation_id=%s elapsed_ms=%.1f preview=%r",
+                conversation_id,
+                elapsed_ms,
+                (response_content or '')[:160],
+            )
+
+            # Add the response to the conversation history
             self.add_message(conversation_id, "assistant", response_content)
-            
+
             return response_content
         except Exception as e:
-            print(f"Error generating LLM response: {e}")
+            logger.exception(
+                "[LLMConversation] NPC reply failed conversation_id=%s: %s",
+                conversation_id,
+                e,
+            )
             return "I'm having trouble responding right now."
     
     def clear_conversation(self, conversation_id):

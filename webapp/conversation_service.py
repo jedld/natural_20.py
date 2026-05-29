@@ -3,6 +3,7 @@ import re
 import time
 
 from natural20.player_character import PlayerCharacter
+from natural20.utils.animal_communication import has_animal_communication
 from natural20.utils.conversation import (
     entity_label,
     format_entity_gear_for_conversation,
@@ -22,6 +23,17 @@ from natural20.utils.gibberish import gibberish
 #   "I want to roll insight on @Garrick"  "/insight"
 #   "Insight check on the merchant about his prices"
 #   "make an insight check"
+# Lines that should get an in-character reply when the NPC was directly addressed.
+_DIRECT_REPLY_MESSAGE = re.compile(
+    r'^\s*(?:'
+    r'hi|hello|hey|greetings|howdy|hail|yo|sup'
+    r'|good\s+(?:morning|afternoon|evening|day)'
+    r'|what|where|who|why|how|when|which'
+    r'|is|are|am|was|were|do|does|did|can|could|would|will|have|has'
+    r')\b',
+    re.IGNORECASE,
+)
+
 PLAYER_INSIGHT_PATTERNS = [
     re.compile(r'^\s*/?\s*insight(?:\s+check)?\b', re.IGNORECASE),
     re.compile(r'^\s*\[\s*insight(?:\s+check)?[^\]]*\]', re.IGNORECASE),
@@ -29,6 +41,10 @@ PLAYER_INSIGHT_PATTERNS = [
     re.compile(r'\binsight\s+check\s+(?:on|against|of|for)\b', re.IGNORECASE),
     re.compile(r'\broll(?:ing)?\s+insight\b', re.IGNORECASE),
 ]
+
+BEAST_DIALECT_TO_BASE_LANGUAGE = {
+    'sheep': 'beast',
+}
 
 # Pulls a "target" and an optional "purpose" clause out of an insight request.
 # We try a few common phrasings; whichever matches first wins.
@@ -111,7 +127,7 @@ class ConversationService:
         self._logins_getter = logins_getter
         self.logger = logger
         self._conversation_presence_cache: dict = {}
-        self._CONVERSANCE_PRESENCE_CACHE_TTL = 10.0  # Increased from 3s to reduce recalculation during polling
+        self._CONVERSANCE_PRESENCE_CACHE_TTL = 15.0  # Reduce expensive acoustic recomputation on debounced refreshes
 
     @property
     def current_game(self):
@@ -246,12 +262,23 @@ class ConversationService:
     def listener_understands_language(self, listener, language):
         if listener is None:
             return False
+        normalized_language = str(language or 'common').strip().lower()
+        if normalized_language in {'animal', 'animals', 'beasts', 'beast_speech'}:
+            normalized_language = 'beast'
         try:
             languages = getattr(listener, 'languages', lambda: [])() or []
         except Exception:
             languages = []
         normalized_languages = {str(item).strip().lower() for item in languages if item}
-        return str(language or 'common').strip().lower() in normalized_languages
+
+        if normalized_language == 'beast' and has_animal_communication(self.game_session, entity=listener):
+            return True
+
+        base_language = BEAST_DIALECT_TO_BASE_LANGUAGE.get(normalized_language)
+        if base_language and base_language in normalized_languages:
+            return True
+
+        return normalized_language in normalized_languages
 
     def render_conversation_payload_for_username(self, username, source_entity, payload):
         payload_for_user = dict(payload)
@@ -471,6 +498,15 @@ class ConversationService:
 
         return '; '.join(pressures) if pressures else 'no special pressure beyond the current conversation'
 
+    @staticmethod
+    def message_expects_direct_reply(message) -> bool:
+        text = (message or '').strip()
+        if not text:
+            return False
+        if '?' in text:
+            return True
+        return bool(_DIRECT_REPLY_MESSAGE.match(text))
+
     def conversation_response_prompt(self, receiver, speaker):
         target_entities = self.entity_rag_handler.get_conversation_targets(receiver, speaker=speaker)
 
@@ -518,6 +554,7 @@ class ConversationService:
         stance_text = self.conversation_attitude_toward_speaker(receiver, speaker)
         pressure_text = self.conversation_pressure_summary(receiver)
         gear_text = format_entity_gear_for_conversation(receiver, self.game_session)
+        witnessed_text = self.entity_rag_handler.witnessed_events_summary(receiver)
         return (
             "\n\nConversation response rules:\n"
             "- You may choose not to speak. If you do not want to respond, output exactly [NO_RESPONSE].\n"
@@ -527,13 +564,17 @@ class ConversationService:
             "- Any [ASIDE: ...] content must be third person only. Do not use first-person narration in asides.\n"
             "- Do not reveal private mental judgments a listener could not directly observe (for example, trustworthiness verdicts). Ask for a social check with [REQUEST_CHECK: skill=persuasion, target=speaker] or [REQUEST_CHECK: skill=intimidation, target=speaker] instead.\n"
             "- You may explicitly refuse to answer, stonewall, deflect, demand proof, threaten the speaker, or tell them to leave if that fits your background, alignment, attitude, current danger, injuries, fear, active effects, duties, or goals. If you refuse out loud, say so in character; use [NO_RESPONSE] only when you stay completely silent.\n"
-            "- If someone else was clearly addressed, another speaker already answered, or the latest line is only an acknowledgement, prefer [NO_RESPONSE].\n"
-            "- Do not repeat the same warning or biography if you already said it and nothing materially changed. Prefer [NO_RESPONSE] instead.\n"
+            "- If the latest line was directed at you and is a greeting, question, or new topic, answer in character. Do not use [NO_RESPONSE] for hello, introductions, or questions aimed at you.\n"
+            "- Use [NO_RESPONSE] only for overheard side conversations, when someone else was clearly addressed, when another speaker already fully answered, or for passive acknowledgements (for example: ok, thanks, got it) that need no reply.\n"
+            "- Do not repeat the same warning or biography if you already said it and nothing materially changed. Prefer a brief new reaction or [NO_RESPONSE] instead.\n"
             "- You may direct your speech with [TO: speaker], [TO: @handle], [TO: @handle1, @handle2], or [TO: all].\n"
             "- You may choose loudness with [VOLUME: whisper], [VOLUME: normal], or [VOLUME: shout]. If omitted, the server will choose the quietest volume that reaches your chosen listeners.\n"
             "- You may speak a different language with [in <language>]. Pick a language your intended listeners actually understand. If a listener does not share your current language, switch to a common tongue you both know (typically [in common]) so they can reply, unless you are deliberately keeping them out of the conversation.\n"
             "- You may move toward someone or something with [APPROACH: target=@handle, distance=5]. This moves up to one full out-of-combat move.\n"
             "- You may use an object with [INTERACT: target=<name or @handle>, action=<interaction>].\n"
+            "- You may offer an item with [OFFER_ITEM: item=<item_slug>, target=speaker|@handle]. This creates an Accept Item Yes/No prompt for the target.\n"
+            f"{self.entity_rag_handler.offer_item_guidance_for_conversation(receiver, speaker)}\n"
+            f"{witnessed_text}"
             "- You may privately assess whether someone seems truthful with [INSIGHT: target=speaker] or [INSIGHT: target=@handle]. The server will roll insight, use DM-only context, and regenerate your reply with the result.\n"
             "- You may ask someone to make a social check with [REQUEST_CHECK: skill=persuasion, target=speaker] or [REQUEST_CHECK: skill=intimidation, target=@handle]. This is logged to the relevant players.\n"
             "- You may create a persistent short-term autonomous task with [SET_GOAL: short description].\n"
@@ -1136,12 +1177,22 @@ class ConversationService:
             self.logger.debug(f"Campaign conversation log skipped: {exc}")
 
     def talk_response(self, data, conversation_system_prompt):
+        talk_started = time.monotonic()
         entity_id = data.get('entity_id')
         message = data.get('message')
         language = data.get('language')
         primary_targets = data.get('targets', [])
         volume = self.effective_talk_volume(message, requested_volume=data.get('volume'), requested_distance_ft=data.get('distance_ft'))
         distance_ft = speech_distance_for(mode=volume, distance_ft=data.get('distance_ft'))
+        self.logger.info(
+            "[Talk] inbound speaker=%s message=%r volume=%s distance_ft=%s targets=%s language=%s",
+            entity_id,
+            (message or '')[:160],
+            volume,
+            distance_ft,
+            primary_targets,
+            language,
+        )
         if not entity_id or not message:
             return {'error': 'Entity ID and message are required'}, 400
 
@@ -1252,9 +1303,15 @@ class ConversationService:
             language=language,
             volume=volume,
         )
+        self.logger.info(
+            "[Talk] delivered_to=%s eligible_responders=%s",
+            [getattr(t, 'entity_uid', t) for t in delivered_targets],
+            [getattr(r, 'entity_uid', r) for r in eligible_receivers],
+        )
 
         llm_conversation_handler = self.llm_conversation_handler
         for receiver in eligible_receivers:
+            receiver_started = time.monotonic()
             attributes = receiver.ability_scores
             attributes_str = "\n".join([f"{key}: {value}" for key, value in attributes.items()])
             gear_summary = format_entity_gear_for_conversation(receiver, self.game_session)
@@ -1274,16 +1331,61 @@ class ConversationService:
                 pass
             llm_conversation_handler.update_conversation_history(receiver.entity_uid, receiver.conversation_buffer)
 
-            self.logger.info(f"generating response for {receiver.label()}")
+            self.logger.info("[Talk] generating response for %s (%s)", receiver.label(), receiver.entity_uid)
             response = llm_conversation_handler.generate_response(receiver.entity_uid)
-            self.logger.info(f"response for {receiver.label()}: {response}")
+            self.logger.info(
+                "[Talk] raw LLM response for %s preview=%r",
+                receiver.label(),
+                (response or '')[:160],
+            )
+            plan_started = time.monotonic()
             reply_plan = self.entity_rag_handler.build_conversation_response_plan(
                 response,
                 receiver,
                 entity,
                 llm_conversation_handler,
             )
+            self.logger.info(
+                "[Talk] reply plan for %s skip=%s volume=%s targets=%s plan_ms=%.1f",
+                receiver.label(),
+                reply_plan.get('skip'),
+                reply_plan.get('volume'),
+                [getattr(t, 'entity_uid', t) for t in (reply_plan.get('targets') or [])],
+                (time.monotonic() - plan_started) * 1000.0,
+            )
+            if (
+                reply_plan['skip']
+                and receiver in delivered_targets
+                and self.message_expects_direct_reply(message)
+                and self.entity_rag_handler.parse_response_controls(response).get('no_response')
+            ):
+                llm_conversation_handler.add_message(
+                    receiver.entity_uid,
+                    'system',
+                    (
+                        f"{entity_label(entity)} addressed you directly with a greeting or question. "
+                        'Reply briefly in character. Use [TO: speaker] when needed. Do not output [NO_RESPONSE].'
+                    ),
+                )
+                response = llm_conversation_handler.generate_response(receiver.entity_uid)
+                self.logger.info(
+                    "[Talk] nudged LLM response for %s preview=%r",
+                    receiver.label(),
+                    (response or '')[:160],
+                )
+                reply_plan = self.entity_rag_handler.build_conversation_response_plan(
+                    response,
+                    receiver,
+                    entity,
+                    llm_conversation_handler,
+                )
             if reply_plan['skip']:
+                self.logger.info(
+                    "[Talk] skipping outbound speech for %s llm_response=%r receiver_ms=%.1f",
+                    receiver.label(),
+                    (response or '')[:160],
+                    (time.monotonic() - receiver_started) * 1000.0,
+                )
                 self.entity_rag_handler.apply_response_plan_directives(reply_plan, receiver, speaker=entity)
                 continue
 
@@ -1321,6 +1423,14 @@ class ConversationService:
                 ),
                 source_entity=receiver,
             )
+            self.logger.info(
+                "[Talk] emitted reply from %s to_usernames=%s volume=%s message_preview=%r receiver_ms=%.1f",
+                receiver.label(),
+                sorted(recipient_usernames | visual_whisper_usernames),
+                reply_plan['volume'],
+                (reply_plan['message'] or '')[:160],
+                (time.monotonic() - receiver_started) * 1000.0,
+            )
             self._persist_conversation_line(
                 receiver,
                 reply_plan['message'],
@@ -1329,8 +1439,26 @@ class ConversationService:
                 language=reply_plan['language'],
                 narrative=reply_plan.get('narrative') or [],
             )
+            try:
+                self.entity_rag_handler.apply_conversation_keywords(
+                    response,
+                    receiver,
+                    speaker=entity,
+                    llm_conversation_handler=llm_conversation_handler,
+                )
+            except Exception as exc:
+                self.logger.warning(
+                    "[Talk] conversation keyword side effects failed for %s: %s",
+                    receiver.label(),
+                    exc,
+                )
             self.entity_rag_handler.apply_response_plan_directives(reply_plan, receiver, speaker=entity)
 
+        self.logger.info(
+            "[Talk] complete speaker=%s elapsed_ms=%.1f",
+            entity_id,
+            (time.monotonic() - talk_started) * 1000.0,
+        )
         return {
             'success': True,
             'resolved_target_ids': [target.entity_uid for target in delivered_targets],

@@ -18,6 +18,24 @@ from natural20.entity import Entity
 from natural20.player_character import PlayerCharacter
 from natural20.session import Session
 from natural20.concern.generic_event_handler import GenericEventHandler
+from natural20.utils.animal_communication import (
+    animal_communication_expires_at,
+    grant_animal_communication,
+)
+from natural20.utils.conversation_offers import (
+    accept_effect_for_item,
+    canonical_item_slug,
+    evaluate_offer_block,
+    merged_offer_configs,
+    offer_guidance_lines,
+    on_accept_auto_use,
+    record_completed_item_offer,
+)
+from natural20.utils.conversation_witness import (
+    format_witnessed_actions_summary,
+    log_witnessed_action,
+    witnessed_action_lines,
+)
 from natural20.utils.conversation import (
     SPEECH_MODE_ORDER,
     audible_entities,
@@ -31,7 +49,13 @@ from natural20.utils.conversation import (
 
 logger = logging.getLogger('werkzeug')
 CONTROL_DIRECTIVE_PATTERN = re.compile(r'\[(no_response|to|volume)(?:\s*:\s*([^\]]*))?\]', re.IGNORECASE)
-ACTION_DIRECTIVE_PATTERN = re.compile(r'\[(approach|interact|request_check|set_goal|goal_complete|goal_give_up)(?:\s*:\s*([^\]]*))?\]', re.IGNORECASE)
+ACTION_DIRECTIVE_PATTERN = re.compile(r'\[(approach|interact|request_check|set_goal|goal_complete|goal_give_up|offer_item)(?:\s*:\s*([^\]]*))?\]', re.IGNORECASE)
+
+REQUEST_CHECK_SKILLS = frozenset({
+    'acrobatics', 'animal_handling', 'arcana', 'athletics', 'deception', 'history',
+    'insight', 'intimidation', 'investigation', 'medicine', 'nature', 'perception',
+    'performance', 'persuasion', 'religion', 'sleight_of_hand', 'stealth', 'survival',
+})
 INSIGHT_DIRECTIVE_PATTERN = re.compile(r'\[insight(?:\s*:\s*([^\]]*))?\]', re.IGNORECASE)
 ASIDE_DIRECTIVE_PATTERN = re.compile(r'\[(aside|narration|stage_direction)(?:\s*:\s*([^\]]*))?\]', re.IGNORECASE)
 NARRATIVE_FIRST_PERSON_SUBSTITUTIONS = [
@@ -99,9 +123,92 @@ class EntityRAGHandler:
         plan = self.build_conversation_response_plan(
             response,
             receiver,
+            speaker=speaker,
             llm_conversation_handler=llm_conversation_handler,
         )
         return plan['language'], plan['message']
+
+    @staticmethod
+    def _normalize_keyword_text(text: str) -> str:
+        normalized = re.sub(r'[^a-z0-9\s]', ' ', str(text or '').lower())
+        return ' '.join(normalized.split())
+
+    def _keyword_matched_by_text(self, response_text: str, keyword: str) -> bool:
+        response_norm = self._normalize_keyword_text(response_text)
+        keyword_norm = self._normalize_keyword_text(keyword)
+        if not response_norm or not keyword_norm:
+            return False
+        if keyword_norm in response_norm:
+            return True
+
+        # Allow small connective words between keyword tokens, e.g.
+        # "hunters closing in" matching "hunters are closing in".
+        response_tokens = response_norm.split()
+        keyword_tokens = keyword_norm.split()
+        if len(keyword_tokens) <= 1:
+            return False
+
+        idx = 0
+        for token in response_tokens:
+            if token == keyword_tokens[idx]:
+                idx += 1
+                if idx == len(keyword_tokens):
+                    return True
+        return False
+
+    def _llm_keyword_matches(self, response: str, keyword_entries: List[Dict[str, Any]], llm_conversation_handler) -> List[str]:
+        if llm_conversation_handler is None:
+            return []
+
+        llm_handler = getattr(llm_conversation_handler, 'llm_hander', None)
+        if llm_handler is None:
+            return []
+
+        candidate_keywords = [str(entry.get('keyword', '')).strip() for entry in keyword_entries if str(entry.get('keyword', '')).strip()]
+        if not candidate_keywords:
+            return []
+
+        messages = [
+            {
+                'role': 'system',
+                'content': (
+                    'You detect whether an NPC reply semantically expresses configured trigger phrases. '
+                    'Return JSON only with key matched_keywords as an array of exact keyword strings from the provided list. '
+                    'Do not invent new keywords.'
+                ),
+            },
+            {
+                'role': 'user',
+                'content': json.dumps({
+                    'response': response,
+                    'keywords': candidate_keywords,
+                }, ensure_ascii=True),
+            },
+        ]
+
+        try:
+            raw_response = llm_handler.send_message(
+                messages,
+                context={
+                    'response_mode': 'conversation',
+                    'skip_continuation': True,
+                    'log_label': 'semantic_keyword_match',
+                },
+            )
+            text = str(raw_response or '').strip()
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match:
+                text = match.group(0)
+            payload = json.loads(text)
+        except Exception:
+            return []
+
+        matched = payload.get('matched_keywords')
+        if not isinstance(matched, list):
+            return []
+
+        allowed = {keyword for keyword in candidate_keywords}
+        return [str(keyword).strip() for keyword in matched if str(keyword).strip() in allowed]
 
     def parse_response_controls(self, response: str) -> Dict[str, Any]:
         controls = {
@@ -178,6 +285,14 @@ class EntityRAGHandler:
             return resolved_targets
         return [speaker] if speaker is not None else []
 
+    def _log_conversation_plan(self, receiver: Entity, event: str, level: int = logging.INFO, **fields) -> None:
+        receiver_name = entity_label(receiver) if receiver is not None else 'unknown'
+        extras = ' '.join(f"{key}={value!r}" for key, value in fields.items())
+        message = f"[ConversationPlan] {receiver_name}: {event}"
+        if extras:
+            message = f"{message} ({extras})"
+        logger.log(level, message)
+
     def plan_response_volume(self, receiver: Entity, targets: List[Entity], volume: Optional[str] = None) -> Tuple[Optional[str], List[Entity]]:
         if not targets:
             return None, []
@@ -231,18 +346,38 @@ class EntityRAGHandler:
             'approach': None,
             'interact': None,
             'request_check': None,
+            'offer_item': None,
             'set_goal': None,
             'goal_complete': False,
             'goal_give_up': False,
         }
         if not response:
+            self._log_conversation_plan(receiver, 'skip empty LLM response')
+            return plan
+
+        self._log_conversation_plan(
+            receiver,
+            'building reply plan',
+            level=logging.DEBUG,
+            raw_preview=(response or '')[:160],
+        )
+
+        pre_controls = self.parse_response_controls(response)
+        if pre_controls['no_response'] and not (pre_controls['response'] or '').strip():
+            self._log_conversation_plan(receiver, 'skip [NO_RESPONSE]')
             return plan
 
         language, processed_response = self.parse_language_from_response(response)
         if hasattr(receiver, 'languages') and receiver.languages():
             language = self.validate_language_for_entity(language, receiver)
 
-        processed_response = self._process_rag_commands(processed_response, speaker, receiver, llm_conversation_handler)
+        processed_response = self._process_rag_commands(
+            processed_response,
+            speaker,
+            receiver,
+            llm_conversation_handler,
+            include_keywords=False,
+        )
         rerendered_language, processed_response = self.parse_language_from_response(processed_response)
         if rerendered_language != 'common' or language == 'common':
             if hasattr(receiver, 'languages') and receiver.languages():
@@ -256,6 +391,7 @@ class EntityRAGHandler:
             'approach': action_directives['approach'],
             'interact': action_directives['interact'],
             'request_check': action_directives['request_check'],
+            'offer_item': action_directives['offer_item'],
             'set_goal': action_directives['set_goal'],
             'goal_complete': action_directives['goal_complete'],
             'goal_give_up': action_directives['goal_give_up'],
@@ -263,6 +399,7 @@ class EntityRAGHandler:
 
         controls = self.parse_response_controls(processed_response)
         if controls['no_response']:
+            self._log_conversation_plan(receiver, 'skip [NO_RESPONSE] after directive parse')
             return plan
 
         message, narrative = self.extract_narrative_asides(
@@ -278,11 +415,38 @@ class EntityRAGHandler:
         if plan['request_check'] is None and inferred_request_check is not None:
             plan['request_check'] = inferred_request_check
         if not message:
+            self._log_conversation_plan(
+                receiver,
+                'skip empty spoken line after aside extraction',
+                controls_preview=(controls.get('response') or '')[:160],
+            )
             return plan
 
         targets = self.resolve_response_targets(receiver, speaker=speaker, target_spec=controls.get('target_spec'))
         volume, targets = self.plan_response_volume(receiver, targets, volume=controls.get('volume'))
+        if (not targets or not volume) and speaker is not None:
+            self._log_conversation_plan(
+                receiver,
+                'volume plan retrying with shout toward speaker',
+                speaker=entity_label(speaker),
+            )
+            volume, targets = self.plan_response_volume(receiver, [speaker], volume='shout')
+        if (not targets or not volume) and speaker is not None:
+            volume, targets = 'shout', [speaker]
+            self._log_conversation_plan(
+                receiver,
+                'volume plan forced shout fallback toward speaker',
+                speaker=entity_label(speaker),
+            )
+
         if not targets or not volume:
+            self._log_conversation_plan(
+                receiver,
+                'skip unreachable targets',
+                target_spec=controls.get('target_spec'),
+                resolved_target_ids=[getattr(t, 'entity_uid', t) for t in (targets or [])],
+                volume=volume,
+            )
             return plan
 
         plan.update({
@@ -293,7 +457,27 @@ class EntityRAGHandler:
             'volume': volume,
             'skip': False,
         })
+        self._log_conversation_plan(
+            receiver,
+            'reply plan ready',
+            language=language,
+            volume=volume,
+            target_ids=[getattr(t, 'entity_uid', t) for t in targets],
+            message_preview=message[:160],
+            narrative_count=len(narrative or []),
+        )
         return plan
+
+    @staticmethod
+    def _looks_like_stage_direction(line: str) -> bool:
+        text = (line or '').strip()
+        if not text:
+            return False
+        if text.startswith(('*', '(', '[')):
+            return True
+        if re.match(r'^(?:They|She|He|The)\b', text):
+            return True
+        return False
 
     def extract_narrative_asides(self, response_text: str, llm_conversation_handler=None) -> Tuple[str, List[str]]:
         asides = []
@@ -313,8 +497,23 @@ class EntityRAGHandler:
         if '\n' not in cleaned:
             return cleaned, []
 
+        lines = [line.strip() for line in cleaned.split('\n') if line.strip()]
+        if lines and not any(self._looks_like_stage_direction(line) for line in lines):
+            joined = ' '.join(lines)
+            logger.debug(
+                '[ConversationPlan] joined %s dialogue lines without narrative LLM preview=%r',
+                len(lines),
+                joined[:120],
+            )
+            return joined, []
+
+        logger.info(
+            '[ConversationPlan] requesting narrative LLM split preview=%r',
+            cleaned[:160],
+        )
         split = self._extract_narrative_asides_via_llm(cleaned, llm_conversation_handler)
         if split is None:
+            logger.debug('[ConversationPlan] narrative LLM split unavailable; using raw spoken line')
             return cleaned, []
 
         spoken = (split.get('spoken') or '').strip()
@@ -348,7 +547,14 @@ class EntityRAGHandler:
         ]
 
         try:
-            raw_response = llm_handler.send_message(messages)
+            raw_response = llm_handler.send_message(
+                messages,
+                context={
+                    'response_mode': 'conversation',
+                    'skip_continuation': True,
+                    'log_label': 'narrative_split',
+                },
+            )
         except Exception:
             return None
 
@@ -496,6 +702,7 @@ class EntityRAGHandler:
             'approach': None,
             'interact': None,
             'request_check': None,
+            'offer_item': None,
             'set_goal': None,
             'goal_complete': False,
             'goal_give_up': False,
@@ -536,12 +743,26 @@ class EntityRAGHandler:
                     dc = int(params['dc']) if params.get('dc') is not None else None
                 except (TypeError, ValueError):
                     dc = None
-                if skill in {'persuasion', 'intimidation'} and target is not None:
+                if skill in REQUEST_CHECK_SKILLS and target is not None:
                     directives['request_check'] = {
                         'skill': skill,
                         'target': target,
                         'target_spec': target_spec,
                         'dc': dc,
+                    }
+            elif directive == 'offer_item':
+                params = self._parse_named_params(value, positional_keys=('item', 'target'))
+                item_raw = (params.get('item') or params.get('name') or '').strip()
+                if item_raw:
+                    target_spec = params.get('target') or params.get('entity') or 'speaker'
+                    target = self.resolve_named_target(actor, target_spec, speaker=speaker, include_objects=False)
+                    if target is None and speaker is not None:
+                        target = speaker
+                    directives['offer_item'] = {
+                        'item': self._canonical_item_slug(item_raw),
+                        'target': target,
+                        'target_spec': target_spec,
+                        'auto_use': self._parse_bool(params.get('auto_use')),
                     }
             elif directive == 'set_goal' and value:
                 directives['set_goal'] = value.strip()
@@ -574,6 +795,17 @@ class EntityRAGHandler:
 
         return parsed
 
+    def _parse_bool(self, value) -> bool:
+        if value is None:
+            return False
+        return str(value).strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
+
+    def _game_properties(self) -> Dict[str, Any]:
+        return getattr(self.game_session, 'game_properties', None) or {}
+
+    def _canonical_item_slug(self, item_slug: str) -> str:
+        return canonical_item_slug(item_slug, merged_offer_configs(self._game_properties()))
+
     def resolve_named_target(self, actor: Entity, target_spec: Optional[str], speaker: Entity = None, include_objects: bool = False):
         if not target_spec:
             return None
@@ -583,12 +815,19 @@ class EntityRAGHandler:
         if lowered in {'speaker', 'you'}:
             return speaker
 
-        try:
-            target = self.game_session.entity_by_uid(normalized)
-            if target is not None:
-                return target
-        except Exception:
-            pass
+        for uid_candidate in (normalized, lowered):
+            try:
+                target = self.game_session.entity_by_uid(uid_candidate)
+                if target is not None:
+                    return target
+            except Exception:
+                pass
+
+        if speaker is not None:
+            speaker_uid = str(getattr(speaker, 'entity_uid', '') or '').strip().lower()
+            speaker_handle = mention_handle_for(speaker).lower()
+            if lowered == speaker_uid or lowered == speaker_handle:
+                return speaker
 
         battle_map = self.current_game.get_map_for_entity(actor)
         if battle_map is None:
@@ -779,6 +1018,31 @@ class EntityRAGHandler:
             result['goal_status'] = 'abandoned'
             self.current_game.complete_short_term_goal(actor, status='abandoned', reason='Abandoned by LLM')
 
+        offer_item = plan.get('offer_item')
+        if offer_item and offer_item.get('item'):
+            offer_target = offer_item.get('target') or speaker
+            if offer_target is not None:
+                can_offer, block_reason = self._can_offer_item(
+                    actor,
+                    offer_target,
+                    offer_item['item'],
+                )
+                if can_offer and self._offer_item_with_prompt(
+                    actor,
+                    offer_target,
+                    offer_item['item'],
+                    auto_use=bool(offer_item.get('auto_use')),
+                ):
+                    result['executed_actions'].append('offer_item')
+                elif not can_offer:
+                    logger.info(
+                        'Offer item suppressed for %s -> %s (%s): %s',
+                        entity_label(actor),
+                        entity_label(offer_target),
+                        offer_item['item'],
+                        block_reason,
+                    )
+
         if self.current_game.get_current_battle() is None:
             execution_username = self._execution_username_for(actor)
             pov_entities = [actor]
@@ -822,6 +1086,196 @@ class EntityRAGHandler:
             )
 
         return result
+
+    def _inventory_qty(self, entity: Entity, item_slug: str) -> int:
+        inventory = getattr(entity, 'inventory', None) or {}
+        try:
+            return int((inventory.get(item_slug) or {}).get('qty') or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _can_offer_item(self, actor: Entity, target: Entity, item_slug: str) -> Tuple[bool, str]:
+        return evaluate_offer_block(
+            self.game_session,
+            actor,
+            target,
+            item_slug,
+            game_properties=self._game_properties(),
+            actor_has_map_item=self._find_offerable_map_object(actor, item_slug) is not None,
+        )
+
+    def offer_item_guidance_for_conversation(self, actor: Entity, speaker: Entity = None) -> str:
+        """Prompt lines from campaign ``conversation_item_offers`` (and optional NPC overrides)."""
+        lines = offer_guidance_lines(
+            self.game_session,
+            actor,
+            speaker,
+            game_properties=self._game_properties(),
+            actor_has_map_item_fn=lambda entity, slug: self._find_offerable_map_object(entity, slug) is not None,
+        )
+        return '\n'.join(lines)
+
+    def witnessed_events_summary(self, observer: Entity, *, limit: int = 10) -> str:
+        """Recent console lines the NPC was scoped to witness (item trades, scroll use, etc.)."""
+        output_logger = getattr(self.current_game, 'output_logger', None)
+        lines = witnessed_action_lines(output_logger, observer, limit=limit)
+        return format_witnessed_actions_summary(lines)
+
+    def _offer_item_aliases(self, item_slug: str) -> set:
+        aliases = {str(item_slug or '').strip().lower()}
+        cfg = merged_offer_configs(self._game_properties()).get(item_slug) or {}
+        if isinstance(cfg, dict):
+            for alias in cfg.get('aliases') or []:
+                aliases.add(str(alias).strip().lower().replace(' ', '_'))
+        return aliases
+
+    def _find_offerable_map_object(self, actor: Entity, item_slug: str):
+        try:
+            battle_map = self.current_game.get_map_for_entity(actor)
+        except Exception:
+            battle_map = None
+        if battle_map is None:
+            return None
+
+        raw_objects = getattr(battle_map, 'interactable_objects', None)
+        if not isinstance(raw_objects, dict):
+            return None
+
+        aliases = self._offer_item_aliases(item_slug)
+        for obj in list(raw_objects.keys()):
+            obj_type = str(getattr(obj, 'type', '') or '').strip().lower()
+            obj_name = str(getattr(obj, '_name', '') or '').strip().lower()
+            if obj_type in aliases or obj_name in aliases:
+                return obj
+        return None
+
+    def _log_witnessed_offer_outcome(self, actor: Entity, target: Entity, message: str) -> None:
+        output_logger = getattr(self.current_game, 'output_logger', None)
+        log_witnessed_action(
+            output_logger,
+            self.game_session,
+            message,
+            source=actor,
+            target=target,
+        )
+
+    def _apply_offer_accept_effect(self, actor: Entity, target: Entity, item_slug: str) -> Optional[str]:
+        game_properties = self._game_properties()
+        if not (on_accept_auto_use(item_slug, game_properties=game_properties, actor=actor)):
+            return None
+        effect = accept_effect_for_item(item_slug, game_properties=game_properties, actor=actor)
+        if effect == 'animal_communication':
+            grant_animal_communication(self.game_session, entity=target)
+            target.deduct_item(item_slug, 1)
+            expiration = animal_communication_expires_at(self.game_session, target)
+            return (
+                f"{entity_label(target)} reads the scroll and can understand beasts "
+                f"until game time {expiration}."
+            )
+        return None
+
+    def _is_offer_accept_response(self, payload: Dict[str, Any]) -> bool:
+        raw = (payload or {}).get('response', '')
+
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, (int, float)):
+            return raw == 1
+
+        text = str(raw or '').strip().lower()
+        if not text:
+            return False
+
+        # Allow punctuation/spacing variants such as "OK.", " yes ", etc.
+        normalized = ''.join(ch for ch in text if ch.isalnum() or ch in {'_', '-'})
+        return normalized in {
+            'y',
+            'yes',
+            'accept',
+            'accepted',
+            'take',
+            'ok',
+            'okay',
+            'true',
+            '1',
+        }
+
+    def _offer_item_with_prompt(self, actor: Entity, target: Entity, item_slug: str, auto_use: bool = False) -> bool:
+        can_offer, _reason = self._can_offer_item(actor, target, item_slug)
+        if not can_offer:
+            return False
+
+        source_qty = self._inventory_qty(actor, item_slug)
+        map_object = None
+        if source_qty <= 0:
+            map_object = self._find_offerable_map_object(actor, item_slug)
+            if map_object is None:
+                return False
+
+        target_owners = [name for name in self.current_game.entity_owners(target) if name]
+        if not target_owners:
+            return False
+
+        prompt_message = f"{entity_label(actor)} offers {item_slug.replace('_', ' ')} to {entity_label(target)}. Accept item?"
+
+        def _emit_offer_ui_refresh():
+            try:
+                self.current_game.socketio.emit('message', {'type': 'refresh_map'})
+                self.current_game.socketio.emit('message', {
+                    'type': 'turn',
+                    'message': {'game_time': self.game_session.game_time},
+                })
+            except Exception:
+                pass
+
+        def _callback(payload):
+            accepted = self._is_offer_accept_response(payload)
+
+            if not accepted:
+                self._log_witnessed_offer_outcome(
+                    actor,
+                    target,
+                    f"{entity_label(target)} declines the offered item.",
+                )
+                _emit_offer_ui_refresh()
+                return
+
+            current_qty = int((getattr(actor, 'inventory', {}) or {}).get(item_slug, {}).get('qty') or 0)
+            if current_qty > 0:
+                actor.deduct_item(item_slug, 1)
+            elif map_object is not None:
+                try:
+                    local_map = self.current_game.get_map_for_entity(actor)
+                    local_map.remove(map_object)
+                    self.current_game.socketio.emit('message', {'type': 'refresh_map'})
+                except Exception:
+                    pass
+
+            target.add_item(item_slug, 1)
+            record_completed_item_offer(self.game_session, actor, target, item_slug)
+
+            effect_message = None
+            if auto_use:
+                effect_message = self._apply_offer_accept_effect(actor, target, item_slug)
+            if effect_message:
+                self._log_witnessed_offer_outcome(actor, target, effect_message)
+                _emit_offer_ui_refresh()
+                return
+
+            self._log_witnessed_offer_outcome(
+                actor,
+                target,
+                f"{entity_label(target)} accepts {item_slug.replace('_', ' ')}.",
+            )
+            _emit_offer_ui_refresh()
+
+        self.current_game.prompt(
+            prompt_message,
+            callback=_callback,
+            options=['Yes', 'No'],
+            usernames=target_owners,
+        )
+        return True
 
     def execute_scheduled_goal(self, entity_uid: str, llm_conversation_handler) -> Optional[Dict[str, Any]]:
         entity = self.current_game.get_entity_by_uid(entity_uid)
@@ -880,7 +1334,9 @@ class EntityRAGHandler:
             "- [APPROACH: target=@handle, distance=5] to move up to full movement speed until you are within the requested distance.\n"
             "- [INTERACT: target=<name or @handle>, action=<interaction>] to use an interactable object.\n"
             "- [INSIGHT: target=speaker] or [INSIGHT: target=@handle] to privately assess whether someone seems truthful before responding.\n"
-            "- [REQUEST_CHECK: skill=persuasion, target=speaker] or [REQUEST_CHECK: skill=intimidation, target=@handle] to ask for a social check.\n"
+            "- [REQUEST_CHECK: skill=persuasion|intimidation|arcana|investigation|..., target=speaker|@handle, dc=optional] to ask for a skill check.\n"
+            "- [OFFER_ITEM: item=<item_slug>, target=speaker] to offer an item you still possess (triggers Accept Yes/No once per item per listener).\n"
+            f"{self.offer_item_guidance_for_conversation(entity, requester)}\n"
             "- [SET_GOAL: new short goal] to replace your current short-term goal.\n"
             "- [GOAL_COMPLETE] when the current goal is done.\n"
             "- [GOAL_GIVE_UP] when the current goal cannot be completed or is no longer worth pursuing.\n"
@@ -969,7 +1425,58 @@ class EntityRAGHandler:
             # Fallback to common if parsing fails
             return "common", response
 
-    def _process_rag_commands(self, response: str, speaker: Entity, receiver: Entity, llm_conversation_handler) -> str:
+    def apply_conversation_keywords(
+        self,
+        response: str,
+        receiver: Entity,
+        speaker: Entity = None,
+        llm_conversation_handler=None,
+    ) -> None:
+        """Fire keyword side effects after NPC speech is delivered (literal match only)."""
+        try:
+            keyword_entries = receiver.conversation_keywords()
+        except Exception:
+            keyword_entries = []
+
+        if not isinstance(keyword_entries, (list, tuple)):
+            keyword_entries = []
+
+        matched_entries = []
+        for keywords in keyword_entries:
+            keyword = str(keywords.get('keyword', '')).strip()
+            if not keyword:
+                continue
+            if self._keyword_matched_by_text(response, keyword):
+                matched_entries.append(keywords)
+
+        if not matched_entries:
+            self._log_conversation_plan(
+                receiver,
+                'no literal keyword matches in delivered speech',
+                level=logging.DEBUG,
+                speech_preview=(response or '')[:120],
+            )
+            return
+
+        for keywords in matched_entries:
+            keyword = str(keywords.get('keyword', '')).strip()
+            self._log_conversation_plan(
+                receiver,
+                'applying conversation keyword side effect',
+                keyword=keyword,
+            )
+            generic_handler = GenericEventHandler(self.game_session, receiver, keywords)
+            generic_handler.handle(receiver, opts={'speaker': speaker})
+
+    def _process_rag_commands(
+        self,
+        response: str,
+        speaker: Entity,
+        receiver: Entity,
+        llm_conversation_handler,
+        *,
+        include_keywords: bool = True,
+    ) -> str:
         """
         Process RAG commands in the response and generate appropriate responses.
 
@@ -1008,13 +1515,29 @@ class EntityRAGHandler:
         if not isinstance(keyword_entries, (list, tuple)):
             keyword_entries = []
 
+        if not include_keywords:
+            return response
+
+        matched_entries = []
         for keywords in keyword_entries:
-            if keywords['keyword'] in response:
-                logger.info(f"Processing event for keyword '{keywords['keyword']}': {keywords}")
-                generic_handler = GenericEventHandler(self.game_session, receiver, keywords)
-                generic_handler.handle(self, opts={'speaker': speaker})
-                # Remove the keyword from the response
-                response = response.replace(keywords['keyword'], '')
+            keyword = str(keywords.get('keyword', '')).strip()
+            if not keyword:
+                continue
+            if self._keyword_matched_by_text(response, keyword):
+                matched_entries.append(keywords)
+
+        if not matched_entries:
+            llm_matches = self._llm_keyword_matches(response, keyword_entries, llm_conversation_handler)
+            llm_match_set = set(llm_matches)
+            matched_entries = [entry for entry in keyword_entries if str(entry.get('keyword', '')).strip() in llm_match_set]
+
+        for keywords in matched_entries:
+            keyword = str(keywords.get('keyword', '')).strip()
+            logger.info(f"Processing event for keyword '{keyword}': {keywords}")
+            generic_handler = GenericEventHandler(self.game_session, receiver, keywords)
+            generic_handler.handle(receiver, opts={'speaker': speaker})
+            if keyword:
+                response = re.sub(re.escape(keyword), '', response, flags=re.IGNORECASE)
 
         return response
 
@@ -1273,11 +1796,39 @@ class EntityRAGHandler:
         try:
             receiver.update_state('active')
             self.current_game.update_group(receiver, 'b')
+            self._activate_group_allies(receiver)
             logger.info(f"Entity {receiver.label()} is now in the hostile group")
             return ""
         except Exception as e:
             logger.error(f"Error changing entity to hostile state: {e}")
             return ""
+
+    def _activate_group_allies(self, receiver: Entity):
+        """Wake passive allies in the same group and map when hostility starts."""
+        battle_map = None
+        try:
+            battle_map = self.current_game.get_map_for_entity(receiver)
+        except Exception:
+            battle_map = None
+        if battle_map is None:
+            return
+
+        receiver_group = getattr(receiver, 'group', None)
+        if not receiver_group:
+            return
+
+        for ally in getattr(battle_map, 'entities', []):
+            if ally is receiver:
+                continue
+            if getattr(ally, 'group', None) != receiver_group:
+                continue
+            try:
+                if ally.passive():
+                    ally.update_state('active')
+                # Ensure group affinity stays aligned for downstream hostility checks.
+                self.current_game.update_group(ally, receiver_group)
+            except Exception:
+                continue
     
     def _handle_inventory_query(self, receiver: Entity, llm_conversation_handler) -> str:
         """

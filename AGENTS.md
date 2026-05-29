@@ -3,7 +3,40 @@
 This repository is a D&D simulation and VTT used for AI research. Focus on two layers:
 
 - Core engine (Python package `natural20/`) — game models, map, battle loop, controllers, and entity registry. Key files: `natural20/session.py`, `natural20/battle.py`, `natural20/entity.py`, `natural20/controller.py`, `natural20/generic_controller.py`, `natural20/llm_controller.py`.
-- Web layer (Flask + small JS VTT) — `webapp/` contains the Flask app, LLM provider adapters, and the DM/chat handlers. Key files: `webapp/app.py`, `webapp/llm_handler.py`, `webapp/llm_conversation_handler.py`, `webapp/*` tests.
+- Web layer (Flask + small JS VTT) — `webapp/` contains the Flask app, LLM provider adapters, and the DM/chat handlers. Key files: `webapp/app.py` (bootstrap), `webapp/blueprints/*` (domain routes), `webapp/blueprints/helpers/*` (shared state and utilities), `webapp/llm_handler.py`, `webapp/conversation_service.py`, `webapp/*` tests.
+
+### Webapp layout (post-refactor)
+
+See **`docs/WEBAPP_BLUEPRINTS.md`** for the full architecture guide (blueprint map, helper modules, parity harness, wiring checklist).
+
+`webapp/app.py` is the composition root (~320 lines): Flask/SocketIO setup, campaign load, `GameManagement` init, helper registration, blueprint registration, MCP wiring, and perf hooks. **Do not add domain HTTP routes here** — use blueprints.
+
+| Blueprint | Module | Routes (examples) |
+|---|---|---|
+| `assets` | `blueprints/assets.py` | `/assets/*`, `/create_map`, `/upload_map_background`, `/delete_map` |
+| `auth` | `blueprints/auth.py` | `/login`, `/logout`, `/character_selection`, `/select_character` |
+| `ai` | `blueprints/ai.py` | `/ai/*` |
+| `navigation` | `blueprints/navigation.py` | `/`, `/command`, `/path`, `/switch_map`, `/update` |
+| `character` | `blueprints/character.py` | `/character_builder/*`, journal CRUD |
+| `battle` | `blueprints/battle.py` | `/start`, `/action`, `/target`, `/actions`, combat log, turn order |
+| `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, `/available_objects`, inventory, `/rest`, audio |
+| SocketIO | `blueprints/socketio_handlers.py` | `connect`, `register`, `message`, `disconnect`, `request_effects` |
+| *(conversation)* | `helpers/conversation_wiring.py` + `conversation_service.py` | `/talk` (registered at bootstrap, not a blueprint) |
+
+Shared helpers under `webapp/blueprints/helpers/`:
+
+- `runtime_state.py` — lazy getters/setters for app globals (`get_current_game()`, `get_socketio()`, …)
+- `auth_utils.py`, `template_globals.py`, `action_utils.py`, `effects.py`, `special_effects.py`, `journal_utils.py`
+- `character_builder_utils.py`, `pvp.py`, `llm_init.py`
+- `campaign_config.py`, `cors_config.py`, `perf.py`, `conversation_wiring.py`
+
+Conventions:
+
+- Blueprints must not import each other; use `runtime_state` accessors instead of importing from `webapp.app`.
+- Flask endpoint names are prefixed by blueprint (e.g. `battle.start_battle`, `dm.admin_save`). Update `url_for(...)` when moving routes.
+- Action classes live under `natural20/actions/` (e.g. `natural20.actions.attack_action`), not `natural20.action`.
+- `register_effect_listeners(...)` must be called from bootstrap (battle-end narration, control-override SocketIO events).
+- After route moves: `python scripts/generate_baseline_artifacts.py`, then run `tests/webapp/test_*_parity.py`.
 
 Core patterns and conventions (do not invent alternatives):
 
@@ -83,6 +116,7 @@ Files to check for implementation examples and extension points:
 - `natural20/session.py` — loading resources, entity registry, save/load patterns.
 - `natural20/llm_controller.py` — detailed prompt building, parsing, MCP bridge, fallback rules.
 - `webapp/llm_handler.py` — provider adapters, session logging, function-call parsing and execution.
+- `docs/WEBAPP_BLUEPRINTS.md` — where to add routes, helper modules, parity tests after webapp changes.
 - `templates/` and `samples/` — example maps, characters, and level configs used by `Session` and the web UI.
 - `natural20/map.py` — targeting helpers: `squares_in_cone(...)` and `squares_in_adjacent_cube(...)` (cardinal, face-adjacent 3x3 cube used by Thunderwave).
 
@@ -99,6 +133,8 @@ Extending spells and character classes:
 Documentation
 
 For Agents and Humans alike please add,edit or update related information in the docs folder. Update it when information useful to humans and agents alike will benefit from dedicated documentation as well as to update or correct misleading entries. Also create skills for routine tasks.
+
+Webapp changes: update `docs/WEBAPP_BLUEPRINTS.md` when blueprint layout, helpers, or parity workflow changes.
 
 Small gotchas discovered in the repo:
 
