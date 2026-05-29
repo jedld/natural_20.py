@@ -6,6 +6,8 @@
   "login_background": "goblin_ambush_login.png",
   "character_selection_background": "goblin_ambush.png",
   "map": "maps/goblin_cave",
+  "player_spawn_map": "maps/goblin_cave",
+  "defer_player_spawn": true,
   "autosave": false,
   "soundtracks": [
     {
@@ -18,42 +20,50 @@
     {
       "name": "gomerin",
       "file": "characters/gomerin.png",
-      "description": "A brave warrior with a heart of gold."
+      "description": "A brave warrior with a heart of gold.",
+      "sheet": "characters/high_elf_fighter.yml"
     },
     {
       "name": "crysania",
       "file": "characters/crysania.png",
-      "description": "A skilled mage with a mysterious past."
+      "description": "A skilled mage with a mysterious past.",
+      "sheet": "characters/high_elf_mage.yml"
     },
     {
       "name": "rumblebelly",
       "file": "characters/rumblebelly.png",
-      "description": "A rogue with a knack for getting into trouble."
+      "description": "A rogue with a knack for getting into trouble.",
+      "sheet": "characters/halfling_rogue.yml"
     },
     {
       "name": "shorvalu",
       "file": "characters/shorvalu.png",
-      "description": "A paladin sworn to uphold justice."
+      "description": "A paladin sworn to uphold justice.",
+      "sheet": "characters/dwarf_cleric.yml"
     },
     {
       "name": "gomeran",
       "file": "characters/gomeran.png",
-      "description": "A newly forged gnome cleric."
+      "description": "A newly forged gnome cleric.",
+      "sheet": "characters/Gomeran.yml"
     },
     {
       "name": "chestnut_latchlifter",
       "file": "characters/chestnut_latchlifter.png",
-      "description": "A newly forged kender warlock."
+      "description": "A newly forged kender warlock.",
+      "sheet": "characters/chestnut_latchlifter.yml"
     },
     {
       "name": "betty",
       "file": "characters/betty.png",
-      "description": "A half-orc barbarian whose savage strikes leave foes broken and battered."
+      "description": "A half-orc barbarian whose savage strikes leave foes broken and battered.",
+      "sheet": "characters/betty.yml"
     },
     {
       "name": "ddb-999001",
       "file": "characters/ddb-999001.png",
-      "description": "ddb-999001"
+      "description": "ddb-999001",
+      "sheet": "characters/DDB_Import_5a694395.yml"
     }
   ],
   "logins": [

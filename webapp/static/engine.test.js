@@ -159,7 +159,8 @@ const expose = new vm.Script(`({
   centerOnTile: (typeof centerOnTile !== 'undefined') ? centerOnTile : undefined,
   centerOnTileXY: (typeof centerOnTileXY !== 'undefined') ? centerOnTileXY : undefined,
   centerOnEntityId: (typeof centerOnEntityId !== 'undefined') ? centerOnEntityId : undefined,
-  getTilePositionInContainer: (typeof getTilePositionInContainer !== 'undefined') ? getTilePositionInContainer : undefined
+  getTilePositionInContainer: (typeof getTilePositionInContainer !== 'undefined') ? getTilePositionInContainer : undefined,
+  getTilePositionForGridCoords: (typeof getTilePositionForGridCoords !== 'undefined') ? getTilePositionForGridCoords : undefined
 })`);
 const Engine = expose.runInContext(context);
 
@@ -217,22 +218,18 @@ describe('engine.js basic behavior', () => {
     expect(calls.length).toBe(0);
   });
 
-  test('getTilePositionInContainer uses tile grid coords (pan/zoom safe)', () => {
-    const tileSize = 70;
-    const orig$ = global.$;
-    const tilesContainerStub = {
-      length: 1,
-      data: (key) => (key === 'tile-size' ? tileSize : undefined),
-      position: () => ({ left: 0, top: 0 })
+  test('getTilePositionInContainer uses tile grid layout under .image-container', () => {
+    const origQuery = document.querySelector.bind(document);
+    const tilesEl = {
+      offsetLeft: -70,
+      offsetTop: -70,
+      getAttribute: (name) => (name === 'data-tile-size' ? '70' : null)
     };
-    global.$ = (sel) => {
-      if (sel === '.tiles-container') {
-        return {
-          data: tilesContainerStub.data,
-          first: () => tilesContainerStub
-        };
-      }
-      return orig$(sel);
+    const mapEl = { offsetLeft: 0, offsetTop: 0 };
+    document.querySelector = (sel) => {
+      if (sel === '.tiles-container') return tilesEl;
+      if (sel === '.image-container') return mapEl;
+      return origQuery(sel);
     };
 
     const $tile = {
@@ -245,9 +242,9 @@ describe('engine.js basic behavior', () => {
     };
 
     const pos = Engine.getTilePositionInContainer($tile, 70, 70);
-    expect(pos).toEqual({ left: 210, top: 280 });
+    expect(pos).toEqual({ left: 140, top: 210 });
 
-    global.$ = orig$;
+    document.querySelector = origQuery;
   });
 
   test('applyViewportTransform invalidates movement grid cache before updating transform', () => {

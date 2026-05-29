@@ -202,47 +202,38 @@ legend:
       qty: 1
     - type: arrows
       qty: 20
-player:
-  - position: [1, 4]
-    sheet: characters/halfling_rogue.yml
-    overrides:
-      entity_uid: rumblebelly
-  - position: [0, 4]
-    sheet: characters/high_elf_fighter.yml
-    overrides:
-      entity_uid: gomerin
-  - position: [1, 5]
-    sheet: characters/dwarf_cleric.yml
-    overrides:
-      entity_uid: shorvalu
-  - position: [0, 5]
-    sheet: characters/high_elf_mage.yml
-    overrides:
-      entity_uid: crysania
-  - position: [1, 3]
-    sheet: characters/goliath_paladin.yml
-    overrides:
-      entity_uid: goliath_paladin
-  - position: [0, 3]
-    sheet: characters/chestnut_latchlifter.yml
-    overrides:
-      entity_uid: chestnut_latchlifter
-  - position: [0, 2]
-    sheet: characters/gnorth_eastworth.yml
-    overrides:
-      entity_uid: gnorth_eastworth
-  - position: [1, 2]
-    sheet: characters/lahaina_alagondar.yml
-    overrides:
-      entity_uid: lahaina_alagondar
+# Character-agnostic spawn slots (filled when a player picks a PC at login).
+player_spawn_points:
   - position: [0, 1]
-    sheet: characters/betty.yml
-    overrides:
-      entity_uid: betty
+    group: a
+    name: pc_spawn_1
   - position: [1, 1]
-    sheet: characters/mist.yml
-    overrides:
-      entity_uid: mist
+    group: a
+    name: pc_spawn_2
+  - position: [0, 2]
+    group: a
+    name: pc_spawn_3
+  - position: [1, 2]
+    group: a
+    name: pc_spawn_4
+  - position: [0, 3]
+    group: a
+    name: pc_spawn_5
+  - position: [1, 3]
+    group: a
+    name: pc_spawn_6
+  - position: [0, 4]
+    group: a
+    name: pc_spawn_7
+  - position: [1, 4]
+    group: a
+    name: pc_spawn_8
+  - position: [0, 5]
+    group: a
+    name: pc_spawn_9
+  - position: [1, 5]
+    group: a
+    name: pc_spawn_10
 extensions:
   web:
     background_color: '#000000'
