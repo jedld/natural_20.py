@@ -158,7 +158,8 @@ const expose = new vm.Script(`({
   applyViewportTransform: (typeof applyViewportTransform !== 'undefined') ? applyViewportTransform : undefined,
   centerOnTile: (typeof centerOnTile !== 'undefined') ? centerOnTile : undefined,
   centerOnTileXY: (typeof centerOnTileXY !== 'undefined') ? centerOnTileXY : undefined,
-  centerOnEntityId: (typeof centerOnEntityId !== 'undefined') ? centerOnEntityId : undefined
+  centerOnEntityId: (typeof centerOnEntityId !== 'undefined') ? centerOnEntityId : undefined,
+  getTilePositionInContainer: (typeof getTilePositionInContainer !== 'undefined') ? getTilePositionInContainer : undefined
 })`);
 const Engine = expose.runInContext(context);
 
@@ -214,6 +215,39 @@ describe('engine.js basic behavior', () => {
 
     // When centers are missing, drawLine should exit without invoking ctx
     expect(calls.length).toBe(0);
+  });
+
+  test('getTilePositionInContainer uses tile grid coords (pan/zoom safe)', () => {
+    const tileSize = 70;
+    const orig$ = global.$;
+    const tilesContainerStub = {
+      length: 1,
+      data: (key) => (key === 'tile-size' ? tileSize : undefined),
+      position: () => ({ left: 0, top: 0 })
+    };
+    global.$ = (sel) => {
+      if (sel === '.tiles-container') {
+        return {
+          data: tilesContainerStub.data,
+          first: () => tilesContainerStub
+        };
+      }
+      return orig$(sel);
+    };
+
+    const $tile = {
+      length: 1,
+      data: (key) => {
+        if (key === 'coords-x') return 2;
+        if (key === 'coords-y') return 3;
+        return undefined;
+      }
+    };
+
+    const pos = Engine.getTilePositionInContainer($tile, 70, 70);
+    expect(pos).toEqual({ left: 210, top: 280 });
+
+    global.$ = orig$;
   });
 
   test('applyViewportTransform invalidates movement grid cache before updating transform', () => {

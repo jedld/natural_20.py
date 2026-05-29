@@ -733,7 +733,11 @@ class Battle():
             if not object.conscious():
                 continue
 
-            if self.opposing(source, object) and (map_for_source.distance(source, object, entity_1_pos=source_pos) <= (object.melee_distance() / map_for_source.feet_per_grid)):
+            melee_distance = object.melee_distance() if hasattr(object, 'melee_distance') else None
+            if melee_distance is None or melee_distance <= 0 or map_for_source.feet_per_grid <= 0:
+                continue
+
+            if self.opposing(source, object) and (map_for_source.distance(source, object, entity_1_pos=source_pos) <= (melee_distance / map_for_source.feet_per_grid)):
                 return True
 
         return False

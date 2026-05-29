@@ -1,0 +1,68 @@
+name: DDB Import 5a694395
+race: elf
+subrace: high_elf
+gender: Female
+classes:
+  wizard: 2
+level: 2
+hit_die: inherit
+max_hp: 16
+hp: 13
+temporary_hp: 2
+ability:
+  str: 10
+  dex: 14
+  con: 14
+  int: 17
+  wis: 12
+  cha: 8
+arcane_tradition: school_of_evocation
+saving_throw_proficiencies:
+- int
+- wis
+skills:
+- arcana
+- history
+- investigation
+- perception
+weapon_proficiencies:
+- light_armor
+languages:
+- common
+- elvish
+- goblin
+feats:
+- alert
+cantrips:
+- firebolt
+- mage_hand
+- true_strike
+prepared_spells:
+- magic_missile
+- shield
+spellbook:
+- magic_missile
+- shield
+- mage_armor
+spell_slots:
+  wizard:
+    1: 3
+background: sage
+equipped:
+- dagger
+inventory:
+- type: dagger
+  qty: 1
+- type: spellbook
+  qty: 1
+- type: healing_potion
+  qty: 1
+- type: arcane_focus
+  qty: 1
+token:
+- A
+alignment: neutral_good
+group: a
+entity_uid: ddb-999001
+token_image: token_ddb-999001.png
+profile_image: characters/ddb-999001.png

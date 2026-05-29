@@ -129,6 +129,15 @@ maps:
 # Directory containing player character sheets
 player_profiles: characters
 
+# Optional: conversation item offers for LLM NPCs ([OFFER_ITEM] guards + guidance)
+conversation_offer_guidance:
+  target_has_item: "- {target} already carries the {item_label}; do not offer it again."
+conversation_item_offers:
+  my_quest_item:
+    item_label: brass key
+    aliases: [quest_key]
+    block_when: [offer_completed, target_has_item]
+
 # Faction/group definitions
 groups:
   a:                             # Players (default group)
@@ -654,13 +663,15 @@ token:
   - OO
 ```
 
-#### Damage Resistances & Immunities
+#### Damage Vulnerabilities, Resistances, and Immunities
 
 ```yaml
-resistances:
+damage_vulnerabilities:
+  - radiant
+damage_resistances:
   - fire
   - bludgeoning
-immunities:
+damage_immunities:
   - poison
   - necrotic
 condition_immunities:
@@ -668,6 +679,13 @@ condition_immunities:
   - frightened
   - poisoned
 ```
+
+Notes:
+
+- The engine accepts both `damage_resistances` and `resistances` for resistance lists.
+- The engine accepts both `damage_immunities` and `immunities` for immunities.
+- The engine accepts both `damage_vulnerabilities` and `vulnerabilities` for vulnerabilities.
+- Per 5e rules, immunity overrides all, and resistance/vulnerability to the same damage type cancel out.
 
 #### On-Hit Effects
 

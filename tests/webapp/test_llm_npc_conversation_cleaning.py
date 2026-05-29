@@ -31,6 +31,18 @@ Let me think about how to answer...
     assert 'help with your D&D game' not in cleaned
 
 
+def test_json_response_is_complete_without_continuation():
+    handler = LLMHandler()
+    payload = '{"spoken": "Hello.", "narrative": []}'
+    assert handler._response_looks_complete(payload) is True
+
+
+def test_dialogue_with_internal_ellipsis_is_complete():
+    handler = LLMHandler()
+    line = "It's in the basement... Please will you help us?"
+    assert handler._response_looks_complete(line) is True
+
+
 def test_dm_mode_empty_fallback_stays_assistant():
     handler = LLMHandler()
     thinking_only = """<think>

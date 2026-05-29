@@ -30,6 +30,7 @@ let globalCanvas = null;
 let globalCtx = null;
 let talkToEntityMode = false; // Flag to track when user is talking to an entity
 let dialogMessageProcessing = false; // Flag to track if a dialog message is being processed
+let activeDialogWaitingId = null; // Waiting indicator cleared when NPC reply arrives over socket
 
 // Pan and Zoom state (Roll20-style viewport)
 let viewportPan = { x: 0, y: 0 };
@@ -492,6 +493,10 @@ class EventQueue {
       console.warn('[EventQueue] Ignoring invalid event:', event);
       return;
     }
+    // Coalesce tile refreshes: only the latest refresh_tiles matters.
+    if (event.type === 'refresh_tiles') {
+      this.queue = this.queue.filter((queued) => queued.type !== 'refresh_tiles');
+    }
     if (this.queue.length >= this.maxQueueSize) {
       console.warn('Event queue is full, dropping oldest event');
       this.queue.shift();
@@ -566,15 +571,12 @@ class EventQueue {
             const y = msg.y || 0;
             const entity_uid = msg.entity_uid || null;
             const cb = typeof msg.callback === 'function' ? msg.callback : null;
+            const forceFullRefresh = !!msg.force_full_refresh;
             Utils.refreshTileSet(is_setup, pov, x, y, entity_uid, () => {
-              // Clean up any leftover moving sprites and ensure originals are visible
-              try {
-                $('.moving-entity-sprite').remove();
-                $('.entity').css('visibility', '');
-              } catch (_) { }
+              try { cleanupMovementSprites(); } catch (_) { }
               try { if (cb) cb(); } catch (_) { }
               resolve();
-            });
+            }, forceFullRefresh);
           } catch (e) {
             console.warn('refresh_tiles failed, continuing', e);
             resolve();
@@ -589,11 +591,7 @@ class EventQueue {
               try { updateDraggableEntityClasses(); } catch (_) { }
               try { Chat.scheduleLocalConversationPresenceRefresh(); } catch (_) { }
               try { cleanupAllPendingMoves(); } catch (_) { }
-              // Clean up any leftover moving sprites and ensure originals are visible
-              try {
-                $('.moving-entity-sprite').remove();
-                $('.entity').css('visibility', '');
-              } catch (_) { }
+              try { cleanupMovementSprites(); } catch (_) { }
               resolve();
             });
           } catch (e) {
@@ -641,8 +639,6 @@ class EventQueue {
           this.processSpellEvent(data, resolve);
           break;
         }
-          // Track originals we hide during sprite animation so we can optionally restore on failure
-          const hiddenOriginals = new Map(); // entity_uid -> jQuery img element
         case "attack": {
           this.processAttackEvent(data, resolve);
           break;
@@ -684,16 +680,82 @@ class EventQueue {
           resolve();
           break;
         case "prompt": {
-          alert(data.message);
-          ajaxPost(
-            "/response",
-            { response: "", callback: data.callback },
-            () => {
-              console.log("Response sent successfully");
-              resolve();
-            },
-            true,
-          );
+          const opts = Array.isArray(data.options) ? data.options : [];
+          const hasOptions = opts.length > 0;
+          const postPromptResponse = (responseText) => {
+            ajaxPost(
+              "/response",
+              { response: responseText || "", callback: data.callback },
+              () => {
+                console.log("Response sent successfully");
+                resolve();
+              },
+              true,
+            );
+          };
+
+          if (!hasOptions) {
+            alert(data.message);
+            postPromptResponse("");
+            break;
+          }
+
+          // Render a custom modal for option-based prompts (e.g. Accept Item Yes/No).
+          $('#n20PromptModal').remove();
+          const $modal = $(`
+            <div id="n20PromptModal" class="modal fade in" tabindex="-1" role="dialog" aria-labelledby="n20PromptModalLabel" style="display:block; background: rgba(0,0,0,.45);">
+              <div class="modal-dialog" role="document" style="margin-top: 80px; max-width: 520px;">
+                <div class="modal-content">
+                  <div class="modal-header" style="background:#2c2c2c; color:#fff;">
+                    <h4 class="modal-title" id="n20PromptModalLabel">Prompt</h4>
+                  </div>
+                  <div class="modal-body">
+                    <p id="n20PromptModalMessage" style="margin: 0; white-space: pre-wrap;"></p>
+                  </div>
+                  <div class="modal-footer" id="n20PromptModalButtons"></div>
+                </div>
+              </div>
+            </div>
+          `);
+
+          $modal.find('#n20PromptModalMessage').text(data.message || '');
+          const $buttons = $modal.find('#n20PromptModalButtons');
+          const fallbackOption = String(opts[opts.length - 1] || 'No');
+          let responded = false;
+
+          const complete = (selected) => {
+            if (responded) return;
+            responded = true;
+            $(document).off('keydown.n20Prompt');
+            $modal.remove();
+            $('.modal-backdrop.n20-prompt-backdrop').remove();
+            postPromptResponse(selected);
+          };
+
+          opts.forEach((option, index) => {
+            const optionText = String(option);
+            const isPrimary = index === 0;
+            const btnClass = isPrimary ? 'btn btn-primary' : 'btn btn-default';
+            const $btn = $(`<button type="button" class="${btnClass}"></button>`).text(optionText);
+            $btn.on('click', () => complete(optionText));
+            $buttons.append($btn);
+          });
+
+          const $backdrop = $('<div class="modal-backdrop fade in n20-prompt-backdrop"></div>');
+          $('body').append($backdrop).append($modal);
+
+          // Closing the modal without explicit choice is treated as decline/default.
+          $modal.on('click', function (evt) {
+            if (evt.target === this) {
+              complete(fallbackOption);
+            }
+          });
+
+          $(document).on('keydown.n20Prompt', function (evt) {
+            if (evt.key === 'Escape') {
+              complete(fallbackOption);
+            }
+          });
           break;
         }
         case "turn":
@@ -866,7 +928,7 @@ class EventQueue {
 
   processConversationEvent(data, resolve) {
     // Handle real-time conversation updates
-    const { entity_id, message, targets, visual_only } = data.message;
+    const { entity_id, message, targets, visual_only, narrative } = data.message;
 
     // Validate required fields
     if (!entity_id || !message) {
@@ -942,8 +1004,9 @@ class EventQueue {
           }
         }
 
-        // Add the message to the dialog chat
-        Chat.addDialogMessage('entity', message, 'entity');
+        // Add the message to the dialog chat (spoken line + optional narrative asides)
+        Chat.addDialogMessage('entity', message, 'entity', { narrative: narrative });
+        clearDialogWaitingState();
       } catch (error) {
         console.error('Error adding message to dialog modal:', error);
         // Fallback to showing conversation bubble
@@ -970,6 +1033,9 @@ class EventQueue {
       return;
     }
     const animationBuffer = data.message.animation_log;
+    // Track originals hidden during movement so we only restore them after
+    // a server tile refresh confirms final positions.
+    const hiddenOriginals = new Map(); // entity_uid -> jQuery element
     // Track entities whose tiles are missing to avoid repeated retries and warnings
     const missingEntities = new Set();
     const warnedMissingEntities = new Set();
@@ -1007,26 +1073,23 @@ class EventQueue {
         return null;
       }
 
-      const currentZoom = typeof viewportZoom !== 'undefined' ? viewportZoom : 1.0;
       const tokenSize = Number(moveMeta.token_size) > 0 ? Number(moveMeta.token_size) : 1;
       const spriteSize = tileSize * tokenSize;
-      const transformParts = [];
+      const spriteCss = {
+        position: 'absolute',
+        zIndex: 2000,
+        pointerEvents: 'none',
+        width: `${spriteSize}px`,
+        height: `${spriteSize}px`,
+        transformOrigin: 'center center'
+      };
       if (moveMeta.transform) {
-        transformParts.push(String(moveMeta.transform).trim());
+        spriteCss.transform = String(moveMeta.transform).trim();
       }
-      transformParts.push(`scale(${currentZoom})`);
 
       const $sprite = $('<img class="moving-entity-sprite" />')
         .attr('src', `/assets/${moveMeta.token_image}`)
-        .css({
-          position: 'absolute',
-          zIndex: 2000,
-          pointerEvents: 'none',
-          width: `${spriteSize}px`,
-          height: `${spriteSize}px`,
-          transform: transformParts.join(' '),
-          transformOrigin: 'center center'
-        });
+        .css(spriteCss);
 
       return {
         $sprite,
@@ -1037,17 +1100,67 @@ class EventQueue {
       };
     };
 
+    const mountMovementSprite = ($sprite) => {
+      const $container = getMovementSpriteContainer();
+      if ($container.length) {
+        $container.append($sprite);
+      } else {
+        $('body').append($sprite);
+      }
+    };
+
+    const restoreHiddenOriginals = () => {
+      try {
+        hiddenOriginals.forEach(($el) => {
+          try { $el.css('visibility', ''); } catch (_) { }
+        });
+        hiddenOriginals.clear();
+      } catch (_) { }
+    };
+
+    const finishMoveAnimation = (done) => {
+      cleanupMovementSprites();
+      restoreHiddenOriginals();
+      try { $('.add-to-target, .add-to-turn-order').hide(); } catch (_) { }
+      try { if (typeof done === 'function') done(); } catch (_) { }
+    };
+
+    const refreshAfterMove = (done) => {
+      try {
+        // forceFullRefresh bypasses tile diffing; is_setup must stay false so
+        // /update does not render battle-setup "add to initiative" plus buttons.
+        Utils.refreshTileSet(false, false, 0, 0, null, () => {
+          try {
+            // Non-battle move events can arrive slightly before server-side
+            // loop_environment side-effects settle. Reconcile once more
+            // after a short delay to avoid transient disappear/snap states.
+            setTimeout(() => {
+              Utils.refreshTileSet(false, false, 0, 0, null, () => {
+                finishMoveAnimation(done);
+              }, true);
+            }, 140);
+          } catch (_) {
+            finishMoveAnimation(done);
+          }
+        }, true);
+      } catch (_) {
+        finishMoveAnimation(done);
+      }
+    };
+
     const animateFunction = (animationLog, idx) => {
       if (idx >= animationLog.length) {
         console.log('Animation sequence complete, refreshing tile set');
         try {
-          Utils.refreshTileSet(false, false, 0, 0, null, () => {
-            $('.moving-entity-sprite').remove();
+          // Keep movement sprites visible at destination until tile refresh
+          // finishes so the token does not vanish during a slow /update.
+          refreshAfterMove(() => {
             try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { }
             resolve();
           });
         } catch (e) {
           console.error('Failed to refresh tile set after animations, continuing', e);
+          finishMoveAnimation();
           try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (_) { }
           resolve();
         }
@@ -1137,11 +1250,10 @@ class EventQueue {
         const $origImg = $tile.find('.entity').first();
         let spriteInfo = null;
         if ($origImg.length) {
-          const imgRect = $origImg[0].getBoundingClientRect();
           spriteInfo = {
             $sprite: $origImg.clone().addClass('moving-entity-sprite'),
-            spriteW: imgRect.width || $origImg.width() || 0,
-            spriteH: imgRect.height || $origImg.height() || 0,
+            spriteW: $origImg.width() || tileSize,
+            spriteH: $origImg.height() || tileSize,
             synthetic: false,
             $original: $origImg
           };
@@ -1158,20 +1270,13 @@ class EventQueue {
 
         const { $sprite, spriteW, spriteH, synthetic, $original } = spriteInfo;
 
-        // Helper to get absolute page center of a tile and convert to sprite top/left
-        const centerToTopLeft = ($t) => {
-          const c = getTileCenter($t);
-          if (!c) return null;
-          return { left: c.x - spriteW / 2, top: c.y - spriteH / 2 };
-        };
+        const centerToTopLeft = ($t) => getTilePositionInContainer($t, spriteW, spriteH);
 
         if (!synthetic) {
-          const currentZoom = typeof viewportZoom !== 'undefined' ? viewportZoom : 1.0;
           $sprite.css({
             position: 'absolute',
             zIndex: 2000,
             pointerEvents: 'none',
-            transform: `scale(${currentZoom})`,
             transformOrigin: 'center center'
           });
         }
@@ -1187,9 +1292,7 @@ class EventQueue {
         // Mount the sprite at the initial tile center
         const moveFunc = (p, index) => {
           if (index >= p.length) {
-            if (synthetic) {
-              try { $sprite.remove(); } catch (_) { }
-            }
+            // Leave the sprite on the overlay until refresh completes.
             animateFunction(animationLog, idx + 1);
             return;
           }
@@ -1207,7 +1310,7 @@ class EventQueue {
 
           // Set initial sprite position on first step
           if (index === 0) {
-            try { $('body').append($sprite); } catch (_) { }
+            try { mountMovementSprite($sprite); } catch (_) { }
             $sprite.css({ left: tl.left, top: tl.top });
             // Continue to next step to actually animate
             moveFunc(p, index + 1);
@@ -1318,11 +1421,9 @@ class EventQueue {
 
                       // Build a floating sprite and animate along the path using tile centers
                       const tileSize = parseInt($('.tiles-container').data('tile-size') || 64, 10);
-                      // Apply viewport zoom scale so sprite matches the zoomed map
-                      const currentZoom = typeof viewportZoom !== 'undefined' ? viewportZoom : 1.0;
                       const $sprite = $('<img class="moving-entity-sprite" />')
                         .attr('src', spriteSrc)
-                        .css({ position: 'absolute', zIndex: 2000, pointerEvents: 'none', width: `${tileSize}px`, height: `${tileSize}px`, transform: `scale(${currentZoom})`, transformOrigin: 'center center' });
+                        .css({ position: 'absolute', zIndex: 2000, pointerEvents: 'none', width: `${tileSize}px`, height: `${tileSize}px`, transformOrigin: 'center center' });
 
                       const moveFuncNoOrig = (p, index) => {
                         if (index >= p.length) {
@@ -1333,21 +1434,19 @@ class EventQueue {
                         const [nx, ny] = p[index];
                         const $t = $(`.tile[data-coords-x="${nx}"][data-coords-y="${ny}"]`);
                         if (!$t.length) { moveFuncNoOrig(p, index + 1); return; }
-                        const c = getTileCenter($t);
-                        if (!c) { moveFuncNoOrig(p, index + 1); return; }
-                        const left = c.x - tileSize / 2;
-                        const top = c.y - tileSize / 2;
+                        const tl = getTilePositionInContainer($t, tileSize, tileSize);
+                        if (!tl) { moveFuncNoOrig(p, index + 1); return; }
 
                         if (index === 0) {
-                          try { $('body').append($sprite); } catch (_) { }
-                          $sprite.css({ left, top });
+                          try { mountMovementSprite($sprite); } catch (_) { }
+                          $sprite.css({ left: tl.left, top: tl.top });
                           moveFuncNoOrig(p, index + 1);
                           return;
                         }
 
                         $sprite.css('transition', 'none');
                         requestAnimationFrame(() => {
-                          $sprite.css({ left, top, transition: 'left 0.3s ease-in-out, top 0.3s ease-in-out' });
+                          $sprite.css({ left: tl.left, top: tl.top, transition: 'left 0.3s ease-in-out, top 0.3s ease-in-out' });
                           let advanced = false;
                           let timeoutId = null;
                           const advanceOnce = () => {
@@ -1518,7 +1617,8 @@ function enqueueTileRefresh(opts = {}) {
         opts.x || 0,
         opts.y || 0,
         opts.entity_uid || null,
-        typeof opts.callback === 'function' ? opts.callback : null
+        typeof opts.callback === 'function' ? opts.callback : null,
+        !!opts.force_full_refresh
       );
     } catch (_) { }
   }
@@ -1715,13 +1815,13 @@ const switchPOV = (entity_uid, canvas) => {
     }
     // update the pov entity id in the body data
     $('body').attr('data-pov-entity', data.pov_entity);
-    // When map changes, use is_setup=true to force full tile refresh (bypass optimization)
+    // Full refresh on map change without enabling battle-setup plus buttons.
     Utils.refreshTileSet(
-      (is_setup = isMapChange),
-      (pov = true),
-      (x = 0),
-      (y = 0),
-      (entity_uid = entity_uid),
+      false,
+      true,
+      0,
+      0,
+      entity_uid,
       () => {
         // Clean up any pending move ghosts and reset tile positioning to prevent artifacts
         try { if (typeof cleanupAllPendingMoves === 'function') cleanupAllPendingMoves(); } catch (e) { }
@@ -1733,6 +1833,7 @@ const switchPOV = (entity_uid, canvas) => {
         centerOnTile($tile);
         try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { }
       },
+      isMapChange
     );
   });
 };
@@ -2285,7 +2386,9 @@ const UserVolumeControl = {
   }
 };
 
-// Returns the center coordinates of a tile element.
+// Returns the center coordinates of a tile element (document/page space).
+// Use for viewport-fixed overlays (canvas, etc.). Token movement sprites use
+// getTilePositionInContainer instead so they stay aligned during pan/zoom.
 const getTileCenter = ($tile) => {
   if (typeof $tile === 'string') {
     $tile = $($tile);
@@ -2302,6 +2405,70 @@ const getTileCenter = ($tile) => {
     x: rect.left + scrollLeft + rect.width / 2,
     y: rect.top + scrollTop + rect.height / 2
   };
+};
+
+// Overlay inside .image-container so sprites survive $('.tiles-container').html(...).
+const ensureMovementSpriteLayer = () => {
+  const $mapRoot = $('.image-container').first();
+  if (!$mapRoot.length) {
+    return $('.tiles-container').first();
+  }
+  let $layer = $mapRoot.children('#movement-sprite-layer');
+  if (!$layer.length) {
+    $layer = $('<div id="movement-sprite-layer"></div>').css({
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      width: '100%',
+      height: '100%',
+      pointerEvents: 'none',
+      zIndex: 1500,
+      overflow: 'visible'
+    });
+    $mapRoot.append($layer);
+  }
+  return $layer;
+};
+
+// Parent for movement sprites — must live inside the panned/zoomed map tree.
+const getMovementSpriteContainer = () => ensureMovementSpriteLayer();
+
+// Tile top-left for sprites (layer coords under .image-container).
+const getTilePositionInContainer = ($tile, spriteW, spriteH) => {
+  if (typeof $tile === 'string') {
+    $tile = $($tile);
+  }
+  if (!$tile.length) {
+    return null;
+  }
+  const x = Number($tile.data('coords-x'));
+  const y = Number($tile.data('coords-y'));
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  const tileSize = parseInt($('.tiles-container').data('tile-size') || 64, 10);
+  const halfW = (spriteW || tileSize) / 2;
+  const halfH = (spriteH || tileSize) / 2;
+  const pos = {
+    left: x * tileSize + tileSize + tileSize / 2 - halfW,
+    top: y * tileSize + tileSize + tileSize / 2 - halfH
+  };
+  const $tiles = $('.tiles-container').first();
+  if ($tiles.length && typeof $tiles.position === 'function') {
+    const offset = $tiles.position();
+    if (offset && typeof offset === 'object') {
+      pos.left += offset.left || 0;
+      pos.top += offset.top || 0;
+    }
+  }
+  return pos;
+};
+
+const cleanupMovementSprites = () => {
+  try {
+    $('.moving-entity-sprite').remove();
+    $('.tile .entity, .tile .npc').css('visibility', '');
+  } catch (_) { }
 };
 
 // Adds or removes an entity from the battle initiative.
@@ -5211,7 +5378,13 @@ $(document).ready(() => {
           "/usable_items",
           { id: entity_uid, action, opts },
           (data) => {
-            $entity_tile.find(".popover-menu").html(data);
+            if (!$entity_tile.length) {
+              console.warn("select_item: entity tile not found", entity_uid);
+              return;
+            }
+            const $menu = $entity_tile.find(".popover-menu");
+            $menu.html(data).show();
+            $entity_tile.find(".popover-menu-2").hide();
             // Ensure the popover menu stays on top after content update
             if (Utils && Utils.ensurePopoverMenusOnTop) {
               Utils.ensurePopoverMenusOnTop();
@@ -6274,6 +6447,7 @@ $(document).ready(() => {
 
     // Add waiting indicator
     const waitingId = addWaitingIndicator();
+    activeDialogWaitingId = waitingId;
 
     // Set up timeout indicators for longer processing times
     const timeout1 = setTimeout(() => {
@@ -6303,6 +6477,7 @@ $(document).ready(() => {
     $.ajax({
       url: '/talk',
       type: 'POST',
+      timeout: 120000,
       contentType: 'application/json',
       data: JSON.stringify({
         entity_id: sourceEntityId,
@@ -6318,18 +6493,8 @@ $(document).ready(() => {
         clearTimeout(timeout2);
         clearTimeout(timeout3);
 
-        // Remove waiting indicator
-        removeWaitingIndicator(waitingId);
-
-        // Re-enable input and send button
-        $input.prop('disabled', false);
-        $sendButton.prop('disabled', false).html('<i class="glyphicon glyphicon-send"></i> Send');
-        $languageSelect.prop('disabled', false);
-        $inputContainer.removeClass('disabled');
+        clearDialogWaitingState();
         $input.focus();
-
-        // Reset processing flag
-        dialogMessageProcessing = false;
 
         if (data.success) {
           // Add entity response if provided
@@ -6340,24 +6505,19 @@ $(document).ready(() => {
           Chat.addDialogMessage('system', 'Message sent successfully.', 'system');
         }
       },
-      error: () => {
+      error: (xhr, status) => {
         // Clear timeouts
         clearTimeout(timeout1);
         clearTimeout(timeout2);
         clearTimeout(timeout3);
 
-        // Remove waiting indicator
-        removeWaitingIndicator(waitingId);
-
-        // Re-enable input and send button
-        $input.prop('disabled', false);
-        $sendButton.prop('disabled', false).html('<i class="glyphicon glyphicon-send"></i> Send');
-        $languageSelect.prop('disabled', false);
-        $inputContainer.removeClass('disabled');
+        clearDialogWaitingState();
         $input.focus();
 
-        // Reset processing flag
-        dialogMessageProcessing = false;
+        if (status === 'timeout') {
+          Chat.addDialogMessage('system', 'The server is taking too long to respond. The reply may still arrive shortly.', 'system');
+          return;
+        }
 
         Chat.addDialogMessage('system', 'Failed to send message.', 'system');
       }
@@ -6454,6 +6614,28 @@ $(document).ready(() => {
         $(this).remove();
       });
     }
+    if (activeDialogWaitingId === waitingId) {
+      activeDialogWaitingId = null;
+    }
+  }
+
+  function clearDialogWaitingState() {
+    if (!activeDialogWaitingId) {
+      return;
+    }
+    const waitingId = activeDialogWaitingId;
+    activeDialogWaitingId = null;
+    removeWaitingIndicator(waitingId);
+
+    const $input = $('#dialogChatInput');
+    const $sendButton = $('#dialogSendMessage');
+    const $languageSelect = $('#dialogLanguageSelect');
+    const $inputContainer = $('.chat-input-container');
+    $input.prop('disabled', false);
+    $sendButton.prop('disabled', false).html('<i class="glyphicon glyphicon-send"></i> Send');
+    $languageSelect.prop('disabled', false);
+    $inputContainer.removeClass('disabled');
+    dialogMessageProcessing = false;
   }
 
   // Load dialog history

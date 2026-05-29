@@ -1,0 +1,22 @@
+[
+  {
+    "event": "connect",
+    "namespace": "/"
+  },
+  {
+    "event": "request_effects",
+    "namespace": "/"
+  },
+  {
+    "event": "register",
+    "namespace": "/"
+  },
+  {
+    "event": "message",
+    "namespace": "/"
+  },
+  {
+    "event": "disconnect",
+    "namespace": "/"
+  }
+]
