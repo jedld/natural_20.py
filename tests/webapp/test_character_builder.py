@@ -381,14 +381,15 @@ def test_update_character_editor_saves_spells_and_feats():
 
 
 def test_import_dndbeyond_route_saves_character(monkeypatch):
-    from webapp.dndbeyond_import import import_character_from_dndbeyond
+    import webapp.blueprints.character as character_module
+    from webapp.dndbeyond_import import import_character_from_dndbeyond as _real_import
 
     wizard_fixture = os.path.abspath(
         os.path.join(os.path.dirname(__file__), '..', '..', 'tests', 'fixtures', 'dndbeyond_wizard.json')
     )
 
     def _fake_import(character_id, cobalt_token=None):
-        pc, warnings = import_character_from_dndbeyond(
+        pc, warnings = _real_import(
             character_id,
             input_path=wizard_fixture,
         )
@@ -396,7 +397,7 @@ def test_import_dndbeyond_route_saves_character(monkeypatch):
         pc['name'] = f"DDB Import {uuid.uuid4().hex[:8]}"
         return pc, warnings
 
-    monkeypatch.setattr('webapp.app.import_character_from_dndbeyond', _fake_import)
+    monkeypatch.setattr(character_module, 'import_character_from_dndbeyond', _fake_import)
 
     app.config['TESTING'] = True
     client = app.test_client()

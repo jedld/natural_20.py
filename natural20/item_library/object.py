@@ -243,24 +243,65 @@ class Object(Entity, Container, EventLoader):
     def kind_of_door(self) -> bool:
         return self.properties.get('kind_of_door', False)
 
+    def _ability_check_outcome_message(self, ability, success, roll, dc):
+        details = self.properties.get('ability_checks', {}).get(ability, {})
+        outcome_key = 'success' if success else 'failure'
+        outcome = details.get(outcome_key)
+        if isinstance(outcome, str):
+            return outcome
+        if isinstance(outcome, dict):
+            return outcome.get('message')
+
+        tiers = (details.get('outcomes_by_margin') or {}).get(outcome_key) or []
+        if not tiers:
+            return None
+
+        roll_total = roll.result() if hasattr(roll, 'result') else int(roll)
+        if success:
+            margin = roll_total - dc
+            best = None
+            for tier in tiers:
+                need = tier.get('min_margin', tier.get('min_success_margin', 0))
+                if margin >= need and (best is None or need > best[0]):
+                    best = (need, tier)
+            if best:
+                return best[1].get('message')
+            return None
+
+        fail_by = dc - roll_total
+        ordered = sorted(tiers, key=lambda tier: tier.get('max_fail_by', 999))
+        for tier in ordered:
+            if fail_by <= tier.get('max_fail_by', 999):
+                return tier.get('message')
+        if ordered:
+            return ordered[-1].get('message')
+        return None
+
     def investigate_details(self, entity):
         investigate_details = []
 
         if self.properties.get('ability_checks'):
             for investigation_type, details in self.properties.get('ability_checks').items():
                 if self.check_results.get(entity) and self.check_results.get(entity).get(f"{investigation_type}_check"):
-
-                    if self.check_results.get(entity).get(f"{investigation_type}_check") >= details.get('dc'):
+                    roll = self.check_results.get(entity).get(f"{investigation_type}_check")
+                    dc = details.get('dc', 0)
+                    success = roll.result() >= dc if hasattr(roll, 'result') else roll >= dc
+                    message = self._ability_check_outcome_message(
+                        investigation_type, success, roll, dc
+                    )
+                    if message:
+                        investigate_details.append(message)
+                    elif success:
                         success_details = details.get('success')
                         if success_details and isinstance(success_details, str):
                             investigate_details.append(success_details)
-                        else:
+                        elif isinstance(success_details, dict):
                             investigate_details.append(success_details.get('message'))
                     else:
                         failure_details = details.get('failure')
                         if failure_details and isinstance(failure_details, str):
                             investigate_details.append(failure_details)
-                        else:
+                        elif isinstance(failure_details, dict):
                             investigate_details.append(failure_details.get('message'))
 
         return investigate_details
@@ -319,10 +360,18 @@ class Object(Entity, Container, EventLoader):
             # list is registered separately via event_loader and will emit
             # its own messages, so we only auto-broadcast the plain-string
             # form here to avoid duplication.
+            dc = result.get('dc')
+            roll = result.get('roll')
+            outcome_message = None
+            if dc is not None and roll is not None:
+                outcome_message = self._ability_check_outcome_message(
+                    ability, result.get('success'), roll, dc
+                )
             outcome_props = (self.properties.get('ability_checks', {})
                              .get(ability, {})
                              .get(outcome))
-            outcome_message = outcome_props if isinstance(outcome_props, str) else None
+            if outcome_message is None:
+                outcome_message = outcome_props if isinstance(outcome_props, str) else None
             if outcome_message:
                 self.session.event_manager.received_event({
                     "event": "message",

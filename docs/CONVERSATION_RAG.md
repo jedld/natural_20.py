@@ -2,7 +2,7 @@
 
 This document describes the Retrieval-Augmented Generation facilities used by NPC conversation mode in the web app.
 
-The primary implementation lives in `webapp/entity_rag_handler.py`, and the conversation flow is wired through `webapp/app.py`.
+The primary implementation lives in `webapp/entity_rag_handler.py`. Bootstrap wiring is in `webapp/blueprints/helpers/conversation_wiring.py` (called from `webapp/app.py`); route handlers live in `webapp/conversation_service.py`.
 
 ## Scope
 
@@ -28,8 +28,33 @@ When a message is posted to `/talk`:
 
 Relevant code:
 
-- `webapp/app.py`
-- `webapp/entity_rag_handler.py`
+- `webapp/conversation_service.py` — `/talk` handler and conversation delivery
+- `webapp/blueprints/helpers/conversation_wiring.py` — service setup at app startup
+- `webapp/entity_rag_handler.py` — RAG plan parsing
+
+## Debugging logs
+
+Conversation traffic uses the `n20.conversation` logger, which shares the Flask/werkzeug console handlers configured in `webapp/app.py`. Grep for these prefixes while reproducing `/talk` issues:
+
+| Prefix | Source | What it tells you |
+|--------|--------|-------------------|
+| `[Talk]` | `conversation_service.py` | Inbound message, eligible responders, per-NPC timing, emit vs skip |
+| `[ConversationPlan]` | `entity_rag_handler.py` | Why a reply plan was built or skipped (NO_RESPONSE, volume, empty line) |
+| `[LLMConversation]` | `llm_conversation_controller.py` | NPC `generate_response` start/end and latency |
+| `[LLMHandler]` | `llm_handler.py` | Provider round-trips (`label=npc_reply:…`, `narrative_split`, etc.) |
+
+Healthy second-turn flow should look like:
+
+1. `[Talk] inbound speaker=gomerin …`
+2. `[Talk] delivered_to=['rose_durst2'] eligible_responders=[…]`
+3. `[LLMConversation] generating NPC reply conversation_id=rose_durst2 …`
+4. `[LLMHandler] send complete label=npc_reply:rose_durst2 …`
+5. `[ConversationPlan] Rose Durst: reply plan ready …`
+6. `[Talk] emitted reply from Rose Durst to_usernames=[…]`
+
+If step 5 is missing, check for `[ConversationPlan] … skip …` immediately after the LLM preview. If step 6 is missing but step 5 shows `skip=False`, the failure is after plan build (emit/delivery).
+
+If logs show `[LLMHandler] Cleaned response` but never `[LLMHandler] send complete` / `[Talk] raw LLM response`, the `/talk` request hung inside the LLM handler return path. NPC conversation calls run synchronously in the request greenlet (not eventlet `tpool`) and skip DM session transcript writes to avoid observed post-response stalls under gunicorn+eventlet.
 
 ## Inline Control Tags
 
@@ -264,6 +289,35 @@ Time and environment integration:
 - Execution reuses `current_game.commit_and_update(...)` for actions.
 - World updates continue to flow through the normal out-of-combat path, including `loop_environment()` and the standard `turn` socket event carrying updated `game_time`.
 
+## Witnessed Actions (NPC memory)
+
+Nearby NPCs receive scoped console lines when players accept or decline item offers, use items, and similar actions they could overhear.
+
+- Logging: `natural20.utils.conversation_witness.log_witnessed_action(...)` with entity-scoped visibility.
+- Prompt injection: `EntityRAGHandler.witnessed_events_summary(...)` is appended in `conversation_response_prompt(...)` as **Recent events you witnessed nearby**.
+
+Campaigns do not implement this per adventure; the engine surfaces whatever was logged while the NPC was in scope.
+
+## Campaign-Configurable Item Offers
+
+Repeat-offer guards and LLM guidance for `[OFFER_ITEM]` come from the active campaign `game.yml`, not hardcoded adventure logic.
+
+```yaml
+conversation_offer_guidance:
+  target_has_item: "- {target} already carries the {item_label}; do not offer it again."
+
+conversation_item_offers:
+  scroll_speak_animals_modified:
+    item_label: modified Speak with Animals scroll
+    aliases: [scroll_speak_animals]
+    block_when: [offer_completed, target_has_item, target_effect_animal_communication]
+    accept_effect: animal_communication
+```
+
+Optional per-NPC overrides: `conversation_item_offers` on the entity YAML `properties` / map `overrides`.
+
+Implementation: `natural20/utils/conversation_offers.py`, used by `webapp/entity_rag_handler.py`.
+
 ## Keyword-Triggered Event RAG
 
 Entities may also define `conversation_keywords()` entries.
@@ -423,7 +477,8 @@ These are general LLM support endpoints, not the inline conversation command sys
 ## Source Files
 
 - `webapp/entity_rag_handler.py`
-- `webapp/app.py`
+- `webapp/conversation_service.py`
+- `webapp/blueprints/helpers/conversation_wiring.py`
 - `natural20/utils/conversation.py`
 - `tests/webapp/test_entity_rag_handler.py`
 - `tests/webapp/test_talk_route_recipients.py`

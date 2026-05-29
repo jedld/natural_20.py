@@ -1,203 +1,72 @@
-from flask import Flask, request, jsonify, session, redirect, url_for, render_template, send_file, make_response
-from flask_socketio import SocketIO, emit
-from flask_session import Session
-from flask import send_from_directory
-from flask_cors import CORS  # Add CORS support
-from natural20.utils.serialization import  object_type_to_klass
-import json
-import os
-import click
-import uuid
-from fnmatch import fnmatch
-from collections import OrderedDict
-from PIL import Image
-import logging
-import importlib
-import pdb
+"""Flask bootstrap — composition root for the Natural 20 web VTT."""
 import atexit
+import logging
+import os
 
-# Load environment variables from .env file if it exists
+import i18n
+import natural20.session as GameSession
+from flask import Flask, jsonify
+from flask_cors import CORS
+from flask_session import Session
+from flask_socketio import SocketIO
+from natural20.event_manager import EventManager
+
+from natural20.player_character import PlayerCharacter
+from utils import GameManagement, SocketIOOutputLogger
+from webapp.blueprints.ai import ai_bp
+from webapp.blueprints.assets import assets_bp
+from webapp.blueprints.auth import auth_bp
+from webapp.blueprints.battle import battle_bp
+from webapp.blueprints.character import character_bp
+from webapp.blueprints.dm import dm_bp
+from webapp.blueprints.helpers.auth_utils import logged_in, roles_for_username, user_role
+from webapp.blueprints.helpers.action_utils import action_type_to_class
+from webapp.blueprints.helpers.campaign_config import load_campaign_config
+from webapp.blueprints.helpers.conversation_wiring import wire_conversation_service
+from webapp.blueprints.helpers.cors_config import (
+    get_allowed_origins,
+    origin_allowed,
+    socketio_async_mode,
+)
+from webapp.blueprints.helpers.effects import register_effect_listeners
+from webapp.blueprints.helpers.journal_utils import _record_narration_for_pcs
+from webapp.blueprints.helpers.llm_init import (
+    initialize_llm_from_env,
+    register_game_context_functions,
+)
+from webapp.blueprints.helpers.perf import register_perf_instrumentation
+from webapp.blueprints.helpers.runtime_state import register_globals
+from webapp.blueprints.helpers.special_effects import (
+    filter_effect_payload,
+    has_enabled_effect_payloads,
+    map_default_effect_payloads,
+)
+from webapp.blueprints.helpers.template_globals import (
+    entities_controlled_by,
+    entity_owners,
+    register_template_globals,
+)
+from webapp.blueprints.helpers.pvp import autofill_pvp_battle_turn_order, pvp_team_config
+from webapp.blueprints.navigation import navigation_bp
+from webapp.blueprints.socketio_handlers import register_socketio_handlers
+from webapp.entity_rag_handler import EntityRAGHandler
+from webapp.game_context import GameContextProvider
+from webapp.llm_conversation_controller import LLMConversationController
+from webapp.llm_handler import LLMHandler, set_campaign_prompt_root
+from webapp.mcp import MCPContext, register_mcp_blueprint
+
 try:
     from dotenv import load_dotenv
-    # Try to load from webapp/.env first, then from parent directory
+
     env_path = os.path.join(os.path.dirname(__file__), '.env')
     if os.path.exists(env_path):
         load_dotenv(env_path)
     else:
-        # Try parent directory
         parent_env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
         if os.path.exists(parent_env_path):
             load_dotenv(parent_env_path)
 except ImportError:
-    # python-dotenv not installed, continue without it
     pass
-from natural20.ai.path_compute import PathCompute
-from natural20.ai.pathfinding_cost_map import build_pathfinding_snapshot
-from natural20.web.json_renderer import JsonRenderer
-from natural20.web.web_controller import WebController, ManualControl
-from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction, LinkedAttackAction
-from natural20.actions.move_action import MoveAction
-from natural20.actions.second_wind_action import SecondWindAction
-from natural20.actions.flurry_of_blows_action import FlurryOfBlowsAction
-from natural20.actions.patient_defense_action import PatientDefenseAction
-from natural20.actions.step_of_the_wind_action import StepOfTheWindAction
-from natural20.actions.feline_agility_action import FelineAgilityAction
-from natural20.actions.martial_arts_bonus_attack_action import MartialArtsBonusAttackAction
-from natural20.actions.bardic_inspiration_action import BardicInspirationAction
-from natural20.actions.wild_shape_action import WildShapeAction, RevertWildShapeAction, WildShapeAttackAction
-from natural20.actions.rage_action import RageAction, RecklessAttackAction, EndRageAction
-from natural20.actions.disengage_action import DisengageAction, DisengageBonusAction
-from natural20.actions.dash import DashAction, DashBonusAction
-from natural20.actions.dodge_action import DodgeAction
-from natural20.actions.ready_action import ReadyAction
-from natural20.actions.prone_action import ProneAction
-from natural20.actions.spell_action import SpellAction
-from natural20.actions.stand_action import StandAction
-from natural20.actions.look_action import LookAction
-from natural20.actions.help_action import HelpAction
-from natural20.actions.drop_concentration_action import DropConcentrationAction
-from natural20.actions.action_surge_action import ActionSurgeAction
-from natural20.actions.shove_action import ShoveAction
-from natural20.actions.hide_action import HideAction, HideBonusAction
-from natural20.actions.first_aid_action import FirstAidAction
-from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
-from natural20.actions.escape_grapple_action import EscapeGrappleAction
-from natural20.actions.lay_on_hands_action import LayOnHandsAction
-from natural20.actions.use_item_action import UseItemAction
-from natural20.actions.interact_action import InteractAction
-from natural20.actions.summon_familiar_action import SummonFamiliarAction
-from natural20.actions.mage_hand_action import MageHandAction
-from natural20.actions.find_familiar_action import FindFamiliarAction
-from natural20.spell.extensions.hit_computations import AttackSpell
-from natural20.entity import Entity
-from natural20.action import Action, AsyncReactionHandler
-from natural20.battle import Battle
-from natural20.item_library.object import Object
-from natural20.utils.movement import Movement
-from natural20.generic_controller import GenericController
-from natural20.llm_controller import LlmMcpController
-import natural20.session as GameSession
-from natural20.event_manager import EventManager
-from natural20.player_character import PlayerCharacter
-from natural20.utils.conversation import (
-    audible_entities,
-    entity_label,
-    mention_handle_for,
-    normalize_speech_mode,
-    resolve_named_targets,
-    resolve_mention_targets,
-    speech_distance_for,
-    unique_entities,
-)
-from natural20.utils.gibberish import gibberish
-
-from natural20.utils.action_builder import acquire_targets
-from natural20.dm import DungeonMaster
-from natural20.die_roll import DieRoll
-import random
-import optparse
-import pdb
-import i18n
-import yaml
-import time
-import uuid
-from utils import SocketIOOutputLogger, GameManagement
-from datetime import datetime
-from webapp.llm_conversation_controller import LLMConversationController
-from webapp.llm_handler import (
-    LLMHandler,
-    LlamaCppProvider,
-    llm_handler,
-    read_npc_system_prompt,
-    set_campaign_prompt_root,
-)
-import threading
-import pdb
-import traceback
-from webapp.game_context import GameContextProvider
-from webapp.conversation_service import ConversationService, register_conversation_routes
-from webapp.entity_rag_handler import EntityRAGHandler
-from webapp.mcp import MCPContext, register_mcp_blueprint
-from webapp.dndbeyond_import import (
-    import_character_from_dndbeyond,
-    parse_character_id_from_url,
-    prepare_imported_pc_dict,
-)
-import requests
-import re
-from PIL import Image, ImageDraw
-import io
-
-app = Flask(__name__, static_folder='static', static_url_path='/')
-app.config['CHARACTER_BUILDER_ONLY'] = os.environ.get('CHARACTER_BUILDER_ONLY', 'false').lower() == 'true'
-
-# In-process per-user LRU cache for /path responses; bounded to keep memory
-# flat under sustained mouse hover.
-_PATH_RESPONSE_CACHE = {}
-_PATH_RESPONSE_CACHE_LIMIT = 256
-
-# Memoize a per-(map, entity, battle) difficult-terrain lookup. Keyed by the
-# Python id() of the map plus the entity uid; invalidated implicitly when the
-# map object changes (e.g. on level/map switch).
-_DIFFICULT_TERRAIN_CACHE = {}
-
-def _difficult_terrain_lookup(battle_map, entity, battle):
-    """Return a callable(x, y) -> bool with per-tile memoization."""
-    entity_uid = None
-    try:
-        eu = getattr(entity, 'entity_uid', None)
-        entity_uid = eu() if callable(eu) else eu
-    except Exception:
-        entity_uid = None
-    key = (id(battle_map), entity_uid, id(battle))
-    bucket = _DIFFICULT_TERRAIN_CACHE.get(key)
-    if bucket is None:
-        bucket = {}
-        # Cap dictionary count to avoid unbounded growth across maps.
-        if len(_DIFFICULT_TERRAIN_CACHE) > 32:
-            _DIFFICULT_TERRAIN_CACHE.clear()
-        _DIFFICULT_TERRAIN_CACHE[key] = bucket
-    def _lookup(x, y):
-        k = (x, y)
-        v = bucket.get(k)
-        if v is None:
-            v = bool(battle_map.difficult_terrain(entity, x, y, battle))
-            bucket[k] = v
-        return v
-    return _lookup
-
-
-# Enable response compression (gzip/brotli) for HTML/JSON/JS/CSS.
-try:
-    from flask_compress import Compress
-    app.config.setdefault('COMPRESS_MIMETYPES', [
-        'text/html', 'text/css', 'text/xml', 'text/plain',
-        'application/json', 'application/javascript', 'application/xml',
-        'image/svg+xml',
-    ])
-    app.config.setdefault('COMPRESS_LEVEL', 6)
-    app.config.setdefault('COMPRESS_MIN_SIZE', 500)
-    # Disable streaming compression: flask-compress 1.24 has a bug where the
-    # streaming path calls `compressor.process()` which doesn't exist, breaking
-    # send_file/send_from_directory responses (e.g. /styles.css, bootstrap).
-    app.config.setdefault('COMPRESS_STREAMS', False)
-    Compress(app)
-except ImportError:
-    logging.getLogger(__name__).warning("Flask-Compress not installed; responses will not be compressed")
-
-
-# Allow browsers to cache static assets (action icons, token sprites, map
-# PNGs, JS, CSS). Without this, Flask defaults to `Cache-Control: no-cache`,
-# forcing a conditional GET on every asset on every action-bar reveal /
-# tile click. Over high-RTT links (e.g. ngrok) that round-trips dominate
-# perceived UI latency in Firefox especially. JS/CSS already use
-# `?salt=<hash>` cache-busting so a long max-age is safe; image assets
-# rarely change at runtime. Override via N20_STATIC_MAX_AGE.
-try:
-    _static_max_age = int(os.environ.get('N20_STATIC_MAX_AGE', 60 * 60 * 24))
-except (TypeError, ValueError):
-    _static_max_age = 60 * 60 * 24
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = _static_max_age
 
 
 def _env_flag(name, default=False):
@@ -207,108 +76,63 @@ def _env_flag(name, default=False):
     return str(value).strip().lower() not in {'0', 'false', 'no', 'off', 'disabled'}
 
 
+app = Flask(__name__, static_folder='static', static_url_path='/')
+app.config['CHARACTER_BUILDER_ONLY'] = os.environ.get('CHARACTER_BUILDER_ONLY', 'false').lower() == 'true'
+
+try:
+    from flask_compress import Compress
+
+    app.config.setdefault('COMPRESS_MIMETYPES', [
+        'text/html', 'text/css', 'text/xml', 'text/plain',
+        'application/json', 'application/javascript', 'application/xml',
+        'image/svg+xml',
+    ])
+    app.config.setdefault('COMPRESS_LEVEL', 6)
+    app.config.setdefault('COMPRESS_MIN_SIZE', 500)
+    app.config.setdefault('COMPRESS_STREAMS', False)
+    Compress(app)
+except ImportError:
+    logging.getLogger(__name__).warning("Flask-Compress not installed; responses will not be compressed")
+
+try:
+    _static_max_age = int(os.environ.get('N20_STATIC_MAX_AGE', 60 * 60 * 24))
+except (TypeError, ValueError):
+    _static_max_age = 60 * 60 * 24
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = _static_max_age
+
 app.config['SPECIAL_EFFECTS_ENABLED'] = _env_flag('SPECIAL_EFFECTS_ENABLED', False)
 app.config['NPC_LLM_COMBAT_ENABLED'] = _env_flag('NPC_LLM_COMBAT_ENABLED', False)
 
-HEAVY_SPECIAL_EFFECTS = frozenset({'fog', 'rain', 'snow', 'water', 'point_fire'})
-
-# Determine if we're running in AWS or locally
-is_aws = os.environ.get('AWS_ENVIRONMENT', 'false').lower() == 'true'
-is_production = os.environ.get('FLASK_ENV', 'development') == 'production'
-
 logger = logging.getLogger('werkzeug')
 logger.setLevel(logging.INFO)
-# Configure CORS for the Flask app based on environment variables
-def get_allowed_origins():
-    """Get allowed origins from environment variables or use defaults."""
-    
-    # Check for explicit CORS origins configuration
-    cors_origins = os.environ.get('CORS_ORIGINS')
-    if cors_origins:
-        # Parse comma-separated list of origins
-        origins = [origin.strip() for origin in cors_origins.split(',') if origin.strip()]
-        logger.info(f"Using CORS origins from environment: {origins}")
-        return origins
-    
-    # Fallback to environment-based defaults
-    if is_aws or is_production:
-        # In AWS/production, allow the ALB domain and any subdomains
-        default_origins = [
-            "http://natural20-alb-1402295348.us-east-1.elb.amazonaws.com",
-            "https://natural20-alb-1402295348.us-east-1.elb.amazonaws.com",
-            "https://0ad1d39fb719.ngrok.app",
-            "https://*.ngrok-free.dev",
-            "http://*.ngrok-free.dev",
-            "*"  # Fallback to allow all origins in production
-        ]
-    else:
-        # In local development, allow localhost origins and common ngrok patterns
-        default_origins = [
-            "http://localhost:5000", 
-            "http://127.0.0.1:5000", 
-            "http://localhost:5001", 
-            "http://127.0.0.1:5001",
-            "https://0ad1d39fb719.ngrok.app",
-            # Add common ngrok patterns
-            "https://*.ngrok.io",
-            "https://*.ngrok-free.app",
-            "https://*.ngrok-free.dev",
-            "http://*.ngrok.io",
-            "http://*.ngrok-free.app",
-            "http://*.ngrok-free.dev"
-        ]
-    
-    logger.info(f"Using default CORS origins for {'production' if (is_aws or is_production) else 'development'}: {default_origins}")
-    return default_origins
-
-
-def origin_allowed(origin, allowed_origins):
-    if not origin:
-        return False
-
-    normalized_origin = origin.lower()
-    for allowed_origin in allowed_origins:
-        candidate = str(allowed_origin).strip().lower()
-        if not candidate:
-            continue
-        if candidate == '*':
-            return True
-        if candidate == normalized_origin:
-            return True
-        if '*' in candidate and fnmatch(normalized_origin, candidate):
-            return True
-
-    return False
+conversation_logger = logging.getLogger('n20.conversation')
+conversation_logger.setLevel(logging.INFO)
+for _handler in logger.handlers:
+    conversation_logger.addHandler(_handler)
+conversation_logger.propagate = False
 
 allowed_origins = get_allowed_origins()
-
 CORS(app, resources={r"/*": {"origins": allowed_origins, "supports_credentials": True}})
 
 app.config['SECRET_KEY'] = 'fe9707b4704da2a96d0fd3cbbb465756e124b8c391c72a27ff32a062110de589'
 app.config['SESSION_TYPE'] = 'filesystem'
 
-if is_aws or is_production:
-    async_mode = 'eventlet'
-else:
-    async_mode = 'threading'
-
-# Configure Socket.IO with proper settings
-socketio = SocketIO(app, 
+socketio = SocketIO(
+    app,
     cors_allowed_origins=lambda origin, environ=None: origin_allowed(origin, allowed_origins),
-    async_mode=async_mode,  # Use eventlet for WebSocket support
-    ping_timeout=120,  # Increased timeout
-    ping_interval=30,  # Increased interval
+    async_mode=socketio_async_mode(),
+    ping_timeout=120,
+    ping_interval=30,
     max_http_buffer_size=1e8,
     logger=True,
     engineio_logger=True,
     manage_session=True,
     cookie='io',
     always_connect=True,
-    message_queue=None,  # Disable message queue since we're using a single worker
-    # Add ngrok-specific settings
-    transports=['websocket', 'polling'],  # Allow both WebSocket and polling
+    message_queue=None,
+    transports=['websocket', 'polling'],
     allow_upgrades=True,
-    upgrade_timeout=10
+    upgrade_timeout=10,
 )
 Session(app)
 
@@ -317,165 +141,32 @@ def builder_only_mode():
     return app.config.get('CHARACTER_BUILDER_ONLY', False)
 
 
-def special_effects_enabled():
-    return bool(app.config.get('SPECIAL_EFFECTS_ENABLED', False))
+_campaign = load_campaign_config()
+LEVEL = _campaign['LEVEL']
+index_data = _campaign['index_data']
+TITLE = _campaign['TITLE']
+TILE_PX = _campaign['TILE_PX']
+LOGIN_BACKGROUND = _campaign['LOGIN_BACKGROUND']
+CHARACTER_SELECTION_BACKGROUND = _campaign['CHARACTER_SELECTION_BACKGROUND']
+BATTLEMAP = _campaign['BATTLEMAP']
+OTHERMAPS = _campaign['OTHERMAPS']
+SOUNDTRACKS = _campaign['SOUNDTRACKS']
+LOGINS = _campaign['LOGINS']
+DEFAULT_NPC_CONTROLLER = _campaign['DEFAULT_NPC_CONTROLLER']
+CONTROLLERS = _campaign['CONTROLLERS']
+AUTOSAVE = _campaign['AUTOSAVE']
+DEFER_PLAYER_SPAWN = _campaign['DEFER_PLAYER_SPAWN']
+EXTENSIONS = _campaign['EXTENSIONS']
+MAP_PADDING = _campaign['MAP_PADDING']
 
-
-def is_heavy_special_effect(effect_name):
-    return effect_name in HEAVY_SPECIAL_EFFECTS
-
-
-def filter_effect_payload(payload, stop_when_disabled=False):
-    if not isinstance(payload, dict):
-        return None
-
-    effect_name = payload.get('effect')
-    if special_effects_enabled() or not is_heavy_special_effect(effect_name):
-        return dict(payload)
-
-    if stop_when_disabled and effect_name:
-        return {'effect': effect_name, 'action': 'stop'}
-
-    return None
-
-
-def filter_effect_payloads(payloads):
-    filtered_payloads = []
-    for payload in payloads or []:
-        filtered = filter_effect_payload(payload)
-        if filtered:
-            filtered_payloads.append(filtered)
-    return filtered_payloads
-
-
-def has_enabled_effect_payloads(payloads):
-    return bool(filter_effect_payloads(payloads))
-
-
-def map_default_effect_payloads(battle_map):
-    props = getattr(battle_map, 'properties', {}) or {}
-    effect_defs = []
-    payloads = []
-
-    try:
-        if isinstance(props.get('default_effects'), (list, tuple)):
-            effect_defs.extend(props.get('default_effects') or [])
-    except Exception:
-        pass
-
-    try:
-        default_effect = props.get('default_effect')
-        if default_effect:
-            if isinstance(default_effect, (list, tuple)):
-                effect_defs.extend(list(default_effect))
-            else:
-                effect_defs.append(default_effect)
-    except Exception:
-        pass
-
-    for effect_def in effect_defs:
-        try:
-            payload = dict(effect_def)
-        except Exception:
-            continue
-        payload['exclusive'] = False
-        filtered = filter_effect_payload(payload)
-        if filtered:
-            payloads.append(filtered)
-
-    return payloads
-
-
-def point_fire_effect_payload(battle_map):
-    props = getattr(battle_map, 'properties', {}) or {}
-    point_fires = props.get('point_fires') or props.get('point_fire')
-
-    if point_fires and isinstance(point_fires, (list, tuple)):
-        return filter_effect_payload({
-            'effect': 'point_fire',
-            'action': 'start',
-            'config': {'points': point_fires},
-            'exclusive': False,
-        }, stop_when_disabled=True)
-
-    return {'effect': 'point_fire', 'action': 'stop'}
-
-
-@socketio.on('connect')
-def _on_connect():
-    # When a client connects, send any active effects for the current game so
-    # a page refresh or new client receives the same visual state.
-    try:
-        game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
-        effects = filter_effect_payloads(active_effects.get(game_key, {}).values())
-        if effects:
-            for payload in effects:
-                emit('effect:set', payload)
-        else:
-            # No global DM override; first try per-map overrides
-            try:
-                username = session.get('username')
-                if username:
-                    cur_map = current_game.get_map_for_user(username)
-                else:
-                    try:
-                        cur_map = current_game.get_map_for_user(None)
-                    except Exception:
-                        cur_map = current_game.get_current_battle_map()
-                cur_name = getattr(cur_map, 'name', None)
-                map_overrides = filter_effect_payloads(active_effects_map.get(game_key, {}).get(cur_name, {}).values())
-                if map_overrides:
-                    for payload in map_overrides:
-                        emit('effect:set', payload)
-                else:
-                    for payload in map_default_effect_payloads(cur_map):
-                        emit('effect:set', payload)
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-LEVEL = os.getenv('TEMPLATE_DIR', "../templates")
-
-# Load level settings from JSON file
-with open(os.path.join(LEVEL, 'index.json')) as f:
-    index_data = json.load(f)
-
-TITLE = index_data["title"]
-TILE_PX = int(index_data["tile_size"])
-
-
-
-LOGIN_BACKGROUND = index_data["login_background"]
-CHARACTER_SELECTION_BACKGROUND = index_data.get("character_selection_background", index_data["login_background"])
-BATTLEMAP = index_data["map"]
-OTHERMAPS = index_data.get("other_maps", {})
-SOUNDTRACKS = index_data["soundtracks"]
-LOGINS = index_data["logins"]
-DEFAULT_NPC_CONTROLLER = index_data.get("npc_default_controller", "ai")
-CONTROLLERS = index_data["default_controllers"]
-AUTOSAVE = index_data.get("autosave", False)
-DEFER_PLAYER_SPAWN = index_data.get("defer_player_spawn", False)
-EXTENSIONS = []
-first_connect = False
-
-if 'extensions' in index_data:
-    for extension in index_data['extensions']:
-        # load extension and import extension from the extensions folder
-        extension_name = extension['name']
-        # import extensionfrom natural20.actions.dismiss_familiar_action import DismissFamiliarAction
-
-sockets = []
-MAP_PADDING = [6, 15]
-
-# Persistent in-memory active effects per game key (global overrides) and per-map overrides
 active_effects = {}
 active_effects_map = {}
 
-# Health check endpoint for container orchestration
+
 @app.route('/health')
 def health():
     return jsonify({"status": "ok"}), 200
+
 
 output_logger = SocketIOOutputLogger(socketio)
 output_logger.log("Server started", visibility='public')
@@ -483,226 +174,25 @@ output_logger.log("Server started", visibility='public')
 event_manager = EventManager(output_logger=output_logger, movement_consolidation=True)
 event_manager.standard_cli()
 
-def _emit_narration_overlay(event):
-    narration = event.get('narration') or {}
-    entry = narration.get('on_enter') or {}
-    if not entry.get('text'):
-        return
-    map_name = event.get('map_name')
-    if not map_name:
-        source = event.get('source')
-        if source is not None:
-            try:
-                resolved_map = game_session.map_for(source)
-                if resolved_map is not None:
-                    map_name = resolved_map.name
-            except Exception:
-                map_name = None
-    socketio.emit('message', {
-        'type': 'narration',
-        'message': narration,
-        'map_name': map_name,
-    })
-    # Persist the narration into every present PC's journal so players have
-    # an after-the-fact record they can search through their character
-    # sheet. Targets default to "all PCs on the relevant map".
-    target_uids = event.get('target_entities')
-    source = event.get('source')
-    source_uid = getattr(source, 'entity_uid', None) if source is not None else None
-    try:
-        _record_narration_for_pcs(
-            narration,
-            map_name=map_name,
-            target_uids=target_uids,
-            source=source_uid,
-        )
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.debug(f"Failed to record narration in journals: {exc}")
-
-event_manager.register_event_listener('narration', _emit_narration_overlay)
-
-
-def _humanize_condition(condition_id):
-    if not condition_id:
-        return 'control override'
-    return str(condition_id).replace('_', ' ')
-
-
-def _entity_brief(entity):
-    if entity is None:
-        return None
-    return {
-        'uid': getattr(entity, 'entity_uid', None),
-        'name': getattr(entity, 'label', lambda: getattr(entity, 'name', 'Unknown'))()
-            if callable(getattr(entity, 'label', None)) else getattr(entity, 'name', 'Unknown'),
-    }
-
-
-def _entity_position(entity):
-    """Return ``[x, y]`` for ``entity`` on whichever map it currently lives on."""
-    try:
-        game = globals().get('current_game')
-        if not game or entity is None:
-            return None
-        for m in (getattr(game, 'maps', {}) or {}).values():
-            try:
-                if entity in m.entities:
-                    return list(m.entities[entity])
-            except Exception:
-                continue
-    except Exception:
-        return None
-    return None
-
-
-def _users_controlling(entity):
-    """Usernames whose ``WebController`` is bound to ``entity`` (plus DMs)."""
-    game = globals().get('current_game')
-    if not game or entity is None:
-        return set()
-    users = set()
-    try:
-        ctrl = (game.web_controllers or {}).get(entity)
-        if ctrl is not None and hasattr(ctrl, 'get_users'):
-            for u in ctrl.get_users() or []:
-                if u:
-                    users.add(u)
-    except Exception:
-        pass
-    # Always include any DM-role user so they see the override too.
-    try:
-        for username in (game.username_to_sid or {}).keys():
-            if username and username.lower().startswith('dm'):
-                users.add(username)
-    except Exception:
-        pass
-    return users
-
-
-def _emit_to_users(payload, usernames):
-    """Send a socket ``message`` payload to the SIDs of every named user.
-
-    Falls back to a global broadcast when no usernames resolve to known SIDs
-    so the notification is never silently dropped.
-    """
-    game = globals().get('current_game')
-    sent = False
-    if game and usernames:
-        sid_map = getattr(game, 'username_to_sid', {}) or {}
-        for username in usernames:
-            for sid in sid_map.get(username, []) or []:
-                socketio.emit('message', payload, to=sid)
-                sent = True
-    if not sent:
-        socketio.emit('message', payload)
-
-
-def _emit_control_override_change(event, action):
-    """Notify manual users when a loss-of-control effect starts/ends."""
-    target = event.get('target')
-    source = event.get('source')
-    condition = event.get('condition') or 'control_override'
-    target_brief = _entity_brief(target)
-    source_brief = _entity_brief(source)
-    target_name = (target_brief or {}).get('name') or 'Someone'
-    source_name = (source_brief or {}).get('name') if source_brief else None
-    pretty_condition = _humanize_condition(condition)
-
-    if action == 'added':
-        if source_name and source_name != target_name:
-            log_msg = f"{target_name} is now {pretty_condition} (from {source_name})."
-        else:
-            log_msg = f"{target_name} is now {pretty_condition}."
-        toast_text = f"{target_name}: {pretty_condition}"
-    else:
-        log_msg = f"{target_name} is no longer {pretty_condition}."
-        toast_text = f"{target_name}: {pretty_condition} ended"
-
-    try:
-        output_logger.log(log_msg, visibility='public')
-    except Exception:
-        pass
-
-    payload = {
-        'type': 'control_override',
-        'action': action,
-        'target': target_brief,
-        'source': source_brief,
-        'condition': condition,
-        'condition_label': pretty_condition,
-        'message': log_msg,
-        'toast': toast_text,
-        'position': _entity_position(target),
-    }
-    _emit_to_users(payload, _users_controlling(target))
-
-
-def _on_control_override_added(event):
-    _emit_control_override_change(event, 'added')
-
-
-def _on_control_override_removed(event):
-    _emit_control_override_change(event, 'removed')
-
-
-def _on_turn_skipped(event):
-    target = event.get('target')
-    target_brief = _entity_brief(target)
-    target_name = (target_brief or {}).get('name') or 'Someone'
-    statuses = event.get('statuses') or []
-    reason = event.get('reason') or 'incapacitated'
-    pretty_reason = _humanize_condition(reason)
-    if statuses:
-        pretty_statuses = ', '.join(_humanize_condition(s) for s in statuses)
-        log_msg = f"{target_name}'s turn is skipped ({pretty_reason}: {pretty_statuses})."
-    else:
-        log_msg = f"{target_name}'s turn is skipped ({pretty_reason})."
-
-    try:
-        output_logger.log(log_msg, visibility='public')
-    except Exception:
-        pass
-
-    payload = {
-        'type': 'turn_skipped',
-        'target': target_brief,
-        'reason': reason,
-        'reason_label': pretty_reason,
-        'statuses': list(statuses),
-        'message': log_msg,
-        'toast': f"{target_name}: turn skipped ({pretty_reason})",
-        'position': _entity_position(target),
-    }
-    _emit_to_users(payload, _users_controlling(target))
-
-
-event_manager.register_event_listener('control_override_added', _on_control_override_added)
-event_manager.register_event_listener('control_override_removed', _on_control_override_removed)
-event_manager.register_event_listener('turn_skipped', _on_turn_skipped)
-
 game_session = GameSession.Session(LEVEL, event_manager=event_manager)
-game_session.render_for_text = False # render for text is disabled since we are using a web renderer
-current_soundtrack = None
+game_session.render_for_text = False
 
+current_game = GameManagement(
+    game_session=game_session,
+    map_location=BATTLEMAP,
+    other_maps=OTHERMAPS,
+    socketio=socketio,
+    output_logger=output_logger,
+    tile_px=TILE_PX,
+    controllers=CONTROLLERS,
+    npc_controller=DEFAULT_NPC_CONTROLLER,
+    force_llm_npc_combat=app.config['NPC_LLM_COMBAT_ENABLED'],
+    autosave=AUTOSAVE,
+    system_logger=logger,
+    soundtrack=SOUNDTRACKS,
+    defer_player_spawn=DEFER_PLAYER_SPAWN,
+)
 
-
-current_game = GameManagement(game_session=game_session,
-                              map_location=BATTLEMAP,
-                              other_maps=OTHERMAPS,
-                              socketio=socketio,
-                              output_logger=output_logger,
-                              tile_px=TILE_PX,
-                              controllers=CONTROLLERS,
-                              npc_controller=DEFAULT_NPC_CONTROLLER,
-                              force_llm_npc_combat=app.config['NPC_LLM_COMBAT_ENABLED'],
-                              autosave=AUTOSAVE,
-                              system_logger=logger,
-                              soundtrack=SOUNDTRACKS,
-                              defer_player_spawn=DEFER_PLAYER_SPAWN)
-
-# Enable PvP-style auto-battle triggers (proximity / line-of-sight) only when
-# the loaded campaign declares PvP teams. Non-PvP campaigns keep combat
-# manual unless an entity takes an actually aggressive action.
 _pvp_cfg = index_data.get('pvp_teams') or {}
 current_game.pvp_enabled = bool(_pvp_cfg.get('enabled'))
 
@@ -713,7 +203,6 @@ output_logger.configure_persistence(
 
 @app.before_request
 def _n20_bind_campaign_prompt_root():
-    """Per-request campaign directory for DM/NPC LLM prompt file overrides."""
     try:
         gs = getattr(current_game, 'game_session', None)
         rp = getattr(gs, 'root_path', None) if gs else None
@@ -721,10 +210,7 @@ def _n20_bind_campaign_prompt_root():
     except Exception:
         set_campaign_prompt_root(None)
 
-# ── MCP tool surface ──────────────────────────────────────────────────────
-# Expose the running game over a small HTTP/JSON tool surface under
-# ``/mcp/*`` so an external LLM acting as DM can inspect, mutate and
-# drive entities. See ``webapp/mcp/__init__.py`` for the module layout.
+
 _mcp_context = MCPContext(
     game_session_getter=lambda: game_session,
     current_game_getter=lambda: current_game,
@@ -732,1295 +218,75 @@ _mcp_context = MCPContext(
     output_logger_getter=lambda: output_logger,
     action_class_resolver=lambda action_type: action_type_to_class(action_type),
 )
-from webapp.mcp import build_default_registry as _mcp_build_default_registry
+from webapp.mcp import build_default_registry as _mcp_build_default_registry  # noqa: E402
+
 _mcp_registry = _mcp_build_default_registry()
 try:
-    register_mcp_blueprint(app, _mcp_context, registry=_mcp_registry,
-                           user_role_fn=lambda: user_role())
-except Exception as _mcp_exc:  # noqa: BLE001 - never block app startup on MCP wiring
+    register_mcp_blueprint(
+        app,
+        _mcp_context,
+        registry=_mcp_registry,
+        user_role_fn=lambda: user_role(),
+    )
+except Exception as _mcp_exc:  # noqa: BLE001
     logger.warning(f"Failed to register MCP blueprint: {_mcp_exc}")
 
-# Ensure pending saves are flushed on process exit
+
 def _shutdown_flush():
     try:
         getattr(current_game, 'shutdown_save_worker', lambda timeout=2.0: None)(timeout=3.0)
     except Exception:
         pass
 
+
 atexit.register(_shutdown_flush)
 
-# ── Battle-end campaign narration ─────────────────────────────────────────
-# When a battle ends, surface campaign-flavored narration to the players.
-# The text comes from the loaded campaign's ``game.yml`` under either
-# ``tpk_narration`` (when the party is wiped) or ``victory_narration`` (when
-# the players win). Each section may provide a ``default`` block and/or a
-# ``by_map`` map keyed by the battle's map name.
-def _select_outcome_narration(battle, outcome):
-    """Look up campaign narration for the given outcome ('tpk' | 'victory').
-
-    Returns a narration dict shaped like the standard narration overlay
-    payload, or ``None`` if the campaign has not declared one for this
-    outcome/map combination.
-    """
-    try:
-        properties = getattr(game_session, 'game_properties', None) or {}
-    except Exception:
-        properties = {}
-    key = 'tpk_narration' if outcome == 'tpk' else 'victory_narration'
-    section = properties.get(key) or {}
-    if not isinstance(section, dict):
-        return None, None
-
-    map_name = None
-    try:
-        battle_map = current_game.get_current_battle_map()
-        if battle_map is not None:
-            map_name = getattr(battle_map, 'name', None)
-    except Exception:
-        map_name = None
-
-    by_map = section.get('by_map') or {}
-    entry = None
-    if map_name and isinstance(by_map, dict):
-        entry = by_map.get(map_name)
-    if not entry:
-        entry = section.get('default')
-    if not entry or not isinstance(entry, dict):
-        return None, map_name
-    text = entry.get('text')
-    if not text:
-        return None, map_name
-    payload = {
-        'on_enter': {
-            'title': entry.get('title'),
-            'text': text,
-            'once': False,
-            'tpk': outcome == 'tpk',
-            'outcome': outcome,
-        }
-    }
-    return payload, map_name
-
-
-def _on_battle_end_narrate(game_manager, session):
-    """Emit a campaign-appropriate narration overlay when a battle ends."""
-    battle = game_manager.get_current_battle()
-    if battle is None:
-        return False
-    try:
-        outcome = 'tpk' if battle.tpk() else 'victory'
-    except Exception:
-        return False
-    narration, map_name = _select_outcome_narration(battle, outcome)
-    if not narration:
-        return False
-    try:
-        socketio.emit('message', {
-            'type': 'narration',
-            'message': narration,
-            'map_name': map_name,
-        })
-    except Exception as exc:  # pragma: no cover - socket emit best-effort
-        logger.warning(f"Failed to emit battle-end narration: {exc}")
-        return False
-    try:
-        _record_narration_for_pcs(narration, map_name=map_name)
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.debug(f"Failed to record battle-end narration: {exc}")
-    return True
-
-
-current_game.register_event_handler('on_battle_end', _on_battle_end_narrate)
-
-# Initialize game context provider for LLM RAG
 game_context_provider = GameContextProvider(game_session, current_game)
-llm_conversation_handler = None
-
-# Register game context functions with the LLM handler
-def register_game_context_functions():
-    """Register all game context functions with the LLM handler."""
-    llm_handler.register_game_context_function(
-        "get_map_info",
-        game_context_provider.get_map_info,
-        "Get current map information including terrain, layout, and basic details"
-    )
-    
-    llm_handler.register_game_context_function(
-        "get_entities",
-        game_context_provider.get_entities,
-        "Get all entities on the current map with their positions and basic information"
-    )
-    
-    llm_handler.register_game_context_function(
-        "get_player_characters",
-        game_context_provider.get_player_characters,
-        "Get information about player characters on the current map"
-    )
-    
-    llm_handler.register_game_context_function(
-        "get_npcs",
-        game_context_provider.get_npcs,
-        "Get information about NPCs on the current map"
-    )
-    
-    # Create a proxy for get_entity_details that can handle function calling
-    def get_entity_details_proxy(*args, **kwargs):
-        """Proxy function for get_entity_details that can handle function calling."""
-        return game_context_provider.get_entity_details(*args, **kwargs)
-    
-    llm_handler.register_game_context_function(
-        "get_entity_details",
-        get_entity_details_proxy,
-        "Get detailed information about a specific entity by name"
-    )
-    
-    llm_handler.register_game_context_function(
-        "get_battle_status",
-        game_context_provider.get_battle_status,
-        "Get current battle information if combat is active"
-    )
-
-    # ── MCP bridge ────────────────────────────────────────────────────
-    # Expose the full MCP tool registry to the DM AI assistant so it
-    # uses the same tool surface as external MCP clients. The model
-    # invokes [FUNCTION_CALL: mcp("tool.name", {"k": "v"})]. The bridge
-    # delegates to the shared ToolRegistry and unwraps the MCP envelope.
-    def mcp_call_bridge(tool_name, arguments=None):
-        """Invoke an MCP tool by name and return its JSON payload (or error text)."""
-        if isinstance(arguments, str):
-            import json as _json
-            try:
-                arguments = _json.loads(arguments) if arguments.strip() else {}
-            except Exception as exc:
-                return f"Invalid JSON arguments: {exc}"
-        if arguments is None:
-            arguments = {}
-        if not isinstance(arguments, dict):
-            return f"Arguments must be a JSON object, got: {type(arguments).__name__}"
-
-        # Compatibility alias: several models emit `entity_name` for DM tools
-        # that actually require `entity_uid`. Resolve it from live entities,
-        # including fuzzy matching for minor typos.
-        manifest = next((m for m in _mcp_registry.list() if m.get('name') == tool_name), None)
-        input_schema = (manifest or {}).get('inputSchema') or {}
-        schema_props = input_schema.get('properties') or {}
-        needs_entity_uid = 'entity_uid' in schema_props
-        if needs_entity_uid and not arguments.get('entity_uid') and isinstance(arguments.get('entity_name'), str):
-            raw_name = arguments.get('entity_name', '').strip()
-            if raw_name:
-                import difflib as _difflib
-
-                candidates = []  # [(uid, name_key), ...]
-                seen_uids = set()
-                cg = _mcp_context.current_game
-                for battle_map in (getattr(cg, 'maps', {}) or {}).values():
-                    for ent in (getattr(battle_map, 'entities', {}) or {}).keys():
-                        uid = str(getattr(ent, 'entity_uid', '') or '').strip()
-                        if not uid or uid in seen_uids:
-                            continue
-                        seen_uids.add(uid)
-                        label = str((ent.label() if hasattr(ent, 'label') else getattr(ent, 'name', '')) or '').strip()
-                        name = str(getattr(ent, 'name', '') or '').strip()
-                        keys = [uid, label, name]
-                        for key in keys:
-                            if key:
-                                candidates.append((uid, key.lower()))
-
-                query = raw_name.lower()
-                # Exact first
-                exact = [uid for uid, key in candidates if key == query]
-                resolved_uid = exact[0] if exact else None
-                # Then substring match
-                if resolved_uid is None:
-                    contains = [uid for uid, key in candidates if query in key]
-                    if len(contains) == 1:
-                        resolved_uid = contains[0]
-                # Finally fuzzy match
-                if resolved_uid is None:
-                    all_keys = sorted(set(key for _, key in candidates))
-                    match = _difflib.get_close_matches(query, all_keys, n=1, cutoff=0.78)
-                    if match:
-                        for uid, key in candidates:
-                            if key == match[0]:
-                                resolved_uid = uid
-                                break
-
-                if resolved_uid:
-                    arguments['entity_uid'] = resolved_uid
-                else:
-                    return f"MCP error: Could not resolve entity_name '{raw_name}' to an entity_uid"
-
-        # Compatibility aliases: some models emit `target_uid` or
-        # `near_entity` for the *_near tools. Normalize to the expected
-        # fields used by the MCP schema.
-        if tool_name in ('dm.spawn_npc_near', 'dm.spawn_object_near'):
-            if (arguments.get('target_entity_uid') is None and
-                    isinstance(arguments.get('target_uid'), str) and
-                    arguments.get('target_uid').strip()):
-                arguments['target_entity_uid'] = arguments.pop('target_uid').strip()
-            if (arguments.get('target_name') is None and
-                    arguments.get('target_entity_uid') is None and
-                    isinstance(arguments.get('near_entity'), str) and
-                    arguments.get('near_entity').strip()):
-                arguments['target_name'] = arguments.pop('near_entity').strip()
-
-        # Guardrail: models sometimes hallucinate map_name="Unknown" when
-        # context extraction fails. For spawn tools, normalize that to the
-        # active map instead of hard-failing.
-        if tool_name in ('dm.spawn_npc', 'dm.spawn_object'):
-            map_name = arguments.get('map_name')
-            if isinstance(map_name, str) and map_name.strip().lower() in ('unknown', 'none', 'null', ''):
-                arguments.pop('map_name', None)
-
-        envelope = _mcp_registry.call(tool_name, arguments, context=_mcp_context)
-        if envelope.get('isError'):
-            for item in envelope.get('content') or []:
-                if item.get('type') == 'text':
-                    return f"MCP error: {item.get('text')}"
-            return "MCP error (unknown)"
-        for item in envelope.get('content') or []:
-            if item.get('type') == 'json':
-                return item.get('json')
-        return envelope
-
-    llm_handler.register_game_context_function(
-        "mcp",
-        mcp_call_bridge,
-        "Invoke any MCP tool by name. Args: tool_name (str), arguments (JSON object). "
-        "Use this in preference to the legacy get_* functions for richer data."
-    )
-    # Stash the shared registry on the function-info dict so the LLM
-    # system prompt can enumerate the *real* tool catalogue instead of
-    # advertising hand-curated examples that may not exist.
-    if 'mcp' in llm_handler.game_context_functions:
-        llm_handler.game_context_functions['mcp']['mcp_registry'] = _mcp_registry
-
-# NOTE: do NOT call register_game_context_functions() here. The module-level
-# `llm_handler` is reassigned below by initialize_llm_from_env(); any
-# registrations on the imported singleton would be lost when that fresh
-# instance shadows the name. Registration happens after the reassignment.
-
 i18n.set('locale', 'en')
 
-# initialize all extensiond
 for extension in EXTENSIONS:
     extension.init(app, current_game, game_session)
 
-def configure_llm_handler_from_environment(handler: LLMHandler) -> bool:
-    """Apply ``LLM_PROVIDER`` and related env vars to an existing handler.
-
-    Used at process startup and when the DM UI asks to sync from server config.
-    Returns True if a provider was initialized successfully.
-    """
-    llm_provider = os.environ.get('LLM_PROVIDER', 'llama_cpp').lower()
-
-    if llm_provider == 'openai':
-        api_key = os.environ.get('OPENAI_API_KEY')
-        base_url = os.environ.get('OPENAI_BASE_URL')
-        model = os.environ.get('OPENAI_MODEL', 'gpt-4o')
-
-        if not api_key:
-            logger.warning("OPENAI_API_KEY not set, LLM features will be disabled")
-            return False
-
-        config = {'api_key': api_key, 'model': model}
-        if base_url:
-            config['base_url'] = base_url
-
-        success = handler.initialize_provider('openai', config)
-        if success:
-            logger.info(f"Initialized OpenAI provider with model: {model}")
-        else:
-            logger.error("Failed to initialize OpenAI provider")
-        return success
-
-    if llm_provider == 'anthropic':
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
-        model = os.environ.get('ANTHROPIC_MODEL', 'claude-3-5-sonnet-20241022')
-
-        if not api_key:
-            logger.warning("ANTHROPIC_API_KEY not set, LLM features will be disabled")
-            return False
-
-        config = {'api_key': api_key, 'model': model}
-        success = handler.initialize_provider('anthropic', config)
-        if success:
-            logger.info(f"Initialized Anthropic provider with model: {model}")
-        else:
-            logger.error("Failed to initialize Anthropic provider")
-        return success
-
-    if llm_provider == 'ollama':
-        base_url = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
-        model = os.environ.get('OLLAMA_MODEL', 'gemma3:27b')
-        config = {'base_url': base_url, 'model': model}
-        success = handler.initialize_provider('ollama', config)
-        if success:
-            logger.info(f"Initialized Ollama provider with model: {model} at {base_url}")
-        else:
-            logger.error(f"Failed to initialize Ollama provider: {config}")
-        return success
-
-    if llm_provider in ('llama_cpp', 'llama.cpp', 'llamacpp'):
-        base_url = os.environ.get('LLAMA_CPP_BASE_URL', 'http://localhost:8011')
-        model = os.environ.get('LLAMA_CPP_MODEL', os.environ.get('N20_LLM_MODEL'))
-        api_key = os.environ.get('LLAMA_CPP_API_KEY', 'llama-cpp')
-
-        config = {'base_url': base_url, 'api_key': api_key}
-        if model:
-            config['model'] = model
-
-        success = handler.initialize_provider('llama_cpp', config)
-        if success:
-            logger.info(
-                f"Initialized llama.cpp provider with model: "
-                f"{getattr(handler.current_provider, 'current_model', model)} at {base_url}"
-            )
-        else:
-            logger.error(f"Failed to initialize llama.cpp provider: {config}")
-        return success
-
-    logger.warning(f"Unknown LLM provider: {llm_provider}, using mock provider")
-    return handler.initialize_provider('mock', {})
-
-
-def initialize_llm_from_env():
-    """Construct a handler and configure it from environment variables."""
-    llm_handler = LLMHandler()
-    configure_llm_handler_from_environment(llm_handler)
-    return llm_handler
-
-# Initialize LLM handler from environment variables
-llm_handler = initialize_llm_from_env()
-# Register game-context + MCP bridge functions on the *active* handler.
-register_game_context_functions()
+llm_handler = initialize_llm_from_env(LLMHandler)
+register_game_context_functions(llm_handler, game_context_provider, _mcp_registry, _mcp_context)
 llm_conversation_handler = LLMConversationController(llm_handler)
-
-# Initialize Entity RAG Handler
 entity_rag_handler = EntityRAGHandler(game_session, current_game)
 
-
-def logged_in():
-    if builder_only_mode():
-        if 'username' not in session:
-            session['username'] = 'builder'
-        return True
-    return session.get('username') is not None
-
-def roles_for_username(username):
-    if builder_only_mode():
-        return ['dm']
-    if not username:
-        return []
-    login_info = next((login for login in LOGINS if login["name"].lower() == username), None)
-    return login_info["role"] if login_info else []
-
-def user_role():
-    return roles_for_username(session.get('username'))
-
-
-def selectable_character_entry(character_name):
-    for character in index_data.get("selectable_characters", []):
-        if character.get('name') == character_name:
-            return character
-    return None
-
-
-def pvp_team_config():
-    config = index_data.get('pvp_teams') or {}
-    if config.get('enabled'):
-        return config
-    return None
-
-
-def pvp_team_counts():
-    config = pvp_team_config()
-    if not config:
-        return {}
-
-    counts = {team_key: 0 for team_key in config.get('teams', {})}
-    for controller in CONTROLLERS:
-        if not controller.get('controllers'):
-            continue
-        team = controller.get('team')
-        if team in counts:
-            counts[team] += 1
-    return counts
-
-
-def ensure_character_entity_loaded(character_name):
-    entity = current_game.get_entity_by_uid(character_name)
-    if entity is not None:
-        return entity
-
-    for map_name, map_obj in current_game.maps.items():
-        map_ref = (game_session.game_properties.get('maps') or {}).get(map_name)
-        if not map_ref:
-            continue
-
-        try:
-            map_source = map_obj.load(map_ref)
-        except Exception:
-            logger.exception(f"Failed to load source map data for {map_name}")
-            continue
-
-        for player_def in map_source.get('player') or []:
-            overrides = dict(player_def.get('overrides') or {})
-            if str(overrides.get('entity_uid')) != str(character_name):
-                continue
-
-            sheet = player_def.get('sheet')
-            if not sheet:
-                continue
-
-            entity = PlayerCharacter.load(game_session, sheet, override=overrides)
-            game_session.register_entity(entity)
-
-            if str(character_name) not in current_game.deferred_players:
-                current_game.deferred_players[str(character_name)] = {
-                    'entity': entity,
-                    'map_name': map_name,
-                    'position': list(player_def.get('position') or [0, 0]),
-                }
-
-            logger.info(f"Materialized selectable character {character_name} from {sheet} on map {map_name}")
-            return entity
-
-    # Fallback: use selectable_characters config (sheet + overrides) to load the
-    # PC and place it at the next free player_spawn_point on a configured map.
-    selectable = selectable_character_entry(character_name) or {}
-    sheet = selectable.get('sheet')
-    if not sheet:
-        return None
-
-    overrides = dict(selectable.get('overrides') or {})
-    overrides.setdefault('entity_uid', character_name)
-
-    # Determine candidate maps in order of preference.
-    candidate_map_names = []
-    explicit_map = selectable.get('map') or index_data.get('player_spawn_map')
-    if explicit_map and explicit_map in current_game.maps:
-        candidate_map_names.append(explicit_map)
-    for map_name in current_game.maps.keys():
-        if map_name not in candidate_map_names:
-            candidate_map_names.append(map_name)
-
-    chosen_map_name = None
-    chosen_slot = None
-    for map_name in candidate_map_names:
-        map_obj = current_game.maps.get(map_name)
-        if map_obj is None or not getattr(map_obj, 'player_spawn_points', None):
-            continue
-        slot = map_obj.allocate_player_spawn_point(character_name, group=selectable.get('group'))
-        if slot is not None:
-            chosen_map_name = map_name
-            chosen_slot = slot
-            break
-
-    if chosen_slot is None:
-        logger.warning(f"No free player_spawn_point available for {character_name}")
-        return None
-
-    try:
-        entity = PlayerCharacter.load(game_session, sheet, override=overrides)
-    except Exception:
-        # Release slot if PC failed to load so it can be reused.
-        current_game.maps[chosen_map_name].release_player_spawn_point(character_name)
-        logger.exception(f"Failed to load sheet {sheet} for character {character_name}")
-        return None
-
-    game_session.register_entity(entity)
-    current_game.deferred_players[str(character_name)] = {
-        'entity': entity,
-        'map_name': chosen_map_name,
-        'position': list(chosen_slot['position']),
-        'spawn_point': chosen_slot.get('name'),
-    }
-    logger.info(
-        f"Materialized {character_name} from {sheet} at spawn slot {chosen_slot['position']} on map {chosen_map_name}"
-    )
-    return entity
-
-
-def assign_character_team_and_spawn(character_name, team):
-    config = pvp_team_config()
-    if not config:
-        return None
-
-    teams = config.get('teams', {})
-    team_info = teams.get(team)
-    if not team_info:
-        raise ValueError('Invalid team selection')
-
-    team_label = team_info.get('label', f'Team {team.upper()}')
-    spawn_points = team_info.get('spawn_points') or []
-    capacity = int(team_info.get('capacity') or len(spawn_points) or 0)
-    controller_entry = next((controller for controller in CONTROLLERS if controller['entity_uid'] == character_name), None)
-
-    used_spawn_points = {
-        controller.get('spawn_point')
-        for controller in CONTROLLERS
-        if controller.get('controllers')
-        and controller.get('team') == team
-        and controller.get('entity_uid') != character_name
-        and controller.get('spawn_point')
-    }
-
-    if capacity and len(used_spawn_points) >= capacity:
-        raise ValueError(f'{team_label} is full')
-
-    selected_spawn_point = next((spawn for spawn in spawn_points if spawn not in used_spawn_points), None)
-    if selected_spawn_point is None:
-        raise ValueError(f'No spawn points remain for {team_label}')
-
-    map_name = team_info.get('map', 'index')
-    target_map = current_game.maps.get(map_name)
-    if target_map is None:
-        raise ValueError(f'PvP map {map_name} is not loaded')
-
-    spawn_meta = target_map.spawn_points.get(selected_spawn_point)
-    if spawn_meta is None:
-        raise ValueError(f'Spawn point {selected_spawn_point} is not configured on map {map_name}')
-
-    entity = ensure_character_entity_loaded(character_name)
-    if entity is None:
-        raise ValueError('Character entity not found')
-
-    entity.group = team
-    if hasattr(entity, 'properties') and isinstance(entity.properties, dict):
-        entity.properties['group'] = team
-
-    deferred = current_game.deferred_players.get(str(character_name))
-    if deferred is None:
-        entity_map = current_game.get_map_for_entity(entity)
-        if entity_map is not None and entity in entity_map.entities:
-            entity_map.remove(entity)
-        deferred = {
-            'entity': entity,
-            'map_name': map_name,
-            'position': list(spawn_meta['location']),
-        }
-        current_game.deferred_players[str(character_name)] = deferred
-
-    deferred['map_name'] = map_name
-    deferred['position'] = list(spawn_meta['location'])
-    deferred['spawn_point'] = selected_spawn_point
-
-    if controller_entry is not None:
-        controller_entry['team'] = team
-        controller_entry['spawn_point'] = selected_spawn_point
-
-    return {
-        'team': team,
-        'label': team_label,
-        'spawn_point': selected_spawn_point,
-    }
-
-
-def ensure_controller_entry(entity_uid):
-    entity_uid = str(entity_uid)
-    for controller in CONTROLLERS:
-        if str(controller.get('entity_uid')) == entity_uid:
-            controller.setdefault('controllers', [])
-            return controller
-
-    controller = {
-        'entity_uid': entity_uid,
-        'controllers': [],
-    }
-    CONTROLLERS.append(controller)
-    return controller
-
-
-def spawn_deferred_entity(entity_uid):
-    entity_uid = str(entity_uid)
-    deferred = current_game.deferred_players.get(entity_uid)
-    if deferred is None:
-        return current_game.get_entity_by_uid(entity_uid)
-
-    entity = deferred['entity']
-    map_name = deferred['map_name']
-    position = list(deferred.get('position') or [0, 0])
-    target_map = current_game.maps.get(map_name)
-    if target_map is None:
-        raise ValueError(f'Map {map_name} is not loaded for deferred entity {entity_uid}')
-
-    pos_x, pos_y = position
-    if not target_map.placeable(entity, pos_x, pos_y):
-        pos_x, pos_y = target_map.find_empty_placeable_position(entity, pos_x, pos_y)
-        logger.info(f"Original position {position} occupied, using {pos_x},{pos_y} for autofilled entity {entity_uid}")
-
-    target_map.place((pos_x, pos_y), entity)
-    del current_game.deferred_players[entity_uid]
-    logger.info(f"Spawned autofilled entity {entity_uid} at ({pos_x},{pos_y}) on map {map_name}")
-    return entity
-
-
-def pvp_autofill_candidates():
-    config = pvp_team_config()
-    if not config:
-        return {}
-
-    teams = {str(team_key).lower(): team_info for team_key, team_info in (config.get('teams') or {}).items()}
-    candidates = {team_key: [] for team_key in teams}
-    seen = set()
-
-    def add_entity(entity):
-        if entity is None or not isinstance(entity, PlayerCharacter):
-            return
-
-        entity_uid = str(getattr(entity, 'entity_uid', '') or '')
-        if not entity_uid or entity_uid in seen:
-            return
-
-        group = getattr(entity, 'group', None)
-        if group is None and isinstance(getattr(entity, 'properties', None), dict):
-            group = entity.properties.get('group')
-        if group is None:
-            return
-
-        group = str(group).lower()
-        if group not in candidates:
-            return
-
-        seen.add(entity_uid)
-        ensure_controller_entry(entity_uid).setdefault('team', group)
-        candidates[group].append(entity_uid)
-
-    for controller in CONTROLLERS:
-        entity_uid = controller.get('entity_uid')
-        if not entity_uid:
-            continue
-        entity = current_game.get_entity_by_uid(entity_uid)
-        if entity is None:
-            entity = ensure_character_entity_loaded(entity_uid)
-        add_entity(entity)
-
-    for battle_map in current_game.maps.values():
-        for entity in battle_map.entities:
-            add_entity(entity)
-
-    for deferred in current_game.deferred_players.values():
-        add_entity(deferred.get('entity'))
-
-    return candidates
-
-
-def autofill_pvp_battle_turn_order(turn_order):
-    config = pvp_team_config()
-    if not config or 'dm' not in user_role():
-        return turn_order
-
-    teams = {str(team_key).lower(): team_info for team_key, team_info in (config.get('teams') or {}).items()}
-    if not teams:
-        return turn_order
-
-    augmented_turn_order = []
-    present_ids = set()
-    team_counts = {team_key: 0 for team_key in teams}
-
-    for item in turn_order or []:
-        normalized = dict(item)
-        entity_uid = str(normalized.get('id') or '')
-        if not entity_uid:
-            continue
-        normalized['id'] = entity_uid
-        group = str(normalized.get('group') or '').lower()
-        normalized['group'] = group
-        present_ids.add(entity_uid)
-        augmented_turn_order.append(normalized)
-        if group in team_counts:
-            team_counts[group] += 1
-
-    def append_candidate_to_turn_order(entity_uid, team_key, controller_kind=None):
-        entity = current_game.get_entity_by_uid(entity_uid)
-        if entity is None:
-            entity = ensure_character_entity_loaded(entity_uid)
-        if entity is None:
-            logger.warning(f"Skipping PvP autofill for missing entity {entity_uid}")
-            return False
-
-        controller_entry = ensure_controller_entry(entity_uid)
-        entity.group = team_key
-        if isinstance(getattr(entity, 'properties', None), dict):
-            entity.properties['group'] = team_key
-        controller_entry['team'] = team_key
-
-        try:
-            spawn_deferred_entity(entity_uid)
-        except Exception:
-            logger.exception(f"Failed to spawn autofilled PvP entity {entity_uid}")
-            return False
-
-        turn_order_item = {
-            'id': entity_uid,
-            'group': team_key,
-        }
-        if controller_kind:
-            turn_order_item['controller'] = controller_kind
-
-        augmented_turn_order.append(turn_order_item)
-        present_ids.add(entity_uid)
-        team_counts[team_key] += 1
-        return True
-
-    candidates = pvp_autofill_candidates()
-    for team_key, team_info in teams.items():
-        capacity = int(team_info.get('capacity') or len(team_info.get('spawn_points') or []) or 0)
-        if capacity <= team_counts.get(team_key, 0):
-            continue
-
-        missing_slots = capacity - team_counts[team_key]
-
-        for entity_uid in candidates.get(team_key, []):
-            if missing_slots <= 0:
-                break
-            if entity_uid in present_ids:
-                continue
-
-            controller_entry = ensure_controller_entry(entity_uid)
-            if not controller_entry.get('controllers'):
-                continue
-
-            if append_candidate_to_turn_order(entity_uid, team_key):
-                missing_slots -= 1
-
-        for entity_uid in candidates.get(team_key, []):
-            if missing_slots <= 0:
-                break
-            if entity_uid in present_ids:
-                continue
-
-            controller_entry = ensure_controller_entry(entity_uid)
-            if controller_entry.get('controllers'):
-                continue
-
-            if append_candidate_to_turn_order(entity_uid, team_key, controller_kind='llm'):
-                missing_slots -= 1
-                logger.info(f"Autofilled PvP slot with LLM controller for {entity_uid} on team {team_key}")
-
-    return augmented_turn_order
-
-
-def controller_of(entity_uid, username):
-    if username == 'dm':
-        return True
-
-    entity = current_game.get_entity_by_uid(entity_uid)
-    if hasattr(entity, 'owner') and entity.owner:
-        entity_uid = entity.owner.entity_uid
-
-    for info in CONTROLLERS:
-        if info['entity_uid'].lower() == entity_uid.lower() and username in info['controllers']:
-            return True
-
-    logger.info(f"controller_of: {entity_uid} {username} missing")
-    return False
-
-app.add_template_global(controller_of, name='controller_of')
-
-def can_rest_for(entity_uid):
-    """Template helper: True if the current user may issue rest commands for entity."""
-    try:
-        if 'dm' in user_role():
-            return True
-        return controller_of(entity_uid, session.get('username'))
-    except Exception:
-        return False
-app.add_template_global(can_rest_for, name='can_rest_for')
-
-def within_talking_distance(entity_uid):
-    current_map = current_game.get_map_for_user(session['username'])
-    pov_entity = current_game.get_pov_entity_for_user(session['username'])
-    if not pov_entity:
-        return False
-    return current_map.distance(pov_entity.entity_uid, entity_uid) <= 2 and current_map.can_see(pov_entity, entity_uid)
-app.add_template_global(within_talking_distance, name='within_talking_distance')
-
-# -----------------------
-# Admin save/load endpoints (DM only)
-# -----------------------
-
-@app.route('/admin/saves', methods=['GET'])
-def list_saves():
-    if not session.get('username'):
-        return jsonify(error='Unauthorized'), 401
-    if 'dm' not in user_role():
-        return jsonify(error='Forbidden'), 403
-    saves = []
-    try:
-        save_dir = getattr(current_game, 'save_dir', os.getcwd())
-        for fname in current_game.list_states():
-            try:
-                path = fname if os.path.isabs(fname) else os.path.join(save_dir, fname)
-                mtime = os.path.getmtime(path)
-                size = os.path.getsize(path)
-            except Exception:
-                mtime = None
-                size = None
-            saves.append({
-                'filename': fname,
-                'mtime': mtime,
-                'size': size,
-            })
-        # Include any additional save_* files not in list_states, for named saves
-        try:
-            for f in os.listdir(save_dir):
-                if f.startswith('save_') and (f.endswith('.yml') or f.endswith('.yml.gz')) and f not in [s['filename'] for s in saves]:
-                    try:
-                        mtime = os.path.getmtime(os.path.join(save_dir, f))
-                        size = os.path.getsize(os.path.join(save_dir, f))
-                    except Exception:
-                        mtime = None
-                        size = None
-                    saves.append({'filename': f, 'mtime': mtime, 'size': size})
-        except Exception:
-            pass
-
-        # Sort by mtime desc if available
-        saves.sort(key=lambda x: (x['mtime'] is not None, x['mtime']), reverse=True)
-        return jsonify(saves=saves)
-    except Exception as e:
-        return jsonify(error=str(e)), 500
-
-
-@socketio.on('request_effects')
-def _on_request_effects():
-    # Mirror connect behavior: emit active DM effects or the current map default to the requesting client
-    try:
-        game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
-
-        # Determine current map early so we can also emit map-defined point fires alongside other effects
-        cur_map = None
-        try:
-            username = session.get('username')
-            if username:
-                cur_map = current_game.get_map_for_user(username)
-            else:
-                try:
-                    cur_map = current_game.get_map_for_user(None)
-                except Exception:
-                    cur_map = current_game.get_current_battle_map()
-        except Exception:
-            cur_map = None
-
-        effects = filter_effect_payloads(active_effects.get(game_key, {}).values())
-        if effects:
-            for payload in effects:
-                emit('effect:set', payload)
-        else:
-            try:
-                cur_name = getattr(cur_map, 'name', None)
-                map_overrides = filter_effect_payloads(active_effects_map.get(game_key, {}).get(cur_name, {}).values())
-                if map_overrides:
-                    for payload in map_overrides:
-                        emit('effect:set', payload)
-                else:
-                    for payload in map_default_effect_payloads(cur_map):
-                        emit('effect:set', payload)
-            except Exception:
-                pass
-
-        # Emit map-defined point fires separately (independent of DM overlay effects)
-        try:
-            emit('effect:set', point_fire_effect_payload(cur_map))
-        except Exception:
-            pass
-    except Exception:
-        pass
-
-
-@app.route('/admin/save', methods=['POST'])
-def admin_save():
-    if not session.get('username'):
-        return jsonify(error='Unauthorized'), 401
-    if 'dm' not in user_role():
-        return jsonify(error='Forbidden'), 403
-    payload = request.get_json(silent=True) or {}
-    name = payload.get('name')
-    try:
-        # Queue async save to avoid blocking request handler
-        current_game.save_game_async(name=name)
-        return jsonify(status='queued')
-    except Exception as e:
-        return jsonify(error=str(e)), 500
-
-
-@app.route('/admin/load', methods=['POST'])
-def admin_load():
-    if not session.get('username'):
-        return jsonify(error='Unauthorized'), 401
-    if 'dm' not in user_role():
-        return jsonify(error='Forbidden'), 403
-    payload = request.get_json(silent=True) or {}
-    filename = payload.get('filename')
-    index = payload.get('index')
-    try:
-        # Load under lock to avoid race with in-flight actions
-        with current_game.game_state_lock:
-            if filename:
-                # Pass through as relative; GameManagement.resolve will join with save_dir
-                current_game.load_save(filename=filename)
-            elif index is not None:
-                try:
-                    idx = int(index)
-                except Exception:
-                    return jsonify(error='index must be integer'), 400
-                current_game.load_save(index=idx)
-            else:
-                # Load latest
-                current_game.load_save()
-
-        # Notify clients to refresh
-        try:
-            # Ensure all users reference the newly loaded battle map instance
-            current_game.set_current_battle_map(current_game.get_current_battle_map())
-        except Exception:
-            pass
-        # Update module-level session reference used by many routes
-        try:
-            global game_session
-            game_session = current_game.game_session
-        except Exception:
-            pass
-        try:
-            current_game.refresh_client_map()
-        except Exception:
-            pass
-        # Ensure any tile/object overlays are rebuilt
-        socketio.emit('message', {'type': 'refresh_map'})
-        socketio.emit('message', {'type': 'turn', 'message': {'game_time': current_game.game_session.game_time}})
-        return jsonify(status='ok')
-    except Exception as e:
-        return jsonify(error=str(e)), 500
-
-
-@app.route('/admin/manage_saves', methods=['GET'])
-def admin_manage_saves():
-    if not session.get('username'):
-        return redirect(url_for('login'))
-    if 'dm' not in user_role():
-        return jsonify(error='Forbidden'), 403
-    return render_template('manage_saves.html', title='Manage Saves')
-
-
-@app.route('/admin/effect', methods=['POST'])
-def admin_effect():
-    """DM-only endpoint to broadcast visual effects to connected clients.
-    Expects JSON: { effect: 'fog'|'rain'|'snow', action: 'start'|'stop'|'update', config: {...} }
-    """
-    if not session.get('username'):
-        return jsonify(error='Unauthorized'), 401
-    if 'dm' not in user_role():
-        return jsonify(error='Forbidden'), 403
-    payload = request.get_json(silent=True) or {}
-    effect = payload.get('effect')
-    action = payload.get('action')
-    config = payload.get('config') or {}
-    scope = (payload.get('scope') or 'global').lower()  # 'global' or 'map'
-    target_map_name = payload.get('map')  # optional explicit map name
-    if not effect or not action:
-        return jsonify(error='effect and action required'), 400
-    if not special_effects_enabled() and action != 'stop' and (effect == 'map_default' or is_heavy_special_effect(effect)):
-        return jsonify(error='Special effects are disabled by configuration'), 409
-    try:
-        # Validate and sanitize config per effect type
-        def _hex_color(c):
-            try:
-                return bool(re.match(r'^#[0-9a-fA-F]{6}$', str(c)))
-            except Exception:
-                return False
-
-        def _clamp(v, lo, hi, cast=float):
-            try:
-                vv = cast(v)
-            except Exception:
-                vv = lo
-            return max(lo, min(hi, vv))
-
-        def validate_effect_config(name, cfg):
-            cfg = dict(cfg or {})
-            if name == 'snow':
-                cfg['intensity'] = _clamp(cfg.get('intensity', 0.6), 0.0, 1.0)
-                cfg['wind'] = _clamp(cfg.get('wind', 0.0), -1.0, 1.0)
-                cfg['speed'] = _clamp(cfg.get('speed', 1.0), 0.0, 3.0)
-                cfg['flakeSize'] = _clamp(cfg.get('flakeSize', 1.0), 0.2, 3.0)
-                cfg['turbulence'] = _clamp(cfg.get('turbulence', 0.35), 0.0, 1.0)
-                cfg['gusts'] = bool(cfg.get('gusts', False))
-                cfg['gustFreq'] = _clamp(cfg.get('gustFreq', 0.04), 0.0, 2.0)
-                cfg['gustStrength'] = _clamp(cfg.get('gustStrength', 0.5), 0.0, 1.0)
-                cfg['gustDuration'] = _clamp(cfg.get('gustDuration', 1.8), 0.0, 10.0)
-                cfg['dof'] = _clamp(cfg.get('dof', 0.35), 0.0, 1.0)
-                cfg['accumulationEnabled'] = bool(cfg.get('accumulationEnabled', False))
-                cfg['accumulationRate'] = _clamp(cfg.get('accumulationRate', 0.02), 0.0, 1.0)
-                cfg['accumulationMax'] = _clamp(cfg.get('accumulationMax', 0.35), 0.0, 1.0)
-                if not _hex_color(cfg.get('accumulationColor', '#ffffff')):
-                    cfg['accumulationColor'] = '#ffffff'
-                if not _hex_color(cfg.get('color', '#ffffff')):
-                    cfg['color'] = '#ffffff'
-            elif name == 'rain':
-                cfg['intensity'] = _clamp(cfg.get('intensity', 0.6), 0.0, 1.0)
-                cfg['wind'] = _clamp(cfg.get('wind', 0.0), -1.0, 1.0)
-                cfg['speed'] = _clamp(cfg.get('speed', 1.0), 0.0, 3.0)
-                cfg['lightning'] = bool(cfg.get('lightning', False))
-                cfg['lightningFreq'] = _clamp(cfg.get('lightningFreq', 0.01), 0.0, 1.0)
-                cfg['lightningIntensity'] = _clamp(cfg.get('lightningIntensity', 1.0), 0.0, 3.0)
-                if not _hex_color(cfg.get('color', '#a8c0e6')):
-                    cfg['color'] = '#a8c0e6'
-            elif name == 'fog':
-                cfg['density'] = _clamp(cfg.get('density', 0.45), 0.0, 2.0)
-                cfg['speed'] = _clamp(cfg.get('speed', 0.7), 0.0, 3.0)
-                cfg['contrast'] = _clamp(cfg.get('contrast', 1.0), 0.2, 3.0)
-                cfg['grain'] = _clamp(cfg.get('grain', 0.15), 0.0, 0.5)
-                cfg['falloff'] = _clamp(cfg.get('falloff', 1.0), 0.0, 3.0)
-                if not _hex_color(cfg.get('color', '#cfcfd6')):
-                    cfg['color'] = '#cfcfd6'
-            else:
-                # unknown effect: keep as-is to avoid breaking custom effects
-                cfg = cfg
-            return cfg
-
-        config = validate_effect_config(effect, config)
-
-        # Broadcast to all connected clients
-        payload = {'effect': effect, 'action': action, 'config': config}
-        socketio.emit('effect:set', payload)
-        # persist effect state per game so new clients or refreshed pages will re-apply the effect
-        try:
-            game_key = getattr(current_game.game_session, 'root_path', None) or getattr(game_session, 'root_path', None) or LEVEL
-            if scope == 'map':
-                # Determine target map name
-                try:
-                    if not target_map_name:
-                        cur_map = current_game.get_map_for_user(session['username'])
-                        target_map_name = getattr(cur_map, 'name', None)
-                except Exception:
-                    target_map_name = None
-
-                if effect == 'map_default' and action == 'start':
-                    # Clear per-map overrides and broadcast map default
-                    try:
-                        if game_key in active_effects_map and target_map_name in active_effects_map[game_key]:
-                            prev = active_effects_map[game_key].pop(target_map_name, {})
-                        else:
-                            prev = {}
-                        for ef_name in list(prev.keys()):
-                            try:
-                                socketio.emit('effect:set', {'effect': ef_name, 'action': 'stop'})
-                            except Exception:
-                                pass
-                        # emit map default
-                        try:
-                            cur_map = current_game.get_map_for_user(session['username'])
-                            props = getattr(cur_map, 'properties', {}) or {}
-                            map_def = props.get('default_effect')
-                            if map_def:
-                                socketio.emit('effect:set', map_def)
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
-                else:
-                    # Persist per-map override
-                    active_effects_map.setdefault(game_key, {}).setdefault(target_map_name, {})
-                    if action == 'stop':
-                        # Remove this effect from the map overrides
-                        try:
-                            active_effects_map[game_key][target_map_name].pop(effect, None)
-                        except Exception:
-                            pass
-                    else:
-                        active_effects_map[game_key][target_map_name][effect] = {'effect': effect, 'action': 'start', 'config': config}
-            else:
-                # Global scope (existing behavior)
-                if effect == 'map_default' and action == 'start':
-                    # remove any DM-persisted effects for this game
-                    prev = active_effects.pop(game_key, {})
-                    for ef_name in list(prev.keys()):
-                        try:
-                            socketio.emit('effect:set', {'effect': ef_name, 'action': 'stop'})
-                        except Exception:
-                            pass
-                    try:
-                        cur_map = current_game.get_map_for_user(session['username'])
-                        props = getattr(cur_map, 'properties', {}) or {}
-                        map_def = props.get('default_effect')
-                        if map_def:
-                            socketio.emit('effect:set', map_def)
-                    except Exception:
-                        pass
-                else:
-                    if action == 'stop':
-                        if game_key in active_effects and effect in active_effects[game_key]:
-                            del active_effects[game_key][effect]
-                    else:
-                        active_effects.setdefault(game_key, {})[effect] = {'effect': effect, 'action': 'start', 'config': config}
-        except Exception:
-            # non-fatal; proceed
-            pass
-        return jsonify(status='ok')
-    except Exception as e:
-        return jsonify(error=str(e)), 500
-
-def t(key):
-    return i18n.t(key)
-app.add_template_global(t, name='t')
-
-def opacity_for(tile):
-    if tile['hiding']:
-        return 0.7
-    elif tile['dead']:
-        return 0.4
-    else:
-        return 1.0
-app.add_template_global(opacity_for, name='opacity_for')
-
-def transform_for(tile):
-    transforms = []
-    entity_size = tile.get('entity_size', None)
-    if entity_size == 'medium':
-        transforms.append('scale(0.8)')
-    if entity_size =='small':
-        transforms.append('scale(0.6)')
-    elif entity_size == 'tiny':
-        transforms.append('scale(0.3)')
-
-    if tile.get('prone', False):
-        transforms.append('rotate(90deg)')
-    if len(transforms) > 0:
-        return ' '.join(transforms)
-    else:
-        return 'none'
-app.add_template_global(transform_for, name='transform_for')
-
-def filter_for(tile):
-    filters = []
-    if tile['dead']:
-        filters.append('brightness(50%) sepia(100%) hue-rotate(180deg)')
-    elif tile['unconscious']:
-        filters.append('brightness(50%)')
-    elif tile['darkvision_color']:
-        filters.append('grayscale(100%)')
-
-    if len(filters) > 0:
-        return ' '.join(filters)
-    else:
-        return 'none'
-
-app.add_template_global(filter_for, name='filter_for')
-
-
-def entities_controlled_by(username, battle_map=None):
-    entities = []
-    for info in CONTROLLERS:
-        if username in info['controllers']:
-            entity_uid = info['entity_uid']
-            if battle_map:
-                entity = battle_map.entity_by_uid(entity_uid)
-            else:
-                entity = current_game.get_entity_by_uid(entity_uid)
-
-            if entity and entity not in entities:
-                entities.append(entity)
-                entities.extend(current_game.entities_owned_by(entity))
-
-    return entities
-
-def interact_flavors(action):
-    if isinstance(action, InteractAction):
-        if action.object_action == 'give':
-            return action.target.profile_image()
-    return ""
-
-def action_flavors(action):
-    if isinstance(action, AttackAction):
-        if action.second_hand():
-            return "_second"
-        elif action.unarmed():
-            return "_melee"
-        elif action.thrown:
-            return "_thrown"
-        elif action.ranged_attack():
-            return "_ranged"
-        else:
-            return ""
-    elif isinstance(action, InteractAction):
-        if action.object_action:
-            return f"_{action.object_action_name()}"
-    return ""
-
-app.add_template_global(action_flavors, name='action_flavors')
-
-def ability_mod_str(ability_mod):
-    if ability_mod is None:
-        return ""
-   
-    if ability_mod >= 0:
-        return f"+{ability_mod}"
-    else:
-        return str(ability_mod)
-
-app.add_template_filter(ability_mod_str, name='mod_str')
-
-def casting_time(casting_time):
-    qty, resource = casting_time.split(":")
-    if resource=="action":
-        r_str = "A"
-    elif resource=="reaction":
-        r_str = "R"
-    elif resource=="bonus_action":
-        r_str = "B"
-    elif resource=="hour":
-        r_str = "H"
-    elif resource=="minute":
-        r_str = "M"
-    elif resource=="round":
-        r_str = "R"
-    else:
-        raise ValueError(f"Invalid casting time: {casting_time}")
-    return f"{qty}{r_str}"
-app.add_template_filter(casting_time, name='casting_time')
-
-def format_game_time(total_seconds):
-    """Format game time in seconds to a human-readable format."""
-    if total_seconds is None:
-        return "0 seconds"
-    
-    total_seconds = int(total_seconds)
-    days = total_seconds // (24 * 60 * 60)
-    hours = (total_seconds % (24 * 60 * 60)) // (60 * 60)
-    minutes = (total_seconds % (60 * 60)) // 60
-    seconds = total_seconds % 60
-    
-    parts = []
-    if days > 0:
-        parts.append(f"{days} day{'s' if days != 1 else ''}")
-    if hours > 0:
-        parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
-    if minutes > 0:
-        parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
-    if seconds > 0 or not parts:
-        parts.append(f"{seconds} second{'s' if seconds != 1 else ''}")
-    
-    return ', '.join(parts)
-
-app.add_template_filter(format_game_time, name='format_game_time')
-
-def entity_owners(entity):
-    if isinstance(entity, Entity):
-        if hasattr(entity, 'owner') and entity.owner:
-            entity_uid = entity.owner.entity_uid
-        else:
-            entity_uid = entity.entity_uid
-    else:
-        entity_uid = entity
-
-    ctrl_info = next((controller for controller in CONTROLLERS if controller['entity_uid'] == entity_uid), None)
-    return [] if not ctrl_info else ctrl_info['controllers']
-
-app.add_template_global(entity_owners, name='entity_owners')
-
-conversation_service = ConversationService(
+register_globals(
+    app=app,
+    socketio=socketio,
+    current_game=current_game,
+    game_session=game_session,
+    llm_handler=llm_handler,
+    LOGINS=LOGINS,
+    CONTROLLERS=CONTROLLERS,
+    index_data=index_data,
+    active_effects=active_effects,
+    active_effects_map=active_effects_map,
+    output_logger=output_logger,
+    LEVEL=LEVEL,
+    builder_only_mode=builder_only_mode,
+    event_manager=event_manager,
+    OTHERMAPS=OTHERMAPS,
+    logger=logger,
+    TITLE=TITLE,
+    LOGIN_BACKGROUND=LOGIN_BACKGROUND,
+    CHARACTER_SELECTION_BACKGROUND=CHARACTER_SELECTION_BACKGROUND,
+    game_context_provider=game_context_provider,
+    TILE_PX=TILE_PX,
+    MAP_PADDING=MAP_PADDING,
+    entity_rag_handler=entity_rag_handler,
+)
+
+register_template_globals(app)
+
+for blueprint in (assets_bp, auth_bp, ai_bp, navigation_bp, character_bp, battle_bp, dm_bp):
+    app.register_blueprint(blueprint)
+
+register_effect_listeners(_record_narration_for_pcs)
+
+conversation_service, _conversation_exports = wire_conversation_service(
+    app,
     current_game_getter=lambda: current_game,
     game_session=game_session,
     socketio=socketio,
@@ -2031,37 +297,9 @@ conversation_service = ConversationService(
     entities_controlled_by_getter=lambda: entities_controlled_by,
     logins_getter=lambda: LOGINS,
     logger=logger,
+    level=LEVEL,
 )
-
-register_conversation_routes(
-    app,
-    conversation_service,
-    lambda: read_npc_system_prompt(LEVEL),
-)
-
-def visible_log_messages_for_username(username, roles=None):
-    if roles is None:
-        roles = roles_for_username(username)
-    return output_logger.get_all_logs(username=username, roles=roles)
-
-entity_audience_usernames = conversation_service.entity_audience_usernames
-conversation_audience_usernames = conversation_service.conversation_audience_usernames
-conversation_visible_whisper_usernames = conversation_service.conversation_visible_whisper_usernames
-conversation_payload = conversation_service.conversation_payload
-conversation_listener_for_username = conversation_service.conversation_listener_for_username
-listener_understands_language = conversation_service.listener_understands_language
-render_conversation_payload_for_username = conversation_service.render_conversation_payload_for_username
-resolve_conversation_targets = conversation_service.resolve_conversation_targets
-select_conversation_responders = conversation_service.select_conversation_responders
-emit_conversation_to_usernames = conversation_service.emit_conversation_to_usernames
-conversation_status_summary = conversation_service.conversation_status_summary
-conversation_effect_summary = conversation_service.conversation_effect_summary
-conversation_goal_summary = conversation_service.conversation_goal_summary
-conversation_attitude_toward_speaker = conversation_service.conversation_attitude_toward_speaker
-conversation_pressure_summary = conversation_service.conversation_pressure_summary
-conversation_response_prompt = conversation_service.conversation_response_prompt
-conversation_recipient_usernames = conversation_service.conversation_recipient_usernames
-effective_talk_volume = conversation_service.effective_talk_volume
+globals().update(_conversation_exports)
 
 output_logger.configure_visibility(
     game_getter=lambda: current_game,
@@ -2069,10 +307,8 @@ output_logger.configure_visibility(
     controlled_entities_lookup=entities_controlled_by,
 )
 
-def describe_terrain(tile):
-    """Legacy Jinja helper; tooltips are precomputed in JsonRenderer."""
-    from flask import g
-    from natural20.web.terrain_tooltip import build_terrain_tooltip
+register_perf_instrumentation(app, socketio, logger)
+register_socketio_handlers(socketio)
 
     if not hasattr(g, '_describe_terrain_ctx'):
         g._describe_terrain_ctx = (
@@ -8052,14 +6288,12 @@ def get_targets_at_position():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
-    # Configure for better ngrok compatibility
     socketio.run(
-        app, 
-        debug=False, 
-        host='0.0.0.0', 
-        port=5001, 
+        app,
+        debug=False,
+        host='0.0.0.0',
+        port=5001,
         allow_unsafe_werkzeug=True,
-        # Add ngrok-specific settings
-        use_reloader=False,  # Disable reloader for ngrok
-        log_output=True
+        use_reloader=False,
+        log_output=True,
     )

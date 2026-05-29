@@ -633,25 +633,36 @@ class GameManagement:
         self._goal_thread.start()
 
         if self.soundtracks:
-            # load each soundtrack and determine its duration
+            loaded_soundtracks = []
             for track in self.soundtracks:
                 track['duration'] = 0
-                # strip leading and trailing spaces
                 track['name'] = track['name'].strip()
                 track['start_time'] = int(time.time())
                 if 'volume' not in track or track['volume'] is None:
                     track['volume'] = 0
-                # load mp3 file
-                audio_path = self.game_session.root_path + '/assets/' + track['file']
-                if not os.path.exists(audio_path):
-                    self.logger.error(f"Soundtrack {track['name']} not found at {audio_path}")
-                    raise Exception(f"Soundtrack {track['name']} not found at {audio_path}")
-                    
-                audio = MP3(audio_path)
-                track['duration'] = int(audio.info.length)
-                self.logger.info(f"Loaded soundtrack {track['name']} with duration {track['duration']}")
+                audio_path = os.path.join(
+                    self.game_session.root_path, 'assets', track['file'].lstrip('/')
+                )
+                if not os.path.isfile(audio_path):
+                    self.logger.warning(
+                        f"Soundtrack {track['name']} not found at {audio_path}; skipping"
+                    )
+                    continue
+                try:
+                    audio = MP3(audio_path)
+                    track['duration'] = max(1, int(audio.info.length or 0))
+                except Exception as exc:
+                    self.logger.warning(
+                        f"Soundtrack {track['name']} could not be loaded from {audio_path}: {exc}"
+                    )
+                    continue
+                self.logger.info(
+                    f"Loaded soundtrack {track['name']} with duration {track['duration']}"
+                )
+                loaded_soundtracks.append(track)
                 if 'background' in track['name']:
                     self.current_soundtrack = track
+            self.soundtracks = loaded_soundtracks
         self._setup_controllers()
         if self.defer_player_spawn:
             self._defer_all_players()
@@ -737,7 +748,7 @@ class GameManagement:
         self.socketio.emit('message', {'type': 'reset', 'message': {}})
 
     def reload_map_for_user(self,  username):
-        map_name, _ = self.current_map_for_user.get(username, ('index', self.maps['index']))
+        map_name, _ = self.entity_registry._default_map_for_user(username)
         self.current_map_for_user[username] = (map_name, self.maps[map_name])
         self.maps[map_name] = Map(self.game_session, self.other_maps[map_name], name=map_name)
 
@@ -774,10 +785,23 @@ class GameManagement:
             return False
         return any(results)
 
-    def prompt(self, message, callback=None):
+    def prompt(self, message, callback=None, options=None, usernames=None):
         callback_id = uuid.uuid4().hex
         self.callbacks[callback_id] = callback
-        self.socketio.emit('message', {'type': 'prompt', 'message': message, 'callback': callback_id})
+        payload = {'type': 'prompt', 'message': message, 'callback': callback_id}
+        if options:
+            payload['options'] = options
+
+        if usernames:
+            delivered = False
+            for username in usernames:
+                for sid in self.username_to_sid.get(str(username).lower(), []):
+                    self.socketio.emit('message', payload, to=sid)
+                    delivered = True
+            if delivered:
+                return
+
+        self.socketio.emit('message', payload)
 
     def push_animation(self):
         self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': _coalesce_animation_log(self.battle.get_animation_logs())}})
@@ -1241,7 +1265,8 @@ class GameManagement:
                         self.current_soundtrack = soundtrack
                         break
                     else:
-                        time_s = (time.time() - self.current_soundtrack['start_time']) % self.current_soundtrack['duration']
+                        duration = max(1, int(self.current_soundtrack.get('duration') or 1))
+                        time_s = (time.time() - self.current_soundtrack['start_time']) % duration
                         self.current_soundtrack['time'] = time_s
                         self.logger.info(f"Playing soundtrack {self.current_soundtrack}")
                         self.socketio.emit('message', { 'type': 'track', 'message': self.current_soundtrack})
@@ -1699,7 +1724,11 @@ class GameManagement:
             # Lighting or visibility may have changed (e.g. fire damage lighting a fireplace)
             self.socketio.emit('message', {'type': 'refresh_map'})
         else:
-            self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
+            # For out-of-battle movement, the route emits the real path-based
+            # move event. Emitting an empty move here causes duplicate move
+            # processing on the client and can race visual reconciliation.
+            if action.action_type != 'move':
+                self.socketio.emit('message', {'type': 'move', 'message': {'animation_log': []}})
             # check if spell and send animation log
             # Note: skip 'move' payloads here. action_animator returns a
             # {'type': 'move', 'token_image': ...} envelope (without a

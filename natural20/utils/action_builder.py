@@ -390,10 +390,16 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
 
             params_list.append(usable_weapons)
         elif param_type == "select_choice":
+            choice_options = []
             for choice in param["choices"]:
                 if _match and choice[1] not in _match:
                     continue
-                params_list.append([choice])
+                choice_options.append(choice)
+            if not choice_options:
+                if is_verbose:
+                    print(f"No matching choices for {entity.name}")
+                return None
+            params_list.append(choice_options)
         elif param_type == "select_items":
             return None
         elif param_type == 'select_empty_space':

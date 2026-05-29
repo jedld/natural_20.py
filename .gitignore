@@ -25,4 +25,7 @@ last_save.txt
 env.list
 coverage/
 .playwright-mcp/
+# Campaign runtime data (per-campaign saves, logs, sqlite DBs)
+saves/
 webapp/saves/
+**/campaign_logs.sqlite
