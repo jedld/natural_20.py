@@ -166,6 +166,28 @@ class TestBattle(unittest.TestCase):
         print(valid_targets2)
         assert fighter1 not in valid_targets2, valid_targets2
 
+    def test_attack_animation_payload_flags_miss(self):
+        from natural20.battle import action_animator
+        from types import SimpleNamespace
+
+        target = SimpleNamespace(entity_uid='goblin')
+        action = SimpleNamespace(
+            action_type='attack',
+            source=SimpleNamespace(entity_uid='fighter'),
+            target=target,
+            result=[{'type': 'miss'}],
+            ranged_attack=lambda: False,
+            label=lambda: 'attack with longsword',
+        )
+
+        payload = action_animator(action)
+        self.assertEqual(payload['type'], 'attack')
+        self.assertTrue(payload['message']['miss'])
+
+        action.result = [{'type': 'damage', 'damage': 5}]
+        payload_hit = action_animator(action)
+        self.assertFalse(payload_hit['message']['miss'])
+
     def test_move_then_attack_animation_log_has_single_attack_entry(self):
         session = self.make_session()
         battle_map = Map(session, 'battle_sim_objects')
@@ -199,6 +221,8 @@ class TestBattle(unittest.TestCase):
         assert animation_log[1].get('type') == 'attack'
         assert animation_log[1]['message']['source'] == fighter.entity_uid
         assert animation_log[1]['message']['target'] == goblin.entity_uid
+        assert animation_log[1]['message']['source_pos'] == list(battle.entity_or_object_pos(fighter))
+        assert animation_log[1]['message']['target_pos'] == list(battle.entity_or_object_pos(goblin))
 
     def test_entities_not_in_active_battle_use_out_of_combat_resource_defaults(self):
         session = self.make_session()

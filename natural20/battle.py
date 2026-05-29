@@ -25,7 +25,48 @@ def _animation_uid(value):
     return value
 
 
-def action_animator(action):
+def _attack_animation_missed(action):
+    """True when the resolved attack result includes a miss (no damage dealt)."""
+    for item in getattr(action, 'result', None) or []:
+        if isinstance(item, dict) and item.get('type') == 'miss':
+            return True
+    return False
+
+
+def _entity_grid_pos(battle, entity_or_uid):
+    """Grid [x, y] for an entity at commit time (authoritative for client VFX)."""
+    if battle is None or entity_or_uid is None:
+        return None
+    entity = entity_or_uid
+    if not isinstance(entity, Entity):
+        try:
+            entity = battle.entity_by_uid(entity_or_uid)
+        except Exception:
+            entity = None
+    if entity is None:
+        return None
+    pos = battle.entity_or_object_pos(entity)
+    if pos is None:
+        return None
+    return [int(pos[0]), int(pos[1])]
+
+
+def _target_grid_positions(battle, target):
+    """Return (primary_target_pos, all_target_positions) for animation payloads."""
+    if target is None:
+        return None, None
+    if isinstance(target, (list, tuple)):
+        positions = []
+        for t in target:
+            p = _entity_grid_pos(battle, t)
+            if p is not None:
+                positions.append(p)
+        return (positions[0] if positions else None), (positions or None)
+    primary = _entity_grid_pos(battle, target)
+    return primary, ([primary] if primary else None)
+
+
+def action_animator(action, battle=None):
     def target_id(action):
         if hasattr(action, 'target') and action.target:
             if isinstance(action.target, list):
@@ -39,6 +80,7 @@ def action_animator(action):
         return None
 
     if action and action.action_type == 'attack':
+        target_pos, target_positions = _target_grid_positions(battle, getattr(action, 'target', None))
         return {
             'type': 'attack',
             'message': {
@@ -46,7 +88,11 @@ def action_animator(action):
                 'source': _animation_uid(action.source.entity_uid),
                 'ranged': action.ranged_attack(),
                 'type': 'attack',
-                'label': action.label()
+                'label': action.label(),
+                'miss': _attack_animation_missed(action),
+                'source_pos': _entity_grid_pos(battle, action.source),
+                'target_pos': target_pos,
+                'target_positions': target_positions,
             }
         }
     elif action and action.action_type == 'move':
@@ -795,10 +841,10 @@ class Battle():
             if self.animation_log_enabled:
                 # if len(self.animation_log) == 0:
                 #     self.animation_log.append([action.source.entity_uid, [self.entity_or_object_pos(action.source)], None])
-                self.animation_log.append([action.source.entity_uid, action.move_path, action_animator(action)])
+                self.animation_log.append([action.source.entity_uid, action.move_path, action_animator(action, self)])
         elif action.action_type == 'attack':
             if self.animation_log_enabled:
-                self.animation_log.append(action_animator(action))
+                self.animation_log.append(action_animator(action, self))
             # Fire the ``attacked`` event so any readied actions whose trigger
             # depends on the readier being attacked can react. Note this fires
             # after the attack resolves; the readied action is then executed
@@ -835,7 +881,7 @@ class Battle():
             self.trigger_event('interact', action)
         else:
             if self.animation_log_enabled:
-                animation_payload = action_animator(action)
+                animation_payload = action_animator(action, self)
                 self.animation_log.append(animation_payload)
             # Spells that target a creature also count as an "attack" for
             # readied-trigger purposes (e.g. holding a spell to fire when the

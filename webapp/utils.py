@@ -1714,15 +1714,19 @@ class GameManagement:
             deferred_map_switch = None
 
         if treat_as_battle:
-            self.socketio.emit('message', {'type': 'move', 'message': { 'animation_log': _coalesce_animation_log(battle.get_animation_logs())}})
+            animation_logs = battle.get_animation_logs()
+            had_animation_entries = bool(animation_logs)
+            self.socketio.emit('message', {'type': 'move', 'message': { 'animation_log': _coalesce_animation_log(animation_logs)}})
             battle.clear_animation_logs()
             # Emit deferred map switch after the move event so the client
             # finishes the movement animation before swapping the background.
             if deferred_map_switch:
                 for sid in deferred_map_switch['sids']:
                     self.socketio.emit('message', {'type': 'switch_map', 'message': deferred_map_switch['payload']}, to=sid)
-            # Lighting or visibility may have changed (e.g. fire damage lighting a fireplace)
-            self.socketio.emit('message', {'type': 'refresh_map'})
+            # Skip an immediate refresh when animations are queued; processMoveEvent
+            # refreshes tiles after the sequence so tokens are not snapped early.
+            if not had_animation_entries:
+                self.socketio.emit('message', {'type': 'refresh_map'})
         else:
             # For out-of-battle movement, the route emits the real path-based
             # move event. Emitting an empty move here causes duplicate move

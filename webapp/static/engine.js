@@ -472,6 +472,14 @@ class EventQueue {
     this.maxQueueSize = 100; // Prevent memory leaks
     this.processedCount = 0;
     this.debugMode = true; // Set to true for debugging
+    this._pendingMoveAnimation = null;
+  }
+
+  _waitForPendingMoveAnimation() {
+    if (this._pendingMoveAnimation) {
+      return this._pendingMoveAnimation;
+    }
+    return Promise.resolve();
   }
 
   setDebugMode(enabled) {
@@ -640,7 +648,10 @@ class EventQueue {
           break;
         }
         case "attack": {
-          this.processAttackEvent(data, resolve);
+          this._waitForPendingMoveAnimation()
+            .then(() => new Promise((r) => { this.processAttackEvent(data, r); }))
+            .then(() => resolve())
+            .catch(() => resolve());
           break;
         }
         case "message":
@@ -1032,6 +1043,16 @@ class EventQueue {
       } catch (_) { resolve(); }
       return;
     }
+    let settleMoveAnimation = null;
+    this._pendingMoveAnimation = new Promise((r) => { settleMoveAnimation = r; });
+    const finish = () => {
+      if (settleMoveAnimation) {
+        settleMoveAnimation();
+        settleMoveAnimation = null;
+        this._pendingMoveAnimation = null;
+      }
+      resolve();
+    };
     const animationBuffer = data.message.animation_log;
     // Track originals hidden during movement so we only restore them after
     // a server tile refresh confirms final positions.
@@ -1068,7 +1089,7 @@ class EventQueue {
 
       return segment;
     };
-    const buildSyntheticSprite = (moveMeta) => {
+    const buildSyntheticSprite = (moveMeta, uid) => {
       if (!moveMeta || moveMeta.type !== 'move' || !moveMeta.token_image) {
         return null;
       }
@@ -1089,6 +1110,7 @@ class EventQueue {
 
       const $sprite = $('<img class="moving-entity-sprite" />')
         .attr('src', `/assets/${moveMeta.token_image}`)
+        .attr('data-entity-uid', uid || '')
         .css(spriteCss);
 
       return {
@@ -1148,6 +1170,19 @@ class EventQueue {
       }
     };
 
+    const advanceToNextEntry = (animationLog, idx) => {
+      const nextEntry = animationLog[idx + 1];
+      const nextIsAttack = nextEntry && !Array.isArray(nextEntry) && (
+        nextEntry.type === 'attack' || (nextEntry.message && nextEntry.message.type === 'attack')
+      );
+      const settleDelay = nextIsAttack ? 60 : 0;
+      if (settleDelay > 0) {
+        setTimeout(() => animateFunction(animationLog, idx + 1), settleDelay);
+      } else {
+        animateFunction(animationLog, idx + 1);
+      }
+    };
+
     const animateFunction = (animationLog, idx) => {
       if (idx >= animationLog.length) {
         console.log('Animation sequence complete, refreshing tile set');
@@ -1156,13 +1191,13 @@ class EventQueue {
           // finishes so the token does not vanish during a slow /update.
           refreshAfterMove(() => {
             try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { }
-            resolve();
+            finish();
           });
         } catch (e) {
           console.error('Failed to refresh tile set after animations, continuing', e);
           finishMoveAnimation();
           try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (_) { }
-          resolve();
+          finish();
         }
         return;
       }
@@ -1215,7 +1250,18 @@ class EventQueue {
       const startForTile = ($tile) => {
         const visiblePath = visiblePathSegment(path);
         if (!visiblePath.length) {
-          animateFunction(animationLog, idx + 1);
+          const coords = lastTargetCoords.get(entity_uid);
+          if (coords) {
+            try {
+              Utils.refreshTileSet(false, false, coords[0], coords[1], entity_uid, () => {
+                advanceToNextEntry(animationLog, idx);
+              });
+            } catch (_) {
+              advanceToNextEntry(animationLog, idx);
+            }
+          } else {
+            advanceToNextEntry(animationLog, idx);
+          }
           return;
         }
 
@@ -1260,17 +1306,18 @@ class EventQueue {
             $original: $origImg
           };
         } else {
-          spriteInfo = buildSyntheticSprite(action);
+          spriteInfo = buildSyntheticSprite(action, entity_uid);
         }
 
         if (!spriteInfo || !spriteInfo.$sprite || !spriteInfo.$sprite.length) {
           console.warn('No entity image found to animate for entity', entity_uid);
           // Nothing to animate visually; proceed to next entry
-          animateFunction(animationLog, idx + 1);
+          advanceToNextEntry(animationLog, idx);
           return;
         }
 
         const { $sprite, spriteW, spriteH, synthetic, $original } = spriteInfo;
+        try { $sprite.attr('data-entity-uid', entity_uid); } catch (_) { }
 
         const centerToTopLeft = ($t) => getTilePositionInContainer($t, spriteW, spriteH);
 
@@ -1297,7 +1344,7 @@ class EventQueue {
         const moveFunc = (p, index) => {
           if (index >= p.length) {
             // Leave the sprite on the overlay until refresh completes.
-            animateFunction(animationLog, idx + 1);
+            advanceToNextEntry(animationLog, idx);
             return;
           }
           const [x, y] = p[index];
@@ -1366,7 +1413,7 @@ class EventQueue {
               hiddenOriginals.delete(entity_uid);
             }
           } catch (_) { }
-          animateFunction(animationLog, idx + 1);
+          advanceToNextEntry(animationLog, idx);
         }
       };
 
@@ -1429,12 +1476,13 @@ class EventQueue {
                       const tileSize = parseInt($('.tiles-container').data('tile-size') || 64, 10);
                       const $sprite = $('<img class="moving-entity-sprite" />')
                         .attr('src', spriteSrc)
+                        .attr('data-entity-uid', entity_uid)
                         .css({ position: 'absolute', zIndex: 2000, pointerEvents: 'none', width: `${tileSize}px`, height: `${tileSize}px`, transformOrigin: 'center center' });
 
                       const moveFuncNoOrig = (p, index) => {
                         if (index >= p.length) {
                           try { $sprite.remove(); } catch (_) { }
-                          animateFunction(animationLog, idx + 1);
+                          advanceToNextEntry(animationLog, idx);
                           return;
                         }
                         const [nx, ny] = p[index];
@@ -1517,7 +1565,7 @@ class EventQueue {
     } else {
       // No animation; still apply effects and continue
       try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { }
-      resolve();
+      finish();
     }
   }
 
