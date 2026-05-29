@@ -1246,14 +1246,16 @@ class EventQueue {
           }
         }
 
-        // Find the visible token image inside the tile (handles flying wrapper or direct .npc)
-        const $origImg = $tile.find('.entity').first();
+        // Clone the token image (not the .entity wrapper) so offsets stay predictable.
+        const $origImg = findTokenImageInTile($tile);
         let spriteInfo = null;
         if ($origImg.length) {
+          const spriteW = $origImg.width() || parseInt($origImg.css('width'), 10) || tileSize;
+          const spriteH = $origImg.height() || parseInt($origImg.css('height'), 10) || tileSize;
           spriteInfo = {
             $sprite: $origImg.clone().addClass('moving-entity-sprite'),
-            spriteW: $origImg.width() || tileSize,
-            spriteH: $origImg.height() || tileSize,
+            spriteW,
+            spriteH,
             synthetic: false,
             $original: $origImg
           };
@@ -1277,7 +1279,9 @@ class EventQueue {
             position: 'absolute',
             zIndex: 2000,
             pointerEvents: 'none',
-            transformOrigin: 'center center'
+            transformOrigin: 'center center',
+            margin: 0,
+            padding: 0
           });
         }
 
@@ -1307,6 +1311,8 @@ class EventQueue {
           }
           const tl = centerToTopLeft($newTile);
           if (!tl) { moveFunc(p, index + 1); return; }
+
+          $sprite.data('movement-coords-x', x).data('movement-coords-y', y);
 
           // Set initial sprite position on first step
           if (index === 0) {
@@ -1436,6 +1442,8 @@ class EventQueue {
                         if (!$t.length) { moveFuncNoOrig(p, index + 1); return; }
                         const tl = getTilePositionInContainer($t, tileSize, tileSize);
                         if (!tl) { moveFuncNoOrig(p, index + 1); return; }
+
+                        $sprite.data('movement-coords-x', nx).data('movement-coords-y', ny);
 
                         if (index === 0) {
                           try { mountMovementSprite($sprite); } catch (_) { }
@@ -2433,7 +2441,9 @@ const ensureMovementSpriteLayer = () => {
 // Parent for movement sprites — must live inside the panned/zoomed map tree.
 const getMovementSpriteContainer = () => ensureMovementSpriteLayer();
 
-// Tile top-left for sprites (layer coords under .image-container).
+// Tile top-left for movement sprites (local coords under .image-container).
+// Uses the same grid layout as map.html / path preview: tile (x,y) at
+// (x+1)*tileSize within .tiles-container, plus that container's offset in the map.
 const getTilePositionInContainer = ($tile, spriteW, spriteH) => {
   if (typeof $tile === 'string') {
     $tile = $($tile);
@@ -2446,22 +2456,58 @@ const getTilePositionInContainer = ($tile, spriteW, spriteH) => {
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
     return null;
   }
-  const tileSize = parseInt($('.tiles-container').data('tile-size') || 64, 10);
+  return getTilePositionForGridCoords(x, y, spriteW, spriteH);
+};
+
+const getTilePositionForGridCoords = (x, y, spriteW, spriteH) => {
+  const tilesEl = document.querySelector('.tiles-container');
+  const mapEl = document.querySelector('.image-container');
+  if (!tilesEl || !mapEl) {
+    return null;
+  }
+  const tileSize = Number(tilesEl.getAttribute('data-tile-size')) || 64;
   const halfW = (spriteW || tileSize) / 2;
   const halfH = (spriteH || tileSize) / 2;
-  const pos = {
-    left: x * tileSize + tileSize + tileSize / 2 - halfW,
-    top: y * tileSize + tileSize + tileSize / 2 - halfH
+  // offsetLeft/Top are layout coords (pre-transform); they scale with .image-container zoom.
+  const tilesOffsetLeft = tilesEl.offsetLeft;
+  const tilesOffsetTop = tilesEl.offsetTop;
+  return {
+    left: tilesOffsetLeft + (x + 1) * tileSize + tileSize / 2 - halfW,
+    top: tilesOffsetTop + (y + 1) * tileSize + tileSize / 2 - halfH
   };
-  const $tiles = $('.tiles-container').first();
-  if ($tiles.length && typeof $tiles.position === 'function') {
-    const offset = $tiles.position();
-    if (offset && typeof offset === 'object') {
-      pos.left += offset.left || 0;
-      pos.top += offset.top || 0;
-    }
+};
+
+const findTokenImageInTile = ($tile) => {
+  let $img = $tile.find('.entity img.npc, .entity img.flying-entity').first();
+  if (!$img.length) {
+    $img = $tile.find('.entity img').first();
   }
-  return pos;
+  return $img;
+};
+
+// Keep in-flight movement sprites aligned when the viewport zoom/pan changes.
+const repositionActiveMovementSprites = () => {
+  try {
+    $('.moving-entity-sprite').each(function () {
+      const $sprite = $(this);
+      const x = $sprite.data('movement-coords-x');
+      const y = $sprite.data('movement-coords-y');
+      if (x === undefined || y === undefined) {
+        return;
+      }
+      const $tile = $(`.tile[data-coords-x="${x}"][data-coords-y="${y}"]`);
+      if (!$tile.length) {
+        return;
+      }
+      const spriteW = parseFloat($sprite.css('width')) || $sprite.width() || 0;
+      const spriteH = parseFloat($sprite.css('height')) || $sprite.height() || 0;
+      const tl = getTilePositionInContainer($tile, spriteW, spriteH);
+      if (!tl) {
+        return;
+      }
+      $sprite.css({ left: tl.left, top: tl.top, transition: 'none' });
+    });
+  } catch (_) { }
 };
 
 const cleanupMovementSprites = () => {
@@ -3072,6 +3118,7 @@ function applyViewportTransform() {
   }
   // Redraw movement path overlay so it follows the panned/zoomed map
   redrawMovementPathOverlay();
+  repositionActiveMovementSprites();
 }
 
 // Redraw the current movement path on the global canvas (called after pan/zoom)

@@ -58,20 +58,23 @@ legend:
     name: _auto_
     type: npc
     sub_type: ogre
-player:
-  - position: [3, 3]
-    sheet: characters/halfling_rogue.yml
-    overrides:
-      entity_uid: rumblebelly
-  - position: [4, 5]
-    sheet: characters/high_elf_fighter.yml
-    overrides:
-      entity_uid: gomerin
-  - position: [3, 4]
-    sheet: characters/dwarf_cleric.yml
-    overrides:
-      entity_uid: shorvalu
+# Flexible PC spawn slots for character selection (Battle Sim / test map).
+player_spawn_points:
   - position: [3, 1]
-    sheet: characters/high_elf_mage.yml
-    overrides:
-      entity_uid: crysania
+    group: a
+    name: pc_spawn_1
+  - position: [3, 3]
+    group: a
+    name: pc_spawn_2
+  - position: [3, 4]
+    group: a
+    name: pc_spawn_3
+  - position: [4, 5]
+    group: a
+    name: pc_spawn_4
+  - position: [4, 3]
+    group: a
+    name: pc_spawn_5
+  - position: [4, 4]
+    group: a
+    name: pc_spawn_6

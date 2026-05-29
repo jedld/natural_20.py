@@ -649,9 +649,19 @@ const Utils = {
     if (Utils._movementGridOrigin) return Utils._movementGridOrigin;
     const container = document.querySelector('.tiles-container');
     if (!container) return null;
-    const tileSize =
+    const logicalTileSize =
       Number(container.getAttribute('data-tile-size')) ||
       ($('.tile').height() || 50);
+    // Use the displayed tile size so pan/zoom (CSS transform on .image-container)
+    // stays aligned with getBoundingClientRect-based origins.
+    let tileSize = logicalTileSize;
+    const sampleTile = container.querySelector('.tile');
+    if (sampleTile) {
+      const tileRect = sampleTile.getBoundingClientRect();
+      if (tileRect.width > 0) {
+        tileSize = tileRect.width;
+      }
+    }
     const rect = container.getBoundingClientRect();
     const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft || 0;
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
@@ -683,7 +693,8 @@ const Utils = {
       signature = (movePath.length) + '|' +
         (first ? first[0] + ',' + first[1] : '') + '|' +
         (last ? last[0] + ',' + last[1] : '') + '|' +
-        available_cost + '|' + (placeable ? 1 : 0) + '|' + (suppressArrow ? 1 : 0);
+        available_cost + '|' + (placeable ? 1 : 0) + '|' + (suppressArrow ? 1 : 0) + '|' +
+        grid.ox + ',' + grid.oy + ',' + grid.tile;
     } catch (e) { signature = ''; }
     if (signature && Utils._movementLastSignature === signature) {
       return;
