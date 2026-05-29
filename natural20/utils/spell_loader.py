@@ -46,6 +46,9 @@ def load_spell_class(spell_name):
     from natural20.spell.color_spray_spell import ColorSpraySpell
     from natural20.spell.witch_bolt_spell import WitchBoltSpell
     from natural20.spell.grease_spell import GreaseSpell
+    from natural20.spell.enlarge_reduce_spell import EnlargeReduceSpell
+    from natural20.spell.haste_spell import HasteSpell
+    from natural20.spell.polymorph_spell import PolymorphSpell
     # Create a mapping of spell names to spell classes
     spell_classes = {
         'ShockingGraspSpell': ShockingGraspSpell,
@@ -94,6 +97,9 @@ def load_spell_class(spell_name):
         'ColorSpraySpell': ColorSpraySpell,
         'WitchBoltSpell': WitchBoltSpell,
         'GreaseSpell': GreaseSpell,
+        'EnlargeReduceSpell': EnlargeReduceSpell,
+        'HasteSpell': HasteSpell,
+        'PolymorphSpell': PolymorphSpell,
     }
 
     if spell_name not in spell_classes:

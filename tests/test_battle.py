@@ -224,6 +224,37 @@ class TestBattle(unittest.TestCase):
         assert spectator.free_object_interaction(battle)
         assert spectator.available_movement(battle) == spectator.speed()
 
+    def test_enemy_in_melee_range_ignores_entities_without_melee_reach(self):
+        session = self.make_session()
+        battle_map = Map(session, 'tests/fixtures/battle_sim.yml')
+        battle = Battle(session, battle_map)
+
+        source = session.npc('goblin', {'name': 'source'})
+        ranged_only = session.npc('goblin', {'name': 'ranged_only'})
+        ranged_only.properties['actions'] = [
+            a for a in ranged_only.properties['actions'] if a.get('type') != 'melee_attack'
+        ]
+
+        battle.add(source, 'a', position=(1, 1), token='s')
+        battle.add(ranged_only, 'b', position=(1, 2), token='r')
+
+        # Should not raise when nearby enemies have no melee reach.
+        self.assertFalse(battle.enemy_in_melee_range(source))
+
+    def test_items_on_the_ground_handles_entities_without_melee_reach(self):
+        session = self.make_session()
+        battle_map = Map(session, 'tests/fixtures/battle_sim.yml')
+
+        ranged_only = session.npc('goblin', {'name': 'ranged_only'})
+        ranged_only.properties['actions'] = [
+            a for a in ranged_only.properties['actions'] if a.get('type') != 'melee_attack'
+        ]
+        battle_map.place((1, 1), ranged_only, 'r')
+
+        # Should not raise even if the entity has no melee attacks.
+        ground_items = battle_map.items_on_the_ground(ranged_only)
+        self.assertIsInstance(ground_items, list)
+
     # Tests that an action can have reactions attached to it
     # and can be resolved
     def test_opportunity_attack_reactions(self):

@@ -8,7 +8,7 @@ if WEBAPP_DIR not in sys.path:
 template_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'templates'))
 os.environ.setdefault('TEMPLATE_DIR', template_root)
 
-from webapp.app import resolve_requested_action_type
+from webapp.blueprints.helpers.action_utils import resolve_requested_action_type
 from natural20.actions.use_item_action import UseItemAction
 
 

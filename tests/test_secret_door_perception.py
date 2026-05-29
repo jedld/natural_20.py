@@ -7,6 +7,7 @@ Tests cover:
 - JsonRenderer shows/hides secret door based on perception and vision
 """
 import unittest
+import os
 import random
 from unittest.mock import patch, MagicMock
 
@@ -19,6 +20,9 @@ from natural20.web.json_renderer import JsonRenderer
 from natural20.actions.look_action import LookAction
 from natural20.utils.action_builder import autobuild
 from natural20.die_roll import DieRoll
+
+# Private campaign data — skip when death_house is not available (e.g. CI)
+_death_house_available = os.path.isdir('user_levels/death_house')
 
 
 class CaptureOutputLogger:
@@ -39,6 +43,7 @@ class CaptureOutputLogger:
         })
 
 
+@unittest.skipIf(not _death_house_available, "Requires private death_house campaign data (not available in CI)")
 class TestSecretDoorPerceptionDeathHouse(unittest.TestCase):
     """Test secret door perception on the Death House 3rd floor map."""
 

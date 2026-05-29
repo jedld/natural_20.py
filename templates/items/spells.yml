@@ -902,3 +902,71 @@ grease:
     - Sorcerer
     - Artificer
   spell_class: Natural20::Grease
+enlarge_reduce:
+  label: Enlarge/Reduce
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+    - material
+  description: |
+    You cause a creature you can see to grow larger or smaller. This implementation
+    applies the enlarge effect (+STR, Large size) while concentration lasts.
+  duration: 1m
+  duration_seconds: 60
+  level: 2
+  name: Enlarge/Reduce
+  range: 30
+  school: transmutation
+  concentration: true
+  type: buff
+  enlarge_bonus: 2
+  spell_list_classes:
+    - Wizard
+    - Sorcerer
+  spell_class: Natural20::EnlargeReduceSpell
+haste:
+  label: Haste
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+    - material
+  description: |
+    Choose a willing creature. Until the spell ends, its speed is doubled, it gains +2 AC,
+    and it gains an additional action at the start of each of its turns.
+  duration: 1m
+  duration_seconds: 60
+  level: 3
+  name: Haste
+  range: 30
+  school: transmutation
+  concentration: true
+  type: buff
+  spell_list_classes:
+    - Wizard
+    - Sorcerer
+  spell_class: Natural20::HasteSpell
+polymorph:
+  label: Polymorph
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+    - material
+  description: |
+    You attempt to transform a creature into a beast. On a failed WIS save the target
+    becomes the configured beast form (simplified phase transition).
+  duration: 1h
+  level: 4
+  name: Polymorph
+  range: 60
+  school: transmutation
+  concentration: true
+  type: transmutation
+  beast_form: polymorph_wolf
+  spell_list_classes:
+    - Wizard
+    - Sorcerer
+    - Druid
+  spell_class: Natural20::PolymorphSpell

@@ -101,6 +101,24 @@
     return { overlay, ctx, destroy: () => { try { document.body.removeChild(overlay); } catch(e) {} } };
   }
 
+  // Normalize rAF timestamps (some browsers/polyfills omit the time argument).
+  function animProgress(now, start, total) {
+    const ts = (typeof now === 'number' && isFinite(now)) ? now : performance.now();
+    const t0 = (typeof start === 'number' && isFinite(start)) ? start : ts;
+    const dur = (typeof total === 'number' && isFinite(total) && total > 0) ? total : 1;
+    return Math.min(1, Math.max(0, (ts - t0) / dur));
+  }
+
+  function clampAlpha(value) {
+    const n = Number(value);
+    if (!isFinite(n)) return 0;
+    return Math.max(0, Math.min(1, n));
+  }
+
+  function rgba(r, g, b, a) {
+    return `rgba(${r},${g},${b},${clampAlpha(a).toFixed(3)})`;
+  }
+
   // Public API to play a registered effect (safe no-op on errors)
   function play(name, payload){
     return new Promise((resolve) => {
@@ -3366,21 +3384,21 @@
       const cry = 'RAGE!';
 
       const draw = (now) => {
-        const tt = Math.min(1, (now - start) / total);
+        const tt = animProgress(now, start, total);
         ctx.clearRect(0, 0, overlay.width, overlay.height);
 
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
 
         // 1) Pulsing fiery aura (radial gradient) around the source
-        const pulse = 0.5 + 0.5 * Math.sin(now * 0.018);
+        const pulse = 0.5 + 0.5 * Math.sin((typeof now === 'number' && isFinite(now) ? now : performance.now()) * 0.018);
         const auraR = baseR * (1.0 + 0.18 * pulse) * (0.7 + 0.3 * Math.min(1, tt * 2));
-        const auraAlpha = (0.85) * (1 - Math.pow(tt, 1.6));
+        const auraAlpha = clampAlpha(0.85 * (1 - Math.pow(tt, 1.6)));
         const grad = ctx.createRadialGradient(src.x, src.y, baseR * 0.18, src.x, src.y, auraR);
-        grad.addColorStop(0.0, `rgba(255,240,180,${(0.85 * auraAlpha).toFixed(3)})`);
-        grad.addColorStop(0.25, `rgba(255,140,40,${(0.75 * auraAlpha).toFixed(3)})`);
-        grad.addColorStop(0.6, `rgba(220,40,20,${(0.55 * auraAlpha).toFixed(3)})`);
-        grad.addColorStop(1.0, `rgba(120,10,0,0)`);
+        grad.addColorStop(0.0, rgba(255, 240, 180, 0.85 * auraAlpha));
+        grad.addColorStop(0.25, rgba(255, 140, 40, 0.75 * auraAlpha));
+        grad.addColorStop(0.6, rgba(220, 40, 20, 0.55 * auraAlpha));
+        grad.addColorStop(1.0, 'rgba(120,10,0,0)');
         ctx.fillStyle = grad;
         ctx.beginPath(); ctx.arc(src.x, src.y, auraR, 0, Math.PI * 2); ctx.fill();
 
@@ -3395,11 +3413,11 @@
         }
 
         // 3) Two counter-rotating runic rings
-        const ringAlpha = 0.8 * (1 - Math.pow(Math.max(0, tt - 0.15) / 0.85, 2));
+        const ringAlpha = clampAlpha(0.8 * (1 - Math.pow(Math.max(0, tt - 0.15) / 0.85, 2)));
         const ringR1 = baseR * 0.95;
         const ringR2 = baseR * 1.18;
-        const angA = now * 0.006;
-        const angB = -now * 0.0045;
+        const angA = (typeof now === 'number' && isFinite(now) ? now : performance.now()) * 0.006;
+        const angB = -(typeof now === 'number' && isFinite(now) ? now : performance.now()) * 0.0045;
         for (let k = 0; k < 6; k++) {
           const a0 = angA + (k / 6) * Math.PI * 2;
           ctx.beginPath();
@@ -3438,7 +3456,7 @@
         if (tt < 0.9) {
           const ct = tt / 0.9;
           const ease = ct < 0.4 ? (ct / 0.4) : 1;
-          const fade = ct < 0.55 ? 1 : (1 - (ct - 0.55) / 0.45);
+          const fade = clampAlpha(ct < 0.55 ? 1 : (1 - (ct - 0.55) / 0.45));
           const ty = src.y - baseR * 1.1 - ease * 28;
           const scale = 1 + 0.6 * (1 - Math.pow(1 - ease, 3));
           ctx.save();
@@ -3453,9 +3471,9 @@
           ctx.shadowColor = `rgba(255,120,40,${(0.9 * fade).toFixed(3)})`;
           ctx.shadowBlur = 18;
           const tg = ctx.createLinearGradient(0, -16, 0, 16);
-          tg.addColorStop(0, `rgba(255,240,160,${fade.toFixed(3)})`);
-          tg.addColorStop(0.5, `rgba(255,140,40,${fade.toFixed(3)})`);
-          tg.addColorStop(1, `rgba(200,30,10,${fade.toFixed(3)})`);
+          tg.addColorStop(0, rgba(255, 240, 160, fade));
+          tg.addColorStop(0.5, rgba(255, 140, 40, fade));
+          tg.addColorStop(1, rgba(200, 30, 10, fade));
           ctx.fillStyle = tg;
           ctx.fillText(cry, 0, 0);
           ctx.restore();
@@ -3494,15 +3512,15 @@
         });
       }
       const draw = (now) => {
-        const tt = Math.min(1, (now - start) / total);
+        const tt = animProgress(now, start, total);
         ctx.clearRect(0, 0, overlay.width, overlay.height);
         ctx.save();
         ctx.globalCompositeOperation = 'source-over';
         // Faint dimming aura
-        const a = 0.45 * (1 - tt);
+        const a = clampAlpha(0.45 * (1 - tt));
         const grad = ctx.createRadialGradient(src.x, src.y, baseR*0.15, src.x, src.y, baseR);
-        grad.addColorStop(0, `rgba(160,30,30,${(0.5*a).toFixed(3)})`);
-        grad.addColorStop(1, `rgba(60,10,10,0)`);
+        grad.addColorStop(0, rgba(160, 30, 30, 0.5 * a));
+        grad.addColorStop(1, 'rgba(60,10,10,0)');
         ctx.fillStyle = grad;
         ctx.beginPath(); ctx.arc(src.x, src.y, baseR, 0, Math.PI*2); ctx.fill();
         for (let i = 0; i < wisps.length; i++) {

@@ -520,10 +520,56 @@ LANGUAGE_PHONETICS = {
         'min_syl': 1,
         'max_syl': 3,
     },
+
+    # --- BEAST --------------------------------------------------------------
+    # Broad animal speech family used by Speak With Animals.
+    # Includes chirps, growls, clicks, and short call-like syllables.
+    'beast': {
+        'onsets': [
+            'gr', 'kr', 'sn', 'ch', 'tr', 'wh', 'br', 'cl',
+            'b', 'm', 'n', 'r', 'h', 'y', 'w', 'sk', 'th',
+        ],
+        'nuclei': [
+            'a', 'e', 'i', 'o', 'u', 'aa', 'oo', 'ee', 'ai', 'au',
+        ],
+        'codas': [
+            'k', 'n', 'r', 'l', 'm', 'rk', 'sh', 'ff', 'rr', 'th', 'ng',
+        ],
+        'templates': [('ON', 4), ('ONC', 4), ('NC', 2)],
+        'particles': ['grr', 'hrr', 'chik', 'trr', 'snf', 'whu'],
+        'roots': [
+            'growl', 'sniff', 'chirr', 'cluck', 'bark', 'howl', 'trill',
+            'bleat', 'caw', 'hiss', 'snort', 'whine',
+        ],
+        'min_syl': 1,
+        'max_syl': 3,
+    },
+
+    # --- SHEEP (beast dialect) ---------------------------------------------
+    # A narrow beast dialect with bleat-forward phonotactics.
+    'sheep': {
+        'onsets': [
+            'b', 'm', 'bl', 'br', 'wh', 'h', 'l', 'n', 'r',
+        ],
+        'nuclei': [
+            'aa', 'ae', 'eh', 'ee', 'oo', 'a', 'e',
+        ],
+        'codas': [
+            '', 'h', 'm', 'n', 't', 'th', 'l',
+        ],
+        'templates': [('ON', 5), ('ONC', 3), ('N', 2)],
+        'particles': ['baa', 'meh', 'maa', 'beh'],
+        'roots': ['blea', 'baah', 'meh', 'mutton', 'wool', 'lamb'],
+        'min_syl': 1,
+        'max_syl': 2,
+    },
 }
 
 # Aliases so callers can use either name
 LANGUAGE_PHONETICS['deep'] = LANGUAGE_PHONETICS['deep speech']
+LANGUAGE_PHONETICS['animals'] = LANGUAGE_PHONETICS['beast']
+LANGUAGE_PHONETICS['animal'] = LANGUAGE_PHONETICS['beast']
+LANGUAGE_PHONETICS['beasts'] = LANGUAGE_PHONETICS['beast']
 
 
 def _word_hash(word: str, language: str) -> int:

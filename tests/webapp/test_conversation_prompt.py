@@ -9,6 +9,7 @@ template_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 os.environ.setdefault('TEMPLATE_DIR', template_root)
 
 from webapp import app as app_module
+from webapp.conversation_service import ConversationService
 
 
 class FakeBattle:
@@ -82,6 +83,14 @@ def test_conversation_prompt_explicitly_allows_in_character_refusals(monkeypatch
 
     assert 'explicitly refuse to answer' in prompt
     assert 'use [NO_RESPONSE] only when you stay completely silent' in prompt
+    assert 'Do not use [NO_RESPONSE] for hello' in prompt
+
+
+def test_message_expects_direct_reply_detects_greetings_and_questions():
+    assert ConversationService.message_expects_direct_reply('hello!')
+    assert ConversationService.message_expects_direct_reply('really? where is it?')
+    assert not ConversationService.message_expects_direct_reply('ok')
+    assert not ConversationService.message_expects_direct_reply('thanks')
 
 
 def test_conversation_prompt_includes_attitude_and_pressure_context(monkeypatch):
