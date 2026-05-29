@@ -16,6 +16,22 @@
     return null;
   }
 
+  // Pixel center for a server-authoritative grid cell [x, y] from commit time.
+  function centerFromGridPos(pos) {
+    if (!Array.isArray(pos) || pos.length < 2) return null;
+    const tx = Number(pos[0]);
+    const ty = Number(pos[1]);
+    if (!Number.isFinite(tx) || !Number.isFinite(ty)) return null;
+    return tileCenterByCoords(tx, ty);
+  }
+
+  function centerForAttackEntity(payload, entityId, gridPos) {
+    const fromGrid = centerFromGridPos(gridPos);
+    if (fromGrid) return fromGrid;
+    if (entityId) return centerOfEntity(entityId);
+    return null;
+  }
+
   // Get pixel center of tile by map coordinates (data-coords-x/y)
   function tileCenterByCoords(tx, ty){
     try {
@@ -59,15 +75,26 @@
   // Compute the on-screen center of an entity by id, with fallbacks
   function centerOfEntity(entityId){
     try {
+      const id = String(entityId);
+      // Prefer an in-flight movement sprite so attack visuals line up with the
+      // token position while tiles still show the pre-move location.
+      const sprites = document.querySelectorAll(`.moving-entity-sprite[data-entity-uid="${id}"]`);
+      if (sprites && sprites.length) {
+        const sprite = sprites[sprites.length - 1];
+        const rect = sprite.getBoundingClientRect();
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        return { x: rect.left + scrollLeft + rect.width / 2, y: rect.top + scrollTop + rect.height / 2 };
+      }
       // Map tiles tag the occupying entity with data-coords-id; that is the
       // canonical attribute used elsewhere in engine.js, so prefer it. Other
       // selectors are kept as fallbacks for non-tile contexts.
-      let el = document.querySelector(`.tile[data-coords-id="${entityId}"]`);
-      if (!el) el = document.querySelector(`[data-entity-id="${entityId}"]`);
-      if (!el) el = document.querySelector(`[data-entity-uid="${entityId}"]`);
+      let el = document.querySelector(`.tile[data-coords-id="${id}"]`);
+      if (!el) el = document.querySelector(`[data-entity-id="${id}"]`);
+      if (!el) el = document.querySelector(`[data-entity-uid="${id}"]`);
       if (!el) {
         // Common alternates
-        el = document.querySelector(`[data-id="${entityId}"]`) || document.getElementById(String(entityId));
+        el = document.querySelector(`[data-id="${id}"]`) || document.getElementById(id);
       }
       if (el) {
         // Try to locate the containing tile cell if present
@@ -1093,12 +1120,19 @@
   register('attack', function(payload){
     return new Promise((resolve) => {
       const srcId = payload && payload.source;
-      const tgtId = payload && payload.target;
+      const tgtIds = ensureArray(payload && payload.target);
       const label = (payload && payload.label) ? String(payload.label) : '';
       const lower = label.toLowerCase();
-      const src = srcId ? centerOfEntity(srcId) : null;
-      const tgt = tgtId ? centerOfEntity(tgtId) : null;
+      // Prefer grid positions captured at attack commit (chronology-safe for NPC batches).
+      const src = centerForAttackEntity(payload, srcId, payload && payload.source_pos);
+      const tgtFromGrid = centerFromGridPos(payload && payload.target_pos)
+        || (payload && payload.target_positions && centerFromGridPos(payload.target_positions[0]));
+      const tgt = tgtFromGrid
+        || tgtIds.map((id) => centerOfEntity(id)).filter(Boolean)[0]
+        || null;
       if (!tgt) return resolve();
+
+      const isMiss = !!(payload && (payload.miss || payload.missed));
 
       // Parse weapon/type from label "attack with X ..."
       let weapon = '';
@@ -1276,25 +1310,92 @@
       }
 
       const draw = (now) => {
-        const t = Math.min(1, (now - start)/total);
-        ctx.clearRect(0,0,overlay.width, overlay.height);
+        const rawT = Math.min(1, (now - start) / total);
+        const t = isMiss && style.startsWith('ranged_') ? Math.min(rawT, 0.82) : rawT;
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
         ctx.save(); ctx.globalCompositeOperation = 'screen';
-  if (style === 'ranged_arrow') drawArrow(t);
+        if (style === 'ranged_arrow') drawArrow(t);
         else if (style === 'ranged_bolt') drawBolt(t);
         else if (style === 'ranged_thrown') drawThrown(t);
-  else if (style === 'ranged_generic') drawGenericRanged(t);
+        else if (style === 'ranged_generic') drawGenericRanged(t);
         else if (style === 'melee_slash') drawSlash(t);
         else if (style === 'melee_chop') drawChop(t);
         else if (style === 'melee_blunt') drawBlunt(t);
         else if (style === 'melee_thrust') drawThrust(t);
         else if (style === 'natural_claw') drawClaw(t);
         else if (style === 'natural_bite') drawBite(t);
-  else drawGenericMelee(t);
+        else drawGenericMelee(t);
         ctx.restore();
-        if (t < 1) requestAnimationFrame(draw); else impact();
+        if (rawT < 1) {
+          requestAnimationFrame(draw);
+        } else {
+          impact();
+        }
       };
 
+      function drawMissLabel(elapsedMs) {
+        const lt = Math.min(1, Math.max(0, (elapsedMs - 90) / 520));
+        const ease = 1 - Math.pow(1 - lt, 3);
+        const floatY = tgt.y - 8 - 40 * ease;
+        const scale = 0.5 + 0.58 * (1 - Math.pow(1 - Math.min(lt * 1.75, 1), 2));
+        const alpha = lt < 0.68 ? 1 : 1 - ((lt - 0.68) / 0.32);
+        ctx.save();
+        ctx.translate(tgt.x, floatY);
+        ctx.scale(scale, scale);
+        ctx.font = 'bold 26px "Arial Black", Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = `rgba(18,22,30,${alpha.toFixed(2)})`;
+        ctx.fillStyle = `rgba(245,248,255,${alpha.toFixed(2)})`;
+        const txt = 'MISS!';
+        ctx.strokeText(txt, 0, 0);
+        ctx.fillText(txt, 0, 0);
+        ctx.restore();
+      }
+
+      function missImpact() {
+        try {
+          if (window.SFX && SFX.play) {
+            SFX.play(style.startsWith('ranged_') ? 'attack_generic_ranged' : 'attack_slash');
+          }
+        } catch (e) { }
+        const t0 = performance.now();
+        const dur = 820;
+        const loop = (now) => {
+          const elapsed = now - t0;
+          const t = Math.min(1, elapsed / dur);
+          ctx.clearRect(0, 0, overlay.width, overlay.height);
+          ctx.save();
+          ctx.globalCompositeOperation = 'screen';
+          const fade = 0.85 * (1 - t);
+          for (let i = 0; i < 3; i++) {
+            const ang = -Math.PI * 0.35 + i * 0.42 + t * 1.2;
+            ctx.strokeStyle = `rgba(210,220,235,${fade.toFixed(2)})`;
+            ctx.lineWidth = 3.5 - t;
+            ctx.beginPath();
+            ctx.arc(tgt.x + Math.cos(ang) * 4, tgt.y + Math.sin(ang) * 4, 20 + i * 3, ang, ang + 1.05);
+            ctx.stroke();
+          }
+          if (elapsed >= 70) {
+            drawMissLabel(elapsed - 70);
+          }
+          ctx.restore();
+          if (t < 1) {
+            requestAnimationFrame(loop);
+          } else {
+            destroy();
+            resolve();
+          }
+        };
+        requestAnimationFrame(loop);
+      }
+
       function impact(){
+        if (isMiss) {
+          missImpact();
+          return;
+        }
         try { if (window.SFX && SFX.play) {
           let cue;
           if (style.startsWith('ranged_')) cue = 'attack_impact_ranged';
