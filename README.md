@@ -24,6 +24,7 @@ AI related research on the Dungeons and Dragons 5th edition RPGs.
 - [Environment Initialization Options](#environment-initialization-options)
  - [LLM NPC Controller (MCP)](#llm-npc-controller-mcp)
 - [Conversation RAG Reference](docs/CONVERSATION_RAG.md)
+- [Changelog](docs/CHANGELOG_llm_support_merge.md)
 
 Disclaimer
 ==========
