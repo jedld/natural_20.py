@@ -8,9 +8,61 @@ def _die_size(die_str):
         return 0
 
 
+def resolve_targeting_range_ft(session, spec, default=5):
+    """Resolve targeting range (feet) from a param dict or weapon-backed action spec."""
+    if not isinstance(spec, dict):
+        if isinstance(spec, (int, float)):
+            return int(spec)
+        return default
+
+    raw = spec.get('max_range', spec.get('range'))
+    if raw is None:
+        raw = spec.get('radius')
+
+    if isinstance(raw, str):
+        key = raw.strip().lower()
+        if key in ('self', 'touch'):
+            return 5
+        if key == 'sight':
+            return 120
+        try:
+            return int(raw)
+        except ValueError:
+            raw = None
+
+    if raw is not None:
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            pass
+
+    weapon_key = spec.get('weapon')
+    if weapon_key and session is not None:
+        try:
+            weapon = session.load_weapon(weapon_key)
+            if spec.get('thrown') and weapon.get('thrown'):
+                thrown = weapon['thrown']
+                return thrown.get('range_max') or thrown.get('range') or default
+            return weapon.get('range_max') or weapon.get('range', default)
+        except Exception:
+            pass
+
+    param_type = (spec.get('type') or '').lower()
+    if param_type == 'select_emanation':
+        return int(spec.get('radius', 15))
+    if param_type in ('select_cone', 'select_cube', 'select_line', 'select_radius', 'select_square'):
+        fallback = spec.get('range', 30)
+        try:
+            return int(fallback)
+        except (TypeError, ValueError):
+            return 30
+
+    return default
+
+
 def compute_max_weapon_range(session, action, range=None):
     if isinstance(action, dict):
-        return action.get('max_range', action.get('range'))
+        return resolve_targeting_range_ft(session, action, default=None)
 
     if action.action_type == 'grapple':
         return 5
@@ -27,7 +79,7 @@ def compute_max_weapon_range(session, action, range=None):
                 return weapon.get('range_max') or weapon.get('range')
     elif action.action_type == 'spell':
         spell = action.spell_action.properties
-        return spell.get('range')
+        return resolve_targeting_range_ft(session, {'range': spell.get('range')}, default=None)
 
     return range
 

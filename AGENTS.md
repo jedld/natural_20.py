@@ -69,6 +69,7 @@ Developer workflows and commands (verified in repo README):
 - Tests:
   - Python: `pytest` (supports `-n auto` for parallel runs)
   - JS unit tests for `webapp/static/engine.js`: `npm install` then `npx jest` (Node 18+ recommended). See README section "JavaScript tests".
+- Web asset optimization: `npm run build:assets` (minify JS/CSS → `*.min.js` / `*.min.css` + `manifest.assets.json`); `npm run optimize:images` (raster compression under `webapp/static`); `npm run optimize:assets` (both). Templates use `asset_url('engine.js')`; production serves minified bundles when `FLASK_ENV=production` or `N20_USE_MINIFIED_ASSETS=1`.
 
 Important environment variables (used by code):
 

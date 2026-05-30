@@ -129,6 +129,14 @@ class TestWildShape(unittest.TestCase):
         bite = next(a for a in actions if isinstance(a, WildShapeAttackAction))
         self.assertEqual(bite.npc_action['name'], 'Bite')
 
+    def test_wild_shape_attack_build_map_skips_weapon_when_npc_action_set(self):
+        ws.transform(self.druid, 'wolf')
+        bite = WildShapeAttackAction(self.session, self.druid, 'attack')
+        bite.npc_action = self.druid.npc_actions[0]
+        built = bite.build_map()
+        self.assertEqual(built['param'][0]['type'], 'select_target')
+        self.assertEqual(built['param'][0]['range'], 5)
+
     def test_available_actions_suppresses_spellcasting(self):
         ws.transform(self.druid, 'wolf')
         actions = self.druid.available_actions(self.session, self.battle, auto_target=False)

@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>D&D Character Sheet</title>
     <link rel="stylesheet" href="/libs/font-awesome/css/all.min.css">
-    <link href="/styles.css?salt={{ salt }}" rel="stylesheet">
-    <link href="/sheet.css?salt={{ salt }}" rel="stylesheet">
+    <link href="{{ asset_url('styles.css') }}" rel="stylesheet">
+    <link href="{{ asset_url('sheet.css') }}" rel="stylesheet">
     
     <link href="https://fonts.googleapis.com/css?family=Cinzel|Uncial+Antiqua|IM+Fell+English" rel="stylesheet">
     <script src="/libs/jquery/jquery-3.6.0.min.js"></script>
@@ -1054,8 +1054,8 @@
         {% endif %}
         {% endif %}
     </div>
-    <script src="/sheet.js?salt={{ salt }}"></script>
-    <script src="/utils.js?salt={{ salt }}"></script>
+    <script src="{{ asset_url('sheet.js') }}"></script>
+    <script src="{{ asset_url('utils.js') }}"></script>
     <script>
         // HP Update Functions for DM
         function updateMaxHP() {

@@ -29,3 +29,5 @@ coverage/
 saves/
 webapp/saves/
 **/campaign_logs.sqlite
+node_modules/
+node_modules/

@@ -224,6 +224,11 @@
     "sha1": "d0bfb6faee2fd2c222c5b117efaf9dc73394846a",
     "size": 2020578
   },
+  "/home/jedld/workspace/natural_20.py/webapp/static/actions/ready.png": {
+    "mtime": 1780014290,
+    "sha1": "1103d48947e7329f8f6e1602784afe25f21c4556",
+    "size": 6285
+  },
   "/home/jedld/workspace/natural_20.py/webapp/static/actions/reckless_attack.png": {
     "mtime": 1777167636,
     "sha1": "cdb774628837d3822bd173902e3a618fcb3faa8c",
@@ -834,6 +839,51 @@
     "sha1": "fa410ea2b525983d924007369c17fe17738c3da3",
     "size": 221
   },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/prebuild_character/character1.png": {
+    "mtime": 1780014290,
+    "sha1": "01990a47ee25516dc9ea6427cd9eb4ada6f71c71",
+    "size": 400417
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/prebuild_character/character2.png": {
+    "mtime": 1780014290,
+    "sha1": "df42493c601c3142e58af4a76d7f2e1c73a00552",
+    "size": 531806
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/prebuild_character/character3.jpg": {
+    "mtime": 1780014290,
+    "sha1": "6c8428db2c95833357ebeb4fd05083f59a15a213",
+    "size": 39396
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/prebuild_character/character4.jpg": {
+    "mtime": 1780014290,
+    "sha1": "0e20b884ef70b6a39ea8d7450565bc14d1c75539",
+    "size": 39396
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/prebuild_character/character5.jpg": {
+    "mtime": 1780014290,
+    "sha1": "d1e8a1a092f0e6f8f6a2adadc016df09a0d143b4",
+    "size": 53760
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/prebuild_character/character6.jpg": {
+    "mtime": 1780014290,
+    "sha1": "96a03b40ec912e553572d5f6fbe1752ed9f5a295",
+    "size": 45497
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/prebuild_character/character7.jpg": {
+    "mtime": 1780014290,
+    "sha1": "1e0c67fc71498eb06b98cd1cbd00b1e230e195c1",
+    "size": 49507
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/prebuild_character/character8.jpg": {
+    "mtime": 1780014290,
+    "sha1": "77e5e05718cb3f358f90773b26ad894e6da66ef1",
+    "size": 41126
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/assets/prebuild_character/character9.jpg": {
+    "mtime": 1780014290,
+    "sha1": "f3964c93a683bed06109b15bd6f114e3209464f4",
+    "size": 43719
+  },
   "/home/jedld/workspace/natural_20.py/webapp/static/assets/token_adversary.png": {
     "mtime": 1731577339,
     "sha1": "2c4db80b7819688b5735f52d2336f93aab4c81fd",
@@ -943,6 +993,11 @@
     "mtime": 1757115669,
     "sha1": "14a1a0e85a58651c84779b1ab9c12458cbae66e0",
     "size": 15564
+  },
+  "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_chromatic_orb.png": {
+    "mtime": 1780014290,
+    "sha1": "504c273d19a304aed51cc85f4ee2bd5fcb35c993",
+    "size": 1825130
   },
   "/home/jedld/workspace/natural_20.py/webapp/static/spells/spell_cure_wounds.png": {
     "mtime": 1757115669,
