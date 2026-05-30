@@ -9,6 +9,7 @@ from flask import Blueprint, request, jsonify, session, redirect, url_for, rende
 
 from natural20.utils.serialization import object_type_to_klass
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction, LinkedAttackAction
+from natural20.actions.wild_shape_action import WildShapeAttackAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.spell_action import SpellAction
 from natural20.actions.interact_action import InteractAction
@@ -26,6 +27,7 @@ from natural20.die_roll import DieRoll
 from natural20.utils.action_builder import acquire_targets
 
 from .helpers.auth_utils import logged_in, user_role
+from .helpers.battle_setup import augment_turn_order_with_party_pcs
 from .helpers.pvp import autofill_pvp_battle_turn_order
 from .helpers.journal_utils import _record_narration_for_pcs
 from .helpers.special_effects import (
@@ -98,7 +100,12 @@ def start_battle_with_initiative():
         battle = Battle(get_game_session(), battle_map, animation_log_enabled=True)
         get_current_game().set_current_battle(battle)
 
-        battle_turn_order = autofill_pvp_battle_turn_order(request.json['battle_turn_order'])
+        battle_turn_order = augment_turn_order_with_party_pcs(
+            get_current_game(),
+            battle_map,
+            request.json['battle_turn_order'],
+        )
+        battle_turn_order = autofill_pvp_battle_turn_order(battle_turn_order)
         print(battle_turn_order)
         for param_item in battle_turn_order:
             entity = get_current_game().get_entity_by_uid(param_item['id'])
@@ -717,8 +724,10 @@ def action():
                 build_map = action.build_map()
                 action_info['param'] = build_map['param']
                 return jsonify(action_info)
-        elif action_type in ['LinkedAttackAction', 'AttackAction', 'TwoWeaponAttackAction']:
-            if action_type == 'AttackAction':
+        elif action_type in ['LinkedAttackAction', 'AttackAction', 'TwoWeaponAttackAction', 'WildShapeAttackAction']:
+            if action_type == 'WildShapeAttackAction':
+                action = WildShapeAttackAction(get_game_session(), entity, 'attack')
+            elif action_type == 'AttackAction':
                 action = AttackAction(get_game_session(), entity, 'attack')
             else:
                 action = TwoWeaponAttackAction(get_game_session(), entity, 'attack')
@@ -876,7 +885,13 @@ def action():
                         action = action['next']([entity_x, entity_y])
                         continue
                     elif param_details['type'] == 'select_target':
-                        valid_targets = battle_map.valid_targets_for(entity, param_details)
+                        targeting_spec = dict(param_details)
+                        if targeting_spec.get('range') is None and targeting_spec.get('max_range') is None:
+                            from natural20.weapons import resolve_targeting_range_ft
+                            targeting_spec['range'] = resolve_targeting_range_ft(
+                                get_game_session(), targeting_spec, default=5,
+                            )
+                        valid_targets = battle_map.valid_targets_for(entity, targeting_spec)
                         valid_targets = {target.entity_uid: battle_map.entity_or_object_pos(target) for target in valid_targets}
                         if target:
                             # ``select_target`` requires an actual Entity (or a
@@ -1156,8 +1171,11 @@ def get_targets_at_position():
         # Filter to only valid targets based on the action
         valid_targets = []
         
-        if action_info in ['AttackAction', 'LinkedAttackAction']:
-            action = AttackAction(get_game_session(), entity, 'attack')
+        if action_info in ['AttackAction', 'LinkedAttackAction', 'WildShapeAttackAction']:
+            if action_info == 'WildShapeAttackAction':
+                action = WildShapeAttackAction(get_game_session(), entity, 'attack')
+            else:
+                action = AttackAction(get_game_session(), entity, 'attack')
             action.using = opts.get('using')
             action.npc_action = opts.get('npc_action', None)
             action.thrown = opts.get('thrown', False)

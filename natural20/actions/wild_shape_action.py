@@ -170,6 +170,43 @@ class WildShapeAttackAction(AttackAction):
     """Attack used by a wild-shaped druid; treats ``npc_action`` as the weapon
     regardless of whether the source reports ``npc()`` True."""
 
+    def build_map(self):
+        if self.npc_action:
+            return self._build_target_selection_map()
+        beast_attacks = getattr(self.source, 'npc_actions', None) or []
+
+        def set_weapon(weapon):
+            action2 = self.clone()
+            action2.npc_action = weapon
+            return action2._build_target_selection_map()
+
+        return {
+            'param': [{'type': 'select_weapon'}],
+            'next': set_weapon,
+        }
+
+    def _build_target_selection_map(self):
+        action3 = self.clone()
+
+        def set_target(target):
+            action = action3.clone()
+            action.target = target
+            return action
+
+        weapon = action3.npc_action or {}
+        return {
+            'action': action3,
+            'param': [
+                {
+                    'type': 'select_target',
+                    'num': 1,
+                    'range': weapon.get('range', 5),
+                    'target_types': ['enemies', 'objects'],
+                }
+            ],
+            'next': set_target,
+        }
+
     def clone(self):
         action = WildShapeAttackAction(self.session, self.source,
                                         self.action_type, self.opts)

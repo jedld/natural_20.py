@@ -165,16 +165,25 @@ class AttackAction(Action):
             else:
                 action2.using = weapon
             def set_target(target):
-                action = action2.clone()
+                action = action3.clone()
                 action.target = target
                 return action
+
+            action3 = action2.clone()
+            weapon_spec = {'type': 'select_target', 'weapon': action3.using}
+            try:
+                weapon_info = self.session.load_weapon(action3.using)
+                weapon_spec['range'] = weapon_info.get('range_max') or weapon_info.get('range', 5)
+            except Exception:
+                weapon_spec['range'] = 5
             return {
-                'action': action2,
+                'action': action3,
                 'param': [
                     {
                         'type': 'select_target',
                         'num': 1,
-                        'weapon': action2.using,
+                        'weapon': action3.using,
+                        'range': weapon_spec['range'],
                         'target_types': ['enemies', 'objects'],
                     }
                     ],

@@ -57,6 +57,7 @@ class MartialArtsBonusAttackAction(AttackAction):
                     'type': 'select_target',
                     'num': 1,
                     'weapon': 'unarmed_attack',
+                    'range': 5,
                     'target_types': ['enemies'],
                 }
             ],

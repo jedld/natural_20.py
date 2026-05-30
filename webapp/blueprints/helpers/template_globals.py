@@ -287,7 +287,14 @@ def describe_terrain(tile):
 def register_template_globals(flask_app):
     """Register all template globals/filters on ``flask_app``."""
     from webapp.blueprints.helpers.action_utils import process_action_hash
+    from webapp.blueprints.helpers.asset_utils import asset_build_version, asset_url
 
+    @flask_app.context_processor
+    def _inject_asset_context():
+        version = asset_build_version()
+        return {'salt': version, 'asset_url': asset_url}
+
+    flask_app.add_template_global(asset_url, name='asset_url')
     flask_app.add_template_global(controller_of, name='controller_of')
     flask_app.add_template_global(can_rest_for, name='can_rest_for')
     flask_app.add_template_global(within_talking_distance, name='within_talking_distance')

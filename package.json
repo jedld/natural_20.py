@@ -5,8 +5,10 @@
   "scripts": {
     "test": "jest --runInBand",
     "test:coverage": "jest --coverage --runInBand",
-  "ci:test": "jest --coverage --runInBand",
-  "build:assets": "node scripts/minify.mjs"
+    "ci:test": "jest --coverage --runInBand",
+    "build:assets": "node scripts/minify.mjs",
+    "optimize:images": "python webapp/scripts/optimize_web_assets.py",
+    "optimize:assets": "npm run build:assets && npm run optimize:images"
   },
   "jest": {
     "testEnvironment": "jsdom",
@@ -16,6 +18,7 @@
     "collectCoverageFrom": [
       "webapp/static/**/*.js",
       "!webapp/static/**/*.test.js",
+      "!webapp/static/**/*.min.js",
       "!**/node_modules/**"
     ],
     "coverageDirectory": "coverage",

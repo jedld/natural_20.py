@@ -960,6 +960,23 @@ class GameManagement:
             group = entity.properties.get('group')
         return group
 
+    def party_player_characters_on_map(self, battle_map, groups=('a',)):
+        """All conscious player characters on ``battle_map`` in the given groups."""
+        if battle_map is None:
+            return []
+        group_set = {str(g) for g in groups}
+        party = []
+        for entity in battle_map.entities:
+            if not isinstance(entity, PlayerCharacter):
+                continue
+            if not entity.conscious():
+                continue
+            entity_group = self._entity_group(entity)
+            if entity_group is None or str(entity_group) not in group_set:
+                continue
+            party.append((entity, entity_group))
+        return party
+
     def _is_manually_controlled(self, entity):
         """Best-effort check for whether ``entity`` is being driven by a
         human player (WebController) rather than AI/LLM. Used by
@@ -1120,6 +1137,16 @@ class GameManagement:
                                     self._add_entities_to_initiative(add_to_initiative_set, entity_by_groups, battle_map, entity1, group1, include_allies=include_allies)
                                     self._add_entities_to_initiative(add_to_initiative_set, entity_by_groups, battle_map, entity2, group2, include_allies=include_allies)
                                     start_battle = True
+        if start_battle:
+            maps_involved = {
+                self.get_map_for_entity(entity)
+                for entity, _ in add_to_initiative_set
+            }
+            for involved_map in maps_involved:
+                if involved_map is None:
+                    continue
+                for entity, group in self.party_player_characters_on_map(involved_map, groups=tuple(pc_groups)):
+                    add_to_initiative_set.add((entity, group))
         add_to_initiative = list(add_to_initiative_set)
 
         if add_to_initiative:

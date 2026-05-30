@@ -552,7 +552,21 @@ def update():
 
     entity = battle_map.entity_by_uid(entity_uid) if entity_uid else battle_map.entity_at(x, y)
     pov_entity = current_game.get_pov_entity_for_user(session['username'])
-    _pov_entities = render_pov_entities()
+    is_setup = request.args.get('is_setup') == 'true'
+    if is_setup:
+        # Battle setup must reveal every party PC on this map, not only the DM's
+        # current POV camera (which would hide off-screen allies from initiative UI).
+        if 'dm' in user_role():
+            _pov_entities = [
+                e for e in battle_map.entities
+                if isinstance(e, PlayerCharacter)
+            ]
+        else:
+            _pov_entities = entities_controlled_by(session['username'], battle_map) or []
+        if not _pov_entities:
+            _pov_entities = render_pov_entities()
+    else:
+        _pov_entities = render_pov_entities()
 
     if entity and ('dm' in user_role() or entity in entities_controlled_by(session['username'], battle_map)):
         current_game.set_pov_entity_for_user(session['username'], entity)
@@ -577,7 +591,7 @@ def update():
         tiles=my_2d_array,
         tile_size_px=tile_px,
         random=random,
-        is_setup=(request.args.get('is_setup') == 'true'),
+        is_setup=is_setup,
         current_map_name=battle_map.name,
         read_notes=current_game.read_notes,
     )

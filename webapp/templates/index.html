@@ -5,21 +5,21 @@
     <meta content="width=device-width, initial-scale=1" name="viewport">
     <title>{{ title }}</title>
     <link href="/libs/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
-    <link href="/styles.css?salt={{ salt }}" rel="stylesheet">
+    <link href="{{ asset_url('styles.css') }}" rel="stylesheet">
     <script src="/libs/jquery/jquery-3.2.1.min.js"></script>
     <script src="/libs/bootstrap/3.3.7/js/bootstrap.min.js"></script>
     <script src="/libs/socket.io/socket.io.min.js"></script>
-    <script src="/perf.js?salt={{ salt }}"></script>
-  <script src="/inert-polyfill.js?salt={{ salt }}"></script>
-  <script src="/effects.js?salt={{ salt }}"></script>
-  <script src="/sfx.js?salt={{ salt }}"></script>
-  <script src="/spell_effects.js?salt={{ salt }}"></script>
-  <script src="/status_effects.js?salt={{ salt }}"></script>
-    <script src="/utils.js?salt={{ salt }}"></script>
-    <script src="/js/local_conversation.js?salt={{ salt }}"></script>
-    <script src="/js/chat.js?salt={{ salt }}"></script>
-    <script src="/path_compute.js?salt={{ salt }}"></script>
-    <script src="/engine.js?salt={{ salt }}"></script>
+    <script src="{{ asset_url('perf.js') }}"></script>
+  <script src="{{ asset_url('inert-polyfill.js') }}"></script>
+  <script src="{{ asset_url('effects.js') }}"></script>
+  <script src="{{ asset_url('sfx.js') }}"></script>
+  <script src="{{ asset_url('spell_effects.js') }}"></script>
+  <script src="{{ asset_url('status_effects.js') }}"></script>
+    <script src="{{ asset_url('utils.js') }}"></script>
+    <script src="{{ asset_url('js/local_conversation.js') }}"></script>
+    <script src="{{ asset_url('js/chat.js') }}"></script>
+    <script src="{{ asset_url('path_compute.js') }}"></script>
+    <script src="{{ asset_url('engine.js') }}"></script>
   <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32x32.png') }}">
   <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16x16.png') }}">

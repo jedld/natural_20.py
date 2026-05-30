@@ -4058,7 +4058,7 @@ $(document).ready(() => {
 
     if (targetMode) {
       // Check if there are multiple valid targets at this position
-      if (globalActionInfo && (globalActionInfo === 'AttackAction' || globalActionInfo === 'LinkedAttackAction' || globalActionInfo === 'SpellAction')) {
+      if (globalActionInfo && (globalActionInfo === 'AttackAction' || globalActionInfo === 'LinkedAttackAction' || globalActionInfo === 'WildShapeAttackAction' || globalActionInfo === 'SpellAction')) {
         Utils.ajaxGet("/targets_at_position", {
           entity_id: globalSourceEntity,
           x: coordsx,
