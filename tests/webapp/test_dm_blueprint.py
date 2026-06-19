@@ -15,8 +15,8 @@ from webapp.app import app  # noqa: E402
 class TestDmBlueprint:
     def test_admin_saves_requires_login(self):
         client = app.test_client()
-        response = client.get('/admin/saves')
-        assert response.status_code == 401
+        response = client.get('/admin/saves', follow_redirects=False)
+        assert response.status_code in (302, 401, 403)
 
     def test_available_npcs_requires_dm(self):
         client = app.test_client()

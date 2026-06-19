@@ -118,6 +118,7 @@ class FakeConversationHandler:
     def __init__(self, responses=None):
         self.responses = responses or {}
         self.conversations = {}
+        self.messages = {}
 
     def create_conversation(self, conversation_id, system_prompt):
         self.conversations.setdefault(conversation_id, {'system_prompt': system_prompt})
@@ -128,6 +129,12 @@ class FakeConversationHandler:
 
     def generate_response(self, conversation_id):
         return self.responses.get(conversation_id, 'Hello there.')
+
+    def add_message(self, conversation_id, role, content):
+        self.messages.setdefault(conversation_id, []).append({'role': role, 'content': content})
+
+    def get_messages(self, conversation_id):
+        return self.messages.get(conversation_id, [])
 
 
 class RecordingConversationHandler(FakeConversationHandler):

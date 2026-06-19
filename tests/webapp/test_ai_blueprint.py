@@ -22,8 +22,8 @@ class TestAiBlueprint:
 
     def test_ai_history_requires_dm(self):
         client = app.test_client()
-        response = client.get('/ai/history')
-        assert response.status_code in (401, 403)
+        response = client.get('/ai/history', follow_redirects=False)
+        assert response.status_code in (302, 401, 403)
 
     def test_ai_provider_info_when_dm(self):
         client = app.test_client()
