@@ -196,7 +196,32 @@ class FakeEntityRagHandler:
     def get_conversation_targets(self, receiver, speaker=None):
         return [speaker] if speaker is not None else []
 
+    def witnessed_events_summary(self, entity):
+        return ""
+
+    def offer_item_guidance_for_conversation(self, receiver, speaker):
+        return ""
+
+    def parse_response_controls(self, response):
+        return {'no_response': '[NO_RESPONSE]' in response}
+
     def apply_response_plan_directives(self, plan, actor, speaker=None, advance_time=False):
+        if plan.get('set_goal'):
+            pass
+
+    def apply_conversation_keywords(self, response, receiver, speaker, llm_handler):
+        pass
+
+    def get_nearby_entities(self, entity, distance_ft, volume=None, include_extended=False):
+        return []
+
+    def build_conversation_response_plan(self, response, receiver, speaker, llm_handler):
+        if '[NO_RESPONSE]' in response:
+            return {'skip': True, 'language': 'common', 'message': '', 'targets': [], 'volume': None}
+        return {'skip': False, 'language': 'common', 'message': response, 'targets': [speaker], 'volume': 'normal'}
+
+    def process_entity_response(self, response, receiver, speaker, llm_handler):
+        return 'common', response
         if plan.get('set_goal'):
             app_module.current_game.schedule_short_term_goal(actor, plan['set_goal'], speaker=speaker)
         return {}
