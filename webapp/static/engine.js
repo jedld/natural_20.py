@@ -472,14 +472,6 @@ class EventQueue {
     this.maxQueueSize = 100; // Prevent memory leaks
     this.processedCount = 0;
     this.debugMode = true; // Set to true for debugging
-    this._pendingMoveAnimation = null;
-  }
-
-  _waitForPendingMoveAnimation() {
-    if (this._pendingMoveAnimation) {
-      return this._pendingMoveAnimation;
-    }
-    return Promise.resolve();
   }
 
   setDebugMode(enabled) {
@@ -648,10 +640,7 @@ class EventQueue {
           break;
         }
         case "attack": {
-          this._waitForPendingMoveAnimation()
-            .then(() => new Promise((r) => { this.processAttackEvent(data, r); }))
-            .then(() => resolve())
-            .catch(() => resolve());
+          this.processAttackEvent(data, resolve);
           break;
         }
         case "message":
@@ -1043,16 +1032,6 @@ class EventQueue {
       } catch (_) { resolve(); }
       return;
     }
-    let settleMoveAnimation = null;
-    this._pendingMoveAnimation = new Promise((r) => { settleMoveAnimation = r; });
-    const finish = () => {
-      if (settleMoveAnimation) {
-        settleMoveAnimation();
-        settleMoveAnimation = null;
-        this._pendingMoveAnimation = null;
-      }
-      resolve();
-    };
     const animationBuffer = data.message.animation_log;
     // Track originals hidden during movement so we only restore them after
     // a server tile refresh confirms final positions.
@@ -1089,7 +1068,7 @@ class EventQueue {
 
       return segment;
     };
-    const buildSyntheticSprite = (moveMeta, uid) => {
+    const buildSyntheticSprite = (moveMeta) => {
       if (!moveMeta || moveMeta.type !== 'move' || !moveMeta.token_image) {
         return null;
       }
@@ -1110,7 +1089,6 @@ class EventQueue {
 
       const $sprite = $('<img class="moving-entity-sprite" />')
         .attr('src', `/assets/${moveMeta.token_image}`)
-        .attr('data-entity-uid', uid || '')
         .css(spriteCss);
 
       return {
@@ -1170,19 +1148,6 @@ class EventQueue {
       }
     };
 
-    const advanceToNextEntry = (animationLog, idx) => {
-      const nextEntry = animationLog[idx + 1];
-      const nextIsAttack = nextEntry && !Array.isArray(nextEntry) && (
-        nextEntry.type === 'attack' || (nextEntry.message && nextEntry.message.type === 'attack')
-      );
-      const settleDelay = nextIsAttack ? 60 : 0;
-      if (settleDelay > 0) {
-        setTimeout(() => animateFunction(animationLog, idx + 1), settleDelay);
-      } else {
-        animateFunction(animationLog, idx + 1);
-      }
-    };
-
     const animateFunction = (animationLog, idx) => {
       if (idx >= animationLog.length) {
         console.log('Animation sequence complete, refreshing tile set');
@@ -1191,13 +1156,13 @@ class EventQueue {
           // finishes so the token does not vanish during a slow /update.
           refreshAfterMove(() => {
             try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { }
-            finish();
+            resolve();
           });
         } catch (e) {
           console.error('Failed to refresh tile set after animations, continuing', e);
           finishMoveAnimation();
           try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (_) { }
-          finish();
+          resolve();
         }
         return;
       }
@@ -1250,18 +1215,7 @@ class EventQueue {
       const startForTile = ($tile) => {
         const visiblePath = visiblePathSegment(path);
         if (!visiblePath.length) {
-          const coords = lastTargetCoords.get(entity_uid);
-          if (coords) {
-            try {
-              Utils.refreshTileSet(false, false, coords[0], coords[1], entity_uid, () => {
-                advanceToNextEntry(animationLog, idx);
-              });
-            } catch (_) {
-              advanceToNextEntry(animationLog, idx);
-            }
-          } else {
-            advanceToNextEntry(animationLog, idx);
-          }
+          animateFunction(animationLog, idx + 1);
           return;
         }
 
@@ -1292,32 +1246,29 @@ class EventQueue {
           }
         }
 
-        // Clone the token image (not the .entity wrapper) so offsets stay predictable.
-        const $origImg = findTokenImageInTile($tile);
+        // Find the visible token image inside the tile (handles flying wrapper or direct .npc)
+        const $origImg = $tile.find('.entity').first();
         let spriteInfo = null;
         if ($origImg.length) {
-          const spriteW = $origImg.width() || parseInt($origImg.css('width'), 10) || tileSize;
-          const spriteH = $origImg.height() || parseInt($origImg.css('height'), 10) || tileSize;
           spriteInfo = {
             $sprite: $origImg.clone().addClass('moving-entity-sprite'),
-            spriteW,
-            spriteH,
+            spriteW: $origImg.width() || tileSize,
+            spriteH: $origImg.height() || tileSize,
             synthetic: false,
             $original: $origImg
           };
         } else {
-          spriteInfo = buildSyntheticSprite(action, entity_uid);
+          spriteInfo = buildSyntheticSprite(action);
         }
 
         if (!spriteInfo || !spriteInfo.$sprite || !spriteInfo.$sprite.length) {
           console.warn('No entity image found to animate for entity', entity_uid);
           // Nothing to animate visually; proceed to next entry
-          advanceToNextEntry(animationLog, idx);
+          animateFunction(animationLog, idx + 1);
           return;
         }
 
         const { $sprite, spriteW, spriteH, synthetic, $original } = spriteInfo;
-        try { $sprite.attr('data-entity-uid', entity_uid); } catch (_) { }
 
         const centerToTopLeft = ($t) => getTilePositionInContainer($t, spriteW, spriteH);
 
@@ -1326,9 +1277,7 @@ class EventQueue {
             position: 'absolute',
             zIndex: 2000,
             pointerEvents: 'none',
-            transformOrigin: 'center center',
-            margin: 0,
-            padding: 0
+            transformOrigin: 'center center'
           });
         }
 
@@ -1344,7 +1293,7 @@ class EventQueue {
         const moveFunc = (p, index) => {
           if (index >= p.length) {
             // Leave the sprite on the overlay until refresh completes.
-            advanceToNextEntry(animationLog, idx);
+            animateFunction(animationLog, idx + 1);
             return;
           }
           const [x, y] = p[index];
@@ -1358,8 +1307,6 @@ class EventQueue {
           }
           const tl = centerToTopLeft($newTile);
           if (!tl) { moveFunc(p, index + 1); return; }
-
-          $sprite.data('movement-coords-x', x).data('movement-coords-y', y);
 
           // Set initial sprite position on first step
           if (index === 0) {
@@ -1413,7 +1360,7 @@ class EventQueue {
               hiddenOriginals.delete(entity_uid);
             }
           } catch (_) { }
-          advanceToNextEntry(animationLog, idx);
+          animateFunction(animationLog, idx + 1);
         }
       };
 
@@ -1476,13 +1423,12 @@ class EventQueue {
                       const tileSize = parseInt($('.tiles-container').data('tile-size') || 64, 10);
                       const $sprite = $('<img class="moving-entity-sprite" />')
                         .attr('src', spriteSrc)
-                        .attr('data-entity-uid', entity_uid)
                         .css({ position: 'absolute', zIndex: 2000, pointerEvents: 'none', width: `${tileSize}px`, height: `${tileSize}px`, transformOrigin: 'center center' });
 
                       const moveFuncNoOrig = (p, index) => {
                         if (index >= p.length) {
                           try { $sprite.remove(); } catch (_) { }
-                          advanceToNextEntry(animationLog, idx);
+                          animateFunction(animationLog, idx + 1);
                           return;
                         }
                         const [nx, ny] = p[index];
@@ -1490,8 +1436,6 @@ class EventQueue {
                         if (!$t.length) { moveFuncNoOrig(p, index + 1); return; }
                         const tl = getTilePositionInContainer($t, tileSize, tileSize);
                         if (!tl) { moveFuncNoOrig(p, index + 1); return; }
-
-                        $sprite.data('movement-coords-x', nx).data('movement-coords-y', ny);
 
                         if (index === 0) {
                           try { mountMovementSprite($sprite); } catch (_) { }
@@ -1565,7 +1509,7 @@ class EventQueue {
     } else {
       // No animation; still apply effects and continue
       try { if (window.PersistentEffects && PersistentEffects.applyAll) PersistentEffects.applyAll(); } catch (e) { }
-      finish();
+      resolve();
     }
   }
 
@@ -2489,9 +2433,7 @@ const ensureMovementSpriteLayer = () => {
 // Parent for movement sprites — must live inside the panned/zoomed map tree.
 const getMovementSpriteContainer = () => ensureMovementSpriteLayer();
 
-// Tile top-left for movement sprites (local coords under .image-container).
-// Uses the same grid layout as map.html / path preview: tile (x,y) at
-// (x+1)*tileSize within .tiles-container, plus that container's offset in the map.
+// Tile top-left for sprites (layer coords under .image-container).
 const getTilePositionInContainer = ($tile, spriteW, spriteH) => {
   if (typeof $tile === 'string') {
     $tile = $($tile);
@@ -2504,58 +2446,22 @@ const getTilePositionInContainer = ($tile, spriteW, spriteH) => {
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
     return null;
   }
-  return getTilePositionForGridCoords(x, y, spriteW, spriteH);
-};
-
-const getTilePositionForGridCoords = (x, y, spriteW, spriteH) => {
-  const tilesEl = document.querySelector('.tiles-container');
-  const mapEl = document.querySelector('.image-container');
-  if (!tilesEl || !mapEl) {
-    return null;
-  }
-  const tileSize = Number(tilesEl.getAttribute('data-tile-size')) || 64;
+  const tileSize = parseInt($('.tiles-container').data('tile-size') || 64, 10);
   const halfW = (spriteW || tileSize) / 2;
   const halfH = (spriteH || tileSize) / 2;
-  // offsetLeft/Top are layout coords (pre-transform); they scale with .image-container zoom.
-  const tilesOffsetLeft = tilesEl.offsetLeft;
-  const tilesOffsetTop = tilesEl.offsetTop;
-  return {
-    left: tilesOffsetLeft + (x + 1) * tileSize + tileSize / 2 - halfW,
-    top: tilesOffsetTop + (y + 1) * tileSize + tileSize / 2 - halfH
+  const pos = {
+    left: x * tileSize + tileSize + tileSize / 2 - halfW,
+    top: y * tileSize + tileSize + tileSize / 2 - halfH
   };
-};
-
-const findTokenImageInTile = ($tile) => {
-  let $img = $tile.find('.entity img.npc, .entity img.flying-entity').first();
-  if (!$img.length) {
-    $img = $tile.find('.entity img').first();
+  const $tiles = $('.tiles-container').first();
+  if ($tiles.length && typeof $tiles.position === 'function') {
+    const offset = $tiles.position();
+    if (offset && typeof offset === 'object') {
+      pos.left += offset.left || 0;
+      pos.top += offset.top || 0;
+    }
   }
-  return $img;
-};
-
-// Keep in-flight movement sprites aligned when the viewport zoom/pan changes.
-const repositionActiveMovementSprites = () => {
-  try {
-    $('.moving-entity-sprite').each(function () {
-      const $sprite = $(this);
-      const x = $sprite.data('movement-coords-x');
-      const y = $sprite.data('movement-coords-y');
-      if (x === undefined || y === undefined) {
-        return;
-      }
-      const $tile = $(`.tile[data-coords-x="${x}"][data-coords-y="${y}"]`);
-      if (!$tile.length) {
-        return;
-      }
-      const spriteW = parseFloat($sprite.css('width')) || $sprite.width() || 0;
-      const spriteH = parseFloat($sprite.css('height')) || $sprite.height() || 0;
-      const tl = getTilePositionInContainer($tile, spriteW, spriteH);
-      if (!tl) {
-        return;
-      }
-      $sprite.css({ left: tl.left, top: tl.top, transition: 'none' });
-    });
-  } catch (_) { }
+  return pos;
 };
 
 const cleanupMovementSprites = () => {
@@ -3166,7 +3072,6 @@ function applyViewportTransform() {
   }
   // Redraw movement path overlay so it follows the panned/zoomed map
   redrawMovementPathOverlay();
-  repositionActiveMovementSprites();
 }
 
 // Redraw the current movement path on the global canvas (called after pan/zoom)
@@ -4058,7 +3963,7 @@ $(document).ready(() => {
 
     if (targetMode) {
       // Check if there are multiple valid targets at this position
-      if (globalActionInfo && (globalActionInfo === 'AttackAction' || globalActionInfo === 'LinkedAttackAction' || globalActionInfo === 'WildShapeAttackAction' || globalActionInfo === 'SpellAction')) {
+      if (globalActionInfo && (globalActionInfo === 'AttackAction' || globalActionInfo === 'LinkedAttackAction' || globalActionInfo === 'SpellAction')) {
         Utils.ajaxGet("/targets_at_position", {
           entity_id: globalSourceEntity,
           x: coordsx,
