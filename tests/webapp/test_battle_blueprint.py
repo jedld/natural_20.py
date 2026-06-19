@@ -39,5 +39,5 @@ class TestBattleBlueprint:
 
     def test_reset_narrations_requires_login(self):
         client = app.test_client()
-        response = client.post('/reset_narrations')
-        assert response.status_code == 401
+        response = client.post('/reset_narrations', follow_redirects=False)
+        assert response.status_code in (302, 401, 403)

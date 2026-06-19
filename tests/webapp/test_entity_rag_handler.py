@@ -642,15 +642,19 @@ class TestEntityRAGHandler(unittest.TestCase):
         speaker.entity_uid = "speaker"
 
         llm_conversation_handler = Mock()
+        # The code looks for 'llm_hander' (typo preserved from webapp code)
         llm_conversation_handler.llm_hander = Mock()
         llm_conversation_handler.llm_hander.send_message.return_value = (
             '{"spoken":"Shh! Please be quiet.","narrative":["Rose clutches Thorn and scans the house."]}'
         )
+        # Also set 'llm_handler' (correct spelling) in case it's used
+        llm_conversation_handler.llm_handler = llm_conversation_handler.llm_hander
 
         self.rag_handler.plan_response_volume = Mock(return_value=('normal', [speaker]))
 
+        # Use "She" to trigger the stage direction detection and LLM fallback
         plan = self.rag_handler.build_conversation_response_plan(
-            "Shh! Please be quiet.\n\nRose clutches Thorn and scans the house.",
+            "Shh! Please be quiet.\n\nShe clutches Thorn and scans the house.",
             receiver,
             speaker=speaker,
             llm_conversation_handler=llm_conversation_handler,
