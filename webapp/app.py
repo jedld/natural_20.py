@@ -2,6 +2,7 @@
 import atexit
 import logging
 import os
+import threading
 
 import i18n
 import natural20.session as GameSession
@@ -310,17 +311,6 @@ output_logger.configure_visibility(
 register_perf_instrumentation(app, socketio, logger)
 register_socketio_handlers(socketio)
 
-    if not hasattr(g, '_describe_terrain_ctx'):
-        g._describe_terrain_ctx = (
-            current_game.get_map_for_user(session['username']),
-            current_game.get_current_battle(),
-        )
-    battle_map, battle = g._describe_terrain_ctx
-    if tile.get('terrain_tooltip') is not None:
-        return tile['terrain_tooltip']
-    return build_terrain_tooltip(tile, battle_map, battle)
-
-app.add_template_global(describe_terrain, name='describe_terrain')
 
 def validate_targets(action, entity, target, current_map, battle=None):
     if battle:
