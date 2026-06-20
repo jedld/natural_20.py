@@ -1,5 +1,14 @@
 [
   {
+    "endpoint": "index",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/"
+  },
+  {
     "endpoint": "navigation.index",
     "methods": [
       "GET",
@@ -16,6 +25,14 @@
       "OPTIONS"
     ],
     "rule": "/<path:filename>"
+  },
+  {
+    "endpoint": "action",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/action"
   },
   {
     "endpoint": "battle.action",
@@ -35,6 +52,24 @@
     "rule": "/actions"
   },
   {
+    "endpoint": "get_actions",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/actions"
+  },
+  {
+    "endpoint": "add",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/add"
+  },
+  {
     "endpoint": "dm.add",
     "methods": [
       "GET",
@@ -44,12 +79,29 @@
     "rule": "/add"
   },
   {
+    "endpoint": "admin_reset_campaign_logs",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/admin/campaign-logs/reset"
+  },
+  {
     "endpoint": "dm.admin_reset_campaign_logs",
     "methods": [
       "OPTIONS",
       "POST"
     ],
     "rule": "/admin/campaign-logs/reset"
+  },
+  {
+    "endpoint": "admin_campaign_logs_status",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/admin/campaign-logs/status"
   },
   {
     "endpoint": "dm.admin_campaign_logs_status",
@@ -86,6 +138,15 @@
     "rule": "/admin/manage_saves"
   },
   {
+    "endpoint": "admin_perf",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/admin/perf"
+  },
+  {
     "endpoint": "dm.admin_perf",
     "methods": [
       "GET",
@@ -93,6 +154,14 @@
       "OPTIONS"
     ],
     "rule": "/admin/perf"
+  },
+  {
+    "endpoint": "admin_perf_reset",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/admin/perf/reset"
   },
   {
     "endpoint": "dm.admin_perf_reset",
@@ -129,7 +198,24 @@
     "rule": "/ai/available-actions"
   },
   {
+    "endpoint": "ai_get_available_actions",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/available-actions"
+  },
+  {
     "endpoint": "ai.ai_chat",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/ai/chat"
+  },
+  {
+    "endpoint": "ai_chat",
     "methods": [
       "OPTIONS",
       "POST"
@@ -145,7 +231,24 @@
     "rule": "/ai/clear-history"
   },
   {
+    "endpoint": "ai_clear_history",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/ai/clear-history"
+  },
+  {
     "endpoint": "ai.ai_get_context",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/context"
+  },
+  {
+    "endpoint": "ai_get_context",
     "methods": [
       "GET",
       "HEAD",
@@ -163,7 +266,25 @@
     "rule": "/ai/entity-details"
   },
   {
+    "endpoint": "ai_get_entity_details",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/entity-details"
+  },
+  {
     "endpoint": "ai.ai_get_history",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/history"
+  },
+  {
+    "endpoint": "ai_get_history",
     "methods": [
       "GET",
       "HEAD",
@@ -180,6 +301,14 @@
     "rule": "/ai/initialize"
   },
   {
+    "endpoint": "ai_initialize",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/ai/initialize"
+  },
+  {
     "endpoint": "ai.ai_initialize_from_env",
     "methods": [
       "OPTIONS",
@@ -188,7 +317,24 @@
     "rule": "/ai/initialize-from-env"
   },
   {
+    "endpoint": "ai_initialize_from_env",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/ai/initialize-from-env"
+  },
+  {
     "endpoint": "ai.ai_get_llama_cpp_models",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/llama_cpp/models"
+  },
+  {
+    "endpoint": "ai_get_llama_cpp_models",
     "methods": [
       "GET",
       "HEAD",
@@ -206,7 +352,25 @@
     "rule": "/ai/ollama/models"
   },
   {
+    "endpoint": "ai_get_ollama_models",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/ollama/models"
+  },
+  {
     "endpoint": "ai.ai_get_provider_info",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/provider-info"
+  },
+  {
+    "endpoint": "ai_get_provider_info",
     "methods": [
       "GET",
       "HEAD",
@@ -223,7 +387,24 @@
     "rule": "/ai/set-model"
   },
   {
+    "endpoint": "ai_set_model",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/ai/set-model"
+  },
+  {
     "endpoint": "ai.ai_get_terrain_info",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/ai/terrain-info"
+  },
+  {
+    "endpoint": "ai_get_terrain_info",
     "methods": [
       "GET",
       "HEAD",
@@ -241,7 +422,25 @@
     "rule": "/api/combat-log"
   },
   {
+    "endpoint": "combat_log",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/api/combat-log"
+  },
+  {
     "endpoint": "assets.get_asset",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/assets/<path:asset_name>"
+  },
+  {
+    "endpoint": "get_asset",
     "methods": [
       "GET",
       "HEAD",
@@ -259,7 +458,25 @@
     "rule": "/assets/editor/<filename>"
   },
   {
+    "endpoint": "serve_editor_image",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/assets/editor/<filename>"
+  },
+  {
     "endpoint": "assets.serve_item_image",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/assets/items/<filename>"
+  },
+  {
+    "endpoint": "serve_item_image",
     "methods": [
       "GET",
       "HEAD",
@@ -277,7 +494,25 @@
     "rule": "/assets/maps/<path:filename>"
   },
   {
+    "endpoint": "serve_map_image",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/assets/maps/<path:filename>"
+  },
+  {
     "endpoint": "assets.serve_object_image",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/assets/objects/<filename>"
+  },
+  {
+    "endpoint": "serve_object_image",
     "methods": [
       "GET",
       "HEAD",
@@ -295,7 +530,25 @@
     "rule": "/assets/sounds/<filename>"
   },
   {
+    "endpoint": "serve_sound_file",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/assets/sounds/<filename>"
+  },
+  {
     "endpoint": "dm.get_available_npcs",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/available_npcs"
+  },
+  {
+    "endpoint": "get_available_npcs",
     "methods": [
       "GET",
       "HEAD",
@@ -313,6 +566,24 @@
     "rule": "/available_objects"
   },
   {
+    "endpoint": "get_available_objects",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/available_objects"
+  },
+  {
+    "endpoint": "available_pcs",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/available_pcs"
+  },
+  {
     "endpoint": "dm.available_pcs",
     "methods": [
       "GET",
@@ -323,6 +594,14 @@
   },
   {
     "endpoint": "battle.start_battle_with_initiative",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/battle"
+  },
+  {
+    "endpoint": "start_battle_with_initiative",
     "methods": [
       "OPTIONS",
       "POST"
@@ -347,7 +626,32 @@
     "rule": "/character/<character_name>/journal"
   },
   {
+    "endpoint": "character_journal_add",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/character/<character_name>/journal"
+  },
+  {
+    "endpoint": "character_journal_list",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character/<character_name>/journal"
+  },
+  {
     "endpoint": "character.character_journal_delete",
+    "methods": [
+      "DELETE",
+      "OPTIONS"
+    ],
+    "rule": "/character/<character_name>/journal/<entry_id>"
+  },
+  {
+    "endpoint": "character_journal_delete",
     "methods": [
       "DELETE",
       "OPTIONS"
@@ -364,6 +668,15 @@
     "rule": "/character_builder"
   },
   {
+    "endpoint": "character_builder",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character_builder"
+  },
+  {
     "endpoint": "character.import_dndbeyond_character",
     "methods": [
       "OPTIONS",
@@ -372,7 +685,24 @@
     "rule": "/character_builder/import_dndbeyond"
   },
   {
+    "endpoint": "import_dndbeyond_character",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/character_builder/import_dndbeyond"
+  },
+  {
     "endpoint": "character.character_builder_items",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character_builder/items"
+  },
+  {
+    "endpoint": "character_builder_items",
     "methods": [
       "GET",
       "HEAD",
@@ -390,7 +720,25 @@
     "rule": "/character_builder/prebuilt_images"
   },
   {
+    "endpoint": "list_prebuilt_character_images",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character_builder/prebuilt_images"
+  },
+  {
     "endpoint": "character.character_details",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character_details/<character_name>"
+  },
+  {
+    "endpoint": "character_details",
     "methods": [
       "GET",
       "HEAD",
@@ -408,7 +756,25 @@
     "rule": "/character_editor/<character_name>"
   },
   {
+    "endpoint": "character_editor",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character_editor/<character_name>"
+  },
+  {
     "endpoint": "auth.character_selection",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/character_selection"
+  },
+  {
+    "endpoint": "character_selection",
     "methods": [
       "GET",
       "HEAD",
@@ -424,6 +790,23 @@
       "OPTIONS"
     ],
     "rule": "/combat-log"
+  },
+  {
+    "endpoint": "get_combat_log",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/combat-log"
+  },
+  {
+    "endpoint": "command",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/command"
   },
   {
     "endpoint": "navigation.command",
@@ -451,12 +834,36 @@
     "rule": "/create_character"
   },
   {
+    "endpoint": "create_character",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/create_character"
+  },
+  {
     "endpoint": "assets.create_map",
     "methods": [
       "OPTIONS",
       "POST"
     ],
     "rule": "/create_map"
+  },
+  {
+    "endpoint": "create_map",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/create_map"
+  },
+  {
+    "endpoint": "delete_entity",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/delete_entity"
   },
   {
     "endpoint": "dm.delete_entity",
@@ -468,6 +875,14 @@
   },
   {
     "endpoint": "assets.delete_map",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/delete_map"
+  },
+  {
+    "endpoint": "delete_map",
     "methods": [
       "OPTIONS",
       "POST"
@@ -492,7 +907,24 @@
     "rule": "/dm/container/add"
   },
   {
+    "endpoint": "dm_container_add",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/dm/container/add"
+  },
+  {
     "endpoint": "dm.dm_container_contents",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/dm/container/contents"
+  },
+  {
+    "endpoint": "dm_container_contents",
     "methods": [
       "GET",
       "HEAD",
@@ -509,7 +941,24 @@
     "rule": "/dm/container/remove"
   },
   {
+    "endpoint": "dm_container_remove",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/dm/container/remove"
+  },
+  {
     "endpoint": "dm.dm_inventory_get",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/dm/inventory"
+  },
+  {
+    "endpoint": "dm_inventory_get",
     "methods": [
       "GET",
       "HEAD",
@@ -526,7 +975,23 @@
     "rule": "/dm/inventory/add"
   },
   {
+    "endpoint": "dm_inventory_add",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/dm/inventory/add"
+  },
+  {
     "endpoint": "dm.dm_inventory_remove",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/dm/inventory/remove"
+  },
+  {
+    "endpoint": "dm_inventory_remove",
     "methods": [
       "OPTIONS",
       "POST"
@@ -543,6 +1008,15 @@
     "rule": "/dm/items_catalog"
   },
   {
+    "endpoint": "dm_items_catalog",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/dm/items_catalog"
+  },
+  {
     "endpoint": "dm.dm_move_entity",
     "methods": [
       "OPTIONS",
@@ -551,7 +1025,23 @@
     "rule": "/dm_move_entity"
   },
   {
+    "endpoint": "dm_move_entity",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/dm_move_entity"
+  },
+  {
     "endpoint": "battle.end_turn",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/end_turn"
+  },
+  {
+    "endpoint": "end_turn",
     "methods": [
       "OPTIONS",
       "POST"
@@ -568,7 +1058,24 @@
     "rule": "/entity_info"
   },
   {
+    "endpoint": "get_entity_info",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/entity_info"
+  },
+  {
     "endpoint": "dm.equip",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/equip"
+  },
+  {
+    "endpoint": "equip",
     "methods": [
       "OPTIONS",
       "POST"
@@ -583,6 +1090,23 @@
       "OPTIONS"
     ],
     "rule": "/equipment"
+  },
+  {
+    "endpoint": "get_equipment",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/equipment"
+  },
+  {
+    "endpoint": "focus",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/focus"
   },
   {
     "endpoint": "navigation.focus",
@@ -602,7 +1126,25 @@
     "rule": "/game_time"
   },
   {
+    "endpoint": "get_game_time",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/game_time"
+  },
+  {
     "endpoint": "dm.get_users",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/get_users"
+  },
+  {
+    "endpoint": "get_users",
     "methods": [
       "GET",
       "HEAD",
@@ -620,7 +1162,25 @@
     "rule": "/health"
   },
   {
+    "endpoint": "health_check",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/health"
+  },
+  {
     "endpoint": "battle.get_hiding_spots",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/hide"
+  },
+  {
+    "endpoint": "get_hiding_spots",
     "methods": [
       "GET",
       "HEAD",
@@ -638,6 +1198,15 @@
     "rule": "/info"
   },
   {
+    "endpoint": "get_info",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/info"
+  },
+  {
     "endpoint": "battle.get_items",
     "methods": [
       "GET",
@@ -645,6 +1214,24 @@
       "OPTIONS"
     ],
     "rule": "/items"
+  },
+  {
+    "endpoint": "get_items",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/items"
+  },
+  {
+    "endpoint": "jump_info",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/jump_info"
   },
   {
     "endpoint": "navigation.jump_info",
@@ -666,7 +1253,27 @@
     "rule": "/login"
   },
   {
+    "endpoint": "login",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/login"
+  },
+  {
     "endpoint": "auth.logout",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/logout"
+  },
+  {
+    "endpoint": "logout",
     "methods": [
       "GET",
       "HEAD",
@@ -682,6 +1289,22 @@
       "POST"
     ],
     "rule": "/manual_roll"
+  },
+  {
+    "endpoint": "manual_roll",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/manual_roll"
+  },
+  {
+    "endpoint": "mark_note_read",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/mark_note_read"
   },
   {
     "endpoint": "navigation.mark_note_read",
@@ -726,6 +1349,14 @@
     "rule": "/move_entity"
   },
   {
+    "endpoint": "move_entity",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/move_entity"
+  },
+  {
     "endpoint": "nearby_entities",
     "methods": [
       "GET",
@@ -743,6 +1374,23 @@
     "rule": "/next_turn"
   },
   {
+    "endpoint": "next_turn",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/next_turn"
+  },
+  {
+    "endpoint": "compute_path",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/path"
+  },
+  {
     "endpoint": "navigation.compute_path",
     "methods": [
       "GET",
@@ -753,6 +1401,15 @@
   },
   {
     "endpoint": "navigation.path_cost_map",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/path/cost_map"
+  },
+  {
+    "endpoint": "path_cost_map",
     "methods": [
       "GET",
       "HEAD",
@@ -778,6 +1435,23 @@
     "rule": "/reaction"
   },
   {
+    "endpoint": "get_reaction",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/reaction"
+  },
+  {
+    "endpoint": "handle_reaction",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/reaction"
+  },
+  {
     "endpoint": "battle.read_letter",
     "methods": [
       "OPTIONS",
@@ -786,7 +1460,23 @@
     "rule": "/read_letter"
   },
   {
+    "endpoint": "read_letter",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/read_letter"
+  },
+  {
     "endpoint": "battle.ready_action_endpoint",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/ready_action"
+  },
+  {
+    "endpoint": "ready_action_endpoint",
     "methods": [
       "OPTIONS",
       "POST"
@@ -803,7 +1493,24 @@
     "rule": "/refresh-portraits"
   },
   {
+    "endpoint": "refresh_portraits",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/refresh-portraits"
+  },
+  {
     "endpoint": "navigation.reload_map",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/reload_map"
+  },
+  {
+    "endpoint": "reload_map",
     "methods": [
       "OPTIONS",
       "POST"
@@ -819,7 +1526,23 @@
     "rule": "/remove_from_battle"
   },
   {
+    "endpoint": "remove_from_battle",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/remove_from_battle"
+  },
+  {
     "endpoint": "battle.reorder_initiative",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/reorder_initiative"
+  },
+  {
+    "endpoint": "reorder_initiative",
     "methods": [
       "OPTIONS",
       "POST"
@@ -835,6 +1558,14 @@
     "rule": "/reset_narrations"
   },
   {
+    "endpoint": "reset_narrations",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/reset_narrations"
+  },
+  {
     "endpoint": "navigation.response",
     "methods": [
       "OPTIONS",
@@ -843,7 +1574,23 @@
     "rule": "/response"
   },
   {
+    "endpoint": "response",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/response"
+  },
+  {
     "endpoint": "dm.take_rest",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/rest"
+  },
+  {
+    "endpoint": "take_rest",
     "methods": [
       "OPTIONS",
       "POST"
@@ -860,7 +1607,24 @@
     "rule": "/rest/preview"
   },
   {
+    "endpoint": "rest_preview",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/rest/preview"
+  },
+  {
     "endpoint": "dm.seek",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/seek"
+  },
+  {
+    "endpoint": "seek",
     "methods": [
       "OPTIONS",
       "POST"
@@ -876,7 +1640,23 @@
     "rule": "/select_character"
   },
   {
+    "endpoint": "select_character",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/select_character"
+  },
+  {
     "endpoint": "dm.sound",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/sound"
+  },
+  {
+    "endpoint": "sound",
     "methods": [
       "OPTIONS",
       "POST"
@@ -892,7 +1672,23 @@
     "rule": "/spawn_npc"
   },
   {
+    "endpoint": "spawn_npc",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/spawn_npc"
+  },
+  {
     "endpoint": "dm.spawn_object",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/spawn_object"
+  },
+  {
+    "endpoint": "spawn_object",
     "methods": [
       "OPTIONS",
       "POST"
@@ -909,7 +1705,24 @@
     "rule": "/spells"
   },
   {
+    "endpoint": "get_spell",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/spells"
+  },
+  {
     "endpoint": "battle.start_battle",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/start"
+  },
+  {
+    "endpoint": "start_battle",
     "methods": [
       "OPTIONS",
       "POST"
@@ -925,6 +1738,14 @@
     "rule": "/stop"
   },
   {
+    "endpoint": "stop_battle",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/stop"
+  },
+  {
     "endpoint": "navigation.switch_map",
     "methods": [
       "OPTIONS",
@@ -933,7 +1754,23 @@
     "rule": "/switch_map"
   },
   {
+    "endpoint": "switch_map",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/switch_map"
+  },
+  {
     "endpoint": "battle.switch_pov",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/switch_pov"
+  },
+  {
+    "endpoint": "switch_pov",
     "methods": [
       "OPTIONS",
       "POST"
@@ -958,7 +1795,25 @@
     "rule": "/target"
   },
   {
+    "endpoint": "get_target",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/target"
+  },
+  {
     "endpoint": "battle.get_targets_at_position",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/targets_at_position"
+  },
+  {
+    "endpoint": "get_targets_at_position",
     "methods": [
       "GET",
       "HEAD",
@@ -976,7 +1831,25 @@
     "rule": "/tracks"
   },
   {
+    "endpoint": "get_tracks",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/tracks"
+  },
+  {
     "endpoint": "battle.get_turn",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/turn"
+  },
+  {
+    "endpoint": "get_turn",
     "methods": [
       "GET",
       "HEAD",
@@ -994,7 +1867,24 @@
     "rule": "/turn_order"
   },
   {
+    "endpoint": "get_turn_order",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/turn_order"
+  },
+  {
     "endpoint": "dm.unequip",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/unequip"
+  },
+  {
+    "endpoint": "unequip",
     "methods": [
       "OPTIONS",
       "POST"
@@ -1011,7 +1901,24 @@
     "rule": "/update"
   },
   {
+    "endpoint": "update",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/update"
+  },
+  {
     "endpoint": "dm.update_action_resources",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_action_resources"
+  },
+  {
+    "endpoint": "update_action_resources",
     "methods": [
       "OPTIONS",
       "POST"
@@ -1027,7 +1934,23 @@
     "rule": "/update_character/<character_name>"
   },
   {
+    "endpoint": "update_character",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_character/<character_name>"
+  },
+  {
     "endpoint": "dm.update_controller",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_controller"
+  },
+  {
+    "endpoint": "update_controller",
     "methods": [
       "OPTIONS",
       "POST"
@@ -1043,7 +1966,23 @@
     "rule": "/update_group"
   },
   {
+    "endpoint": "update_group",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_group"
+  },
+  {
     "endpoint": "dm.update_hp",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_hp"
+  },
+  {
+    "endpoint": "update_hp",
     "methods": [
       "OPTIONS",
       "POST"
@@ -1059,7 +1998,23 @@
     "rule": "/update_npc"
   },
   {
+    "endpoint": "update_npc",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_npc"
+  },
+  {
     "endpoint": "dm.update_npc_default_controller",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_npc_default_controller"
+  },
+  {
+    "endpoint": "update_npc_default_controller",
     "methods": [
       "OPTIONS",
       "POST"
@@ -1075,7 +2030,23 @@
     "rule": "/update_spell_slots"
   },
   {
+    "endpoint": "update_spell_slots",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/update_spell_slots"
+  },
+  {
     "endpoint": "assets.upload_map_background",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/upload_map_background"
+  },
+  {
+    "endpoint": "upload_map_background",
     "methods": [
       "OPTIONS",
       "POST"
@@ -1092,7 +2063,24 @@
     "rule": "/usable_items"
   },
   {
+    "endpoint": "usable_items",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/usable_items"
+  },
+  {
     "endpoint": "dm.set_volume",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/volume"
+  },
+  {
+    "endpoint": "set_volume",
     "methods": [
       "OPTIONS",
       "POST"
