@@ -552,14 +552,16 @@ class TestEntityRAGHandler(unittest.TestCase):
 
         llm_conversation_handler = Mock()
         llm_conversation_handler.llm_hander = Mock()
+        # The LLM returns first-person narrative that needs to be normalized to third-person
         llm_conversation_handler.llm_hander.send_message.return_value = (
             '{"spoken":"Shh!","narrative":["I clutch my doll tighter while we watch the house."]}'
         )
 
         self.rag_handler.plan_response_volume = Mock(return_value=('normal', [speaker]))
 
+        # Input uses "She" prefix to trigger stage direction detection and LLM fallback
         plan = self.rag_handler.build_conversation_response_plan(
-            "Shh!\n\nI clutch my doll tighter while we watch the house.",
+            "Shh!\n\nShe clutches her doll tighter while they watch the house.",
             receiver,
             speaker=speaker,
             llm_conversation_handler=llm_conversation_handler,
@@ -567,6 +569,7 @@ class TestEntityRAGHandler(unittest.TestCase):
 
         self.assertFalse(plan['skip'])
         self.assertEqual(plan['message'], 'Shh!')
+        # The narrative should be normalized from "I" to "They" (third person)
         self.assertEqual(plan['narrative'], ['They clutch their doll tighter while they watch the house.'])
 
     def test_build_conversation_response_plan_filters_private_trust_judgment_and_requests_check(self):

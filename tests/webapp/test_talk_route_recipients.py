@@ -214,7 +214,7 @@ class FakeEntityRagHandler:
 
     def apply_response_plan_directives(self, plan, actor, speaker=None, advance_time=False):
         if plan.get('set_goal'):
-            pass
+            app_module.current_game.schedule_short_term_goal(actor, plan['set_goal'], speaker=speaker)
 
     def apply_conversation_keywords(self, response, receiver, speaker, llm_handler):
         pass
@@ -223,9 +223,19 @@ class FakeEntityRagHandler:
         return []
 
     def build_conversation_response_plan(self, response, receiver, speaker, llm_handler):
-        if '[NO_RESPONSE]' in response:
-            return {'skip': True, 'language': 'common', 'message': '', 'targets': [], 'volume': None}
-        return {'skip': False, 'language': 'common', 'message': response, 'targets': [speaker], 'volume': 'normal'}
+        import re
+        set_goal_match = re.search(r'\[SET_GOAL:\s*([^\]]+)\]', response or '')
+        set_goal = set_goal_match.group(1).strip() if set_goal_match else None
+        
+        if '[NO_RESPONSE]' in (response or ''):
+            return {
+                'skip': True, 'language': 'common', 'message': '',
+                'targets': [], 'volume': None, 'set_goal': set_goal,
+            }
+        return {
+            'skip': False, 'language': 'common', 'message': response or '',
+            'targets': [speaker], 'volume': 'normal', 'set_goal': set_goal,
+        }
 
     def process_entity_response(self, response, receiver, speaker, llm_handler):
         return 'common', response
