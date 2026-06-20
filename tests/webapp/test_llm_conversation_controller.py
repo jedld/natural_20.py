@@ -18,7 +18,7 @@ class RouterHandler:
         self.response_text = response_text
         self.messages = []
 
-    def send_message(self, messages):
+    def send_message(self, messages, **kwargs):
         self.messages.append(messages)
         return self.response_text
 
