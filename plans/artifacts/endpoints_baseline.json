@@ -1,5 +1,29 @@
 [
   {
+    "endpoint": "action",
+    "rule": "/action"
+  },
+  {
+    "endpoint": "add",
+    "rule": "/add"
+  },
+  {
+    "endpoint": "admin_campaign_logs_status",
+    "rule": "/admin/campaign-logs/status"
+  },
+  {
+    "endpoint": "admin_perf",
+    "rule": "/admin/perf"
+  },
+  {
+    "endpoint": "admin_perf_reset",
+    "rule": "/admin/perf/reset"
+  },
+  {
+    "endpoint": "admin_reset_campaign_logs",
+    "rule": "/admin/campaign-logs/reset"
+  },
+  {
     "endpoint": "ai.ai_chat",
     "rule": "/ai/chat"
   },
@@ -49,6 +73,58 @@
   },
   {
     "endpoint": "ai.ai_set_model",
+    "rule": "/ai/set-model"
+  },
+  {
+    "endpoint": "ai_chat",
+    "rule": "/ai/chat"
+  },
+  {
+    "endpoint": "ai_clear_history",
+    "rule": "/ai/clear-history"
+  },
+  {
+    "endpoint": "ai_get_available_actions",
+    "rule": "/ai/available-actions"
+  },
+  {
+    "endpoint": "ai_get_context",
+    "rule": "/ai/context"
+  },
+  {
+    "endpoint": "ai_get_entity_details",
+    "rule": "/ai/entity-details"
+  },
+  {
+    "endpoint": "ai_get_history",
+    "rule": "/ai/history"
+  },
+  {
+    "endpoint": "ai_get_llama_cpp_models",
+    "rule": "/ai/llama_cpp/models"
+  },
+  {
+    "endpoint": "ai_get_ollama_models",
+    "rule": "/ai/ollama/models"
+  },
+  {
+    "endpoint": "ai_get_provider_info",
+    "rule": "/ai/provider-info"
+  },
+  {
+    "endpoint": "ai_get_terrain_info",
+    "rule": "/ai/terrain-info"
+  },
+  {
+    "endpoint": "ai_initialize",
+    "rule": "/ai/initialize"
+  },
+  {
+    "endpoint": "ai_initialize_from_env",
+    "rule": "/ai/initialize-from-env"
+  },
+  {
+    "endpoint": "ai_set_model",
     "rule": "/ai/set-model"
   },
   {
@@ -102,6 +178,10 @@
   {
     "endpoint": "auth.select_character",
     "rule": "/select_character"
+  },
+  {
+    "endpoint": "available_pcs",
+    "rule": "/available_pcs"
   },
   {
     "endpoint": "battle.action",
@@ -256,8 +336,68 @@
     "rule": "/update_character/<character_name>"
   },
   {
+    "endpoint": "character_builder",
+    "rule": "/character_builder"
+  },
+  {
+    "endpoint": "character_builder_items",
+    "rule": "/character_builder/items"
+  },
+  {
+    "endpoint": "character_details",
+    "rule": "/character_details/<character_name>"
+  },
+  {
+    "endpoint": "character_editor",
+    "rule": "/character_editor/<character_name>"
+  },
+  {
+    "endpoint": "character_journal_add",
+    "rule": "/character/<character_name>/journal"
+  },
+  {
+    "endpoint": "character_journal_delete",
+    "rule": "/character/<character_name>/journal/<entry_id>"
+  },
+  {
+    "endpoint": "character_journal_list",
+    "rule": "/character/<character_name>/journal"
+  },
+  {
+    "endpoint": "character_selection",
+    "rule": "/character_selection"
+  },
+  {
+    "endpoint": "combat_log",
+    "rule": "/api/combat-log"
+  },
+  {
+    "endpoint": "command",
+    "rule": "/command"
+  },
+  {
+    "endpoint": "compute_path",
+    "rule": "/path"
+  },
+  {
     "endpoint": "conversation_presence",
     "rule": "/conversation_presence"
+  },
+  {
+    "endpoint": "create_character",
+    "rule": "/create_character"
+  },
+  {
+    "endpoint": "create_map",
+    "rule": "/create_map"
+  },
+  {
+    "endpoint": "delete_entity",
+    "rule": "/delete_entity"
+  },
+  {
+    "endpoint": "delete_map",
+    "rule": "/delete_map"
   },
   {
     "endpoint": "dialog_history",
@@ -440,8 +580,168 @@
     "rule": "/usable_items"
   },
   {
+    "endpoint": "dm_container_add",
+    "rule": "/dm/container/add"
+  },
+  {
+    "endpoint": "dm_container_contents",
+    "rule": "/dm/container/contents"
+  },
+  {
+    "endpoint": "dm_container_remove",
+    "rule": "/dm/container/remove"
+  },
+  {
+    "endpoint": "dm_inventory_add",
+    "rule": "/dm/inventory/add"
+  },
+  {
+    "endpoint": "dm_inventory_get",
+    "rule": "/dm/inventory"
+  },
+  {
+    "endpoint": "dm_inventory_remove",
+    "rule": "/dm/inventory/remove"
+  },
+  {
+    "endpoint": "dm_items_catalog",
+    "rule": "/dm/items_catalog"
+  },
+  {
+    "endpoint": "dm_move_entity",
+    "rule": "/dm_move_entity"
+  },
+  {
+    "endpoint": "end_turn",
+    "rule": "/end_turn"
+  },
+  {
+    "endpoint": "equip",
+    "rule": "/equip"
+  },
+  {
+    "endpoint": "focus",
+    "rule": "/focus"
+  },
+  {
+    "endpoint": "get_actions",
+    "rule": "/actions"
+  },
+  {
+    "endpoint": "get_asset",
+    "rule": "/assets/<path:asset_name>"
+  },
+  {
+    "endpoint": "get_available_npcs",
+    "rule": "/available_npcs"
+  },
+  {
+    "endpoint": "get_available_objects",
+    "rule": "/available_objects"
+  },
+  {
+    "endpoint": "get_combat_log",
+    "rule": "/combat-log"
+  },
+  {
+    "endpoint": "get_entity_info",
+    "rule": "/entity_info"
+  },
+  {
+    "endpoint": "get_equipment",
+    "rule": "/equipment"
+  },
+  {
+    "endpoint": "get_game_time",
+    "rule": "/game_time"
+  },
+  {
+    "endpoint": "get_hiding_spots",
+    "rule": "/hide"
+  },
+  {
+    "endpoint": "get_info",
+    "rule": "/info"
+  },
+  {
+    "endpoint": "get_items",
+    "rule": "/items"
+  },
+  {
+    "endpoint": "get_reaction",
+    "rule": "/reaction"
+  },
+  {
+    "endpoint": "get_spell",
+    "rule": "/spells"
+  },
+  {
+    "endpoint": "get_target",
+    "rule": "/target"
+  },
+  {
+    "endpoint": "get_targets_at_position",
+    "rule": "/targets_at_position"
+  },
+  {
+    "endpoint": "get_tracks",
+    "rule": "/tracks"
+  },
+  {
+    "endpoint": "get_turn",
+    "rule": "/turn"
+  },
+  {
+    "endpoint": "get_turn_order",
+    "rule": "/turn_order"
+  },
+  {
+    "endpoint": "get_users",
+    "rule": "/get_users"
+  },
+  {
+    "endpoint": "handle_reaction",
+    "rule": "/reaction"
+  },
+  {
     "endpoint": "health",
     "rule": "/health"
+  },
+  {
+    "endpoint": "health_check",
+    "rule": "/health"
+  },
+  {
+    "endpoint": "import_dndbeyond_character",
+    "rule": "/character_builder/import_dndbeyond"
+  },
+  {
+    "endpoint": "index",
+    "rule": "/"
+  },
+  {
+    "endpoint": "jump_info",
+    "rule": "/jump_info"
+  },
+  {
+    "endpoint": "list_prebuilt_character_images",
+    "rule": "/character_builder/prebuilt_images"
+  },
+  {
+    "endpoint": "login",
+    "rule": "/login"
+  },
+  {
+    "endpoint": "logout",
+    "rule": "/logout"
+  },
+  {
+    "endpoint": "manual_roll",
+    "rule": "/manual_roll"
+  },
+  {
+    "endpoint": "mark_note_read",
+    "rule": "/mark_note_read"
   },
   {
     "endpoint": "mcp.manifest",
@@ -454,6 +754,10 @@
   {
     "endpoint": "mcp.tools_list",
     "rule": "/mcp/tools/list"
+  },
+  {
+    "endpoint": "move_entity",
+    "rule": "/move_entity"
   },
   {
     "endpoint": "navigation.command",
@@ -508,11 +812,171 @@
     "rule": "/nearby_entities"
   },
   {
+    "endpoint": "next_turn",
+    "rule": "/next_turn"
+  },
+  {
+    "endpoint": "path_cost_map",
+    "rule": "/path/cost_map"
+  },
+  {
+    "endpoint": "read_letter",
+    "rule": "/read_letter"
+  },
+  {
+    "endpoint": "ready_action_endpoint",
+    "rule": "/ready_action"
+  },
+  {
+    "endpoint": "refresh_portraits",
+    "rule": "/refresh-portraits"
+  },
+  {
+    "endpoint": "reload_map",
+    "rule": "/reload_map"
+  },
+  {
+    "endpoint": "remove_from_battle",
+    "rule": "/remove_from_battle"
+  },
+  {
+    "endpoint": "reorder_initiative",
+    "rule": "/reorder_initiative"
+  },
+  {
+    "endpoint": "reset_narrations",
+    "rule": "/reset_narrations"
+  },
+  {
+    "endpoint": "response",
+    "rule": "/response"
+  },
+  {
+    "endpoint": "rest_preview",
+    "rule": "/rest/preview"
+  },
+  {
+    "endpoint": "seek",
+    "rule": "/seek"
+  },
+  {
+    "endpoint": "select_character",
+    "rule": "/select_character"
+  },
+  {
+    "endpoint": "serve_editor_image",
+    "rule": "/assets/editor/<filename>"
+  },
+  {
+    "endpoint": "serve_item_image",
+    "rule": "/assets/items/<filename>"
+  },
+  {
+    "endpoint": "serve_map_image",
+    "rule": "/assets/maps/<path:filename>"
+  },
+  {
+    "endpoint": "serve_object_image",
+    "rule": "/assets/objects/<filename>"
+  },
+  {
+    "endpoint": "serve_sound_file",
+    "rule": "/assets/sounds/<filename>"
+  },
+  {
+    "endpoint": "set_volume",
+    "rule": "/volume"
+  },
+  {
+    "endpoint": "sound",
+    "rule": "/sound"
+  },
+  {
+    "endpoint": "spawn_npc",
+    "rule": "/spawn_npc"
+  },
+  {
+    "endpoint": "spawn_object",
+    "rule": "/spawn_object"
+  },
+  {
+    "endpoint": "start_battle",
+    "rule": "/start"
+  },
+  {
+    "endpoint": "start_battle_with_initiative",
+    "rule": "/battle"
+  },
+  {
     "endpoint": "static",
     "rule": "/<path:filename>"
   },
   {
+    "endpoint": "stop_battle",
+    "rule": "/stop"
+  },
+  {
+    "endpoint": "switch_map",
+    "rule": "/switch_map"
+  },
+  {
+    "endpoint": "switch_pov",
+    "rule": "/switch_pov"
+  },
+  {
+    "endpoint": "take_rest",
+    "rule": "/rest"
+  },
+  {
     "endpoint": "talk",
     "rule": "/talk"
+  },
+  {
+    "endpoint": "unequip",
+    "rule": "/unequip"
+  },
+  {
+    "endpoint": "update",
+    "rule": "/update"
+  },
+  {
+    "endpoint": "update_action_resources",
+    "rule": "/update_action_resources"
+  },
+  {
+    "endpoint": "update_character",
+    "rule": "/update_character/<character_name>"
+  },
+  {
+    "endpoint": "update_controller",
+    "rule": "/update_controller"
+  },
+  {
+    "endpoint": "update_group",
+    "rule": "/update_group"
+  },
+  {
+    "endpoint": "update_hp",
+    "rule": "/update_hp"
+  },
+  {
+    "endpoint": "update_npc",
+    "rule": "/update_npc"
+  },
+  {
+    "endpoint": "update_npc_default_controller",
+    "rule": "/update_npc_default_controller"
+  },
+  {
+    "endpoint": "update_spell_slots",
+    "rule": "/update_spell_slots"
+  },
+  {
+    "endpoint": "upload_map_background",
+    "rule": "/upload_map_background"
+  },
+  {
+    "endpoint": "usable_items",
+    "rule": "/usable_items"
   }
 ]
