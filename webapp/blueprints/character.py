@@ -834,6 +834,77 @@ def character_journal_list(character_name):
     })
 
 
+@character_bp.route('/character/<character_name>/level_up/preview', methods=['GET'])
+def character_level_up_preview(character_name):
+    character = get_current_game().get_entity_by_uid(character_name)
+    if not character:
+        return jsonify(error="Character not found"), 404
+    if not isinstance(character, PlayerCharacter):
+        return jsonify(error="Level-up is only available for player characters"), 400
+    allowed, err = _journal_owner_check(character)
+    if not allowed:
+        return err
+    class_name = request.args.get('class_name') or request.args.get('class')
+    hp_mode = request.args.get('hp_mode') or 'average'
+    hp_roll = request.args.get('hp_roll')
+    try:
+        hp_roll = int(hp_roll) if hp_roll not in (None, '') else None
+        return jsonify(success=True, preview=character.level_up_preview(
+            class_name=class_name,
+            hp_mode=hp_mode,
+            hp_roll=hp_roll,
+        ))
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc), progress=character.xp_progress()), 400
+
+
+@character_bp.route('/character/<character_name>/level_up/apply', methods=['POST'])
+def character_level_up_apply(character_name):
+    character = get_current_game().get_entity_by_uid(character_name)
+    if not character:
+        return jsonify(error="Character not found"), 404
+    if not isinstance(character, PlayerCharacter):
+        return jsonify(error="Level-up is only available for player characters"), 400
+    allowed, err = _journal_owner_check(character)
+    if not allowed:
+        return err
+    if get_current_game().get_current_battle() and 'dm' not in user_role():
+        return jsonify(success=False, error='Level-up is unavailable during active combat'), 409
+
+    payload = request.get_json(silent=True) or {}
+    class_name = payload.get('class_name') or payload.get('class')
+    hp_mode = payload.get('hp_mode') or 'average'
+    hp_roll = payload.get('hp_roll')
+    try:
+        hp_roll = int(hp_roll) if hp_roll not in (None, '') else None
+    except (TypeError, ValueError):
+        return jsonify(success=False, error='hp_roll must be a number'), 400
+
+    try:
+        with get_current_game().game_state_lock:
+            summary = character.apply_level_up(
+                class_name=class_name,
+                hp_mode=hp_mode,
+                hp_roll=hp_roll,
+                choices=payload.get('choices') or {},
+                force='dm' in user_role() and bool(payload.get('force')),
+            )
+            get_current_game().save_game_async()
+        get_socketio().emit('message', {
+            'type': 'level_up_applied',
+            'message': {
+                'entity_uid': character.entity_uid,
+                'name': character.label(),
+                'level': character.level(),
+                'summary': summary,
+            },
+        })
+        get_socketio().emit('message', {'type': 'refresh_map'})
+        return jsonify(success=True, summary=summary, progress=character.xp_progress())
+    except Exception as exc:
+        return jsonify(success=False, error=str(exc), progress=character.xp_progress()), 400
+
+
 @character_bp.route('/character/<character_name>/journal', methods=['POST'])
 def character_journal_add(character_name):
     """Append a manual journal entry for ``character_name``."""

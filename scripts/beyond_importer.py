@@ -501,6 +501,7 @@ class BeyondImporter:
 
         yaml_data["classes"] = classes_map
         yaml_data["level"] = total_level
+        yaml_data["xp"] = int(character_data.get("currentXp") or character_data.get("xp") or 0)
         yaml_data["hit_die"] = "inherit"
         yaml_data["max_hp"] = max_hp
         yaml_data["hp"] = current_hp

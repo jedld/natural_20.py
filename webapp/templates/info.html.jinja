@@ -303,6 +303,52 @@
                         {% endif %}
                         {% endif %}
                     </table>
+                    {% if entity.__class__.__name__ == 'PlayerCharacter' and entity.xp_progress is defined %}
+                    {% set xp_progress = entity.xp_progress() %}
+                    <div class="xp-progress-card" data-entity-uid="{{ entity.entity_uid }}">
+                        <h3>Experience</h3>
+                        <p>Progression mode: {{ xp_progress.progression_mode|upper }}</p>
+                        <p>
+                            <strong>{{ xp_progress.xp }}</strong> XP
+                            {% if xp_progress.progression_mode != 'xp' %}
+                            (tracked, level-ups are campaign gated)
+                            {% elif xp_progress.next_level_xp %}
+                            / {{ xp_progress.next_level_xp }} XP for level {{ xp_progress.level + 1 }}
+                            {% else %}
+                            (maximum level)
+                            {% endif %}
+                        </p>
+                        {% if xp_progress.progression_mode == 'xp' %}
+                        <p>
+                            {% if xp_progress.next_level_xp %}
+                            {{ xp_progress.xp_to_next_level }} XP to next level.
+                            {% else %}
+                            Maximum level reached.
+                            {% endif %}
+                        </p>
+                        {% endif %}
+                        {% if xp_progress.next_level_xp %}
+                        {% set span = xp_progress.next_level_xp - xp_progress.current_level_xp %}
+                        {% set gained = xp_progress.xp - xp_progress.current_level_xp %}
+                        {% set pct = (100 * gained / span) if span > 0 else 100 %}
+                        <div style="background:#eee; border:1px solid #bbb; height:14px; border-radius:7px; overflow:hidden;">
+                            <div style="background:#8b0000; height:100%; width:{{ [0, [pct, 100]|min]|max }}%;"></div>
+                        </div>
+                        <p>
+                            {% if xp_progress.pending_level_ups > 0 %}
+                            <strong>Level up available.</strong> You can advance to level {{ xp_progress.eligible_level }}.
+                            {% elif xp_progress.progression_mode == 'xp' %}
+                            {{ xp_progress.xp_to_next_level }} XP to next level.
+                            {% else %}
+                            Waiting for a DM or campaign event level-up grant.
+                            {% endif %}
+                        </p>
+                        {% endif %}
+                        {% if xp_progress.pending_level_ups > 0 %}
+                        <button class="hp-save-btn" type="button" onclick="openLevelUpPreview('{{ entity.entity_uid }}')">Level Up</button>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
 
@@ -1124,6 +1170,62 @@
     <script src="{{ asset_url('sheet.js') }}"></script>
     <script src="{{ asset_url('utils.js') }}"></script>
     <script>
+        function openLevelUpPreview(entityUid) {
+            fetch('/character/' + encodeURIComponent(entityUid) + '/level_up/preview', {
+                method: 'GET',
+                credentials: 'same-origin'
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        alert(data.error || 'Level-up is not available.');
+                        return;
+                    }
+                    const preview = data.preview;
+                    const slotChanges = Object.keys(preview.spell_slot_changes || {})
+                        .map(level => `Spell level ${level}: ${preview.spell_slot_changes[level].old} -> ${preview.spell_slot_changes[level].new}`)
+                        .join('\n');
+                    const features = (preview.features || []).length
+                        ? preview.features.join(', ')
+                        : 'No automated feature changes recorded.';
+                    const message = [
+                        `${preview.name} can advance to level ${preview.new_level}.`,
+                        `Class: ${preview.class_name} ${preview.old_class_level} -> ${preview.new_class_level}`,
+                        `HP: ${preview.hp.old_max} -> ${preview.hp.new_max} (+${preview.hp.gain}, ${preview.hp.hit_die} average + CON)`,
+                        `Proficiency: +${preview.proficiency_bonus.old} -> +${preview.proficiency_bonus.new}`,
+                        `Features: ${features}`,
+                        slotChanges ? `Spell slots:\n${slotChanges}` : ''
+                    ].filter(Boolean).join('\n\n');
+                    if (!confirm(message + '\n\nApply this level-up now?')) {
+                        return;
+                    }
+                    applyLevelUp(entityUid, preview.class_name, preview.hp.mode);
+                })
+                .catch(error => alert('Failed to preview level-up: ' + error));
+        }
+
+        function applyLevelUp(entityUid, className, hpMode) {
+            fetch('/character/' + encodeURIComponent(entityUid) + '/level_up/apply', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    class_name: className,
+                    hp_mode: hpMode || 'average'
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        alert(data.error || 'Failed to apply level-up.');
+                        return;
+                    }
+                    alert('Level-up applied.');
+                    window.location.reload();
+                })
+                .catch(error => alert('Failed to apply level-up: ' + error));
+        }
+
         // HP Update Functions for DM
         function updateMaxHP() {
             const input = document.getElementById('max-hp-input');

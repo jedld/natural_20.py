@@ -66,6 +66,7 @@ def test_classes_and_subclass(importer, payload):
     out = importer.convert_to_yaml(payload)
     assert out["classes"] == {"wizard": 2}
     assert out["level"] == 2
+    assert out["xp"] == int(payload.get("currentXp") or 0)
     assert out["arcane_tradition"] == "school_of_evocation"
     assert out["background"] == "sage"
 

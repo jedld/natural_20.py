@@ -14,6 +14,13 @@ from natural20.actions.use_item_action import UseItemAction
 from natural20.generic_controller import GenericController
 from natural20.llm_controller import LlmMcpController
 from natural20.player_character import PlayerCharacter
+from natural20.progression import (
+    adjusted_encounter_xp,
+    award_xp_to_character,
+    encounter_difficulty,
+    encounter_xp,
+    split_xp,
+)
 from natural20.web.web_controller import WebController
 
 from .ai import DM_AI_CHAT_SESSION_KEY
@@ -37,6 +44,57 @@ from .helpers.runtime_state import (
 )
 
 dm_bp = Blueprint('dm', __name__)
+
+
+def _all_player_characters():
+    seen = set()
+    players = []
+    current_game = get_current_game()
+    for battle_map in (getattr(current_game, 'maps', {}) or {}).values():
+        for entity in list(getattr(battle_map, 'entities', []) or []):
+            if isinstance(entity, PlayerCharacter) and entity.entity_uid not in seen:
+                seen.add(entity.entity_uid)
+                players.append(entity)
+    return players
+
+
+def _resolve_player_characters(entity_uids=None):
+    if not entity_uids:
+        return _all_player_characters()
+    players = []
+    for entity_uid in entity_uids:
+        entity = get_current_game().get_entity_by_uid(entity_uid)
+        if not isinstance(entity, PlayerCharacter):
+            continue
+        players.append(entity)
+    return players
+
+
+def _serialize_xp_award(character, award):
+    levels_available = character.pending_level_ups()
+    return {
+        'entity_uid': character.entity_uid,
+        'name': character.label(),
+        'amount': award.amount,
+        'old_xp': award.old_xp,
+        'new_xp': award.new_xp,
+        'old_level': award.old_level,
+        'eligible_level': character.eligible_level(),
+        'levels_available': levels_available,
+        'progress': character.xp_progress(),
+    }
+
+
+def _emit_xp_events(awards):
+    payloads = []
+    for character, award in awards:
+        payload = _serialize_xp_award(character, award)
+        payloads.append(payload)
+        get_socketio().emit('message', {'type': 'xp_awarded', 'message': payload})
+        if payload.get('levels_available', 0) > 0:
+            get_socketio().emit('message', {'type': 'level_up_available', 'message': payload})
+    get_socketio().emit('message', {'type': 'refresh_map'})
+    return payloads
 
 
 @dm_bp.route('/admin/saves', methods=['GET'])
@@ -1333,6 +1391,221 @@ def update_controller():
 
     return jsonify(status='ok')
 
+
+@dm_bp.route('/xp_summary', methods=['GET'])
+def xp_summary():
+    """Summarize party XP and optional active encounter XP for the DM."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    players = _all_player_characters()
+    battle = get_current_game().get_current_battle()
+    monsters = []
+    if battle:
+        monsters = [entity for entity in getattr(battle, 'entities', []) if not isinstance(entity, PlayerCharacter)]
+    adjusted = adjusted_encounter_xp(monsters, party_size=len(players)) if monsters else 0
+    return jsonify({
+        'success': True,
+        'players': [
+            {
+                'entity_uid': player.entity_uid,
+                'name': player.label(),
+                'xp': player.experience(),
+                'level': player.level(),
+                'eligible_level': player.xp_progress()['eligible_level'],
+                'pending_level_ups': player.pending_level_ups(),
+                'xp_to_next_level': player.xp_progress()['xp_to_next_level'],
+            }
+            for player in players
+        ],
+        'encounter': {
+            'base_xp': encounter_xp(monsters),
+            'adjusted_xp': adjusted,
+            'difficulty': encounter_difficulty(adjusted, [player.level() for player in players]) if players and monsters else 'trivial',
+            'monster_count': len(monsters),
+        },
+    })
+
+
+@dm_bp.route('/award_xp', methods=['POST'])
+def award_xp():
+    """Award campaign XP to one, many, or all player characters."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    if not request.is_json:
+        return jsonify({'success': False, 'error': 'Request must be JSON'}), 400
+    data = request.get_json() or {}
+    try:
+        amount = int(data.get('amount', 0))
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'error': 'XP amount must be a number'}), 400
+    if amount < 0:
+        return jsonify({'success': False, 'error': 'XP amount cannot be negative'}), 400
+    entity_uids = data.get('entity_uids') or data.get('recipients')
+    if isinstance(entity_uids, str):
+        entity_uids = [entity_uids]
+    players = _resolve_player_characters(entity_uids)
+    if not players:
+        return jsonify({'success': False, 'error': 'No player characters found'}), 404
+    split = bool(data.get('split', False))
+    source = data.get('source') or 'manual'
+    reason = data.get('reason')
+
+    with get_current_game().game_state_lock:
+        allocations = split_xp(amount, players, split=split)
+        awards = []
+        for player in players:
+            award = award_xp_to_character(player, allocations[player.entity_uid], source=source, reason=reason)
+            awards.append((player, award))
+            get_output_logger().log(
+                f"DM awarded {award.amount} XP to {player.label()} ({award.old_xp} -> {award.new_xp})",
+                visibility='dm_only',
+            )
+        payloads = _emit_xp_events(awards)
+        get_current_game().save_game_async()
+    return jsonify({'success': True, 'awards': payloads})
+
+
+@dm_bp.route('/award_encounter_xp', methods=['POST'])
+def award_encounter_xp():
+    """Award XP from defeated NPCs, split across selected/all PCs by default."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    data = request.get_json(silent=True) or {}
+    monster_uids = data.get('monster_uids') or data.get('entity_uids')
+    monsters = []
+    if monster_uids:
+        for entity_uid in monster_uids:
+            entity = get_current_game().get_entity_by_uid(entity_uid)
+            if entity and not isinstance(entity, PlayerCharacter):
+                monsters.append(entity)
+    else:
+        battle = get_current_game().get_current_battle()
+        if battle:
+            monsters = [entity for entity in getattr(battle, 'entities', []) if not isinstance(entity, PlayerCharacter)]
+    if not monsters:
+        return jsonify({'success': False, 'error': 'No encounter NPCs found'}), 404
+
+    recipient_uids = data.get('recipient_uids')
+    players = _resolve_player_characters(recipient_uids)
+    if not players:
+        return jsonify({'success': False, 'error': 'No player characters found'}), 404
+
+    total_xp = encounter_xp(monsters)
+    with get_current_game().game_state_lock:
+        allocations = split_xp(total_xp, players, split=True)
+        awards = []
+        for player in players:
+            award = award_xp_to_character(player, allocations[player.entity_uid], source='encounter', reason=data.get('reason'))
+            awards.append((player, award))
+            get_output_logger().log(
+                f"DM awarded encounter XP {award.amount} to {player.label()}",
+                visibility='dm_only',
+            )
+        payloads = _emit_xp_events(awards)
+        get_current_game().save_game_async()
+
+    adjusted = adjusted_encounter_xp(monsters, party_size=len(players))
+    return jsonify({
+        'success': True,
+        'base_xp': total_xp,
+        'adjusted_xp': adjusted,
+        'difficulty': encounter_difficulty(adjusted, [player.level() for player in players]),
+        'awards': payloads,
+    })
+
+
+@dm_bp.route('/grant_level_up', methods=['POST'])
+def grant_level_up():
+    """DM-gated progression: grant level-up permissions to PCs."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    data = request.get_json(silent=True) or {}
+    entity_uids = data.get('entity_uids') or data.get('recipients')
+    if isinstance(entity_uids, str):
+        entity_uids = [entity_uids]
+    players = _resolve_player_characters(entity_uids)
+    if not players:
+        return jsonify({'success': False, 'error': 'No player characters found'}), 404
+    try:
+        levels = int(data.get('levels', 1) or 1)
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'error': 'levels must be a number'}), 400
+    if levels < 1:
+        return jsonify({'success': False, 'error': 'levels must be at least 1'}), 400
+
+    payloads = []
+    with get_current_game().game_state_lock:
+        for player in players:
+            grants = player.grant_level_up(
+                source='dm',
+                levels=levels,
+                reason=data.get('reason'),
+                target_level=data.get('target_level'),
+            )
+            payload = {
+                'entity_uid': player.entity_uid,
+                'name': player.label(),
+                'grants': grants,
+                'eligible_level': player.eligible_level(),
+                'levels_available': player.pending_level_ups(),
+                'progress': player.xp_progress(),
+            }
+            payloads.append(payload)
+            get_output_logger().log(
+                f"DM granted {len(grants)} level-up permission(s) to {player.label()}",
+                visibility='dm_only',
+            )
+            if player.pending_level_ups() > 0:
+                get_socketio().emit('message', {'type': 'level_up_available', 'message': payload})
+        get_socketio().emit('message', {'type': 'refresh_map'})
+        get_current_game().save_game_async()
+    return jsonify({'success': True, 'grants': payloads})
+
+
+@dm_bp.route('/grant_event_level_up', methods=['POST'])
+def grant_event_level_up():
+    """Event-gated progression: trigger a configured campaign level-up event."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+    data = request.get_json(silent=True) or {}
+    event = data.get('event')
+    if not event:
+        return jsonify({'success': False, 'error': 'event is required'}), 400
+    entity_uids = data.get('entity_uids') or data.get('recipients')
+    if isinstance(entity_uids, str):
+        entity_uids = [entity_uids]
+    players = _resolve_player_characters(entity_uids)
+    if not players:
+        return jsonify({'success': False, 'error': 'No player characters found'}), 404
+
+    payloads = []
+    with get_current_game().game_state_lock:
+        try:
+            for player in players:
+                grants = player.grant_event_level_up(event, reason=data.get('reason'))
+                payload = {
+                    'entity_uid': player.entity_uid,
+                    'name': player.label(),
+                    'event': event,
+                    'grants': grants,
+                    'eligible_level': player.eligible_level(),
+                    'levels_available': player.pending_level_ups(),
+                    'progress': player.xp_progress(),
+                }
+                payloads.append(payload)
+                get_output_logger().log(
+                    f"DM triggered level-up event {event} for {player.label()}",
+                    visibility='dm_only',
+                )
+                if player.pending_level_ups() > 0:
+                    get_socketio().emit('message', {'type': 'level_up_available', 'message': payload})
+        except ValueError as exc:
+            return jsonify({'success': False, 'error': str(exc)}), 400
+        get_socketio().emit('message', {'type': 'refresh_map'})
+        get_current_game().save_game_async()
+    return jsonify({'success': True, 'event': event, 'grants': payloads})
+
+
 @dm_bp.route('/update_hp', methods=['POST'])
 def update_hp():
     """Update HP values for an entity (DM only)."""
@@ -1494,6 +1767,64 @@ def update_action_resources():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Failed to update resource: {str(e)}'}), 500
 
+
+@dm_bp.route('/update_resource_pool', methods=['POST'])
+def update_resource_pool():
+    """Update an entity ResourcePool (DM only), e.g. superiority dice."""
+    if 'dm' not in user_role():
+        return jsonify({'success': False, 'error': 'DM access required'}), 403
+
+    if not request.is_json:
+        return jsonify({'success': False, 'error': 'Request must be JSON'}), 400
+
+    data = request.get_json()
+    if not data or 'entity_id' not in data or 'resource_name' not in data or 'value' not in data:
+        return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+
+    entity_id = data['entity_id']
+    resource_name = str(data['resource_name'])
+    operation = data.get('operation', 'set')
+    try:
+        value = int(data['value'])
+        if value < 0:
+            return jsonify({'success': False, 'error': 'Resource value cannot be negative'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Resource value must be a number'}), 400
+
+    entity = get_current_game().get_entity_by_uid(entity_id)
+    if not entity:
+        return jsonify({'success': False, 'error': 'Entity not found'}), 404
+
+    pool = entity.get_resource(resource_name) if hasattr(entity, 'get_resource') else None
+    if not pool:
+        return jsonify({'success': False, 'error': 'Resource pool not found'}), 404
+
+    current_value = pool.current
+    if operation == 'set':
+        new_value = value
+    elif operation == 'add':
+        new_value = current_value + value
+    elif operation == 'subtract':
+        new_value = current_value - value
+    else:
+        return jsonify({'success': False, 'error': 'Invalid operation. Use set, add, or subtract'}), 400
+
+    pool.current = max(0, min(pool.max_value, new_value))
+    get_output_logger().log(
+        f"DM updated {entity.label()}'s {resource_name.replace('_', ' ')} from {current_value} to {pool.current}",
+        visibility='dm_only',
+    )
+    get_socketio().emit('message', {'type': 'refresh_map'})
+
+    return jsonify({
+        'success': True,
+        'resource_name': resource_name,
+        'old_value': current_value,
+        'new_value': pool.current,
+        'max_value': pool.max_value,
+    })
+
+
 @dm_bp.route('/update_spell_slots', methods=['POST'])
 def update_spell_slots():
     """Update spell slots for an entity (DM only)."""
@@ -1654,6 +1985,9 @@ def _entity_rest_snapshot(entity):
         'hit_die': dict(entity.hit_die()) if hasattr(entity, 'hit_die') else {},
         'spell_slots': {
             klass: dict(slots) for klass, slots in (getattr(entity, 'spell_slots', {}) or {}).items()
+        },
+        'resources': {
+            name: pool.to_dict() for name, pool in (getattr(entity, 'resources', None) or {}).items()
         },
         'statuses': list(entity.statuses) if hasattr(entity, 'statuses') else [],
     }
