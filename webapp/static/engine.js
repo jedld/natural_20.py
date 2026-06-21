@@ -617,6 +617,33 @@ class EventQueue {
           resolve();
           break;
         }
+        case "xp_awarded": {
+          try {
+            const msg = (data && data.message) || {};
+            const text = `${msg.name || 'A character'} gained ${msg.amount || 0} XP (${msg.new_xp || 0} total).`;
+            showMapToast(text, null, msg.entity_uid, 8000);
+          } catch (e) { console.warn('Failed to show xp_awarded', e, data); }
+          resolve();
+          break;
+        }
+        case "level_up_available": {
+          try {
+            const msg = (data && data.message) || {};
+            const text = `${msg.name || 'A character'} can level up to ${msg.eligible_level || 'the next level'}.`;
+            showMapToast(text, null, msg.entity_uid, 12000);
+          } catch (e) { console.warn('Failed to show level_up_available', e, data); }
+          resolve();
+          break;
+        }
+        case "level_up_applied": {
+          try {
+            const msg = (data && data.message) || {};
+            const text = `${msg.name || 'A character'} advanced to level ${msg.level || ''}.`;
+            showMapToast(text, null, msg.entity_uid, 10000);
+          } catch (e) { console.warn('Failed to show level_up_applied', e, data); }
+          resolve();
+          break;
+        }
         case "map": {
           this.processMapEvent(data, resolve);
           break;

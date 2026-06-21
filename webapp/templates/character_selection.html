@@ -1138,6 +1138,22 @@
                 
                 html += '</div>';
             }
+
+            // Resource pools section
+            if (data.resources && Object.keys(data.resources).length > 0) {
+                html += `
+                    <div class="details-section">
+                        <h3>Resources</h3>
+                        <ul class="feature-list">`;
+                Object.entries(data.resources).forEach(([name, resource]) => {
+                    const label = name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const restore = (resource.restore_on || '').replace(/_/g, ' ');
+                    html += `<li><strong>${label}:</strong> ${resource.current}/${resource.max}${restore ? ` (${restore})` : ''}</li>`;
+                });
+                html += `
+                        </ul>
+                    </div>`;
+            }
             
             // Features section
             html += `
@@ -1149,6 +1165,16 @@
                 html += '<ul class="feature-list">';
                 data.class_features.forEach(feature => {
                     html += `<li>${feature}</li>`;
+                });
+                html += '</ul>';
+            }
+
+            if (data.maneuvers && data.maneuvers.length > 0) {
+                html += '<h4 style="color: #D4AF37; font-size: 1rem; margin: 10px 0 5px 0;">Maneuvers:</h4>';
+                html += '<ul class="feature-list">';
+                data.maneuvers.forEach(maneuver => {
+                    const maneuverName = maneuver.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    html += `<li>${maneuverName}</li>`;
                 });
                 html += '</ul>';
             }

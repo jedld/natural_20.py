@@ -67,7 +67,7 @@ def test_registry_contains_expected_tools(context_and_registry):
         'world.list_maps', 'world.list_entities', 'world.get_entity',
         'world.get_map', 'world.get_battle',
         'dm.set_hp', 'dm.heal', 'dm.damage', 'dm.add_status',
-        'dm.spawn_npc', 'dm.teleport', 'dm.add_item',
+        'dm.award_xp', 'dm.grant_level_up', 'dm.spawn_npc', 'dm.teleport', 'dm.add_item',
         'actions.list_available', 'actions.execute', 'actions.move',
         'actions.end_turn', 'actions.start_battle', 'actions.end_battle',
     }
@@ -107,6 +107,68 @@ def test_dm_add_and_remove_status(context_and_registry):
     registry.call('dm.remove_status',
                   {'entity_uid': 'e1', 'status': 'prone'}, context=ctx)
     assert 'prone' not in fake_entity.statuses
+
+
+def test_dm_award_xp_tool_awards_player_character():
+    from natural20.event_manager import EventManager
+    from natural20.player_character import PlayerCharacter
+    from natural20.session import Session
+    from webapp.mcp import MCPContext, build_default_registry
+
+    session = Session(root_path='tests/fixtures', event_manager=EventManager())
+    pc = PlayerCharacter.load(session, 'high_elf_mage.yml')
+    fake_map = MagicMock()
+    fake_map.entities = {pc: {'group': 'a'}}
+    fake_map.entity_by_uid.side_effect = lambda uid: pc if uid == pc.entity_uid else None
+    fake_map.object_by_uid.return_value = None
+    fake_game = MagicMock()
+    fake_game.maps = {'index': fake_map}
+    fake_game.get_entity_by_uid.side_effect = lambda uid: pc if uid == pc.entity_uid else None
+    fake_game.game_state_lock = None
+
+    ctx = MCPContext(
+        game_session_getter=lambda: session,
+        current_game_getter=lambda: fake_game,
+    )
+    registry = build_default_registry()
+    env = registry.call('dm.award_xp', {'amount': 300}, context=ctx)
+
+    assert env['isError'] is False
+    payload = env['content'][0]['json']
+    assert payload['awards'][0]['new_xp'] == 300
+    assert payload['awards'][0]['levels_available'] == 1
+    assert pc.pending_level_ups() == 1
+
+
+def test_dm_grant_level_up_tool_grants_player_character():
+    from natural20.event_manager import EventManager
+    from natural20.player_character import PlayerCharacter
+    from natural20.session import Session
+    from webapp.mcp import MCPContext, build_default_registry
+
+    session = Session(root_path='tests/fixtures', event_manager=EventManager())
+    session.game_properties['progression'] = {'mode': 'dm'}
+    pc = PlayerCharacter.load(session, 'high_elf_mage.yml')
+    fake_map = MagicMock()
+    fake_map.entities = {pc: {'group': 'a'}}
+    fake_map.entity_by_uid.side_effect = lambda uid: pc if uid == pc.entity_uid else None
+    fake_map.object_by_uid.return_value = None
+    fake_game = MagicMock()
+    fake_game.maps = {'index': fake_map}
+    fake_game.get_entity_by_uid.side_effect = lambda uid: pc if uid == pc.entity_uid else None
+    fake_game.game_state_lock = None
+
+    ctx = MCPContext(
+        game_session_getter=lambda: session,
+        current_game_getter=lambda: fake_game,
+    )
+    registry = build_default_registry()
+    env = registry.call('dm.grant_level_up', {'levels': 1}, context=ctx)
+
+    assert env['isError'] is False
+    payload = env['content'][0]['json']
+    assert payload['grants'][0]['levels_available'] == 1
+    assert pc.pending_level_ups() == 1
 
 
 def test_unknown_tool_returns_error(context_and_registry):

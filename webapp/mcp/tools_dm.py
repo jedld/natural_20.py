@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from natural20.player_character import PlayerCharacter
+from natural20.progression import award_xp_to_character, split_xp
+
 from .context import MCPContext
 from .tool_registry import ToolRegistry, tool, tool_error
 
@@ -174,6 +177,150 @@ def register(registry: ToolRegistry) -> None:
         context.log_dm(f"DM set {ent.label()}.properties[{key!r}]={value!r}")
         context.emit_refresh()
         return {'entity_uid': entity_uid, 'key': key, 'value': value}
+
+    @tool(
+        registry,
+        name='dm.award_xp',
+        description='Award D&D 5e 2014 XP to one, many, or all player characters.',
+        input_schema={
+            'type': 'object',
+            'required': ['amount'],
+            'properties': {
+                'amount': {'type': 'integer', 'minimum': 0},
+                'entity_uids': {
+                    'type': 'array',
+                    'items': {'type': 'string'},
+                    'description': 'Player character UIDs. Omit to award all PCs on loaded maps.',
+                },
+                'split': {'type': 'boolean', 'default': False},
+                'source': {'type': 'string', 'default': 'mcp'},
+                'reason': {'type': 'string'},
+            },
+        },
+        category='dm',
+    )
+    def award_xp(context: MCPContext, amount: int, entity_uids: Optional[List[str]] = None,
+                 split: bool = False, source: str = 'mcp', reason: Optional[str] = None):
+        amount = int(amount or 0)
+        if amount < 0:
+            raise tool_error('XP amount cannot be negative')
+        players = _resolve_player_characters(context, entity_uids)
+        if not players:
+            raise tool_error('No player characters found')
+        allocations = split_xp(amount, players, split=bool(split))
+        awards = []
+        lock = getattr(context.current_game, 'game_state_lock', None)
+
+        def _apply():
+            for player in players:
+                award = award_xp_to_character(
+                    player,
+                    allocations[player.entity_uid],
+                    source=source or 'mcp',
+                    reason=reason,
+                )
+                context.log_dm(f"DM awarded {award.amount} XP to {player.label()}")
+                awards.append({
+                    'entity_uid': player.entity_uid,
+                    'name': player.label(),
+                    'amount': award.amount,
+                    'old_xp': award.old_xp,
+                    'new_xp': award.new_xp,
+                    'old_level': award.old_level,
+                    'eligible_level': player.eligible_level(),
+                    'levels_available': player.pending_level_ups(),
+                    'progress': player.xp_progress(),
+                })
+
+        if lock is not None:
+            with lock:
+                _apply()
+        else:
+            _apply()
+        socketio = context.socketio
+        if socketio is not None:
+            for award in awards:
+                try:
+                    socketio.emit('message', {'type': 'xp_awarded', 'message': award})
+                    if award.get('levels_available', 0) > 0:
+                        socketio.emit('message', {'type': 'level_up_available', 'message': award})
+                except Exception:
+                    pass
+        context.emit_refresh()
+        try:
+            context.current_game.save_game_async()
+        except Exception:
+            pass
+        return {'awards': awards}
+
+    @tool(
+        registry,
+        name='dm.grant_level_up',
+        description='Grant level-up permissions for DM-gated or event-gated progression.',
+        input_schema={
+            'type': 'object',
+            'properties': {
+                'entity_uids': {
+                    'type': 'array',
+                    'items': {'type': 'string'},
+                    'description': 'Player character UIDs. Omit to grant all PCs on loaded maps.',
+                },
+                'levels': {'type': 'integer', 'minimum': 1, 'default': 1},
+                'reason': {'type': 'string'},
+                'event': {'type': 'string', 'description': 'Configured event key for event-gated progression.'},
+            },
+        },
+        category='dm',
+    )
+    def grant_level_up(context: MCPContext, entity_uids: Optional[List[str]] = None,
+                       levels: int = 1, reason: Optional[str] = None,
+                       event: Optional[str] = None):
+        players = _resolve_player_characters(context, entity_uids)
+        if not players:
+            raise tool_error('No player characters found')
+        payloads = []
+        lock = getattr(context.current_game, 'game_state_lock', None)
+
+        def _apply():
+            for player in players:
+                if event:
+                    grants = player.grant_event_level_up(event, reason=reason)
+                else:
+                    grants = player.grant_level_up(source='dm', levels=levels, reason=reason)
+                payload = {
+                    'entity_uid': player.entity_uid,
+                    'name': player.label(),
+                    'event': event,
+                    'grants': grants,
+                    'eligible_level': player.eligible_level(),
+                    'levels_available': player.pending_level_ups(),
+                    'progress': player.xp_progress(),
+                }
+                payloads.append(payload)
+                context.log_dm(f"DM granted {len(grants)} level-up permission(s) to {player.label()}")
+
+        try:
+            if lock is not None:
+                with lock:
+                    _apply()
+            else:
+                _apply()
+        except ValueError as exc:
+            raise tool_error(str(exc))
+        socketio = context.socketio
+        if socketio is not None:
+            for payload in payloads:
+                if payload.get('levels_available', 0) > 0:
+                    try:
+                        socketio.emit('message', {'type': 'level_up_available', 'message': payload})
+                    except Exception:
+                        pass
+        context.emit_refresh()
+        try:
+            context.current_game.save_game_async()
+        except Exception:
+            pass
+        return {'grants': payloads}
 
     @tool(
         registry,
@@ -585,8 +732,9 @@ def register(registry: ToolRegistry) -> None:
         registry,
         name='dm.set_resource',
         description='Mutate a numeric resource on an entity. '
-                    'resource_type: action | bonus_action | reaction | spell_slot | temp_hp. '
+                    'resource_type: action | bonus_action | reaction | spell_slot | temp_hp | resource_pool. '
                     'op: set | add | subtract. For spell_slot, `character_class` and `level` are required. '
+                    'For resource_pool, `resource_name` is required (e.g. "superiority_dice"). '
                     'Battle-required for action/bonus_action/reaction.',
         input_schema={
             'type': 'object',
@@ -595,7 +743,7 @@ def register(registry: ToolRegistry) -> None:
                 'entity_uid': {'type': 'string'},
                 'resource_type': {
                     'type': 'string',
-                    'enum': ['action', 'bonus_action', 'reaction', 'spell_slot', 'temp_hp'],
+                    'enum': ['action', 'bonus_action', 'reaction', 'spell_slot', 'temp_hp', 'resource_pool'],
                 },
                 'value': {'type': 'integer', 'minimum': 0},
                 'op': {'type': 'string', 'enum': ['set', 'add', 'subtract'], 'default': 'set'},
@@ -603,6 +751,8 @@ def register(registry: ToolRegistry) -> None:
                                      'description': 'Required for spell_slot (e.g. "wizard").'},
                 'level': {'type': 'integer', 'minimum': 1, 'maximum': 9,
                            'description': 'Required for spell_slot.'},
+                'resource_name': {'type': 'string',
+                                  'description': 'Required for resource_pool.'},
             },
         },
         category='dm',
@@ -610,7 +760,8 @@ def register(registry: ToolRegistry) -> None:
     def set_resource(context: MCPContext, entity_uid: str, resource_type: str,
                      value: int, op: str = 'set',
                      character_class: Optional[str] = None,
-                     level: Optional[int] = None):
+                     level: Optional[int] = None,
+                     resource_name: Optional[str] = None):
         ent = _resolve(context, entity_uid)
         op = (op or 'set').lower()
         if op not in ('set', 'add', 'subtract'):
@@ -653,6 +804,18 @@ def register(registry: ToolRegistry) -> None:
             result = {'entity_uid': entity_uid, 'resource_type': rt,
                       'character_class': character_class, 'level': int(level),
                       'old_value': current, 'new_value': new_value, 'max_value': cap}
+        elif rt == 'resource_pool':
+            if not resource_name:
+                raise tool_error('resource_name required for resource_pool')
+            pool = ent.get_resource(resource_name) if hasattr(ent, 'get_resource') else None
+            if not pool:
+                raise tool_error(f'Entity has no resource pool {resource_name!r}')
+            current = int(pool.current)
+            new_value = _apply(current, int(pool.max_value))
+            pool.current = new_value
+            result = {'entity_uid': entity_uid, 'resource_type': rt,
+                      'resource_name': resource_name, 'old_value': current,
+                      'new_value': new_value, 'max_value': int(pool.max_value)}
         else:
             # action / bonus_action / reaction
             battle = _safe_call(lambda: context.current_game.get_current_battle())
@@ -1164,6 +1327,24 @@ def _resolve(context: MCPContext, entity_uid: str):
     if ent is None:
         raise tool_error(f'Entity not found: {entity_uid}')
     return ent
+
+
+def _resolve_player_characters(context: MCPContext, entity_uids: Optional[List[str]] = None):
+    if entity_uids:
+        players = []
+        for entity_uid in entity_uids:
+            ent = _resolve(context, entity_uid)
+            if isinstance(ent, PlayerCharacter):
+                players.append(ent)
+        return players
+    players = []
+    seen = set()
+    for battle_map in (getattr(context.current_game, 'maps', {}) or {}).values():
+        for ent in list(getattr(battle_map, 'entities', []) or []):
+            if isinstance(ent, PlayerCharacter) and ent.entity_uid not in seen:
+                seen.add(ent.entity_uid)
+                players.append(ent)
+    return players
 
 
 def _resolve_target_on_map(context: MCPContext,

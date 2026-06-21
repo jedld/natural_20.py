@@ -55,6 +55,17 @@ from natural20.concern.container import Container
 from natural20.utils.movement import compute_actual_moves
 from natural20.concern.lootable import Lootable
 from natural20.concern.inventory import Inventory
+from natural20.progression import (
+  PROGRESSION_MODE_DM,
+  PROGRESSION_MODE_EVENT,
+  PROGRESSION_MODE_XP,
+  XP_THRESHOLDS_BY_LEVEL,
+  hit_die_average,
+  level_for_xp,
+  normalize_progression_settings,
+  proficiency_bonus_for_level,
+  xp_to_next_level,
+)
 import yaml
 import os
 import copy
@@ -205,20 +216,83 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     # chat slash commands ("/journal add ..."). Survives save/load.
     self.journal = []
 
-    for klass, level in self.properties.get('classes', {}).items():
-      setattr(self, f"{klass}_level", level)
-      getattr(self, f"initialize_{klass}")()
-      with open(f"{self.session.root_path}/char_classes/{klass}.yml") as file:
-        character_class_properties = yaml.safe_load(file)
-      self.max_hit_die[klass] = level
-
-      hit_die_details = DieRoll.parse(character_class_properties['hit_die'])
-      self._current_hit_die[int(hit_die_details.die_type)] = level
-      self.class_properties[klass] = character_class_properties
+    self._initialize_class_state()
 
     self._initialize_item_resources()
 
     self.attributes["hp"] = self.properties.get('hp', copy.deepcopy(self.max_hp()))
+
+  def _initialize_class_state(self):
+    self.class_properties = {}
+    self.max_hit_die = {}
+    self._current_hit_die = {}
+    for klass, level in self.properties.get('classes', {}).items():
+      self._initialize_single_class(klass, level)
+
+  def _initialize_single_class(self, klass, level):
+    level = int(level)
+    setattr(self, f"{klass}_level", level)
+    initializer = getattr(self, f"initialize_{klass}", None)
+    if initializer is None:
+      raise ValueError(f"Unsupported character class: {klass}")
+    initializer()
+    with open(f"{self.session.root_path}/char_classes/{klass}.yml") as file:
+      character_class_properties = yaml.safe_load(file)
+    self.max_hit_die[klass] = level
+
+    hit_die_details = DieRoll.parse(character_class_properties['hit_die'])
+    die_type = int(hit_die_details.die_type)
+    self._current_hit_die[die_type] = self._current_hit_die.get(die_type, 0) + level
+    self.class_properties[klass] = character_class_properties
+
+  def _class_hit_die_sides(self, klass):
+    properties = self.class_properties.get(klass)
+    if properties is None:
+      with open(f"{self.session.root_path}/char_classes/{klass}.yml") as file:
+        properties = yaml.safe_load(file)
+    return int(DieRoll.parse(properties['hit_die']).die_type)
+
+  def _class_features_at_level(self, klass, level):
+    properties = self.class_properties.get(klass) or {}
+    features = list((properties.get('progression', {}) or {}).get(f"level_{level}", {}).get('class_features', []) or [])
+    subclass_feature_fields = {
+      'rogue': ('roguish_archetype', 'roguish_archetype_features'),
+      'wizard': ('arcane_tradition', 'arcane_tradition_features'),
+    }
+    subclass_field, feature_field = subclass_feature_fields.get(klass, (None, None))
+    subclass = self.properties.get(subclass_field) if subclass_field else None
+    if subclass:
+      features.extend(((properties.get(feature_field, {}) or {}).get(subclass, {}) or {}).get(f"level_{level}", []) or [])
+    if klass == 'cleric' and self.properties.get('divine_domain'):
+      features.extend(
+        ((properties.get('divine_domain_features', {}) or {}).get(self.properties.get('divine_domain'), {}) or {}).get(f"level_{level}", []) or []
+      )
+    return features
+
+  def _reinitialize_after_level_change(self, old_spell_slots=None, old_max_spell_slots=None,
+                                       old_current_hit_die=None, gained_hit_die=None):
+    old_spell_slots = old_spell_slots or {}
+    old_max_spell_slots = old_max_spell_slots or {}
+    old_current_hit_die = old_current_hit_die or {}
+    self.spell_slots = {}
+    self._initialize_class_state()
+
+    # Preserve spent slots while granting any newly unlocked slot capacity.
+    for klass, slots in self.spell_slots.items():
+      previous_slots = old_spell_slots.get(klass, {})
+      previous_max = old_max_spell_slots.get(klass, {})
+      for level, max_slots in list(slots.items()):
+        old_current = int(previous_slots.get(level, max_slots if level not in previous_slots else previous_slots.get(level, 0)))
+        old_capacity = int(previous_max.get(level, old_current))
+        slots[level] = min(max_slots, old_current + max(0, int(max_slots) - old_capacity))
+
+    if old_current_hit_die:
+      new_current_hit_die = {}
+      for die_type, count in self._current_hit_die.items():
+        die_key = int(die_type)
+        gained = 1 if gained_hit_die and int(gained_hit_die) == die_key else 0
+        new_current_hit_die[die_key] = min(count, int(old_current_hit_die.get(die_key, 0)) + gained)
+      self._current_hit_die = new_current_hit_die
 
   def description(self):
     return super().description()
@@ -264,6 +338,239 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
 
   def level(self):
       return self.properties['level']
+
+  def experience(self):
+      return int(self.properties.get('xp', self.properties.get('experience', 0)) or 0)
+
+  def xp_progress(self):
+      current_level = self.level()
+      next_level_xp = None if current_level >= 20 else XP_THRESHOLDS_BY_LEVEL[current_level + 1]
+      eligible_level = self.eligible_level()
+      return {
+        'xp': self.experience(),
+        'level': current_level,
+        'eligible_level': eligible_level,
+        'current_level_xp': XP_THRESHOLDS_BY_LEVEL.get(current_level, 0),
+        'next_level_xp': next_level_xp,
+        'xp_to_next_level': xp_to_next_level(self.experience(), current_level),
+        'pending_level_ups': self.pending_level_ups(),
+        'progression_mode': self.progression_mode(),
+        'level_up_grants': list(self.properties.get('level_up_grants', []) or []),
+      }
+
+  def add_experience(self, amount, source='manual', reason=None):
+      amount = int(amount or 0)
+      if amount < 0:
+        raise ValueError('XP amount cannot be negative')
+      old_xp = self.experience()
+      new_xp = old_xp + amount
+      self.properties['xp'] = new_xp
+      self.properties.setdefault('xp_log', []).append({
+        'ts': datetime.now(timezone.utc).isoformat(),
+        'source': source,
+        'reason': reason,
+        'amount': amount,
+        'old_xp': old_xp,
+        'new_xp': new_xp,
+        'old_level': self.level(),
+        'eligible_level': level_for_xp(new_xp),
+      })
+      return new_xp
+
+  def pending_level_ups(self):
+      return max(0, self.eligible_level() - self.level())
+
+  def progression_settings(self):
+      game_properties = getattr(self.session, 'game_properties', {}) or {}
+      return normalize_progression_settings(game_properties.get('progression'))
+
+  def progression_mode(self):
+      return self.progression_settings().get('mode', PROGRESSION_MODE_XP)
+
+  def eligible_level(self):
+      current_level = self.level()
+      if current_level >= 20:
+        return 20
+      mode = self.progression_mode()
+      if mode == PROGRESSION_MODE_XP:
+        return level_for_xp(self.experience())
+      available_grants = [
+        grant for grant in self.properties.get('level_up_grants', []) or []
+        if not grant.get('consumed')
+      ]
+      return min(20, current_level + len(available_grants))
+
+  def grant_level_up(self, source='dm', event=None, levels=1, reason=None, target_level=None):
+      levels = max(1, int(levels or 1))
+      grants = self.properties.setdefault('level_up_grants', [])
+      created = []
+      for _ in range(levels):
+        if self.level() + len([g for g in grants if not g.get('consumed')]) >= 20:
+          break
+        grant = {
+          'id': str(uuid.uuid4()),
+          'ts': datetime.now(timezone.utc).isoformat(),
+          'source': source,
+          'event': event,
+          'reason': reason,
+          'target_level': target_level,
+          'consumed': False,
+        }
+        grants.append(grant)
+        created.append(grant)
+      return created
+
+  def grant_event_level_up(self, event, reason=None):
+      settings = self.progression_settings()
+      event_settings = (settings.get('events') or {}).get(event)
+      if self.progression_mode() != PROGRESSION_MODE_EVENT:
+        raise ValueError('Campaign progression mode is not event-gated')
+      if event_settings is None:
+        raise ValueError(f'Level-up event is not configured: {event}')
+      levels = int(event_settings.get('levels', 1) or 1) if isinstance(event_settings, dict) else 1
+      target_level = event_settings.get('target_level') if isinstance(event_settings, dict) else None
+      if target_level is not None:
+        levels = max(0, int(target_level) - self.level())
+      return self.grant_level_up(
+        source='event',
+        event=event,
+        levels=levels,
+        reason=reason or (event_settings.get('label') if isinstance(event_settings, dict) else event),
+        target_level=target_level,
+      )
+
+  def _consume_level_up_grant(self):
+      if self.progression_mode() == PROGRESSION_MODE_XP:
+        return None
+      for grant in self.properties.get('level_up_grants', []) or []:
+        if not grant.get('consumed'):
+          grant['consumed'] = True
+          grant['consumed_at'] = datetime.now(timezone.utc).isoformat()
+          return grant
+      return None
+
+  def level_up_preview(self, class_name=None, hp_mode='average', hp_roll=None):
+      if self.level() >= 20:
+        raise ValueError('Characters cannot advance beyond level 20')
+      if self.pending_level_ups() <= 0:
+        raise ValueError('Character does not have enough XP to level up')
+
+      class_map = self.properties.setdefault('classes', {})
+      if class_name is None:
+        if len(class_map) == 1:
+          class_name = next(iter(class_map.keys()))
+        else:
+          raise ValueError('class_name is required for multiclass characters')
+      if class_name not in class_map:
+        if getattr(self, f"initialize_{class_name}", None) is None:
+          raise ValueError(f'Unsupported character class: {class_name}')
+        added_class = True
+        class_map[class_name] = 0
+      else:
+        added_class = False
+
+      old_total_level = self.level()
+      new_total_level = old_total_level + 1
+      old_class_level = int(class_map.get(class_name, 0))
+      new_class_level = old_class_level + 1
+      hit_die_sides = self._class_hit_die_sides(class_name)
+      con_bonus = self.con_mod()
+      average_gain = max(1, hit_die_average(hit_die_sides) + con_bonus)
+      manual_gain = max(1, int(hp_roll if hp_roll is not None else average_gain) + (0 if hp_mode == 'manual_total' else 0))
+      hp_gain = manual_gain if hp_mode in ('roll', 'manual', 'manual_total') else average_gain
+
+      old_slots = {level: self.max_spell_slots(level, class_name) for level in range(1, 10)}
+      old_pb = self.proficiency_bonus()
+      new_pb = proficiency_bonus_for_level(new_total_level)
+
+      class_map[class_name] = new_class_level
+      self.properties['level'] = new_total_level
+      setattr(self, f"{class_name}_level", new_class_level)
+      try:
+        new_slots = {level: self.max_spell_slots(level, class_name) for level in range(1, 10)}
+      finally:
+        if added_class:
+          class_map.pop(class_name, None)
+        else:
+          class_map[class_name] = old_class_level
+        self.properties['level'] = old_total_level
+        if old_class_level:
+          setattr(self, f"{class_name}_level", old_class_level)
+        elif hasattr(self, f"{class_name}_level"):
+          delattr(self, f"{class_name}_level")
+
+      slot_changes = {
+        level: {'old': old_slots[level], 'new': new_slots[level]}
+        for level in range(1, 10)
+        if old_slots[level] != new_slots[level]
+      }
+      features = self._class_features_at_level(class_name, new_class_level)
+      required_choices = []
+      if new_class_level in (4, 8, 12, 16, 19):
+        required_choices.append({'type': 'ability_score_improvement', 'level': new_class_level})
+      if old_class_level == 0:
+        required_choices.append({'type': 'multiclass_entry', 'class': class_name})
+
+      return {
+        'entity_uid': self.entity_uid,
+        'name': self.label(),
+        'class_name': class_name,
+        'old_level': old_total_level,
+        'new_level': new_total_level,
+        'old_class_level': old_class_level,
+        'new_class_level': new_class_level,
+        'xp': self.experience(),
+        'xp_to_next_level': xp_to_next_level(self.experience(), new_total_level),
+        'hp': {
+          'mode': hp_mode,
+          'hit_die': f'1d{hit_die_sides}',
+          'constitution_modifier': con_bonus,
+          'gain': hp_gain,
+          'old_max': self.max_hp(),
+          'new_max': self.max_hp() + hp_gain,
+        },
+        'proficiency_bonus': {'old': old_pb, 'new': new_pb},
+        'spell_slot_changes': slot_changes,
+        'features': features,
+        'required_choices': required_choices,
+      }
+
+  def apply_level_up(self, class_name=None, hp_mode='average', hp_roll=None,
+                     choices=None, force=False):
+      if self.pending_level_ups() <= 0 and not force:
+        raise ValueError('Character does not have enough XP to level up')
+      if self.pending_level_ups() <= 0 and force and self.progression_mode() != PROGRESSION_MODE_XP:
+        self.grant_level_up(source='dm', reason='force')
+      preview = self.level_up_preview(class_name=class_name, hp_mode=hp_mode, hp_roll=hp_roll)
+      class_name = preview['class_name']
+      class_map = self.properties.setdefault('classes', {})
+      old_spell_slots = {klass: dict(slots) for klass, slots in self.spell_slots.items()}
+      old_max_spell_slots = {
+        klass: {level: self.max_spell_slots(level, klass) for level in range(1, 10)}
+        for klass in class_map.keys()
+      }
+      old_current_hit_die = dict(self._current_hit_die)
+
+      class_map[class_name] = preview['new_class_level']
+      self.properties['level'] = preview['new_level']
+      base_max_hp = int(self.properties.get('max_hp', self.max_hp()) or 0)
+      self.properties['max_hp'] = base_max_hp + int(preview['hp']['gain'])
+      self.attributes['hp'] = min(self.max_hp(), int(self.attributes.get('hp', 0)) + int(preview['hp']['gain']))
+      gained_hit_die = self._class_hit_die_sides(class_name)
+      self._reinitialize_after_level_change(
+        old_spell_slots=old_spell_slots,
+        old_max_spell_slots=old_max_spell_slots,
+        old_current_hit_die=old_current_hit_die,
+        gained_hit_die=gained_hit_die,
+      )
+      summary = {
+        **preview,
+        'choices': choices or {},
+        'grant': self._consume_level_up_grant(),
+        'applied_at': datetime.now(timezone.utc).isoformat(),
+      }
+      self.properties.setdefault('level_history', []).append(summary)
+      return summary
 
   def size(self):
       return self.properties.get("size") or self.race_properties.get('size')
@@ -330,7 +637,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
   def max_hp(self):
     _max_hp = 0
     if self.class_feature('dwarven_toughness'):
-      _max_hp = self.properties['max_hp'] + self.level
+      _max_hp = self.properties['max_hp'] + self.level()
     else:
       _max_hp = self.properties['max_hp']
     if self.has_effect('hit_point_max_override'):

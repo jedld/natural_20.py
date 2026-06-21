@@ -155,6 +155,14 @@ groups:
     neutral:
       - a
       - b
+
+# Optional progression mode. Defaults to XP thresholds.
+progression:
+  mode: xp                       # xp | dm | event
+  events:
+    first_boss_defeated:
+      label: First Boss Defeated
+      levels: 1
 ```
 
 ### Group System
@@ -653,6 +661,10 @@ default_inventory:
     qty: 20
 ```
 
+`xp` is used by encounter reward tools and defaults to the D&D 5e 2014
+CR-to-XP table when omitted and `cr` is present. Keep explicit `xp` when a
+custom creature should award a nonstandard amount.
+
 #### Large/Multi-Square Creatures
 
 For creatures larger than 1×1, use a multi-line token:
@@ -834,6 +846,7 @@ classes:
   wizard: 2                          # class: level
 description: A high elf mage with a mysterious noble background
 level: 2
+xp: 300                               # Total campaign XP
 hit_die: inherit                     # Use class hit die
 max_hp: 12
 
@@ -876,6 +889,13 @@ inventory:
   - type: spellbook
     qty: 1
 ```
+
+`level` is the total character level and `classes` stores per-class levels.
+The XP progression system keeps both values in sync when a level-up is
+applied. If `xp` is omitted, the character starts at `0` XP for progression
+purposes. Campaigns can also use DM-gated or event-gated level-up grants
+instead of XP thresholds. See `docs/DND_5E_2014_PROGRESSION.md` for
+thresholds, reward endpoints, progression modes, and level-up behavior.
 
 ### Placing Players in Maps
 

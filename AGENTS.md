@@ -49,6 +49,8 @@ Core patterns and conventions (do not invent alternatives):
     - Directional cubes (e.g., Thunderwave): use `select_cube` in `build_map()`. The web UI will send `mode: 'cube'` with a clicked direction; the server previews with `Map.squares_in_adjacent_cube((caster_x, caster_y), (x, y), size_squares=3)` and returns `target_squares`. YAML typically provides `range_cube` (15 for Thunderwave).
 - LLM integration: webapp uses provider adapters (`webapp/llm_handler.py`) with explicit function-call tokens like `[FUNCTION_CALL: get_map_info()]`. `LlmMcpController._build_prompt(...)` still expects a single integer index or an MCP tool call response.
 - Make sure new objects/spells/items/entities can be properly serialized for save/load game support.
+- Ensure UI/Engine features are designed for maximum reusability with regards to similar spells/abilities as well as being able to reuse UI with minimal changes.
+- Spells/Classes/Items/Abilities that are part of the SRD should also be defined in the templates folder.
 
 Developer workflows and commands (verified in repo README):
 
@@ -85,7 +87,8 @@ MCP tool catalogue (keep this list in sync with `webapp/mcp/tools_*.py`). Design
     - HP: `dm.set_hp`, `dm.heal`, `dm.damage`.
     - Status & properties: `dm.add_status`, `dm.remove_status`, `dm.set_property`.
     - Inventory: `dm.add_item`, `dm.remove_item`, `dm.equipment` (op=equip|unequip).
-    - Resources: `dm.set_resource` (resource_type=action|bonus_action|reaction|spell_slot|temp_hp; op=set|add|subtract; spell_slot also takes character_class+level) — replaces `/update_action_resources`, `/update_spell_slots`, and the temp_hp branch of `/update_hp`.
+    - Resources: `dm.set_resource` (resource_type=action|bonus_action|reaction|spell_slot|temp_hp|resource_pool; op=set|add|subtract; spell_slot also takes character_class+level; resource_pool also takes resource_name such as superiority_dice) — replaces `/update_action_resources`, `/update_spell_slots`, generic `/update_resource_pool`, and the temp_hp branch of `/update_hp`.
+    - Rewards/progression: `dm.award_xp` — mirrors `/award_xp` for manual/quest XP awards to one, many, or all PCs; `dm.grant_level_up` — mirrors `/grant_level_up` and `/grant_event_level_up` for DM-gated or event-gated campaign progression.
     - Spawning / placement: `dm.spawn_npc`, `dm.spawn_object`, `dm.remove_entity`, `dm.teleport`.
     - Battle admin: `dm.battle_admin` (op=add_combatant|remove_combatant|reorder|set_group|next_turn) — mirrors `/add`, `/remove_from_battle`, `/reorder_initiative`, `/update_group`, and the DM-side `/next_turn`. `add_combatant` rolls initiative and slots the entity right after the current turn.
     - Controller assignment: `dm.set_controller` (kind=manual|ai|llm) — mirrors `/update_controller` set; lazy-imports `WebController` / `GenericController` / `LlmMcpController` and registers handlers.

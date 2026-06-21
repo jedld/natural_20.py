@@ -35,3 +35,10 @@ class TestCharacterBlueprint:
             sess['username'] = 'dm'
         response = client.post('/character/missing/journal', json={'text': ''})
         assert response.status_code in (400, 404)
+
+    def test_level_up_preview_missing_character(self):
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            sess['username'] = 'dm'
+        response = client.get('/character/missing/level_up/preview')
+        assert response.status_code == 404

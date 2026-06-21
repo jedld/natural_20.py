@@ -1893,6 +1893,8 @@ def character_details(character_name):
                 'spell_slots': {},
                 'known_spells': []
             },
+            'resources': {},
+            'maneuvers': character.properties.get('maneuvers', []),
             'class_features': [],
             'racial_features': []
         }
@@ -1940,11 +1942,21 @@ def character_details(character_name):
         # Get some key class features
         important_features = [
             'action_surge', 'second_wind', 'sneak_attack', 'rage', 'bardic_inspiration',
-            'channel_divinity', 'lay_on_hands', 'fighting_style', 'spellcasting'
+            'channel_divinity', 'lay_on_hands', 'fighting_style', 'spellcasting',
+            'cunning_action', 'uncanny_dodge', 'evasion', 'reliable_talent',
+            'fancy_footwork', 'rakish_audacity', 'panache', 'sentinel',
+            'martial_adept'
         ]
         for feature in important_features:
             if character.class_feature(feature):
                 details['class_features'].append(feature.replace('_', ' ').title())
+
+        for name, pool in (getattr(character, 'resources', None) or {}).items():
+            details['resources'][name] = {
+                'current': pool.current,
+                'max': pool.max_value,
+                'restore_on': pool.restore_on,
+            }
         
         # Get racial features
         racial_features = character.race_properties.get('race_features', [])
@@ -5425,6 +5437,9 @@ def _entity_rest_snapshot(entity):
         'hit_die': dict(entity.hit_die()) if hasattr(entity, 'hit_die') else {},
         'spell_slots': {
             klass: dict(slots) for klass, slots in (getattr(entity, 'spell_slots', {}) or {}).items()
+        },
+        'resources': {
+            name: pool.to_dict() for name, pool in (getattr(entity, 'resources', None) or {}).items()
         },
         'statuses': list(entity.statuses) if hasattr(entity, 'statuses') else [],
     }

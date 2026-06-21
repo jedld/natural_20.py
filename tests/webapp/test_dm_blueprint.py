@@ -39,3 +39,31 @@ class TestDmBlueprint:
             sess['username'] = 'player'
         response = client.get('/admin/campaign-logs/status')
         assert response.status_code == 403
+
+    def test_xp_summary_requires_dm(self):
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            sess['username'] = 'player'
+        response = client.get('/xp_summary')
+        assert response.status_code == 403
+
+    def test_award_xp_rejects_negative_amount_for_dm(self):
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            sess['username'] = 'dm'
+        response = client.post('/award_xp', json={'amount': -1})
+        assert response.status_code == 400
+
+    def test_grant_level_up_requires_dm(self):
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            sess['username'] = 'player'
+        response = client.post('/grant_level_up', json={'levels': 1})
+        assert response.status_code == 403
+
+    def test_grant_event_level_up_requires_event(self):
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            sess['username'] = 'dm'
+        response = client.post('/grant_event_level_up', json={})
+        assert response.status_code == 400

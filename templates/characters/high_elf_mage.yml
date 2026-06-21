@@ -6,6 +6,7 @@ classes:
   wizard: 2
 description: A high elf mage with a mysterious noble background
 level: 2
+xp: 300
 hit_die: inherit
 max_hp: 12
 ability:

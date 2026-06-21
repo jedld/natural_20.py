@@ -28,7 +28,7 @@ Do **not** add new HTTP routes to `app.py` unless they are bootstrap-only (healt
 | `navigation` | `blueprints/navigation.py` | `/`, `/command`, `/path`, `/switch_map`, `/update` | `navigation.*` |
 | `character` | `blueprints/character.py` | `/character_builder/*`, `/character_editor/*`, journal CRUD | `character.*` |
 | `battle` | `blueprints/battle.py` | `/start`, `/action`, `/target`, `/actions`, turn order, combat log | `battle.*` |
-| `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, inventory, `/rest`, audio, entity admin | `dm.*` |
+| `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, inventory, `/rest`, audio, entity admin, `/update_resource_pool` | `dm.*` |
 | *(none)* | `blueprints/socketio_handlers.py` | `connect`, `register`, `message`, `disconnect`, `request_effects` | N/A (SocketIO) |
 | `mcp` | `mcp/` package | `/mcp/manifest`, `/mcp/tools/list`, `/mcp/tools/call` | `mcp.*` |
 
