@@ -241,6 +241,11 @@ _ITEM_ALIASES: Dict[str, str] = {
     "holy_symbol_emblem": "holy_symbol",
     "holy_symbol_reliquary": "holy_symbol",
     "holy_symbol_symbol": "holy_symbol",
+    "potion_of_healing_greater": "potion_of_healing_greater",
+    "ink_1_ounce_bottle": "ink",
+    "parchment_one_sheet": "parchment",
+    "small_knife": "small_knife",
+    "climbers_kit": "climbers_kit",
 }
 
 # Subclass slugs that differ between DDB naming and engine YAML keys.

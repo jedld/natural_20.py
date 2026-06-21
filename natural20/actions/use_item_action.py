@@ -3,6 +3,7 @@ from natural20.action import Action
 from natural20.item_library.healing_potion import HealingPotion
 from natural20.item_library.speak_with_animals_scroll import SpeakWithAnimalsScroll
 from natural20.item_library.spell_scroll import SpellScroll
+from natural20.item_library.magic_spell_item import MagicSpellItem, PotionEffectItem
 import pdb
 
 @dataclass
@@ -88,6 +89,10 @@ class UseItemAction(Action):
             klass = SpellScroll
         elif item_class == 'SpeakWithAnimalsScroll':
             klass = SpeakWithAnimalsScroll
+        elif item_class == 'MagicSpellItem':
+            klass = MagicSpellItem
+        elif item_class == 'PotionEffectItem':
+            klass = PotionEffectItem
         else:
             raise Exception(f"item class {item_class} not found")
         return klass

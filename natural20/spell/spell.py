@@ -35,6 +35,11 @@ def consume_resource(battle, source, item, as_scroll=False, cast_level=None, cas
             if spell_level > 0:
                 source.consume_spell_slot(spell_level, character_class=casting_class)
 
+    if (spell_level > 0
+            and item.get('school') == 'abjuration'
+            and hasattr(source, 'create_or_recharge_arcane_ward')):
+        source.create_or_recharge_arcane_ward(spell_level)
+
 class AttackHook:
     def after_attack_roll(battle, entity, attacker, attack_roll, effective_ac, opts=None):
         pass

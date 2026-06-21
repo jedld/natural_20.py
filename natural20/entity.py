@@ -2332,6 +2332,8 @@ class Entity(EntityStateEvaluator, Notable):
         if opts.get('is_magical', False):
             if save_type in ['intelligence', 'wisdom', 'charisma'] and self.class_feature('gnome_cunning'):
                 advantages.append('gnome_cunning')
+            if self.class_feature('spell_resistance'):
+                advantages.append('spell_resistance')
 
         frightened_check = False
         if opts.get('condition') == 'frightened' or opts.get('saving_throw_type') == 'frightened':
@@ -2632,6 +2634,8 @@ class Entity(EntityStateEvaluator, Notable):
         _source = item.get('source') if item else None
         _weapon = item.get('weapon') if item else None
         resistant = self.resistant_to(damage_type, source=_source, weapon=_weapon)
+        if item and item.get('type') == 'spell_damage' and self.class_feature('spell_resistance'):
+            resistant = True
         vulnerable = self.vulnerable_to(damage_type)
 
         # D&D 5e (2014): resistance and vulnerability cancel out.
@@ -2653,6 +2657,34 @@ class Entity(EntityStateEvaluator, Notable):
 
         effective_damage = total_damage
         attacker = item.get('source') if item else None
+
+        if effective_damage > 0 and hasattr(self, 'absorb_with_arcane_ward'):
+            absorbed = self.absorb_with_arcane_ward(effective_damage, battle=battle, source=attacker)
+            total_damage = max(0, total_damage - absorbed)
+            effective_damage = max(0, effective_damage - absorbed)
+
+        if effective_damage > 0 and battle is not None:
+            try:
+                battle_map = battle.map_for(self)
+                for entity in list(getattr(battle, 'entities', []) or []):
+                    if entity is self or not hasattr(entity, 'absorb_with_arcane_ward'):
+                        continue
+                    if not entity.class_feature('projected_ward') or not entity.has_reaction(battle):
+                        continue
+                    ward = entity.get_resource('arcane_ward') if hasattr(entity, 'get_resource') else None
+                    if ward is None or ward.current <= 0:
+                        continue
+                    if battle_map and battle_map.distance(entity, self) * battle_map.feet_per_grid > 30:
+                        continue
+                    absorbed = entity.absorb_with_arcane_ward(effective_damage, battle=battle, source=self, projected=True)
+                    if absorbed:
+                        battle.consume(entity, 'reaction')
+                        total_damage = max(0, total_damage - absorbed)
+                        effective_damage = max(0, effective_damage - absorbed)
+                        break
+            except Exception:
+                pass
+
         should_trigger_damage = dmg > 0 and (effective_damage > 0 or temp_hp_before > 0)
 
         if should_trigger_damage:

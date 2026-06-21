@@ -619,3 +619,74 @@ mawsse:
   name: Mawsse
   type: trinket
   weight: 0
+potion_of_healing_greater:
+  consumable: true
+  hp_regained: 4d4+4
+  item_class: HealingPotion
+  name: Potion of Healing (Greater)
+  type: potion
+  usable: true
+potion_of_invisibility:
+  consumable: true
+  effect: invisible
+  duration_seconds: 3600
+  item_class: PotionEffectItem
+  name: Potion of Invisibility
+  type: potion
+  usable: true
+potion_of_fire_breath:
+  consumable: true
+  effect: fire_breath
+  duration_seconds: 3600
+  item_class: PotionEffectItem
+  name: Potion of Fire Breath
+  type: potion
+  usable: true
+potion_of_vitality:
+  consumable: true
+  effect: vitality
+  duration_seconds: 86400
+  item_class: PotionEffectItem
+  name: Potion of Vitality
+  type: potion
+  usable: true
+spell_scroll_2nd_level:
+  spell: mirror_image
+  level: 2
+  cost: 250
+  name: Spell Scroll (2nd Level)
+  type: scroll
+  item_class: SpellScroll
+  usable: true
+  consumable: true
+  weight: 0.05
+vestments:
+  cost: 1
+  name: Vestments
+  type: clothing
+  weight: 4
+little_bag_of_sand:
+  cost: 0
+  name: Little Bag of Sand
+  type: component
+  weight: 0
+small_knife:
+  cost: 1
+  name: Small Knife
+  type: tool
+  weight: 1
+manacles:
+  cost: 2
+  name: Manacles
+  type: tool
+  weight: 6
+climbers_kit:
+  cost: 25
+  name: Climber's Kit
+  type: tool
+  weight: 12
+diamond:
+  cost: 300
+  name: Diamond
+  type: gemstone
+  weight: 0

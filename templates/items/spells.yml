@@ -990,3 +990,503 @@ polymorph:
     - Sorcerer
     - Druid
   spell_class: Natural20::PolymorphSpell
+detect_magic:
+  label: Detect Magic
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: Sense nearby magic for the duration.
+  duration: 10m
+  duration_seconds: 600
+  level: 1
+  name: Detect Magic
+  range: 5
+  school: divination
+  concentration: true
+  type: utility
+  spell_list_classes: [Wizard]
+  spell_class: Natural20::DetectMagic
+fireball:
+  label: Fireball
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  damage_type: fire
+  description: A bright streak explodes in a 20-foot-radius sphere.
+  duration: instant
+  level: 3
+  name: Fireball
+  range: 150
+  radius: 20
+  school: evocation
+  type: damage
+  spell_list_classes: [Wizard, Sorcerer]
+  spell_class: Natural20::Fireball
+counterspell:
+  label: Counterspell
+  casting_time: 1:reaction
+  components: [somatic]
+  description: Interrupt a creature in the process of casting a spell.
+  duration: instant
+  level: 3
+  name: Counterspell
+  range: 60
+  school: abjuration
+  type: reaction
+  spell_list_classes: [Wizard, Sorcerer, Warlock]
+  spell_class: Natural20::Counterspell
+leomunds_tiny_hut:
+  label: Leomund's Tiny Hut
+  casting_time: 1:minute
+  components: [verbal, somatic, material]
+  description: Creates an immobile protective dome.
+  duration: 8h
+  duration_seconds: 28800
+  level: 3
+  name: Leomund's Tiny Hut
+  range: 30
+  target_types: [point]
+  school: evocation
+  type: utility
+  spell_list_classes: [Wizard]
+  spell_class: Natural20::LeomundsTinyHut
+knock:
+  label: Knock
+  casting_time: 1:action
+  components: [verbal]
+  description: Opens a stuck, barred, locked, or magically held object.
+  duration: instant
+  level: 2
+  name: Knock
+  range: 60
+  target_types: [point]
+  school: transmutation
+  type: utility
+  spell_list_classes: [Wizard]
+  spell_class: Natural20::Knock
+scorching_ray:
+  label: Scorching Ray
+  casting_time: 1:action
+  components: [verbal, somatic]
+  damage_type: fire
+  description: Make three rays of fire at one or more targets.
+  duration: instant
+  level: 2
+  name: Scorching Ray
+  range: 120
+  school: evocation
+  type: ranged_spell_attack
+  spell_list_classes: [Wizard, Sorcerer]
+  spell_class: Natural20::ScorchingRay
+mirror_image:
+  label: Mirror Image
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: Three illusory duplicates appear in your space.
+  duration: 1m
+  duration_seconds: 60
+  level: 2
+  name: Mirror Image
+  range: 5
+  status: mirror_image
+  school: illusion
+  type: buff
+  spell_list_classes: [Wizard, Sorcerer]
+  spell_class: Natural20::MirrorImage
+aganazzars_scorcher:
+  label: Aganazzar's Scorcher
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  damage_type: fire
+  description: A 30-foot line of roaring flame.
+  duration: instant
+  level: 2
+  name: Aganazzar's Scorcher
+  range: 30
+  length: 30
+  width: 5
+  school: evocation
+  type: damage
+  spell_list_classes: [Wizard, Sorcerer]
+  spell_class: Natural20::AganazzarsScorcher
+comprehend_languages:
+  label: Comprehend Languages
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  description: Understand literal meaning of spoken and written language.
+  duration: 1h
+  duration_seconds: 3600
+  level: 1
+  name: Comprehend Languages
+  range: 5
+  status: comprehend_languages
+  school: divination
+  type: utility
+  spell_list_classes: [Wizard]
+  spell_class: Natural20::ComprehendLanguages
+prestidigitation:
+  label: Prestidigitation
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: Perform a minor magical trick.
+  duration: 1h
+  duration_seconds: 3600
+  level: 0
+  name: Prestidigitation
+  range: 10
+  target_types: [point]
+  school: transmutation
+  type: utility
+  spell_list_classes: [Wizard, Sorcerer, Warlock]
+  spell_class: Natural20::Prestidigitation
+feather_fall:
+  label: Feather Fall
+  casting_time: 1:reaction
+  components: [verbal, material]
+  description: Slow falling creatures.
+  duration: 1m
+  duration_seconds: 60
+  level: 1
+  name: Feather Fall
+  range: 60
+  status: feather_fall
+  school: transmutation
+  type: buff
+  spell_list_classes: [Wizard, Sorcerer, Bard]
+  spell_class: Natural20::FeatherFall
+fly:
+  label: Fly
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  description: Grants a flying speed of 60 feet.
+  duration: 10m
+  duration_seconds: 600
+  level: 3
+  name: Fly
+  range: 5
+  status: flying
+  school: transmutation
+  concentration: true
+  type: buff
+  spell_list_classes: [Wizard, Sorcerer, Warlock]
+  spell_class: Natural20::Fly
+lightning_bolt:
+  label: Lightning Bolt
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  damage_type: lightning
+  description: A 100-foot line of lightning.
+  duration: instant
+  level: 3
+  name: Lightning Bolt
+  range: 100
+  length: 100
+  width: 5
+  school: evocation
+  type: damage
+  spell_list_classes: [Wizard, Sorcerer]
+  spell_class: Natural20::LightningBolt
+banishment:
+  label: Banishment
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  description: Attempt to banish a creature to another plane.
+  duration: 1m
+  duration_seconds: 60
+  level: 4
+  name: Banishment
+  range: 60
+  status: banished
+  school: abjuration
+  concentration: true
+  type: debuff
+  spell_list_classes: [Wizard, Sorcerer, Warlock, Cleric, Paladin]
+  spell_class: Natural20::Banishment
+dispel_magic:
+  label: Dispel Magic
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: End spells on a creature, object, or magical effect.
+  duration: instant
+  level: 3
+  name: Dispel Magic
+  range: 120
+  school: abjuration
+  type: utility
+  spell_list_classes: [Wizard, Sorcerer, Warlock, Cleric, Bard, Druid, Paladin]
+  spell_class: Natural20::DispelMagic
+gust_of_wind:
+  label: Gust of Wind
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  damage_type: bludgeoning
+  description: A strong wind blasts out in a 60-foot line.
+  duration: 1m
+  duration_seconds: 60
+  level: 2
+  name: Gust of Wind
+  range: 60
+  length: 60
+  width: 10
+  school: evocation
+  concentration: true
+  type: control
+  spell_list_classes: [Wizard, Sorcerer, Druid]
+  spell_class: Natural20::GustOfWind
+otilukes_resilient_sphere:
+  label: Otiluke's Resilient Sphere
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  description: Enclose a creature or object in a resilient sphere.
+  duration: 1m
+  duration_seconds: 60
+  level: 4
+  name: Otiluke's Resilient Sphere
+  range: 30
+  status: resilient_sphere
+  school: evocation
+  concentration: true
+  type: control
+  spell_list_classes: [Wizard]
+  spell_class: Natural20::OtilukesResilientSphere
+bigbys_hand:
+  label: Bigby's Hand
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  description: Create a large hand of shimmering force.
+  duration: 1m
+  duration_seconds: 60
+  level: 5
+  name: Bigby's Hand
+  range: 120
+  target_types: [point]
+  school: evocation
+  concentration: true
+  type: summon
+  spell_list_classes: [Wizard]
+  spell_class: Natural20::BigbysHand
+wall_of_force:
+  label: Wall of Force
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  description: Create an invisible wall of force.
+  duration: 10m
+  duration_seconds: 600
+  level: 5
+  name: Wall of Force
+  range: 120
+  target_types: [point]
+  school: evocation
+  concentration: true
+  type: control
+  spell_list_classes: [Wizard]
+  spell_class: Natural20::WallOfForce
+animate_dead:
+  label: Animate Dead
+  casting_time: 1:minute
+  components: [verbal, somatic, material]
+  description: Animate a corpse or pile of bones.
+  duration: instant
+  level: 3
+  name: Animate Dead
+  range: 10
+  target_types: [point]
+  school: necromancy
+  type: summon
+  spell_list_classes: [Wizard, Cleric]
+  spell_class: Natural20::AnimateDead
+chain_lightning:
+  label: Chain Lightning
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  damage_type: lightning
+  description: Lightning arcs to as many as four targets.
+  duration: instant
+  level: 6
+  name: Chain Lightning
+  range: 150
+  school: evocation
+  type: damage
+  spell_list_classes: [Wizard, Sorcerer]
+  spell_class: Natural20::ChainLightning
+disintegrate:
+  label: Disintegrate
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  damage_type: force
+  description: A thin green ray disintegrates a target on a failed save.
+  duration: instant
+  level: 6
+  name: Disintegrate
+  range: 60
+  school: transmutation
+  type: damage
+  spell_list_classes: [Wizard, Sorcerer]
+  spell_class: Natural20::Disintegrate
+sunbeam:
+  label: Sunbeam
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  damage_type: radiant
+  description: A beam of brilliant light flashes in a line.
+  duration: 1m
+  duration_seconds: 60
+  level: 6
+  name: Sunbeam
+  range: 60
+  length: 60
+  width: 5
+  school: evocation
+  concentration: true
+  type: damage
+  spell_list_classes: [Wizard, Sorcerer, Druid]
+  spell_class: Natural20::Sunbeam
+cloudkill:
+  label: Cloudkill
+  casting_time: 1:action
+  components: [verbal, somatic]
+  damage_type: poison
+  description: A 20-foot-radius poisonous fog appears.
+  duration: 10m
+  duration_seconds: 600
+  level: 5
+  name: Cloudkill
+  range: 120
+  radius: 20
+  school: conjuration
+  concentration: true
+  type: damage
+  spell_list_classes: [Wizard, Sorcerer]
+  spell_class: Natural20::Cloudkill
+cone_of_cold:
+  label: Cone of Cold
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  damage_type: cold
+  description: A blast of cold air erupts from your hands.
+  duration: instant
+  level: 5
+  name: Cone of Cold
+  range: 60
+  range_cone: 60
+  school: evocation
+  type: damage
+  spell_list_classes: [Wizard, Sorcerer]
+  spell_class: Natural20::ConeOfCold
+sunburst:
+  label: Sunburst
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  damage_type: radiant
+  description: Brilliant sunlight flashes in a large radius.
+  duration: instant
+  level: 8
+  name: Sunburst
+  range: 150
+  radius: 60
+  school: evocation
+  type: damage
+  spell_list_classes: [Wizard, Sorcerer, Druid]
+  spell_class: Natural20::Sunburst
+maze:
+  label: Maze
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: Banish a creature into a labyrinthine demiplane.
+  duration: 10m
+  duration_seconds: 600
+  level: 8
+  name: Maze
+  range: 60
+  status: mazed
+  school: conjuration
+  concentration: true
+  type: control
+  spell_list_classes: [Wizard]
+  spell_class: Natural20::Maze
+stinking_cloud:
+  label: Stinking Cloud
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  description: Create a nauseating 20-foot-radius cloud.
+  duration: 1m
+  duration_seconds: 60
+  level: 3
+  name: Stinking Cloud
+  range: 90
+  radius: 20
+  target_types: [point]
+  school: conjuration
+  concentration: true
+  type: control
+  spell_list_classes: [Wizard, Sorcerer, Bard]
+  spell_class: Natural20::StinkingCloud
+protection_from_energy:
+  label: Protection from Energy
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: The target gains resistance to one energy damage type.
+  duration: 1h
+  duration_seconds: 3600
+  level: 3
+  name: Protection from Energy
+  range: 5
+  school: abjuration
+  concentration: true
+  type: buff
+  spell_list_classes: [Wizard, Sorcerer, Cleric, Druid, Ranger]
+  spell_class: Natural20::ProtectionFromEnergy
+melfs_acid_arrow:
+  label: Melf's Acid Arrow
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  damage_type: acid
+  description: A shimmering green arrow streaks toward a target.
+  duration: instant
+  level: 2
+  name: Melf's Acid Arrow
+  range: 90
+  school: evocation
+  type: ranged_spell_attack
+  spell_list_classes: [Wizard]
+  spell_class: Natural20::MelfsAcidArrow
+message:
+  label: Message
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  description: Whisper a message to a creature in range.
+  duration: 1 round
+  level: 0
+  name: Message
+  range: 120
+  school: transmutation
+  type: utility
+  spell_list_classes: [Wizard, Sorcerer, Bard]
+  spell_class: Natural20::Message
+teleport:
+  label: Teleport
+  casting_time: 1:action
+  components: [verbal]
+  description: Transport yourself and willing creatures to a destination.
+  duration: instant
+  level: 7
+  name: Teleport
+  range: 10
+  target_types: [point]
+  school: conjuration
+  type: utility
+  spell_list_classes: [Wizard, Sorcerer, Bard]
+  spell_class: Natural20::Teleport
+minor_illusion:
+  label: Minor Illusion
+  casting_time: 1:action
+  components: [somatic, material]
+  description: Create a sound or image within range.
+  duration: 1m
+  duration_seconds: 60
+  level: 0
+  name: Minor Illusion
+  range: 30
+  target_types: [point]
+  school: illusion
+  type: utility
+  spell_list_classes: [Wizard, Sorcerer, Warlock, Bard]
+  spell_class: Natural20::MinorIllusion
