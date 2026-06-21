@@ -1490,3 +1490,93 @@ minor_illusion:
   type: utility
   spell_list_classes: [Wizard, Sorcerer, Warlock, Bard]
   spell_class: Natural20::MinorIllusion
+green_flame_blade:
+ label: Green-Flame Blade
+ casting_time: 1:action
+ components: [somatic]
+ damage_type: fire
+ description: |
+   You brandish the weapon used in the spell's casting and make a melee attack with it against one creature within 5 feet of you. On a hit, the target takes damage from the attack and fire damage equal to your spellcasting ability modifier at a second creature within 5 feet of the target.
+ duration: 1 round
+ level: 0
+ name: Green-Flame Blade
+ range: 5
+ school: evocation
+ type: melee_attack
+ spell_list_classes: [Sorcerer, Warlock, Fighter]
+ spell_class: Natural20::GreenFlameBladeSpell
+absorb_elements:
+ label: Absorb Elements
+ casting_time: 1:reaction
+ components: [somatic]
+ damage_type: acid
+ description: |
+   When you take acid, cold, fire, lightning, or thunder damage, you can absorb some of that energy to reduce the damage you take and deal that type of damage to the creature that damaged you.
+ duration: 1 round
+ level: 1
+ name: Absorb Elements
+ range: 5
+ school: abjuration
+ type: reaction
+ spell_list_classes: [Sorcerer, Wizard]
+ spell_class: Natural20::AbsorbElementsSpell
+protection_from_evil_and_good:
+ label: Protection from Evil and Good
+ casting_time: 1:action
+ components: [verbal, somatic, material]
+ description: |
+   Until the spell ends, one willing creature you touch is protected against certain types of creatures: aberrations, celestials, elementals, fey, fiends, and undead. The protection grants beneficial effects to the targeted creature.
+ duration: 10m
+ level: 1
+ name: Protection from Evil and Good
+ range: 30
+ school: abjuration
+ concentration: true
+ type: buff
+ spell_list_classes: [Cleric, Paladin, Wizard]
+ spell_class: Natural20::ProtectionFromEvilAndGoodSpell
+hold_person:
+ label: Hold Person
+ casting_time: 1:action
+ components: [verbal, somatic]
+ description: |
+   Choose a humanoid that you can see within range. The target must succeed on a Wisdom saving throw or be paralyzed for the duration. At the end of each of the target's turns, the target can make another Wisdom saving throw.
+ duration: 1m
+ level: 2
+ name: Hold Person
+ range: 60
+ school: enchantment
+ concentration: true
+ type: control
+ spell_list_classes: [Bard, Cleric, Sorcerer, Warlock, Wizard]
+ spell_class: Natural20::HoldPersonSpell
+wall_of_fire:
+ label: Wall of Fire
+ casting_time: 1:action
+ components: [verbal, somatic]
+ damage_type: fire
+ description: |
+   A wall of fire appears at a point you choose within range. The wall is opaque and lasts for the duration. When the wall appears, each creature within its area must make a Dexterity saving throw. On a failed save, a creature takes fire damage and is pushed to the other side of the wall.
+ duration: concentration
+ level: 4
+ name: Wall of Fire
+ range: 120
+ school: evocation
+ type: damage
+ spell_list_classes: [Sorcerer, Wizard]
+ spell_class: Natural20::WallOfFireSpell
+tongues:
+ label: Tongues
+ casting_time: 1:action
+ components: [verbal, material]
+ description: |
+   You grant yourself the ability to understand the spoken language of most creatures. For the duration, you understand the literal meaning of spoken words of almost any language.
+ duration: concentration
+ level: 3
+ name: Tongues
+ range: self
+ school: divination
+ type: utility
+ spell_list_classes: [Bard, Sorcerer, Warlock, Wizard]
+ spell_class: Natural20::TonguesSpell
+

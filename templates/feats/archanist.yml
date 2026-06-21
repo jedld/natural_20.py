@@ -1,0 +1,15 @@
+archanist:
+  name: Archanist
+  description: |
+    You have studied the ways of arcane warriors, learning to channel magical energy through your weapon attacks. You gain the following benefits:
+    
+    * You learn one cantrip of your choice from the wizard spell list (booming_blade is a good choice if you can use it).
+    
+    * You can cast hex using one spell slot. You need not have it in your list of known spells to cast it this way.
+    
+    * When you cast a wizard spell that targets only one creature and deals damage, you can apply your spellcasting ability modifier to one weapon damage roll against the same target.
+  benefits:
+    - cantrip_from_wizard
+    - hex_via_slot
+    - spell_mod_to_weapon
+  prerequisites: []

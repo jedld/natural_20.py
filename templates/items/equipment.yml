@@ -689,4 +689,28 @@ diamond:
   cost: 300
   name: Diamond
   type: gemstone
+mess_kit:
+  cost: 2
+  name: Mess Kit
+  type: tool
+  weight: 2
+bag_of_devouring:
+  cost: 25000
+  name: Bag of Devouring
+  type: wand
+  rarity: legendary
+  weight: 15
+  subtype: magic_item
+  item_class: MagicSpellItem
+celestial_shield_of_the_hidden_lord:
+  cost: 15000
+  name: Celestial Shield of the Hidden Lord
+  type: shield
+  rarity: rare
+  weight: 6
+  subtype: magic_item
+  ac_bonus: 2
+  properties:
+    - detects_evil
+  item_class: MagicSpellItem
   weight: 0

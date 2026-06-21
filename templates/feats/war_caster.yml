@@ -1,0 +1,15 @@
+war_caster:
+  name: War Caster
+  description: |
+    You have practiced casting spells in the midst of combat, while involved in an area of effect spell, or while your allies are engaged in melee. You gain the following benefits:
+    
+    * You have advantage on Constitution saving throws that you make to maintain your concentration on a spell when you take damage.
+    
+    * You can perform the somatic components of spells even when you have weapons or a shield in one or both hands.
+    
+    * You can use your reaction to cast a spell at another creature that you can see within your reach, when that creature provokes an opportunity attack from you. The spell must have a casting time of 1 action and must target only that creature.
+  benefits:
+    - concentration_advantage
+    - somatic_with_weapons
+    - opportunity_attack_spell
+  prerequisites: []

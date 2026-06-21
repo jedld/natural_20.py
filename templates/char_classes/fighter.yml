@@ -43,3 +43,38 @@ proficiency_bonuses:
 - 6
 - 6
 - 6
+martial_archetypes:
+  eldritch_knight:
+    spellcasting_ability: int
+    cantrips_known: 2
+    spells_known: 6
+    progression:
+      level_3:
+        class_features:
+        - spellcasting
+        - wizard_spell_recognition
+        spells_learned: 2
+      level_4:
+        class_features:
+        - spell_known_increase
+        spells_learned: 1
+      level_7:
+        class_features:
+        - spell_known_increase
+        spells_learned: 1
+      level_10:
+        class_features:
+        - spell_known_increase
+        spells_learned: 1
+      level_13:
+        class_features:
+        - spell_known_increase
+        spells_learned: 1
+      level_16:
+        class_features:
+        - spell_known_increase
+        spells_learned: 1
+      level_19:
+        class_features:
+        - spell_known_increase
+        spells_learned: 1
