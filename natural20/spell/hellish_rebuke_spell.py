@@ -74,7 +74,9 @@ class HellishRebukeSpell(Spell):
         dc = self._spell_save_dc(entity)
         damage_roll = self._damage(battle, opts={'at_level': at_level})
 
-        if save < dc:
+        if target.class_feature('evasion'):
+            damage = damage_roll.half() if save < dc else 0
+        elif save < dc:
             damage = damage_roll
         else:
             damage = damage_roll.half()

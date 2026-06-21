@@ -453,6 +453,21 @@ class Entity(EntityStateEvaluator, Notable):
                                            advantage=advantage,
                                            disadvantage=disadvantage,
                                            battle=battle)
+            if (
+                self.class_feature('reliable_talent')
+                and self.proficient(skill)
+                and roll.die_sides == 20
+            ):
+                selected = roll.rolls[0] if roll.rolls else 0
+                if isinstance(selected, (tuple, list)):
+                    selected = min(selected) if roll.disadvantage else max(selected)
+                if selected < 10:
+                    roll += DieRoll.roll(f"+{10 - selected}",
+                                         description="reliable_talent",
+                                         entity=self,
+                                         battle=battle)
+            if not hasattr(roll, 'metadata'):
+                roll.metadata = {}
             roll.metadata['skill'] = skill
             roll.metadata['is_ability_check'] = True
             return roll
@@ -1506,7 +1521,12 @@ class Entity(EntityStateEvaluator, Notable):
         return damage_type in self.damage_vulnerabilities
 
     def initiative_bonus(self):
-        return self.dex_mod()
+        bonus = self.dex_mod()
+        if self.class_feature('rakish_audacity'):
+            bonus += self.cha_mod()
+        if self.class_feature('alert'):
+            bonus += 5
+        return bonus
 
     def initiative(self, battle=None):
         if self.invisible():
@@ -1700,6 +1720,7 @@ class Entity(EntityStateEvaluator, Notable):
             'active_perception_disadvantage': 0,
             'two_weapon': None,
             'martial_arts_pending': False,
+            'fancy_footwork_targets': set(),
             'action_surge': None,
             'multiattack_started': False,
             'casted_level_spells': [],

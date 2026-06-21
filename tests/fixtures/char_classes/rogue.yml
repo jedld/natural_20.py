@@ -42,6 +42,28 @@ progression:
   level_2:
     class_features:
       - cunning_action
+  level_5:
+    class_features:
+      - uncanny_dodge
+  level_7:
+    class_features:
+      - evasion
+  level_11:
+    class_features:
+      - reliable_talent
+  level_14:
+    class_features:
+      - blindsense
+  level_15:
+    class_features:
+      - slippery_mind
+roguish_archetype_features:
+  swashbuckler:
+    level_3:
+      - fancy_footwork
+      - rakish_audacity
+    level_9:
+      - panache
 saving_throw_proficiency:
   - dex
   - int

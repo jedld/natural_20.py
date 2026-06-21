@@ -134,11 +134,10 @@ def test_spell_buckets(importer, payload):
     # Spellbook holds all wizard spells regardless of prepared state
     assert "magic_missile" in out["spellbook"]
     assert "mage_armor" in out["spellbook"]
-    # Polymorph is unknown to this engine build → dropped silently
-    assert "polymorph" not in out["spellbook"]
-    assert "polymorph" not in out["prepared_spells"]
-    # And a warning was emitted for it
-    assert any("polymorph" in w.lower() for w in importer.warnings)
+    # Polymorph is now a known spell (PolymorphSpell registered in spell_loader)
+    # and is marked prepared=true in the dndbeyond_wizard.json fixture
+    assert "polymorph" in out["spellbook"]
+    assert "polymorph" in out["prepared_spells"]
 
 
 def test_spell_slots_from_caster_level(importer, payload):
@@ -222,7 +221,9 @@ def test_known_items_and_spells_caches_populate():
     spells = _load_known_spells()
     assert "dagger" in items
     assert "spellbook" in items
+    assert "boots_of_striding_and_springing" in items
     assert "magic_missile" in spells
+    assert "booming_blade" in spells
 
 
 def test_item_slug_strips_magic_bonus_and_aliases_leather():
@@ -254,6 +255,13 @@ def test_full_fixture_imports_flavor_and_gear(tmp_path):
     assert "scimitar" in types
     assert "crowbar" in types
     assert "waterskin" in types
+    assert "boots_of_striding_and_springing" in types
+    assert "instrument_of_illusions" in types
+    assert "mawsse" in types
+    assert "booming_blade" in out["cantrips"]
+    assert out["maneuvers"] == ["disarming_attack", "riposte"]
+    assert out["superiority_die"] == "1d6"
+    assert out["superiority_dice"] == 1
     assert out["tool_proficiencies"] == out["tools"]
 
 

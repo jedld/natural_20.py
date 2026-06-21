@@ -49,6 +49,7 @@ from natural20.actions.summon_familiar_action import SummonFamiliarAction
 from natural20.actions.mage_hand_action import MageHandAction
 from natural20.actions.witch_bolt_sustain_action import WitchBoltSustainAction
 from natural20.actions.speak_action import SpeakAction
+from natural20.actions.disarming_attack_action import DisarmingAttackAction
 from natural20.utils.action_builder import autobuild
 from natural20.concern.container import Container
 from natural20.utils.movement import compute_actual_moves
@@ -65,6 +66,7 @@ import pdb
 class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, Sorcerer, Ranger, Monk, Bard, Druid, Barbarian, Lootable, Inventory):
   ACTION_LIST = [
     SpellAction,
+    DisarmingAttackAction,
     AttackAction,
     MartialArtsBonusAttackAction,
     FlurryOfBlowsAction,
@@ -770,6 +772,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       return True
     if feature in self.properties.get('attributes', []):
       return True
+    if feature in self.properties.get('feats', []):
+      return True
     if feature in self.race_properties.get('race_features', []):
       return True
     if self.subrace() and feature in self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('class_features', []):
@@ -777,15 +781,27 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     if self.subrace() and feature in self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('race_features', []):
       return True
 
-    for properties in self.class_properties.values():
+    for klass, properties in self.class_properties.items():
       if feature in properties.get('class_features', []):
         return True
 
       progression = properties.get('progression', {})
-      for level in range(1, self.level() + 1):
+      class_level = self.properties.get('classes', {}).get(klass, self.level())
+      for level in range(1, class_level + 1):
         h_features = progression.get(f"level_{level}", { "class_features": [] }).get('class_features', [])
         if feature in  h_features:
           return True
+
+      subclass_feature_fields = {
+        'rogue': ('roguish_archetype', 'roguish_archetype_features'),
+      }
+      subclass_field, feature_field = subclass_feature_fields.get(klass, (None, None))
+      subclass = self.properties.get(subclass_field) if subclass_field else None
+      if subclass:
+        subclass_features = (properties.get(feature_field, {}) or {}).get(subclass, {}) or {}
+        for level in range(1, class_level + 1):
+          if feature in (subclass_features.get(f"level_{level}") or []):
+            return True
 
     # Cleric divine domain features (gated by cleric level)
     domain = self.properties.get('divine_domain')

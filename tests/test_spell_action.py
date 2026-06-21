@@ -92,6 +92,29 @@ class TestSpellAction(unittest.TestCase):
         self.battle.commit(action)
         self.assertEqual(self.npc.hp(), 10)
 
+    def test_booming_blade_wraps_melee_weapon_attack(self):
+        self.npc = self.session.npc('skeleton')
+        self.battle.add(self.npc, 'b', position=[0, 6])
+        self.npc.reset_turn(self.battle)
+        self.entity.properties['cantrips'] = (
+            self.entity.properties.get('cantrips', []) + ['booming_blade']
+        )
+        random.seed(7002)
+
+        build = SpellAction.build(self.session, self.entity)['next'](['booming_blade', 0])
+        action = build['next']('dagger')['next'](self.npc)
+        self.battle.action(action)
+
+        self.assertIn('damage', [s['type'] for s in action.result])
+        self.battle.commit(action)
+        self.assertEqual(self.entity.total_actions(self.battle), 0)
+        self.assertIn('booming_blade', self.npc.statuses)
+
+        hp_before_move = self.npc.hp()
+        self.battle.trigger_event('movement', self.npc, {'move_path': [[0, 6], [0, 7]]})
+        self.assertLess(self.npc.hp(), hp_before_move)
+        self.assertNotIn('booming_blade', self.npc.statuses)
+
     def setupMageArmor(self):
         action = SpellAction.build(self.session, self.entity)['next'](['mage_armor', 0])['next'](self.entity)
         action.resolve(self.session, self.battle_map, { "battle": self.battle})

@@ -256,6 +256,7 @@ class Battle():
             'target_effect': {},
             'two_weapon': None,
             'martial_arts_pending': False,
+            'fancy_footwork_targets': set(),
             'positions_entered': {},
             'controller': controller,
             'help_with': {}

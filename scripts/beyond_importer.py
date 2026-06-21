@@ -306,7 +306,7 @@ def _load_known_items() -> Set[str]:
         return _ITEM_CACHE
     items: Set[str] = set()
     base = _templates_dir() / "items"
-    for name in ("weapons.yml", "equipment.yml", "objects.yml"):
+    for name in ("weapons.yml", "equipment.yml", "objects.yml", "magic_items.yml"):
         path = base / name
         if not path.exists():
             continue
@@ -461,6 +461,7 @@ class BeyondImporter:
                         for f in character_data.get("feats", []) or []
                         if f.get("definition")})
         feats = [f for f in feats if f]
+        maneuvers = self._extract_maneuvers(character_data)
 
         equipped_items, inventory = self._extract_inventory(character_data)
         cantrips, prepared, spellbook = self._extract_spells(
@@ -524,6 +525,11 @@ class BeyondImporter:
             yaml_data["resistances"] = sorted({_slug(r) for r in resistances})
         if feats:
             yaml_data["feats"] = feats
+        if maneuvers:
+            yaml_data["maneuvers"] = maneuvers
+        if "martial_adept" in feats:
+            yaml_data["superiority_die"] = "1d6"
+            yaml_data["superiority_dice"] = 1
 
         if cantrips:
             yaml_data["cantrips"] = cantrips
@@ -671,6 +677,25 @@ class BeyondImporter:
             if v:
                 return v
         return None
+
+    def _extract_maneuvers(self, data: Dict[str, Any]) -> List[str]:
+        maneuvers: Set[str] = set()
+
+        def walk(value: Any) -> None:
+            if isinstance(value, dict):
+                name = value.get("name")
+                if isinstance(name, str) and name.lower().startswith("maneuvers:"):
+                    maneuver_name = name.split(":", 1)[1].strip()
+                    if maneuver_name:
+                        maneuvers.add(_slug(maneuver_name))
+                for nested in value.values():
+                    walk(nested)
+            elif isinstance(value, list):
+                for nested in value:
+                    walk(nested)
+
+        walk(data.get("actions") or {})
+        return sorted(maneuvers)
 
     def _iter_modifiers(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []

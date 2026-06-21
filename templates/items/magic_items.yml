@@ -823,6 +823,27 @@ gloves_of_thievery:
   # Proficiency bonus to Sleight of Hand, Acrobatics, Stealth
   effect: gloves_of_thievery
 
+boots_of_striding_and_springing:
+  cost: 0
+  magical: true
+  magic_bonus: 0
+  name: Boots of Striding and Springing
+  type: accessory
+  equippable: true
+  weight: 4
+  requires_attunement: true
+  effect: boots_of_striding_and_springing
+
+instrument_of_illusions:
+  cost: 0
+  magical: true
+  magic_bonus: 0
+  name: Instrument of Illusions
+  type: instrument
+  equippable: false
+  weight: 3
+  requires_attunement: true
+
 # ----------------------------------------------------------------------------
 # Named Magic Weapons
 # ----------------------------------------------------------------------------

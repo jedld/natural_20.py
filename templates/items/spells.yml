@@ -33,6 +33,26 @@ divine_smite:
   spell_list_classes:
     - Paladin
   spell_class: Natural20::DivineSmite
+booming_blade:
+  label: Booming Blade
+  casting_time: 1:action
+  components:
+    - somatic
+    - material
+  damage_type: thunder
+  description: |
+    You brandish the weapon used in the spell's casting and make a melee attack with it against one creature within 5 feet of you. On a hit, the target suffers the weapon attack's normal effects and is sheathed in booming energy until the start of your next turn. At higher character levels, the melee attack also deals thunder damage.
+  duration: 1 round
+  level: 0
+  name: Booming Blade
+  range: 5
+  school: evocation
+  type: melee_attack
+  spell_list_classes:
+    - Sorcerer
+    - Warlock
+    - Wizard
+  spell_class: Natural20::BoomingBlade
 spare_the_dying:
   label: Spare the Dying
   casting_time: 1:action

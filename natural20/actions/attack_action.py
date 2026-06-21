@@ -239,10 +239,21 @@ class AttackAction(Action):
                 item['target'].is_passive = False
 
             damage_event(item, battle)
+            if item.get('maneuver') in ['disarming_attack', 'riposte']:
+                item['source'].consume_resource('superiority_dice')
+            if (
+                battle
+                and item.get('as_reaction')
+                and item['source'].class_feature('sentinel')
+                and battle.entity_state_for(item['target'])
+            ):
+                battle.entity_state_for(item['target'])['movement'] = 0
             __class__.consume_resource(battle, item)
         elif item['type'] == 'miss':
             if item['target'].passive():
                 item['target'].is_passive = False
+            if item.get('maneuver') == 'riposte':
+                item['source'].consume_resource('superiority_dice')
             __class__.consume_resource(battle, item)
             session.event_manager.received_event({'attack_roll': item['attack_roll'],
                                                   'attack_name': item['attack_name'],
@@ -255,6 +266,17 @@ class AttackAction(Action):
                                                   'target': item['target'],
                                                   'as_legendary_action': bool(item['as_legendary_action']),
                                                   'event': 'miss'})
+        elif item['type'] == 'disarm':
+            target = item['target']
+            disarmed_item = item.get('item')
+            if disarmed_item:
+                target.unequip(disarmed_item)
+                session.event_manager.received_event({
+                    'event': 'disarm',
+                    'source': item['source'],
+                    'target': target,
+                    'item': disarmed_item,
+                })
 
     def consume_resource(battle, item):
         if item.get('source'):
@@ -381,6 +403,16 @@ class AttackAction(Action):
 
 
         weapon, attack_name, attack_mod, damage_roll, ammo_type = self.get_weapon_info(opts)
+        if (
+            battle
+            and self.source.class_feature('fancy_footwork')
+            and weapon.get('type') == 'melee_attack'
+            and target is not None
+        ):
+            battle.entity_state_for(self.source).setdefault(
+                'fancy_footwork_targets',
+                set()
+            ).add(getattr(target, 'entity_uid', target))
 
         if self.npc_action and self.npc_action.get('force_hit'):
             self.attack_roll = None
@@ -453,7 +485,16 @@ class AttackAction(Action):
         sneak_attack_roll = None
         hit = False
         if attack_roll is not None:
-            if self.source.class_feature('sneak_attack') and (weapon.get('properties') and 'finesse' in weapon['properties'] or weapon['type'] == 'ranged_attack') and (self.with_advantage() or (battle and battle.enemy_in_melee_range(target, [self.source]))):
+            if (
+                hasattr(self.source, 'can_sneak_attack')
+                and self.source.can_sneak_attack(
+                    battle,
+                    target,
+                    weapon,
+                    advantage=self.with_advantage(),
+                    disadvantage=self.with_disadvantage(),
+                )
+            ):
                 sneak_attack_roll = DieRoll.roll(self.source.sneak_attack_level(), crit=attack_roll.nat_20(),
                                                     description='dice_roll.sneak_attack', entity=self.source, battle=battle)
         else:
@@ -518,8 +559,24 @@ class AttackAction(Action):
                         description=f"damage_modifier:{entry.get('source')}",
                         entity=self.source, battle=battle,
                     )
+            maneuver = getattr(self, 'maneuver', None)
+            superiority_roll = None
+            if (
+                maneuver in ['disarming_attack', 'riposte']
+                and getattr(self.source, 'superiority_die', None)
+            ):
+                superiority_roll = DieRoll.roll(
+                    self.source.superiority_die(),
+                    crit=is_crit,
+                    description=f'dice_roll.maneuver.{maneuver}',
+                    entity=self.source,
+                    battle=battle,
+                )
+                damage += superiority_roll
         else:
             damage = DieRoll.roll("0")
+            maneuver = getattr(self, 'maneuver', None)
+            superiority_roll = None
 
         cover_ac_adjustments = 0
 
@@ -537,6 +594,8 @@ class AttackAction(Action):
 
         if hit:
             if not self.hit_result:
+                if sneak_attack_roll is not None and hasattr(self.source, 'mark_sneak_attack_used'):
+                    self.source.mark_sneak_attack_used(battle)
                 if self.source.class_feature('martial_advantage') and battle:
                     for entity in battle.allies_of(self.source):
                         entity_map = battle.map_for(entity)
@@ -570,6 +629,9 @@ class AttackAction(Action):
                     'multiattack_clear': False,
                     'multiattack_hits': True
                 }
+                if maneuver:
+                    self.hit_result['maneuver'] = maneuver
+                    self.hit_result['superiority_die_roll'] = superiority_roll
 
             stored_reaction = self.has_async_reaction_for_source(self.source, 'on_attack_hit')
             results = self.source.resolve_trigger('on_attack_hit', {
@@ -584,6 +646,37 @@ class AttackAction(Action):
                     self.result.append(results)
 
             self.result.append(self.hit_result)
+
+            if maneuver == 'disarming_attack' and target is not None:
+                dc = self.source.maneuver_save_dc()
+                save_roll = target.save_throw('strength', battle=battle)
+                if save_roll.result() >= dc:
+                    self.result.append({
+                        'type': 'save_success',
+                        'source': target,
+                        'save_type': 'strength',
+                        'roll': save_roll,
+                        'dc': dc,
+                    })
+                else:
+                    self.result.append({
+                        'type': 'save_fail',
+                        'source': target,
+                        'save_type': 'strength',
+                        'roll': save_roll,
+                        'dc': dc,
+                    })
+                    disarmed_item = None
+                    if getattr(target, 'equipped_weapons', None):
+                        weapons = target.equipped_weapons(self.session, valid_weapon_types=['melee_attack', 'ranged_attack'])
+                        disarmed_item = weapons[0] if weapons else None
+                    if disarmed_item:
+                        self.result.append({
+                            'type': 'disarm',
+                            'source': self.source,
+                            'target': target,
+                            'item': disarmed_item,
+                        })
             
             if weapon.get('on_hit'):
                 print(f"Applying on_hit effects for {weapon}")
@@ -670,6 +763,8 @@ class AttackAction(Action):
                 'multiattack_clear': self.npc_action and self.npc_action.get('multiattack_clear_on_miss'),
                 'multiattack_hits': False
             })
+            if maneuver:
+                self.result[-1]['maneuver'] = maneuver
 
         return self
 
