@@ -1067,6 +1067,30 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           if details is None:
             continue
           base.append(spell)
+
+    # Auto-merge Eldritch Knight spells (Fighter martial archetype)
+    martial_archetype = self.properties.get('martial_archetype')
+    if martial_archetype == 'eldritch_knight':
+      # Add cantrips from properties (Eldritch Knight cantrips)
+      ek_cantrips = self.properties.get('cantrips', [])
+      for spell in ek_cantrips:
+        if spell not in base:
+          base.append(spell)
+      # Add known spells from properties
+      ek_spells = self.properties.get('prepared_spells', [])
+      for spell in ek_spells:
+        if spell not in base:
+          base.append(spell)
+      # Also check spells_known and cantrips_known if set dynamically
+      ek_dynamic_spells = getattr(self, 'spells_known', [])
+      for spell in ek_dynamic_spells:
+        if spell not in base:
+          base.append(spell)
+      ek_dynamic_cantrips = getattr(self, 'cantrips_known', [])
+      for spell in ek_dynamic_cantrips:
+        if spell not in base:
+          base.append(spell)
+
     return base
 
   # Consumes a character's spell slot

@@ -122,6 +122,9 @@ const Effects = {
         if (data.effect === 'point_fire') {
           Effects._instances.point_fire = Effects.createPointFireEffect(data.config || {});
         }
+        if (data.effect === 'wall_of_fire') {
+          Effects._instances.wall_of_fire = Effects.createWallOfFireEffect(data.config || {});
+        }
       } else if (data.action === 'stop') {
         if (Effects._instances[data.effect]) {
           Effects._instances[data.effect].stop();
@@ -142,6 +145,9 @@ const Effects = {
         }
         if (data.effect === 'point_fire' && Effects._instances.point_fire) {
           Effects._instances.point_fire.updateConfig(data.config || {});
+        }
+        if (data.effect === 'wall_of_fire' && Effects._instances.wall_of_fire) {
+          Effects._instances.wall_of_fire.updateConfig(data.config || {});
         }
       }
     });
@@ -703,6 +709,177 @@ const Effects = {
       update: function(){ if (dirty) rebuild(); return { canvas: canvas, changed: dirty === false }; },
       force: function(){ dirty = true; },
       destroy: function(){ try{ mo && mo.disconnect(); }catch(e){} try{ ro && ro.disconnect(); }catch(e){} window.removeEventListener('resize', markDirty); }
+    };
+  },
+
+  // Wall of Fire effect: renders a horizontal wall of fire across specified tiles.
+  // config: { squares: [ { x: number, y: number }, ... ], intensity?: number, color?: string, size_px?: number }
+  createWallOfFireEffect: function(config){
+    config = config || {};
+    var squares = Array.isArray(config.squares) ? config.squares.slice() : [];
+
+    // Canvas overlay aligned to the map image (below tokens)
+    var container = document.querySelector('.image-container') || document.body;
+    var overlay = container.querySelector('#effects-overlay-wall_of_fire');
+    if (!overlay) {
+      overlay = document.createElement('canvas');
+      overlay.id = 'effects-overlay-wall_of_fire';
+      overlay.style.position = 'absolute';
+      overlay.style.left = '0';
+      overlay.style.top = '0';
+      overlay.style.pointerEvents = 'none';
+      overlay.style.zIndex = 0; // under tokens
+      container.appendChild(overlay);
+    }
+
+    function getMapRect(){
+      var img = document.querySelector('.image-container img.background-image, .image-container img');
+      var cRect = container.getBoundingClientRect();
+      if (img) {
+        var r = img.getBoundingClientRect();
+        return { left: Math.round(r.left - cRect.left), top: Math.round(r.top - cRect.top), width: Math.round(r.width), height: Math.round(r.height) };
+      }
+      return { left: 0, top: 0, width: container.clientWidth, height: container.clientHeight };
+    }
+
+    var ctx = overlay.getContext('2d');
+    var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    function resize(){
+      var rawDpr = (window.devicePixelRatio || 1);
+      dpr = Math.max(1, Math.min(EffectsPerf.dprMax || 3, rawDpr * (EffectsPerf.bufferScale || 1)));
+      var rect = getMapRect();
+      overlay.style.left = rect.left + 'px';
+      overlay.style.top = rect.top + 'px';
+      overlay.style.width = rect.width + 'px';
+      overlay.style.height = rect.height + 'px';
+      overlay.width = Math.floor(rect.width * dpr);
+      overlay.height = Math.floor(rect.height * dpr);
+      markDirty();
+    }
+    resize();
+    window.addEventListener('resize', resize);
+    var ro = null; try { ro = new ResizeObserver(resize); ro.observe(container); } catch(e) {}
+
+    function getTileCenterPx(tx, ty){
+      var sel = '.tile[data-coords-x="'+tx+'\"][data-coords-y="'+ty+'\"]';
+      var tile = document.querySelector(sel);
+      if (!tile) return null;
+      var r = tile.getBoundingClientRect();
+      var o = overlay.getBoundingClientRect();
+      var scaleX = (overlay.width||1) / Math.max(1, o.width || 1);
+      var scaleY = (overlay.height||1) / Math.max(1, o.height || 1);
+      var cx = (r.left - o.left) * scaleX + (r.width * scaleX)/2;
+      var cy = (r.top - o.top) * scaleY + (r.height * scaleY)/2;
+      return { x: cx, y: cy, w: r.width * scaleX, h: r.height * scaleY };
+    }
+
+    function hexToRgb(hex){
+      try { var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16); return [r,g,b]; } catch(e) { return [255,140,0]; }
+    }
+
+    var running = true;
+    var dirty = true;
+    function markDirty(){ dirty = true; }
+
+    // Watch tiles for layout changes
+    var tilesRoot = document.querySelector('.tiles-container');
+    var mo = null; try { mo = new MutationObserver(markDirty); mo.observe(tilesRoot, { attributes:true, childList:true, subtree:true }); } catch(e) {}
+
+    var _config = Object.assign({}, config);
+    function updateConfig(newConfig){
+      _config = Object.assign({}, _config, newConfig);
+      squares = Array.isArray(_config.squares) ? _config.squares.slice() : [];
+      markDirty();
+    }
+
+    function draw(){
+      if (!running || !dirty) { requestAnimationFrame(draw); return; }
+      dirty = false;
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+      if (squares.length === 0) { requestAnimationFrame(draw); return; }
+
+      var intensity = (_config.intensity != null ? _config.intensity : 0.9);
+      var baseColor = _config.color || '#ff4500';
+      var rgb = hexToRgb(baseColor);
+      var sizeMul = (_config.size_px || 32) / 32;
+      var t = Date.now() * 0.001 * (1.2 + intensity * 0.5);
+
+      ctx.globalCompositeOperation = 'screen';
+
+      for (var i = 0; i < squares.length; i++){
+        var sq = squares[i];
+        if (!sq || sq.x == null || sq.y == null) continue;
+        var center = getTileCenterPx(sq.x, sq.y);
+        if (!center) continue;
+
+        var tileW = center.w;
+        var tileH = center.h;
+        var cx = center.x;
+        var cy = center.y;
+
+        // Flickering flame column
+        var flick = 0.7 + 0.3 * Math.sin(t * 8 + (sq.x * 3.7 + sq.y * 2.3));
+        var flameH = tileH * (0.8 + 0.5 * intensity) * flick * sizeMul;
+        var flameW = tileW * (0.6 + 0.3 * intensity) * sizeMul;
+
+        // Outer glow
+        var outerGrad = ctx.createRadialGradient(cx, cy - flameH*0.2, 0, cx, cy - flameH*0.2, flameW*1.5);
+        outerGrad.addColorStop(0, 'rgba(255,100,0,' + (0.15 * intensity * flick) + ')');
+        outerGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = outerGrad;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - flameH*0.2, flameW*1.5, flameH*0.8, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        // Core flame (elongated upward)
+        var coreGrad = ctx.createLinearGradient(cx, cy + flameH*0.3, cx, cy - flameH*0.7);
+        coreGrad.addColorStop(0, 'rgba(255,200,0,' + (0.6 * intensity * flick) + ')');
+        coreGrad.addColorStop(0.4, 'rgba(255,100,0,' + (0.5 * intensity * flick) + ')');
+        coreGrad.addColorStop(0.8, 'rgba(200,50,0,' + (0.3 * intensity * flick) + ')');
+        coreGrad.addColorStop(1, 'rgba(100,0,0,0)');
+        ctx.fillStyle = coreGrad;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - flameH*0.1, flameW*0.5, flameH*0.6, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        // Inner bright core
+        var innerGrad = ctx.createRadialGradient(cx, cy - flameH*0.1, 0, cx, cy - flameH*0.1, flameW*0.3);
+        innerGrad.addColorStop(0, 'rgba(255,255,150,' + (0.7 * flick) + ')');
+        innerGrad.addColorStop(1, 'rgba(255,200,0,0)');
+        ctx.fillStyle = innerGrad;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - flameH*0.1, flameW*0.3, flameH*0.35, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        // Rising embers
+        for (var j = 0; j < 3; j++){
+          var emberSeed = (sq.x * 100 + sq.y * 7 + j * 37) % 1000;
+          var emberT = t * 2 + emberSeed;
+          var emberX = cx + Math.sin(emberT * 1.3 + emberSeed) * flameW * 0.3;
+          var emberY = cy - flameH * 0.5 + ((emberT * 15) % (flameH * 1.5));
+          var emberAlpha = Math.max(0, 0.6 - (emberY - (cy - flameH)) / (flameH * 1.5));
+          var emberSize = (1 + Math.sin(emberT + emberSeed) * 0.5) * dpr;
+          ctx.fillStyle = 'rgba(255,220,100,' + (emberAlpha * flick * intensity) + ')';
+          ctx.beginPath();
+          ctx.arc(emberX, emberY, emberSize, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    requestAnimationFrame(draw);
+
+    return {
+      stop: function(){
+        running = false;
+        try { if (ro) ro.disconnect(); } catch(e){}
+        window.removeEventListener('resize', resize);
+        try { if (mo) mo.disconnect(); } catch(e){}
+        if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      },
+      updateConfig: updateConfig
     };
   },
 

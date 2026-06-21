@@ -1,0 +1,13 @@
+resilient_wisdom:
+  name: Resilient (Wisdom)
+  description: |
+    Choose one ability score. You gain the following benefits:
+    
+    * Increase the chosen ability score by 1, to a maximum of 20.
+    
+    * You gain proficiency in saving throws using the chosen ability.
+  benefits:
+    - ability_score_increase: 1
+    - saving_throw_proficiency: wis
+  ability_score: wis
+  prerequisites: []

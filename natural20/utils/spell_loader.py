@@ -50,6 +50,12 @@ def load_spell_class(spell_name):
     from natural20.spell.haste_spell import HasteSpell
     from natural20.spell.polymorph_spell import PolymorphSpell
     from natural20.spell.booming_blade_spell import BoomingBladeSpell
+    from natural20.spell.green_flame_blade_spell import GreenFlameBladeSpell
+    from natural20.spell.absorb_elements_spell import AbsorbElementsSpell
+    from natural20.spell.protection_from_evil_and_good_spell import ProtectionFromEvilAndGoodSpell
+    from natural20.spell.hold_person_spell import HoldPersonSpell
+    from natural20.spell.wall_of_fire_spell import WallOfFireSpell
+    from natural20.spell.tongues_spell import TonguesSpell
     from natural20.spell.wizard_spells import (
         AganazzarsScorcherSpell,
         AnimateDeadSpell,
@@ -137,6 +143,12 @@ def load_spell_class(spell_name):
         'HasteSpell': HasteSpell,
         'PolymorphSpell': PolymorphSpell,
         'BoomingBladeSpell': BoomingBladeSpell,
+        'GreenFlameBladeSpell': GreenFlameBladeSpell,
+        'AbsorbElementsSpell': AbsorbElementsSpell,
+        'ProtectionFromEvilAndGoodSpell': ProtectionFromEvilAndGoodSpell,
+        'HoldPersonSpell': HoldPersonSpell,
+        'WallOfFireSpell': WallOfFireSpell,
+        'TonguesSpell': TonguesSpell,
         'AganazzarsScorcherSpell': AganazzarsScorcherSpell,
         'AnimateDeadSpell': AnimateDeadSpell,
         'BanishmentSpell': BanishmentSpell,
