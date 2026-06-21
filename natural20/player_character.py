@@ -216,10 +216,23 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       self._current_hit_die[int(hit_die_details.die_type)] = level
       self.class_properties[klass] = character_class_properties
 
+    self._initialize_item_resources()
+
     self.attributes["hp"] = self.properties.get('hp', copy.deepcopy(self.max_hp()))
 
   def description(self):
     return super().description()
+
+  def _initialize_item_resources(self):
+    for item_name in list((self.inventory or {}).keys()):
+      try:
+        item = self.session.load_equipment(item_name)
+      except Exception:
+        item = None
+      if not item or not item.get('charges'):
+        continue
+      self.register_resource(f"{item_name}_charges", item.get('charges'),
+                             restore_on=item.get('charges_restore_on', 'long_rest'))
 
   def class_descriptor(self):
     class_level = []
@@ -794,6 +807,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
 
       subclass_feature_fields = {
         'rogue': ('roguish_archetype', 'roguish_archetype_features'),
+        'wizard': ('arcane_tradition', 'arcane_tradition_features'),
       }
       subclass_field, feature_field = subclass_feature_fields.get(klass, (None, None))
       subclass = self.properties.get(subclass_field) if subclass_field else None

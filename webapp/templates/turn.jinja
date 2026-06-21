@@ -24,6 +24,14 @@
             <span>{{ entity.rage_count or 0 }}/{{ entity.rage_max }}{% if entity.is_raging() %} ⚔{% endif %}</span>
         </div>
         {% endif %}
+        {% if entity.resources is defined and entity.resources %}
+            {% for resource_name, resource in entity.resources.items() %}
+            {% set label = resource_name.replace('_', ' ').title() %}
+            <div class="indicator resource-pool" style="background-color: #6c3483;" title="{{ label }}" data-toggle="tooltip" data-placement="top">
+                <span>{{ resource.current }}/{{ resource.max_value }} {{ resource_name[:2]|upper }}</span>
+            </div>
+            {% endfor %}
+        {% endif %}
     </div>
     {% else %}
     <div class="current-turn-information" style="">

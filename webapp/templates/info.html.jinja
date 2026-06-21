@@ -397,6 +397,25 @@
                 </div>
                 <div class="section-content">
                     <div class="features-container">
+                        {% set advanced_features = [
+                            'sneak_attack', 'cunning_action', 'uncanny_dodge',
+                            'evasion', 'reliable_talent', 'blindsense',
+                            'slippery_mind', 'fancy_footwork',
+                            'rakish_audacity', 'panache', 'sentinel',
+                            'martial_adept', 'arcane_recovery',
+                            'abjuration_savant', 'arcane_ward',
+                            'projected_ward', 'improved_abjuration',
+                            'spell_resistance'
+                        ] %}
+                        <div class="feature-section">
+                            <h3>Active Class & Feat Features</h3>
+                            <ul class="feature-list">
+                            {% for feature in advanced_features if entity.class_feature(feature) %}
+                                <li class="feature-item" data-tooltip="{{ feature }}">{{ feature | replace('_', ' ') | title }}</li>
+                            {% endfor %}
+                            </ul>
+                        </div>
+
                         {% if entity.properties.get('class_features') %}
                         <div class="feature-section">
                             <h3>Class Features</h3>
@@ -425,6 +444,28 @@
                             <ul class="feature-list">
                             {% for feature in entity.properties.get('attributes', []) %}
                                 <li class="feature-item" data-tooltip="{{ feature }}">{{ feature | replace('_', ' ') | title }}</li>
+                            {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {% if entity.properties.get('feats') %}
+                        <div class="feature-section">
+                            <h3>Feats</h3>
+                            <ul class="feature-list">
+                            {% for feat in entity.properties.get('feats', []) %}
+                                <li class="feature-item" data-tooltip="{{ feat }}">{{ feat | replace('_', ' ') | title }}</li>
+                            {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {% if entity.properties.get('maneuvers') %}
+                        <div class="feature-section">
+                            <h3>Maneuvers</h3>
+                            <ul class="feature-list">
+                            {% for maneuver in entity.properties.get('maneuvers', []) %}
+                                <li class="feature-item" data-tooltip="{{ maneuver }}">{{ maneuver | replace('_', ' ') | title }}</li>
                             {% endfor %}
                             </ul>
                         </div>
@@ -526,7 +567,8 @@
                     {% set _has_bardic = entity.bardic_inspiration_max|default(0) %}
                     {% set _has_wild = entity.wild_shape_max|default(0) %}
                     {% set _has_arcane = entity.arcane_recovery is defined and entity.arcane_recovery is not none %}
-                    {% if _has_ki or _has_rage or _has_sw or _has_loh or _has_bardic or _has_wild or _has_arcane %}
+                    {% set _resource_pools = entity.resources if entity.resources is defined else {} %}
+                    {% if _has_ki or _has_rage or _has_sw or _has_loh or _has_bardic or _has_wild or _has_arcane or _resource_pools %}
                     <h3>Class Resources</h3>
                     <table class="class-resources-table">
                         {% if _has_ki %}
@@ -586,6 +628,31 @@
                             <td><span class="resource-value">{{ 'Available' if entity.arcane_recovery else 'Used' }}</span></td>
                         </tr>
                         {% endif %}
+                        {% for resource_name, resource in _resource_pools.items() %}
+                        <tr>
+                            <th>{{ resource_name | replace('_', ' ') | title }}</th>
+                            <td>
+                                {% if 'dm' in role %}
+                                <div class="action-resource-controls">
+                                    <input type="number" class="action-resource-input"
+                                           id="resource-{{ resource_name }}-input"
+                                           value="{{ resource.current }}"
+                                           min="0"
+                                           max="{{ resource.max_value }}"
+                                           title="Current {{ resource_name | replace('_', ' ') }}">
+                                    <div class="action-resource-buttons">
+                                        <button class="action-resource-btn minus-btn" onclick="updateResourcePool('{{ resource_name }}', -1)" title="Remove one">-</button>
+                                        <button class="action-resource-btn plus-btn" onclick="updateResourcePool('{{ resource_name }}', 1)" title="Add one">+</button>
+                                        <button class="action-resource-save-btn" onclick="setResourcePool('{{ resource_name }}')" id="save-resource-{{ resource_name }}-btn" title="Set to the specified value">Set</button>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <span class="resource-value">{{ resource.current }}/{{ resource.max_value }}</span>
+                                {% endif %}
+                                <span style="font-size:0.9em;color:#777;margin-left:6px;">refresh: {{ resource.restore_on | replace('_', ' ') }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
                     </table>
                     <style>
                         .class-resources-table .resource-value{font-weight:600}
@@ -1256,6 +1323,64 @@
             })
             .catch(error => {
                 alert('Error updating ' + resourceType.replace('_', ' ') + ': ' + error);
+                button.textContent = 'Set';
+                button.disabled = false;
+            });
+        }
+
+        function updateResourcePool(resourceName, change) {
+            const input = document.getElementById('resource-' + resourceName + '-input');
+            if (!input) return;
+            const maxValue = parseInt(input.max);
+            const currentValue = parseInt(input.value) || 0;
+            const newValue = Math.max(0, Math.min(maxValue, currentValue + change));
+            input.value = newValue;
+            setResourcePool(resourceName);
+        }
+
+        function setResourcePool(resourceName) {
+            const input = document.getElementById('resource-' + resourceName + '-input');
+            const button = document.getElementById('save-resource-' + resourceName + '-btn');
+            if (!input || !button) return;
+            const value = parseInt(input.value);
+
+            if (isNaN(value) || value < 0) {
+                alert('Resource value must be 0 or greater');
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = 'Saving...';
+
+            fetch('/update_resource_pool', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    entity_id: document.body.dataset.id,
+                    resource_name: resourceName,
+                    value: value,
+                    operation: 'set'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    input.value = data.new_value;
+                    button.textContent = 'Saved!';
+                    setTimeout(() => {
+                        button.textContent = 'Set';
+                        button.disabled = false;
+                    }, 1000);
+                } else {
+                    alert('Failed to update ' + resourceName.replace('_', ' ') + ': ' + (data.error || 'Unknown error'));
+                    button.textContent = 'Set';
+                    button.disabled = false;
+                }
+            })
+            .catch(error => {
+                alert('Error updating ' + resourceName.replace('_', ' ') + ': ' + error);
                 button.textContent = 'Set';
                 button.disabled = false;
             });

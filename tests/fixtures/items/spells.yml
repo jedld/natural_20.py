@@ -3,10 +3,12 @@ shield_of_faith:
   label: Shield of Faith
   casting_time: 1:bonus_action
   components:
-    - verbal
-    - somatic
-  description: |
-    A shimmering field appears and surrounds a creature of your choice within range, granting it a +2 bonus to AC for the duration.
+  - verbal
+  - somatic
+  description: 'A shimmering field appears and surrounds a creature of your choice
+    within range, granting it a +2 bonus to AC for the duration.
+
+    '
   duration: 10m
   level: 1
   name: Shield of Faith
@@ -15,15 +17,20 @@ shield_of_faith:
   concentration: true
   type: warding
   spell_list_classes:
-    - Cleric
+  - Cleric
   spell_class: Natural20::ShieldOfFaith
 divine_smite:
   label: Divine Smite
   casting_time: instant:no_action
   components: []
   damage_type: radiant
-  description: |
-    Immediately after you hit a creature with a melee weapon attack, you can expend a spell slot to deal radiant damage to the target, in addition to the weapon's damage. The extra damage is 2d8 for a 1st-level slot, plus 1d8 for each spell slot level higher than 1st, to a maximum of 5d8. The damage increases by 1d8 if the target is an undead or a fiend.
+  description: 'Immediately after you hit a creature with a melee weapon attack, you
+    can expend a spell slot to deal radiant damage to the target, in addition to the
+    weapon''s damage. The extra damage is 2d8 for a 1st-level slot, plus 1d8 for each
+    spell slot level higher than 1st, to a maximum of 5d8. The damage increases by
+    1d8 if the target is an undead or a fiend.
+
+    '
   duration: instant
   level: 1
   name: Divine Smite
@@ -31,17 +38,22 @@ divine_smite:
   school: evocation
   type: buff
   spell_list_classes:
-    - Paladin
+  - Paladin
   spell_class: Natural20::DivineSmite
 booming_blade:
   label: Booming Blade
   casting_time: 1:action
   components:
-    - somatic
-    - material
+  - somatic
+  - material
   damage_type: thunder
-  description: |
-    You brandish the weapon used in the spell's casting and make a melee attack with it against one creature within 5 feet of you. On a hit, the target suffers the weapon attack's normal effects and is sheathed in booming energy until the start of your next turn. At higher character levels, the melee attack also deals thunder damage.
+  description: 'You brandish the weapon used in the spell''s casting and make a melee
+    attack with it against one creature within 5 feet of you. On a hit, the target
+    suffers the weapon attack''s normal effects and is sheathed in booming energy
+    until the start of your next turn. At higher character levels, the melee attack
+    also deals thunder damage.
+
+    '
   duration: 1 round
   level: 0
   name: Booming Blade
@@ -49,18 +61,20 @@ booming_blade:
   school: evocation
   type: melee_attack
   spell_list_classes:
-    - Sorcerer
-    - Warlock
-    - Wizard
+  - Sorcerer
+  - Warlock
+  - Wizard
   spell_class: Natural20::BoomingBlade
 spare_the_dying:
   label: Spare the Dying
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
-  description: |
-    You touch a living creature that has 0 hit points. The creature becomes stable. This spell has no effect on undead or constructs.
+  - verbal
+  - somatic
+  description: 'You touch a living creature that has 0 hit points. The creature becomes
+    stable. This spell has no effect on undead or constructs.
+
+    '
   duration: instant
   level: 0
   name: Spare the Dying
@@ -68,15 +82,18 @@ spare_the_dying:
   school: necromancy
   type: healing
   spell_list_classes:
-    - Cleric
+  - Cleric
 bless:
   casting_time: 1:action
   label: Bless
   components:
-    - verbal
-    - somatic
-  description: |
-    You bless up to three creatures of your choice within range. Whenever a target makes an attack roll or a saving throw before the spell ends, the target can roll a d4 and add the number rolled to the attack roll or saving throw.
+  - verbal
+  - somatic
+  description: 'You bless up to three creatures of your choice within range. Whenever
+    a target makes an attack roll or a saving throw before the spell ends, the target
+    can roll a d4 and add the number rolled to the attack roll or saving throw.
+
+    '
   duration: 1m
   level: 1
   name: Bless
@@ -85,15 +102,18 @@ bless:
   type: buff
   concentration: true
   spell_list_classes:
-    - Cleric
+  - Cleric
 resistance:
   label: Resistance
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
-  description: |
-    You touch one willing creature. Once before the spell ends, the target can roll a d4 and add the number rolled to one saving throw of its choice. It can roll the die before or after making the saving throw. The spell then ends.
+  - verbal
+  - somatic
+  description: 'You touch one willing creature. Once before the spell ends, the target
+    can roll a d4 and add the number rolled to one saving throw of its choice. It
+    can roll the die before or after making the saving throw. The spell then ends.
+
+    '
   duration: 1m
   level: 0
   name: Resistance
@@ -102,16 +122,20 @@ resistance:
   type: buff
   concentration: true
   spell_list_classes:
-    - Cleric
-    - Druid
+  - Cleric
+  - Druid
 guidance:
   label: Guidance
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
-  description: |
-    You touch one willing creature. Once before the spell ends, the target can roll a d4 and add the number rolled to one ability check of its choice. The creature can roll the die before or after making the ability check. The spell then ends.
+  - verbal
+  - somatic
+  description: 'You touch one willing creature. Once before the spell ends, the target
+    can roll a d4 and add the number rolled to one ability check of its choice. The
+    creature can roll the die before or after making the ability check. The spell
+    then ends.
+
+    '
   duration: 1m
   level: 0
   name: Guidance
@@ -120,17 +144,22 @@ guidance:
   type: buff
   concentration: true
   spell_list_classes:
-    - Cleric
-    - Druid
+  - Cleric
+  - Druid
   spell_class: Natural20::Guidance
-
 burning_hands:
   label: Burning Hands
   casting_time: 1:action
   damage_type: fire
-  description: |
-    As you hold your hands with thumbs touching and fingers spread, a thin sheet of flames shoots forth from your outstretched fingertips. Each creature in a 15-foot cone must make a Dexterity saving throw. A creature takes 3d6 fire damage on a failed save, or half as much damage on a successful one.
-    The fire ignites any flammable objects in the area that aren't being worn or carried.
+  description: 'As you hold your hands with thumbs touching and fingers spread, a
+    thin sheet of flames shoots forth from your outstretched fingertips. Each creature
+    in a 15-foot cone must make a Dexterity saving throw. A creature takes 3d6 fire
+    damage on a failed save, or half as much damage on a successful one.
+
+    The fire ignites any flammable objects in the area that aren''t being worn or
+    carried.
+
+    '
   duration: instant
   level: 1
   name: Burning Hands
@@ -138,16 +167,22 @@ burning_hands:
   school: evocation
   type: ranged_attack
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
   spell_class: Natural20::BurningHands
 thunderwave:
   label: Thunderwave
   casting_time: 1:action
   damage_type: thunder
-  description: |
-    A wave of thunderous force sweeps out from you. Each creature in a 15-foot cube originating from you must make a Constitution saving throw. On a failed save, a creature takes 2d8 thunder damage and is pushed 10 feet away from you. On a successful save, the creature takes half as much damage and isn't pushed.
-    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d8 for each slot level above 1st.
+  description: 'A wave of thunderous force sweeps out from you. Each creature in a
+    15-foot cube originating from you must make a Constitution saving throw. On a
+    failed save, a creature takes 2d8 thunder damage and is pushed 10 feet away from
+    you. On a successful save, the creature takes half as much damage and isn''t pushed.
+
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or
+    higher, the damage increases by 1d8 for each slot level above 1st.
+
+    '
   duration: instant
   level: 1
   name: Thunderwave
@@ -155,20 +190,26 @@ thunderwave:
   school: evocation
   type: area
   spell_list_classes:
-    - Wizard
-    - Sorcerer
-    - Druid
+  - Wizard
+  - Sorcerer
+  - Druid
   spell_class: Natural20::Thunderwave
 hellish_rebuke:
   label: Hellish Rebuke
   casting_time: 1:reaction
   damage_type: fire
-  description: |
-    You point your finger, and the creature that damaged you is momentarily surrounded by hellish flames. The creature must make a Dexterity saving throw. It takes 2d10 fire damage on a failed save, or half as much damage on a successful one.
-    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d10 for each slot level above 1st.
+  description: 'You point your finger, and the creature that damaged you is momentarily
+    surrounded by hellish flames. The creature must make a Dexterity saving throw.
+    It takes 2d10 fire damage on a failed save, or half as much damage on a successful
+    one.
+
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or
+    higher, the damage increases by 1d10 for each slot level above 1st.
+
+    '
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   duration: instant
   level: 1
   name: Hellish Rebuke
@@ -177,16 +218,21 @@ hellish_rebuke:
   type: ranged_attack
   triggers_on_damage: true
   spell_list_classes:
-    - Warlock
-    - Tiefling
+  - Warlock
+  - Tiefling
   spell_class: Natural20::HellishRebuke
 silvery_barbs:
   label: Silvery Barbs
   casting_time: 1:reaction
   components:
-    - verbal
-  description: |
-    When a creature you can see within 60 feet of you succeeds on an attack roll, an ability check, or a saving throw, you can use your reaction to force that creature to reroll and use the lower result. You can also choose another creature you can see within range; the chosen creature has advantage on the next attack roll, ability check, or saving throw it makes within 1 minute.
+  - verbal
+  description: 'When a creature you can see within 60 feet of you succeeds on an attack
+    roll, an ability check, or a saving throw, you can use your reaction to force
+    that creature to reroll and use the lower result. You can also choose another
+    creature you can see within range; the chosen creature has advantage on the next
+    attack roll, ability check, or saving throw it makes within 1 minute.
+
+    '
   duration: 1m
   level: 1
   name: Silvery Barbs
@@ -195,19 +241,23 @@ silvery_barbs:
   type: utility
   triggers_on_attack_success: true
   spell_list_classes:
-    - Bard
-    - Sorcerer
-    - Wizard
+  - Bard
+  - Sorcerer
+  - Wizard
   spell_class: Natural20::SilveryBarbs
 darkness:
   label: Darkness
   casting_time: 1:action
   components:
-    - verbal
-    - material
+  - verbal
+  - material
   concentration: true
-  description: |
-    Magical darkness spreads from a point you choose within range to fill a 15-foot-radius sphere for the duration. The darkness spreads around corners. A creature with darkvision can't see through this darkness, and nonmagical light can't illuminate it.
+  description: 'Magical darkness spreads from a point you choose within range to fill
+    a 15-foot-radius sphere for the duration. The darkness spreads around corners.
+    A creature with darkvision can''t see through this darkness, and nonmagical light
+    can''t illuminate it.
+
+    '
   duration: 10m
   level: 2
   name: Darkness
@@ -216,19 +266,26 @@ darkness:
   school: evocation
   type: utility
   spell_list_classes:
-    - Sorcerer
-    - Warlock
-    - Wizard
+  - Sorcerer
+  - Warlock
+  - Wizard
   spell_class: Natural20::Darkness
 light:
   label: Light
   casting_time: 1:action
   components:
-    - verbal
-    - material
-  description: |
-    You touch one object that is no larger than 10 feet in any dimension. Until the spell ends, the object sheds bright light in a 20-foot radius and dim light for an additional 20 feet. The light can be colored as you like. Completely covering the object with something opaque blocks the light. The spell ends if you cast it again or dismiss it as an action.
-    If you target an object held or worn by a hostile creature, that creature must succeed on a Dexterity saving throw to avoid the spell.
+  - verbal
+  - material
+  description: 'You touch one object that is no larger than 10 feet in any dimension.
+    Until the spell ends, the object sheds bright light in a 20-foot radius and dim
+    light for an additional 20 feet. The light can be colored as you like. Completely
+    covering the object with something opaque blocks the light. The spell ends if
+    you cast it again or dismiss it as an action.
+
+    If you target an object held or worn by a hostile creature, that creature must
+    succeed on a Dexterity saving throw to avoid the spell.
+
+    '
   duration: 1h
   level: 0
   name: Light
@@ -239,21 +296,28 @@ light:
   type: utility
   color: white
   spell_list_classes:
-    - Bard
-    - Cleric
-    - Sorcerer
-    - Wizard
+  - Bard
+  - Cleric
+  - Sorcerer
+  - Wizard
   spell_class: Natural20::Light
 ice_knife:
   label: Ice Knife
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   damage_type: piercing
-  description: |
-    You create a shard of ice and fling it at one creature within range. Make a ranged spell attack against the target. On a hit, the target takes 1d10 piercing damage. Hit or miss, the shard then explodes. The target and each creature within 5 feet of it must succeed on a Dexterity saving throw or take 2d6 cold damage.
-    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the cold damage increases by 1d6 for each slot level above 1st.
+  description: 'You create a shard of ice and fling it at one creature within range.
+    Make a ranged spell attack against the target. On a hit, the target takes 1d10
+    piercing damage. Hit or miss, the shard then explodes. The target and each creature
+    within 5 feet of it must succeed on a Dexterity saving throw or take 2d6 cold
+    damage.
+
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or
+    higher, the cold damage increases by 1d6 for each slot level above 1st.
+
+    '
   duration: instant
   level: 1
   name: Ice Knife
@@ -261,19 +325,26 @@ ice_knife:
   school: conjuration
   type: ranged_attack
   spell_list_classes:
-    - Sorcerer
-    - Wizard
-    - Druid
+  - Sorcerer
+  - Wizard
+  - Druid
 guiding_bolt:
   label: Guiding Bolt
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   damage_type: radiant
-  description: |
-    A flash of light streaks toward a creature of your choice within range. Make a ranged spell attack against the target. On a hit, the target takes 4d6 radiant damage, and the next attack roll made against this target before the end of your next turn has advantage, thanks to the mystical dim light glittering on the target until then.
-    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d6 for each slot level above 1st.
+  description: 'A flash of light streaks toward a creature of your choice within range.
+    Make a ranged spell attack against the target. On a hit, the target takes 4d6
+    radiant damage, and the next attack roll made against this target before the end
+    of your next turn has advantage, thanks to the mystical dim light glittering on
+    the target until then.
+
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or
+    higher, the damage increases by 1d6 for each slot level above 1st.
+
+    '
   duration: instant
   level: 1
   name: Guiding Bolt
@@ -281,16 +352,20 @@ guiding_bolt:
   school: evocation
   type: ranged_attack
   spell_list_classes:
-    - Cleric
+  - Cleric
 cure_wounds:
   label: Cure Wounds
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
-  description: |
-    A creature you touch regains a number of hit points equal to 1d8 + your spellcasting ability modifier. This spell has no effect on undead or constructs.
-    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the healing increases by 1d8 for each slot level above 1st.
+  - verbal
+  - somatic
+  description: 'A creature you touch regains a number of hit points equal to 1d8 +
+    your spellcasting ability modifier. This spell has no effect on undead or constructs.
+
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or
+    higher, the healing increases by 1d8 for each slot level above 1st.
+
+    '
   duration: instant
   level: 1
   name: Cure Wounds
@@ -298,16 +373,25 @@ cure_wounds:
   school: evocation
   type: healing
   spell_list_classes:
-    - Cleric
-    - Druid
+  - Cleric
+  - Druid
 chill_touch:
   label: Chill Touch
   casting_time: 1:action
   damage_type: necrotic
-  description: |
-    You create a ghostly, skeletal hand in the space of a creature within range. Make a ranged spell attack against the creature to assail it with the chill of the grave. On a hit, the target takes 1d8 necrotic damage, and it can't regain hit points until the start of your next turn. Until then, the hand clings to the target.
-    If you hit an undead target, it also has disadvantage on attack rolls against you until the end of your next turn.
-    This spell's damage increases by 1d8 when you reach 5th level (2d8), 11th level (3d8), and 17th level (4d8).
+  description: 'You create a ghostly, skeletal hand in the space of a creature within
+    range. Make a ranged spell attack against the creature to assail it with the chill
+    of the grave. On a hit, the target takes 1d8 necrotic damage, and it can''t regain
+    hit points until the start of your next turn. Until then, the hand clings to the
+    target.
+
+    If you hit an undead target, it also has disadvantage on attack rolls against
+    you until the end of your next turn.
+
+    This spell''s damage increases by 1d8 when you reach 5th level (2d8), 11th level
+    (3d8), and 17th level (4d8).
+
+    '
   duration: 1R
   level: 0
   name: Chill Touch
@@ -315,17 +399,22 @@ chill_touch:
   school: necromancy
   type: ranged_attack
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
 protection_from_poison:
   label: Protection from Poison
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
-  description: |
-    You touch a creature. If it is poisoned, you neutralize the poison. If more than one poison afflicts the target, you neutralize one poison that you know is present, or you neutralize one at random.
-    For the duration, the target has advantage on saving throws against being poisoned, and it has resistance to poison damage.
+  - verbal
+  - somatic
+  description: 'You touch a creature. If it is poisoned, you neutralize the poison.
+    If more than one poison afflicts the target, you neutralize one poison that you
+    know is present, or you neutralize one at random.
+
+    For the duration, the target has advantage on saving throws against being poisoned,
+    and it has resistance to poison damage.
+
+    '
   duration: 1h
   level: 2
   name: Protection from Poison
@@ -333,16 +422,21 @@ protection_from_poison:
   school: abjuration
   type: warding
   spell_list_classes:
-    - Cleric
-    - Druid
+  - Cleric
+  - Druid
   spell_class: Natural20::ProtectionFromPoison
 sacred_flame:
   label: Sacred Flame
   casting_time: 1:action
   damage_type: radiant
-  description: |
-    Flame-like radiance descends on a creature that you can see within range. The target must succeed on a Dexterity saving throw or take 1d8 radiant damage. The target gains no benefit from cover for this saving throw.
-    The spell's damage increases by 1d8 when you reach 5th level (2d8), 11th level (3d8), and 17th level (4d8).
+  description: 'Flame-like radiance descends on a creature that you can see within
+    range. The target must succeed on a Dexterity saving throw or take 1d8 radiant
+    damage. The target gains no benefit from cover for this saving throw.
+
+    The spell''s damage increases by 1d8 when you reach 5th level (2d8), 11th level
+    (3d8), and 17th level (4d8).
+
+    '
   duration: instant
   level: 0
   name: Sacred Flame
@@ -350,13 +444,17 @@ sacred_flame:
   school: evocation
   type: ranged_attack
   spell_list_classes:
-    - Cleric
+  - Cleric
 toll_the_dead:
   label: Toll the Dead
   casting_time: 1:action
   damage_type: necrotic
-  description: |
-    You point at one creature you can see within range, and the single chime of a dolorous bell is audible within 10 feet of the target. The target must succeed on a Wisdom saving throw or take 1d8 Necrotic damage. If the target is missing any of its Hit Points, it instead takes 1d12 Necrotic damage.
+  description: 'You point at one creature you can see within range, and the single
+    chime of a dolorous bell is audible within 10 feet of the target. The target must
+    succeed on a Wisdom saving throw or take 1d8 Necrotic damage. If the target is
+    missing any of its Hit Points, it instead takes 1d12 Necrotic damage.
+
+    '
   duration: instant
   level: 0
   name: Toll the Dead
@@ -364,17 +462,21 @@ toll_the_dead:
   school: necromancy
   type: ranged_attack
   spell_list_classes:
-    - Cleric
+  - Cleric
 inflict_wounds:
   label: Inflict Wounds
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   damage_type: necrotic
-  description: |
-    Make a melee spell attack against a creature you can reach. On a hit, the target takes 3d10 necrotic damage.
-    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d10 for each slot level above 1st.
+  description: 'Make a melee spell attack against a creature you can reach. On a hit,
+    the target takes 3d10 necrotic damage.
+
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or
+    higher, the damage increases by 1d10 for each slot level above 1st.
+
+    '
   duration: instant
   level: 1
   name: Inflict Wounds
@@ -382,16 +484,19 @@ inflict_wounds:
   school: necromancy
   type: melee_attack
   spell_list_classes:
-    - Cleric
+  - Cleric
   spell_class: Natural20::InflictWounds
 expeditious_retreat:
   label: Expeditious Retreat
   casting_time: 1:bonus_action
-  description: |
-    This spell allows you to move at an incredible pace. When you cast this spell, and then as a bonus action on each of your turns until the spell ends, you can take the Dash action.
+  description: 'This spell allows you to move at an incredible pace. When you cast
+    this spell, and then as a bonus action on each of your turns until the spell ends,
+    you can take the Dash action.
+
+    '
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   duration: 10m
   level: 1
   name: Expeditious Retreat
@@ -399,44 +504,51 @@ expeditious_retreat:
   school: transmutation
   type: movement
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
 find_familiar:
   label: Find Familiar
   casting_time: 1:hour
   components:
-    - verbal
-    - somatic
-    - material
-  description: |
-    You gain the service of a familiar, a spirit that takes an animal form you choose: bat, cat, crab, frog (toad), hawk, lizard, octopus, owl, poisonous snake, fish (quipper), rat, raven, sea horse, spider, or weasel.
-    Appearing in an unoccupied space within range, the familiar has the statistics of the chosen form, though it is a celestial, fey, or fiend (your choice) instead of a beast.
+  - verbal
+  - somatic
+  - material
+  description: 'You gain the service of a familiar, a spirit that takes an animal
+    form you choose: bat, cat, crab, frog (toad), hawk, lizard, octopus, owl, poisonous
+    snake, fish (quipper), rat, raven, sea horse, spider, or weasel.
+
+    Appearing in an unoccupied space within range, the familiar has the statistics
+    of the chosen form, though it is a celestial, fey, or fiend (your choice) instead
+    of a beast.
+
+    '
   level: 1
   materials:
-    - charcoal
-    - incense
-    - herbs
+  - charcoal
+  - incense
+  - herbs
   name: Find Familiar
   range: 10
   school: conjuration
   spell_class: Natural20::FindFamiliar
   type: summoning
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
 firebolt:
   label: Firebolt
   base_damage: 1d10
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   damage_increase:
-    - 5
-    - 11
-    - 17
+  - 5
+  - 11
+  - 17
   damage_type: fire
-  description: You hurl a mote of fire at a creature or object within range. A flammable object hit by this spell ignites if it isn't being worn or carried.
+  description: You hurl a mote of fire at a creature or object within range. A flammable
+    object hit by this spell ignites if it isn't being worn or carried.
   duration: instant
   level: 0
   name: Firebolt
@@ -445,19 +557,26 @@ firebolt:
   spell_class: Natural20::Firebolt
   type: ranged_attack
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
 armor_of_agathys:
   label: Armor of Agathys
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   damage_type: cold
-  description: |
-    A protective magical force surrounds you, manifesting as frost that covers you and your gear. You gain 5 temporary hit points for the duration.
-    If a creature hits you with a melee attack while you have these hit points, the creature takes 5 cold damage.
-    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, both the temporary hit points and the cold damage increase by 5 for each slot level above 1st.
+  description: 'A protective magical force surrounds you, manifesting as frost that
+    covers you and your gear. You gain 5 temporary hit points for the duration.
+
+    If a creature hits you with a melee attack while you have these hit points, the
+    creature takes 5 cold damage.
+
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or
+    higher, both the temporary hit points and the cold damage increase by 5 for each
+    slot level above 1st.
+
+    '
   duration: 1h
   level: 1
   name: Armor of Agathys
@@ -465,20 +584,27 @@ armor_of_agathys:
   school: abjuration
   type: warding
   spell_list_classes:
-    - Warlock
+  - Warlock
   spell_class: Natural20::ArmorOfAgathys
 eldritch_blast:
   label: Eldritch Blast
   base_damage: 1d10
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   damage_type: force
-  description: |
-    A beam of crackling energy streaks toward a creature within range. Make a ranged spell attack against the target.
-    On a hit, the target takes 1d10 force damage. The spell creates more than one beam when you reach higher levels: two beams at 5th level, three beams at 11th level, and four beams at 17th level.
-    You can direct the beams at the same target or at different ones. Make a separate attack roll for each beam.
+  description: 'A beam of crackling energy streaks toward a creature within range.
+    Make a ranged spell attack against the target.
+
+    On a hit, the target takes 1d10 force damage. The spell creates more than one
+    beam when you reach higher levels: two beams at 5th level, three beams at 11th
+    level, and four beams at 17th level.
+
+    You can direct the beams at the same target or at different ones. Make a separate
+    attack roll for each beam.
+
+    '
   duration: instant
   level: 0
   name: Eldritch Blast
@@ -487,15 +613,20 @@ eldritch_blast:
   spell_class: Natural20::EldritchBlast
   type: ranged_attack
   spell_list_classes:
-    - Warlock
+  - Warlock
 healing_word:
   label: Healing Word
   casting_time: 1:bonus_action
   components:
-    - verbal
-  description: |
-    A creature of your choice that you can see within range regains hit points equal to 1d4 + your spellcasting ability modifier. This spell has no effect on undead or constructs.
-    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the healing increases by 1d4 for each slot level above 1st.
+  - verbal
+  description: 'A creature of your choice that you can see within range regains hit
+    points equal to 1d4 + your spellcasting ability modifier. This spell has no effect
+    on undead or constructs.
+
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or
+    higher, the healing increases by 1d4 for each slot level above 1st.
+
+    '
   duration: instant
   level: 1
   name: Healing Word
@@ -503,41 +634,54 @@ healing_word:
   school: evocation
   type: healing
   spell_list_classes:
-    - Cleric
-    - Druid
+  - Cleric
+  - Druid
   spell_class: Natural20::HealingWord
 mage_armor:
   label: Mage Armor
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
-    - material
-  description: You touch a willing creature who isn't wearing armor, and a protective magical force surrounds it until the spell ends. The target's base AC becomes 13 + its Dexterity modifier. The spell ends if the target dons armor or if you dismiss the spell as an action.
+  - verbal
+  - somatic
+  - material
+  description: You touch a willing creature who isn't wearing armor, and a protective
+    magical force surrounds it until the spell ends. The target's base AC becomes
+    13 + its Dexterity modifier. The spell ends if the target dons armor or if you
+    dismiss the spell as an action.
   duration: 8h
   level: 1
   range: 5
   materials:
-    - cured_leather
+  - cured_leather
   name: Mage Armor
   school: abjuration
   spell_class: Natural20::MageArmor
   type: buff
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
 mage_hand:
   label: Mage Hand
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
-  description: |
-    A spectral, floating hand appears at a point you choose within range and lasts for 1 minute.
-    The hand vanishes if it is ever more than 30 feet away from you or if you cast this spell again.
-    You can use the hand to manipulate an object, open an unlocked door or container, stow or retrieve an item from an open container, or pour the contents out of a vial.
-    As a Magic action on later turns, you can move the hand up to 30 feet and repeat the interaction.
+  - verbal
+  - somatic
+  description: 'A spectral, floating hand appears at a point you choose within range
+    and lasts for 1 minute.
+
+    The hand vanishes if it is ever more than 30 feet away from you or if you cast
+    this spell again.
+
+    You can use the hand to manipulate an object, open an unlocked door or container,
+    stow or retrieve an item from an open container, or pour the contents out of a
+    vial.
+
+    As a Magic action on later turns, you can move the hand up to 30 feet and repeat
+    the interaction.
+
     The hand cannot attack, activate magic items, or carry more than 10 pounds.
+
+    '
   duration: 1m
   level: 0
   name: Mage Hand
@@ -546,15 +690,16 @@ mage_hand:
   spell_class: Natural20::MageHand
   type: utility
   spell_list_classes:
-    - Bard
-    - Sorcerer
-    - Warlock
-    - Wizard
+  - Bard
+  - Sorcerer
+  - Warlock
+  - Wizard
 magic_missile:
   label: Magic Missile
   casting_time: 1:action
   damage_type: force
-  description: You create three glowing darts of magical force. Each dart hits a creature of your choice that you can see within range.
+  description: You create three glowing darts of magical force. Each dart hits a creature
+    of your choice that you can see within range.
   higher_level: true
   level: 1
   name: Magic Missile
@@ -563,15 +708,17 @@ magic_missile:
   spell_class: Natural20::MagicMissile
   type: force
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
 misty_step:
   label: Misty Step
   casting_time: 1:bonus_action
   components:
-    - verbal
-  description: |
-    Briefly surrounded by silvery mist, you teleport up to 30 feet to an unoccupied space you can see.
+  - verbal
+  description: 'Briefly surrounded by silvery mist, you teleport up to 30 feet to
+    an unoccupied space you can see.
+
+    '
   duration: instant
   level: 2
   name: Misty Step
@@ -580,26 +727,26 @@ misty_step:
   spell_class: Natural20::MistyStep
   type: teleport
   spell_list_classes:
-    - Bard
-    - Sorcerer
-    - Warlock
-    - Wizard
+  - Bard
+  - Sorcerer
+  - Warlock
+  - Wizard
 ray_of_frost:
   label: Ray of Frost
   base_damage: 1d8
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   damage_increase:
-    - 5
-    - 11
-    - 17
+  - 5
+  - 11
+  - 17
   damage_type: cold
-  description: |
-    A frigid beam of blue-white light streaks toward a creature within range.
-    On a hit, it takes 1d8 cold damage, and its speed is reduced by 10 feet until the start of your next turn.
-    The spell’s damage increases by 1d8 when you reach 5th level (2d8), 11th level (3d8), and 17th level (4d8).
+  description: "A frigid beam of blue-white light streaks toward a creature within\
+    \ range.\nOn a hit, it takes 1d8 cold damage, and its speed is reduced by 10 feet\
+    \ until the start of your next turn.\nThe spell\u2019s damage increases by 1d8\
+    \ when you reach 5th level (2d8), 11th level (3d8), and 17th level (4d8).\n"
   duration: instant
   level: 0
   name: Ray of Frost
@@ -607,36 +754,42 @@ ray_of_frost:
   school: evocation
   type: ranged_attack
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
 poison_spray:
   label: Poison Spray
   casting_time: 1:action
   damage_type: poison
-  description: |
-    You extend your hand toward a creature you can see within range and project a puff of noxious gas from your palm. The creature must succeed on a Constitution saving throw or take 1d12 poison damage.
+  description: 'You extend your hand toward a creature you can see within range and
+    project a puff of noxious gas from your palm. The creature must succeed on a Constitution
+    saving throw or take 1d12 poison damage.
+
+    '
   duration: instant
   level: 0
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   name: Poison Spray
   range: 10
   school: poison
   type: ranged_attack
   spell_list_classes:
-    - Sorcerer
-    - Wizard
-    - Druid
+  - Sorcerer
+  - Wizard
+  - Druid
   spell_class: Natural20::PoisonSpray
 shield:
   label: Shield
   casting_time: 1:reaction
-  description: |
-    An invisible barrier of magical force appears and protects you. Until the start of your next turn, you have a +5 bonus to AC, including against the triggering attack, and you take no damage from magic missile.
+  description: 'An invisible barrier of magical force appears and protects you. Until
+    the start of your next turn, you have a +5 bonus to AC, including against the
+    triggering attack, and you take no damage from magic missile.
+
+    '
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   duration: 1R
   level: 1
   name: Shield
@@ -645,27 +798,26 @@ shield:
   spell_class: Natural20::Shield
   type: warding
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
 shocking_grasp:
   label: Shocking Grasp
   base_damage: 1d8
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   damage_increase:
-    - 5
-    - 11
-    - 17
+  - 5
+  - 11
+  - 17
   damage_type: lightning
-  description: |
-    Lightning springs from your hand to deliver a shock to a creature you try to touch.
-    Make a melee spell attack against the target. You have advantage on the attack roll
-    if the target is wearing armor made of metal. On a hit, the target takes 1d8 lightning damage,
-    and it can’t take reactions until the start of its next turn.
-
-    The spell’s damage increases by 1d8 when you reach 5th level (2d8), 11th level (3d8), and 17th level (4d8).
+  description: "Lightning springs from your hand to deliver a shock to a creature\
+    \ you try to touch.\nMake a melee spell attack against the target. You have advantage\
+    \ on the attack roll\nif the target is wearing armor made of metal. On a hit,\
+    \ the target takes 1d8 lightning damage,\nand it can\u2019t take reactions until\
+    \ the start of its next turn.\n\nThe spell\u2019s damage increases by 1d8 when\
+    \ you reach 5th level (2d8), 11th level (3d8), and 17th level (4d8).\n"
   duration: instant
   level: 0
   name: Shocking Grasp
@@ -673,8 +825,8 @@ shocking_grasp:
   school: evocation
   type: melee_attack
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
 spiritual_weapon:
   label: Spiritual Weapon
   casting_time: 1:bonus_action
@@ -685,21 +837,30 @@ spiritual_weapon:
   school: evocation
   type: summoning
   spell_list_classes:
-    - Cleric
+  - Cleric
   components:
-    - verbal
-    - somatic
-  description: |
-    You create a floating, spectral weapon within range that lasts for the duration or until you cast this spell again. When you cast the spell, you can make a melee spell attack against a creature within 5 feet of the weapon. On a hit, the target takes force damage equal to 1d8 + your spellcasting ability modifier.
+  - verbal
+  - somatic
+  description: 'You create a floating, spectral weapon within range that lasts for
+    the duration or until you cast this spell again. When you cast the spell, you
+    can make a melee spell attack against a creature within 5 feet of the weapon.
+    On a hit, the target takes force damage equal to 1d8 + your spellcasting ability
+    modifier.
+
     As a bonus action on your turn, you can move the weapon up to 20 feet and repeat
+
+    '
 true_strike:
   label: True Strike
   casting_time: 1:action
   components:
-    - somatic
+  - somatic
   concentration: true
-  description: |
-    You point a finger at a target in range. Your magic grants you a brief insight into the target's defenses. On your next turn, you gain advantage on your first attack roll against the target, provided that this spell hasn't ended.
+  description: 'You point a finger at a target in range. Your magic grants you a brief
+    insight into the target''s defenses. On your next turn, you gain advantage on
+    your first attack roll against the target, provided that this spell hasn''t ended.
+
+    '
   duration: 1R
   level: 0
   name: True Strike
@@ -707,17 +868,21 @@ true_strike:
   school: divination
   type: foreknowledge
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
 acid_splash:
   label: Acid Splash
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   damage_type: acid
-  description: |
-    You hurl a bubble of acid. Choose one or two creatures you can see within range. If you choose two, they must be within 5 feet of each other. A target must succeed on a Dexterity saving throw or take 1d6 acid damage. The damage increases by 1d6 at 5th level (2d6), 11th level (3d6), and 17th level (4d6).
+  description: 'You hurl a bubble of acid. Choose one or two creatures you can see
+    within range. If you choose two, they must be within 5 feet of each other. A target
+    must succeed on a Dexterity saving throw or take 1d6 acid damage. The damage increases
+    by 1d6 at 5th level (2d6), 11th level (3d6), and 17th level (4d6).
+
+    '
   duration: instant
   level: 0
   name: Acid Splash
@@ -725,17 +890,22 @@ acid_splash:
   school: conjuration
   type: ranged_attack
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
   spell_class: Natural20::AcidSplash
 vicious_mockery:
   label: Vicious Mockery
   casting_time: 1:action
   components:
-    - verbal
+  - verbal
   damage_type: psychic
-  description: |
-    You unleash a string of insults laced with subtle enchantments at a creature you can see within range. If the target can hear you, it must succeed on a Wisdom saving throw or take 1d4 psychic damage and have disadvantage on the next attack roll it makes before the end of its next turn. The damage increases at 5th level (2d4), 11th level (3d4), and 17th level (4d4).
+  description: 'You unleash a string of insults laced with subtle enchantments at
+    a creature you can see within range. If the target can hear you, it must succeed
+    on a Wisdom saving throw or take 1d4 psychic damage and have disadvantage on the
+    next attack roll it makes before the end of its next turn. The damage increases
+    at 5th level (2d4), 11th level (3d4), and 17th level (4d4).
+
+    '
   duration: instant
   level: 0
   name: Vicious Mockery
@@ -743,17 +913,19 @@ vicious_mockery:
   school: enchantment
   type: ranged_attack
   spell_list_classes:
-    - Bard
+  - Bard
   spell_class: Natural20::ViciousMockery
 divine_favor:
   label: Divine Favor
   casting_time: 1:bonus_action
   components:
-    - verbal
-    - somatic
+  - verbal
+  - somatic
   damage_type: radiant
-  description: |
-    Your prayer empowers you with divine radiance. Until the spell ends, your weapon attacks deal an extra 1d4 radiant damage on a hit.
+  description: 'Your prayer empowers you with divine radiance. Until the spell ends,
+    your weapon attacks deal an extra 1d4 radiant damage on a hit.
+
+    '
   duration: 1m
   level: 1
   name: Divine Favor
@@ -762,16 +934,22 @@ divine_favor:
   concentration: true
   type: buff
   spell_list_classes:
-    - Paladin
+  - Paladin
   spell_class: Natural20::DivineFavor
 hunters_mark:
   label: Hunter's Mark
   casting_time: 1:bonus_action
   components:
-    - verbal
+  - verbal
   damage_type: weapon
-  description: |
-    You choose a creature you can see within range and mystically mark it as your quarry. Until the spell ends, you deal an extra 1d6 damage to the target whenever you hit it with a weapon attack, and you have advantage on any Wisdom (Perception) or Wisdom (Survival) check you make to find it. If the target drops to 0 hit points before this spell ends, you can use a bonus action on a subsequent turn to mark a new creature.
+  description: 'You choose a creature you can see within range and mystically mark
+    it as your quarry. Until the spell ends, you deal an extra 1d6 damage to the target
+    whenever you hit it with a weapon attack, and you have advantage on any Wisdom
+    (Perception) or Wisdom (Survival) check you make to find it. If the target drops
+    to 0 hit points before this spell ends, you can use a bonus action on a subsequent
+    turn to mark a new creature.
+
+    '
   duration: 1h
   level: 1
   name: Hunter's Mark
@@ -780,17 +958,21 @@ hunters_mark:
   concentration: true
   type: buff
   spell_list_classes:
-    - Ranger
+  - Ranger
   spell_class: Natural20::HuntersMark
 false_life:
   label: False Life
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
-    - material
-  description: |
-    Bolstering yourself with a necromantic facsimile of life, you gain 1d4 + 4 temporary hit points for the duration. At Higher Levels: When you cast this spell using a spell slot of 2nd level or higher, you gain 5 additional temporary hit points for each slot level above 1st.
+  - verbal
+  - somatic
+  - material
+  description: 'Bolstering yourself with a necromantic facsimile of life, you gain
+    1d4 + 4 temporary hit points for the duration. At Higher Levels: When you cast
+    this spell using a spell slot of 2nd level or higher, you gain 5 additional temporary
+    hit points for each slot level above 1st.
+
+    '
   duration: 1h
   level: 1
   name: False Life
@@ -798,22 +980,28 @@ false_life:
   school: necromancy
   type: buff
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
   spell_class: Natural20::FalseLife
 chromatic_orb:
   label: Chromatic Orb
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
-    - material
+  - verbal
+  - somatic
+  - material
   materials:
-    - diamond
+  - diamond
   damage_type: acid
-  description: |
-    You hurl a 4-inch-diameter sphere of energy at a creature that you can see within range. You choose acid, cold, fire, lightning, poison, or thunder for the type of orb you create, and then make a ranged spell attack against the target. On a hit, the target takes 3d8 damage of the type you chose.
-    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d8 for each slot level above 1st.
+  description: 'You hurl a 4-inch-diameter sphere of energy at a creature that you
+    can see within range. You choose acid, cold, fire, lightning, poison, or thunder
+    for the type of orb you create, and then make a ranged spell attack against the
+    target. On a hit, the target takes 3d8 damage of the type you chose.
+
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or
+    higher, the damage increases by 1d8 for each slot level above 1st.
+
+    '
   duration: instant
   level: 1
   name: Chromatic Orb
@@ -821,24 +1009,33 @@ chromatic_orb:
   school: evocation
   type: ranged_attack
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
   spell_class: Natural20::ChromaticOrb
 color_spray:
   label: Color Spray
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
-    - material
+  - verbal
+  - somatic
+  - material
   materials:
-    - red
-    - yellow
-    - blue
-  description: |
-    A dazzling array of flashing, colored light springs from your hand. Roll 6d10; the total is how many hit points of creatures this spell can affect.
-    Creatures in a 15-foot cone originating from you are affected in ascending order of their current hit points (ignoring unconscious creatures and creatures that can't be blinded). Starting with the creature that has the lowest current hit points, each creature affected by this spell is blinded until the end of your next turn.
-    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, roll an additional 1d10 for each slot level above 1st.
+  - red
+  - yellow
+  - blue
+  description: 'A dazzling array of flashing, colored light springs from your hand.
+    Roll 6d10; the total is how many hit points of creatures this spell can affect.
+
+    Creatures in a 15-foot cone originating from you are affected in ascending order
+    of their current hit points (ignoring unconscious creatures and creatures that
+    can''t be blinded). Starting with the creature that has the lowest current hit
+    points, each creature affected by this spell is blinded until the end of your
+    next turn.
+
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or
+    higher, roll an additional 1d10 for each slot level above 1st.
+
+    '
   duration: 1R
   level: 1
   name: Color Spray
@@ -846,25 +1043,35 @@ color_spray:
   school: illusion
   type: area
   spell_list_classes:
-    - Sorcerer
-    - Wizard
+  - Sorcerer
+  - Wizard
   spell_class: Natural20::ColorSpray
 witch_bolt:
   label: Witch Bolt
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
-    - material
+  - verbal
+  - somatic
+  - material
   materials:
-    - twig
-    - amber
-    - crystal
+  - twig
+  - amber
+  - crystal
   damage_type: lightning
-  description: |
-    A beam of crackling, blue energy lances out toward a creature within range, forming a sustained arc of lightning between you and the target. Make a ranged spell attack against that creature. On a hit, the target takes 1d12 lightning damage.
-    On each of your turns for the duration, you can use your action to deal 1d12 lightning damage to the target automatically. The spell ends if you use your action to do anything else. The spell also ends if the target is ever outside the spell's range or if it has total cover from you.
-    At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the initial damage increases by 1d12 for each slot level above 1st.
+  description: 'A beam of crackling, blue energy lances out toward a creature within
+    range, forming a sustained arc of lightning between you and the target. Make a
+    ranged spell attack against that creature. On a hit, the target takes 1d12 lightning
+    damage.
+
+    On each of your turns for the duration, you can use your action to deal 1d12 lightning
+    damage to the target automatically. The spell ends if you use your action to do
+    anything else. The spell also ends if the target is ever outside the spell''s
+    range or if it has total cover from you.
+
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or
+    higher, the initial damage increases by 1d12 for each slot level above 1st.
+
+    '
   duration: 1m
   level: 1
   name: Witch Bolt
@@ -873,24 +1080,30 @@ witch_bolt:
   concentration: true
   type: ranged_attack
   spell_list_classes:
-    - Sorcerer
-    - Warlock
-    - Wizard
+  - Sorcerer
+  - Warlock
+  - Wizard
   spell_class: Natural20::WitchBolt
 grease:
   label: Grease
   casting_time: 1:action
   components:
-    - verbal
-    - somatic
-    - material
+  - verbal
+  - somatic
+  - material
   materials:
-    - pork rind
-    - butter
-  description: |
-    Slick grease covers the ground in a 10-foot square centered on a point within range and turns it into difficult terrain for the duration.
-    When the grease appears, each creature standing in its area must succeed on a Dexterity saving throw or fall prone.
-    A creature that enters the area or ends its turn there must also succeed on a Dexterity saving throw or fall prone.
+  - pork rind
+  - butter
+  description: 'Slick grease covers the ground in a 10-foot square centered on a point
+    within range and turns it into difficult terrain for the duration.
+
+    When the grease appears, each creature standing in its area must succeed on a
+    Dexterity saving throw or fall prone.
+
+    A creature that enters the area or ends its turn there must also succeed on a
+    Dexterity saving throw or fall prone.
+
+    '
   duration: 1m
   level: 1
   name: Grease
@@ -899,7 +1112,679 @@ grease:
   school: conjuration
   type: area
   spell_list_classes:
-    - Wizard
-    - Sorcerer
-    - Artificer
+  - Wizard
+  - Sorcerer
+  - Artificer
   spell_class: Natural20::Grease
+detect_magic:
+  label: Detect Magic
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  description: Sense nearby magic for the duration.
+  duration: 10m
+  duration_seconds: 600
+  level: 1
+  name: Detect Magic
+  range: 5
+  school: divination
+  concentration: true
+  type: utility
+  spell_list_classes:
+  - Wizard
+  spell_class: Natural20::DetectMagic
+fireball:
+  label: Fireball
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  damage_type: fire
+  description: A bright streak explodes in a 20-foot-radius sphere.
+  duration: instant
+  level: 3
+  name: Fireball
+  range: 150
+  radius: 20
+  school: evocation
+  type: damage
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  spell_class: Natural20::Fireball
+counterspell:
+  label: Counterspell
+  casting_time: 1:reaction
+  components:
+  - somatic
+  description: Interrupt a creature in the process of casting a spell.
+  duration: instant
+  level: 3
+  name: Counterspell
+  range: 60
+  school: abjuration
+  type: reaction
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Warlock
+  spell_class: Natural20::Counterspell
+leomunds_tiny_hut:
+  label: Leomund's Tiny Hut
+  casting_time: 1:minute
+  components:
+  - verbal
+  - somatic
+  - material
+  description: Creates an immobile protective dome.
+  duration: 8h
+  duration_seconds: 28800
+  level: 3
+  name: Leomund's Tiny Hut
+  range: 30
+  target_types:
+  - point
+  school: evocation
+  type: utility
+  spell_list_classes:
+  - Wizard
+  spell_class: Natural20::LeomundsTinyHut
+knock:
+  label: Knock
+  casting_time: 1:action
+  components:
+  - verbal
+  description: Opens a stuck, barred, locked, or magically held object.
+  duration: instant
+  level: 2
+  name: Knock
+  range: 60
+  target_types:
+  - point
+  school: transmutation
+  type: utility
+  spell_list_classes:
+  - Wizard
+  spell_class: Natural20::Knock
+scorching_ray:
+  label: Scorching Ray
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  damage_type: fire
+  description: Make three rays of fire at one or more targets.
+  duration: instant
+  level: 2
+  name: Scorching Ray
+  range: 120
+  school: evocation
+  type: ranged_spell_attack
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  spell_class: Natural20::ScorchingRay
+mirror_image:
+  label: Mirror Image
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  description: Three illusory duplicates appear in your space.
+  duration: 1m
+  duration_seconds: 60
+  level: 2
+  name: Mirror Image
+  range: 5
+  status: mirror_image
+  school: illusion
+  type: buff
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  spell_class: Natural20::MirrorImage
+aganazzars_scorcher:
+  label: Aganazzar's Scorcher
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  damage_type: fire
+  description: A 30-foot line of roaring flame.
+  duration: instant
+  level: 2
+  name: Aganazzar's Scorcher
+  range: 30
+  length: 30
+  width: 5
+  school: evocation
+  type: damage
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  spell_class: Natural20::AganazzarsScorcher
+comprehend_languages:
+  label: Comprehend Languages
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  description: Understand literal meaning of spoken and written language.
+  duration: 1h
+  duration_seconds: 3600
+  level: 1
+  name: Comprehend Languages
+  range: 5
+  status: comprehend_languages
+  school: divination
+  type: utility
+  spell_list_classes:
+  - Wizard
+  spell_class: Natural20::ComprehendLanguages
+prestidigitation:
+  label: Prestidigitation
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  description: Perform a minor magical trick.
+  duration: 1h
+  duration_seconds: 3600
+  level: 0
+  name: Prestidigitation
+  range: 10
+  target_types:
+  - point
+  school: transmutation
+  type: utility
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Warlock
+  spell_class: Natural20::Prestidigitation
+feather_fall:
+  label: Feather Fall
+  casting_time: 1:reaction
+  components:
+  - verbal
+  - material
+  description: Slow falling creatures.
+  duration: 1m
+  duration_seconds: 60
+  level: 1
+  name: Feather Fall
+  range: 60
+  status: feather_fall
+  school: transmutation
+  type: buff
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Bard
+  spell_class: Natural20::FeatherFall
+fly:
+  label: Fly
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  description: Grants a flying speed of 60 feet.
+  duration: 10m
+  duration_seconds: 600
+  level: 3
+  name: Fly
+  range: 5
+  status: flying
+  school: transmutation
+  concentration: true
+  type: buff
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Warlock
+  spell_class: Natural20::Fly
+lightning_bolt:
+  label: Lightning Bolt
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  damage_type: lightning
+  description: A 100-foot line of lightning.
+  duration: instant
+  level: 3
+  name: Lightning Bolt
+  range: 100
+  length: 100
+  width: 5
+  school: evocation
+  type: damage
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  spell_class: Natural20::LightningBolt
+banishment:
+  label: Banishment
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  description: Attempt to banish a creature to another plane.
+  duration: 1m
+  duration_seconds: 60
+  level: 4
+  name: Banishment
+  range: 60
+  status: banished
+  school: abjuration
+  concentration: true
+  type: debuff
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Warlock
+  - Cleric
+  - Paladin
+  spell_class: Natural20::Banishment
+dispel_magic:
+  label: Dispel Magic
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  description: End spells on a creature, object, or magical effect.
+  duration: instant
+  level: 3
+  name: Dispel Magic
+  range: 120
+  school: abjuration
+  type: utility
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Warlock
+  - Cleric
+  - Bard
+  - Druid
+  - Paladin
+  spell_class: Natural20::DispelMagic
+gust_of_wind:
+  label: Gust of Wind
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  damage_type: bludgeoning
+  description: A strong wind blasts out in a 60-foot line.
+  duration: 1m
+  duration_seconds: 60
+  level: 2
+  name: Gust of Wind
+  range: 60
+  length: 60
+  width: 10
+  school: evocation
+  concentration: true
+  type: control
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Druid
+  spell_class: Natural20::GustOfWind
+otilukes_resilient_sphere:
+  label: Otiluke's Resilient Sphere
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  description: Enclose a creature or object in a resilient sphere.
+  duration: 1m
+  duration_seconds: 60
+  level: 4
+  name: Otiluke's Resilient Sphere
+  range: 30
+  status: resilient_sphere
+  school: evocation
+  concentration: true
+  type: control
+  spell_list_classes:
+  - Wizard
+  spell_class: Natural20::OtilukesResilientSphere
+bigbys_hand:
+  label: Bigby's Hand
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  description: Create a large hand of shimmering force.
+  duration: 1m
+  duration_seconds: 60
+  level: 5
+  name: Bigby's Hand
+  range: 120
+  target_types:
+  - point
+  school: evocation
+  concentration: true
+  type: summon
+  spell_list_classes:
+  - Wizard
+  spell_class: Natural20::BigbysHand
+wall_of_force:
+  label: Wall of Force
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  description: Create an invisible wall of force.
+  duration: 10m
+  duration_seconds: 600
+  level: 5
+  name: Wall of Force
+  range: 120
+  target_types:
+  - point
+  school: evocation
+  concentration: true
+  type: control
+  spell_list_classes:
+  - Wizard
+  spell_class: Natural20::WallOfForce
+animate_dead:
+  label: Animate Dead
+  casting_time: 1:minute
+  components:
+  - verbal
+  - somatic
+  - material
+  description: Animate a corpse or pile of bones.
+  duration: instant
+  level: 3
+  name: Animate Dead
+  range: 10
+  target_types:
+  - point
+  school: necromancy
+  type: summon
+  spell_list_classes:
+  - Wizard
+  - Cleric
+  spell_class: Natural20::AnimateDead
+chain_lightning:
+  label: Chain Lightning
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  damage_type: lightning
+  description: Lightning arcs to as many as four targets.
+  duration: instant
+  level: 6
+  name: Chain Lightning
+  range: 150
+  school: evocation
+  type: damage
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  spell_class: Natural20::ChainLightning
+disintegrate:
+  label: Disintegrate
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  damage_type: force
+  description: A thin green ray disintegrates a target on a failed save.
+  duration: instant
+  level: 6
+  name: Disintegrate
+  range: 60
+  school: transmutation
+  type: damage
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  spell_class: Natural20::Disintegrate
+sunbeam:
+  label: Sunbeam
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  damage_type: radiant
+  description: A beam of brilliant light flashes in a line.
+  duration: 1m
+  duration_seconds: 60
+  level: 6
+  name: Sunbeam
+  range: 60
+  length: 60
+  width: 5
+  school: evocation
+  concentration: true
+  type: damage
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Druid
+  spell_class: Natural20::Sunbeam
+cloudkill:
+  label: Cloudkill
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  damage_type: poison
+  description: A 20-foot-radius poisonous fog appears.
+  duration: 10m
+  duration_seconds: 600
+  level: 5
+  name: Cloudkill
+  range: 120
+  radius: 20
+  school: conjuration
+  concentration: true
+  type: damage
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  spell_class: Natural20::Cloudkill
+cone_of_cold:
+  label: Cone of Cold
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  damage_type: cold
+  description: A blast of cold air erupts from your hands.
+  duration: instant
+  level: 5
+  name: Cone of Cold
+  range: 60
+  range_cone: 60
+  school: evocation
+  type: damage
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  spell_class: Natural20::ConeOfCold
+sunburst:
+  label: Sunburst
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  damage_type: radiant
+  description: Brilliant sunlight flashes in a large radius.
+  duration: instant
+  level: 8
+  name: Sunburst
+  range: 150
+  radius: 60
+  school: evocation
+  type: damage
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Druid
+  spell_class: Natural20::Sunburst
+maze:
+  label: Maze
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  description: Banish a creature into a labyrinthine demiplane.
+  duration: 10m
+  duration_seconds: 600
+  level: 8
+  name: Maze
+  range: 60
+  status: mazed
+  school: conjuration
+  concentration: true
+  type: control
+  spell_list_classes:
+  - Wizard
+  spell_class: Natural20::Maze
+stinking_cloud:
+  label: Stinking Cloud
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  description: Create a nauseating 20-foot-radius cloud.
+  duration: 1m
+  duration_seconds: 60
+  level: 3
+  name: Stinking Cloud
+  range: 90
+  radius: 20
+  target_types:
+  - point
+  school: conjuration
+  concentration: true
+  type: control
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Bard
+  spell_class: Natural20::StinkingCloud
+protection_from_energy:
+  label: Protection from Energy
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  description: The target gains resistance to one energy damage type.
+  duration: 1h
+  duration_seconds: 3600
+  level: 3
+  name: Protection from Energy
+  range: 5
+  school: abjuration
+  concentration: true
+  type: buff
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Cleric
+  - Druid
+  - Ranger
+  spell_class: Natural20::ProtectionFromEnergy
+melfs_acid_arrow:
+  label: Melf's Acid Arrow
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  damage_type: acid
+  description: A shimmering green arrow streaks toward a target.
+  duration: instant
+  level: 2
+  name: Melf's Acid Arrow
+  range: 90
+  school: evocation
+  type: ranged_spell_attack
+  spell_list_classes:
+  - Wizard
+  spell_class: Natural20::MelfsAcidArrow
+message:
+  label: Message
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  description: Whisper a message to a creature in range.
+  duration: 1 round
+  level: 0
+  name: Message
+  range: 120
+  school: transmutation
+  type: utility
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Bard
+  spell_class: Natural20::Message
+teleport:
+  label: Teleport
+  casting_time: 1:action
+  components:
+  - verbal
+  description: Transport yourself and willing creatures to a destination.
+  duration: instant
+  level: 7
+  name: Teleport
+  range: 10
+  target_types:
+  - point
+  school: conjuration
+  type: utility
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Bard
+  spell_class: Natural20::Teleport
+minor_illusion:
+  label: Minor Illusion
+  casting_time: 1:action
+  components:
+  - somatic
+  - material
+  description: Create a sound or image within range.
+  duration: 1m
+  duration_seconds: 60
+  level: 0
+  name: Minor Illusion
+  range: 30
+  target_types:
+  - point
+  school: illusion
+  type: utility
+  spell_list_classes:
+  - Wizard
+  - Sorcerer
+  - Warlock
+  - Bard
+  spell_class: Natural20::MinorIllusion

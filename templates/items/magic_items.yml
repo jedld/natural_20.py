@@ -942,3 +942,85 @@ cloak_of_displacement:
   requires_attunement: true
   # Gives advantage on AC (attacks have disadvantage)
   effect: cloak_of_displacement
+bag_of_holding:
+  cost: 0
+  magical: true
+  name: Bag of Holding
+  type: accessory
+  equippable: true
+  weight: 15
+  container: true
+bag_of_beans:
+  cost: 0
+  magical: true
+  name: Bag of Beans
+  type: accessory
+  equippable: false
+  weight: 0.5
+  description: A bag containing magical beans with unpredictable narrative effects.
+necklace_of_fireballs:
+  cost: 0
+  magical: true
+  name: Necklace of Fireballs
+  type: accessory
+  equippable: true
+  usable: true
+  consumable: false
+  item_class: MagicSpellItem
+  charges: 6
+  spell: fireball
+  level: 3
+  spell_options:
+    - spell: fireball
+      level: 3
+      charges: 1
+      label: Throw one bead
+  requires_attunement: false
+wand_of_magic_missiles:
+  cost: 0
+  magical: true
+  name: Wand of Magic Missiles
+  type: accessory
+  equippable: true
+  usable: true
+  consumable: false
+  item_class: MagicSpellItem
+  charges: 7
+  spell: magic_missile
+  level: 1
+  spell_options:
+    - spell: magic_missile
+      level: 1
+      charges: 1
+      label: 1 charge
+    - spell: magic_missile
+      level: 2
+      charges: 2
+      label: 2 charges
+    - spell: magic_missile
+      level: 3
+      charges: 3
+      label: 3 charges
+  requires_attunement: false
+staff_of_defense:
+  cost: 0
+  magical: true
+  name: Staff of Defense
+  type: accessory
+  equippable: true
+  usable: true
+  consumable: false
+  item_class: MagicSpellItem
+  charges: 10
+  spell: mage_armor
+  level: 1
+  spell_options:
+    - spell: mage_armor
+      level: 1
+      charges: 1
+      label: Mage Armor
+    - spell: shield
+      level: 1
+      charges: 2
+      label: Shield
+  requires_attunement: true

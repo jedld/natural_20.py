@@ -68,6 +68,28 @@ spell_list:
     - witch_bolt
   level_2:
     - misty_step
+progression:
+  level_1:
+    class_features:
+      - spellcasting
+      - arcane_recovery
+  level_18:
+    class_features:
+      - spell_mastery
+  level_20:
+    class_features:
+      - signature_spells
+arcane_tradition_features:
+  school_of_abjuration:
+    level_2:
+      - abjuration_savant
+      - arcane_ward
+    level_6:
+      - projected_ward
+    level_10:
+      - improved_abjuration
+    level_14:
+      - spell_resistance
 proficiency_bonuses:
 - 2
 - 2

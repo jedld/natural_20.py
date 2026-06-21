@@ -722,6 +722,8 @@ def character_details(character_name):
                 'spell_slots': {},
                 'known_spells': []
             },
+            'resources': {},
+            'maneuvers': character.properties.get('maneuvers', []),
             'class_features': [],
             'racial_features': []
         }
@@ -769,11 +771,23 @@ def character_details(character_name):
         # Get some key class features
         important_features = [
             'action_surge', 'second_wind', 'sneak_attack', 'rage', 'bardic_inspiration',
-            'channel_divinity', 'lay_on_hands', 'fighting_style', 'spellcasting'
+            'channel_divinity', 'lay_on_hands', 'fighting_style', 'spellcasting',
+            'cunning_action', 'uncanny_dodge', 'evasion', 'reliable_talent',
+            'fancy_footwork', 'rakish_audacity', 'panache', 'sentinel',
+            'martial_adept', 'arcane_recovery', 'abjuration_savant',
+            'arcane_ward', 'projected_ward', 'improved_abjuration',
+            'spell_resistance'
         ]
         for feature in important_features:
             if character.class_feature(feature):
                 details['class_features'].append(feature.replace('_', ' ').title())
+
+        for name, pool in (getattr(character, 'resources', None) or {}).items():
+            details['resources'][name] = {
+                'current': pool.current,
+                'max': pool.max_value,
+                'restore_on': pool.restore_on,
+            }
         
         # Get racial features
         racial_features = character.race_properties.get('race_features', [])

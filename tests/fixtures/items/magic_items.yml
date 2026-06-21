@@ -1,18 +1,4 @@
 ---
-# ============================================================================
-# Magic Items — weapons, armor, shields, and accessories
-# ============================================================================
-# Each entry may carry:
-#   magical: true                # marks the item as magical (bypasses non-magical resistance)
-#   magic_bonus: <int>           # flat bonus to attack/damage (weapons) or AC (armor/shields)
-#   properties: [...]            # extra D&D properties (e.g. sentient, attunement)
-#   requires_attunement: true    # needs attunement to use
-#   attunement_race/class: ...   # restricted attunement
-# ============================================================================
-
-# ----------------------------------------------------------------------------
-# +1 Weapons (Simple)
-# ----------------------------------------------------------------------------
 dagger_plus_one:
   cost: 0
   damage: 1d4
@@ -21,11 +7,11 @@ dagger_plus_one:
   magical: true
   name: Dagger +1
   proficiency_type:
-    - simple
+  - simple
   properties:
-    - light
-    - thrown
-    - finesse
+  - light
+  - thrown
+  - finesse
   range: 5
   subtype: weapon
   thrown:
@@ -34,7 +20,6 @@ dagger_plus_one:
   type: melee_attack
   weight: 10
   requires_attunement: true
-
 quarterstaff_plus_one:
   cost: 0
   damage: 1d6
@@ -44,15 +29,14 @@ quarterstaff_plus_one:
   magical: true
   name: Quarterstaff +1
   proficiency_type:
-    - simple
+  - simple
   properties:
-    - versatile
+  - versatile
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 4
   requires_attunement: true
-
 light_hammer_plus_one:
   cost: 0
   damage: 1d4
@@ -61,10 +45,10 @@ light_hammer_plus_one:
   magical: true
   name: Light Hammer +1
   proficiency_type:
-    - simple
+  - simple
   properties:
-    - light
-    - thrown
+  - light
+  - thrown
   range: 5
   subtype: weapon
   thrown:
@@ -73,7 +57,6 @@ light_hammer_plus_one:
   type: melee_attack
   weight: 2
   requires_attunement: true
-
 handaxe_plus_one:
   cost: 0
   damage: 1d6
@@ -82,10 +65,10 @@ handaxe_plus_one:
   magical: true
   name: Handaxe +1
   proficiency_type:
-    - simple
+  - simple
   properties:
-    - light
-    - thrown
+  - light
+  - thrown
   range: 5
   subtype: weapon
   thrown:
@@ -94,7 +77,6 @@ handaxe_plus_one:
   type: melee_attack
   weight: 10
   requires_attunement: true
-
 javelin_plus_one:
   cost: 0
   damage: 1d6
@@ -103,9 +85,9 @@ javelin_plus_one:
   magical: true
   name: Javelin +1
   proficiency_type:
-    - simple
+  - simple
   properties:
-    - thrown
+  - thrown
   range: 5
   subtype: weapon
   thrown:
@@ -114,7 +96,6 @@ javelin_plus_one:
   type: melee_attack
   weight: 2
   requires_attunement: true
-
 light_crossbow_plus_one:
   ammo: bolts
   cost: 0
@@ -124,19 +105,18 @@ light_crossbow_plus_one:
   magical: true
   name: Light Crossbow +1
   proficiency_type:
-    - simple
+  - simple
   properties:
-    - loading
-    - ammunition
-    - ranged
-    - two_handed
+  - loading
+  - ammunition
+  - ranged
+  - two_handed
   range: 80
   range_max: 320
   subtype: weapon
   type: ranged_attack
   weight: 2
   requires_attunement: true
-
 sling_plus_one:
   ammo: pellet
   cost: 0
@@ -146,20 +126,16 @@ sling_plus_one:
   magical: true
   name: Sling +1
   proficiency_type:
-    - simple
+  - simple
   properties:
-    - ammunition
-    - ranged
+  - ammunition
+  - ranged
   range: 30
   range_max: 120
   subtype: weapon
   type: ranged_attack
   weight: 0
   requires_attunement: true
-
-# ----------------------------------------------------------------------------
-# +1 Weapons (Martial)
-# ----------------------------------------------------------------------------
 battleaxe_plus_one:
   cost: 0
   damage: 1d8
@@ -169,15 +145,14 @@ battleaxe_plus_one:
   magical: true
   name: Battleaxe +1
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - versatile
+  - versatile
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 4
   requires_attunement: true
-
 greataxe_plus_one:
   cost: 0
   damage: 1d12
@@ -186,16 +161,15 @@ greataxe_plus_one:
   magical: true
   name: Greataxe +1
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - heavy
-    - two_handed
+  - heavy
+  - two_handed
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 7
   requires_attunement: true
-
 longsword_plus_one:
   cost: 0
   damage: 1d8
@@ -205,15 +179,14 @@ longsword_plus_one:
   magical: true
   name: Longsword +1
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - versatile
+  - versatile
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 3
   requires_attunement: true
-
 greatsword_plus_one:
   cost: 0
   damage: 1d12
@@ -222,16 +195,15 @@ greatsword_plus_one:
   magical: true
   name: Greatsword +1
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - heavy
-    - two_handed
+  - heavy
+  - two_handed
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 6
   requires_attunement: true
-
 longbow_plus_one:
   ammo: arrows
   cost: 0
@@ -241,19 +213,18 @@ longbow_plus_one:
   magical: true
   name: Longbow +1
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - ammunition
-    - ranged
-    - heavy
-    - two_handed
+  - ammunition
+  - ranged
+  - heavy
+  - two_handed
   range: 150
   range_max: 600
   subtype: weapon
   type: ranged_attack
   weight: 2
   requires_attunement: true
-
 heavy_crossbow_plus_one:
   ammo: bolts
   cost: 0
@@ -263,20 +234,19 @@ heavy_crossbow_plus_one:
   magical: true
   name: Heavy Crossbow +1
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - heavy
-    - loading
-    - ammunition
-    - ranged
-    - two_handed
+  - heavy
+  - loading
+  - ammunition
+  - ranged
+  - two_handed
   range: 100
   range_max: 400
   subtype: weapon
   type: ranged_attack
   weight: 18
   requires_attunement: true
-
 hand_crossbow_plus_one:
   ammo: bolts
   cost: 0
@@ -286,19 +256,18 @@ hand_crossbow_plus_one:
   magical: true
   name: Hand Crossbow +1
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - loading
-    - ammunition
-    - ranged
-    - light
+  - loading
+  - ammunition
+  - ranged
+  - light
   range: 30
   range_max: 120
   subtype: weapon
   type: ranged_attack
   weight: 3
   requires_attunement: true
-
 warhammer_plus_one:
   cost: 0
   damage: 1d8
@@ -308,15 +277,14 @@ warhammer_plus_one:
   magical: true
   name: Warhammer +1
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - versatile
+  - versatile
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 2
   requires_attunement: true
-
 mace_plus_one:
   cost: 0
   damage: 1d6
@@ -325,14 +293,13 @@ mace_plus_one:
   magical: true
   name: Mace +1
   proficiency_type:
-    - martial
+  - martial
   properties: []
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 4
   requires_attunement: true
-
 trident_plus_one:
   cost: 0
   damage: 1d6
@@ -341,10 +308,10 @@ trident_plus_one:
   magical: true
   name: Trident +1
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - thrown
-    - versatile
+  - thrown
+  - versatile
   range: 5
   subtype: weapon
   thrown:
@@ -353,10 +320,6 @@ trident_plus_one:
   type: melee_attack
   weight: 4
   requires_attunement: true
-
-# ----------------------------------------------------------------------------
-# +2 Weapons
-# ----------------------------------------------------------------------------
 longsword_plus_two:
   cost: 0
   damage: 1d8
@@ -366,15 +329,14 @@ longsword_plus_two:
   magical: true
   name: Longsword +2
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - versatile
+  - versatile
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 3
   requires_attunement: true
-
 greataxe_plus_two:
   cost: 0
   damage: 1d12
@@ -383,16 +345,15 @@ greataxe_plus_two:
   magical: true
   name: Greataxe +2
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - heavy
-    - two_handed
+  - heavy
+  - two_handed
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 7
   requires_attunement: true
-
 battleaxe_plus_two:
   cost: 0
   damage: 1d8
@@ -402,15 +363,14 @@ battleaxe_plus_two:
   magical: true
   name: Battleaxe +2
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - versatile
+  - versatile
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 4
   requires_attunement: true
-
 longbow_plus_two:
   ammo: arrows
   cost: 0
@@ -420,19 +380,18 @@ longbow_plus_two:
   magical: true
   name: Longbow +2
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - ammunition
-    - ranged
-    - heavy
-    - two_handed
+  - ammunition
+  - ranged
+  - heavy
+  - two_handed
   range: 150
   range_max: 600
   subtype: weapon
   type: ranged_attack
   weight: 2
   requires_attunement: true
-
 hand_crossbow_plus_two:
   ammo: bolts
   cost: 0
@@ -442,19 +401,18 @@ hand_crossbow_plus_two:
   magical: true
   name: Hand Crossbow +2
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - loading
-    - ammunition
-    - ranged
-    - light
+  - loading
+  - ammunition
+  - ranged
+  - light
   range: 30
   range_max: 120
   subtype: weapon
   type: ranged_attack
   weight: 3
   requires_attunement: true
-
 dagger_plus_two:
   cost: 0
   damage: 1d4
@@ -463,11 +421,11 @@ dagger_plus_two:
   magical: true
   name: Dagger +2
   proficiency_type:
-    - simple
+  - simple
   properties:
-    - light
-    - thrown
-    - finesse
+  - light
+  - thrown
+  - finesse
   range: 5
   subtype: weapon
   thrown:
@@ -476,10 +434,6 @@ dagger_plus_two:
   type: melee_attack
   weight: 10
   requires_attunement: true
-
-# ----------------------------------------------------------------------------
-# +3 Weapons
-# ----------------------------------------------------------------------------
 longsword_plus_three:
   cost: 0
   damage: 1d8
@@ -489,15 +443,14 @@ longsword_plus_three:
   magical: true
   name: Longsword +3
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - versatile
+  - versatile
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 3
   requires_attunement: true
-
 greataxe_plus_three:
   cost: 0
   damage: 1d12
@@ -506,16 +459,15 @@ greataxe_plus_three:
   magical: true
   name: Greataxe +3
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - heavy
-    - two_handed
+  - heavy
+  - two_handed
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 7
   requires_attunement: true
-
 battleaxe_plus_three:
   cost: 0
   damage: 1d8
@@ -525,15 +477,14 @@ battleaxe_plus_three:
   magical: true
   name: Battleaxe +3
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - versatile
+  - versatile
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 4
   requires_attunement: true
-
 longbow_plus_three:
   ammo: arrows
   cost: 0
@@ -543,22 +494,18 @@ longbow_plus_three:
   magical: true
   name: Longbow +3
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - ammunition
-    - ranged
-    - heavy
-    - two_handed
+  - ammunition
+  - ranged
+  - heavy
+  - two_handed
   range: 150
   range_max: 600
   subtype: weapon
   type: ranged_attack
   weight: 2
   requires_attunement: true
-
-# ----------------------------------------------------------------------------
-# Magic Armor
-# ----------------------------------------------------------------------------
 studded_leather_plus_one:
   ac: 12
   cost: 0
@@ -569,7 +516,6 @@ studded_leather_plus_one:
   type: armor
   weight: 13
   requires_attunement: true
-
 scale_mail_plus_one:
   ac: 14
   cost: 0
@@ -581,7 +527,6 @@ scale_mail_plus_one:
   type: armor
   weight: 45
   requires_attunement: true
-
 breastplate_plus_one:
   mod_cap: 2
   ac: 14
@@ -594,7 +539,6 @@ breastplate_plus_one:
   type: armor
   weight: 20
   requires_attunement: true
-
 chain_mail_plus_one:
   mod_cap: 0
   ac: 16
@@ -607,7 +551,6 @@ chain_mail_plus_one:
   type: armor
   weight: 55
   requires_attunement: true
-
 plate_plus_one:
   mod_cap: 0
   ac: 18
@@ -620,7 +563,6 @@ plate_plus_one:
   type: armor
   weight: 65
   requires_attunement: true
-
 half_plate_plus_one:
   mod_cap: 0
   ac: 15
@@ -633,7 +575,6 @@ half_plate_plus_one:
   type: armor
   weight: 40
   requires_attunement: true
-
 chain_shirt_plus_one:
   ac: 13
   cost: 0
@@ -646,7 +587,6 @@ chain_shirt_plus_one:
   type: armor
   weight: 13
   requires_attunement: true
-
 splint_plus_one:
   ac: 17
   cost: 0
@@ -658,8 +598,6 @@ splint_plus_one:
   type: armor
   weight: 60
   requires_attunement: true
-
-# +2 Armor
 studded_leather_plus_two:
   ac: 12
   cost: 0
@@ -670,7 +608,6 @@ studded_leather_plus_two:
   type: armor
   weight: 13
   requires_attunement: true
-
 breastplate_plus_two:
   mod_cap: 2
   ac: 14
@@ -683,7 +620,6 @@ breastplate_plus_two:
   type: armor
   weight: 20
   requires_attunement: true
-
 plate_plus_two:
   mod_cap: 0
   ac: 18
@@ -696,7 +632,6 @@ plate_plus_two:
   type: armor
   weight: 65
   requires_attunement: true
-
 chain_mail_plus_two:
   mod_cap: 0
   ac: 16
@@ -709,8 +644,6 @@ chain_mail_plus_two:
   type: armor
   weight: 55
   requires_attunement: true
-
-# +3 Armor
 plate_plus_three:
   mod_cap: 0
   ac: 18
@@ -723,10 +656,6 @@ plate_plus_three:
   type: armor
   weight: 65
   requires_attunement: true
-
-# ----------------------------------------------------------------------------
-# Magic Shields
-# ----------------------------------------------------------------------------
 shield_plus_one:
   bonus_ac: 2
   cost: 0
@@ -737,7 +666,6 @@ shield_plus_one:
   metallic: true
   weight: 6
   requires_attunement: true
-
 shield_plus_two:
   bonus_ac: 2
   cost: 0
@@ -748,7 +676,6 @@ shield_plus_two:
   metallic: true
   weight: 6
   requires_attunement: true
-
 shield_plus_three:
   bonus_ac: 2
   cost: 0
@@ -759,10 +686,6 @@ shield_plus_three:
   metallic: true
   weight: 6
   requires_attunement: true
-
-# ----------------------------------------------------------------------------
-# Magic Accessories
-# ----------------------------------------------------------------------------
 amulet_of_health:
   cost: 0
   magical: true
@@ -772,9 +695,7 @@ amulet_of_health:
   equippable: true
   weight: 1
   requires_attunement: true
-  # Sets minimum CON score to 19 (handled in code via effect)
   effect: amulet_of_health
-
 ring_of_protection:
   cost: 0
   magical: true
@@ -784,9 +705,7 @@ ring_of_protection:
   equippable: true
   weight: 0.1
   requires_attunement: true
-  # +1 to AC and saving throws (AC handled via magic_bonus, saves via effect)
   effect: ring_of_protection
-
 headband_of_intellect:
   cost: 0
   magical: true
@@ -796,9 +715,7 @@ headband_of_intellect:
   equippable: true
   weight: 0.5
   requires_attunement: true
-  # Sets minimum INT to 19
   effect: headband_of_intellect
-
 cloak_of_protection:
   cost: 0
   magical: true
@@ -808,9 +725,7 @@ cloak_of_protection:
   equippable: true
   weight: 1
   requires_attunement: true
-  # +1 to AC and saving throws
   effect: cloak_of_protection
-
 gloves_of_thievery:
   cost: 0
   magical: true
@@ -820,12 +735,7 @@ gloves_of_thievery:
   equippable: true
   weight: 0.5
   requires_attunement: true
-  # Proficiency bonus to Sleight of Hand, Acrobatics, Stealth
   effect: gloves_of_thievery
-
-# ----------------------------------------------------------------------------
-# Named Magic Weapons
-# ----------------------------------------------------------------------------
 flame_tongue_longsword:
   cost: 0
   damage: 1d8+1d6
@@ -835,15 +745,14 @@ flame_tongue_longsword:
   magical: true
   name: Flame Tongue
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - versatile
+  - versatile
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 3
   requires_attunement: true
-
 frost_brand_longsword:
   cost: 0
   damage: 1d8
@@ -852,15 +761,14 @@ frost_brand_longsword:
   magical: true
   name: Frost Brand
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - versatile
+  - versatile
   range: 5
   subtype: weapon
   type: melee_attack
   weight: 3
   requires_attunement: true
-
 sun_blade:
   cost: 0
   damage: 1d6
@@ -870,11 +778,11 @@ sun_blade:
   magical: true
   name: Sunblade
   proficiency_type:
-    - martial
+  - martial
   properties:
-    - finesse
-    - light
-    - thrown
+  - finesse
+  - light
+  - thrown
   range: 5
   subtype: weapon
   thrown:
@@ -884,17 +792,13 @@ sun_blade:
   weight: 2
   requires_attunement: true
   attunement_class:
-    - bard
-    - fighter
-    - paladin
-    - ranger
-    - sorcerer
-    - warlock
-    - wizard
-
-# ----------------------------------------------------------------------------
-# Armor with special properties
-# ----------------------------------------------------------------------------
+  - bard
+  - fighter
+  - paladin
+  - ranger
+  - sorcerer
+  - warlock
+  - wizard
 dragon_scale_mail:
   ac: 14
   cost: 0
@@ -906,9 +810,7 @@ dragon_scale_mail:
   type: armor
   weight: 50
   requires_attunement: true
-  # Resistance to one damage type (chosen on attunement)
   damage_resistance: null
-
 cloak_of_displacement:
   ac: 0
   cost: 0
@@ -919,5 +821,86 @@ cloak_of_displacement:
   subtype: light
   weight: 1
   requires_attunement: true
-  # Gives advantage on AC (attacks have disadvantage)
   effect: cloak_of_displacement
+bag_of_holding:
+  cost: 0
+  magical: true
+  name: Bag of Holding
+  type: accessory
+  equippable: true
+  weight: 15
+  container: true
+bag_of_beans:
+  cost: 0
+  magical: true
+  name: Bag of Beans
+  type: accessory
+  equippable: false
+  weight: 0.5
+  description: A bag containing magical beans with unpredictable narrative effects.
+necklace_of_fireballs:
+  cost: 0
+  magical: true
+  name: Necklace of Fireballs
+  type: accessory
+  equippable: true
+  usable: true
+  consumable: false
+  item_class: MagicSpellItem
+  charges: 6
+  spell: fireball
+  level: 3
+  spell_options:
+  - spell: fireball
+    level: 3
+    charges: 1
+    label: Throw one bead
+  requires_attunement: false
+wand_of_magic_missiles:
+  cost: 0
+  magical: true
+  name: Wand of Magic Missiles
+  type: accessory
+  equippable: true
+  usable: true
+  consumable: false
+  item_class: MagicSpellItem
+  charges: 7
+  spell: magic_missile
+  level: 1
+  spell_options:
+  - spell: magic_missile
+    level: 1
+    charges: 1
+    label: 1 charge
+  - spell: magic_missile
+    level: 2
+    charges: 2
+    label: 2 charges
+  - spell: magic_missile
+    level: 3
+    charges: 3
+    label: 3 charges
+  requires_attunement: false
+staff_of_defense:
+  cost: 0
+  magical: true
+  name: Staff of Defense
+  type: accessory
+  equippable: true
+  usable: true
+  consumable: false
+  item_class: MagicSpellItem
+  charges: 10
+  spell: mage_armor
+  level: 1
+  spell_options:
+  - spell: mage_armor
+    level: 1
+    charges: 1
+    label: Mage Armor
+  - spell: shield
+    level: 1
+    charges: 2
+    label: Shield
+  requires_attunement: true

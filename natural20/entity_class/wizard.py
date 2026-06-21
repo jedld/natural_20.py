@@ -32,12 +32,55 @@ class Wizard:
     self.arcane_recovery = 1
     self.spell_slots['wizard'] = self.reset_spell_slots()
     self.arcane_recovery = 1
+    if self.properties.get('arcane_tradition') == 'school_of_abjuration':
+      self.register_resource(
+        'arcane_ward',
+        self.arcane_ward_max_hp(),
+        restore_on='long_rest',
+        current=self.properties.get('arcane_ward_hp', 0)
+      )
 
   def wizard_spell_attack_modifier(self):
     return self.proficiency_bonus() + self.int_mod()
 
   def special_actions_for_wizard(self, session, battle):
     return []
+
+  def arcane_ward_max_hp(self):
+    return self.wizard_level * 2 + self.int_mod()
+
+  def arcane_ward_hp(self):
+    ward = self.get_resource('arcane_ward')
+    return ward.current if ward else 0
+
+  def create_or_recharge_arcane_ward(self, spell_level):
+    if not self.class_feature('arcane_ward') or spell_level <= 0:
+      return None
+    ward = self.get_resource('arcane_ward')
+    if ward is None:
+      ward = self.register_resource('arcane_ward', self.arcane_ward_max_hp(),
+                                    restore_on='long_rest', current=0)
+    if ward.current <= 0:
+      ward.current = ward.max_value
+    else:
+      ward.restore(spell_level * 2)
+    return ward
+
+  def absorb_with_arcane_ward(self, damage, battle=None, source=None, projected=False):
+    ward = self.get_resource('arcane_ward')
+    if ward is None or ward.current <= 0 or damage <= 0:
+      return 0
+    absorbed = min(int(damage), ward.current)
+    ward.current -= absorbed
+    self.session.event_manager.received_event({
+      'source': self,
+      'target': source,
+      'event': 'arcane_ward_absorb',
+      'damage': absorbed,
+      'projected': projected,
+      'remaining': ward.current,
+    })
+    return absorbed
 
   def short_rest_for_wizard(self, battle):
     # Reset the once-per-day Arcane Recovery so the player may use it on
@@ -81,6 +124,9 @@ class Wizard:
     # Restore spell slots and rearm Arcane Recovery on a long rest.
     self.spell_slots['wizard'] = self.reset_spell_slots()
     self.arcane_recovery = 1
+    if self.class_feature('arcane_ward'):
+      self.register_resource('arcane_ward', self.arcane_ward_max_hp(),
+                             restore_on='long_rest', current=0)
 
   def max_slots_for_wizard(self, level):
     return WIZARD_SPELL_SLOT_TABLE[self.wizard_level - 1][level] if level < len(WIZARD_SPELL_SLOT_TABLE[self.wizard_level - 1]) else 0
