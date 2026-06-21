@@ -64,7 +64,10 @@ class SaveForHalfMixin:
             failed = not save.passed
 
             this_roll = roll_factory(target) if roll_factory else damage_roll
-            damage_value = this_roll if failed else this_roll.half()
+            if ability == 'dexterity' and target.class_feature('evasion'):
+                damage_value = this_roll.half() if failed else 0
+            else:
+                damage_value = this_roll if failed else this_roll.half()
 
             event = {
                 'source': source,

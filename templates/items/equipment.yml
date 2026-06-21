@@ -614,3 +614,8 @@ lute:
   name: Lute
   type: instrument
   weight: 3
+mawsse:
+  cost: 0
+  name: Mawsse
+  type: trinket
+  weight: 0

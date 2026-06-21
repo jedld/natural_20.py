@@ -19,6 +19,25 @@ def damage_event(item, battle):
         session = item['source'].session
 
     target = item['target']
+    if (
+        battle
+        and item.get('attack_roll') is not None
+        and target.class_feature('uncanny_dodge')
+        and target.has_reaction(battle)
+        and item.get('source') is not target
+    ):
+        if hasattr(item['damage'], 'half'):
+            item['damage'] = item['damage'].half()
+        else:
+            item['damage'] = int(item['damage']) // 2
+        item['uncanny_dodge'] = True
+        battle.consume(target, 'reaction')
+        session.event_manager.received_event({
+            'source': target,
+            'target': item.get('source'),
+            'event': 'uncanny_dodge',
+        })
+
     dmg = item['damage'].result() if isinstance(item['damage'], Rollable) else item['damage']
     dmg += item['sneak_attack'].result() if item.get('sneak_attack') is not None else 0
 
@@ -66,6 +85,45 @@ def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, op
         results = target.resolve_trigger('after_attack_roll_target', { 'attack_roll': attack_roll } )
         if results:
             events.append(results)
+
+    original_action = opts.get('original_action')
+    if (
+        battle is not None
+        and attack_roll is not None
+        and not getattr(original_action, 'maneuver', None) == 'riposte'
+        and not attack_roll.nat_20()
+        and attack_roll.result() < effective_ac
+        and target is not None
+        and source is not None
+        and getattr(target, 'has_maneuver', lambda _m: False)('riposte')
+        and target.has_resource('superiority_dice')
+        and target.has_reaction(battle)
+        and target.conscious()
+    ):
+        try:
+            battle_map = battle.map_for(target)
+            melee_attack = (
+                original_action is not None
+                and not original_action.ranged_attack()
+                and battle_map is not None
+                and battle_map.distance(target, source) * battle_map.feet_per_grid <= 5
+            )
+        except Exception:
+            melee_attack = False
+        if melee_attack:
+            from natural20.actions.attack_action import AttackAction
+            weapons = target.equipped_weapons(
+                target.session,
+                valid_weapon_types=['melee_attack']
+            )
+            if weapons:
+                riposte = AttackAction(target.session, target, 'attack')
+                riposte.using = weapons[0]
+                riposte.target = source
+                riposte.as_reaction = True
+                riposte.maneuver = 'riposte'
+                riposte.resolve(target.session, battle_map, {'battle': battle})
+                events.append(riposte.result)
 
     if not isinstance(target, list) and not isinstance(target, tuple):
         targets = [target]

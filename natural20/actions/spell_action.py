@@ -61,6 +61,8 @@ class SpellAction(Action):
                 hash['target'] = [t.entity_uid for t in self.target]
             else:
                 hash['target'] = self.target.entity_uid
+        if hasattr(self, 'using'):
+            hash['using'] = self.using
         return hash
 
     
@@ -73,6 +75,8 @@ class SpellAction(Action):
         action.casting_time = data['casting_time']
         action.target = data['target']
         action.spellcasting_class = data.get('spellcasting_class')
+        if data.get('using'):
+            action.using = data['using']
         return action
 
     def short_name(self):
@@ -212,6 +216,8 @@ class SpellAction(Action):
         spell_action.target = self.target
         spell_action.spellcasting_class = self.spellcasting_class
         spell_action.skip_consume_at_resolve = getattr(self, 'skip_consume_at_resolve', False)
+        if hasattr(self, 'using'):
+            spell_action.using = self.using
         if self.spell_action:
             spell_action.spell_action = self.spell_action.clone()
             spell_action.spell_action.action = spell_action

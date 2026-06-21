@@ -409,6 +409,8 @@ class EventManager:
             'concentration_check': concentration_check,
             'second_wind': lambda event: self.output_logger.log(f"{self.show_name(event)} uses second wind to recover {event['value']}={event['value'].result()} hit points."),    
             'disengage': lambda event: self.output_logger.log(f"{self.show_name(event)} disengages."),
+            'disarm': lambda event: self.output_logger.log(f"{self.show_name(event)} disarms {self.show_target_name(event)} of {event.get('item')}."),
+            'uncanny_dodge': lambda event: self.output_logger.log(f"{self.show_name(event)} uses Uncanny Dodge."),
             'dodge': lambda event: self.output_logger.log(f"{self.show_name(event)} dodges."),
             'died': died,
             'dash': lambda event: self.output_logger.log(f"{self.show_name(event)} {'bonus action' if event['as_bonus_action'] else ''} dashes."),
