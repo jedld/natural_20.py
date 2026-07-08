@@ -2480,7 +2480,8 @@ const getTilePositionInContainer = ($tile, spriteW, spriteH) => {
     left: x * tileSize + tileSize + tileSize / 2 - halfW,
     top: y * tileSize + tileSize + tileSize / 2 - halfH
   };
-  const $tiles = $('.tiles-container').first();
+  const $tilesContainer = $('.tiles-container');
+  const $tiles = ($tilesContainer && typeof $tilesContainer.first === 'function') ? $tilesContainer.first() : $tilesContainer;
   if ($tiles.length && typeof $tiles.position === 'function') {
     const offset = $tiles.position();
     if (offset && typeof offset === 'object') {

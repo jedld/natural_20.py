@@ -1062,7 +1062,7 @@ describe('engine.js basic behavior', () => {
       return orig$(sel);
     };
     await q.processEvent({ type: 'conversation', message: { entity_id: 'E1', message: 'Hello' } });
-    expect(dialogSpy).toHaveBeenCalledWith('entity', 'Hello', 'entity');
+    expect(dialogSpy).toHaveBeenCalledWith('entity', 'Hello', 'entity', { narrative: undefined });
     expect(bubbleSpy).not.toHaveBeenCalled();
     expect(triggerSpy).not.toHaveBeenCalled();
 
