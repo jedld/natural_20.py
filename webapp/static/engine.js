@@ -1033,7 +1033,7 @@ class EventQueue {
 
         // Add the message to the dialog chat (spoken line + optional narrative asides)
         Chat.addDialogMessage('entity', message, 'entity', { narrative: narrative });
-        clearDialogWaitingState();
+        if (typeof clearDialogWaitingState === 'function') { clearDialogWaitingState(); }
       } catch (error) {
         console.error('Error adding message to dialog modal:', error);
         // Fallback to showing conversation bubble
@@ -6520,7 +6520,7 @@ $(document).ready(() => {
         clearTimeout(timeout2);
         clearTimeout(timeout3);
 
-        clearDialogWaitingState();
+        if (typeof clearDialogWaitingState === 'function') { clearDialogWaitingState(); }
         $input.focus();
 
         if (data.success) {
@@ -6538,7 +6538,7 @@ $(document).ready(() => {
         clearTimeout(timeout2);
         clearTimeout(timeout3);
 
-        clearDialogWaitingState();
+        if (typeof clearDialogWaitingState === 'function') { clearDialogWaitingState(); }
         $input.focus();
 
         if (status === 'timeout') {
