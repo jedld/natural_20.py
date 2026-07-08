@@ -9,6 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,6 +25,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run tests (pytest)
+      - name: Run tests (pytest) with parallelism
         run: |
-          pytest -q
+          pytest -q -n auto --dist=loadfile
+        env:
+          PYTEST_TIMEOUT: 60
