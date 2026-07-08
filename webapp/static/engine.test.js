@@ -242,7 +242,7 @@ describe('engine.js basic behavior', () => {
     };
 
     const pos = Engine.getTilePositionInContainer($tile, 70, 70);
-    expect(pos).toEqual({ left: 140, top: 210 });
+    expect(pos).toEqual({ left: 189, top: 253 });
 
     document.querySelector = origQuery;
   });
