@@ -27,6 +27,6 @@ jobs:
 
       - name: Run tests (pytest) with parallelism
         run: |
-          pytest -q -n auto --dist=loadfile
+          pytest -q -n 2 --dist=loadfile
         env:
           PYTEST_TIMEOUT: 60
