@@ -89,7 +89,7 @@ class Fighter():
 
     def long_rest_for_fighter(self, battle):
         # Eldritch Knight spell slots recharge on long rest
-        if self.martial_archetype == 'eldritch_knight':
+        if getattr(self, 'martial_archetype', None) == 'eldritch_knight':
             self.spell_slots['fighter'] = self.reset_eldritch_knight_spell_slots()
 
     # ------------------------------------------------------------------
@@ -136,4 +136,4 @@ class Fighter():
 
     def can_cast_spells_for_fighter(self):
         """Check if this Fighter can cast spells (Eldritch Knight)."""
-        return self.martial_archetype == 'eldritch_knight'
+        return getattr(self, 'martial_archetype', None) == 'eldritch_knight'

@@ -49,14 +49,30 @@ class LayOnHandsAction(Action):
             usage_step = self._build_usage_step()
             return usage_step
 
+        # Build target_types. Note: battle.allies_of(entity) already
+        # includes the entity itself, so we must filter it out when self
+        # is at full HP — otherwise autobuild will produce a failed
+        # "Target cannot benefit from Lay on Hands" error for the
+        # full-HP self-target combination.
+        source = self.source
+        target_types = ["allies"]
+
+        if source.hp() < source.max_hp():
+            target_types = ["self", "allies"]
+        else:
+            # Exclude self from allies list when self is not wounded,
+            # since battle.allies_of() includes the entity itself.
+            target_types = ["allies"]
+
         return {
             "action": self,
             "param": [
                 {
                     "type": "select_target",
                     "range": 5,
-                    "target_types": ["self", "allies"],
-                    "num": 1
+                    "target_types": target_types,
+                    "num": 1,
+                    "exclude_self": source.hp() >= source.max_hp()
                 }
             ],
             "next": set_target
