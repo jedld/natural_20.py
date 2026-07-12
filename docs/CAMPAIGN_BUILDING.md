@@ -92,6 +92,28 @@ cd webapp && TEMPLATE_DIR=../user_levels/my_campaign python -m flask run
 cd webapp && ./start_web.sh ../user_levels/my_campaign/
 ```
 
+### Agent-Assisted Campaign Building
+
+The workspace skill at
+`.github/skills/natural20-campaign-builder/SKILL.md` guides coding agents through
+source intake, user tailoring, scene and dependency design, engine-capability
+checks, campaign scaffolding, playability review, and validation. Invoke
+`/natural20-campaign-builder` or ask the agent to build or adapt a Natural20
+campaign from a description, outline, or user-provided source.
+
+Validate a campaign from the repository root before launching it:
+
+```bash
+python .github/skills/natural20-campaign-builder/scripts/validate_campaign.py \
+  user_levels/my_campaign
+```
+
+The validator checks configuration and map references, resource and asset
+paths, coordinates, teleporters, and then loads the campaign through
+`Session`. It reports optional missing assets as warnings and exits nonzero for
+errors. Use `--static-only` while scaffolding and `--verbose` to show an engine
+load traceback.
+
 ---
 
 ## Game Configuration
