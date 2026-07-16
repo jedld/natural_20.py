@@ -32,6 +32,7 @@ from webapp.blueprints.helpers.cors_config import (
 from webapp.blueprints.helpers.effects import register_effect_listeners
 from webapp.blueprints.helpers.journal_utils import _record_narration_for_pcs
 from webapp.blueprints.helpers.llm_init import (
+    configure_npc_provider_from_environment,
     initialize_llm_from_env,
     register_game_context_functions,
 )
@@ -249,6 +250,7 @@ for extension in EXTENSIONS:
     extension.init(app, current_game, game_session)
 
 llm_handler = initialize_llm_from_env(LLMHandler)
+configure_npc_provider_from_environment(llm_handler)
 register_game_context_functions(llm_handler, game_context_provider, _mcp_registry, _mcp_context)
 llm_conversation_handler = LLMConversationController(llm_handler)
 entity_rag_handler = EntityRAGHandler(game_session, current_game)

@@ -16,6 +16,19 @@ class LLMConversationController:
         self.model = "gpt-4o"
         self.max_history = 100  # Maximum number of messages to keep in history
 
+    def _effective_send_message(self, messages, context=None):
+        """Dispatch to the NPC provider if available, otherwise the DM provider.
+
+        The NPC provider is preferred for short, low-latency NPC chat responses.
+        If no NPC provider is configured, the DM provider is used as a fallback.
+        """
+        provider = getattr(self.llm_hander, 'npc_provider', None)
+        if provider is None:
+            provider = getattr(self.llm_hander, 'current_provider', None)
+        if provider is None:
+            raise RuntimeError("No LLM provider available for NPC conversation")
+        return provider.send_message(messages)
+
     def get_conversation(self, conversation_id):
         return self.conversations.get(conversation_id, None)
 
@@ -153,8 +166,9 @@ class LLMConversationController:
         ]
 
         try:
-            raw_response = self.llm_hander.send_message(
-                messages, context={'response_mode': 'conversation'},
+            raw_response = self._effective_send_message(
+                messages,
+                {'response_mode': 'conversation'},
             )
         except Exception:
             return None
@@ -225,9 +239,9 @@ class LLMConversationController:
                 conversation_id,
                 history_count,
             )
-            response_content = self.llm_hander.send_message(
+            response_content = self._effective_send_message(
                 messages,
-                context={
+                {
                     'response_mode': 'conversation',
                     'log_label': f'npc_reply:{conversation_id}',
                 },

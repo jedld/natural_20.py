@@ -89,6 +89,85 @@ def configure_llm_handler_from_environment(handler):
     return handler.initialize_provider('mock', {})
 
 
+def configure_npc_provider_from_environment(handler):
+    """Apply ``NPC_*`` env vars to an existing handler and initialise its NPC provider.
+
+    Environment variables (all optional):
+
+    * ``NPC_LLM_PROVIDER`` – provider name (``openai``, ``anthropic``, ``ollama``,
+      ``llama_cpp``, ``mock``).  Defaults to ``ollama``.
+    * Provider-specific overrides (prefix ``NPC_``):
+      * ``NPC_BASE_URL`` / ``NPC_OLLAMA_BASE_URL`` – API endpoint (falls back to
+        the corresponding DM variable when the NPC-specific one is unset).
+      * ``NPC_MODEL`` / ``NPC_OLLAMA_MODEL`` – model name (falls back to the DM
+        variable).
+      * ``NPC_API_KEY`` / ``NPC_OPENAI_API_KEY`` – API key (falls back to the DM
+        variable).
+    * ``NPC_LLM_ENABLED`` – when set to ``0``, ``no``, or ``false``, the NPC
+      provider is **not** initialised (NPC conversations fall back to the DM
+      provider as before).
+
+    Returns ``True`` if a provider was initialised, ``False`` otherwise.
+    """
+    enabled = os.environ.get('NPC_LLM_ENABLED', '1')
+    if str(enabled).strip().lower() in {'0', 'no', 'false', 'disabled'}:
+        logger.info("[NPC LLM] Disabled by NPC_LLM_ENABLED=%s", enabled)
+        return False
+
+    llm_provider = os.environ.get('NPC_LLM_PROVIDER', 'ollama').lower()
+    fallback_key = os.environ.get('LLM_PROVIDER', 'ollama').lower()
+
+    # Resolve base_url: prefer NPC-specific, then DM-specific
+    base_url = os.environ.get('NPC_BASE_URL') or os.environ.get(f'NPC_{llm_provider.upper()}_BASE_URL')
+    if not base_url:
+        dm_url = os.environ.get(f'{llm_provider.upper()}_BASE_URL')
+        if dm_url:
+            base_url = dm_url
+
+    # Resolve model: prefer NPC-specific, then DM-specific
+    model = os.environ.get('NPC_MODEL') or os.environ.get(f'NPC_{llm_provider.upper()}_MODEL')
+    if not model:
+        dm_model = os.environ.get(f'{llm_provider.upper()}_MODEL')
+        if dm_model:
+            model = dm_model
+
+    # Resolve API key: prefer NPC-specific, then DM-specific
+    api_key = os.environ.get('NPC_API_KEY') or os.environ.get(f'NPC_{llm_provider.upper()}_API_KEY')
+    if not api_key:
+        dm_key = os.environ.get(f'{llm_provider.upper()}_API_KEY')
+        if dm_key:
+            api_key = dm_key
+
+    if llm_provider == 'openai':
+        if not api_key:
+            logger.warning("[NPC LLM] NPC_LLM_PROVIDER=openai but no NPC_API_KEY set; falling back to DM provider")
+            return False
+        config = {'api_key': api_key, 'model': model or 'gpt-4o-mini'}
+        if base_url:
+            config['base_url'] = base_url
+        return handler.initialize_npc_provider('openai', config)
+
+    if llm_provider == 'anthropic':
+        if not api_key:
+            logger.warning("[NPC LLM] NPC_LLM_PROVIDER=anthropic but no NPC_API_KEY set; falling back to DM provider")
+            return False
+        config = {'api_key': api_key, 'model': model or 'claude-3-haiku-20240307'}
+        return handler.initialize_npc_provider('anthropic', config)
+
+    if llm_provider == 'ollama':
+        config = {'base_url': base_url or 'http://localhost:11434', 'model': model or 'gemma3:27b'}
+        return handler.initialize_npc_provider('ollama', config)
+
+    if llm_provider in ('llama_cpp', 'llama.cpp', 'llamacpp'):
+        config = {'base_url': base_url or 'http://localhost:8011', 'api_key': api_key or 'llama-cpp'}
+        if model:
+            config['model'] = model
+        return handler.initialize_npc_provider('llama_cpp', config)
+
+    logger.warning("[NPC LLM] Unknown NPC_LLM_PROVIDER=%s, using mock", llm_provider)
+    return handler.initialize_npc_provider('mock', {})
+
+
 def initialize_llm_from_env(llm_handler_class):
     """Construct a handler and configure it from environment variables.
 
