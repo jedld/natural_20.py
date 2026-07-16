@@ -813,6 +813,7 @@ class LLMHandler:
             'llama_cpp': LlamaCppProvider(opts),
         }
         self.current_provider = None
+        self.npc_provider = None
         self.game_context_functions = {}
         self.conversation_history = []
         self.session_logger = SessionLogger()  # Create session logger
@@ -846,7 +847,29 @@ class LLMHandler:
                                               provider_info)
             return True
         return False
-    
+
+    def initialize_npc_provider(self, provider_name: str, config: Dict[str, Any]) -> bool:
+        """Initialize a dedicated NPC conversation provider.
+
+        Allows NPC conversations to run on a different model/endpoint than the
+        DM assistant (e.g. a faster, cheaper model for short exchanges).
+        """
+        if provider_name not in self.providers:
+            logger.error(f"Unknown NPC provider: {provider_name}")
+            return False
+
+        provider = self.providers[provider_name]
+        if provider.initialize(config):
+            self.npc_provider = provider
+            logger.info(
+                "[LLMHandler] NPC provider initialized: %s (model=%s)",
+                provider_name,
+                getattr(provider, 'current_model', getattr(provider, 'model', 'unknown')),
+            )
+            return True
+        logger.error("[LLMHandler] Failed to initialize NPC provider: %s", provider_name)
+        return False
+
     @staticmethod
     def _response_looks_complete(content: str, done_reason: Optional[str] = None) -> bool:
         """Return True when an LLM chunk should be treated as finished (no continuation)."""
