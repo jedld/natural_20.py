@@ -171,7 +171,8 @@ def offer_guidance_lines(
 ) -> List[str]:
     """Prompt lines for the LLM based on campaign/entity offer config."""
     lines = [
-        "- Only use [OFFER_ITEM] when you physically have the item to give and the listener does not already have it.",
+        "- Use [OFFER_ITEM] only when you can hand the item over: it is in your inventory, in an open container within reach, or you will [RETRIEVE] it first in the same reply.",
+        "- When an item is stocked behind a counter or shelf, use [RETRIEVE: item=<slug>, target=@container, qty=1] before [OFFER_ITEM] if you are not already carrying it.",
         "- Never repeat an item offer after the listener has accepted it.",
     ]
     configs = merged_offer_configs(game_properties, actor)
@@ -225,3 +226,37 @@ def accept_effect_for_item(item_slug: str, *, game_properties=None, actor=None) 
 def on_accept_auto_use(item_slug: str, *, game_properties=None, actor=None) -> bool:
     cfg = offer_config_for_item(item_slug, game_properties=game_properties, actor=actor)
     return bool(cfg.get('on_accept_auto_use'))
+
+
+def item_offer_resolution_note(
+    actor,
+    target,
+    item_slug: str,
+    *,
+    accepted: bool,
+    effect_message: Optional[str] = None,
+    game_properties=None,
+) -> str:
+    """System note for the offering NPC after a player accepts or declines."""
+    cfg = offer_config_for_item(item_slug, game_properties=game_properties, actor=actor)
+    item_label = str(cfg.get('item_label') or item_slug.replace('_', ' '))
+    target_name = entity_label(target) if target is not None else 'the listener'
+
+    if not accepted:
+        return (
+            f"{target_name} declined your offered {item_label}. "
+            "React in character if appropriate; do not offer the same item again unless they ask."
+        )
+
+    if effect_message:
+        return (
+            f"{effect_message} They can understand your beast/sheep speech now. "
+            f"Do not offer the {item_label} again or repeat how to use it. "
+            "Continue in [in sheep] with clear dialogue they can understand."
+        )
+
+    return (
+        f"{target_name} accepted your offered {item_label}. "
+        f"Do not use [OFFER_ITEM: item={item_slug}, ...] again for them. "
+        "If they still need to use it, urge them to do so from their inventory."
+    )

@@ -27,8 +27,10 @@ Do **not** add new HTTP routes to `app.py` unless they are bootstrap-only (healt
 | `ai` | `blueprints/ai.py` | `/ai/*` | `ai.*` |
 | `navigation` | `blueprints/navigation.py` | `/`, `/command`, `/path`, `/switch_map`, `/update` | `navigation.*` |
 | `character` | `blueprints/character.py` | `/character_builder/*`, `/character_editor/*`, journal CRUD | `character.*` |
-| `battle` | `blueprints/battle.py` | `/start`, `/action`, `/target`, `/actions`, turn order, combat log | `battle.*` |
+| `battle` | `blueprints/battle.py` | `/start`, `/action`, `/target`, `/actions`, `/actions/batch`, turn order, combat log | `battle.*` |
 | `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, inventory, `/rest`, audio, entity admin, `/update_resource_pool` | `dm.*` |
+| `edit` | `blueprints/edit.py` | `/edit/overlay`, `/edit/move`, `/edit/map_graph` (campaign YAML authoring; requires `N20_EDIT_MODE=1`) | `edit.*` |
+| `merchant` | `blueprints/merchant.py` | `/merchant`, `/merchant/preview`, `/merchant/trade` | `merchant.*` |
 | *(none)* | `blueprints/socketio_handlers.py` | `connect`, `register`, `message`, `disconnect`, `request_effects` | N/A (SocketIO) |
 | `mcp` | `mcp/` package | `/mcp/manifest`, `/mcp/tools/list`, `/mcp/tools/call` | `mcp.*` |
 
@@ -109,6 +111,10 @@ When adding startup-side behavior, wire it from `app.py` in this order (approxim
 7. `register_socketio_handlers(socketio)`
 
 `wire_conversation_service` uses **live getters** (`lambda: current_game`) so tests can monkeypatch `app.current_game` after import.
+
+## Campaign edit mode
+
+Start with `./webapp/start_web.sh --edit <campaign_dir>` or `N20_EDIT_MODE=1`. This auto-logs in as the campaign DM, highlights doors/teleporters/walls/spawn points, and persists drag-and-drop moves directly to `maps/*.yml` via `natural20/map_editor.py` and `/edit/move`. The DM menu includes **Map Connections** (`GET /edit/map_graph`, opens in a new tab): a teleporter graph across all registered maps with click-to-switch for editing.
 
 ## Related docs
 

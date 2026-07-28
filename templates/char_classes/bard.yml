@@ -40,6 +40,26 @@ progression:
     class_features:
       - jack_of_all_trades
       - song_of_rest
+  level_3:
+    class_features:
+      - bard_college
+      - expertise
+  level_4:
+    class_features:
+      - ability_score_improvement
+  level_5:
+    class_features:
+      - bardic_inspiration_improvement
+      - font_of_inspiration
+bard_colleges:
+  college_of_lore:
+    level_3:
+      - bonus_proficiencies
+      - cutting_words
+  college_of_valor:
+    level_3:
+      - bonus_proficiencies
+      - combat_inspiration
 spellcasting_ability: charisma
 spell_list:
   cantrip:

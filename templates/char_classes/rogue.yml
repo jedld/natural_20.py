@@ -58,15 +58,19 @@ progression:
     class_features:
       - slippery_mind
 roguish_archetype_features:
+  thief:
+    level_3:
+      - fast_hands
+      - second_story_work
   swashbuckler:
     level_3:
       - fancy_footwork
       - rakish_audacity
     level_9:
       - panache
-saving_throw_proficiency:
-  - dex
-  - int
+saving_throw_proficiencies:
+  - dexterity
+  - intelligence
 weapon_proficiencies:
   - light_armor
   - longsword

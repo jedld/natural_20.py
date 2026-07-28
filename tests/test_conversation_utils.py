@@ -6,6 +6,9 @@ from natural20.utils.conversation import (
     format_entity_gear_for_conversation,
     mention_handle_for,
     resolve_mention_targets,
+    strip_spoken_address_prefix,
+    _closed_door,
+    _wall_like_object,
 )
 
 
@@ -95,6 +98,21 @@ class FakeMap:
     def wall(self, pos_x, pos_y):
         return (pos_x, pos_y) in self.walls
 
+    def line_of_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, inclusive=False, **_kwargs):
+        path = self.squares_in_path(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive)
+        for index, square in enumerate(path):
+            if index == 0:
+                continue
+            prev_square = path[index - 1]
+            if self.wall(*square):
+                return None
+            for obj in self.objects_at(*square):
+                if _closed_door(obj):
+                    return None
+                if _wall_like_object(obj, origin=prev_square):
+                    return None
+        return [('none', square) for square in path]
+
     def objects_at(self, pos_x, pos_y):
         return list(self.objects.get((pos_x, pos_y), []))
 
@@ -180,12 +198,12 @@ def test_conversation_reachability_applies_closed_door_acoustic_penalty():
     entry = entries[0]
 
     assert entry['distance_ft'] == 25
-    assert entry['adjusted_distance_ft'] == 35
-    assert entry['acoustic_penalty_ft'] == 10
+    assert entry['adjusted_distance_ft'] == 60
+    assert entry['acoustic_penalty_ft'] == 35
     assert entry['closed_doors'] == 1
     assert entry['status'] == 'requires_louder_voice'
     assert entry['minimum_volume'] == 'shout'
-    assert entry['acoustic_summary'] == '1 closed door'
+    assert entry['acoustic_summary'] == '1 closed door, blocked acoustic line'
 
 
 def test_conversation_reachability_applies_wall_acoustic_penalty():
@@ -204,12 +222,12 @@ def test_conversation_reachability_applies_wall_acoustic_penalty():
     entry = entries[0]
 
     assert entry['distance_ft'] == 50
-    assert entry['adjusted_distance_ft'] == 70
-    assert entry['acoustic_penalty_ft'] == 20
+    assert entry['adjusted_distance_ft'] == 95
+    assert entry['acoustic_penalty_ft'] == 45
     assert entry['walls'] == 1
     assert entry['status'] == 'too_far'
     assert entry['minimum_volume'] is None
-    assert entry['acoustic_summary'] == '1 wall tile'
+    assert entry['acoustic_summary'] == '1 wall tile, blocked acoustic line'
 
 
 def test_format_entity_gear_for_conversation_lists_equipped_and_carried():
@@ -231,3 +249,13 @@ def test_format_entity_gear_for_conversation_lists_equipped_and_carried():
 
 def test_format_entity_gear_for_conversation_handles_empty_entity():
     assert format_entity_gear_for_conversation(None, None) == 'None recorded.'
+
+
+def test_strip_spoken_address_prefix_removes_target_header():
+    raw = 'Pip (Barmaid) to Mira: "There you go! Enjoy that ale."'
+    assert strip_spoken_address_prefix(raw) == 'There you go! Enjoy that ale.'
+
+
+def test_strip_spoken_address_prefix_leaves_plain_dialogue():
+    raw = 'There you go! Enjoy that ale.'
+    assert strip_spoken_address_prefix(raw) == raw

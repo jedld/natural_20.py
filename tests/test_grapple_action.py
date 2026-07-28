@@ -1,5 +1,5 @@
 import unittest
-from natural20.actions.grapple_action import GrappleAction
+from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.move_action import MoveAction
 from natural20.event_manager import EventManager
@@ -60,4 +60,13 @@ class TestGrappleAction(unittest.TestCase):
 
     def test_incapacitated_grappled_released(self):
         self.fighter.unconscious()
+        self.assertFalse(self.npc.grappled())
+
+    def test_drop_grapple(self):
+        self.npc.do_grappled_by(self.fighter)
+        self.assertTrue(self.fighter.is_grappling())
+        action = DropGrappleAction.build(self.session, self.fighter)
+        action.resolve(self.session, self.map)
+        DropGrappleAction.apply(self.battle, action.result[0], session=self.session)
+        self.assertFalse(self.fighter.is_grappling())
         self.assertFalse(self.npc.grappled())

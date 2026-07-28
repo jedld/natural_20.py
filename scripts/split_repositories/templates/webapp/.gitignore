@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+coverage/
+node_modules/
+.env
+webapp/.env
+webapp/flask_session/
+webapp/saves/
+saves/
+*.log
+.DS_Store

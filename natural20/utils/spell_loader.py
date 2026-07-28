@@ -1,3 +1,30 @@
+def resolve_spell_class_key(spell_slug: str, spell_meta: dict | None = None) -> str:
+    """Resolve the spell-loader class name for a YAML spell entry."""
+    from natural20.utils.string_utils import classify
+
+    meta = spell_meta or {}
+    spell_class_name = meta.get("spell_class")
+    if spell_class_name:
+        spell_class_key = str(spell_class_name).replace("Natural20::", "")
+        if not spell_class_key.endswith("Spell"):
+            spell_class_key = f"{spell_class_key}Spell"
+        return spell_class_key
+    return f"{classify(spell_slug)}Spell"
+
+
+def spell_is_implemented(spell_slug: str, spell_meta: dict | None = None) -> bool:
+    """True when the spell has a loadable class beyond the generic wizard stub."""
+    try:
+        spell_class = load_spell_class(resolve_spell_class_key(spell_slug, spell_meta))
+    except Exception:
+        return False
+    from natural20.spell.wizard_spells import UtilityWizardSpell
+
+    if spell_class.__module__ == "natural20.spell.wizard_spells":
+        return spell_class.resolve is not UtilityWizardSpell.resolve
+    return True
+
+
 def load_spell_class(spell_name):
     # Import all spell classes
     from natural20.spell.shocking_grasp_spell import ShockingGraspSpell
@@ -48,6 +75,7 @@ def load_spell_class(spell_name):
     from natural20.spell.grease_spell import GreaseSpell
     from natural20.spell.enlarge_reduce_spell import EnlargeReduceSpell
     from natural20.spell.haste_spell import HasteSpell
+    from natural20.spell.slow_spell import SlowSpell
     from natural20.spell.polymorph_spell import PolymorphSpell
     from natural20.spell.booming_blade_spell import BoomingBladeSpell
     from natural20.spell.green_flame_blade_spell import GreenFlameBladeSpell
@@ -56,6 +84,7 @@ def load_spell_class(spell_name):
     from natural20.spell.hold_person_spell import HoldPersonSpell
     from natural20.spell.wall_of_fire_spell import WallOfFireSpell
     from natural20.spell.tongues_spell import TonguesSpell
+    from natural20.spell.detect_magic_spell import DetectMagicSpell
     from natural20.spell.wizard_spells import (
         AganazzarsScorcherSpell,
         AnimateDeadSpell,
@@ -66,7 +95,6 @@ def load_spell_class(spell_name):
         ComprehendLanguagesSpell,
         ConeOfColdSpell,
         CounterspellSpell,
-        DetectMagicSpell,
         DisintegrateSpell,
         DispelMagicSpell,
         FeatherFallSpell,
@@ -141,6 +169,7 @@ def load_spell_class(spell_name):
         'GreaseSpell': GreaseSpell,
         'EnlargeReduceSpell': EnlargeReduceSpell,
         'HasteSpell': HasteSpell,
+        'SlowSpell': SlowSpell,
         'PolymorphSpell': PolymorphSpell,
         'BoomingBladeSpell': BoomingBladeSpell,
         'GreenFlameBladeSpell': GreenFlameBladeSpell,

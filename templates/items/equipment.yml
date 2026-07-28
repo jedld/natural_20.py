@@ -284,6 +284,8 @@ backpack:
   name: Backpack
   type: container
   weight: 5
+  capacity_lbs: 30
+  capacity_cu_ft: 1
 bedroll:
   cost: 0.1
   name: Bedroll
@@ -713,4 +715,38 @@ celestial_shield_of_the_hidden_lord:
   properties:
     - detects_evil
   item_class: MagicSpellItem
+  weight: 0
+
+# Tavern / hub provisions for open bar containers (tavern_bar_counter).
+ale_mug:
+  cost: 0.04
+  name: Mug of Ale
+  type: provisions
+  subtype: drink
+  consumable: true
+  weight: 1
+bread_loaf:
+  cost: 0.02
+  name: Loaf of Bread
+  type: provisions
+  subtype: food
+  consumable: true
+  weight: 0.5
+cheese_wedge:
+  cost: 0.1
+  name: Cheese Wedge
+  type: provisions
+  subtype: food
+  consumable: true
+  weight: 0.25
+tavern_stew:
+  cost: 0.2
+  name: Bowl of Tavern Stew
+  type: provisions
+  subtype: food
+  consumable: true
+  weight: 1
+tavern_safe_key:
+  name: Tavern Safe Key
+  type: key
   weight: 0

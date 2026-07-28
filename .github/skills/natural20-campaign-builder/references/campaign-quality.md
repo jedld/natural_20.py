@@ -77,6 +77,15 @@ Every important NPC should have:
 - response to hostility, bribery, failed checks, and scene progression;
 - concise LLM backstory if enabled—facts and boundaries, not an unbounded novel.
 
+For **tavern/shop staff** with LLM dialogue, also specify:
+
+- open container (`@handle`) stock slugs and map placement;
+- locked till safe + key item + which NPCs carry keys;
+- `notes` (PC-visible) vs `annotations` (NPC-only staff markings);
+- exact conversation tags in backstory: `[OFFER_ITEM]`, `[LIST_CONTAINER]`, `[STORE]`, `[ANNOTATIONS]`, `[INTERACT]` unlock/open for safes.
+
+See [npc-containers-and-annotations.md](./npc-containers-and-annotations.md).
+
 ## File integrity gate
 
 - [ ] `game.yml`, `index.json`, README, and starting map exist.

@@ -159,7 +159,7 @@ class PathCompute:
 
         return path
 
-    def compute_paths_to_multiple_destinations(self, source_x, source_y, destinations, available_movement_cost=None, accumulated_path=None):
+    def compute_paths_to_multiple_destinations(self, source_x, source_y, destinations, available_movement_cost=None, accumulated_path=None, door_navigation=False):
         """
         Compute paths to multiple destinations in a single pass using a modified A* algorithm.
 
@@ -233,7 +233,7 @@ class PathCompute:
                 found_destinations.add((cx, cy))
 
             # Explore neighbors
-            for (nx, ny), move_cost in self.get_neighbors(cx, cy):
+            for (nx, ny), move_cost in self.get_neighbors(cx, cy, door_navigation=door_navigation):
                 new_g = current_g + move_cost
                 if new_g < distances[nx][ny]:
                     distances[nx][ny] = new_g
@@ -269,6 +269,23 @@ class PathCompute:
             # If we have a movement budget, trim
             if available_movement_cost is not None:
                 path = self.trim_path_by_movement(path, distances, available_movement_cost)
+
+            if door_navigation and len(path) > 1:
+                for i in range(1, len(path)):
+                    px, py = path[i]
+                    if self._is_door_tile(px, py):
+                        prev = path[i - 1]
+                        if not self.map.bidirectionally_passable(
+                            self.entity,
+                            px,
+                            py,
+                            prev,
+                            self.battle,
+                            False,
+                            ignore_opposing=self.ignore_opposing,
+                        ):
+                            path = path[:i]
+                            break
 
             result[(dest_x, dest_y)] = path
 

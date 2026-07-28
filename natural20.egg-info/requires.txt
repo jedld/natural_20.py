@@ -1,0 +1,15 @@
+pyyaml>=6.0.1
+dndice
+python-i18n[YAML]
+inflect
+collections-extended
+lark
+
+[dev]
+pytest
+pytest-xdist
+termcolor
+prompt_toolkit
+
+[gym]
+gymnasium

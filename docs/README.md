@@ -7,6 +7,7 @@ This directory contains the core documentation for the Natural20 D&D simulation 
 | Document | Purpose |
 |----------|---------|
 | [AGENTS.md](../AGENTS.md) | AI agent orientation, MCP catalogue, battle/spell conventions (primary reference) |
+| [.cursor/skills/n20-add-spell](../.cursor/skills/n20-add-spell/SKILL.md) | End-to-end checklist for adding a spell (engine + VTT visuals) |
 | [CHANGELOG](CHANGELOG_llm_support_merge.md) | Merge changelog from `llm_support` → `master` (210 commits) |
 | [WEBAPP_BLUEPRINTS.md](WEBAPP_BLUEPRINTS.md) | Flask blueprint architecture, helper modules, parity workflow |
 | [CAMPAIGN_BUILDING.md](CAMPAIGN_BUILDING.md) | Complete campaign creation guide (maps, NPCs, characters, items) |

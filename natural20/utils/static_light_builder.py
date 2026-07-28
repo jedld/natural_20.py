@@ -7,7 +7,9 @@ class StaticLightBuilder:
         self.light_properties = self.properties.get('lights')
         self.light_map = self.properties.get('map', {}).get('light')
         self.base_illumination = self.properties.get('map', {}).get('illumination', 1.0)
+        self.outdoor_ambient_illumination = self.base_illumination
         manual_light_map = self.properties.get('map', {}).get('light_map',[])
+        self.outside_grid = self._build_outside_grid()
         self.lights = []
         self.fixed_lights = []
 
@@ -36,6 +38,28 @@ class StaticLightBuilder:
                         light.update(self.light_properties[key])
                         self.lights.append(light)
 
+    def _build_outside_grid(self):
+        map_block = self.properties.get('map', {}) or {}
+        if bool(map_block.get('outdoor')):
+            return [[True for _ in range(self.size[1])] for _ in range(self.size[0])]
+
+        rows = map_block.get('outside') or []
+        if not rows:
+            return [[False for _ in range(self.size[1])] for _ in range(self.size[0])]
+
+        grid = [[False for _ in range(self.size[1])] for _ in range(self.size[0])]
+        for cur_y, line in enumerate(rows):
+            for cur_x, ch in enumerate(line):
+                if ch in ('o', 'O', 'x', 'X', '1'):
+                    grid[cur_x][cur_y] = True
+        return grid
+
+    def is_outside(self, pos_x, pos_y):
+        try:
+            return bool(self.outside_grid[pos_x][pos_y])
+        except Exception:
+            return False
+
     def build_map(self):
         max_x, max_y = self.map.size
 
@@ -43,7 +67,12 @@ class StaticLightBuilder:
         for x in range(max_x):
             for index_2 in range(max_y):
                 y = max_y - index_2 - 1
-                intensity = self.base_illumination
+                tile_base = (
+                    self.outdoor_ambient_illumination
+                    if self.is_outside(x, y)
+                    else self.base_illumination
+                )
+                intensity = tile_base
                 for light in self.lights:
                     light_pos_x, light_pos_y = light['position']
                     bright_light = light.get('bright', 10) / self.map.feet_per_grid

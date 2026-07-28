@@ -1,6 +1,6 @@
 ---
 name: natural20-campaign-builder
-description: "Build, scaffold, adapt, repair, or expand a playable Natural20 D&D campaign from a user description, adventure outline, source book, PDF, notes, or existing module. Use when asked to create a campaign, one-shot, adventure, dungeon, encounter series, maps, NPC cast, pregenerated party, or source-book conversion for Natural20. Interviews the user for tone, scope, party, safety, automation, and assets; maps the design to supported engine features; writes campaign files; and validates loading, references, and playability."
+description: "Build, scaffold, adapt, repair, or expand a playable Natural20 D&D campaign from a user description, adventure outline, source book, PDF, notes, or existing module. Use when asked to create a campaign, one-shot, adventure, dungeon, encounter series, maps, NPC cast, pregenerated party, or source-book conversion for Natural20. Covers tavern/shop container stock, till safes, NPC-only object annotations, and LLM staff item-exchange tags. Interviews the user for tone, scope, party, safety, automation, and assets; maps the design to supported engine features; writes campaign files; and validates loading, references, and playability."
 argument-hint: "Describe the campaign or provide the source, party level/size, tone, and desired scope"
 user-invocable: true
 disable-model-invocation: false
@@ -18,6 +18,8 @@ Create a working campaign, not merely prose or a speculative plan. Unless the us
    - [natural20/session.py](../../../natural20/session.py), [natural20/map.py](../../../natural20/map.py), [natural20/npc.py](../../../natural20/npc.py)
    - [templates](../../../templates), [tests/fixtures](../../../tests/fixtures)
    - [user_levels/wild_sheep_chase](../../../user_levels/wild_sheep_chase) for a feature-rich adaptation
+   - [NPC containers & staff annotations](./references/npc-containers-and-annotations.md) for tavern bar stock, till safes, and LLM item tags
+   - [docs/CONVERSATION_RAG.md](../../../docs/CONVERSATION_RAG.md) for full conversation directive reference
 4. Treat repository code and currently loading examples as more authoritative than remembered schema. Never invent YAML fields, action types, conditions, spells, item keys, or event semantics.
 
 ## Workflow
@@ -88,7 +90,7 @@ Minimum web campaign:
 - enough `items/`, `npcs/`, `characters/`, `races/`, `char_classes/`, `backgrounds/`, and `locales/` resources for every reference
 - `assets/` only for files actually referenced
 
-Important: current resource loaders often read from the campaign root directly. Do not assume automatic fallback to `templates/`. Follow a proven campaign layout: copy the required shared YAML resources, or use valid repository-relative symlinks where portability permits. Customizing a shared YAML catalogue generally requires a campaign-local complete file, not a partial overlay.
+Item catalogues (`items/weapons.yml`, `equipment.yml`, etc.) automatically merge with bundled `templates/` unless the campaign file uses an explicit top-level `inherit`. Prefer `inherit: templates/items/<file>.yml` plus campaign-only entries, or omit the file entirely to use templates as-is. See `docs/CAMPAIGN_BUILDING.md` → YAML Template Inheritance.
 
 Rules while writing:
 
@@ -101,13 +103,51 @@ Rules while writing:
 - Give conversational NPCs stable UIDs, languages, goals, bounded knowledge, and canned facts/fallbacks. LLM backstories must not be the sole source of progression.
 - Use source-derived passwords only if the user explicitly requests them; otherwise use clearly documented development credentials and warn that they are not production authentication.
 - Do not reference nonexistent image/audio files. Omit optional assets until supplied rather than fabricating binary files.
+- When the local **Image Gen MCP** is available (`http://127.0.0.1:8020/mcp` by default), offer to generate circular NPC tokens and the login/title background:
+  `python scripts/generate_campaign_assets.py --campaign user_levels/<slug>`
+  See [docs/CAMPAIGN_ASSET_GENERATOR.md](../../../docs/CAMPAIGN_ASSET_GENERATOR.md). Tokens use the same circular stamp as character creation.
+- For **ambient townsfolk / hub NPCs** (bartenders, merchants, guards with dialog), follow `.github/skills/natural20-npc-generator/SKILL.md`.
+- For **tavern/shop stock, payment safes, and staff-only object markings**, follow [NPC containers & staff annotations](./references/npc-containers-and-annotations.md) (summary below).
+
+#### Tavern containers, till safes, and staff annotations
+
+Hub scenes with LLM staff (bartenders, shopkeepers) can use **map Chest objects** as containers and **conversation tags** for automated serve/store flows. See [wild_sheep_chase `town_market`](../../../user_levels/wild_sheep_chase/maps/town_market.yml) (`BAR`, `SAFE`) as the reference implementation.
+
+**Two container patterns**
+
+| Pattern | YAML | Purpose |
+|---|---|---|
+| Open counter | `item_class: Chest`, `lockable: false`, `state: opened`, `entity_uid`, `inventory:` | Bar shelf — ale, bread, etc.; staff serve without unlocking |
+| Locked till | `item_class: Chest`, `lockable: true`, `locked: true`, `key:`, `state: closed` | Payment gold; staff carry key in `default_inventory` |
+
+Define provision/currency slugs in `items/equipment.yml` (`ale_mug`, `bread_loaf`, `gold_piece`, `tavern_safe_key`, …). Place objects via `map.entities` + `legend`; give every container a stable `entity_uid` for `@handle` tags.
+
+**`notes` vs `annotations` on objects**
+
+- **`notes`** — discoverable by **player characters** (Look, perception/investigation DCs, outward appearance).
+- **`annotations`** — **NPC-only** staff knowledge (key location, till procedures). Optional `viewers: [entity_uid, ...]`. Visible in line of sight only — no `perception_dc`. Never use for PC clues.
+
+**LLM tags for staff** (requires `conversation_handler: llm`; document exact slugs and `@handles` in NPC `backstory`):
+
+| Tag | Use |
+|-----|-----|
+| `[LIST_CONTAINER: target=@tavern_bar]` / `[LIST_CONTAINER]` | Inspect stock (`locked`/`closed`/contents) |
+| `[RETRIEVE: item=<slug>, target=@container, qty=N]` | Take from open, unlocked container |
+| `[STORE: item=<slug>, target=@container, qty=N]` | Deposit into open, unlocked container |
+| `[OFFER_ITEM: item=<slug>, target=speaker]` | Serve item; pulls from inventory or nearby open container |
+| `[ANNOTATIONS: target=@handle]` / `[ANNOTATIONS]` | Read staff-only markings (NPC-only) |
+| `[INTERACT: target=@tavern_safe, action=unlock\|open]` | Unlock/open till before storing gold |
+
+**Till safe workflow for staff:** `unlock` → `open` → `[STORE: item=gold_piece, target=@tavern_safe, qty=N]`.
+
+Do not gate required player progression on staff LLM container tags alone; provide DM fallbacks. Full schemas, YAML examples, backstory checklist, and validation steps: [references/npc-containers-and-annotations.md](./references/npc-containers-and-annotations.md).
 
 ### 6. Validate incrementally
 
 After each map or resource cluster:
 
 1. Parse YAML/JSON and run the bundled validator from the repository root:
-   `python .github/skills/natural20-campaign-builder/scripts/validate_campaign.py user_levels/<slug>`
+   `python scripts/validate_campaign.py user_levels/<slug>`
 2. Fix every error. Review warnings rather than suppressing them blindly.
 3. Instantiate `Session(root_path=<campaign>)`; the validator does this by default.
 4. Load player characters and inspect key entities/objects by UID when applicable.

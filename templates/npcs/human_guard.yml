@@ -1,6 +1,7 @@
 ---
 kind: Guard
 description: Generic guards present in towns and in the service of nobles
+outward_appearance: A stern human guard in chain shirt and tabard, spear ready at hand.
 size: medium
 race:
 - humanoid

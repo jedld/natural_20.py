@@ -1,0 +1,5 @@
+# Isolated environment for the TTS sidecar — NOT used by the main webapp.
+# Major/minor versions MUST match (see vLLM-Omni quickstart).
+vllm==0.24.0
+vllm-omni==0.24.0
+httpx>=0.27.0

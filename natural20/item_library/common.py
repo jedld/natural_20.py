@@ -236,8 +236,12 @@ class Ground(Object, Lootable):
 
     def _ensure_unshared(self):
         if self._shared_inventory:
-            # Detach by deep-copying to a new dict so this cell becomes independent
-            self.inventory = {k: dict(v) for k, v in self.inventory.items()}
+            from natural20.concern.inventory import snapshot_inventory_entry
+
+            self.inventory = {
+                key: snapshot_inventory_entry(value, amount=value.get('qty'))
+                for key, value in self.inventory.items()
+            }
             self._shared_inventory = False
 
     # Override inventory mutations to apply CoW lazily

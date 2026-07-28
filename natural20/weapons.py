@@ -192,6 +192,8 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
         disadvantage.append('restrained')
     if target.restrained():
         advantage.append('restrained')
+    if getattr(target, 'paralyzed', lambda: False)():
+        advantage.append('target_paralyzed')
 
     if target.poisoned():
         disadvantage.append('target_poisoned')

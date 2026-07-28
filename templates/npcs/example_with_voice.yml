@@ -1,0 +1,98 @@
+# Example NPC YAML with TTS voice configuration
+# This file demonstrates the voice config fields supported by natural_20.py
+
+name: "Grimjaw the Orc"
+uid: "npc_grimjaw_orc"
+entity_type: "npc"
+
+# TTS Voice Configuration
+gender: male
+voice:
+  # Text description of the voice - used to generate and lock the voice
+  gender: male
+  # Common patterns: "Old man with a raspy voice", "Young woman, soft tone", 
+  # "Deep demonic growl", "Elderly elf, wise and measured"
+  prompt: "Gruff orc warrior with a deep, gravelly voice"
+
+  # Optional granular traits merged into VoiceDesign / instruct prompts
+  traits:
+    - gravelly
+    - booming
+    - battle-scarred
+
+  # Voice materialization strategy (auto picks per TTS backend):
+  #   auto     — resolver picks clone/design/preset/instruct
+  #   clone    — reference_audio required (CosyVoice, Qwen3 Base, OpenVoice)
+  #   design   — text-described timbre (Qwen3 VoiceDesign model)
+  #   preset   — built-in speaker pool (Qwen3 CustomVoice)
+  #   instruct — zero-shot + delivery notes (CosyVoice)
+  strategy: auto
+
+  # Optional per-NPC backend override (defaults to TTS_PROVIDER in .env)
+  # provider: qwen3
+  
+  # Default emotion/style for this NPC (calm, angry, whisper, etc.)
+  # The LLM can override this per-utterance based on dialogue context
+  style: "angry"
+
+  # CosyVoice speaking accent/dialect. Common values:
+  #   american, british, irish, romanian, eastern european, french, german, ...
+  # Free-form strings are allowed (e.g. "soft Midwestern American").
+  # Omit to use TTS_DEFAULT_ACCENT (default: american). Set accent: none for model native.
+  accent: "american"
+  language: "en"
+  
+  # Optional path to a reference audio file for exact voice cloning
+  # If null, the TTS provider selects a voice based on the prompt
+  reference_audio: null
+  
+  # Whether the voice is permanently locked (saved to game state)
+  locked: true
+
+# NPC stat block
+backstory: "A seasoned orc warrior who has fought in many battles. Known for his fierce temper and loud voice."
+alignment: "chaotic_evil"
+level: 5
+experience_points: 0
+
+ability_scores:
+  strength: 16
+  dexterity: 10
+  constitution: 14
+  intelligence: 8
+  wisdom: 12
+  charisma: 10
+
+hit_points: 45
+max_hit_points: 45
+
+# Languages the NPC speaks
+languages:
+  - "common"
+  - "orc"
+
+# Equipment
+equipment:
+  - name: "Greataxe"
+    type: "melee_weapon"
+  - name: "Chain Mail"
+    type: "armor"
+
+# Starting position on map
+position:
+  x: 10
+  y: 10
+
+# Conversation behavior
+conversation:
+  # How often the NPC initiates conversation (1 = always, 0.5 = 50% chance)
+  initiative: 0.3
+  
+  # Maximum conversation length before NPC disengages
+  max_messages: 10
+  
+  # Topics the NPC is interested in
+  topics:
+    - "battle"
+    - "glory"
+    - "treasure"

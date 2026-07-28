@@ -8,15 +8,15 @@ samples/.ipynb_checkpoints
 flask_session
 .DS_Store
 static/.DS_Store
-webapp/flask_session/
-webapp/save.yml
+n20-webapp/webapp/flask_session/
+n20-webapp/webapp/save.yml
+n20-webapp/webapp/saves/
 samples/output/
 samples/training_output_all/
 samples/training_output_figher_only/
 samples/model_weights_all/
 scripts/model_weights_std/**/*
 scripts/image_generators/*.png
-user_levels/**/*
 /*.yml
 tests/fixtures/tmp/
 scripts/runs
@@ -27,7 +27,10 @@ coverage/
 .playwright-mcp/
 # Campaign runtime data (per-campaign saves, logs, sqlite DBs)
 saves/
-webapp/saves/
 **/campaign_logs.sqlite
 node_modules/
-node_modules/
+.env
+n20-webapp/webapp/.env
+third_party/CosyVoice
+.local_packages/
+.roo/

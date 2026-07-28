@@ -59,6 +59,12 @@ class SaveCheck:
         # an in-progress effect to matter).
         if (auto_fail_if_unconscious
                 and ability in ('strength', 'dexterity')
+                and 'paralyzed' in getattr(entity, 'statuses', [])):
+            return SaveResult(passed=False, roll=None, dc=dc,
+                              ability=ability, auto_failed=True)
+
+        if (auto_fail_if_unconscious
+                and ability in ('strength', 'dexterity')
                 and hasattr(entity, 'conscious')
                 and not entity.conscious()):
             return SaveResult(passed=False, roll=None, dc=dc,

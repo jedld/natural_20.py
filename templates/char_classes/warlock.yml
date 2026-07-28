@@ -2,7 +2,7 @@
 hit_die: 1d8
 weapon_proficiencies:
 - simple
-saving_throw_proficiency:
+saving_throw_proficiencies:
 - wisdom
 - charisma
 available_skills_choices: 2
@@ -29,8 +29,37 @@ spell_list:
     - magic_missile
     - thunderwave
   level_2:
-    - misty_step
     - darkness
+    - misty_step
+  level_3:
+    - counterspell
+    - fly
+class_features:
+  - otherworldly_patron
+  - pact_magic
+otherworldly_patrons:
+  the_archfey:
+    level_1:
+      - fey_presence
+  the_fiend:
+    level_1:
+      - dark_ones_blessing
+  the_great_old_one:
+    level_1:
+      - awakened_mind
+progression:
+  level_2:
+    class_features:
+      - eldritch_invocations
+  level_3:
+    class_features:
+      - pact_boon
+  level_4:
+    class_features:
+      - ability_score_improvement
+  level_5:
+    class_features:
+      - eldritch_invocations
 proficiency_bonuses:
 - 2
 - 2

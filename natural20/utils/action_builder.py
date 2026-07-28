@@ -102,6 +102,12 @@ def acquire_targets(param, entity, battle, map=None):
     if param.get("exclude_self", False):
         possible_targets = {target for target in possible_targets if target != entity}
 
+    if param.get("require_humanoid"):
+        possible_targets = {
+            target for target in possible_targets
+            if getattr(target, 'humanoid', lambda: False)()
+        }
+
     return possible_targets
 
 def optimize_conal_targets(position_choices, entity, battle, map, range_cone):

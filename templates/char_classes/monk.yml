@@ -25,6 +25,25 @@ progression:
       - patient_defense
       - step_of_the_wind
       - unarmored_movement
+  level_3:
+    class_features:
+      - deflect_missiles
+      - monastic_tradition
+  level_4:
+    class_features:
+      - ability_score_improvement
+      - slow_fall
+  level_5:
+    class_features:
+      - extra_attack
+      - stunning_strike
+monastic_traditions:
+  way_of_the_open_hand:
+    level_3:
+      - open_hand_technique
+  way_of_shadow:
+    level_3:
+      - shadow_arts
 proficiency_bonuses:
 - 2
 - 2

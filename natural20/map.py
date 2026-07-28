@@ -1,4 +1,5 @@
 import yaml
+from natural20.yaml_loader import load_yaml
 from natural20.item_library.object import Object
 from natural20.utils.static_light_builder import StaticLightBuilder
 from natural20.entity import Entity
@@ -54,7 +55,9 @@ class Map(SerializableObject):
         self.map = []
         if properties:
             self.properties = properties
+            self.map_file_path = None
         else:
+            self.map_file_path = map_file_path
             self.properties = self.load(map_file_path)
         base = self.properties.get('map', {}).get('base', [])
         manual_map_size = self.properties.get('map', {}).get('size', None)
@@ -132,16 +135,66 @@ class Map(SerializableObject):
         self._light_builder = StaticLightBuilder(self)
         self.triggers = self.properties.get('triggers', {})
         self._triggered_area_narrations = set()
-        self._compute_lights()
+        self._materialize_layer_placements_from_yaml()
 
         if not skip_setup:
             self._setup_objects()
             self._setup_npcs()
             self._setup_entities()
             self._trigger_after_setup()
+        self._compute_lights()
+
+    def _materialize_layer_placements_from_yaml(self) -> None:
+        """Apply map.layer_placements onto grid strings and in-memory layer grids."""
+        from natural20.map_editor import materialize_all_layer_placements
+
+        map_block = self.properties.get('map') or {}
+        if not isinstance(map_block, dict):
+            return
+        materialize_all_layer_placements(map_block)
+
+        for layer_name, attr in (
+            ('base', 'base_map'),
+            ('base_1', 'base_map_1'),
+            ('base_2', 'base_map_2'),
+        ):
+            rows = map_block.get(layer_name) or []
+            grid = getattr(self, attr, None)
+            if grid is None:
+                continue
+            for y, row in enumerate(rows):
+                for x, ch in enumerate(row):
+                    if x >= len(grid) or y >= len(grid[x]):
+                        continue
+                    if layer_name == 'base':
+                        grid[x][y] = ch if ch != '_' else None
+                    elif ch in ('.', ' ', '', None):
+                        grid[x][y] = None
+                    else:
+                        grid[x][y] = ch
+
+        meta_rows = map_block.get('meta') or []
+        if self.meta_map is not None and meta_rows:
+            for y, row in enumerate(meta_rows):
+                for x, ch in enumerate(row):
+                    if x >= len(self.meta_map) or y >= len(self.meta_map[x]):
+                        continue
+                    if ch in ('.', ' ', '', None):
+                        self.meta_map[x][y] = None
+                    else:
+                        self.meta_map[x][y] = ch
 
     def background_image(self):
         return self.properties.get('background_image', None)
+
+    def background_image_for_time_of_day(self, state) -> str | None:
+        from natural20.time_of_day import resolve_map_background_image
+
+        return resolve_map_background_image(self.properties, state)
+
+    def apply_outdoor_ambient_illumination(self, illumination: float) -> None:
+        self._light_builder.outdoor_ambient_illumination = float(illumination)
+        self._compute_lights()
 
     def narration(self):
         """Return the narration config dict from the map YAML, or None."""
@@ -150,6 +203,62 @@ class Map(SerializableObject):
     def area_narrations(self):
         """Return the list of area narration configs from the map YAML, or empty list."""
         return self.properties.get('area_narrations', [])
+
+    def map_annotations(self):
+        from natural20.map_annotations import list_map_annotations
+
+        return list_map_annotations(self.properties)
+
+    def map_annotation_by_id(self, annotation_id: str):
+        from natural20.map_annotations import annotation_by_id
+
+        return annotation_by_id(self.properties, annotation_id)
+
+    def map_annotations_at(self, x: int, y: int):
+        from natural20.map_annotations import annotations_at_position
+
+        return annotations_at_position(self.properties, x, y)
+
+    def entity_in_map_annotation(self, entity, annotation_id: str) -> bool:
+        annotation = self.map_annotation_by_id(annotation_id)
+        if annotation is None:
+            return False
+        try:
+            pos = self.position_of(entity)
+        except Exception:
+            return False
+        from natural20.map_annotations import annotation_contains_point
+
+        return annotation_contains_point(annotation, int(pos[0]), int(pos[1]))
+
+    def music_zones(self):
+        """Return soundtrack zone configs from the map YAML."""
+        return self.properties.get('music_zones', [])
+
+    def default_soundtrack_name(self):
+        """Optional map-wide ambient track when no music zone matches."""
+        return self.properties.get('default_soundtrack')
+
+    def soundtrack_for_position(self, pos_x, pos_y):
+        """Resolve the ambient soundtrack name for a tile position."""
+        x, y = int(pos_x), int(pos_y)
+        matched = None
+        best_priority = None
+        for zone in self.music_zones():
+            bounds = zone.get('bounds') or {}
+            x1, y1 = bounds.get('x1', 0), bounds.get('y1', 0)
+            x2, y2 = bounds.get('x2', 0), bounds.get('y2', 0)
+            if x1 <= x <= x2 and y1 <= y <= y2:
+                soundtrack = zone.get('soundtrack')
+                if not soundtrack:
+                    continue
+                priority = zone.get('priority', 0)
+                if best_priority is None or priority >= best_priority:
+                    best_priority = priority
+                    matched = soundtrack
+        if matched:
+            return matched
+        return self.default_soundtrack_name()
 
     def check_area_narration(self, entity, pos):
         """Check if entity at pos triggers an area narration.
@@ -173,6 +282,65 @@ class Map(SerializableObject):
                     }
         return None
 
+    def _map_label(self) -> str:
+        if self.name:
+            return str(self.name)
+        if getattr(self, 'map_file_path', None):
+            return str(self.map_file_path)
+        return 'unknown'
+
+    def _placement_bounds_error(
+        self,
+        pos_x: int,
+        pos_y: int,
+        *,
+        context: str,
+        extent_x: int = 0,
+        extent_y: int = 0,
+    ) -> str:
+        w, h = self.size[0], self.size[1]
+        end_x = pos_x + extent_x
+        end_y = pos_y + extent_y
+        return (
+            f"Map {self._map_label()!r} placement out of bounds: "
+            f"tile ({pos_x}, {pos_y})"
+            + (f" spanning to ({end_x}, {end_y})" if extent_x or extent_y else "")
+            + f" exceeds map size {self.size} "
+            f"(valid x: 0–{w - 1}, y: 0–{h - 1}). {context}"
+        )
+
+    def _ensure_in_bounds(
+        self,
+        pos_x: int,
+        pos_y: int,
+        *,
+        context: str,
+        extent_x: int = 0,
+        extent_y: int = 0,
+    ) -> None:
+        w, h = self.size[0], self.size[1]
+        if pos_x < 0 or pos_y < 0 or pos_x + extent_x >= w or pos_y + extent_y >= h:
+            raise ValueError(
+                self._placement_bounds_error(
+                    pos_x,
+                    pos_y,
+                    context=context,
+                    extent_x=extent_x,
+                    extent_y=extent_y,
+                )
+            )
+
+    def _describe_placement(self, token=None, object_meta=None, *, source: str = 'map') -> str:
+        parts = [f"source={source}"]
+        if token is not None:
+            parts.append(f"token={token!r}")
+        meta = object_meta if isinstance(object_meta, dict) else {}
+        for key in ('name', 'type', 'entity_uid', 'label', 'sub_type'):
+            value = meta.get(key)
+            if value:
+                parts.append(f"{key}={value!r}")
+        return '; '.join(parts)
+
     def __iter__(self):
         """
         Make the Map class iterable.
@@ -183,13 +351,45 @@ class Map(SerializableObject):
     def _setup_entities(self):
         entity_list = self.properties.get('map', {}).get('entities', [])
         for entity_property in entity_list:
-            token  = entity_property.get('token', None)
+            token = entity_property.get('token', None)
             pos = entity_property.get('pos', None)
+            if token is None or pos is None:
+                continue
             layer_type = entity_property.get('layer', None)
+            # Merge per-instance entity fields into a legend-like meta so
+            # map.entities overrides (dialog, backstory, teleporter targets)
+            # actually apply instead of only the shared legend entry.
+            legend_meta = deepcopy(self.legend.get(token) or {})
+            for key, value in entity_property.items():
+                if key in {'token', 'pos', 'layer'}:
+                    continue
+                if key == 'overrides' and isinstance(value, dict):
+                    merged_overrides = deepcopy(legend_meta.get('overrides') or {})
+                    merged_overrides.update(value)
+                    legend_meta['overrides'] = merged_overrides
+                else:
+                    legend_meta[key] = value
             if layer_type == 'object':
-                self._setup_object_with_token(token, pos)
+                object_meta = deepcopy(legend_meta)
+                # Flatten overrides so Object/Teleporter get label, backstory, dialog, etc.
+                overrides = object_meta.pop('overrides', None)
+                if isinstance(overrides, dict):
+                    object_meta.update(overrides)
+                try:
+                    self._setup_object_with_token(token, pos, object_meta=object_meta)
+                except Exception as exc:
+                    context = self._describe_placement(token, object_meta, source='map.entities')
+                    raise ValueError(
+                        f"Failed to place map entity on map {self._map_label()!r} at {pos}: {context}. {exc}"
+                    ) from exc
             else:
-                self._add_token_to_map(token, pos)
+                try:
+                    self._add_token_to_map(token, pos, npc_meta=legend_meta)
+                except Exception as exc:
+                    context = self._describe_placement(token, legend_meta, source='map.entities')
+                    raise ValueError(
+                        f"Failed to place map entity on map {self._map_label()!r} at {pos}: {context}. {exc}"
+                    ) from exc
 
     def _compute_lights(self):
         self._light_map = self._light_builder.build_map()
@@ -207,8 +407,10 @@ class Map(SerializableObject):
                     if self._setup_object_with_token(token, (pos_x, pos_y)):
                         continue
 
-    def _setup_object_with_token(self, token, pos):
+    def _setup_object_with_token(self, token, pos, object_meta=None):
         pos_x, pos_y = pos
+        placement = self._describe_placement(token, object_meta, source='map.tile')
+        self._ensure_in_bounds(pos_x, pos_y, context=placement)
         if token == '#':
             object_info = self.session.load_object('stone_wall')
             obj = StoneWall(self.session, self, object_info)
@@ -226,15 +428,35 @@ class Map(SerializableObject):
             self.place_object(obj, pos_x, pos_y)
             self.interactable_objects[obj] = [pos_x, pos_y]
         elif token == '-' or token == '|':
-            object_info = self.session.load_object('door')
-            obj = DoorObject(self.session, self, object_info, token)
+            # Prefer explicit door archetype; fall back to wooden_door (SRD default).
+            object_info = None
+            for door_name in ('door', 'wooden_door'):
+                try:
+                    object_info = self.session.load_object(door_name)
+                except AssertionError:
+                    # load_object may cache a failed lookup as None — clear it
+                    self.session.objects.pop(door_name, None)
+                    continue
+                if object_info:
+                    break
+            if not object_info:
+                raise AssertionError("Object door/wooden_door not found")
+            # Glyph encodes orientation; DoorObject reads door_pos / auto-detects walls.
+            if token == '-':
+                object_info.setdefault('door_pos', 0)  # horizontal opening (N/S face)
+            else:
+                object_info.setdefault('door_pos', 1)  # vertical opening (E/W face)
+            obj = DoorObject(self.session, self, object_info)
             self.interactable_objects[obj] = [pos_x, pos_y]
             self.place_object(obj, pos_x, pos_y)
         else:
-            object_meta = self.legend[token]
             if object_meta is None:
-                raise Exception(f"unknown object token {token}")
-            if object_meta['type'] == 'mask':
+                object_meta = self.legend.get(token)
+            if object_meta is None:
+                raise ValueError(
+                    f"unknown object token {token!r} on map {self._map_label()!r} at ({pos_x}, {pos_y})"
+                )
+            if object_meta.get('type') == 'mask':
                 return True
             object_info = self.session.load_object(object_meta['type'])
             self.place_object(object_info, pos_x, pos_y, deepcopy(object_meta))
@@ -280,18 +502,26 @@ class Map(SerializableObject):
                 for row_index, token in enumerate(meta_row):
                     self._add_token_to_map(token, (column_index, row_index))
 
-    def _add_token_to_map(self, token, position):
-        token_type = self.legend.get(token, {}).get('type')
+    def _add_token_to_map(self, token, position, npc_meta=None):
+        if npc_meta is None:
+            npc_meta = self.legend.get(token, {})
+        token_type = npc_meta.get('type')
         if token_type == 'npc':
-            npc_meta = self.legend.get(token)
-            if not npc_meta['sub_type']:
+            if not npc_meta.get('sub_type'):
                 raise Exception('npc type requires sub_type as well')
 
-            entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta['name'], "overrides" : npc_meta.get('overrides', {}), "rand_life" : True })
+            entity = self.session.npc(
+                npc_meta['sub_type'],
+                {
+                    "name": npc_meta.get('name'),
+                    "overrides": npc_meta.get('overrides', {}),
+                    "rand_life": True,
+                },
+            )
 
             self.add(entity, *position, group=npc_meta.get('group', None))
         elif token_type == 'spawn_point':
-            self.spawn_points[self.legend.get(token, {}).get('name')] = {
+            self.spawn_points[npc_meta.get('name')] = {
                 'location': position
             }
 
@@ -348,7 +578,19 @@ class Map(SerializableObject):
         return self.thing_at(pos_x, pos_y, reveal_concealed=False, require_alive=require_alive)
 
     def add(self, entity, pos_x, pos_y, group='b'):
-        self.unaware_npcs.append({'group': group if group else 'b', 'entity': entity})
+        label = entity.label() if callable(getattr(entity, 'label', None)) else getattr(entity, 'name', entity)
+        uid = getattr(entity, 'entity_uid', None)
+        context = f"entity={label!r}"
+        if uid:
+            context += f"; entity_uid={uid!r}"
+        token_size = entity.token_size() if hasattr(entity, 'token_size') else 1
+        extent = max(0, token_size - 1)
+        self._ensure_in_bounds(pos_x, pos_y, context=context, extent_x=extent, extent_y=extent)
+        resolved_group = group if group else 'b'
+        self.unaware_npcs.append({'group': resolved_group, 'entity': entity})
+        entity.group = resolved_group
+        if isinstance(getattr(entity, 'properties', None), dict):
+            entity.properties['group'] = resolved_group
         self.entities[entity] = [pos_x, pos_y]
         # Ensure entity is registered for UID-based lookups
         self.session.register_entity(entity)
@@ -380,9 +622,7 @@ class Map(SerializableObject):
         if not os.path.exists(map_file_path):
             map_file_path = os.path.join(self.session.root_path, map_file_path)
         # print("loading map file: ", map_file_path)
-        with open(map_file_path, 'r') as file:
-            data = yaml.safe_load(file)
-            return data
+        return load_yaml(map_file_path, campaign_root=self.session.root_path)
 
     def movement_cost(self, entity, path, battle=None, manual_jump=None):
         if not path:
@@ -398,8 +638,6 @@ class Map(SerializableObject):
             entity_data = self.tokens[cur_x][cur_y]
 
             source_token_size = entity.token_size() - 1 if requires_squeeze(entity, cur_x, cur_y, self, battle) else entity.token_size()
-
-            entity.clear_conversation_buffer()
 
             if requires_squeeze(entity, pos_x, pos_y, self, battle):
                 entity.squeezed()
@@ -507,8 +745,14 @@ class Map(SerializableObject):
         if entity is None:
             raise ValueError('entity param is required')
 
-        if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
-            raise ValueError(f"Invalid position: {pos_x},{pos_y} should not exceed (0 - {self.size[0]- 1 }),(0 - {self.size[1] - 1})")
+        label = entity.label() if callable(getattr(entity, 'label', None)) else getattr(entity, 'name', entity)
+        uid = getattr(entity, 'entity_uid', None)
+        context = f"entity={label!r}"
+        if uid:
+            context += f"; entity_uid={uid!r}"
+        token_size = entity.token_size() if hasattr(entity, 'token_size') else 1
+        extent = max(0, token_size - 1)
+        self._ensure_in_bounds(pos_x, pos_y, context=context, extent_x=extent, extent_y=extent)
 
         entity_data = {'entity': entity, 'token': token or entity.name}
 
@@ -559,6 +803,12 @@ class Map(SerializableObject):
         if object_info is None:
             return
 
+        placement = self._describe_placement(object_meta.get('token'), object_meta, source='place_object')
+        if isinstance(object_info, dict):
+            obj_type = object_info.get('type') or object_info.get('name')
+            if obj_type:
+                placement += f"; object_type={obj_type!r}"
+
         if isinstance(object_info, Object):
             obj = object_info
         elif isinstance(object_info, Npc) or isinstance(object_info, PlayerCharacter):
@@ -574,6 +824,19 @@ class Map(SerializableObject):
         else:
             object_meta.update(object_info)
             obj = Object(self.session, self, object_meta)
+
+        if isinstance(obj.token, list):
+            extent_x = max((len(line) for line in obj.token), default=1) - 1
+            extent_y = len(obj.token) - 1
+            self._ensure_in_bounds(
+                pos_x,
+                pos_y,
+                context=placement,
+                extent_x=extent_x,
+                extent_y=extent_y,
+            )
+        else:
+            self._ensure_in_bounds(pos_x, pos_y, context=placement)
 
         if hasattr(obj, 'area_trigger_handler'):
             self.area_triggers[obj] = {}

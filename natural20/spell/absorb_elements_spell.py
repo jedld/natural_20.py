@@ -13,21 +13,11 @@ class AbsorbElementsSpell(Spell):
         self.counterpart = None  # The creature that damaged us
 
     def build_map(self, orig_action):
-        def set_target(target):
-            action = orig_action.clone()
-            action.target = target
-            return action
-        return {
-            'param': [
-                {
-                    'type': 'select_target',
-                    'num': 1,
-                    'range': self.properties.get('range', 5),
-                    'target_types': ['enemies']
-                }
-            ],
-            'next': set_target
-        }
+        """Absorb Elements is a reaction-only spell and should not appear in
+        the normal action menu.  It is triggered by *after_take_damage_hook*
+        which automatically sets the target to the creature that damaged us.
+        """
+        return None
 
     def _counter_damage(self, battle, crit=False):
         entity = self.source
@@ -68,6 +58,8 @@ class AbsorbElementsSpell(Spell):
             return
         if battle and session is None:
             session = battle.session
+        if session is None:
+            return
         source = item.get('source')
         target = item.get('target')
         spell = item.get('spell') or {}

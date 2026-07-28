@@ -99,6 +99,24 @@ Effect:
 Default behavior when omitted:
 - The server chooses the quietest volume that still reaches the chosen targets.
 
+### `[EMOTION: <token>]` / `[TTS: <delivery notes>]`
+
+Meaning:
+- Steer CosyVoice delivery for the spoken line (stripped before players see the text).
+
+Examples:
+- `[EMOTION: fearful]`
+- `[EMOTION: angry]`
+- `[TTS: trembling, barely holding back tears]`
+- `[TTS_INSTRUCT: speak urgently under your breath]`
+- `[DELIVERY: soft and hesitant]`
+
+Effect:
+- Parsed by `parse_response_controls(...)` into `tts_emotion` / `tts_instruct` on the reply plan.
+- Passed into CosyVoice `inference_instruct2` (with the NPC accent) when generating audio.
+- Short tokens map to emotion styles; longer free-form text becomes acting notes.
+- If omitted, volume may imply a default (`whisper` → whisper, `shout` → shouting), then keyword heuristics on the spoken line.
+
 ### `[in <language>]`
 
 Meaning:
@@ -167,16 +185,20 @@ Notes:
 ### `[OBSERVE]`
 
 Purpose:
-- Let the model request nearby observed entities before answering.
+- Let the model request a refreshed snapshot of visible surroundings before answering.
 
 Server behavior:
-- `EntityRAGHandler._handle_observation_request(...)` uses `receiver.observe(...)`.
-- A system message is injected into the LLM conversation in the form:
-  - `[OBSERVE] <entity> is <distance>ft away`
-- The handler regenerates the reply with that observation context.
+- `EntityRAGHandler.build_observation_summary(...)` scans the observer's map within 30ft (line of sight).
+- Reports **nearby people and creatures** (players, NPCs, and non-conversable entities such as animals) plus **interactable objects**.
+- Each entry includes grid position, distance, `@mention` handle, **name if known**, and **outward appearance** when available.
+- Open containers (chests, bar counters) also include a `stock:` summary when the observer can see them.
+- A name is treated as known when the observer has prior conversation history with that entity, shares owners/group, or the target is flagged `publicly_known` / `always_known` in YAML. Unknown targets use `observe_as` / `unknown_label` when set, otherwise a generic descriptor (for example `an unfamiliar adventurer`, `an unknown wolf`).
+- Appearance is resolved from YAML `outward_appearance` (or legacy `appearance`), visible `notes`, then derived attributes (race, subrace, class, size, equipped armor/weapons), then kind fallback.
+- The same `outward_appearance` text is injected into NPC conversation system prompts so they know how they look, and surfaces automatically on **Look** / perception checks (zero DC) when authored in YAML.
+- A system message is injected into the LLM conversation and the handler regenerates the reply with that observation context.
 
 Notes:
-- This uses the entity's observation model, not the local-chat UI audience list.
+- This uses map LoS and interactable-object visibility, not the local-chat acoustic audience list.
 
 ### `[INSIGHT: ...]`
 
@@ -191,12 +213,59 @@ Server behavior:
 - `EntityRAGHandler._handle_insight_request(...)` rolls `receiver.insight_check(...)`.
 - The server builds a DM-only context that includes player-character combat logs, recent actions, background, memory, and current state.
 - A separate DM adjudication prompt decides `truthful`, `lie`, or `uncertain`.
+  Adjudication is an isolated JSON call (`skip_continuation`, `response_mode=conversation`)
+  so fenced ```json blocks are not continued into narrative prose and do not pollute DM chat history.
+- Player-facing reasons are parsed from the JSON only (trailing prose / fences are discarded) and
+  sanitized to strip DM-only disclosures before display.
 - That result is injected back into the NPC conversation as a system message and the response is regenerated.
+- Player-initiated insight (`Insight check on @Name…`) emits a private Socket.IO conversation
+  payload with `system: true` + `insight_check` for the badge UI in dialog / local conversation.
 - The check and adjudication are logged to the scoped player log for the acting NPC and target entity.
 
 Notes:
 - If the roll is weak or the context is inconclusive, the adjudication should fall back to `uncertain`.
 - The insight result is not broadcast publicly; it is scoped through the normal entity log visibility rules.
+- Hard-refresh the VTT after pulling asset changes so `chat.js` / `styles.css` (or their `.min` builds) load the insight badge.
+
+### Player Perception checks in conversation
+
+Purpose:
+- Let a player study the scene and an NPC they are talking to, with a DM-authored visual description grounded in the current exchange.
+
+Supported forms:
+- Chat: `Perception check on @Pip about her hands`
+- Local chat: `@dm perception on @Pip` or `@dm perception on Pip about her apron`
+- JRPG dialog: click the **search** button beside Send (uses the open NPC as target; optional focus text from the input box)
+
+Server behavior:
+- Rolls `speaker.perception_check(...)`.
+- Resolves the target by `@handle`, name, or selected local-chat mention (NPCs, PCs, or visible objects).
+- Requires line of sight: `Map.can_see(observer, target)` must succeed or the player gets a private not-visible message.
+- `EntityRAGHandler._evaluate_perception_description(...)` calls the DM LLM with conversation snippets, NPC `outward_appearance`, map context, visible health/status cues, and the roll total.
+- If the LLM is unavailable or returns a generic empty result, a deterministic fallback still describes the target's physical appearance (gated by roll total for detail).
+- Emits a private `system: true` conversation payload with `perception_check.description` for the dialog / local conversation badge.
+- Results are deduped per `(target_uid, focus)` and logged to the scoped player log.
+
+Notes:
+- Like Insight, perception results are private to the acting player and DM.
+- Descriptions are visual-only; hidden motives or stat-block facts must not leak.
+- Studying an NPC should always yield at least a basic physical description from `outward_appearance`, race/class gear, visible injuries, and conversation-appropriate expression.
+
+### Player non-verbal actions
+
+Purpose:
+- Let players describe physical actions during conversation separately from spoken dialogue.
+
+Supported input forms (in dialog or local chat):
+- `*touches her hand*` inline or alone
+- `/me leans closer` or `/emote smiles`
+- `[action: bows politely]`
+
+Server behavior:
+- `parse_player_conversation_input(...)` splits speech vs `actions`.
+- Actions are stored on conversation buffer entries and delivered to targeted NPCs even when no words are spoken.
+- NPC LLM history uses `performs a non-verbal action` wording instead of `says`.
+- JRPG dialog renders actions in a distinct purple action line; speech stays in the normal bubble.
 
 ### `[REQUEST_CHECK: ...]`
 
@@ -210,10 +279,11 @@ Supported form:
 Server behavior:
 - `EntityRAGHandler.parse_action_directives(...)` resolves the skill and target.
 - `EntityRAGHandler.apply_response_plan_directives(...)` logs the requested check to the scoped player log for the acting NPC and target entity.
+- JRPG dialog exposes a **Roll** button on the requesting NPC line. Clicking it POSTs to `/talk` with a `skill_check` payload; the server rolls the player's skill, shows the result on that line, and triggers an NPC follow-up reply.
 
 Notes:
 - Only `persuasion` and `intimidation` are currently accepted.
-- This requests a check and logs it; it does not auto-roll the player's check.
+- This requests a check and logs it; it does not auto-roll the player's check until the player clicks **Roll** in dialog (or uses the console manually).
 
 ### `[GO_HOSTILE]`
 
@@ -234,6 +304,78 @@ Server behavior:
 - Calls `receiver.update_state('active')`.
 - Calls `current_game.update_group(receiver, 'a')`.
 - Returns an empty response body.
+
+### Forced conversation mode
+
+Purpose:
+- Start a scripted JRPG confrontation when a player walks within talking/shouting range of an NPC (for example Guz blocking the market square), without immediately starting combat.
+
+NPC / map YAML (`properties.forced_conversation` or legend `overrides`):
+
+```yaml
+forced_conversation:
+  enabled: true
+  once_session_key: guz_scene
+  volume: shout          # whisper | normal | shout
+  distance_ft: 30        # optional override
+  require_los: true
+  opening: llm           # llm | initial_statement | conversation_buffer
+  context: "Open with a threat, but do not attack yet."
+  initial_statement: "Hand over the sheep!"
+  describe_group_allies: true
+```
+
+Campaign `game.yml` can supply defaults, per-map setting (`public` vs `private`), detection notes, impatience, and hostile reveals:
+
+```yaml
+forced_conversation_map_settings:
+  town_market: public
+
+forced_conversations:
+  guz:
+    settings:
+      public:
+        narration:
+          title: A Swagger Through the Crowd
+          text: A huge half-orc swaggers into the square...
+        context: Demand Master Noke's sheep in public.
+      private:
+        narration:
+          title: A Knock That Means Business
+          text: Heavy fists hammer the door...
+    detect_targets:
+      - entity_uid: finethir_shinebright
+        presence_note: Your wolves smell the sheep — hiding will not work.
+    impatience:
+      nudge_after: 3
+      max_player_replies: 5
+    on_hostile:
+      reveal:
+        - entity_uid: polymorph_bear
+          label: Polymorphed Brown Bear
+          remove_statuses: [hidden]
+```
+
+Noke's treehouse confrontation (`forced_conversations.ahmed_noke` in `game.yml`) uses `opening: initial_statement` for the scripted demand, injects campaign context (including `session_state_notes` when `wild_sheep_guz_killed` is set after the market fight), and escalates to combat via `[GO_HOSTILE]` or refusal keywords.
+
+Server behavior:
+- After an out-of-combat PC move, `ForcedConversationManager` scans dialog NPCs on the map.
+- When triggered, it locks movement for nearby PCs, emits `forced_conversation_start` / `open_entity_dialog` with `forced: true`, and calls `initiate_npc_address(...)`.
+- NPC replies that include `[GO_HOSTILE]`, `[GO_FRIENDLY]`, or configured keywords resolve the scene (hostile → combat via existing group logic; friendly/neutral → group change + unlock).
+- Local chat remains available; JRPG dialog close is disabled until the scene resolves or combat begins.
+
+### Out-of-combat hit reactions
+
+When an NPC is struck by a weapon attack or damaging spell **outside combat**, the server briefly hands control to the NPC LLM so it can shout or react in character.
+
+Behavior:
+- Runs after `commit_and_update()` resolves a non-battle action that produced a `damage` or `spell_damage` result item.
+- Skips NPCs that are **dead** or **unconscious** after the hit (one-shot kills do not get a reaction line).
+- Injects a system note with attack/spell kind, damage type, damage total, and attacker identity when line-of-sight allows (`Map.can_see`).
+- Uses the same proactive reply path as item-offer notifications (`handle_npc_out_of_combat_hit` → `_run_single_npc_reply_turn`), including TTS when configured.
+- Requires `NPC_LLM_ENABLED` and a working NPC LLM handler; failures are logged and do not block the action.
+
+Implementation: `natural20/utils/npc_hit_reaction.py`, `webapp/npc_damage_reaction.py`, `webapp/conversation_service.py`.
 
 ### `[SET_GOAL: ...]`
 
@@ -289,6 +431,30 @@ Time and environment integration:
 - Execution reuses `current_game.commit_and_update(...)` for actions.
 - World updates continue to flow through the normal out-of-combat path, including `loop_environment()` and the standard `turn` socket event carrying updated `game_time`.
 
+### Out-of-combat environment NPC ticks
+
+After each `advance_world_time(..., trigger_environment=True)` while **no battle**
+is active, the server schedules **one LLM loop per dialog-enabled NPC** in a
+background worker (`webapp/npc_environment_ticks.py`):
+
+1. Active movement task → `execute_scheduled_movement(advance_time=False)`
+2. Else active short-term goal → `execute_scheduled_goal(advance_time=False)`
+3. Else ambient routine tick (identity + recap + `goal_execution_prompt`)
+
+Disable in `game.yml`:
+
+```yaml
+npc_environment_ticks:
+  enabled: false
+```
+
+Or set `N20_NPC_ENV_TICKS=0`. Set `N20_NPC_BACKGROUND_LLM=0` to keep ticks
+scheduled but skip all NPC LLM calls (movement/goal/ambient loops become no-ops).
+Per-feature override: `npc_environment_ticks.llm_enabled: false` in `game.yml`.
+Ticks are skipped during combat, long-rest NPC
+simulation, and realtime UI suppression. A single `refresh_map` is emitted when
+the batch completes.
+
 ## Witnessed Actions (NPC memory)
 
 Nearby NPCs receive scoped console lines when players accept or decline item offers, use items, and similar actions they could overhear.
@@ -317,6 +483,68 @@ conversation_item_offers:
 Optional per-NPC overrides: `conversation_item_offers` on the entity YAML `properties` / map `overrides`.
 
 Implementation: `natural20/utils/conversation_offers.py`, used by `webapp/entity_rag_handler.py`.
+
+### `[PICKUP: item=<slug>, qty=N]`
+
+Picks up a ground-stack item within melee/adjacent reach (same rules as the Ground interact action). No player UI; the server transfers immediately and logs a witnessed outcome.
+
+### `[LIST_CONTAINER: target=@handle]` and `[LIST_CONTAINER]`
+
+Purpose:
+- Let tavern staff (or any NPC near an open chest/bar) inspect container stock before answering or serving.
+
+Server behavior:
+- `EntityRAGHandler._handle_list_container_query(...)` resolves an optional `target` / `@handle` to a map container (Chest subclass with `inventory`).
+- Injects a system message such as `[LIST_CONTAINER] @tavern_bar (Bar Counter): ale mug x24, bread loaf x8, ...` and regenerates the reply.
+- Without `target`, lists every accessible open container within 30ft.
+
+Notes:
+- `[OBSERVE]` also includes `stock:` on visible open containers when the observer can see them.
+
+### `[RETRIEVE: item=<slug>, target=@container, qty=N]`
+
+Takes items from an open, unlocked container within 15ft into the acting NPC's inventory. Same transfer rules as the chest **loot** interaction. Logs a witnessed outcome.
+
+### `[STORE: item=<slug>, target=@container, qty=N]`
+
+Deposits items from the acting NPC into an open container within 15ft. Same transfer rules as the chest **store** interaction.
+
+`[OFFER_ITEM]` may also draw from a nearby open container when the NPC does not carry the item (for example Mara serving ale from `@tavern_bar`).
+
+### `[ANNOTATIONS: target=@handle]` and `[ANNOTATIONS]`
+
+Purpose:
+- Staff-only markings on objects (ledger scratch codes, key locations) that **player characters never see** in conversation or `[OBSERVE]`.
+
+YAML:
+- Use `annotations` on map objects (not `notes`). `notes` remain discoverable by PCs via Look / perception.
+- Optional `viewers: [entity_uid, ...]` limits which NPCs can read an annotation; omit to allow any NPC.
+- No perception DC — allowed NPCs see annotations when the object is in line of sight (enforced by `[OBSERVE]`, Look, and `[ANNOTATIONS]`).
+
+Server behavior:
+- `EntityRAGHandler._handle_annotations_query(...)` injects `[ANNOTATIONS] ...` and regenerates the reply.
+- `[OBSERVE]` appends `staff annotations:` on interactable objects for NPC observers only (visible objects within range).
+- NPC **Look** actions can also record annotation perception targets.
+
+### `[OPEN_SHOP: target=speaker|@handle]`
+
+Opens the **priced merchant shop UI** when the speaking NPC has a `merchant` block in YAML. Use this when the customer asks to buy, browse wares, or see your stock. The player gets the dual-pane shop modal (wares + payment) instead of the free-form item transfer dialog.
+
+Human-controlled customers only. Pair with spoken welcome text, e.g. *"See anything you like?"* plus `[OPEN_SHOP: target=speaker]`.
+
+### `[TRADE: target=speaker|@handle]`
+
+Opens the bidirectional **item transfer dialog** (`loot_items.html`) for human-controlled targets. NPC-to-NPC trades with no human controller are adjudicated in-character by the DM LLM (`webapp/npc_item_exchange.py`).
+
+### `[REQUEST_ITEM: item=<slug>, target=speaker|@handle]`
+
+Asks the target to hand over an item. Human-controlled targets get the transfer dialog in **give** mode; otherwise the DM LLM adjudicates acceptance and item movement.
+
+### `[ACCEPT_GIFT: target=speaker|@handle]`
+
+Use when the speaker offers to give you something, hands an item over (including non-verbal `*action*` lines), or otherwise signals a gift. Opens the **give-item transfer dialog** for human-controlled speakers. Optional `item=<slug>` hints what they offered.
+
+After the player confirms or cancels the transfer UI, the client posts to `/talk/item_transfer_complete` and the NPC LLM receives a system note with the outcome, then may reply in character.
 
 ## Keyword-Triggered Event RAG
 

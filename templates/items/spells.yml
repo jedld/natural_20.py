@@ -930,8 +930,12 @@ enlarge_reduce:
     - somatic
     - material
   description: |
-    You cause a creature you can see to grow larger or smaller. This implementation
-    applies the enlarge effect (+STR, Large size) while concentration lasts.
+    For the duration, you choose to either enlarge or reduce a creature you can see.
+    Enlarge: size increases one category, advantage on Strength checks and saves,
+    and +1d4 damage on weapon attacks using Strength.
+    Reduce: size decreases one category, disadvantage on Strength checks and saves,
+    and weapon attacks using Strength deal 1d4 less damage.
+    An unwilling creature may make a Constitution saving throw to resist.
   duration: 1m
   duration_seconds: 60
   level: 2
@@ -940,7 +944,6 @@ enlarge_reduce:
   school: transmutation
   concentration: true
   type: buff
-  enlarge_bonus: 2
   spell_list_classes:
     - Wizard
     - Sorcerer
@@ -954,7 +957,9 @@ haste:
     - material
   description: |
     Choose a willing creature. Until the spell ends, its speed is doubled, it gains +2 AC,
-    and it gains an additional action at the start of each of its turns.
+    advantage on Dexterity saving throws, and it gains an additional action at the start
+    of each of its turns. When the spell ends, the target can't move or take actions
+    until after its next turn.
   duration: 1m
   duration_seconds: 60
   level: 3
@@ -967,6 +972,31 @@ haste:
     - Wizard
     - Sorcerer
   spell_class: Natural20::HasteSpell
+slow:
+  label: Slow
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+    - material
+  description: |
+    You alter time around up to six creatures in a 40-foot cube. Each target must
+    succeed on a Wisdom saving throw or have its speed halved, take a -2 penalty to AC,
+    lose reactions, and be unable to take more than one action on its turn. A target
+    repeats the save at the end of each of its turns, ending the effect on a success.
+  duration: 1m
+  duration_seconds: 60
+  level: 3
+  name: Slow
+  range: 120
+  area_radius_ft: 20
+  school: transmutation
+  concentration: true
+  type: debuff
+  spell_list_classes:
+    - Wizard
+    - Sorcerer
+  spell_class: Natural20::SlowSpell
 polymorph:
   label: Polymorph
   casting_time: 1:action
@@ -975,16 +1005,18 @@ polymorph:
     - somatic
     - material
   description: |
-    You attempt to transform a creature into a beast. On a failed WIS save the target
-    becomes the configured beast form (simplified phase transition).
+    You attempt to transform a creature into a beast. An unwilling creature makes a
+    Wisdom saving throw. On a failure (or if willing), the target becomes the
+    configured beast form while you maintain concentration.
   duration: 1h
+  duration_seconds: 3600
   level: 4
   name: Polymorph
   range: 60
   school: transmutation
   concentration: true
   type: transmutation
-  beast_form: polymorph_wolf
+  beast_form: wolf
   spell_list_classes:
     - Wizard
     - Sorcerer
@@ -994,16 +1026,22 @@ detect_magic:
   label: Detect Magic
   casting_time: 1:action
   components: [verbal, somatic]
-  description: Sense nearby magic for the duration.
+  description: >
+    For the duration, you sense the presence of magic within 30 feet of you.
+    If you sense magic in this way, you can use your action to see a faint aura
+    around any visible creature or object in the area that bears magic, and learn
+    its school of magic, if any. The spell can penetrate most barriers, but it is
+    blocked by 1 foot of stone, 1 inch of common metal, a thin sheet of lead, or
+    3 feet of wood or dirt.
   duration: 10m
   duration_seconds: 600
   level: 1
   name: Detect Magic
-  range: 5
+  range: 30
   school: divination
   concentration: true
   type: utility
-  spell_list_classes: [Wizard]
+  spell_list_classes: [Wizard, Cleric, Bard, Druid, Paladin, Ranger]
   spell_class: Natural20::DetectMagic
 fireball:
   label: Fireball
@@ -1517,6 +1555,7 @@ absorb_elements:
  name: Absorb Elements
  range: 5
  school: abjuration
+ triggers_on_damage: true
  type: reaction
  spell_list_classes: [Sorcerer, Wizard]
  spell_class: Natural20::AbsorbElementsSpell
@@ -1538,10 +1577,17 @@ protection_from_evil_and_good:
 hold_person:
  label: Hold Person
  casting_time: 1:action
- components: [verbal, somatic]
+ components:
+   - verbal
+   - somatic
+   - material
+ material: a small, straight piece of iron
  description: |
-   Choose a humanoid that you can see within range. The target must succeed on a Wisdom saving throw or be paralyzed for the duration. At the end of each of the target's turns, the target can make another Wisdom saving throw.
+   Choose a humanoid that you can see within range. The target must succeed on a Wisdom saving throw or be paralyzed for the duration. At the end of each of the target's turns, the target can make another Wisdom saving throw. On a success, the spell ends on the target.
+
+   At Higher Levels. When you cast this spell using a spell slot of 3rd level or higher, you can target one additional humanoid for each slot level above 2nd. The humanoids must be within 30 feet of each other when you target them.
  duration: 1m
+ duration_seconds: 60
  level: 2
  name: Hold Person
  range: 60

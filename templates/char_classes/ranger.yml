@@ -21,9 +21,54 @@ available_skills:
   - survival
 spellcasting_ability: wisdom
 spell_list:
+  cantrip:
+    - druidcraft
   level_1:
     - cure_wounds
     - detect_magic
+    - ensnaring_strike
+    - fog_cloud
+    - goodberry
+    - hail_of_thorns
+    - hunters_mark
+    - jump
+    - longstrider
+    - speak_with_animals
+  level_2:
+    - animal_messenger
+    - barkskin
+    - cordon_of_arrows
+    - darkvision
+    - find_traps
+    - lesser_restoration
+    - locate_animals_or_plants
+    - locate_object
+    - pass_without_trace
+    - protection_from_poison
+    - silence
+    - spike_growth
+ranger_archetypes:
+  hunter:
+    level_3:
+      - hunters_prey
+  beast_master:
+    level_3:
+      - rangers_companion
+progression:
+  level_2:
+    class_features:
+      - fighting_style
+      - spellcasting
+  level_3:
+    class_features:
+      - ranger_archetype
+      - primeval_awareness
+  level_4:
+    class_features:
+      - ability_score_improvement
+  level_5:
+    class_features:
+      - extra_attack
 proficiency_bonuses:
 - 2
 - 2

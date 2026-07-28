@@ -7,7 +7,7 @@ import os
 import sqlite3
 import threading
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 CATEGORIES = frozenset({'combat', 'conversation', 'dm_assistant', 'journal'})
 
@@ -204,6 +204,123 @@ class CampaignLogDB:
             with self._connect() as conn:
                 rows = conn.execute(sql, params).fetchall()
         return [self._row_to_dict(row) for row in rows]
+
+    def recent_entries(
+        self,
+        category: str,
+        *,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Return the most recent log rows for a category (newest last)."""
+        if category not in CATEGORIES:
+            raise ValueError(f'Unknown log category: {category}')
+        with self._lock:
+            with self._connect() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM log_entries
+                    WHERE category = ?
+                    ORDER BY id DESC
+                    LIMIT ?
+                    """,
+                    (category, max(1, int(limit))),
+                ).fetchall()
+        ordered = [self._row_to_dict(row) for row in reversed(rows)]
+        return ordered
+
+    @staticmethod
+    def visibility_visible_to_entity(visibility: Any, entity_uid: str) -> bool:
+        uid = str(entity_uid or '').strip()
+        if not uid:
+            return False
+        if visibility is None:
+            return True
+        if isinstance(visibility, str):
+            if visibility == 'public':
+                return True
+            return visibility not in ('dm', 'dm_only')
+        if not isinstance(visibility, dict):
+            return False
+        if visibility.get('public'):
+            return True
+        if visibility.get('dm_only'):
+            return False
+        visible_uids = {str(u) for u in (visibility.get('entity_uids') or visibility.get('entities') or [])}
+        return uid in visible_uids
+
+    def context_lines_for_entity(
+        self,
+        entity_uid: str,
+        *,
+        handles: Optional[Iterable[str]] = None,
+        combat_limit: int = 20,
+        conversation_limit: int = 40,
+    ) -> Dict[str, List[str]]:
+        """Combat and conversation lines an NPC plausibly recalls (speaker, target, witness, or named)."""
+        uid = str(entity_uid or '').strip()
+        if not uid:
+            return {'combat': [], 'conversation': []}
+
+        handle_terms = {uid.lower()}
+        for handle in handles or []:
+            text = str(handle or '').strip().lower()
+            if len(text) >= 3:
+                handle_terms.add(text)
+
+        def _mentions_handle(text: str) -> bool:
+            lowered = str(text or '').lower()
+            if not lowered:
+                return False
+            return any(term in lowered for term in handle_terms)
+
+        combat_lines: List[str] = []
+        for row in self.recent_entries('combat', limit=max(combat_limit * 8, 80)):
+            content = str(row.get('content') or '').strip()
+            if not content:
+                continue
+            visibility = None
+            raw_vis = row.get('visibility_json')
+            if raw_vis:
+                try:
+                    visibility = json.loads(raw_vis)
+                except Exception:
+                    visibility = None
+            if row.get('entity_uid') == uid:
+                combat_lines.append(content)
+            elif CampaignLogDB.visibility_visible_to_entity(visibility, uid):
+                combat_lines.append(content)
+            elif _mentions_handle(content):
+                combat_lines.append(content)
+            if len(combat_lines) >= combat_limit:
+                break
+
+        conversation_lines: List[str] = []
+        for row in self.recent_entries('conversation', limit=max(conversation_limit * 8, 120)):
+            content = str(row.get('content') or '').strip()
+            if not content:
+                continue
+            if row.get('entity_uid') == uid:
+                conversation_lines.append(content)
+                continue
+            metadata = {}
+            raw_meta = row.get('metadata_json')
+            if raw_meta:
+                try:
+                    metadata = json.loads(raw_meta)
+                except Exception:
+                    metadata = {}
+            targets = {str(t) for t in (metadata.get('targets') or []) if t}
+            if uid in targets:
+                conversation_lines.append(content)
+            elif _mentions_handle(content):
+                conversation_lines.append(content)
+            if len(conversation_lines) >= conversation_limit:
+                break
+
+        return {
+            'combat': combat_lines[-combat_limit:],
+            'conversation': conversation_lines[-conversation_limit:],
+        }
 
     def dm_assistant_history_for_llm(self, limit: int = 200) -> List[Dict[str, str]]:
         rows = self.list_entries('dm_assistant', limit=limit)

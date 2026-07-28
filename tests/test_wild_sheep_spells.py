@@ -8,11 +8,12 @@ class WildSheepSpellsTest(unittest.TestCase):
     def test_spell_classes_load(self):
         self.assertIsNotNone(load_spell_class('EnlargeReduceSpell'))
         self.assertIsNotNone(load_spell_class('HasteSpell'))
+        self.assertIsNotNone(load_spell_class('SlowSpell'))
         self.assertIsNotNone(load_spell_class('PolymorphSpell'))
 
     def test_spell_definitions_in_campaign(self):
         session = Session(root_path='user_levels/wild_sheep_chase')
-        for key in ('enlarge_reduce', 'haste', 'polymorph'):
+        for key in ('enlarge_reduce', 'haste', 'slow', 'polymorph'):
             details = session.load_spell(key)
             self.assertIn('spell_class', details)
 

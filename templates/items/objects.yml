@@ -124,6 +124,7 @@ stone_wall:
   color: light_magenta
   default_ac: 17
   item_class: StoneWall
+  spawner_category: walls
   max_hp: 27
   name: Stone Wall
   opaque: true
@@ -160,8 +161,18 @@ water:
   name: Water
   swimmable: true
   passable: true
+  placeable: true
   token:
     - ^
+difficult_terrain:
+  color: olive
+  movement_cost: 2
+  name: Difficult Terrain
+  passable: true
+  placeable: true
+  opaque: false
+  token:
+    - '~'
 wooden_door:
   description: An ominous wooden door. Standard for your typical fantasy dungeon.
   color: magenta
@@ -184,6 +195,7 @@ corner_door_tl:
   hp_die: 4d8
   interactable: true
   item_class: DoorObjectWall
+  spawner_category: door_walls
   max_hp: 18
   name: Corner Door Top Left
   token_image: corner_door_tl
@@ -269,3 +281,95 @@ chasm:
   token_image: pit_trap
   token:
     - "_"
+
+teleporter:
+  color: blue
+  passable: true
+  placeable: true
+  item_class: Teleporter
+  token:
+    - T
+  edit_ui:
+    label: Teleporter
+    scope:
+      - legend
+      - entity
+    groups:
+      - id: destination
+        label: Destination
+        fields:
+          - key: target_map
+            label: Target map
+            type: map_ref
+            choices_from: campaign.maps
+            required: true
+          - key: target_position
+            label: Arrival square
+            type: point
+            relative_to: target_map
+            required: true
+      - id: display
+        label: Display
+        collapsible: true
+        fields:
+          - key: label
+            label: Label
+            type: string
+          - key: visible
+            label: Show map marker
+            type: boolean
+            default: false
+          - key: marker_color
+            label: Marker color
+            type: color
+            default: "#22c55e"
+            visible_when:
+              visible: true
+
+# Hub/tavern containers for LLM staff item exchange (see docs/CONVERSATION_RAG.md).
+# Campaigns override inventory, entity_uid, notes, and annotations in items/objects.yml
+# or map legend overrides. Type keys: tavern_bar_counter, tavern_till_safe.
+# @mention handles come from entity_uid (e.g. tavern_bar, tavern_safe).
+
+tavern_bar_counter:
+  name: Bar Counter
+  description: A serving counter with room for kegs, food, and drink stock.
+  color: brown
+  item_class: Chest
+  lockable: false
+  state: opened
+  passable: true
+  placeable: false
+  interactable: true
+  token: "="
+  hide_map_token: true  # bar art is painted into the map background
+  token_image: tavern_bar_counter
+  icon_prompt: >
+    fantasy tavern bar counter game icon, long oak bar with ale mugs, bread loaf,
+    cheese wheel, and stew pot, warm candlelit taproom
+  buttons:
+    - name: Take from Bar
+      action: loot
+      image: tavern_bar_counter
+    - name: Stock Bar
+      action: store
+      image: tavern_bar_counter
+    - name: Close Bar
+      action: close
+      image: interact_close
+  inventory: []
+
+tavern_till_safe:
+  name: Till Safe
+  description: A locked strongbox for payment coin and valuables.
+  color: yellow
+  item_class: Chest
+  lockable: true
+  locked: true
+  key: tavern_safe_key
+  state: closed
+  passable: true
+  placeable: false
+  interactable: true
+  token: "S"
+  inventory: []

@@ -1,7 +1,7 @@
-import yaml
 import uuid
 import os
 import random
+from natural20.yaml_loader import load_yaml, templates_root
 from natural20.die_roll import DieRoll
 from natural20.entity import Entity
 from natural20.actions.dodge_action import DodgeAction
@@ -25,6 +25,7 @@ from natural20.actions.witch_bolt_sustain_action import WitchBoltSustainAction
 from natural20.actions.speak_action import SpeakAction
 from natural20.utils.action_builder import autobuild
 from natural20.actions.shove_action import ShoveAction
+from natural20.actions.pickpocket_action import PickpocketAction
 from natural20.utils.multiattack import Multiattack
 from natural20.utils.npc_random_name_generator import generate_goblinoid_name, generate_ogre_name
 from natural20.concern.lootable import Lootable
@@ -62,19 +63,24 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         DisengageBonusAction, HideAction, HideBonusAction,
         DodgeAction, LookAction, MoveAction,
         StandAction, ShoveAction, HelpAction, UseItemAction, GroundInteractAction,
-        SpellAction, InteractAction, SpeakAction, WitchBoltSustainAction
+        SpellAction, InteractAction, SpeakAction, WitchBoltSustainAction,
+        PickpocketAction
     ]
 
     def __init__(self, session, type, opt=None):
         super().__init__(type, "npc", {})
         if opt is None:
             opt = {}
-        if os.path.exists(os.path.join(session.root_path, "npcs", f"{type}.yml")):
-            with open(os.path.join(session.root_path, "npcs", f"{type}.yml"), "r") as file:
-                self.properties = copy.deepcopy(yaml.safe_load(file))
+        campaign_npc = os.path.join(session.root_path, "npcs", f"{type}.yml")
+        if os.path.exists(campaign_npc):
+            self.properties = copy.deepcopy(
+                load_yaml(campaign_npc, campaign_root=session.root_path)
+            )
         else:
-            with open(os.path.join("npcs", f"{type}.yml"), "r") as file:
-                self.properties = copy.deepcopy(yaml.safe_load(file))
+            template_npc = templates_root() / "npcs" / f"{type}.yml"
+            self.properties = copy.deepcopy(
+                load_yaml(template_npc, campaign_root=session.root_path)
+            )
 
         self.properties.update(opt.get("overrides", {}))
 
@@ -140,6 +146,7 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         self.name = auto_name if opt.get("name") == "_auto_" else opt.get("name", auto_name)
 
         self.entity_uid = self.properties.get('entity_uid', opt.get('entity_uid', str(uuid.uuid4())))
+        self._ensure_max_spell_slots_snapshot()
         self.setup_attributes()
 
         if self.properties.get('buttons'):
@@ -156,8 +163,8 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         if not path.endswith(".yml"):
             path = f"{path}.yml"
 
-        with open(os.path.join(session.root_path, path), "r") as file:
-            properties = yaml.safe_load(file)
+        npc_path = os.path.join(session.root_path, path)
+        properties = load_yaml(npc_path, campaign_root=session.root_path)
 
         properties.update(override)
 
@@ -248,7 +255,32 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
     def max_spell_slots(self, level, character_class=None):
         if self.familiar():
             return self.owner.max_spell_slots(level, character_class)
-        return 0
+        slots = self.properties.get('max_spell_slots') or {}
+        key = str(level)
+        return int(slots.get(key, slots.get(level, 0)))
+
+    def _ensure_max_spell_slots_snapshot(self):
+        """Preserve original slot totals so UI/AI can show current/max after casting."""
+        if self.properties.get('max_spell_slots'):
+            return
+        current = self.properties.get('spell_slots')
+        if current:
+            self.properties['max_spell_slots'] = copy.deepcopy(current)
+
+    def spell_attack_modifier(self, class_type='wizard'):
+        ability_by_class = {
+            'wizard': 'intelligence',
+            'sorcerer': 'charisma',
+            'warlock': 'charisma',
+            'cleric': 'wisdom',
+            'druid': 'wisdom',
+            'bard': 'charisma',
+            'ranger': 'wisdom',
+            'paladin': 'charisma',
+            'fighter': 'intelligence',
+        }
+        ability = ability_by_class.get(class_type.lower(), 'intelligence')
+        return self.proficiency_bonus() + self.ability_mod(ability)
 
     def level(self):
         # return CR level I guess
@@ -262,6 +294,8 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         return self.properties["kind"]
 
     def size(self):
+        if self.has_effect('size_override'):
+            return self.eval_effect('size_override')
         return self.properties["size"]
 
     def token(self):
@@ -277,7 +311,10 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
         return True
 
     def armor_class(self):
-        return self.properties["default_ac"]
+        current_ac = self.properties["default_ac"]
+        if self.has_effect('ac_bonus'):
+            current_ac += self.eval_effect('ac_bonus')
+        return current_ac
 
     def set_dialogue(self, dialogue, addressed_to=None):
         self.dialogue.append([addressed_to, dialogue])
@@ -349,6 +386,17 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
                         actions.append(SpeakAction(session, self, "speak"))
                     elif action_class == WitchBoltSustainAction:
                         actions.append(WitchBoltSustainAction(session, self, 'witch_bolt_sustain'))
+                    elif action_class == PickpocketAction:
+                        actions.append(PickpocketAction(session, self, 'pickpocket'))
+                    elif action_class == SpellAction:
+                        if auto_target:
+                            built_spells = autobuild(session, SpellAction, self, battle, map=map)
+                            if built_spells:
+                                actions.extend(built_spells)
+                            else:
+                                actions.append(SpellAction(session, self, 'spell'))
+                        else:
+                            actions.append(SpellAction(session, self, 'spell'))
                     elif action_class == InteractAction:
                         if map:
                             for objects in map.objects_near(self, battle):
@@ -513,6 +561,7 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
     def from_dict(data):
         npc = Npc(data["session"], data["npc_type"], data)
         npc.properties = data["properties"]
+        npc._ensure_max_spell_slots_snapshot()
         npc._max_hp = data["_max_hp"]
         npc.attributes = data["attributes"]
         npc.inventory = data["inventory"]

@@ -1,0 +1,38 @@
+name: Python Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout webapp
+        uses: actions/checkout@v4
+
+      - name: Checkout engine
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.NATURAL20_ENGINE_REPO || 'your-org/natural_20.py' }}
+          path: natural_20.py
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e natural_20.py
+          pip install -e ".[dev]"
+
+      - name: Run webapp tests
+        run: pytest tests/webapp -q --dist=worksteal -n 1
+        env:
+          TEMPLATE_DIR: ${{ github.workspace }}/natural_20.py/templates

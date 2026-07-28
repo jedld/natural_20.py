@@ -81,6 +81,27 @@ class TestPlayerCharacterJournal(unittest.TestCase):
         self.assertEqual(restored.journal[0]['tags'], ['intro'])
         self.assertEqual(restored.journal[1]['kind'], 'narration')
 
+    def test_unread_count_and_mark_read(self):
+        self.pc.add_journal_entry('Hook', kind='quest', read=False)
+        self.pc.add_journal_entry('Note', kind='note', read=True)
+        self.assertEqual(self.pc.unread_journal_count(), 1)
+        marked = self.pc.mark_journal_read()
+        self.assertEqual(marked, 1)
+        self.assertEqual(self.pc.unread_journal_count(), 0)
+
+    def test_seed_journal_from_properties(self):
+        props = dict(self.pc.properties)
+        props['journal'] = [
+            {'seed_id': 'hook1', 'title': 'Lead', 'text': 'Follow the river.', 'kind': 'quest'},
+        ]
+        seeded = PlayerCharacter(self.session, props)
+        seeded.seed_initial_journal_from_properties()
+        self.assertEqual(len(seeded.journal), 1)
+        self.assertEqual(seeded.journal[0]['title'], 'Lead')
+        self.assertFalse(PlayerCharacter.journal_entry_is_read(seeded.journal[0]))
+        seeded.seed_initial_journal_from_properties()
+        self.assertEqual(len(seeded.journal), 1)
+
 
 if __name__ == '__main__':
     unittest.main()

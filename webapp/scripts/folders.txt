@@ -1,7 +1,0 @@
-# Specify folders to process, optionally followed by size WxH.
-# If size is omitted, the script's default applies (75x75 unless overridden by CLI).
-# Examples:
-# ../static/spells 75x75
-# ../static/actions 128x128
-
-../static/spells 128x128

@@ -9,8 +9,89 @@ from PIL import Image, ImageDraw
 import os
 import yaml
 import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from natural20.image_gen.editor_asset_paths import (
+    editor_output_dir_for_object,
+    is_campaign_root,
+    templates_editor_dir,
+)
+
+WALL_SIDES = ('top', 'right', 'bottom', 'left')
+
+# Matches natural20.item_library.common.StoneWallDirectional border inference.
+_BORDER_BY_OBJECT_KEY = {
+    'stone_wall_tl': [1, 0, 0, 1],
+    'stone_wall_t': [1, 0, 0, 0],
+    'stone_wall_tr': [1, 1, 0, 0],
+    'stone_wall_r': [0, 1, 0, 0],
+    'stone_wall_br': [0, 1, 1, 0],
+    'stone_wall_b': [0, 0, 1, 0],
+    'stone_wall_bl': [0, 0, 1, 1],
+    'stone_wall_l': [0, 0, 0, 1],
+    'stone_wall_tb': [1, 0, 1, 0],
+    'stone_wall_lr': [0, 1, 0, 1],
+}
+
+_EDITOR_ITEM_CLASSES = frozenset({
+    'StoneWall',
+    'StoneWallDirectional',
+    'DoorObjectWall',
+})
 
 
+def _border_to_walls(border):
+    walls = []
+    if not border or len(border) < 4:
+        return walls
+    for idx, side in enumerate(WALL_SIDES):
+        if border[idx]:
+            walls.append(side)
+    return walls
+
+
+def _door_pos_to_location(door_pos):
+    if door_pos is None:
+        return None
+    if isinstance(door_pos, (list, tuple)):
+        for idx, val in enumerate(door_pos[:4]):
+            if val:
+                return WALL_SIDES[idx]
+        return None
+    try:
+        return {0: 'top', 1: 'right', 2: 'bottom', 3: 'left'}.get(int(door_pos))
+    except (TypeError, ValueError):
+        return None
+
+
+def resolve_wall_border(object_key, object_data):
+    """Resolve [top, right, bottom, left] border flags for editor tile generation."""
+    item_class = object_data.get('item_class', '')
+    border = object_data.get('border')
+    if border and len(border) >= 4:
+        return [int(bool(x)) for x in border[:4]]
+
+    if item_class == 'StoneWall':
+        return [1, 1, 1, 1]
+
+    if item_class == 'StoneWallDirectional':
+        if object_key in _BORDER_BY_OBJECT_KEY:
+            return list(_BORDER_BY_OBJECT_KEY[object_key])
+        if object_key == 'barrier':
+            return [1, 1, 1, 1]
+
+    return [0, 0, 0, 0]
+
+
+def resolve_door_location(object_key, object_data):
+    item_class = object_data.get('item_class', '')
+    if item_class != 'DoorObjectWall':
+        return None
+    return _door_pos_to_location(object_data.get('door_pos'))
 def create_wall_door_tile(
     size=64,
     walls=None,
@@ -177,7 +258,14 @@ def create_wall_door_tile(
     print(f"Generated tile saved as: {output_path}")
 
 
-def generate_from_objects_yaml(yaml_file_path, output_dir="generated_tiles", size=64, wall_thickness=10):
+def generate_from_objects_yaml(
+    yaml_file_path,
+    output_dir=None,
+    size=64,
+    wall_thickness=10,
+    skip_existing=False,
+    campaign_root=None,
+):
     """
     Generate wall/door tiles from an objects.yml file.
     
@@ -190,11 +278,8 @@ def generate_from_objects_yaml(yaml_file_path, output_dir="generated_tiles", siz
     if not os.path.exists(yaml_file_path):
         print(f"Error: YAML file not found: {yaml_file_path}")
         return
-    
-    # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Load YAML file
+
+    generated_count = 0
     try:
         with open(yaml_file_path, 'r') as f:
             objects_data = yaml.safe_load(f)
@@ -216,70 +301,78 @@ def generate_from_objects_yaml(yaml_file_path, output_dir="generated_tiles", siz
             continue
             
         item_class = object_data.get('item_class', '')
-        
-        # Check if this is a wall or door object we should process
-        if item_class in ['DoorObjectWall', 'DoorObject', 'StoneWallDirectional']:
-            border = object_data.get('border', [0, 0, 0, 0])
-            door_pos = object_data.get('door_pos', None)
-            
-            # Convert border array to wall sides
-            # border format: [top, right, bottom, left]
-            walls = []
-            if len(border) >= 4:
-                if border[0]:  # top
-                    walls.append('top')
-                if border[1]:  # right
-                    walls.append('right')
-                if border[2]:  # bottom
-                    walls.append('bottom')
-                if border[3]:  # left
-                    walls.append('left')
-            
-            # Convert door_pos to door location
-            door_location = None
-            if door_pos is not None:
-                if door_pos == 0:
-                    door_location = 'top'
-                elif door_pos == 1:
-                    door_location = 'right'
-                elif door_pos == 2:
-                    door_location = 'bottom'
-                elif door_pos == 3:
-                    door_location = 'left'
-            
-            # For DoorObjectWall, ensure the door location has a wall
-            # (doors need walls to be placed on)
-            if item_class == 'DoorObjectWall' and door_location:
-                if door_location not in walls:
-                    walls.append(door_location)
-            
 
-            
-            output_filename = f"{object_key}.png"
-            output_path = os.path.join(output_dir, output_filename)
-            
-            # Determine door width based on size (make doors bigger)
-            door_width = max(24, size // 3)  # Increased from size//4 to size//3, minimum 24px
-            
-            try:
-                create_wall_door_tile(
-                    size=size,
-                    walls=walls,
-                    door_location=door_location if item_class == 'DoorObjectWall' else None,
-                    door_width=door_width,
-                    wall_thickness=wall_thickness,
-                    output_path=output_path
-                )
-                
-                object_name = object_data.get('name', object_key)
-                print(f"✓ {output_filename} - {object_name}")
-                generated_count += 1
-                
-            except Exception as e:
-                print(f"✗ Failed to generate {output_filename}: {e}")
+        # Object spawner editor icons: full walls and door-in-wall fixtures only.
+        if item_class not in _EDITOR_ITEM_CLASSES:
+            continue
+
+        border = resolve_wall_border(object_key, object_data)
+        walls = _border_to_walls(border)
+        door_location = resolve_door_location(object_key, object_data)
+
+        # Doors need a wall segment on the same side.
+        if item_class == 'DoorObjectWall' and door_location and door_location not in walls:
+            walls.append(door_location)
+
+        output_filename = f"{object_key}.png"
+        target_dir = (
+            Path(output_dir)
+            if output_dir is not None
+            else editor_output_dir_for_object(object_key, campaign_root=campaign_root)
+        )
+        target_dir.mkdir(parents=True, exist_ok=True)
+        output_path = target_dir / output_filename
+        if skip_existing and output_path.is_file():
+            continue
+
+        # Determine door width based on size (make doors bigger)
+        door_width = max(24, size // 3)
+
+        try:
+            create_wall_door_tile(
+                size=size,
+                walls=walls,
+                door_location=door_location if item_class == 'DoorObjectWall' else None,
+                door_width=door_width,
+                wall_thickness=wall_thickness,
+                output_path=str(output_path),
+            )
+
+            object_name = object_data.get('name', object_key)
+            print(f"✓ {output_filename} - {object_name}")
+            generated_count += 1
+
+        except Exception as e:
+            print(f"✗ Failed to generate {output_filename}: {e}")
     
     print("=" * 60)
-    print(f"Generated {generated_count} tiles in '{output_dir}' directory!")
+    if output_dir is not None:
+        print(f"Generated {generated_count} tiles in '{output_dir}' directory!")
+    else:
+        print(f"Generated {generated_count} tiles under templates/assets/editor and/or campaign assets/editor")
+
+
+def _resolve_session_root(args) -> Path:
+    if args.campaign:
+        return (REPO_ROOT / 'user_levels' / args.campaign).resolve()
+    root = Path(args.root)
+    if not root.is_absolute():
+        root = (REPO_ROOT / root).resolve()
+    return root
+
+
+def _resolve_objects_yaml(args, root: Path) -> str:
+    if args.yaml:
+        yaml_path = Path(args.yaml)
+        if not yaml_path.is_absolute():
+            yaml_path = (REPO_ROOT / yaml_path).resolve()
+        if yaml_path.is_file():
+            return str(yaml_path)
+    if is_campaign_root(root):
+        campaign_yaml = root / 'items' / 'objects.yml'
+        if campaign_yaml.is_file():
+            return str(campaign_yaml)
+    return str(REPO_ROOT / 'templates' / 'items' / 'objects.yml')
 
 
 def main():
@@ -299,18 +392,32 @@ def main():
                        help='Output filename (default: tile.png)')
     parser.add_argument('--yaml', type=str,
                        help='Path to objects.yml file to auto-generate tiles from')
-    parser.add_argument('--output-dir', type=str, default='generated_tiles',
-                       help='Output directory for auto-generated tiles (default: generated_tiles)')
+    parser.add_argument('--root', type=str, default='templates',
+                       help='Session root: templates or user_levels/<campaign> (default: templates)')
+    parser.add_argument('--campaign', type=str, default=None,
+                       help='Shorthand for --root user_levels/<slug> (overrides --root)')
+    parser.add_argument('--output-dir', type=str, default=None,
+                       help='Force a single output directory (default: route per object scope)')
+    parser.add_argument('--skip-existing', action='store_true',
+                       help='Skip tiles that already exist in the output directory')
     
     args = parser.parse_args()
-    
-    # If YAML file is provided, generate from YAML
-    if args.yaml:
+
+    batch_mode = bool(args.yaml or args.campaign or not (args.walls or args.door))
+    if batch_mode:
+        root = _resolve_session_root(args)
+        yaml_path = _resolve_objects_yaml(args, root)
+        campaign_root = root if is_campaign_root(root) else None
+        if args.output_dir is None and not is_campaign_root(root):
+            templates_editor_dir().mkdir(parents=True, exist_ok=True)
+
         generate_from_objects_yaml(
-            yaml_file_path=args.yaml,
+            yaml_file_path=yaml_path,
             output_dir=args.output_dir,
             size=args.size,
-            wall_thickness=args.wall_thickness
+            wall_thickness=args.wall_thickness,
+            skip_existing=args.skip_existing,
+            campaign_root=campaign_root,
         )
         return
     

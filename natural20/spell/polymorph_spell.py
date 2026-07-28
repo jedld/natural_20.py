@@ -2,7 +2,7 @@ from natural20.spell.spell import Spell
 
 
 class PolymorphSpell(Spell):
-    """Polymorph: WIS save or become a beast (simplified stat swap via phase_transition)."""
+    """Polymorph (2014): WIS save (unwilling) or transform willing creature into a beast."""
 
     def build_map(self, orig_action):
         def set_target(target):
@@ -24,17 +24,23 @@ class PolymorphSpell(Spell):
         target = spell_action.target
         if isinstance(target, list):
             target = target[0]
-        save_roll = target.save_throw('wisdom', battle)
-        dc = entity.spell_save_dc()
-        if save_roll.result() >= dc:
-            return [{
-                'type': 'spell_miss',
-                'source': entity,
-                'target': target,
-                'attack_name': 'polymorph',
-                'spell_save': save_roll,
-                'dc': dc,
-            }]
+
+        unwilling = battle is not None and battle.opposing(entity, target)
+        save_roll = None
+        dc = None
+        if unwilling:
+            dc = entity.spell_save_dc('intelligence')
+            save_roll = target.save_throw('wisdom', battle, {'is_magical': True})
+            if save_roll.result() >= dc:
+                return [{
+                    'type': 'spell_miss',
+                    'source': entity,
+                    'target': target,
+                    'attack_name': 'polymorph',
+                    'spell_save': save_roll,
+                    'dc': dc,
+                }]
+
         return [{
             'source': entity,
             'target': target,
@@ -55,8 +61,13 @@ class PolymorphSpell(Spell):
         source = item['source']
         effect = item['effect']
         beast = effect.properties.get('beast_form', 'wolf')
+        duration_seconds = int(effect.properties.get('duration_seconds', 3600))
 
-        source.add_casted_effect({'target': target, 'effect': effect, 'expiration': session.game_time + 600})
+        source.add_casted_effect({
+            'target': target,
+            'effect': effect,
+            'expiration': session.game_time + duration_seconds,
+        })
         if source.current_concentration() != effect:
             if battle is not None and hasattr(battle, 'start_concentration'):
                 battle.start_concentration(source, effect)
@@ -66,7 +77,10 @@ class PolymorphSpell(Spell):
         target.properties['phase_transition'] = {
             'npc': beast,
             'keep_uid': True,
-            'narration': effect.properties.get('narration', f"{target.label()} is transformed into a {beast}!"),
+            'narration': effect.properties.get(
+                'narration',
+                f"{target.label()} is transformed into a {beast.replace('_', ' ')}!",
+            ),
         }
         if 'polymorphed' not in target.statuses:
             target.statuses.append('polymorphed')
@@ -77,6 +91,9 @@ class PolymorphSpell(Spell):
             'source': source,
             'target': target,
         })
-        # Transform immediately for dramatic effect (HP becomes beast HP).
         target._maybe_phase_transition(battle=battle)
         return target
+
+    def dismiss(self, entity, _descriptor=None, _opts=None):
+        if 'polymorphed' in getattr(entity, 'statuses', []):
+            entity.statuses.remove('polymorphed')

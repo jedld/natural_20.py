@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "natural20"
+version = "0.1.0"
+description = "D&D 5e simulation engine for AI research and VTT backends"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    "pyyaml>=6.0.1",
+    "dndice",
+    "python-i18n[YAML]",
+    "inflect",
+    "collections-extended",
+    "lark",
+]
+
+[project.optional-dependencies]
+gym = ["gymnasium"]
+dev = ["pytest", "pytest-xdist", "termcolor", "prompt_toolkit"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["natural20*"]
+
+[tool.setuptools.data-files]
+"natural20/templates" = ["templates/**/*"]

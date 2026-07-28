@@ -7,6 +7,7 @@ collections-extended
 openai
 pandas
 requests>=2.31.0
+httpx>=0.27.0
 openpyxl
 pytest
 termcolor
@@ -25,3 +26,4 @@ pytest-xdist
 mutagen
 openai
 python-dotenv
+# OpenVoice - see scripts/install_openvoice.sh for Python 3.13 compatible installation

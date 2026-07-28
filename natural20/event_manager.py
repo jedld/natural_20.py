@@ -6,6 +6,40 @@ from natural20.utils.attack_util import to_advantage_str
 from natural20.utils.conversation import audible_entities
 from natural20.utils.gibberish import gibberish
 
+
+def format_pickpocket_roll_text(event):
+    """Format Sleight of Hand vs passive Insight for combat-log pickpocket lines."""
+    roll = event.get('roll')
+    passive = event.get('passive_insight')
+    roll_total = event.get('roll_total')
+    roll_breakdown = event.get('roll_breakdown')
+
+    expr = None
+    if roll is not None:
+        try:
+            total = roll.result()
+            expr = str(roll)
+            if total is not None and str(total) not in expr:
+                expr = f"{expr} = {total}"
+        except Exception:
+            expr = roll_breakdown or (str(roll_total) if roll_total is not None else str(roll))
+    elif roll_total is not None:
+        if roll_breakdown:
+            expr = str(roll_breakdown)
+            if str(roll_total) not in expr:
+                expr = f"{expr} = {roll_total}" if '=' not in expr else expr
+        else:
+            expr = str(roll_total)
+
+    if not expr:
+        return ''
+
+    text = f" (Sleight of Hand {expr}"
+    if passive is not None:
+        text += f" vs passive Insight {passive}"
+    text += ')'
+    return text
+
 class EventLogger:
     """
     A simple logger for engine related events that logs to stdout
@@ -196,6 +230,50 @@ class EventManager:
                 self.output_logger.log(f"{self.show_name(event)} successfully hides with a {event['roll']}={event['roll'].result()} stealth.")
             else:
                 self.output_logger.log(f"{self.show_name(event)} tries to hide but fails. {','.join(event['reason'])}")
+
+        def pickpocket(event):
+            actor = self.show_name(event)
+            target = self.show_target_name(event)
+            item_label = event.get('item_label') or event.get('item_name') or 'an item'
+            roll_text = format_pickpocket_roll_text(event)
+            stolen = event.get('stolen', True)
+            suffix = '' if stolen else ' (item was not in inventory)'
+            self.output_logger.log(
+                f"{actor} pickpockets {item_label} from {target}{roll_text}.{suffix}"
+            )
+
+        def pickpocket_failed(event):
+            actor = self.show_name(event)
+            target = self.show_target_name(event)
+            item_label = event.get('item_label') or event.get('item_name') or 'an item'
+            reason = event.get('reason')
+            roll_text = format_pickpocket_roll_text(event)
+
+            if reason == 'target_out_of_range':
+                message = f"{actor} cannot pickpocket {item_label} from {target} — target is too far away."
+            elif reason == 'item_not_found':
+                message = f"{actor} cannot find {item_label} on {target}."
+            elif reason == 'item_not_stealable':
+                message = (
+                    f"{actor} cannot pickpocket {item_label} from {target} "
+                    f"— the item is too large or unavailable."
+                )
+            elif reason == 'pc_to_pc_disabled':
+                message = (
+                    f"{actor}'s pickpocket attempt on {target} is blocked "
+                    f"(PC-to-PC pickpocket disabled)."
+                )
+            elif reason == 'detection':
+                message = (
+                    f"{actor} is caught trying to pickpocket {item_label} from {target}"
+                    f"{roll_text}."
+                )
+            elif event.get('message'):
+                message = str(event['message']).rstrip('.') + '.'
+            else:
+                message = f"{actor} fails to pickpocket {item_label} from {target}{roll_text}."
+
+            self.output_logger.log(message)
 
         def damage(event):
             if event.get('roll_info'):
@@ -427,6 +505,8 @@ class EventManager:
             'spell_miss': miss,
             'miss': miss,
             'hide': hide,
+            'pickpocket': pickpocket,
+            'pickpocket_failed': pickpocket_failed,
             'ice_knife': ice_knife,
             'flavor': lambda event: self.output_logger.log(self.t(f"event.flavor.{event['text']}", **event)),
             'lucky_reroll': lambda event: self.output_logger.log(f"{self.show_name(event)} uses luck to reroll from {event['old_roll']} to {event['roll']}"),
@@ -438,7 +518,13 @@ class EventManager:
             'drop_grapple': lambda event: self.output_logger.log(f"{self.show_name(event)} drops grapple on {self.show_target_name(event)}"),
             'initiative': lambda event: self.output_logger.log(f"{self.show_name(event)} rolled initiative {event['roll']} value {event['value']}"),
             'start_of_turn': lambda event: self.output_logger.log(f"======== {self.show_name(event)} starts their turn. ========"),
+            'detect_magic': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} senses magic within {event.get('range_ft', 30)} feet."
+            ),
             'spell_buf': lambda event: self.output_logger.log(f"{self.show_name(event)} cast {event['spell'].name if hasattr(event['spell'], 'name') else event['spell']} on {self.show_target_name(event)}"),
+            'spell_debuff': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} cast {event['spell'].label() if hasattr(event.get('spell'), 'label') else (event['spell'].name if hasattr(event.get('spell'), 'name') else event.get('spell'))} on {self.show_target_name(event)}"
+            ),
             'spell_heal': lambda event: self.output_logger.log(f"{self.show_name(event)} cast {event['spell']['name']} on {self.show_target_name(event)} and healed for {event['heal_roll']}={event['heal_roll'].result()} hit points."),
             'save_success': lambda event: self.output_logger.log(f"{self.show_name(event)} succeeded on a {event['save_type']} saving throw against DC {event['dc']} with {event['roll']}={event['roll'].result()}"),
             'save_fail': lambda event: self.output_logger.log(f"{self.show_name(event)} failed on a {event['save_type']} saving throw against DC {event['dc']} with {event['roll']}={event['roll'].result()}"),

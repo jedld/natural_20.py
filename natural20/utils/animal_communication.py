@@ -1,5 +1,6 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
+from natural20.utils.conversation import entity_label
 
 STATE_KEY = 'animal_communication'
 DEFAULT_DURATION_SECONDS = 8 * 60 * 60
@@ -50,3 +51,81 @@ def has_animal_communication(session, entity=None, now: Optional[int] = None) ->
     if now is None:
         now = int(getattr(session, 'game_time', 0) or 0)
     return animal_communication_expires_at(session, entity=entity) > int(now)
+
+
+def _entity_speaks_beast_language(entity) -> bool:
+    try:
+        spoken = getattr(entity, 'languages', lambda: [])() or []
+    except Exception:
+        spoken = []
+    normalized = {str(item).strip().lower() for item in spoken if item}
+    return bool(normalized & {'beast', 'sheep', 'animals'})
+
+
+def animal_communication_status_text(session, entity=None) -> str:
+    if entity is None:
+        return 'unknown'
+    if has_animal_communication(session, entity=entity):
+        expiration = animal_communication_expires_at(session, entity=entity)
+        return f'active until game time {expiration}'
+    return 'inactive'
+
+
+def animal_communication_guidance_lines(
+    session,
+    observer,
+    speaker=None,
+    *,
+    nearby_entities=None,
+) -> List[str]:
+    """Prompt lines so beast-speaking NPCs know who can understand them."""
+    if observer is None or not _entity_speaks_beast_language(observer):
+        return []
+
+    lines: List[str] = []
+    seen_uids = set()
+
+    def _append_for(target, role: str):
+        uid = str(getattr(target, 'entity_uid', '') or '')
+        if not uid or uid in seen_uids:
+            return
+        seen_uids.add(uid)
+        status = animal_communication_status_text(session, target)
+        label = entity_label(target)
+        if status == 'inactive':
+            lines.append(
+                f"- Speak with Animals on {label} ({role}): inactive — they cannot understand "
+                f"your beast/sheep speech yet; offer a comprehension aid (e.g. scroll) before "
+                f"lengthy dialogue."
+            )
+        else:
+            lines.append(
+                f"- Speak with Animals on {label} ({role}): {status} — they can understand "
+                f"your beast/sheep speech."
+            )
+
+    if speaker is not None:
+        _append_for(speaker, 'current speaker')
+
+    for target in nearby_entities or []:
+        if target is speaker:
+            continue
+        _append_for(target, 'nearby')
+
+    if not lines:
+        return []
+
+    return [
+        'Speak with Animals awareness (trust this; do not guess):',
+        *lines,
+    ]
+
+
+def animal_communication_activation_note(listener) -> str:
+    """System note for beast-speaking NPCs when a listener gains comprehension."""
+    label = entity_label(listener) if listener is not None else 'The listener'
+    return (
+        f"{label} read a Speak with Animals scroll and can understand your "
+        "beast/sheep speech now. Continue in [in sheep] with clear dialogue; "
+        "do not offer the scroll again or explain how it works."
+    )

@@ -84,6 +84,17 @@ class LookAction(Action):
                     for k in new_notes.keys():
                         item['perception_targets'][k] = new_notes[k]
 
+                if (
+                    entity != item["source"]
+                    and hasattr(entity, 'has_annotations')
+                    and entity.has_annotations()
+                    and current_map.can_see(item["source"], entity)
+                    and item["source"].is_npc()
+                ):
+                    _, new_annotations = entity.list_annotations(item["source"])
+                    for k in new_annotations.keys():
+                        item['perception_targets'][k] = new_annotations[k]
+
                 if entity!=item["source"] and entity.secret() and entity.secret_perception_dc() and current_map.can_see(item["source"], entity, ignore_concealment=True, active_perception=perception_results):
                     if entity.secret_perception_dc() <= perception_results:
                         entity.is_secret = False

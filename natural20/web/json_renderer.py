@@ -8,6 +8,7 @@ from natural20.item_library.chasm import Chasm
 from natural20.spell.objects.grease_surface import GreaseSurface
 import logging
 from natural20.web.terrain_tooltip import build_terrain_tooltip
+from natural20.utils.magical_aura import magical_auras_for_tile, viewer_has_detect_magic
 
 class JsonRenderer:
     def __init__(self, map: Map, battle: Battle=None, padding=None, logger=None):
@@ -40,6 +41,27 @@ class JsonRenderer:
             return None, None
 
         return group, tint
+
+    def _detect_magic_sense_tile(self, x, y, viewers, session, soft_shadow_direction):
+        """Fog-of-war tile that only reveals magical auras sensed through obstacles."""
+        if not viewers or session is None:
+            return None
+        auras = magical_auras_for_tile(session, self.map, x, y, viewers)
+        if not auras:
+            return None
+        return {
+            'x': x,
+            'y': y,
+            'difficult': False,
+            'line_of_sight': False,
+            'detect_magic_sense': True,
+            'light': 0.0,
+            'opacity': 1.0,
+            'soft_shadow_direction': soft_shadow_direction,
+            'magical_auras': auras,
+            'conversation_languages': [],
+            'objects': [],
+        }
 
     def render(self, entity_pov=None, path=None, select_pos=None):
         if path is None:
@@ -92,6 +114,12 @@ class JsonRenderer:
                         entity_pov_locations.append(pos)
 
         self.logger.debug(f"entity_pov_locations: {entity_pov_locations}")
+        pov_list = entity_pov
+        if pov_list is not None and not isinstance(pov_list, list):
+            pov_list = [pov_list]
+        pov_list = [e for e in (pov_list or []) if e]
+        detect_magic_viewers = [e for e in pov_list if viewer_has_detect_magic(e)]
+        session = getattr(self.map, 'session', None)
         if self.padding:
             width += self.padding[0]
             height += self.padding[1]
@@ -141,7 +169,13 @@ class JsonRenderer:
                                 hidden_door_tile = True
                                 hidden_door_line_of_sight = any([cached_can_see_square(entity, (x, y), force_dark_vision=True, inclusive=False) for entity in entity_pov])
                             else:
-                                result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 1.0, 'soft_shadow_direction': soft_shadow_direction})
+                                sense_tile = self._detect_magic_sense_tile(
+                                    x, y, detect_magic_viewers, session, soft_shadow_direction,
+                                )
+                                if sense_tile:
+                                    result_row.append(sense_tile)
+                                else:
+                                    result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 1.0, 'soft_shadow_direction': soft_shadow_direction})
                                 continue
 
                 # Guard against out-of-bounds coordinates (e.g., padding extending beyond map)
@@ -190,6 +224,10 @@ class JsonRenderer:
                     'is_flying': entity.is_flying() if entity else False,
                     'conversation_languages': []
                 }
+                if detect_magic_viewers and session is not None:
+                    shared_attributes['magical_auras'] = magical_auras_for_tile(
+                        session, self.map, x, y, detect_magic_viewers,
+                    )
 
                 def render_objects(entity_pov=None, shared_attrs=None, objects=None, current_entity=None):
                     shared_attrs['objects'] = []
@@ -291,6 +329,20 @@ class JsonRenderer:
                         object_info['grease_marker_seed'] = (
                             object_entity.properties.get('grease_seed') if is_grease_surface else None
                         )
+
+                        is_door_fixture = isinstance(object_entity, (DoorObject, DoorObjectWall))
+                        object_info['door_highlight'] = bool(is_door_fixture)
+                        object_info['door_highlight_opened'] = bool(
+                            is_door_fixture
+                            and hasattr(object_entity, 'opened')
+                            and object_entity.opened()
+                        )
+                        object_info['door_highlight_edges'] = marker_edges or {
+                            'top': True,
+                            'right': True,
+                            'bottom': True,
+                            'left': True,
+                        }
 
                         object_info['notes'], _ = object_entity.list_notes(entity_pov=entity_pov)
                         if object_entity.properties.get('image_offset_px'):

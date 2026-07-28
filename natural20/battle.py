@@ -14,6 +14,21 @@ import pdb
 from natural20.uid_containers import EntitiesUIDMap
 
 
+def build_opposing_groups(session):
+    """Derive battle faction hostility from campaign ``game.yml`` groups."""
+    opposing = {}
+    for group_name, info in (session.groups() or {}).items():
+        if isinstance(info, dict):
+            opposing[group_name] = list(info.get('enemies', []))
+    if not opposing:
+        opposing = {
+            'a': ['b'],
+            'b': ['a'],
+            'c': ['c'],
+        }
+    return opposing
+
+
 def _animation_uid(value):
     """Normalize ids in animator payloads (SocketIO JSON cannot encode uuid.UUID)."""
     if value is None:
@@ -191,11 +206,7 @@ class Battle():
         else:
             self.standard_controller = standard_controller
         self.event_manager = session.event_manager
-        self.opposing_groups = {
-            'a': ['b'],
-            'b': ['a'],
-            'c': ['c']
-        }
+        self.opposing_groups = build_opposing_groups(session)
         # Bridge ``event_manager``-level lifecycle events (``unconscious``,
         # ``died``) into a battle-level ``goes_down`` trigger so readied
         # actions like "use a healing potion if my ally drops" can fire.
@@ -535,7 +546,7 @@ class Battle():
             effect.start_of_turn(entity)
 
     def end_turn(self):
-        self.current_turn().resolve_trigger('end_of_turn')
+        self.current_turn().resolve_trigger('end_of_turn', {'battle': self})
         self.trigger_event('end_of_turn', self,  { "target" : self.current_turn()})
 
         # reset legendary actions
@@ -737,7 +748,8 @@ class Battle():
         if not self.entities[entity]['controller']:
             raise Exception(f"no controller for entity {entity}")
 
-        return self.entities[entity]['controller'].move_for(entity, self)
+        controller = self.controller_for(entity)
+        return controller.move_for(entity, self)
 
     def do_distract(self, source, target):
         self.entities[target]['help_with'][source] = 'distract'
