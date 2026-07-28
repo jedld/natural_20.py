@@ -184,6 +184,7 @@ class GenericEventHandler:
                 targets = []
                 if target_request == 'session':
                     self.session.update_state(update_state_properties['state'])
+                    return
                 elif target_request == 'self':
                     targets.append(entity)
                 elif target_request == 'target':

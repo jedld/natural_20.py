@@ -8,6 +8,5 @@ setup(
         "pyyaml",
         "dndice",
         "python-i18n",
-        "fantasynames"
     ]
 )

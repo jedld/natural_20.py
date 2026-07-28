@@ -128,7 +128,14 @@ class DropGrappleAction(Action):
     @staticmethod
     def apply(battle, item, session=None):
         if item['type'] == 'drop_grapple':
-            item['source'].drop_grapple(item['source'])
-            battle.event_manager.received_event({
-                "event" : 'drop_grapple',
-                "source" : item['source']})
+            if not session:
+                session = battle.session
+            source = item['source']
+            targets = list(source.grappling_targets())
+            source.drop_grapple()
+            for target in targets:
+                session.event_manager.received_event({
+                    'event': 'drop_grapple',
+                    'source': source,
+                    'target': target,
+                })

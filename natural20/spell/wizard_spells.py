@@ -461,10 +461,6 @@ class OtilukesResilientSphereSpell(CounterspellSpell):
     TARGET_TYPES = ['enemies', 'allies', 'self']
 
 
-class DetectMagicSpell(UtilityWizardSpell):
-    pass
-
-
 class LeomundsTinyHutSpell(UtilityWizardSpell):
     TARGET_TYPES = ['point']
 

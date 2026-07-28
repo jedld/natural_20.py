@@ -174,19 +174,24 @@ class SpellAction(Action):
     def build_map(self):
         def select_spell(spell_choice):
             action = self.clone()
-            spell_name, at_level = spell_choice
-            spell = self.session.load_spell(spell_name)
+            spell_slug, at_level = spell_choice
+            spell = self.session.load_spell(spell_slug)
             if not spell:
-                raise Exception(f"spell not found {spell_name}")
+                raise Exception(f"spell not found {spell_slug}")
             action.spell = spell
             action.level = spell.get("level", 0)
             # Some call sites pass 0 to mean "cast at base level".
             action.at_level = at_level if at_level else action.level
-            spell_name = spell.get("spell_class", classify(spell_name)) + "Spell"
-            spell_name = spell_name.replace("Natural20::", "")
-            spell_class = load_spell_class(spell_name)
+            spell_class_name = spell.get("spell_class")
+            if spell_class_name:
+                spell_class_key = spell_class_name.replace("Natural20::", "")
+                if not spell_class_key.endswith("Spell"):
+                    spell_class_key = spell_class_key + "Spell"
+            else:
+                spell_class_key = classify(spell_slug) + "Spell"
+            spell_class = load_spell_class(spell_class_key)
             action.spell_class = spell_class
-            action.spell_action = spell_class(self.session, self.source, spell_name, spell)
+            action.spell_action = spell_class(self.session, self.source, spell_class_key, spell)
             action.spell_action.action = action
             slot_owner = action.source.owner if action.source.familiar() else action.source
             if action.at_level > 0 and hasattr(slot_owner, 'next_spell_slot_level'):

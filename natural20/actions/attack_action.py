@@ -500,14 +500,22 @@ class AttackAction(Action):
         else:
             hit = True
 
+        crit = bool(attack_roll is not None and attack_roll.nat_20())
+        if (not crit and attack_roll is not None
+                and getattr(target, 'paralyzed', lambda: False)()
+                and weapon.get('type') == 'melee_attack' and battle is not None):
+            attack_map = battle.map_for(self.source)
+            if attack_map is not None and attack_map.distance(self.source, target) * attack_map.feet_per_grid <= 5:
+                crit = True
+
         if damage_roll is not None:
-            damage = DieRoll.roll(damage_roll, crit=attack_roll.nat_20(), description='dice_roll.damage',
+            damage = DieRoll.roll(damage_roll, crit=crit, description='dice_roll.damage',
                                     entity=self.source, battle=battle)
 
             # Half-Orc Savage Attacks: on a melee weapon crit, add one extra
             # weapon damage die to the critical damage.
             if (self.source.class_feature('savage_attacks')
-                    and attack_roll is not None and attack_roll.nat_20()
+                    and crit
                     and weapon.get('type') == 'melee_attack'):
                 extra = DieRoll.roll(f"1d{damage.die_sides}",
                                      description='dice_roll.savage_attacks',
@@ -536,7 +544,7 @@ class AttackAction(Action):
                 })
             except Exception:
                 dmg_mods = []
-            is_crit = bool(attack_roll is not None and attack_roll.nat_20())
+            is_crit = crit
             for entry in dmg_mods:
                 v = entry['value']
                 if isinstance(v, str) and v:

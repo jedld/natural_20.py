@@ -1,7 +1,7 @@
 from natural20.item_library.object import Object
 from typing import Optional
 from natural20.entity import Entity
-import pdb
+
 
 class Teleporter(Object):
     def __init__(self, session, map, properties):
@@ -9,7 +9,125 @@ class Teleporter(Object):
         self.target_map = properties.get('target_map', None)
         self.target_position = properties['target_position']
 
+    def _session_gate_allows(self, entity: Entity, map) -> bool:
+        """Optional campaign gate via ``requires_session`` on the teleporter.
+
+        YAML shapes supported::
+
+            requires_session:
+              all_of: [flag_a, flag_b]
+              # and / or
+              any_of: [flag_a, flag_b, flag_c]
+              min_count: 2   # how many of any_of must be truthy (default 1)
+              bypass_any: [ophelia_invitation]  # any one of these alone opens
+
+            # Optional: carrying listed item types counts toward any_of hits
+            # (one point per distinct item type present in inventory/equipment).
+            inventory_proofs: [black_rose_pin]
+
+        Legacy alias: ``visibility_flag: some_flag`` (treated as all_of: [some_flag]).
+        """
+        props = getattr(self, 'properties', {}) or {}
+        req = props.get('requires_session')
+        legacy = props.get('visibility_flag')
+        if not req and not legacy:
+            return True
+
+        session = getattr(map, 'session', None) or getattr(self, 'session', None)
+        state = getattr(session, 'session_state', {}) or {} if session else {}
+        if not isinstance(state, dict):
+            state = {}
+
+        if legacy and not req:
+            req = {'all_of': [legacy]}
+
+        bypass_any = list(req.get('bypass_any') or [])
+        for flag in bypass_any:
+            if state.get(flag):
+                return True
+
+        all_of = list(req.get('all_of') or [])
+        any_of = list(req.get('any_of') or [])
+        min_count = int(req.get('min_count', 1 if any_of else 0))
+
+        for flag in all_of:
+            if not state.get(flag):
+                return False
+
+        hits = 0
+        if any_of:
+            hits = sum(1 for flag in any_of if state.get(flag))
+
+        inventory_proofs = list(req.get('inventory_proofs') or props.get('inventory_proofs') or [])
+        if inventory_proofs and entity is not None:
+            carried = set()
+            try:
+                inv = getattr(entity, 'inventory', None) or {}
+                if isinstance(inv, dict):
+                    for key, val in inv.items():
+                        qty = val.get('qty', 1) if isinstance(val, dict) else val
+                        if qty:
+                            carried.add(str(key))
+                equipped = getattr(entity, 'equipped_items', None) or getattr(entity, 'equipped', None) or []
+                for item in equipped:
+                    if isinstance(item, str):
+                        carried.add(item)
+                    elif isinstance(item, dict) and item.get('type'):
+                        carried.add(str(item['type']))
+                    elif hasattr(item, 'name'):
+                        carried.add(str(item.name))
+            except Exception:
+                carried = set()
+            for item_type in inventory_proofs:
+                if str(item_type) in carried:
+                    hits += 1
+
+        if any_of or inventory_proofs:
+            if hits < min_count:
+                return False
+
+        return True
+
+    def _deny_entry(self, entity: Entity, map) -> None:
+        props = getattr(self, 'properties', {}) or {}
+        message = props.get('deny_message') or (
+            f"{entity.name} cannot use {self.label()} yet — more proof is needed."
+        )
+        session = getattr(map, 'session', None) or getattr(self, 'session', None)
+        if not session or not getattr(session, 'event_manager', None):
+            return
+        session.event_manager.received_event({
+            "event": 'console',
+            "target": map,
+            "source": entity,
+            "message": message,
+        })
+        session.event_manager.received_event({
+            "event": 'message',
+            "source": entity,
+            "target": self,
+            "message": message,
+        })
+        deny_title = props.get('deny_title')
+        if deny_title or props.get('deny_narration'):
+            session.event_manager.received_event({
+                'event': 'narration',
+                'source': entity,
+                'narration': {
+                    'on_enter': {
+                        'title': deny_title or 'Blocked',
+                        'text': props.get('deny_narration') or message,
+                        'once': False,
+                    }
+                },
+                'map_name': getattr(map, 'name', None),
+            })
+
     def on_enter(self, entity: Entity, map, battle=None):
+        if not self._session_gate_allows(entity, map):
+            self._deny_entry(entity, map)
+            return
+
         entity_placed = False
         if self.target_map:
             target_map = map.linked_maps.get(self.target_map)
@@ -73,7 +191,7 @@ class Teleporter(Object):
         return True
 
     def label(self):
-        return 'ground'
+        return self.properties.get('label') or self.properties.get('name') or 'ground'
 
     def passable(self, origin=None):
         return True

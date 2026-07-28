@@ -10,6 +10,7 @@ from natural20.spell.effects.protection_effect import ProtectionEffect
 import uuid
 from natural20.utils.conversation import delivered_conversations
 from natural20.utils.gibberish import gibberish
+from natural20.utils.language_comprehension import understands_language, understands_language_for_languages
 import i18n
 class Entity(EntityStateEvaluator, Notable):
 
@@ -102,7 +103,7 @@ class Entity(EntityStateEvaluator, Notable):
         return condition in self.condition_immunities
 
     def profile_image(self):
-        return self.token_image()
+        return self.properties.get('profile_image') or self.token_image()
 
     def passive(self):
         return self.is_passive
@@ -268,31 +269,113 @@ class Entity(EntityStateEvaluator, Notable):
     def conversable(self):
         return False
 
+    @staticmethod
+    def _entity_matches(candidate, entity) -> bool:
+        if candidate is None or entity is None:
+            return False
+        if candidate is entity:
+            return True
+        candidate_uid = getattr(candidate, 'entity_uid', candidate)
+        entity_uid = getattr(entity, 'entity_uid', entity)
+        return bool(candidate_uid) and candidate_uid == entity_uid
+
+    @classmethod
+    def _entity_in_collection(cls, entity, collection) -> bool:
+        if entity is None or not collection:
+            return False
+        for item in collection:
+            if cls._entity_matches(item, entity):
+                return True
+        return False
+
+    def _conversation_entry_targets_entity(self, message, entity) -> bool:
+        if self._entity_matches(message.get('target'), entity):
+            return True
+        return self._entity_in_collection(entity, message.get('directed_to'))
+
     def conversation_history(self, listener):
         history = []
+
+        def _narrative_entries(entry):
+            narrative = entry.get('narrative') or []
+            if isinstance(narrative, str):
+                narrative = [narrative]
+            if not isinstance(narrative, list):
+                return []
+            return [str(item).strip() for item in narrative if str(item).strip()]
+
+        def _segment_entries(entry):
+            segments = entry.get('segments') or []
+            if not isinstance(segments, list):
+                return []
+            return Entity._normalize_conversation_segments(segments)
+
+        def _action_entries(entry):
+            actions = entry.get('actions') or []
+            if isinstance(actions, str):
+                actions = [actions]
+            if not isinstance(actions, list):
+                return []
+            return [str(item).strip() for item in actions if str(item).strip()]
+
+        def _speaker_message_type():
+            try:
+                from natural20.player_character import PlayerCharacter
+                if isinstance(self, PlayerCharacter):
+                    return 'player'
+            except Exception:
+                pass
+            return 'entity'
+
+        def _source_message_type(source):
+            try:
+                from natural20.player_character import PlayerCharacter
+                if isinstance(source, PlayerCharacter):
+                    return 'player'
+            except Exception:
+                pass
+            return 'entity'
         
         for message in self.conversation_buffer:
-            if message['source'] == self and (message.get("target") == "all" or listener in message.get('directed_to', [])):
+            directed_to = message.get('directed_to') or []
+            if message['source'] == self and self._entity_in_collection(listener, directed_to):
                 language = message.get('language', 'common')
-                if language in listener.languages():
+                rendered_message = message['message']
+                if understands_language(listener, language, session=getattr(listener, 'session', None)):
                     history.append({
                         'source': self.label(),
                         'target': listener.label(),
-                        'message': message['message'],
+                        'message': rendered_message,
                         'language': language,
-                        'type': 'entity'
+                        'type': _speaker_message_type(),
+                        'narrative': _narrative_entries(message),
+                        'segments': _segment_entries(message),
                     })
                 else:
-                    # If the listener does not understand the language, use gibberish
-                    message['message'] = gibberish(message['message'], language=language)
-            if self in message.get('directed_to', []):
+                    history.append({
+                        'source': self.label(),
+                        'target': listener.label(),
+                        'message': gibberish(rendered_message, language=language),
+                        'language': language,
+                        'type': _speaker_message_type(),
+                        'narrative': _narrative_entries(message),
+                        'segments': _segment_entries(message),
+                    })
+            elif (
+                message.get('source') is not self
+                and self._entity_matches(message.get('source'), listener)
+                and self._entity_in_collection(self, directed_to)
+            ):
                 language = message.get('language', 'common')
                 history.append({
                     'source': message['source'].label(),
                     'message': message['message'],
                     'target': self.label(),
                     'language': language,
-                    'type': 'player'
+                    'type': _source_message_type(message.get('source')),
+                    'narrative': _narrative_entries(message),
+                    'segments': _segment_entries(message),
+                    'actions': _action_entries(message),
                 })
         return history
     
@@ -301,7 +384,7 @@ class Entity(EntityStateEvaluator, Notable):
         Returns a list of keywords that this entity can respond to in conversations.
         This is used to trigger specific actions or responses based on the conversation context.
         """
-        return self.properties.get('converstation_keywords', [])
+        return self.properties.get('conversation_keywords') or self.properties.get('converstation_keywords', [])
  
     def conversation(self, outgoing=True, listener_languages=None):
         if listener_languages is None:
@@ -314,39 +397,86 @@ class Entity(EntityStateEvaluator, Notable):
             outgoing_messages = []
             for message in self.conversation_buffer:
                 if message['source'] == self:
-                    if  message.get('language') and message['language'] in listener_languages:
+                    language = message.get('language', 'common')
+                    if understands_language_for_languages(listener_languages, language):
                         outgoing_messages.append(message['message'])
                     else:
-                        outgoing_messages.append(gibberish(message['message'], language=message.get('language', 'common')))
+                        outgoing_messages.append(gibberish(message['message'], language=language))
             return outgoing_messages
         else:
             incoming_messages = []
             for message in self.conversation_buffer:
                 if message['target'] == self:
-                    if message['language'] in listener_languages:
+                    language = message.get('language', 'common')
+                    if understands_language_for_languages(listener_languages, language):
                         incoming_messages.append(message['message'])
                     else:
-                        incoming_messages.append(gibberish(message['message'], language=message.get('language', 'common')))
+                        incoming_messages.append(gibberish(message['message'], language=language))
             return incoming_messages
 
-    def receive_conversation(self, source, message, language=None,  directed_to=None):
+    def receive_conversation(self, source, message, language=None, directed_to=None, narrative=None, actions=None, segments=None):
         if language is None:
             language = "common"
         if directed_to is None:
             directed_to = []
-        self.conversation_buffer.append({ 'source': source, 'directed_to': directed_to, 'message': message, 'target': self, 'language': language, 'time' : self.session.game_time })
-        self.memory_buffer.append({ 'source': source, 'directed_to': directed_to, 'message': message, 'target': self, 'language': language, 'time' : self.session.game_time })
+        narrative_entries = []
+        if isinstance(narrative, str) and narrative.strip():
+            narrative_entries = [narrative.strip()]
+        elif isinstance(narrative, list):
+            narrative_entries = [str(item).strip() for item in narrative if str(item).strip()]
+        action_entries = []
+        if isinstance(actions, str) and actions.strip():
+            action_entries = [actions.strip()]
+        elif isinstance(actions, list):
+            action_entries = [str(item).strip() for item in actions if str(item).strip()]
+        segment_entries = self._normalize_conversation_segments(segments)
+        entry = {
+            'source': source,
+            'directed_to': directed_to,
+            'message': message,
+            'target': self,
+            'language': language,
+            'time': self.session.game_time,
+            'narrative': narrative_entries,
+            'segments': segment_entries,
+            'actions': action_entries,
+        }
+        self.conversation_buffer.append(entry)
+        self.memory_buffer.append(dict(entry))
         self.resolve_trigger('conversation', { 'source': source, 'message': message, 'memory_buffer': self.memory_buffer,
                                               'target': self, 'language': language })
         if self.conversation_controller:
             self.conversation_controller.process_message(self, source, message, language, self.memory_buffer, directed_to)
 
-    def send_conversation(self, message, distance_ft=30, targets=None, language=None, volume=None) -> List[Tuple['Entity', str, List['Entity']]]:
+    def send_conversation(self, message, distance_ft=30, targets=None, language=None, volume=None, narrative=None, actions=None, segments=None) -> List[Tuple['Entity', str, List['Entity']]]:
         if language is None:
             language = "common"
         language = language.lower()
-        self.conversation_buffer.append({ 'source': self, 'message': message, 'directed_to': targets, 'targets': targets, 'language': language, 'distance_ft': distance_ft, 'volume': volume })
-        self.memory_buffer.append({ 'source': self, 'message': message, 'directed_to': targets, 'targets': targets, 'language': language, 'distance_ft': distance_ft, 'volume': volume })
+        narrative_entries = []
+        if isinstance(narrative, str) and narrative.strip():
+            narrative_entries = [narrative.strip()]
+        elif isinstance(narrative, list):
+            narrative_entries = [str(item).strip() for item in narrative if str(item).strip()]
+        action_entries = []
+        if isinstance(actions, str) and actions.strip():
+            action_entries = [actions.strip()]
+        elif isinstance(actions, list):
+            action_entries = [str(item).strip() for item in actions if str(item).strip()]
+        segment_entries = self._normalize_conversation_segments(segments)
+        buffer_entry = {
+            'source': self,
+            'message': message,
+            'directed_to': targets,
+            'targets': targets,
+            'language': language,
+            'distance_ft': distance_ft,
+            'volume': volume,
+            'narrative': narrative_entries,
+            'segments': segment_entries,
+            'actions': action_entries,
+        }
+        self.conversation_buffer.append(buffer_entry)
+        self.memory_buffer.append(dict(buffer_entry))
         self.session.event_manager.received_event({"source": self,
                                                    "event" : 'conversation',
                                                    "message" : message,
@@ -356,15 +486,57 @@ class Entity(EntityStateEvaluator, Notable):
                                                    "volume": volume})
         entity_map = self.session.map_for_entity(self)
         nearby = []
+        delivered_entities = set()
 
         for delivery in delivered_conversations(self, message, entity_map, distance_ft=distance_ft, mode=volume, targets=targets, language=language):
             other_entity = delivery['entity']
             rendered_message = delivery['message']
             nearby.append([other_entity, rendered_message, targets])
-            other_entity.receive_conversation(self, rendered_message, language=language, directed_to=targets)
+            other_entity.receive_conversation(
+                self,
+                rendered_message,
+                language=language,
+                directed_to=targets,
+                actions=action_entries,
+            )
+            delivered_entities.add(other_entity)
+
+        if action_entries and targets and entity_map is not None:
+            for target in targets or []:
+                if target is None or target == self or target in delivered_entities:
+                    continue
+                try:
+                    if entity_map.can_see(target, self):
+                        target.receive_conversation(
+                            self,
+                            message or '',
+                            language=language,
+                            directed_to=targets,
+                            actions=action_entries,
+                        )
+                        nearby.append([target, message or '', targets])
+                        delivered_entities.add(target)
+                except Exception:
+                    continue
 
         return nearby
 
+
+    @staticmethod
+    def _normalize_conversation_segments(segments):
+        normalized = []
+        for segment in segments or []:
+            if not isinstance(segment, dict):
+                continue
+            kind = str(segment.get('type') or '').strip().lower()
+            text = str(segment.get('text') or '').strip()
+            if not text:
+                continue
+            if kind in ('aside', 'narrative', 'stage_direction'):
+                normalized.append({'type': 'aside', 'text': text})
+            else:
+                normalized.append({'type': 'speech', 'text': text})
+        return normalized
 
     def clear_conversation_buffer(self):
         self.conversation_buffer = []
@@ -628,6 +800,23 @@ class Entity(EntityStateEvaluator, Notable):
 
         return languages
 
+    def languages_understood(self):
+        understood = self.properties.get('languages_understood')
+        if understood is None:
+            return self.languages()
+
+        if understood is None:
+            understood = []
+
+        try:
+            from natural20.utils.animal_communication import has_animal_communication
+            if has_animal_communication(self.session, entity=self):
+                return sorted(set(list(understood) + ['beast']))
+        except Exception:
+            pass
+
+        return understood
+
     def long_jump_distance(self):
         if not self.ability_scores.get('str'):
             return 0
@@ -658,6 +847,12 @@ class Entity(EntityStateEvaluator, Notable):
 
     def undead(self):
         return 'undead' in self.properties.get('race', [])
+
+    def humanoid(self):
+        return 'humanoid' in self.properties.get('race', [])
+
+    def paralyzed(self):
+        return 'paralyzed' in self.statuses
 
     def race(self):
         race = self.properties.get('race', [])
@@ -1309,7 +1504,7 @@ class Entity(EntityStateEvaluator, Notable):
     def ungrapple(self, target):
         if target in self.grappling:
             self.grappling.remove(target)
-        if target in target.grapples:
+        if self in target.grapples:
             target.grapples.remove(self)
         if len(target.grapples)==0 and 'grappled' in target.statuses:
             target.statuses.remove('grappled')
@@ -1425,6 +1620,9 @@ class Entity(EntityStateEvaluator, Notable):
     def has_reaction(self, battle):
         if not battle:
             return True
+
+        if self.has_effect('slow') or 'slowed' in getattr(self, 'statuses', []):
+            return False
 
         return battle.entity_state_for(self).get('reaction', 0) > 0
 
@@ -1744,7 +1942,7 @@ class Entity(EntityStateEvaluator, Notable):
             entity_state['statuses'].remove('disengage')
 
         battle.event_manager.received_event({'source': self, 'event': 'start_of_turn'})
-        self.resolve_trigger('start_of_turn')
+        self.resolve_trigger('start_of_turn', {'battle': battle})
         try:
             from natural20.combat_script import process_combat_script
             process_combat_script(self, battle)
@@ -1801,7 +1999,14 @@ class Entity(EntityStateEvaluator, Notable):
                 return []
 
             for active_hook in available_hooks:
-                _temp_results = getattr(active_hook['handler'], active_hook['method'])(self, {**opts, 'effect': active_hook['effect']})
+                _temp_results = getattr(active_hook['handler'], active_hook['method'])(
+                    self,
+                    {
+                        **opts,
+                        'effect': active_hook['effect'],
+                        'source': active_hook.get('source'),
+                    },
+                )
                 if _temp_results:
                     results.extend(_temp_results)
         return results
@@ -1990,7 +2195,9 @@ class Entity(EntityStateEvaluator, Notable):
 
     def incapacitated(self):
         return 'incapacitated' in self.statuses or 'unconscious' in self.statuses or \
-            'sleep' in self.statuses or 'dead' in self.statuses
+            'sleep' in self.statuses or 'dead' in self.statuses or \
+            'paralyzed' in self.statuses or 'stunned' in self.statuses or \
+            'petrified' in self.statuses
 
     def dodge(self, battle):
         if not battle:
@@ -2313,6 +2520,12 @@ class Entity(EntityStateEvaluator, Notable):
         if opts is None:
             opts = {}
 
+        if save_type in ('strength', 'dexterity') and 'paralyzed' in self.statuses:
+            return DieRoll.roll(
+                "1", battle=battle, entity=self,
+                description=f"dice_roll.{save_type}_saving_throw (paralyzed, auto-fail)",
+            )
+
         modifier = self.ability_mod(save_type)
         if modifier is None:
             raise ValueError(f"invalid ability {save_type}")
@@ -2461,14 +2674,32 @@ class Entity(EntityStateEvaluator, Notable):
     # @param amount [int]
     # @return [dict]
     def deduct_item(self, ammo_type, amount=1):
+        from natural20.concern.inventory import snapshot_inventory_entry
+
         if ammo_type not in self.inventory:
             return None
 
-        qty = self.inventory[ammo_type]['qty']
-        self.inventory[ammo_type]['qty'] = max(qty - amount, 0)
-        if self.inventory[ammo_type]['qty'] == 0:
-            return self.inventory.pop(ammo_type)
-        return self.inventory[ammo_type]
+        entry = self.inventory[ammo_type]
+        removed = snapshot_inventory_entry(entry, amount)
+        if not removed:
+            return None
+
+        try:
+            qty = int(entry.get('qty', 0) or 0)
+        except (TypeError, ValueError):
+            qty = 0
+        try:
+            remove_qty = int(removed.get('qty', 0) or 0)
+        except (TypeError, ValueError):
+            remove_qty = 0
+
+        if remove_qty <= 0 or (qty > 0 and remove_qty > qty):
+            return None
+
+        entry['qty'] = qty - remove_qty
+        if entry['qty'] <= 0:
+            self.inventory.pop(ammo_type, None)
+        return removed
     
     # Removes an item from the inventory
     # @param ammo_type [Symbol,String]
@@ -2483,17 +2714,29 @@ class Entity(EntityStateEvaluator, Notable):
     # @param amount [Integer]
     # @param source_item [Object]
     def add_item(self, ammo_type, amount=1, source_item=None):
-        if ammo_type not in self.inventory:
-            self.inventory[ammo_type] = {
-                'qty': 0,
-                'type': source_item.type if source_item else ammo_type
-            }
-            # Preserve container contents if source_item is a container
-            if source_item and isinstance(source_item, dict) and 'contents' in source_item:
-                self.inventory[ammo_type]['contents'] = source_item['contents'].copy()
+        from natural20.concern.inventory import merge_inventory_entry, snapshot_inventory_entry
 
-        qty = self.inventory[ammo_type].get('qty', 1)
-        self.inventory[ammo_type]['qty'] = qty + amount
+        try:
+            add_qty = max(1, int(amount))
+        except (TypeError, ValueError):
+            add_qty = 1
+
+        received = source_item
+        if received is not None and not isinstance(received, dict):
+            received = snapshot_inventory_entry({'type': ammo_type, 'qty': add_qty})
+        elif received is not None:
+            received = snapshot_inventory_entry(received, add_qty)
+
+        if ammo_type not in self.inventory:
+            payload = received or {'type': ammo_type, 'qty': 0}
+            self.inventory[ammo_type] = {
+                'type': payload.get('type') or ammo_type,
+                'qty': 0,
+            }
+            merge_inventory_entry(self.inventory[ammo_type], payload, add_qty)
+            return
+
+        merge_inventory_entry(self.inventory[ammo_type], received, add_qty)
 
     def ranged_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
         spell_classes = spell.get('spell_list_classes', [])
@@ -2982,15 +3225,40 @@ class Entity(EntityStateEvaluator, Notable):
             item_details = self.session.load_equipment(k)
             if not item_details or item_details.get('usable', False):
                 continue
+            if item_details.get('equippable', False):
+                continue
             other.append({
                 'name': str(k),
                 'label': item_details.get('label', item_details.get('name', k)),
                 'item': item_details,
                 'image': item_details.get('image', k),
                 'type': item_details.get('type', 'other'),
-                'qty': v['qty']
+                'qty': v['qty'],
+                'weight': item_details.get('weight'),
             })
         return other
+
+    def carried_gear_items(self):
+        """Unequipped inventory entries for the equipment tab."""
+        equipped_names = {item['name'] for item in self.equipped_items()}
+        gear = []
+        for k, v in (self.inventory or {}).items():
+            if k in equipped_names:
+                continue
+            try:
+                qty = int(v.get('qty', 0) or 0)
+            except (TypeError, ValueError):
+                qty = 0
+            if qty <= 0:
+                continue
+            item = self.session.load_thing(k)
+            if not item:
+                continue
+            entry = self._to_item(k, item)
+            entry['qty'] = qty
+            gear.append(entry)
+        gear.sort(key=lambda row: (row.get('label') or row.get('name') or '').lower())
+        return gear
 
     def read_item(self, item_name):
         item = self.session.load_thing(item_name)
@@ -3026,7 +3294,13 @@ class Entity(EntityStateEvaluator, Notable):
             if v['qty'] > 0:
                 items.append({
                     'name': k,
-                    'label': v['label'] if v.get('label',None) else str(k),
+                    'type': k,
+                    'label': (
+                        v.get('label')
+                        or item.get('label')
+                        or item.get('name')
+                        or str(k)
+                    ),
                     'qty': v['qty'],
                     'image': item.get('image', k),
                     'equipped': False,
@@ -3041,7 +3315,13 @@ class Entity(EntityStateEvaluator, Notable):
         for item in self.inventory_items(session) + self.equipped_items():
             weight = float(item['weight']) if item.get('weight', None) else 0.0
             total_weight += weight * item['qty']
-        return total_weight
+        nested_weight = 0.0
+        if hasattr(self, 'nested_inventory_weight'):
+            try:
+                nested_weight = float(self.nested_inventory_weight(session))
+            except Exception:
+                nested_weight = 0.0
+        return total_weight + nested_weight
     
     def dexterity_check(self, bonus=0, battle=None, description=None):
         disadvantage = not self.proficient_with_equipped_armor() if battle is None else False
@@ -3075,6 +3355,30 @@ class Entity(EntityStateEvaluator, Notable):
 
     def athletics_proficient(self):
         return self.proficient('athletics')
+
+    def sleight_of_hand_proficient(self):
+        return self.proficient('sleight_of_hand')
+
+    def sleight_of_hand_check(self, battle=None, description=None):
+        """Perform a Sleight of Hand check (DEX-based skill).
+        
+        Used for pickpocket attempts. Resists are passive Insight.
+        """
+        disadvantage = not self.proficient_with_equipped_armor() if battle is None else False
+        if self.poisoned():
+            disadvantage = True
+        bonus = self.proficiency_bonus() if self.sleight_of_hand_proficient() else 0
+        roll = DieRoll.roll_with_lucky(
+            self,
+            f"1d20+{self.dex_mod() + bonus}",
+            disadvantage=disadvantage,
+            description=description or 'dice_roll.sleight_of_hand',
+            battle=battle
+        )
+        roll.metadata['ability'] = 'dexterity'
+        roll.metadata['is_skill_check'] = True
+        roll.metadata['skill'] = 'sleight_of_hand'
+        return roll
 
     def medicine_proficient(self):
         return self.proficient('medicine')

@@ -1,0 +1,6 @@
+[submodule "n20-webapp"]
+	path = n20-webapp
+	url = git@github.com:jedld/n20-webapp.git
+[submodule "user_levels"]
+	path = user_levels
+	url = git@github.com:jedld/n20-campaigns.git

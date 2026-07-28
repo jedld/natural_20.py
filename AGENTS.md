@@ -3,7 +3,14 @@
 This repository is a D&D simulation and VTT used for AI research. Focus on two layers:
 
 - Core engine (Python package `natural20/`) — game models, map, battle loop, controllers, and entity registry. Key files: `natural20/session.py`, `natural20/battle.py`, `natural20/entity.py`, `natural20/controller.py`, `natural20/generic_controller.py`, `natural20/llm_controller.py`.
-- Web layer (Flask + small JS VTT) — `webapp/` contains the Flask app, LLM provider adapters, and the DM/chat handlers. Key files: `webapp/app.py` (bootstrap), `webapp/blueprints/*` (domain routes), `webapp/blueprints/helpers/*` (shared state and utilities), `webapp/llm_handler.py`, `webapp/conversation_service.py`, `webapp/*` tests.
+- Web layer (Flask + small JS VTT) — `n20-webapp/webapp/` (submodule) contains the Flask app, LLM provider adapters, and the DM/chat handlers. Key files: `n20-webapp/webapp/app.py`, `n20-webapp/webapp/blueprints/*`, `n20-webapp/webapp/llm_handler.py`, `n20-webapp/tests/webapp/*`.
+
+**Repository layout:** The VTT and campaigns are **git submodules**:
+
+- `n20-webapp/` → `git@github.com:jedld/n20-webapp.git` (Flask app under `n20-webapp/webapp/`)
+- `user_levels/` → `git@github.com:jedld/n20-campaigns.git`
+
+Clone with `git clone --recurse-submodules`. Run `./start_web.sh [campaign]`. See **`docs/REPOSITORY_SPLIT.md`**.
 
 ### Webapp layout (post-refactor)
 
@@ -56,14 +63,14 @@ Developer workflows and commands (verified in repo README):
 
 - Python deps: `pip install -r requirements.txt`.
 - Run webapp (dev):
-  - copy `webapp/env.example` → `webapp/.env` and set provider vars, or export env vars
-  - `cd webapp && python -m flask run` (defaults to port 5000)
+  - copy `n20-webapp/webapp/env.example` → `n20-webapp/webapp/.env` and set provider vars
+  - `git submodule update --init --recursive && pip install -e . && pip install -e ./n20-webapp`
+  - `./start_web.sh wild_sheep_chase` (or `./n20-webapp/start_web.sh` with `N20_CAMPAIGNS_DIR`)
 - Run webapp (production with gunicorn):
-  - `cd webapp && TEMPLATE_DIR=../user_levels/<level> CORS_ORIGINS="http://localhost:5000,http://127.0.0.1:5000,http://localhost:5001,http://127.0.0.1:5001,https://*.ngrok.io,https://*.ngrok-free.app,https://*.ngrok-free.dev" gunicorn --worker-class eventlet --workers 1 --bind 0.0.0.0:5001 --timeout 120 app:app`
-  - Replace `<level>` with the target campaign folder (e.g., `templates`, `user_levels/death_house`, `user_levels/pvp`).
+  - `N20_USE_GUNICORN=1 ./start_web.sh user_levels/<level>` with `CORS_ORIGINS` as needed
 - Run webapp + ngrok in tmux (production remote access):
-  1. `tmux new-session -d -s n20`
-  2. `tmux send-keys -t n20 'cd webapp && TEMPLATE_DIR=../user_levels/<level> CORS_ORIGINS="http://localhost:5000,http://127.0.0.1:5000,http://localhost:5001,http://127.0.0.1:5001,https://*.ngrok.io,https://*.ngrok-free.app,https://*.ngrok-free.dev" gunicorn --worker-class eventlet --workers 1 --bind 0.0.0.0:5001 --timeout 120 app:app' Enter`
+ 1. `tmux new-session -d -s n20`
+ 2. `tmux send-keys -t n20 './webapp/start_ngrok.sh ../user_levels/<level>' Enter`
   3. `tmux split-window -t n20 -v`
   4. `tmux send-keys -t n20.1 'ngrok http 5001' Enter`
   5. Check ngrok URL: `tmux capture-pane -t n20.1 -p` (look for `Forwarding https://...`)
@@ -78,6 +85,16 @@ Important environment variables (used by code):
 - LLM_PROVIDER (ollama|openai|anthropic|mock) — default `ollama` in the controller.
 - OLLAMA_BASE_URL, OLLAMA_MODEL — defaults used by `webapp/llm_handler.py` and `natural20/llm_controller.py`.
 - OPENAI_API_KEY / ANTHROPIC_API_KEY — used by providers.
+- **NPC LLM** (optional): dedicated provider for NPC conversations — allows a fast/cheap model for
+  NPC chat while keeping the DM AI on a larger model. Variables:
+  - `NPC_LLM_ENABLED` – ``1`` (default) or ``0``/``no``/``false`` to disable.
+  - `NPC_LLM_PROVIDER` – ``ollama`` (default), ``openai``, ``anthropic``, ``llama_cpp``, ``mock``.
+  - `NPC_BASE_URL` / `NPC_OLLAMA_BASE_URL` / ``NPC_<PROVIDER>_BASE_URL`` – endpoint URL (falls back
+    to the DM provider's ``<PROVIDER>_BASE_URL`` when unset).
+  - `NPC_MODEL` / `NPC_OLLAMA_MODEL` / ``NPC_<PROVIDER>_MODEL`` – model name (falls back to DM model).
+  - `NPC_API_KEY` / ``NPC_<PROVIDER>_API_KEY`` – API key (falls back to DM key).
+  - When `NPC_LLM_ENABLED=0`, NPC conversations automatically fall back to the DM provider.
+  - `N20_NPC_BACKGROUND_LLM` – ``1`` (default) or ``0``/``no``/``false`` to skip NPC LLM calls during out-of-combat environment ticks (`webapp/npc_environment_ticks.py`) and long-rest NPC simulation (`webapp/long_rest_npc_simulation.py`). Player-initiated `/talk` is unaffected. Per-feature override in `game.yml`: `npc_environment_ticks.llm_enabled` / `long_rest_npc_simulation.llm_enabled`, or global `npc_background_llm.enabled`.
 - N20_MCP_URL — optional MCP bridge URL used by `LlmMcpController._call_mcp_tool(prompt, n_actions)` (POST {prompt, n_actions} → {index}).
 - N20_MCP_DM_TOKEN — optional shared secret. When set, callers can hit the in-process MCP tool surface at `/mcp/*` by sending header `X-MCP-Token: <value>` instead of an authenticated DM session. The surface is implemented in `webapp/mcp/` as a Flask blueprint with three discovery endpoints (`GET /mcp/manifest`, `GET /mcp/tools/list`, `POST /mcp/tools/call`) and tools split across `tools_world` (inspection), `tools_dm` (mutations) and `tools_actions` (list/execute actions, movement, end_turn, start/end battle). Tools are wrapped in MCP-style envelopes (`{"isError": bool, "content": [...]}`).
 
@@ -97,6 +114,7 @@ MCP tool catalogue (keep this list in sync with `webapp/mcp/tools_*.py`). Design
     - Effects: `dm.effect` (effect, action=start|stop|update, optional `config`, `scope`=global|map, optional `map_name`) — mirrors `/admin/effect`, persists into the module-level `active_effects` / `active_effects_map` caches.
     - Audio: `dm.sound` (op=list|play|volume|seek) — mirrors `/tracks`, `/sound`, `/volume`, `/seek`.
     - Time: `dm.advance_time` (op=add|set, `seconds`) — wraps `Session.increment_game_time` for narrative time skips.
+    - Map landmarks: `dm.map_landmark` (op=list|upsert|delete, optional `map_name`, `annotation`, `annotation_id`) — YAML `map_annotations` for NPC navigation/LLM place context. See `docs/MAP_ANNOTATIONS.md`.
   - `tools_actions`: `actions.list_available`, `actions.execute` (for `InteractAction` with `target`, `entity_uid` optional — omit or `dungeon_master` for DM-direct door/object interaction), `actions.move`, `actions.end_turn`, `actions.start_battle`, `actions.end_battle`.
 
   When adding a new DM-only Flask endpoint, also extend the matching `tools_dm` tool (preferring an extra `op` value over a brand-new tool) and update this catalogue.
@@ -126,6 +144,7 @@ Files to check for implementation examples and extension points:
 
 Extending spells and character classes:
 
+- **Routine workflow**: follow project skill `.cursor/skills/n20-add-spell/SKILL.md` (YAML + Python + loader + tests + VTT cast animation / persistent overlay / effect icon checklist).
 - New spells require: YAML entry in `templates/items/spells.yml` (with `spell_list_classes` and optional `spell_class` override), a matching class in `natural20/spell/` implementing `build_map` and `resolve`, and registration inside `natural20/utils/spell_loader.py`. Reuse `natural20/spell/extensions/` helpers for shared targeting/damage logic.
   - UI targeting map params you can use in `build_map()`:
     - `select_target`, `select_empty_space`, `select_cone`, and `select_cube`.

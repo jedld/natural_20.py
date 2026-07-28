@@ -48,6 +48,7 @@ from natural20.actions.find_familiar_action import FindFamiliarAction
 from natural20.actions.summon_familiar_action import SummonFamiliarAction
 from natural20.actions.mage_hand_action import MageHandAction
 from natural20.actions.witch_bolt_sustain_action import WitchBoltSustainAction
+from natural20.actions.pickpocket_action import PickpocketAction, PickpocketBonusAction
 from natural20.actions.speak_action import SpeakAction
 from natural20.actions.disarming_attack_action import DisarmingAttackAction
 from natural20.utils.action_builder import autobuild
@@ -68,6 +69,7 @@ from natural20.progression import (
 )
 import yaml
 import os
+from natural20.yaml_loader import load_campaign_resource_path, load_yaml
 import copy
 import uuid
 from datetime import datetime, timezone
@@ -119,7 +121,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     SummonFamiliarAction,
     MageHandAction,
     WitchBoltSustainAction,
-    SpeakAction
+    SpeakAction,
+    PickpocketAction,
+    PickpocketBonusAction
   ]
 
   def __init__(self, session, properties, name=None):
@@ -142,8 +146,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
 
     # use ordered dict to maintain order of spell slots
     self.spell_slots = {}
-    with open(f"{self.session.root_path}/races/{race_file}.yml") as file:
-      self.race_properties = yaml.safe_load(file)
+    self.race_properties = load_campaign_resource_path(
+      self.session.root_path, f"races/{race_file}.yml"
+    )
 
     # Merge subrace features with base race features
     if self.subrace() and self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('race_features'):
@@ -236,8 +241,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     if initializer is None:
       raise ValueError(f"Unsupported character class: {klass}")
     initializer()
-    with open(f"{self.session.root_path}/char_classes/{klass}.yml") as file:
-      character_class_properties = yaml.safe_load(file)
+    character_class_properties = load_campaign_resource_path(
+      self.session.root_path, f"char_classes/{klass}.yml"
+    )
     self.max_hit_die[klass] = level
 
     hit_die_details = DieRoll.parse(character_class_properties['hit_die'])
@@ -248,8 +254,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
   def _class_hit_die_sides(self, klass):
     properties = self.class_properties.get(klass)
     if properties is None:
-      with open(f"{self.session.root_path}/char_classes/{klass}.yml") as file:
-        properties = yaml.safe_load(file)
+      properties = load_campaign_resource_path(
+        self.session.root_path, f"char_classes/{klass}.yml"
+      )
     return int(DieRoll.parse(properties['hit_die']).die_type)
 
   def _class_features_at_level(self, klass, level):
@@ -328,10 +335,12 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     if not path.endswith('.yml'):
       path = f"{path}.yml"
 
-    with open(os.path.join(session.root_path, path), 'r') as file:
-      properties = yaml.safe_load(file)
+    char_path = os.path.join(session.root_path, path)
+    properties = load_yaml(char_path, campaign_root=session.root_path)
     properties.update(override)
-    return PlayerCharacter(session, properties)
+    pc = PlayerCharacter(session, properties)
+    pc.seed_initial_journal_from_properties()
+    return pc
   
   def label(self):
     return self.display_name
@@ -573,6 +582,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       return summary
 
   def size(self):
+      if self.has_effect('size_override'):
+        return self.eval_effect('size_override')
       return self.properties.get("size") or self.race_properties.get('size')
   
   def token(self):
@@ -622,8 +633,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     if not self.equipped:
       return False
     try:
-      with open(os.path.join(self.session.root_path, 'items', 'equipment.yml')) as file:
-        equipments = yaml.safe_load(file)
+      equipments = self.session.load_all_equipments()
     except FileNotFoundError:
       return False
     for item_id in self.equipped:
@@ -880,6 +890,12 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action_list.append(WitchBoltSustainAction(session, self, 'witch_bolt_sustain'))
         elif action_type == SpeakAction:
           action_list.append(SpeakAction(session, self, 'speak'))
+        elif action_type == PickpocketAction:
+          action_list.append(PickpocketAction(session, self, 'pickpocket'))
+        elif action_type == PickpocketBonusAction:
+          action = PickpocketAction(session, self, 'pickpocket')
+          action.as_bonus_action = True
+          action_list.append(action)
     # Phase 4: also consult the class-feature registry. Existing branches
     # above keep working; this is an additive opt-in extension point.
     try:
@@ -1222,8 +1238,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     return super().proficient(prof)
 
   def equipped_ac(self):
-    with open(os.path.join(self.session.root_path, 'items', 'equipment.yml')) as file:
-      equipments = yaml.safe_load(file)
+    equipments = self.session.load_all_equipments()
     # Also load magic items (magic armor, shields, accessories)
     magic_items = self.session.load_all_magic_items() if hasattr(self.session, 'load_all_magic_items') else {}
     # Merge: magic items override base equipment for same keys
@@ -1351,6 +1366,15 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     racial_languages = self.race_properties.get('languages', [])
 
     return sorted(set(super().languages() + class_languages + racial_languages))
+
+  def languages_understood(self):
+    class_languages = []
+    for prop in self.class_properties.values():
+      class_languages += prop.get('languages', [])
+
+    racial_languages = self.race_properties.get('languages', [])
+
+    return sorted(set(super().languages_understood() + class_languages + racial_languages))
   
   def passive_investigation(self):
     return 10 + self.int_mod() + self.investigation_proficiency()
@@ -1412,7 +1436,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
 
   # ── Journal ────────────────────────────────────────────────────────────
   def add_journal_entry(self, text, kind='note', title=None, source=None,
-                        map_name=None, tags=None, timestamp=None):
+                        map_name=None, tags=None, timestamp=None, read=None,
+                        seed_id=None):
     """Append an entry to this character's journal.
 
     Returns the stored entry dict. ``kind`` is a free-form category such as
@@ -1434,6 +1459,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           and last.get('text') == text
           and last.get('source') == source):
         return last
+    if read is None:
+      read = kind in ('note', 'chat') and source not in (
+        None, 'character_yaml', 'npc_yaml', 'narration',
+      )
     entry = {
       'id': str(uuid.uuid4()),
       'ts': timestamp or datetime.now(timezone.utc).isoformat(),
@@ -1443,9 +1472,79 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       'source': source,
       'map_name': map_name,
       'tags': list(tags) if tags else [],
+      'read': bool(read),
     }
+    if seed_id:
+      entry['seed_id'] = seed_id
     self.journal.append(entry)
     return entry
+
+  @staticmethod
+  def journal_entry_is_read(entry):
+    if not isinstance(entry, dict):
+      return True
+    return entry.get('read', True)
+
+  def unread_journal_count(self):
+    return sum(
+      1 for entry in (self.journal or [])
+      if not self.journal_entry_is_read(entry)
+    )
+
+  def mark_journal_read(self, entry_ids=None):
+    """Mark journal entries read. Returns the number newly marked."""
+    if not isinstance(self.journal, list):
+      return 0
+    targets = set(entry_ids) if entry_ids else None
+    marked = 0
+    for entry in self.journal:
+      if targets is not None and entry.get('id') not in targets:
+        continue
+      if not self.journal_entry_is_read(entry):
+        entry['read'] = True
+        marked += 1
+    return marked
+
+  def seed_initial_journal_from_properties(self):
+    """Append YAML-defined journal entries once per seed id."""
+    raw = self.properties.get('journal') or self.properties.get('initial_journal')
+    if not raw:
+      return []
+    if not isinstance(raw, list):
+      raw = [raw]
+    existing_seeds = {
+      entry.get('seed_id') for entry in (self.journal or []) if entry.get('seed_id')
+    }
+    added = []
+    for idx, item in enumerate(raw):
+      if isinstance(item, str):
+        item = {'text': item, 'kind': 'quest'}
+      if not isinstance(item, dict):
+        continue
+      text = str(item.get('text') or '').strip()
+      if not text:
+        continue
+      seed_id = item.get('seed_id') or item.get('seed') or item.get('id') or f'yaml:{idx}'
+      if seed_id in existing_seeds:
+        continue
+      tags = list(item.get('tags') or [])
+      if 'hook' not in tags:
+        tags.append('hook')
+      entry = self.add_journal_entry(
+        text,
+        kind=item.get('kind') or 'quest',
+        title=item.get('title'),
+        source=item.get('source') or 'character_yaml',
+        map_name=item.get('map_name'),
+        tags=tags,
+        timestamp=item.get('ts'),
+        read=item.get('read', False),
+        seed_id=seed_id,
+      )
+      if entry:
+        added.append(entry)
+        existing_seeds.add(seed_id)
+    return added
 
   def search_journal(self, query=None, kind=None, limit=None):
     """Return journal entries matching ``query`` (case-insensitive
@@ -1599,6 +1698,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       player_character.attributes['hp'] = data['hp']
     if data.get('npc_actions'):
       player_character.npc_actions = data['npc_actions']
-    if data.get('journal'):
-      player_character.journal = list(data['journal'])
+    if data.get('journal') is not None:
+      player_character.journal = list(data['journal'] or [])
+    else:
+      player_character.journal = []
+    player_character.seed_initial_journal_from_properties()
     return player_character

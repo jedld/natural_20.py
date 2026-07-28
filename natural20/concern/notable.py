@@ -1,12 +1,22 @@
 import pdb
 
+from natural20.utils.outward_appearance import explicit_outward_appearance
+
+
 class Notable:
 
+    def _appearance_perception_entries(self):
+        """Surface authored outward appearance when a character actively Looks."""
+        text = explicit_outward_appearance(getattr(self, 'properties', {}))
+        if not text:
+            return []
+        return [{'note': text, 'perception_dc': 0}]
+
     def has_notes(self):
-        return "notes" in self.properties
+        return bool(self.properties.get("notes")) or bool(self._appearance_perception_entries())
 
     def list_notes(self, entity=None, perception=None, entity_pov=None, highlight=False):
-        notes = self.properties.get("notes", [])
+        notes = list(self.properties.get("notes", [])) + self._appearance_perception_entries()
         result_notes = []
         new_note_source = {}
 
@@ -22,7 +32,11 @@ class Notable:
             # Handle skill-based notes (investigation, medicine)
             # Check if any required skill checks fail
             skill_check_failed = False
-            for skill in ['investigation', 'medicine', 'nature']:
+            skill_dc_keys = (
+                'investigation', 'medicine', 'nature',
+                'insight', 'religion', 'arcana',
+            )
+            for skill in skill_dc_keys:
                 dc_key = f"{skill}_dc"
                 if dc_key in note:
                     dc_value = note.get(dc_key, 0)
@@ -33,12 +47,20 @@ class Notable:
                         for e in entity_pov:
                             if e in self.check_results:
                                 check_value = self.check_results[e].get(f"{skill}_check")
-                                if check_value is not None and check_value >= dc_value:
-                                    new_note_source[e] = check_value
-                                    note_json["note"] = self.t(f"{skill}.passed", 
-                                                              dc=dc_value, 
-                                                              note=note_json["note"])
-                                    success = True
+                                if check_value is not None:
+                                    rolled = (
+                                        check_value.result()
+                                        if hasattr(check_value, 'result')
+                                        else check_value
+                                    )
+                                    if rolled >= dc_value:
+                                        new_note_source[e] = rolled
+                                        note_json["note"] = self.t(
+                                            f"{skill}.passed",
+                                            dc=dc_value,
+                                            note=note_json["note"],
+                                        )
+                                        success = True
                     else:
                         skill_check_failed = True
 

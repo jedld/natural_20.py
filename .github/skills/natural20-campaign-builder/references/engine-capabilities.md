@@ -20,7 +20,8 @@ Supported map features include:
 - named and player-agnostic spawn points;
 - static lights, object lights, fog/effects, point-fire visuals, map-entry narration, and area narration;
 - multi-map links through teleporters and trap doors;
-- concealed/secret objects, passive discovery, notes, investigation checks, and interaction buttons.
+- concealed/secret objects, passive discovery, notes, investigation checks, and interaction buttons;
+- **map Chest containers** with `inventory` (open bar stock, locked till safes) and **NPC-only `annotations`** on objects (see [npc-containers-and-annotations.md](./npc-containers-and-annotations.md)).
 
 Validate map strings carefully: layer tokens are individual characters. Use `map.entities` for named/multi-character tokens.
 

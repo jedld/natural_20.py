@@ -64,6 +64,56 @@
       "file": "characters/ddb-999001.png",
       "description": "ddb-999001",
       "sheet": "characters/DDB_Import_5a694395.yml"
+    },
+    {
+      "name": "wizard_l5_9fe1a255",
+      "file": "characters/wizard_l5_9fe1a255.png",
+      "description": "A newly forged human wizard."
+    },
+    {
+      "name": "cleric_l5_09247ec3",
+      "file": "characters/cleric_l5_09247ec3.png",
+      "description": "A newly forged human cleric."
+    },
+    {
+      "name": "wizard_l5_9c389bbd",
+      "file": "characters/wizard_l5_9c389bbd.png",
+      "description": "A newly forged human wizard."
+    },
+    {
+      "name": "wizard_l5_c19a965c",
+      "file": "characters/wizard_l5_c19a965c.png",
+      "description": "A newly forged human wizard."
+    },
+    {
+      "name": "cleric_l5_67ebcf15",
+      "file": "characters/cleric_l5_67ebcf15.png",
+      "description": "A newly forged human cleric."
+    },
+    {
+      "name": "wizard_l5_30517fdd",
+      "file": "characters/wizard_l5_30517fdd.png",
+      "description": "A newly forged human wizard."
+    },
+    {
+      "name": "wizard_l5_584acd00",
+      "file": "characters/wizard_l5_584acd00.png",
+      "description": "A newly forged human wizard."
+    },
+    {
+      "name": "cleric_l5_16790d62",
+      "file": "characters/cleric_l5_16790d62.png",
+      "description": "A newly forged human cleric."
+    },
+    {
+      "name": "wizard_l5_5cb874ec",
+      "file": "characters/wizard_l5_5cb874ec.png",
+      "description": "A newly forged human wizard."
+    },
+    {
+      "name": "cleric_l5_60e79179",
+      "file": "characters/cleric_l5_60e79179.png",
+      "description": "A newly forged human cleric."
     }
   ],
   "logins": [

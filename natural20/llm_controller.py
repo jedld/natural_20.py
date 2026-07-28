@@ -442,6 +442,44 @@ class LlmMcpController(GenericController):
 
 		return group_code, team_labels.get(group_code, f'Group {str(group_code).upper()}')
 
+	def _faction_is_neutral(self, group) -> bool:
+		if not group:
+			return True
+		info = (self.session.groups() or {}).get(group) or {}
+		return not info.get('enemies')
+
+	def _is_town_guard(self, entity) -> bool:
+		npc_type = str(getattr(entity, 'npc_type', '') or '').lower()
+		entity_uid = str(getattr(entity, 'entity_uid', '') or '').lower()
+		props = getattr(entity, 'properties', None) or {}
+		kind = str(props.get('kind', '') or '').lower()
+		return 'guard' in npc_type or 'guard' in entity_uid or kind == 'guard'
+
+	def _combat_instructions_for(self, entity, my_group) -> str:
+		if self._is_town_guard(entity):
+			return (
+				"You are a town guard caught in a violent encounter. Protect civilians and lawful "
+				"adventurers; engage obvious criminals and hostile intruders when you can do so safely. "
+				"Do not help outlaws or monsters harass townsfolk. "
+				"Only pick from the provided actions."
+			)
+		if self._faction_is_neutral(my_group) or (callable(getattr(entity, 'passive', None)) and entity.passive()):
+			return (
+				"You are a civilian caught in violence you did not start. Prioritize survival: move away "
+				"from danger, take cover, disengage, dodge, or hide. Do NOT attack unless you have no "
+				"escape and must defend yourself. Do not aid either side's attackers. "
+				"Only pick from the provided actions."
+			)
+		return (
+			"You're an NPC tactician in a D&D-like tactical sim. Choose the single best action for this turn. "
+			"Guidelines: prefer lethal or high-impact attacks when safe; avoid provoking opportunity attacks unless payoff is high; "
+			"use movement to get line of sight or optimal range; conserve limited resources when impact is low; "
+			"if HP is low, favor defensive options like disengage/dodge/hide; maintain concentration on valuable effects. "
+			"NEVER cast healing spells on enemies—heal only allies or yourself. "
+			"Avoid non-combat interactions (looting, etc.) while enemies are present; focus on combat actions first. "
+			"Only pick from the provided actions."
+		)
+
 	def set_short_term_goal(self, entity, goal: str) -> None:
 		"""Set a short-term tactical goal for the entity."""
 		ctx = self._get_entity_context(entity)
@@ -1701,15 +1739,7 @@ class LlmMcpController(GenericController):
 		# Spell slot summary (levels with slots only)
 		slot_summary = self._spell_slots_summary(entity)
 
-		instructions = (
-			"You're an NPC tactician in a D&D-like tactical sim. Choose the single best action for this turn. "
-			"Guidelines: prefer lethal or high-impact attacks when safe; avoid provoking opportunity attacks unless payoff is high; "
-			"use movement to get line of sight or optimal range; conserve limited resources when impact is low; "
-			"if HP is low, favor defensive options like disengage/dodge/hide; maintain concentration on valuable effects. "
-			"NEVER cast healing spells on enemies—heal only allies or yourself. "
-			"Avoid non-combat interactions (looting, etc.) while enemies are present; focus on combat actions first. "
-			"Only pick from the provided actions."
-		)
+		instructions = self._combat_instructions_for(entity, my_group)
 
 		parts = [
 			f"Map (visible):\n{map_text}\n",

@@ -455,7 +455,9 @@ See **`docs/WEBAPP_BLUEPRINTS.md`** for full architecture.
 
 ### New Campaigns
 - **`user_levels/wild_sheep_chase/`** — Full campaign with maps, NPCs, items
+- **`user_levels/owlbear_lair/`** — "The Owlbear of Thornhollow" — Frontier hunting expedition for levels 4-6. Features a town square, cave system with branching tunnels, a bandit encampment side-quest, and an owlbear matriarch boss fight with her cub. Includes capture-vs-kill moral choice mechanics.
 - **`docs/ADVENTURE_WILD_SHEEP_CHASE.md`** — Adventure documentation
+- **`docs/owlbear_lair_campaign.md`** — Complete campaign guide for "The Owlbear of Thornhollow" including map progression, NPC relationships, side encounters, treasure tables, and DM notes.
 
 ### Templates Added
 - Backgrounds: Acolyte, Charlatan, Criminal, Folk Hero, Guild Artisan, Hermit, Outlander, Sailor

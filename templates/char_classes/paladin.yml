@@ -21,6 +21,51 @@ available_skills:
 class_features:
 - divine_sense
 - lay_on_hands
+spellcasting_ability: charisma
+spell_list:
+  level_1:
+    - bless
+    - command
+    - cure_wounds
+    - detect_evil_and_good
+    - detect_magic
+    - divine_favor
+    - heroism
+    - protection_from_evil_and_good
+    - purify_food_and_drink
+    - shield_of_faith
+  level_2:
+    - aid
+    - find_steed
+    - lesser_restoration
+    - locate_object
+    - magic_weapon
+    - protection_from_poison
+    - zone_of_truth
+sacred_oaths:
+  oath_of_devotion:
+    level_3:
+      - channel_divinity
+      - sacred_weapon
+  oath_of_the_ancients:
+    level_3:
+      - channel_divinity
+      - nature's_wrath
+progression:
+  level_2:
+    class_features:
+      - fighting_style
+      - spellcasting
+  level_3:
+    class_features:
+      - divine_smite
+      - sacred_oath
+  level_4:
+    class_features:
+      - ability_score_improvement
+  level_5:
+    class_features:
+      - extra_attack
 proficiency_bonuses:
 - 2
 - 2

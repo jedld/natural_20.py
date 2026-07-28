@@ -1,0 +1,43 @@
+---
+kind: Test Wizard
+description: Fixture NPC spellcaster for spell-action tests.
+size: medium
+race:
+  - humanoid
+  - human
+alignment: neutral_evil
+default_ac: 12
+max_hp: 22
+hp_die: 4d8
+speed: 30
+passive_perception: 12
+token:
+  - W
+color: purple
+ability:
+  str: 9
+  dex: 14
+  con: 14
+  int: 16
+  wis: 12
+  cha: 10
+languages:
+  - common
+cr: 2
+xp: 200
+proficiency_bonus: 2
+prepared_spells:
+  - polymorph
+  - haste
+spell_slots:
+  "3": 2
+  "4": 1
+actions:
+  - name: Staff
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 4
+    damage: 4
+    damage_die: 1d6+2
+    damage_type: bludgeoning

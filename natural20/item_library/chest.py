@@ -88,6 +88,8 @@ class Chest(Object):
         self.state = 'closed'
 
     def token_image(self):
+        if self.properties.get('hide_map_token'):
+            return None
         if self.properties.get('token_image'):
             if self.opened():
                 return f"objects/{self.properties.get('token_image')}" + '_opened'

@@ -1,0 +1,8 @@
+include README.md LICENSE.md
+recursive-include templates *.yml *.yaml *.json *.md
+recursive-include templates/assets *
+recursive-include templates/char_classes *
+recursive-include templates/items *
+recursive-include templates/maps *
+recursive-include templates/npcs *
+recursive-include templates/characters *

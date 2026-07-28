@@ -13,9 +13,18 @@ SPEECH_MODE_ORDER = ['whisper', 'normal', 'shout']
 MAX_HEARING_MODIFIER = 20
 MIN_HEARING_MODIFIER = -10
 MENTION_PATTERN = re.compile(r'(?<!\w)@([A-Za-z0-9][A-Za-z0-9_-]*)')
-ACOUSTIC_WALL_PENALTY_FT = 20
-ACOUSTIC_CLOSED_DOOR_PENALTY_FT = 10
-ACOUSTIC_OPAQUE_OBJECT_PENALTY_FT = 5
+ACTION_TAG_PATTERN = re.compile(r'\[action:\s*([^\]]+)\]', re.IGNORECASE)
+ASTERISK_ACTION_PATTERN = re.compile(r'\*([^*]+)\*')
+SLASH_EMOTE_PATTERN = re.compile(r'^/(?:me|emote|action)\s+(.+)$', re.IGNORECASE | re.DOTALL)
+MARKDOWN_BOLD_PATTERN = re.compile(r'\*\*([^*]+)\*\*')
+MARKDOWN_EMPHASIS_PATTERN = re.compile(r'(?<!\*)\*([^*\n]+)\*(?!\*)')
+UNDERSCORE_EMPHASIS_PATTERN = re.compile(r'(?<!_)_([^_\n]+)_(?!_)')
+INLINE_CODE_PATTERN = re.compile(r'`([^`]+)`')
+ACOUSTIC_WALL_PENALTY_FT = 30
+ACOUSTIC_CLOSED_DOOR_PENALTY_FT = 20
+ACOUSTIC_OPAQUE_OBJECT_PENALTY_FT = 10
+ACOUSTIC_BLOCKED_LINE_PENALTY_FT = 45
+ACOUSTIC_BLOCKED_LINE_SUPPLEMENT_FT = 15
 
 
 def _safe_int(value, default=None):
@@ -48,6 +57,41 @@ def speech_distance_for(mode=None, distance_ft=None):
     return SPEECH_BASE_RANGES[normalize_speech_mode(mode=mode, distance_ft=distance_ft)]
 
 
+def strip_spoken_address_prefix(text):
+    """Remove leading 'Speaker to Target:' prefixes from NPC spoken lines."""
+    raw = str(text or '').strip()
+    if not raw:
+        return raw
+    match = re.match(
+        r'^(?:.+?\s+to\s+[^:]+:)\s*(?P<body>.+)$',
+        raw,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if not match:
+        return raw
+    body = (match.group('body') or '').strip()
+    if not body:
+        return raw
+    if len(body) >= 2 and body[0] == body[-1] and body[0] in '"\'':
+        body = body[1:-1].strip()
+    return body or raw
+
+
+def sanitize_spoken_text_for_tts(text):
+    """Strip markdown-style emphasis markers so TTS reads the words, not punctuation."""
+    raw = str(text or '').strip()
+    if not raw:
+        return raw
+
+    working = raw
+    working = MARKDOWN_BOLD_PATTERN.sub(r'\1', working)
+    working = MARKDOWN_EMPHASIS_PATTERN.sub(r'\1', working)
+    working = UNDERSCORE_EMPHASIS_PATTERN.sub(r'\1', working)
+    working = INLINE_CODE_PATTERN.sub(r'\1', working)
+    working = re.sub(r'\*+', '', working)
+    return ' '.join(working.split())
+
+
 def passive_perception_for(entity):
     if entity is None:
         return 10
@@ -70,6 +114,42 @@ def hearing_modifier_for(entity):
 
 def effective_hearing_distance(listener, base_distance):
     return max(0, speech_distance_for(distance_ft=base_distance) + hearing_modifier_for(listener))
+
+
+def parse_player_conversation_input(text):
+    """Split player chat into spoken dialogue and non-verbal action descriptions."""
+    raw = str(text or '').strip()
+    if not raw:
+        return {'spoken': '', 'actions': [], 'raw': ''}
+
+    actions = []
+    working = raw
+
+    def _collect_action_tag(match):
+        action = str(match.group(1) or '').strip()
+        if action:
+            actions.append(action)
+        return ' '
+
+    working = ACTION_TAG_PATTERN.sub(_collect_action_tag, working)
+
+    def _collect_asterisk_action(match):
+        action = str(match.group(1) or '').strip()
+        if action:
+            actions.append(action)
+        return ' '
+
+    working = ASTERISK_ACTION_PATTERN.sub(_collect_asterisk_action, working)
+
+    slash_match = SLASH_EMOTE_PATTERN.match(working.strip())
+    if slash_match:
+        action = str(slash_match.group(1) or '').strip()
+        if action:
+            actions.append(action)
+        working = ''
+
+    spoken = ' '.join(working.split()).strip()
+    return {'spoken': spoken, 'actions': actions, 'raw': raw}
 
 
 def entity_label(entity):
@@ -211,12 +291,29 @@ _acoustic_cache: dict = {}
 _ACOUSTIC_CACHE_MAX_SIZE = 256
 
 
+def _acoustic_line_blocked(battle_map, source_pos, listener_pos) -> bool:
+    if battle_map is None or source_pos is None or listener_pos is None:
+        return False
+    try:
+        result = battle_map.line_of_sight(
+            source_pos[0],
+            source_pos[1],
+            listener_pos[0],
+            listener_pos[1],
+            inclusive=False,
+        )
+        return result is None
+    except Exception:
+        return False
+
+
 def acoustic_profile(source, listener, battle_map):
     profile = {
         'penalty_ft': 0,
         'closed_doors': 0,
         'walls': 0,
         'opaque_objects': 0,
+        'line_blocked': False,
         'summary': '',
     }
 
@@ -281,6 +378,14 @@ def acoustic_profile(source, listener, battle_map):
                 profile['penalty_ft'] += ACOUSTIC_OPAQUE_OBJECT_PENALTY_FT
                 seen_objects.add(object_id)
 
+    if _acoustic_line_blocked(battle_map, source_pos, listener_pos):
+        if profile['penalty_ft'] <= 0:
+            profile['penalty_ft'] += ACOUSTIC_BLOCKED_LINE_PENALTY_FT
+            profile['line_blocked'] = True
+        else:
+            profile['penalty_ft'] += ACOUSTIC_BLOCKED_LINE_SUPPLEMENT_FT
+            profile['line_blocked'] = True
+
     parts = []
     if profile['closed_doors']:
         label = 'closed door' if profile['closed_doors'] == 1 else 'closed doors'
@@ -291,6 +396,8 @@ def acoustic_profile(source, listener, battle_map):
     if profile['opaque_objects']:
         label = 'opaque object' if profile['opaque_objects'] == 1 else 'opaque objects'
         parts.append(f"{profile['opaque_objects']} {label}")
+    if profile.get('line_blocked'):
+        parts.append('blocked acoustic line')
     profile['summary'] = ', '.join(parts)
 
     # Store in cache (evict oldest if full)
@@ -499,14 +606,16 @@ def format_entity_gear_for_conversation(entity, session):
 
 
 def delivered_conversations(source, message, battle_map, distance_ft=None, mode=None, targets=None, language='common'):
+    from natural20.utils.language_comprehension import comprehends_speech
+
+    session = getattr(source, 'session', None) or getattr(battle_map, 'session', None)
     delivered = []
     for audience_entry in audible_entities(source, battle_map, distance_ft=distance_ft, mode=mode):
         listener = audience_entry['entity']
-        listener_languages = getattr(listener, 'languages', lambda: [])() or []
-        if language not in listener_languages:
-            rendered_message = gibberish(message, language=language)
-        else:
+        if comprehends_speech(listener, language, source=source, session=session):
             rendered_message = message
+        else:
+            rendered_message = gibberish(message, language=language)
         delivered.append({
             'entity': listener,
             'message': rendered_message,

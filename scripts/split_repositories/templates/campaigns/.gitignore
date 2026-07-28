@@ -1,0 +1,8 @@
+saves/
+**/*.sqlite
+**/*.log
+.DS_Store
+__pycache__/
+
+# Git LFS pointer files only in git; blobs live on LFS server
+# (see .gitattributes)

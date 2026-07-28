@@ -338,8 +338,9 @@ The web application supports multiple LLM providers that can be configured using
 3. **Start the application:**
    ```bash
    cd webapp
-   python -m flask run
+   ./start_web.sh ../user_levels/wild_sheep_chase
    ```
+   `start_web.sh` passes `--exclude-patterns` so autosave/session files under `webapp/saves/` do not restart the dev server. If you use `flask run` directly, add the same flag (see `webapp/env.example`).
 
 ### running using gunicorn in production mode
 

@@ -35,6 +35,22 @@ progression:
     class_features:
       - wild_shape
       - druid_circle
+  level_3:
+    class_features:
+      - wild_shape_improvement
+  level_4:
+    class_features:
+      - ability_score_improvement
+  level_5:
+druid_circles:
+  circle_of_the_land:
+    level_2:
+      - bonus_cantrip
+      - natural_recovery
+  circle_of_the_moon:
+    level_2:
+      - combat_wild_shape
+      - circle_forms
 spellcasting_ability: wisdom
 spell_list:
   cantrip:

@@ -6,9 +6,9 @@ weapon_proficiencies:
 - sling
 - quarterstaff
 - light_crossbow
-saving_throw_proficiency:
-- con
-- cha
+saving_throw_proficiencies:
+  - constitution
+  - charisma
 available_skills_choices: 2
 available_skills:
   - arcana
@@ -57,6 +57,27 @@ spell_list:
     - misty_step
 class_features:
   - font_of_magic
+sorcerous_origins:
+  draconic_bloodline:
+    level_1:
+      - draconic_resilience
+  wild_magic:
+    level_1:
+      - wild_magic_surge
+      - tides_of_chaos
+progression:
+  level_2:
+    class_features:
+      - font_of_magic
+  level_3:
+    class_features:
+      - metamagic
+  level_4:
+    class_features:
+      - ability_score_improvement
+  level_5:
+    class_features:
+      - metamagic
 proficiency_bonuses:
 - 2
 - 2

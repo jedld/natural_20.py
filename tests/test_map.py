@@ -14,6 +14,43 @@ class TestMap(unittest.TestCase):
         self.assertEqual(len(battle_map.entities), 0)
         self.assertEqual(battle_map.size, [4, 4])
 
+    def test_place_object_reports_map_entity_and_bounds(self):
+        session = Session(root_path='tests/fixtures')
+        try:
+            Map(
+                session,
+                None,
+                name='bounds_test',
+                properties={
+                    'name': 'Bounds Test',
+                    'map': {
+                        'size': [4, 4],
+                        'base': ['....'] * 4,
+                        'entities': [{
+                            'token': 'TP',
+                            'layer': 'object',
+                            'pos': [5, 1],
+                        }],
+                    },
+                    'legend': {
+                        'TP': {
+                            'name': 'bad_teleporter',
+                            'type': 'teleporter',
+                            'entity_uid': 'bad_teleporter',
+                        },
+                    },
+                },
+            )
+        except ValueError as exc:
+            message = str(exc)
+        else:
+            self.fail('expected ValueError for out-of-bounds placement')
+
+        self.assertIn('bounds_test', message)
+        self.assertIn('bad_teleporter', message)
+        self.assertIn('(5, 1)', message)
+        self.assertIn('map.entities', message)
+
     def test_controller(self):
         session = Session(root_path='tests/fixtures')
         session.render_for_text = False

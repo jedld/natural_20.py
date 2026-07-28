@@ -1,6 +1,7 @@
 import yaml
 import os
 from collections import deque
+from natural20.yaml_loader import load_campaign_resource_path, load_campaign_yaml, load_yaml
 from natural20.npc import Npc
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
@@ -49,8 +50,7 @@ class Session:
         i18n.set('filename_format', '{locale}.{format}')
         game_file = os.path.join(self.root_path, 'game.yml')
         if os.path.exists(game_file):
-            with open(game_file, 'r') as f:
-                self.game_properties = yaml.safe_load(f)
+            self.game_properties = load_yaml(game_file, campaign_root=self.root_path)
         else:
             raise Exception(f'Missing game {game_file} file')
         self._load_all_maps(self.game_properties)
@@ -179,7 +179,12 @@ class Session:
 
         map_with_key = game_file.get('maps', {})
         for name, map_file in map_with_key.items():
-            self.maps[name] = Map(self, map_file, name=name)
+            try:
+                self.maps[name] = Map(self, map_file, name=name)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Failed to load map {name!r} from {map_file!r}: {exc}"
+                ) from exc
 
         # add links to the other maps
         for _, map_obj in self.maps.items():
@@ -251,9 +256,9 @@ class Session:
         characters = []
         for file in files:
             if file.endswith('.yml'):
-                with open(os.path.join(self.root_path, 'characters', file), 'r') as f:
-                    char_content = yaml.safe_load(f)
-                    characters.append(PlayerCharacter(self, char_content))
+                char_path = os.path.join(self.root_path, 'characters', file)
+                char_content = load_yaml(char_path, campaign_root=self.root_path)
+                characters.append(PlayerCharacter(self, char_content))
         return characters
 
     def save_state(self, state_type, value=None):
@@ -353,13 +358,12 @@ class Session:
         for file in files:
             if file.endswith('.yml'):
                 npc_name = os.path.splitext(file)[0]
-                with open(os.path.join(self.root_path, 'npcs', file), 'r') as f:
-                    npc_details = yaml.safe_load(f)
-                    if familiar:
-                        if not npc_details.get('familiar', False):
-                            continue
+                npc_details = load_campaign_resource_path(self.root_path, f"npcs/{file}")
+                if familiar:
+                    if not npc_details.get('familiar', False):
+                        continue
 
-                    npc_info[npc_name] = {**npc_details, 'id': npc_name, 'label': npc_details.get('label', npc_name)}
+                npc_info[npc_name] = {**npc_details, 'id': npc_name, 'label': npc_details.get('label', npc_name)}
         return npc_info
 
     def load_races(self):
@@ -368,8 +372,9 @@ class Session:
         for file in files:
             if file.endswith('.yml'):
                 race_name = os.path.splitext(file)[0]
-                with open(os.path.join(self.root_path, 'races', file), 'r') as f:
-                    races[race_name] = yaml.safe_load(f)
+                races[race_name] = load_campaign_resource_path(
+                    self.root_path, f"races/{file}"
+                )
         return races
 
     def load_classes(self):
@@ -378,8 +383,9 @@ class Session:
         for file in files:
             if file.endswith('.yml'):
                 class_name = os.path.splitext(file)[0]
-                with open(os.path.join(self.root_path, 'char_classes', file), 'r') as f:
-                    classes[class_name] = yaml.safe_load(f)
+                classes[class_name] = load_campaign_resource_path(
+                    self.root_path, f"char_classes/{file}"
+                )
         return classes
 
     def load_spell(self, spell):
@@ -490,15 +496,17 @@ class Session:
         for file in os.listdir(backgrounds_dir):
             if file.endswith('.yml'):
                 background_name = os.path.splitext(file)[0]
-                with open(os.path.join(backgrounds_dir, file), 'r') as f:
-                    backgrounds[background_name] = yaml.safe_load(f)
+                backgrounds[background_name] = load_campaign_resource_path(
+                    self.root_path, f"backgrounds/{file}"
+                )
         return backgrounds
 
     def load_object(self, object_name):
-        if object_name not in self.objects:
+        if object_name not in self.objects or self.objects.get(object_name) is None:
             objects = self.load_yaml_file('items', 'objects')
-            self.objects[object_name] = objects.get(object_name)
-            assert self.objects[object_name], f'Object {object_name} not found'
+            found = objects.get(object_name)
+            assert found, f'Object {object_name} not found'
+            self.objects[object_name] = found
         return deepcopy(self.objects[object_name])
 
     def get_object_prototype(self, object_name):
@@ -518,9 +526,7 @@ class Session:
         return i18n.t(token, **options)
 
     def load_yaml_file(self, category, resource):
-        file_path = os.path.join(self.root_path, category, f'{resource}.yml')
-        with open(file_path, 'r') as f:
-            return yaml.safe_load(f)
+        return load_campaign_yaml(self.root_path, category, resource)
 
     def update_state(self, state):
         self.session_state.update(state)

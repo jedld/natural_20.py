@@ -16,6 +16,8 @@ title_color: red
 description: A sample hardcore dungeon crawl with a party of 3 (DnD 5th Edition rules)
 author: Joseph Emmanuel Dayo
 players: 3
+# NPC voice delivery for all players: async | stream | manual (see docs/TTS_DELIVERY.md)
+# tts_delivery: async
 starting_map: maps/goblin_cave.yml
 player_profiles: characters
 groups:

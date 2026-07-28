@@ -11,6 +11,7 @@ from natural20.utils.action_builder import autobuild
 from natural20.actions.interact_action import InteractAction
 from natural20.concern.event_loader import EventLoader
 from natural20.concern.container import Container
+from natural20.concern.annotatable import Annotatable
 import uuid
 import pdb
 
@@ -25,7 +26,7 @@ class InvalidInteractionAction(Exception):
 
 
 @dataclass
-class Object(Entity, Container, EventLoader):
+class Object(Entity, Container, EventLoader, Annotatable):
     def __init__(self, session, map: Any, properties: Dict[str, Any]) -> None:
         Entity.__init__(self, properties.get('name'), properties.get('description', ''), properties)
         self.entity_uid = properties.get('entity_uid', str(uuid.uuid4()))
@@ -194,6 +195,8 @@ class Object(Entity, Container, EventLoader):
         return self.properties.get('token')
     
     def token_image(self):
+        if self.properties.get('hide_map_token'):
+            return None
         if self.properties.get('token_image'):
             return f"objects/{self.properties.get('token_image')}"
         return None

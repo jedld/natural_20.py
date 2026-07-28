@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "n20-webapp"
+version = "0.1.0"
+description = "Natural 20 Flask VTT frontend"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "natural20>=0.1.0",
+    "flask",
+    "flask-session",
+    "flask-socketio",
+    "flask-cors",
+    "flask-compress",
+    "gunicorn",
+    "eventlet",
+    "pillow",
+    "openai",
+    "httpx>=0.27.0",
+    "requests>=2.31.0",
+    "python-dotenv",
+    "mutagen",
+    "pandas",
+    "openpyxl",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-xdist",
+]
+
+[tool.setuptools]
+packages = []

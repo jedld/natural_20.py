@@ -6,9 +6,9 @@ weapon_proficiencies:
 - sling
 - quarterstaff
 - light_crossbow
-saving_throw_proficiency:
-- int
-- wis
+saving_throw_proficiencies:
+  - intelligence
+  - wisdom
 available_skills_choices: 2
 available_skills:
   - arcana
@@ -69,11 +69,24 @@ spell_list:
     - witch_bolt
   level_2:
     - misty_step
+    - mirror_image
+    - scorching_ray
+    - web
+  level_3:
+    - counterspell
+    - fireball
+    - fly
 progression:
   level_1:
     class_features:
       - spellcasting
       - arcane_recovery
+  level_2:
+    class_features:
+      - arcane_tradition
+  level_4:
+    class_features:
+      - ability_score_improvement
   level_18:
     class_features:
       - spell_mastery
@@ -91,6 +104,16 @@ arcane_tradition_features:
       - improved_abjuration
     level_14:
       - spell_resistance
+  school_of_evocation:
+    level_2:
+      - evocation_savant
+      - sculpt_spells
+    level_6:
+      - potent_cantrip
+    level_10:
+      - empowered_evocation
+    level_14:
+      - overchannel
 proficiency_bonuses:
 - 2
 - 2

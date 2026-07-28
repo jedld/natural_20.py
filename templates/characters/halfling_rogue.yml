@@ -6,6 +6,7 @@ pronoun: he/him/his
 classes:
   rogue: 2
 description: A halfling rogue with a dark past
+outward_appearance: A wiry lightfoot halfling in patched leather, with quick eyes and a ready grin.
 level: 2
 hit_die: inherit
 max_hp: 16

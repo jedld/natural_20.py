@@ -1,0 +1,45 @@
+# Example: townsfolk NPC YAML + map legend (reference only — copy patterns, not verbatim prose)
+
+# --- npcs/mara_bartender.yml ---
+---
+kind: Mara
+description: >
+  Stout human bartender with rolled sleeves and a no-nonsense smile.
+portrait_scene: tavern
+size: medium
+race: [human]
+alignment: neutral_good
+default_ac: 10
+max_hp: 11
+hp_die: 2d8+2
+speed: 30
+passive_perception: 11
+token: [MB]
+color: brown
+ability: { str: 12, dex: 10, con: 12, int: 11, wis: 13, cha: 14 }
+languages: [common]
+cr: 0
+xp: 0
+proficiency_bonus: 2
+actions: []
+
+# --- maps/hub_tavern.yml (excerpt) ---
+# map:
+#   entities:
+#     - token: MB
+#       pos: [8, 17]
+# legend:
+#   MB:
+#     name: Mara
+#     type: npc
+#     sub_type: mara_bartender
+#     group: c
+#     overrides:
+#       entity_uid: mara_bartender
+#       label: Mara (Bartender)
+#       passive: true
+#       dialog: true
+#       conversation_handler: llm
+#       backstory: |
+#         You are Mara, tavern keeper. Share gossip about local threats.
+#         During fights, stay behind the bar.

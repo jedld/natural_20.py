@@ -20,11 +20,28 @@ available_skills:
 class_features:
 - rage
 - unarmored_defense_barbarian
+primal_paths:
+  path_of_the_berserker:
+    level_3:
+      - frenzy
+  path_of_the_totem_warrior:
+    level_3:
+      - spirit_seeker
 progression:
   level_2:
     class_features:
       - reckless_attack
       - danger_sense
+  level_3:
+    class_features:
+      - primal_path
+  level_4:
+    class_features:
+      - ability_score_improvement
+  level_5:
+    class_features:
+      - extra_attack
+      - fast_movement
 proficiency_bonuses:
 - 2
 - 2

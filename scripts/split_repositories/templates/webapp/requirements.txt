@@ -1,0 +1,19 @@
+# Install natural20 from your engine checkout or PyPI before pip install -r requirements.txt
+#   pip install -e ../natural_20.py
+flask
+flask-session
+flask-socketio
+flask-cors
+flask-compress
+gunicorn
+eventlet
+pillow
+openai
+httpx>=0.27.0
+requests>=2.31.0
+python-dotenv
+mutagen
+pandas
+openpyxl
+pytest
+pytest-xdist

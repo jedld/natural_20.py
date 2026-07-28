@@ -2,6 +2,7 @@ from natural20.event_manager import EventManager
 from natural20.map import Map
 from natural20.player_character import PlayerCharacter
 from natural20.session import Session
+from natural20.web.web_controller import WebController
 
 
 class DummySocket:
@@ -71,6 +72,44 @@ def test_build_combat_controller_for_npc_uses_llm_when_flag_on(monkeypatch):
     controller = game.build_combat_controller_for_entity(npc)
 
     assert isinstance(controller, FakeLlmController)
+
+
+def test_build_combat_controller_for_pc_uses_web_controller_when_unregistered():
+    game = make_game_management(force_llm_npc_combat=False, npc_controller='ai')
+    fighter = PlayerCharacter.load(game.game_session, 'high_elf_fighter.yml')
+    game.controllers = [{
+        'entity_uid': fighter.entity_uid,
+        'controllers': ['alice'],
+    }]
+
+    controller = game.build_combat_controller_for_entity(fighter)
+
+    assert isinstance(controller, WebController)
+    assert 'alice' in controller.get_users()
+    assert game.get_controller_for_entity(fighter) is controller
+
+
+def test_build_combat_controller_for_pc_honors_explicit_ai_kind():
+    game = make_game_management(force_llm_npc_combat=False, npc_controller='ai')
+    fighter = PlayerCharacter.load(game.game_session, 'high_elf_fighter.yml')
+
+    from natural20.generic_controller import GenericController
+
+    controller = game.build_combat_controller_for_entity(fighter, controller_kind='ai')
+
+    assert isinstance(controller, GenericController)
+
+
+def test_get_controller_for_entity_matches_by_uid_after_reload():
+    game = make_game_management(force_llm_npc_combat=False, npc_controller='ai')
+    fighter = PlayerCharacter.load(game.game_session, 'high_elf_fighter.yml', override={'entity_uid': 'gomerin'})
+    reloaded = PlayerCharacter.load(game.game_session, 'high_elf_fighter.yml', override={'entity_uid': 'gomerin'})
+    game.web_controllers[fighter] = WebController(game.game_session, None)
+
+    controller = game.get_controller_for_entity(reloaded)
+
+    assert isinstance(controller, WebController)
+    assert game.web_controllers.get(reloaded) is controller
 
 
 def test_entity_owners_uses_entity_uid_when_owner_is_none():

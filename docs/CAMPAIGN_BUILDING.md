@@ -35,6 +35,7 @@ for the Natural20 D&D simulation engine.
 11. [Groups & Factions](#groups--factions)
 12. [Multi-Map Campaigns](#multi-map-campaigns)
 13. [Complete Example](#complete-example)
+14. [Procedural Dungeons](#procedural-dungeons)
 
 ---
 
@@ -42,7 +43,13 @@ for the Natural20 D&D simulation engine.
 
 A campaign is a directory that mirrors the `templates/` layout. The engine
 resolves resources by first checking the campaign directory and then falling
-back to `templates/`.
+back to `templates/`. Item catalogues (`weapons`, `equipment`, `magic_items`,
+`objects`, `spells`, `equipment_packs`) are **automatically merged** with the
+bundled templates when a campaign file exists without an explicit `inherit`
+directive — campaign keys override template keys.
+
+See [YAML Template Inheritance](#yaml-template-inheritance) for explicit
+inheritance and per-entry overrides.
 
 ```
 my_campaign/
@@ -79,6 +86,70 @@ my_campaign/
     └── en.yml
 ```
 
+## YAML Template Inheritance
+
+Campaign YAML files can inherit from the bundled `templates/` folder or from
+any other YAML file on disk. This avoids copying large SRD catalogues into
+every campaign.
+
+### File-level inheritance
+
+Add an `inherit` key (aliases: `$inherit`, `extends`, `$extends`) at the top of
+a YAML file. The value may be a single path or a list of paths processed in
+order; the current file is merged on top (child wins on conflicts).
+
+```yaml
+# user_levels/my_campaign/items/equipment.yml
+inherit: templates/items/equipment.yml
+
+investigators_badge:
+  name: Investigator's Badge
+  type: gear
+  weight: 0.1
+```
+
+Path resolution (first match wins):
+
+| Form | Resolves to |
+|------|-------------|
+| `templates/items/equipment.yml` | Bundled templates folder |
+| `@templates/items/equipment.yml` | Same as above |
+| `./relative.yml` | Relative to the current file |
+| `/absolute/path.yml` | Absolute path |
+
+When `inherit` is present, **automatic template merging is disabled** for that
+file — the inherit chain is authoritative.
+
+### Automatic template merge (item catalogues)
+
+For `items/{weapons,equipment,magic_items,objects,spells,equipment_packs}.yml`,
+if the campaign file exists **without** `inherit`, the engine deep-merges the
+bundled template catalogue and then the campaign file. Campaign-only keys are
+added; overlapping keys use the campaign value.
+
+You can omit a catalogue file entirely and the bundled template version is used.
+
+### Entry-level inheritance
+
+Within a mapping resource, an entry may inherit another entry by key:
+
+```yaml
+holy_symbol:
+  name: Holy Symbol
+  type: trinket
+  weight: 1
+
+investigators_badge:
+  inherit: holy_symbol
+  name: Investigator's Badge
+```
+
+### NPCs, races, classes, backgrounds, maps
+
+Individual resource files under `npcs/`, `races/`, `char_classes/`,
+`backgrounds/`, and `maps/` also support `inherit` and fall back to the
+bundled template file when the campaign copy is missing.
+
 ### Running a Campaign
 
 ```bash
@@ -104,15 +175,27 @@ campaign from a description, outline, or user-provided source.
 Validate a campaign from the repository root before launching it:
 
 ```bash
-python .github/skills/natural20-campaign-builder/scripts/validate_campaign.py \
-  user_levels/my_campaign
+python scripts/validate_campaign.py user_levels/my_campaign
 ```
 
-The validator checks configuration and map references, resource and asset
-paths, coordinates, teleporters, and then loads the campaign through
-`Session`. It reports optional missing assets as warnings and exits nonzero for
-errors. Use `--static-only` while scaffolding and `--verbose` to show an engine
-load traceback.
+The validator checks YAML syntax and formatting, configuration and map
+references, item/NPC/spell/object definitions (campaign plus bundled
+`templates/`), resource and asset paths, coordinates, teleporters, and then
+loads the campaign through `Session`. It reports optional missing assets as
+warnings and exits nonzero for errors.
+
+Options:
+
+- `--static-only` — skip engine `Session` load while scaffolding
+- `--verbose` — show engine-load traceback
+- `--json` — machine-readable report
+- `--repair` — propose automated fixes (dry-run by default)
+- `--repair --apply` — write fixes with backups under `.campaign_validator_backups/`
+- `--no-llm` — deterministic stub/typo repairs only
+
+The legacy skill wrapper at
+`.github/skills/natural20-campaign-builder/scripts/validate_campaign.py`
+delegates to the same tool.
 
 ---
 
@@ -185,6 +268,56 @@ progression:
     first_boss_defeated:
       label: First Boss Defeated
       levels: 1
+
+# Optional day/night cycle (derived from monotonic game_time in seconds)
+time_of_day:
+  enabled: true
+  day_length_seconds: 86400      # one in-game day (use 1200 for fast testing)
+  start_at_seconds: 28800          # campaign begins at 08:00 on day 1
+  phases:
+    - id: night
+      label: Night
+      from_hour: 0
+      to_hour: 5
+      illumination: 0.12
+      background_key: night
+      is_night: true
+    - id: dawn
+      label: Dawn
+      from_hour: 5
+      to_hour: 7
+      illumination: 0.45
+      background_key: dawn
+    - id: morning
+      label: Morning
+      from_hour: 7
+      to_hour: 12
+      illumination: 0.95
+      background_key: day
+    - id: afternoon
+      label: Afternoon
+      from_hour: 12
+      to_hour: 17
+      illumination: 1.0
+      background_key: day
+    - id: dusk
+      label: Dusk
+      from_hour: 17
+      to_hour: 20
+      illumination: 0.5
+      background_key: dusk
+    - id: night
+      label: Night
+      from_hour: 20
+      to_hour: 24
+      illumination: 0.12
+      background_key: night
+      is_night: true
+
+# Optional: one LLM autonomous tick per dialog NPC after each out-of-combat
+# environment time advance (movement > goal > ambient routine).
+npc_environment_ticks:
+  enabled: true
 ```
 
 ### Group System
@@ -275,6 +408,8 @@ dimensions.
 | `character_selection_background` | string | Image for character selection |
 | `autosave` | bool | Enable automatic save |
 | `selectable_characters` | array | Characters players can pick at login |
+| `suppress_dialog_descriptions` | bool or `"player_characters"` | Hide entity descriptions in the JRPG talk panel and character sheet for non-DM players (mystery / spoiler-safe) |
+| `highlight_doors` | bool | Highlight visible door fixtures on the map with an amber overlay (player-facing UI) |
 | `soundtracks` | array | Background music tracks |
 | `logins` | array | User accounts (`role`: `"player"` or `"dm"`) |
 | `default_controllers` | array | Which users control which entities |
@@ -319,11 +454,41 @@ map:
 | `default_effect` | object | — | Persistent visual effect (see [Visual Effects](#visual-effects)) |
 | `point_fires` | array | — | Fire/candle particle emitters |
 | `narration` | object | — | Cinematic text overlay (see [Narration](#narration)) |
+| `default_soundtrack` | string | campaign `background` | Ambient track when no `music_zones` match |
+| `music_zones` | array | — | Rectangular regions that switch ambient music (see below) |
 | `map` | object | — | Map data (layers, entities, size, illumination) |
 | `legend` | object | — | Character → object/NPC mapping |
 | `lights` | object | — | Static light source definitions |
 | `triggers` | object | — | Area-wide triggers |
 | `extensions` | object | — | Web-specific extensions |
+
+### Location-based ambient music (`music_zones`)
+
+Register soundtrack tracks in `index.json` (`soundtracks` array), then define
+zones on a map. When a player character moves (or loads the map), the webapp
+switches to the matching track. Combat music still overrides zones while a
+battle is active.
+
+```yaml
+default_soundtrack: background
+
+music_zones:
+  - id: prancing_flagon
+    soundtrack: tavern_interior
+    priority: 10
+    bounds: {x1: 7, y1: 16, x2: 15, y2: 24}
+```
+
+| Field | Description |
+|---|---|
+| `id` | Optional slug for authoring reference |
+| `soundtrack` | Track `name` from `index.json` → `soundtracks` |
+| `bounds` | Inclusive tile rectangle (`x1`/`y1` top-left, `x2`/`y2` bottom-right) |
+| `priority` | Higher wins when zones overlap (default `0`) |
+
+Place MP3 files under `assets/sounds/` in the campaign folder. If a zone
+references a missing file, the track is skipped at load time and a warning is
+logged.
 
 ### Map Layers
 
@@ -383,6 +548,19 @@ map:
     - token: T1
       layer: object     # 'object' places on object layer
       pos: [0, 6]
+
+  # List-based placement for base / base_1 / base_2 / meta layers (editor-friendly).
+  # Works on top of the grid strings above: each entry is materialized onto its
+  # layer grid at load time. Edit mode prefers adding objects here (stable ids).
+  layer_placements:
+    - id: lp_base_1_water_pool    # stable handle for the map editor
+      layer: base_1               # base | base_1 | base_2 | meta
+      token: ^
+      pos: [2, 2]
+    - id: lp_meta_torch
+      layer: meta
+      token: T
+      pos: [4, 1]
 ```
 
 #### Hard-Coded Tokens (base layer)
@@ -495,6 +673,42 @@ legend:
 | 0.5 | Dim light | Disadvantage on Perception; darkvision helps |
 | < 0.5 | Heavily obscured | Hidden creatures can't be seen without darkvision |
 | 0.0 | Darkness | Total darkness; darkvision treats as dim light |
+
+#### Day/Night and Outdoor Tiles
+
+Campaign `time_of_day` in `game.yml` drives ambient light on **outdoor** tiles.
+Indoor tiles keep `map.illumination` as their base.
+
+Mark outdoor squares with an `outside` layer (`o` = outside, `.` = indoor/not
+affected). For fully outdoor maps use `outdoor: true` instead of a grid.
+
+```yaml
+map:
+  illumination: 0.85             # indoor base (taverns, covered stalls)
+  outdoor: false
+  outside:
+    - "oooooooooo"
+    - "oooooooooo"
+    - "..oooooo.."
+```
+
+Swap backgrounds by phase using `background_images` (keys match
+`time_of_day.phases[].background_key`, usually `day`, `night`, `dawn`, `dusk`):
+
+```yaml
+background_image: town_market_day.jpg
+background_images:
+  day: town_market_day.jpg
+  night: town_market_night.jpg
+  dawn: town_market_dawn.jpg
+  dusk: town_market_dusk.jpg
+```
+
+Legacy aliases `background_image_day` / `background_image_night` also work.
+
+DM controls: `POST /admin/time_of_day` with `{ "override_phase_id": "night" }`
+or `{ "clear_override": true }`. MCP: `dm.advance_time` plus the override
+endpoint above. NPC and DM LLM prompts receive the current clock and phase.
 
 ### Visual Effects
 
@@ -807,12 +1021,14 @@ legend:
 | `passive` | bool | Non-hostile; won't initiate combat |
 | `dialog` | bool | Entity can be talked to |
 | `backstory` | string | LLM backstory prompt for conversation |
+| `outward_appearance` | string | Optional. Physical description (body, face, clothing, notable worn items) for `[OBSERVE]`, Look/perception notes, and NPC self-knowledge in conversation prompts. When omitted, the server derives a short description from race, class, gear, and kind. |
 | `conversation_handler` | string | `"llm"` for AI dialog |
 | `conversation_buffer` | array | Pre-seeded conversation messages |
 | `backstory_buffer` | array | Messages to seed the LLM conversation context |
 | `converstation_keywords` | array | Keywords that trigger game state changes |
 | `statuses` | array | Initial status conditions (`hidden`, etc.) |
 | `hidden_stealth` | int | Stealth roll value if spawned hidden |
+| `merchant` | object | Shop config: `wares`, `buyback_rate`, `llm_pricing`. Opens the merchant trade UI on talk. See `docs/MERCHANT_TRADING.md`. |
 
 ### NPC Dialog & Conversation
 
@@ -858,6 +1074,25 @@ Your alignment is: {alignment}
 Player character sheets live in `characters/` and define a full D&D 5e
 character.
 
+### Initial journal entries
+
+PC YAML may include a `journal` (or `initial_journal`) list. Each item is
+either a string or an object with `title`, `text`, `kind` (default `quest`),
+optional `tags`, and optional `seed_id` for de-duplication across save/load.
+
+Entries are seeded once per `seed_id` and start **unread** so players get a
+notification. NPC YAML supports the same `journal` list; hooks are copied to a
+PC's journal the first time that PC talks to the NPC.
+
+```yaml
+journal:
+  - seed_id: opening_hook
+    title: Why You're Here
+    kind: quest
+    tags: [hook, opening]
+    text: Detective Jaro's summons brought you to the gate tonight.
+```
+
 ```yaml
 ---
 name: Crysania
@@ -867,6 +1102,7 @@ pronoun: she/her/hers
 classes:
   wizard: 2                          # class: level
 description: A high elf mage with a mysterious noble background
+outward_appearance: A pale high elf in fine but travel-stained robes, ink-stained fingers, and watchful violet eyes.
 level: 2
 xp: 300                               # Total campaign XP
 hit_die: inherit                     # Use class hit die
@@ -1132,7 +1368,24 @@ legend:
           map: dungeon_1
           target: hidden_door
           state: unsecret,opened
+
+  # Gate entry until session flags are set (e.g. investigation proofs)
+  T3:
+    name: cathedral_doors
+    type: teleporter
+    target_map: cathedral
+    target_position: [5, 5]
+    requires_session:
+      any_of: [manor_notes_found, sewer_symbol_found, prison_record_found, magical_proof_rose]
+      min_count: 2
+      bypass_any: [ophelia_invitation]
+      inventory_proofs: [black_rose_pin]
+    deny_message: "You need more proof before the doors will open."
+    deny_title: "Sealed"
 ```
+
+`requires_session` is checked in `Teleporter.on_enter` against `session.session_state`.
+Use `all_of` for every flag required, or `any_of` + `min_count`. `bypass_any` opens on a single flag (e.g. written invitation). `inventory_proofs` adds +1 toward `min_count` per carried item type. Legacy `visibility_flag: some_flag` is treated as `all_of: [some_flag]`.
 
 ### Switches
 
@@ -1321,10 +1574,26 @@ notes:
     perception_dc: 15              # Passive perception DC to discover
   - note: "The markings form a map to the treasure room"
     investigation_dc: 12           # Requires active investigation check
+  - note: "Holy symbols were filed off the altar face"
+    religion_dc: 14                # Requires Religion interact check on this object
+  - note: "Residual abjuration on the rose sigil"
+    arcana_dc: 13                  # Requires Arcana interact check
   - note: "A pit trap!"
     highlight: true                # Visual highlight on discovery
     image: pit_trap_image          # Image to display
 ```
+
+**NPC-only annotations** (separate from `notes`) are invisible to player characters but visible to NPCs in conversation `[OBSERVE]` / `[ANNOTATIONS]` when perception passes:
+
+```yaml
+annotations:
+  - text: "Key hangs on the third hook beneath the bar lip."
+    viewers: [mara_bartender, pip_barmaid]   # omit to allow any NPC
+```
+
+Allowed NPCs see annotations when the object is in line of sight (`[OBSERVE]`, Look, `[ANNOTATIONS]`). Use `perception_dc` on **`notes`**, not annotations, when PCs must roll to discover something.
+
+Use `notes` for clues PCs should discover; use `annotations` for staff knowledge (till codes, key locations, house procedures).
 
 ---
 
@@ -1670,3 +1939,19 @@ The following NPC types ship with the base templates (`templates/npcs/`):
 
 Campaigns can add custom NPCs by placing YAML files in their own `npcs/`
 directory.
+
+---
+
+## Procedural Dungeons
+
+For generated layouts (BSP, room graphs, cellular caves) with mission objective
+placement and quality gates, see **[DUNGEON_GENERATOR.md](DUNGEON_GENERATOR.md)**.
+
+```bash
+python scripts/generate_dungeon.py --theme sewer --seed 42 \
+  --objective relic:symbol:treasure:far \
+  -o maps/generated.yml --render assets/maps/generated.png
+```
+
+LLM/tool schema: `python scripts/generate_dungeon.py --print-schema`
+

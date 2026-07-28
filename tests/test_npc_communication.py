@@ -426,3 +426,90 @@ class TestEndToEndNpcCommunication:
         # NPC B should have the request as a memory note
         notes = controller.get_memory_notes_summary(npc_b)
         assert any('Flank the fighter' in n for n in notes)
+
+
+class TestConversationHistory:
+    def test_conversation_history_survives_map_move(self, battle_with_npcs):
+        battle, npc_a, _npc_b, fighter = battle_with_npcs
+        battle_map = battle.map_for(npc_a)
+
+        fighter.send_conversation(
+            "Pip, come over here.",
+            distance_ft=30,
+            targets=[npc_a],
+            language='common',
+        )
+        npc_a.send_conversation(
+            "Coming!",
+            distance_ft=30,
+            targets=[fighter],
+            language='common',
+            narrative=['She trots over eagerly.'],
+        )
+
+        assert len(npc_a.conversation_buffer) >= 2
+        battle_map.move_to(npc_a, 5, 2, battle)
+        assert len(npc_a.conversation_buffer) >= 2
+
+        history = npc_a.conversation_history(fighter)
+        messages = [entry['message'] for entry in history]
+        assert "Pip, come over here." in messages
+        assert "Coming!" in messages
+        assert any(entry.get('narrative') == ['She trots over eagerly.'] for entry in history)
+
+    def test_conversation_history_matches_entity_uids_after_reload(self, battle_with_npcs):
+        battle, npc_a, _npc_b, fighter = battle_with_npcs
+
+        fighter.send_conversation(
+            "Hello there.",
+            distance_ft=30,
+            targets=[npc_a],
+            language='common',
+        )
+
+        reloaded_fighter = battle.session.entity_by_uid(fighter.entity_uid)
+        history = npc_a.conversation_history(reloaded_fighter)
+        assert any(entry['message'] == "Hello there." for entry in history)
+        assert history[0]['type'] == 'player'
+
+    def test_conversation_history_filters_to_listener_only(self, battle_with_npcs):
+        battle, npc_a, npc_b, fighter = battle_with_npcs
+
+        fighter.send_conversation(
+            "Pip, come over here.",
+            distance_ft=30,
+            targets=[npc_a],
+            language='common',
+        )
+        npc_b.send_conversation(
+            "Hand over the sheep!",
+            distance_ft=30,
+            targets=[fighter],
+            language='common',
+        )
+        npc_a.send_conversation(
+            "Coming!",
+            distance_ft=30,
+            targets=[fighter],
+            language='common',
+        )
+
+        history = fighter.conversation_history(npc_a)
+        messages = [entry['message'] for entry in history]
+        assert "Pip, come over here." in messages
+        assert "Coming!" in messages
+        assert "Hand over the sheep!" not in messages
+
+    def test_conversation_history_excludes_overheard_npc_to_npc(self, battle_with_npcs):
+        battle, npc_a, npc_b, fighter = battle_with_npcs
+
+        npc_a.send_conversation(
+            "Between us only.",
+            distance_ft=30,
+            targets=[npc_b],
+            language='common',
+        )
+
+        history = fighter.conversation_history(npc_a)
+        messages = [entry['message'] for entry in history]
+        assert "Between us only." not in messages

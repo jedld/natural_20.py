@@ -68,3 +68,11 @@ class SpeakWithAnimalsScroll(Object):
             source=entity,
             target=entity,
         )
+        try:
+            from webapp.blueprints.helpers.runtime_state import get_conversation_service
+
+            service = get_conversation_service()
+            if service is not None:
+                service.notify_animal_communication_granted(entity, expiration=expiration)
+        except Exception:
+            pass
