@@ -7,7 +7,7 @@ class Teleporter(Object):
     def __init__(self, session, map, properties):
         super().__init__(session, map, properties)
         self.target_map = properties.get('target_map', None)
-        self.target_position = properties['target_position']
+        self.target_position = properties.get('target_position', [0, 0])
 
     def _session_gate_allows(self, entity: Entity, map) -> bool:
         """Optional campaign gate via ``requires_session`` on the teleporter.

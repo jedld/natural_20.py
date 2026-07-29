@@ -42,6 +42,9 @@ spell_list:
     - magic_weapon
     - protection_from_poison
     - zone_of_truth
+  level_3:
+    - dispel_magic
+    - protection_from_energy
 sacred_oaths:
   oath_of_devotion:
     level_3:

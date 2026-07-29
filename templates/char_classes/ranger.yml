@@ -24,6 +24,7 @@ spell_list:
   cantrip:
     - druidcraft
   level_1:
+    - absorb_elements
     - cure_wounds
     - detect_magic
     - ensnaring_strike
@@ -47,6 +48,8 @@ spell_list:
     - protection_from_poison
     - silence
     - spike_growth
+  level_3:
+    - protection_from_energy
 ranger_archetypes:
   hunter:
     level_3:

@@ -98,7 +98,7 @@ spell_list:
     - silvery_barbs
   level_2:
     - animal_messenger
-    - blindness/deafness
+    - blindness_deafness
     - calm_emotions
     - cloud_of_daggers
     - crown_of_madness
@@ -119,6 +119,9 @@ spell_list:
     - silence
     - suggestion
     - zone_of_truth
+  level_3:
+    - dispel_magic
+    - tongues
 proficiency_bonuses:
 - 2
 - 2

@@ -123,7 +123,7 @@ def default_effect_output_dir() -> Path:
 _EFFECT_ICON_TYPES = frozenset({"buff", "debuff", "control", "transmutation", "summon"})
 
 # Non-spell tile effects (engulf, etc.) that still need bundled icons.
-_EXTRA_EFFECT_SLUGS = frozenset({"engulf"})
+_EXTRA_EFFECT_SLUGS = frozenset({"engulf", "absorb_elements", "mirror_image"})
 
 
 def spell_needs_effect_icon(meta: dict[str, Any]) -> bool:

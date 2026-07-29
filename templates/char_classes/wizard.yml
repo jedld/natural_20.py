@@ -20,12 +20,14 @@ available_skills:
 spell_list:
   cantrip:
     - acid_splash
+    - booming_blade
     - burning_hands
     - blade_ward
     - chill_touch
     - dancing_lights
     - firebolt
     - friends
+    - green_flame_blade
     - light
     - mage_hand
     - mending
@@ -37,6 +39,7 @@ spell_list:
     - shocking_grasp
     - true_strike
   level_1:
+    - absorb_elements
     - alarm
     - burning_hands
     - charm_person
@@ -57,25 +60,34 @@ spell_list:
     - longstrider
     - mage_armor
     - magic_missile
-    - protect_from_evil_and_good
+    - protection_from_evil_and_good
     - ray_of_sickness
     - shield
     - silent_image
     - sleep
-    - tasha_hideous_laughter
+    - hideous_laughter
     - tensers_floating_disk
     - thunderwave
     - unseen_servant
     - witch_bolt
   level_2:
+    - aganazzars_scorcher
+    - enlarge_reduce
+    - hold_person
+    - melfs_acid_arrow
     - misty_step
     - mirror_image
     - scorching_ray
     - web
   level_3:
     - counterspell
+    - dispel_magic
     - fireball
     - fly
+    - haste
+    - lightning_bolt
+    - protection_from_energy
+    - slow
 progression:
   level_1:
     class_features:
