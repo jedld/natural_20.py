@@ -48,7 +48,8 @@ Verify
 | Save for damage | `sacred_flame_spell.py`, `thunderwave_spell.py` | `spell_damage` / `spell_miss` |
 | Buff + concentration | `bless_spell.py`, `shield_of_faith_spell.py` | `spell_buf` + `add_casted_effect` |
 | Debuff + concentration + repeat save | `slow_spell.py`, `hold_person_spell.py` | `spell_debuff` + `end_of_turn` hook |
-| AoE point/cube/cone | `grease_spell.py`, `burning_hands_spell.py` | zone or per-target saves |
+| HP pool AoE (lowest HP first) | `color_spray_spell.py`, `sleep_spell.py` | `sleep_cast` + per-target `sleep` |
+| Save AoE radius (Dex half) | `wizard_spells.py` (`FireballSpell` / `AreaSaveSpell`) | `spell_damage` via `resolve_save_for_half` |
 | Self only | `mage_armor_spell.py`, `expeditious_retreat_spell.py` | target = caster |
 
 **Concentration debuffs** — copy `SlowSpell` / `HoldPersonSpell` structure:

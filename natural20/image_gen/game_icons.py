@@ -34,7 +34,11 @@ from natural20.utils.spell_loader import spell_is_implemented
 GenerateFn = Callable[..., Any]
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_WEBAPP_STATIC = _REPO_ROOT / "webapp" / "static"
+_N20_WEBAPP_STATIC = _REPO_ROOT / "n20-webapp" / "webapp" / "static"
+_LEGACY_WEBAPP_STATIC = _REPO_ROOT / "webapp" / "static"
+_WEBAPP_STATIC = (
+    _N20_WEBAPP_STATIC if _N20_WEBAPP_STATIC.is_dir() else _LEGACY_WEBAPP_STATIC
+)
 
 
 def webapp_static_root() -> Path:

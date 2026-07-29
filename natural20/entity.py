@@ -2957,6 +2957,31 @@ class Entity(EntityStateEvaluator, Notable):
                 self.resolve_trigger('temp_hp_depleted', depletion_opts)
                 self.clear_temp_hp(effect=temp_hp_source)
 
+        # Damage-triggered reaction spells (e.g. Hellish Rebuke, Absorb Elements).
+        # Resolve before HP is reduced so reactions still fire when the hit would
+        # drop the target to 0 HP.
+        if (battle is not None
+                and total_damage > 0
+                and self.conscious()
+                and attacker is not None
+                and attacker is not self
+                and not (item and item.get('source_spell') in ('hellish_rebuke', 'absorb_elements'))):
+            try:
+                from natural20.utils.attack_util import after_take_damage_hook
+                hook_context = dict(item or {})
+                hook_context['damage_type'] = damage_type
+                hook_context['applied_damage'] = total_damage
+                hook_context['raw_damage'] = dmg
+                reaction_events = after_take_damage_hook(battle, self, attacker, hook_context)
+                for reaction_event in reaction_events or []:
+                    if reaction_event.get('type') == 'absorb_elements':
+                        mitigated = int(reaction_event.get('heal_amount') or 0)
+                        if mitigated > 0:
+                            total_damage = max(0, total_damage - mitigated)
+            except Exception:
+                # Reaction-trigger failures must never break the main damage flow.
+                pass
+
         self.attributes["hp"] -= total_damage
         instant_death = False
 
@@ -3031,22 +3056,6 @@ class Entity(EntityStateEvaluator, Notable):
 
         if battle and item and total_damage > 0:
             self.on_take_damage(battle, item)
-
-        # Damage-triggered reaction spells (e.g. Hellish Rebuke).
-        # Fire only when the target is still able to react and the source is
-        # not the spell's own follow-up damage.
-        if (battle is not None
-                and total_damage > 0
-                and self.conscious()
-                and attacker is not None
-                and attacker is not self
-                and not (item and item.get('source_spell') == 'hellish_rebuke')):
-            try:
-                from natural20.utils.attack_util import after_take_damage_hook
-                after_take_damage_hook(battle, self, attacker, item or {})
-            except Exception:
-                # Reaction-trigger failures must never break the main damage flow.
-                pass
 
     def on_take_damage(self, battle, _damage_params):
         controller = battle.controller_for(self)

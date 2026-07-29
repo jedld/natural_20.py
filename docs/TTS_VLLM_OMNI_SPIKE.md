@@ -176,6 +176,8 @@ Register in `TTSManager.PROVIDERS`:
 | `VLLM_OMNI_TTS_VOICE_PREFIX` | `n20_` | Namespace uploaded NPC voices |
 | `VLLM_OMNI_TTS_TIMEOUT` | `120` | HTTP timeout seconds |
 | `VLLM_OMNI_TTS_REGISTER_ON_CREATE` | `1` | Auto-upload ref WAV on `create_voice` |
+| `VLLM_OMNI_TTS_REGISTER_ON_START` | `1` | Bulk-register campaign `voice_samples/` on webapp bootstrap |
+| `VLLM_OMNI_TTS_SOCKET_PCM` | auto | Live Socket.IO PCM; auto `1` when `TTS_DELIVERY=stream` + `qwen3_vllm` |
 
 ### HTTP client
 
@@ -229,8 +231,9 @@ vLLM-Omni Qwen3 outputs **24 kHz** PCM; in-process Qwen3 is often **12 Hz tokeni
 
 ### Phase 4 — Production hardening (optional)
 
-- [ ] Docker Compose with GPU reservation
-- [ ] Voice pre-registration at campaign load (DM save/load hook)
+- [x] Docker Compose with GPU reservation
+- [x] Voice pre-registration at campaign load (`VLLM_OMNI_TTS_REGISTER_ON_START` + `start_with_voices.sh`)
+- [x] Auto-enable live PCM for `qwen3_vllm` when `TTS_DELIVERY=stream`
 - [ ] Separate TTS GPU host in ngrok/tmux docs
 - [ ] Compare 0.6B vs 1.7B on same hardware
 
@@ -256,13 +259,17 @@ Campaign assets (`voice_samples/`, `voice_profiles/`) are **shared**; only the s
 
 ## Benchmark checklist (fill in during spike)
 
+Measured 2026-07-29 on RTX 3090, `mara_bartender`, clone mode, campaign `wild_sheep_chase`.
+Sidecar already running (`services/vllm-omni-tts/start.sh`); in-process uses `QWEN3_USE_FLASH_ATTN=0` (flash-attn not installed in n20-tts env).
+
 | Metric | In-process `qwen3` clone | vLLM-Omni stream |
 |--------|------------------------|------------------|
-| Process init | ~20 s | N/A (separate process) |
-| TTFA (first PCM byte) | ~5 s (full line first) | _TBD_ |
-| Full line (~4 s audio) | ~5.5 s | _TBD_ |
-| RTF | ~1.3 | _TBD_ (&lt;1.0 target) |
-| Line cache hit | &lt;10 ms | &lt;10 ms (webapp-side) |
+| Process init | **19.2 s** (model load + 2.7 s warmup) | **0.07 s** (HTTP healthcheck; sidecar already up) |
+| TTFA (first PCM byte) | **6.26 s** (fake stream — full WAV first) | **0.76 s** (true PCM stream) |
+| Full line (~5 s audio, cold) | **6.54 s** buffered | **1.66 s** buffered / **1.88 s** stream total |
+| RTF | **1.19–1.20** (slower than realtime) | **0.33** (3× faster than realtime) |
+| Line cache hit | **&lt;10 ms** | **&lt;10 ms** (webapp-side) |
+| First sidecar request (cold HTTP) | — | **~11 s** one-time after sidecar boot (subsequent ~1.7 s) |
 
 Use:
 

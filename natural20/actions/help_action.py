@@ -61,6 +61,23 @@ class HelpAction(Action):
         if target is None:
             return
 
+        try:
+            from natural20.spell.sleep_spell import SleepSpell
+            if 'sleep' in getattr(target, 'statuses', []):
+                if battle:
+                    battle.consume(source, 'action')
+                if SleepSpell.wake_sleeping_target(
+                    target, source=source, battle=battle, session=session,
+                ):
+                    event_manager.received_event({
+                        'source': source,
+                        'target': target,
+                        'event': 'sleep_wake',
+                    })
+                    return
+        except Exception:
+            pass
+
         if battle:
             battle.consume(source, 'action')
             event_type = 'help_distract' if battle.opposing(source, target) else 'help'

@@ -12,6 +12,15 @@ def to_advantage_str(item):
     advantage_str = f' with advantage{advantage_info}' if item['advantage_mod'] > 0 else f' with disadvantage{disadvantage_info}' if item['advantage_mod'] < 0 else ''
     return advantage_str
 
+
+def _spell_class_key(spell_details):
+    """Resolve loader key from YAML spell_class (mirrors SpellAction)."""
+    spell_class_name = (spell_details or {}).get('spell_class', '')
+    spell_class_key = str(spell_class_name).replace('Natural20::', '')
+    if not spell_class_key.endswith('Spell'):
+        spell_class_key = f'{spell_class_key}Spell'
+    return spell_class_key
+
 def damage_event(item, battle):
     if battle:
         session = battle.session
@@ -245,7 +254,7 @@ def _third_party_reaction_scan(battle, target, source, attack_roll, effective_ac
             if resource != 'reaction':
                 continue
 
-            spell_class_name = spell_details.get('spell_class', '').replace('Natural20::', '') + 'Spell'
+            spell_class_name = _spell_class_key(spell_details)
             try:
                 spell_class = load_spell_class(spell_class_name)
             except Exception:
@@ -290,7 +299,7 @@ def after_take_damage_hook(battle, target, attacker, damage_opts=None):
         return events
     # Damage that originates from the spell itself must not loop back into
     # another reaction cast on the same hit.
-    if damage_opts.get('source_spell') == 'hellish_rebuke':
+    if damage_opts.get('source_spell') in ('hellish_rebuke', 'absorb_elements'):
         return events
 
     if battle is not None and not target.has_reaction(battle):
@@ -316,11 +325,19 @@ def after_take_damage_hook(battle, target, attacker, damage_opts=None):
         from natural20.actions.spell_action import SpellAction
         from natural20.utils.spell_loader import load_spell_class
 
-        spell_class_name = spell_details.get('spell_class', '').replace('Natural20::', '') + 'Spell'
+        spell_class_name = _spell_class_key(spell_details)
         try:
             spell_class = load_spell_class(spell_class_name)
         except Exception:
             continue
+
+        from natural20.spell.absorb_elements_spell import AbsorbElementsSpell
+
+        is_absorb_elements = AbsorbElementsSpell.is_absorb_elements(spell_details, spell)
+        trigger_damage_type = AbsorbElementsSpell.elemental_damage_type(damage_opts, damage_opts)
+        if is_absorb_elements:
+            if trigger_damage_type is None:
+                continue
 
         action = SpellAction(session, target, 'spell')
         action.spell = spell_details
@@ -330,7 +347,39 @@ def after_take_damage_hook(battle, target, attacker, damage_opts=None):
         spell_instance = spell_class(session, target, spell_class_name, spell_details)
         spell_instance.action = action
         action.spell_action = spell_instance
-        action.target = attacker
+        action.target = target if is_absorb_elements else attacker
+        action.trigger_damage_type = trigger_damage_type
+        action.trigger_attacker = attacker
+
+        was_resistant = False
+        if is_absorb_elements and trigger_damage_type:
+            try:
+                was_resistant = bool(target.resistant_to(
+                    trigger_damage_type,
+                    source=attacker,
+                    weapon=damage_opts.get('weapon'),
+                ))
+            except Exception:
+                was_resistant = False
+            applied_damage = int(damage_opts.get('applied_damage') or 0)
+            raw_damage = damage_opts.get('raw_damage')
+            if raw_damage is None and damage_opts.get('damage') is not None:
+                damage_val = damage_opts.get('damage')
+                if hasattr(damage_val, 'result'):
+                    raw_damage = damage_val.result()
+                else:
+                    raw_damage = damage_val
+            try:
+                raw_damage = int(raw_damage or 0)
+            except (TypeError, ValueError):
+                raw_damage = applied_damage
+            if not was_resistant and raw_damage > 0:
+                # Resistance from Absorb Elements retroactively halves the
+                # triggering hit (heal back the mitigated portion).
+                action.trigger_heal_amount = raw_damage // 2
+            else:
+                action.trigger_heal_amount = max(0, raw_damage - applied_damage)
+            spell_instance.chosen_damage_type = trigger_damage_type
 
         # Pick a spell slot (warlock/innate). We only require one if the spell
         # is leveled and the caster has slots available.
@@ -348,17 +397,18 @@ def after_take_damage_hook(battle, target, attacker, damage_opts=None):
         if not SpellAction.can_cast(target, battle, spell, at_level=action.at_level):
             continue
 
-        # Range check: target must be within the spell's range.
-        distance_ft = 0
-        if battle is not None:
-            try:
-                bmap = battle.map_for(target)
-                if bmap is not None:
-                    distance_ft = bmap.distance(target, attacker) * 5
-            except Exception:
-                distance_ft = 0
-        if distance_ft > spell_details.get('range', 60):
-            continue
+        if not is_absorb_elements:
+            # Range check: Hellish Rebuke and similar must reach the attacker.
+            distance_ft = 0
+            if battle is not None:
+                try:
+                    bmap = battle.map_for(target)
+                    if bmap is not None:
+                        distance_ft = bmap.distance(target, attacker) * 5
+                except Exception:
+                    distance_ft = 0
+            if distance_ft > spell_details.get('range', 60):
+                continue
 
         controller = battle.controller_for(target) if battle else None
         chosen = action  # default: cast it (no-controller / test scenarios)
@@ -386,11 +436,14 @@ def after_take_damage_hook(battle, target, attacker, damage_opts=None):
         spell_instance.consume(battle)
 
         for r in results:
-            if r.get('type') == 'spell_damage':
+            if r.get('type') == 'absorb_elements':
+                AbsorbElementsSpell.apply(battle, r, session)
+                events.append(r)
+            elif r.get('type') == 'spell_damage':
                 # Mark so the recursive damage from this spell does not retrigger.
                 r['source_spell'] = 'hellish_rebuke'
                 damage_event(r, battle)
-            events.append(r)
+                events.append(r)
 
     # Phase 3 reaction registry: trigger 'damage_taken' window for any
     # handler registered via ``Battle.register_reaction_trigger``.

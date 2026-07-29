@@ -488,14 +488,24 @@ class Session:
             return {}
 
     def load_backgrounds(self):
-        """Load backgrounds from backgrounds/ directory as YAML files."""
-        backgrounds_dir = os.path.join(self.root_path, 'backgrounds')
+        """Load backgrounds from campaign backgrounds/ with template fallback."""
+        from natural20.yaml_loader import templates_root
+
         backgrounds = {}
-        if not os.path.isdir(backgrounds_dir):
-            return backgrounds
-        for file in os.listdir(backgrounds_dir):
-            if file.endswith('.yml'):
+        scan_dirs = []
+        campaign_dir = os.path.join(self.root_path, 'backgrounds')
+        template_dir = templates_root() / 'backgrounds'
+        if os.path.isdir(campaign_dir):
+            scan_dirs.append(campaign_dir)
+        if template_dir.is_dir():
+            scan_dirs.append(str(template_dir))
+        for bg_dir in scan_dirs:
+            for file in os.listdir(bg_dir):
+                if not file.endswith('.yml'):
+                    continue
                 background_name = os.path.splitext(file)[0]
+                if background_name in backgrounds:
+                    continue
                 backgrounds[background_name] = load_campaign_resource_path(
                     self.root_path, f"backgrounds/{file}"
                 )

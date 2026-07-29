@@ -71,6 +71,12 @@ def _target_grid_positions(battle, target):
     if target is None:
         return None, None
     if isinstance(target, (list, tuple)):
+        if (
+            len(target) == 2
+            and all(isinstance(v, (int, float)) for v in target)
+        ):
+            pos = [int(target[0]), int(target[1])]
+            return pos, [pos]
         positions = []
         for t in target:
             p = _entity_grid_pos(battle, t)
@@ -122,7 +128,8 @@ def action_animator(action, battle=None):
         try:
             spell_name = None
             if getattr(action, 'spell_action', None):
-                spell_name = action.spell_action.short_name()
+                props = getattr(action.spell_action, 'properties', None) or {}
+                spell_name = props.get('id') or action.spell_action.short_name()
             elif getattr(action, 'spell_class', None):
                 spell_name = getattr(action.spell_class, '__name__', None)
                 if spell_name and spell_name.endswith('Spell'):
@@ -138,10 +145,14 @@ def action_animator(action, battle=None):
             if origin is not None:
                 extra_message['from'] = list(origin)
 
+        target_pos, target_positions = _target_grid_positions(battle, getattr(action, 'target', None))
+
         return {
             'type': 'spell',
             'message': {
                 'target': target_id(action),
+                'target_pos': target_pos,
+                'target_positions': target_positions,
                 'source': _animation_uid(action.source.entity_uid),
                 'type': 'spell',
                 'label': action.label(),

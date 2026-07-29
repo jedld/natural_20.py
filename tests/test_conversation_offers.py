@@ -1,6 +1,8 @@
 from unittest.mock import Mock
 
+from natural20.player_character import PlayerCharacter
 from natural20.utils.conversation_offers import (
+    adjust_item_offer_target,
     canonical_item_slug,
     evaluate_offer_block,
     offer_guidance_lines,
@@ -75,3 +77,77 @@ def test_record_completed_item_offer_persists():
     session.save_state.assert_called_once()
     saved = session.save_state.call_args[0][1]
     assert saved['completed']['a:b:item_x'] == 12
+
+
+def test_adjust_item_offer_target_prefers_player_over_npc_speaker():
+    npc_speaker = Mock(entity_uid='pip_barmaid')
+    pc = Mock(spec=PlayerCharacter, entity_uid='aldric')
+    game_properties = {
+        'conversation_item_offers': {
+            'scroll_speak_animals_modified': {
+                'prefer_player_character': True,
+            },
+        },
+    }
+
+    adjusted = adjust_item_offer_target(
+        npc_speaker,
+        target_spec='speaker',
+        speaker=npc_speaker,
+        player_speaker=pc,
+        item_slug='scroll_speak_animals_modified',
+        game_properties=game_properties,
+    )
+    assert adjusted is pc
+
+
+def test_adjust_item_offer_target_respects_explicit_handle():
+    npc_speaker = Mock(entity_uid='pip_barmaid')
+    mara = Mock(entity_uid='mara_bartender')
+    pc = Mock(spec=PlayerCharacter, entity_uid='aldric')
+    game_properties = {
+        'conversation_item_offers': {
+            'scroll_speak_animals_modified': {
+                'prefer_player_character': True,
+            },
+        },
+    }
+
+    adjusted = adjust_item_offer_target(
+        mara,
+        target_spec='@mara_bartender',
+        speaker=npc_speaker,
+        player_speaker=pc,
+        item_slug='scroll_speak_animals_modified',
+        game_properties=game_properties,
+    )
+    assert adjusted is mara
+
+
+def test_offer_guidance_prefers_player_character_target():
+    session = Mock()
+    session.load_state.return_value = {}
+    actor = Mock(entity_uid='finethir', inventory={'scroll_speak_animals_modified': {'qty': 1}})
+    npc_speaker = Mock(entity_uid='pip_barmaid', inventory={})
+    pc = Mock(spec=PlayerCharacter, entity_uid='aldric', inventory={})
+    pc.label = Mock(return_value='Aldric')
+
+    game_properties = {
+        'conversation_item_offers': {
+            'scroll_speak_animals_modified': {
+                'item_label': 'scroll',
+                'prefer_player_character': True,
+                'block_when': ['target_has_item'],
+            },
+        },
+    }
+
+    lines = offer_guidance_lines(
+        session,
+        actor,
+        npc_speaker,
+        player_speaker=pc,
+        game_properties=game_properties,
+    )
+    assert any('target=@aldric' in line for line in lines)
+    assert any('not tavern staff' in line for line in lines)

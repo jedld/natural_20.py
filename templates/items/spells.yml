@@ -694,6 +694,44 @@ shocking_grasp:
   spell_list_classes:
     - Sorcerer
     - Wizard
+sleep:
+  label: Sleep
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+    - material
+  material: a pinch of fine sand, rose petals, or a cricket
+  description: |
+    This spell sends creatures into a magical slumber. Roll 5d8; the total is how many
+    hit points of creatures this spell can affect. Creatures within 20 feet of a point
+    you choose within range are affected in ascending order of their current hit points
+    (ignoring unconscious creatures).
+
+    Starting with the creature that has the lowest current hit points, each creature
+    affected by this spell falls unconscious until the spell ends, the sleeper takes
+    damage, or someone uses an action to shake or slap the sleeper awake. Subtract each
+    creature's hit points from the total before moving on to the creature with the next
+    lowest hit points. A creature's hit points must be equal to or less than the
+    remaining total for that creature to be affected.
+
+    Undead and creatures immune to being charmed aren't affected by this spell.
+
+    At Higher Levels. When you cast this spell using a spell slot of 2nd level or
+    higher, roll an additional 2d8 for each slot level above 1st.
+  duration: 1m
+  duration_seconds: 60
+  level: 1
+  name: Sleep
+  range: 90
+  radius: 20
+  school: enchantment
+  type: control
+  spell_list_classes:
+    - Bard
+    - Sorcerer
+    - Wizard
+  spell_class: Natural20::SleepSpell
 spiritual_weapon:
   label: Spiritual Weapon
   casting_time: 1:bonus_action
@@ -1046,17 +1084,35 @@ detect_magic:
 fireball:
   label: Fireball
   casting_time: 1:action
-  components: [verbal, somatic, material]
+  components:
+    - verbal
+    - somatic
+    - material
+  material: a tiny ball of bat guano and sulfur
   damage_type: fire
-  description: A bright streak explodes in a 20-foot-radius sphere.
+  description: |
+    A bright streak flashes from your pointing finger to a point you choose within range
+    and then blossoms with a low roar into an explosion of flame. Each creature in a
+    20-foot-radius sphere centered on that point must make a Dexterity saving throw. A
+    target takes 8d6 fire damage on a failed save, or half as much damage on a
+    successful one.
+
+    The fire spreads around corners. It ignites flammable objects in the area that
+    aren't being worn or carried.
+
+    At Higher Levels. When you cast this spell using a spell slot of 4th level or
+    higher, the damage increases by 1d6 for each slot level above 3rd.
   duration: instant
   level: 3
   name: Fireball
   range: 150
   radius: 20
+  require_los: false
   school: evocation
   type: damage
-  spell_list_classes: [Wizard, Sorcerer]
+  spell_list_classes:
+    - Wizard
+    - Sorcerer
   spell_class: Natural20::Fireball
 counterspell:
   label: Counterspell
@@ -1547,18 +1603,20 @@ absorb_elements:
  label: Absorb Elements
  casting_time: 1:reaction
  components: [somatic]
- damage_type: acid
  description: |
-   When you take acid, cold, fire, lightning, or thunder damage, you can absorb some of that energy to reduce the damage you take and deal that type of damage to the creature that damaged you.
+   When you take acid, cold, fire, lightning, or thunder damage, you can use your reaction to absorb some of that energy. Until the start of your next turn, you have resistance to the triggering damage type. The first time you hit with a melee attack on your next turn, the target takes an extra 1d6 damage of the triggering type, and the spell ends.
+
+   At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the extra damage increases by 1d6 for each slot level above 1st.
  duration: 1 round
+ duration_seconds: 6
  level: 1
  name: Absorb Elements
- range: 5
+ range: 0
  school: abjuration
  triggers_on_damage: true
  type: reaction
- spell_list_classes: [Sorcerer, Wizard]
- spell_class: Natural20::AbsorbElementsSpell
+ spell_list_classes: [Sorcerer, Wizard, Druid, Ranger, Artificer]
+ spell_class: Natural20::AbsorbElements
 protection_from_evil_and_good:
  label: Protection from Evil and Good
  casting_time: 1:action
