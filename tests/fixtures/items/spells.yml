@@ -827,6 +827,32 @@ shocking_grasp:
   spell_list_classes:
   - Sorcerer
   - Wizard
+sleep:
+  label: Sleep
+  casting_time: 1:action
+  components:
+  - verbal
+  - somatic
+  - material
+  material: a pinch of fine sand, rose petals, or a cricket
+  description: |
+    This spell sends creatures into a magical slumber. Roll 5d8; the total is how many
+    hit points of creatures this spell can affect. Creatures within 20 feet of a point
+    you choose within range are affected in ascending order of their current hit points
+    (ignoring unconscious creatures).
+  duration: 1m
+  duration_seconds: 60
+  level: 1
+  name: Sleep
+  range: 90
+  radius: 20
+  school: enchantment
+  type: control
+  spell_list_classes:
+  - Bard
+  - Sorcerer
+  - Wizard
+  spell_class: Natural20::SleepSpell
 spiritual_weapon:
   label: Spiritual Weapon
   casting_time: 1:bonus_action
@@ -1141,13 +1167,23 @@ fireball:
   - verbal
   - somatic
   - material
+  material: a tiny ball of bat guano and sulfur
   damage_type: fire
-  description: A bright streak explodes in a 20-foot-radius sphere.
+  description: |
+    A bright streak flashes from your pointing finger to a point you choose within range
+    and then blossoms with a low roar into an explosion of flame. Each creature in a
+    20-foot-radius sphere centered on that point must make a Dexterity saving throw. A
+    target takes 8d6 fire damage on a failed save, or half as much damage on a
+    successful one.
+
+    At Higher Levels. When you cast this spell using a spell slot of 4th level or
+    higher, the damage increases by 1d6 for each slot level above 3rd.
   duration: instant
   level: 3
   name: Fireball
   range: 150
   radius: 20
+  require_los: false
   school: evocation
   type: damage
   spell_list_classes:

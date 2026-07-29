@@ -172,6 +172,9 @@ def main() -> int:
     entity = _entity_stub(campaign_root, npc_uid, npc_type)
     profile = build_voice_profile_from_entity(entity)
     profile.campaign_root = str(campaign_root)
+    if args.provider:
+        # NPC YAML may pin provider=qwen3; CLI --provider should drive register + synth.
+        profile.provider = None
 
     voice_s, _ = _timed("voice", lambda: manager.create_voice_from_profile(profile))
     print(f"register_voice: {voice_s:.2f}s")

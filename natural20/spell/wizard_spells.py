@@ -5,12 +5,16 @@ from natural20.spell.spell import Spell
 from natural20.spell.extensions.damage_scaling import DamageScalingMixin
 from natural20.spell.extensions.hit_computations import AttackSpell
 from natural20.spell.extensions.save_check import SaveCheck
+from natural20.spell.hold_person_spell import HoldPersonSpell
 from natural20.spell.extensions.save_for_half import SaveForHalfMixin
 from natural20.utils.spell_attack_util import evaluate_spell_attack
 
 
-def _spell_dc(entity):
-    return entity.spell_save_dc('intelligence')
+def _spell_dc(entity, spell_action=None, default='intelligence'):
+    ability = default
+    if spell_action is not None:
+        ability = HoldPersonSpell._caster_spell_ability(entity, spell_action)
+    return entity.spell_save_dc(ability)
 
 
 def _entities_in_squares(battle_map, squares, source):
@@ -175,6 +179,7 @@ class AreaSaveSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
             param['width'] = self.properties.get('width', 5)
         elif self.SHAPE == 'cone':
             param['range'] = self.properties.get('range_cone', self.properties.get('range', 60))
+        param['require_los'] = self.properties.get('require_los', False)
         return {'param': [param], 'next': set_target}
 
     def _damage(self, battle, opts=None):
@@ -212,12 +217,36 @@ class AreaSaveSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
         return self.resolve_save_for_half(
             targets,
             ability=self.SAVE,
-            dc=_spell_dc(entity),
+            dc=_spell_dc(entity, spell_action),
             damage_roll=lambda _t: self._damage(battle, opts={'at_level': at_level}),
             attack_name=self.properties.get('id', str(self)),
             damage_type=self.DAMAGE_TYPE or self.properties.get('damage_type'),
             battle=battle,
         )
+
+    def validate(self, battle_map, target=None):
+        self.errors.clear()
+        if target is None:
+            target = self.target
+        if not isinstance(target, (list, tuple)) or len(target) != 2:
+            self.errors.append('Choose a point on the map within range.')
+            return
+        try:
+            tx, ty = int(target[0]), int(target[1])
+        except (TypeError, ValueError):
+            self.errors.append('Choose a point on the map within range.')
+            return
+        if tx < 0 or ty < 0 or tx >= battle_map.size[0] or ty >= battle_map.size[1]:
+            self.errors.append('Target point is outside the map.')
+            return
+        caster = getattr(self, 'source', None) or getattr(getattr(self, 'action', None), 'source', None)
+        if caster is None:
+            return
+        cx, cy = battle_map.position_of(caster)
+        range_ft = self.properties.get(self.RANGE_KEY, 60)
+        max_squares = max(0, int(range_ft) // battle_map.feet_per_grid)
+        if max(abs(tx - cx), abs(ty - cy)) > max_squares:
+            self.errors.append('Target point is out of range.')
 
 
 class FireballSpell(AreaSaveSpell):
@@ -360,7 +389,7 @@ class ChainLightningSpell(Spell):
         damage_roll = DieRoll.roll('10d8', battle=battle, entity=entity,
                                    description='dice_roll.spells.chain_lightning')
         spell = AreaSaveSpell(self.session, entity, self.name, self.properties)
-        return spell.resolve_save_for_half(targets, ability='dexterity', dc=_spell_dc(entity),
+        return spell.resolve_save_for_half(targets, ability='dexterity', dc=_spell_dc(entity, spell_action),
                                            damage_roll=damage_roll, attack_name='chain_lightning',
                                            damage_type='lightning', battle=battle)
 
@@ -378,7 +407,7 @@ class DisintegrateSpell(Spell):
 
     def resolve(self, entity, battle, spell_action, battle_map):
         target = spell_action.target
-        save = SaveCheck.make(target, 'dexterity', _spell_dc(entity), battle, {'is_magical': True})
+        save = SaveCheck.make(target, 'dexterity', _spell_dc(entity, spell_action), battle, {'is_magical': True})
         if save.passed:
             return [{'source': entity, 'target': target, 'attack_name': 'disintegrate',
                      'damage_type': 'force', 'type': 'spell_miss', 'spell_save': save.roll,

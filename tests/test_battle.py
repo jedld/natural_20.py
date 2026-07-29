@@ -224,6 +224,27 @@ class TestBattle(unittest.TestCase):
         assert animation_log[1]['message']['source_pos'] == list(battle.entity_or_object_pos(fighter))
         assert animation_log[1]['message']['target_pos'] == list(battle.entity_or_object_pos(goblin))
 
+    def test_spell_animation_payload_includes_point_target_pos(self):
+        from natural20.battle import action_animator
+        from types import SimpleNamespace
+
+        action = SimpleNamespace(
+            action_type='spell',
+            source=SimpleNamespace(entity_uid='wizard'),
+            target=[7, 3],
+            spell_action=SimpleNamespace(
+                short_name=lambda: 'fireball',
+                properties={'id': 'fireball'},
+            ),
+            label=lambda: 'Fireball',
+        )
+
+        payload = action_animator(action)
+        self.assertEqual(payload['type'], 'spell')
+        self.assertEqual(payload['message']['spell'], 'fireball')
+        self.assertEqual(payload['message']['target_pos'], [7, 3])
+        self.assertEqual(payload['message']['target'], [7, 3])
+
     def test_entities_not_in_active_battle_use_out_of_combat_resource_defaults(self):
         session = self.make_session()
         battle_map = Map(session, 'battle_sim_objects')

@@ -177,9 +177,9 @@ Model weights download from Hugging Face on first use (~2.5–4.5 GB depending o
 
 Cloud API (DashScope) is also available for production without local GPU; not wired in yet.
 
-### vLLM-Omni sidecar (planned)
+### vLLM-Omni sidecar (production low-latency)
 
-For **true streaming** (~100 ms first audio packet), run Qwen3-TTS as a **separate service** and point the webapp at it over HTTP. No `vllm-omni` in the main webapp venv.
+For **true streaming** (~0.76 s TTFA measured on RTX 3090), run Qwen3-TTS as a **separate service** and point the webapp at it over HTTP. No `vllm-omni` in the main webapp venv.
 
 | Piece | Location |
 |-------|----------|
@@ -193,13 +193,16 @@ TTS_PROVIDER=qwen3_vllm
 VLLM_OMNI_TTS_URL=http://127.0.0.1:8091
 VLLM_OMNI_TTS_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-Base
 TTS_DELIVERY=stream
+VLLM_OMNI_TTS_REGISTER_ON_START=1
+# Live PCM auto-enabled when TTS_DELIVERY=stream; override with VLLM_OMNI_TTS_SOCKET_PCM=0
 ```
 
 Start sidecar + register campaign voices:
 
 ```bash
-cd services/vllm-omni-tts && cp .env.example .env && ./start.sh
-./scripts/register_campaign_voices.py ../../user_levels/wild_sheep_chase
+cd services/vllm-omni-tts && cp .env.example .env && ./install.sh
+./start_with_voices.sh
+# or: ./start.sh && ./scripts/register_campaign_voices.py ../../user_levels/wild_sheep_chase
 ```
 
 Benchmark:

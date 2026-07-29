@@ -86,3 +86,5 @@ Chunking strategy: sentences → clauses → words. Segments are synthesized and
 - `N20_TTS_MAX_CHARS`, `N20_TTS_MAX_CHARS_<PROFILE>`, `N20_TTS_CHUNK_PAUSE_MS` — see chunking table above.
 - `N20_TTS_PIPELINE_SEGMENTS` — `1` (default) prefetch next text segment during stream delivery; `0` for legacy sequential segments.
 - `N20_TTS_PIPELINE_CONCURRENT` — `1` (default) allow next-segment synthesis to overlap the current segment's live CosyVoice stream; set `0` if a single GPU model shows thread-safety issues.
+- `VLLM_OMNI_TTS_SOCKET_PCM` — `1`/`0` to force live Socket.IO PCM during stream delivery. When unset, **`qwen3_vllm` auto-enables live PCM when `TTS_DELIVERY=stream`** (other providers default on).
+- `VLLM_OMNI_TTS_REGISTER_ON_START` — `1` (default) upload missing campaign `voice_samples/` to the sidecar on webapp bootstrap when `TTS_PROVIDER=qwen3_vllm`.

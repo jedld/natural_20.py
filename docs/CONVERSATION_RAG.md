@@ -475,6 +475,7 @@ conversation_offer_guidance:
 conversation_item_offers:
   scroll_speak_animals_modified:
     item_label: modified Speak with Animals scroll
+    prefer_player_character: true  # [OFFER_ITEM target=speaker] routes to the /talk PC, not NPC chain relays
     aliases: [scroll_speak_animals]
     block_when: [offer_completed, target_has_item, target_effect_animal_communication]
     accept_effect: animal_communication

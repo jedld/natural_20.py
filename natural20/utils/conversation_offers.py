@@ -19,6 +19,56 @@ KNOWN_BLOCK_REASONS = frozenset({
 KNOWN_EFFECTS = frozenset({'animal_communication'})
 
 
+def is_player_character(entity) -> bool:
+    if entity is None:
+        return False
+    try:
+        from natural20.player_character import PlayerCharacter
+
+        return isinstance(entity, PlayerCharacter)
+    except Exception:
+        return False
+
+
+def prefer_player_character_for_item(
+    item_slug: str,
+    *,
+    game_properties=None,
+    actor=None,
+) -> bool:
+    cfg = offer_config_for_item(item_slug, game_properties=game_properties, actor=actor)
+    return bool(cfg.get('prefer_player_character'))
+
+
+def adjust_item_offer_target(
+    resolved_target,
+    *,
+    target_spec: str,
+    speaker=None,
+    player_speaker=None,
+    item_slug: str,
+    game_properties=None,
+    actor=None,
+):
+    """When configured, route ``target=speaker`` offers to the engaging PC, not an NPC relay."""
+    if not prefer_player_character_for_item(
+        item_slug,
+        game_properties=game_properties,
+        actor=actor,
+    ):
+        return resolved_target
+    if player_speaker is None or not is_player_character(player_speaker):
+        return resolved_target
+    if resolved_target is not None and is_player_character(resolved_target):
+        return resolved_target
+
+    spec = str(target_spec or '').strip().lower().lstrip('@')
+    if spec not in ('', 'speaker', 'you'):
+        return resolved_target
+
+    return player_speaker
+
+
 def _entity_properties(entity) -> Dict[str, Any]:
     props = getattr(entity, 'properties', None)
     return props if isinstance(props, dict) else {}
@@ -161,11 +211,18 @@ def _format_guidance(template: str, *, actor, target, item_slug: str, cfg: Dict[
     )
 
 
+def _offer_evaluation_target(speaker, player_speaker, cfg: Dict[str, Any]):
+    if cfg.get('prefer_player_character') and player_speaker is not None:
+        return player_speaker
+    return speaker
+
+
 def offer_guidance_lines(
     session,
     actor,
     speaker=None,
     *,
+    player_speaker=None,
     game_properties=None,
     actor_has_map_item_fn=None,
 ) -> List[str]:
@@ -197,22 +254,44 @@ def offer_guidance_lines(
                 lines.append(_format_guidance(str(template), actor=actor, target=speaker, item_slug=item_slug, cfg=cfg))
             continue
 
-        if speaker is None:
+        evaluation_target = _offer_evaluation_target(speaker, player_speaker, cfg)
+        if evaluation_target is None:
             continue
 
         allowed, reason = evaluate_offer_block(
             session,
             actor,
-            speaker,
+            evaluation_target,
             item_slug,
             game_properties=game_properties,
             actor_has_map_item=has_map_item,
         )
         if allowed:
+            if cfg.get('prefer_player_character') and is_player_character(player_speaker):
+                try:
+                    from natural20.utils.conversation import mention_handle_for
+
+                    handle = mention_handle_for(player_speaker)
+                except Exception:
+                    handle = getattr(player_speaker, 'entity_uid', 'adventurer')
+                item_label = str(cfg.get('item_label') or item_slug.replace('_', ' '))
+                lines.append(
+                    f"- For {item_label}, use [OFFER_ITEM: item={item_slug}, target=@{handle}] "
+                    "for the adventurer who came to help — not tavern staff or other NPCs "
+                    "who are only relaying speech."
+                )
             continue
         template = guidance_map.get(reason) or guidance_map.get(f"{reason}:{item_slug}")
         if template:
-            lines.append(_format_guidance(str(template), actor=actor, target=speaker, item_slug=item_slug, cfg=cfg))
+            lines.append(
+                _format_guidance(
+                    str(template),
+                    actor=actor,
+                    target=evaluation_target,
+                    item_slug=item_slug,
+                    cfg=cfg,
+                )
+            )
 
     return lines
 

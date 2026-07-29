@@ -511,7 +511,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                 return None
             spell_range_ft = param.get("range", 60)
             radius_ft = param.get("radius", 20)
-            require_los = param.get("require_los", True)
+            require_los = param.get("require_los", False)
             cur_x, cur_y = map.position_of(entity)
             max_squares = max(0, int(spell_range_ft) // map.feet_per_grid)
             position_choices = []
@@ -526,7 +526,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                     if require_los and not map.line_of_sight(cur_x, cur_y, nx, ny,
                                                              passability_mode=True, inclusive=True):
                         continue
-                    if match and [nx, ny] not in match:
+                    if _match and [nx, ny] not in _match:
                         continue
                     position_choices.append([nx, ny])
             if len(position_choices) > 0 and auto_target and battle:
@@ -539,7 +539,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                     print(f"No map found for {entity.name}")
                 return None
             spell_range_ft = param.get("range", 60)
-            require_los = param.get("require_los", True)
+            require_los = param.get("require_los", False)
             cur_x, cur_y = map.position_of(entity)
             max_squares = max(0, int(spell_range_ft) // map.feet_per_grid)
             position_choices = []
@@ -553,7 +553,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                     if require_los and not map.line_of_sight(cur_x, cur_y, nx, ny,
                                                              passability_mode=True, inclusive=True):
                         continue
-                    if match and [nx, ny] not in match:
+                    if _match and [nx, ny] not in _match:
                         continue
                     position_choices.append([nx, ny])
             params_list.append(position_choices)

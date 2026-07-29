@@ -34,6 +34,15 @@ class TestBackgroundLoading(unittest.TestCase):
         self.assertEqual(set(backgrounds.keys()), expected,
                          "All 12 SRD backgrounds should be loaded")
 
+    def test_loads_template_backgrounds_when_campaign_has_no_backgrounds_dir(self):
+        campaign_root = os.path.join(
+            os.path.dirname(__file__), '..', 'user_levels', 'wild_sheep_chase'
+        )
+        session = Session(root_path=campaign_root)
+        backgrounds = session.load_backgrounds()
+        self.assertIn('sage', backgrounds)
+        self.assertGreaterEqual(len(backgrounds), 12)
+
     def test_background_has_required_fields(self):
         backgrounds = self.session.load_backgrounds()
         for name, bg_data in backgrounds.items():

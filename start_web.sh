@@ -3,6 +3,6 @@
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 export N20_CAMPAIGNS_DIR="${N20_CAMPAIGNS_DIR:-$ROOT/user_levels}"
 if [ $# -eq 0 ]; then
-  set -- "$ROOT/templates"
+  set -- wild_sheep_chase
 fi
 exec "$ROOT/n20-webapp/start_web.sh" "$@"

@@ -76,6 +76,7 @@ def load_spell_class(spell_name):
     from natural20.spell.enlarge_reduce_spell import EnlargeReduceSpell
     from natural20.spell.haste_spell import HasteSpell
     from natural20.spell.slow_spell import SlowSpell
+    from natural20.spell.sleep_spell import SleepSpell
     from natural20.spell.polymorph_spell import PolymorphSpell
     from natural20.spell.booming_blade_spell import BoomingBladeSpell
     from natural20.spell.green_flame_blade_spell import GreenFlameBladeSpell
@@ -170,6 +171,7 @@ def load_spell_class(spell_name):
         'EnlargeReduceSpell': EnlargeReduceSpell,
         'HasteSpell': HasteSpell,
         'SlowSpell': SlowSpell,
+        'SleepSpell': SleepSpell,
         'PolymorphSpell': PolymorphSpell,
         'BoomingBladeSpell': BoomingBladeSpell,
         'GreenFlameBladeSpell': GreenFlameBladeSpell,
