@@ -475,7 +475,8 @@ class PathCompute:
 
     def compute_cross_map_path(self, source_map, source_x, source_y,
                                target_map, target_x, target_y,
-                               max_segments: int = 8):
+                               max_segments: int = 8,
+                               door_navigation: bool = False):
         """A* over a graph of (map, x, y) states linked by teleporters.
 
         Each segment of the result is a single-map sub-path the entity must
@@ -501,7 +502,8 @@ class PathCompute:
             return None
         if source_map is target_map:
             path = self._compute_path_on(source_map, source_x, source_y,
-                                         target_x, target_y)
+                                         target_x, target_y,
+                                         door_navigation=door_navigation)
             if path is None:
                 return None
             return [{
@@ -555,7 +557,8 @@ class PathCompute:
             # Try direct hop to goal if we are on the target map.
             if current_map is target_map:
                 direct = self._compute_path_on(current_map, x, y,
-                                               target_x, target_y)
+                                               target_x, target_y,
+                                               door_navigation=door_navigation)
                 if direct is not None:
                     parents[goal_state] = (state, direct, None, current_map)
                     return self._reconstruct_cross_map(goal_state, parents)
@@ -565,7 +568,8 @@ class PathCompute:
                 if (x, y) == (tx, ty):
                     seg = [(x, y)]
                 else:
-                    seg = self._compute_path_on(current_map, x, y, tx, ty)
+                    seg = self._compute_path_on(current_map, x, y, tx, ty,
+                                                door_navigation=door_navigation)
                     if seg is None:
                         continue
                 next_map = current_map.linked_maps.get(tport.target_map)
@@ -584,13 +588,13 @@ class PathCompute:
 
         return None
 
-    def _compute_path_on(self, map_, sx, sy, tx, ty):
+    def _compute_path_on(self, map_, sx, sy, tx, ty, door_navigation=False):
         """Compute a single-map path on ``map_`` while preserving the
         configured ``ignore_opposing`` and entity context. Returns the raw
         tile list (no movement-cost trimming) or ``None``."""
         helper = PathCompute(self.battle, map_, self.entity,
                              ignore_opposing=self.ignore_opposing)
-        return helper.compute_path(sx, sy, tx, ty)
+        return helper.compute_path(sx, sy, tx, ty, door_navigation=door_navigation)
 
     def _reconstruct_cross_map(self, goal_state, parents):
         chain = []

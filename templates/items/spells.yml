@@ -1185,6 +1185,60 @@ mirror_image:
   type: buff
   spell_list_classes: [Wizard, Sorcerer]
   spell_class: Natural20::MirrorImage
+web:
+  label: Web
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  material: a bit of spiderweb
+  description: |
+    You conjure a mass of thick, sticky webs at a point of your choice within range.
+    The webs fill a 20-foot cube from that point for the duration. The webs are
+    difficult terrain and lightly obscure the area.
+
+    Each creature that starts its turn in the webs or enters them during its turn
+    must make a Dexterity saving throw. On a failed save, the creature is restrained
+    as long as it remains in the webs or until it breaks free.
+  duration: 1h
+  duration_seconds: 3600
+  level: 2
+  name: Web
+  range: 60
+  area_size: 20
+  school: conjuration
+  concentration: true
+  type: area
+  spell_list_classes: [Wizard, Sorcerer, Artificer]
+  spell_class: Natural20::Web
+hideous_laughter:
+  label: Tasha's Hideous Laughter
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  material: tiny tarts and a feather
+  description: A creature of your choice must succeed on a Wisdom save or fall prone and become incapacitated.
+  duration: 1m
+  duration_seconds: 60
+  level: 1
+  name: Tasha's Hideous Laughter
+  range: 30
+  school: enchantment
+  concentration: true
+  type: debuff
+  spell_list_classes: [Bard, Wizard]
+  spell_class: Natural20::HideousLaughter
+blindness_deafness:
+  label: Blindness/Deafness
+  casting_time: 1:action
+  components: [verbal]
+  description: Blind or deafen a creature that fails a Constitution save.
+  duration: 1m
+  duration_seconds: 60
+  level: 2
+  name: Blindness/Deafness
+  range: 30
+  school: necromancy
+  type: debuff
+  spell_list_classes: [Bard, Cleric, Sorcerer, Wizard]
+  spell_class: Natural20::BlindnessDeafness
 aganazzars_scorcher:
   label: Aganazzar's Scorcher
   casting_time: 1:action
@@ -1684,3 +1738,940 @@ tongues:
  spell_list_classes: [Bard, Sorcerer, Warlock, Wizard]
  spell_class: Natural20::TonguesSpell
 
+# --- Auto-generated SRD catalog stubs for character builder (playable via UtilityWizardSpell until implemented) ---
+aid:
+  label: Aid
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Aid
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Aid
+alarm:
+  label: Alarm
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Alarm
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Alarm
+animal_friendship:
+  label: Animal Friendship
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Animal Friendship
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::AnimalFriendship
+animal_messenger:
+  label: Animal Messenger
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Animal Messenger
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::AnimalMessenger
+augury:
+  label: Augury
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Augury
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Augury
+barkskin:
+  label: Barkskin
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Barkskin
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Barkskin
+beast_sense:
+  label: Beast Sense
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Beast Sense
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::BeastSense
+blade_ward:
+  label: Blade Ward
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 0
+  name: Blade Ward
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::BladeWard
+calm_emotions:
+  label: Calm Emotions
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Calm Emotions
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::CalmEmotions
+charm_person:
+  label: Charm Person
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Charm Person
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::CharmPerson
+cloud_of_daggers:
+  label: Cloud Of Daggers
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Cloud Of Daggers
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::CloudOfDaggers
+command:
+  label: Command
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Command
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Command
+cordon_of_arrows:
+  label: Cordon Of Arrows
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Cordon Of Arrows
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::CordonOfArrows
+create_or_destroy_water:
+  label: Create Or Destroy Water
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Create Or Destroy Water
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::CreateOrDestroyWater
+crown_of_madness:
+  label: Crown Of Madness
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Crown Of Madness
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::CrownOfMadness
+dancing_lights:
+  label: Dancing Lights
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 0
+  name: Dancing Lights
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::DancingLights
+darkvision:
+  label: Darkvision
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Darkvision
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Darkvision
+detect_evil_and_good:
+  label: Detect Evil And Good
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Detect Evil And Good
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::DetectEvilAndGood
+detect_poison_and_disease:
+  label: Detect Poison And Disease
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Detect Poison And Disease
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::DetectPoisonAndDisease
+detect_thoughts:
+  label: Detect Thoughts
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Detect Thoughts
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::DetectThoughts
+disguise_self:
+  label: Disguise Self
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Disguise Self
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::DisguiseSelf
+dissonant_whispers:
+  label: Dissonant Whispers
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Dissonant Whispers
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::DissonantWhispers
+druidcraft:
+  label: Druidcraft
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 0
+  name: Druidcraft
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Druidcraft
+enhance_ability:
+  label: Enhance Ability
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Enhance Ability
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::EnhanceAbility
+ensnaring_strike:
+  label: Ensnaring Strike
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Ensnaring Strike
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::EnsnaringStrike
+entangle:
+  label: Entangle
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Entangle
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Entangle
+enthrall:
+  label: Enthrall
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Enthrall
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Enthrall
+faerie_fire:
+  label: Faerie Fire
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Faerie Fire
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::FaerieFire
+find_steed:
+  label: Find Steed
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Find Steed
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::FindSteed
+find_traps:
+  label: Find Traps
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Find Traps
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::FindTraps
+flame_blade:
+  label: Flame Blade
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Flame Blade
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::FlameBlade
+flaming_sphere:
+  label: Flaming Sphere
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Flaming Sphere
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::FlamingSphere
+fog_cloud:
+  label: Fog Cloud
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Fog Cloud
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::FogCloud
+friends:
+  label: Friends
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 0
+  name: Friends
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Friends
+goodberry:
+  label: Goodberry
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Goodberry
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Goodberry
+hail_of_thorns:
+  label: Hail Of Thorns
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Hail Of Thorns
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::HailOfThorns
+heat_metal:
+  label: Heat Metal
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Heat Metal
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::HeatMetal
+heroism:
+  label: Heroism
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Heroism
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Heroism
+identify:
+  label: Identify
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Identify
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Identify
+illusory_script:
+  label: Illusory Script
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Illusory Script
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::IllusoryScript
+invisibility:
+  label: Invisibility
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Invisibility
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Invisibility
+jump:
+  label: Jump
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Jump
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Jump
+lesser_restoration:
+  label: Lesser Restoration
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Lesser Restoration
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::LesserRestoration
+locate_animals_or_plants:
+  label: Locate Animals Or Plants
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Locate Animals Or Plants
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::LocateAnimalsOrPlants
+locate_object:
+  label: Locate Object
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Locate Object
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::LocateObject
+longstrider:
+  label: Longstrider
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Longstrider
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Longstrider
+magic_mouth:
+  label: Magic Mouth
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Magic Mouth
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::MagicMouth
+magic_weapon:
+  label: Magic Weapon
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Magic Weapon
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::MagicWeapon
+mending:
+  label: Mending
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 0
+  name: Mending
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Mending
+moonbeam:
+  label: Moonbeam
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Moonbeam
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Moonbeam
+pass_without_trace:
+  label: Pass Without Trace
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Pass Without Trace
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::PassWithoutTrace
+phantasmal_force:
+  label: Phantasmal Force
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Phantasmal Force
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::PhantasmalForce
+prayer_of_healing:
+  label: Prayer Of Healing
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Prayer Of Healing
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::PrayerOfHealing
+produce_flame:
+  label: Produce Flame
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 0
+  name: Produce Flame
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::ProduceFlame
+purify_food_and_drink:
+  label: Purify Food And Drink
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Purify Food And Drink
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::PurifyFoodAndDrink
+ray_of_sickness:
+  label: Ray Of Sickness
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Ray Of Sickness
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::RayOfSickness
+sanctuary:
+  label: Sanctuary
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Sanctuary
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Sanctuary
+see_invisibility:
+  label: See Invisibility
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: See Invisibility
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::SeeInvisibility
+shatter:
+  label: Shatter
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Shatter
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Shatter
+shillelagh:
+  label: Shillelagh
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 0
+  name: Shillelagh
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Shillelagh
+silence:
+  label: Silence
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Silence
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Silence
+silent_image:
+  label: Silent Image
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Silent Image
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::SilentImage
+speak_with_animals:
+  label: Speak With Animals
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Speak With Animals
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::SpeakWithAnimals
+spike_growth:
+  label: Spike Growth
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Spike Growth
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::SpikeGrowth
+suggestion:
+  label: Suggestion
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Suggestion
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Suggestion
+tensers_floating_disk:
+  label: Tensers Floating Disk
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Tensers Floating Disk
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::TensersFloatingDisk
+thaumaturgy:
+  label: Thaumaturgy
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 0
+  name: Thaumaturgy
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::Thaumaturgy
+thorn_whip:
+  label: Thorn Whip
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 0
+  name: Thorn Whip
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::ThornWhip
+toll_the_dying:
+  label: Toll The Dying
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 0
+  name: Toll The Dying
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::TollTheDying
+unseen_servant:
+  label: Unseen Servant
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 1
+  name: Unseen Servant
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::UnseenServant
+warding_bond:
+  label: Warding Bond
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Warding Bond
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::WardingBond
+zone_of_truth:
+  label: Zone Of Truth
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: SRD spell catalog entry (implementation pending).
+  duration: instant
+  level: 2
+  name: Zone Of Truth
+  range: 30
+  school: abjuration
+  type: utility
+  spell_list_classes: []
+  spell_class: Natural20::ZoneOfTruth

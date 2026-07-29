@@ -81,6 +81,8 @@ def load_spell_class(spell_name):
     from natural20.spell.booming_blade_spell import BoomingBladeSpell
     from natural20.spell.green_flame_blade_spell import GreenFlameBladeSpell
     from natural20.spell.absorb_elements_spell import AbsorbElementsSpell
+    from natural20.spell.web_spell import WebSpell
+    from natural20.spell.mirror_image_spell import MirrorImageSpell
     from natural20.spell.protection_from_evil_and_good_spell import ProtectionFromEvilAndGoodSpell
     from natural20.spell.hold_person_spell import HoldPersonSpell
     from natural20.spell.wall_of_fire_spell import WallOfFireSpell
@@ -104,12 +106,13 @@ def load_spell_class(spell_name):
         GustOfWindSpell,
         KnockSpell,
         LeomundsTinyHutSpell,
+        HideousLaughterSpell,
+        BlindnessDeafnessSpell,
         LightningBoltSpell,
         MazeSpell,
         MelfsAcidArrowSpell,
         MessageSpell,
         MinorIllusionSpell,
-        MirrorImageSpell,
         OtilukesResilientSphereSpell,
         PrestidigitationSpell,
         ProtectionFromEnergySpell,
@@ -176,6 +179,8 @@ def load_spell_class(spell_name):
         'BoomingBladeSpell': BoomingBladeSpell,
         'GreenFlameBladeSpell': GreenFlameBladeSpell,
         'AbsorbElementsSpell': AbsorbElementsSpell,
+        'WebSpell': WebSpell,
+        'MirrorImageSpell': MirrorImageSpell,
         'ProtectionFromEvilAndGoodSpell': ProtectionFromEvilAndGoodSpell,
         'HoldPersonSpell': HoldPersonSpell,
         'WallOfFireSpell': WallOfFireSpell,
@@ -197,13 +202,14 @@ def load_spell_class(spell_name):
         'FireballSpell': FireballSpell,
         'GustOfWindSpell': GustOfWindSpell,
         'KnockSpell': KnockSpell,
+        'HideousLaughterSpell': HideousLaughterSpell,
+        'BlindnessDeafnessSpell': BlindnessDeafnessSpell,
         'LeomundsTinyHutSpell': LeomundsTinyHutSpell,
         'LightningBoltSpell': LightningBoltSpell,
         'MazeSpell': MazeSpell,
         'MelfsAcidArrowSpell': MelfsAcidArrowSpell,
         'MessageSpell': MessageSpell,
         'MinorIllusionSpell': MinorIllusionSpell,
-        'MirrorImageSpell': MirrorImageSpell,
         'OtilukesResilientSphereSpell': OtilukesResilientSphereSpell,
         'PrestidigitationSpell': PrestidigitationSpell,
         'ProtectionFromEnergySpell': ProtectionFromEnergySpell,

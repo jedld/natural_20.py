@@ -23,9 +23,11 @@ spell_list:
     - poison_spray
     - shocking_grasp
   level_1:
+    - armor_of_agathys
     - burning_hands
     - expeditious_retreat
     - find_familiar
+    - hellish_rebuke
     - magic_missile
     - thunderwave
   level_2:
@@ -33,6 +35,7 @@ spell_list:
     - misty_step
   level_3:
     - counterspell
+    - dispel_magic
     - fly
 class_features:
   - otherworldly_patron

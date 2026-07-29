@@ -908,6 +908,203 @@ def move_map_item(
     return data
 
 
+def _remove_fixture_at_position(map_block: dict[str, Any], x: int, y: int) -> dict[str, Any]:
+    """Remove a layer_placements row and/or painted terrain cell at (x, y)."""
+    placements = _layer_placements_list(map_block)
+    for entry in list(placements):
+        if not isinstance(entry, dict):
+            continue
+        pos = entry.get("pos") or []
+        if len(pos) < 2 or int(pos[0]) != int(x) or int(pos[1]) != int(y):
+            continue
+        old_layer = str(entry.get("layer") or "base_1")
+        old_token = str(entry.get("token") or "")
+        _clear_layer_grid_cell(
+            map_block,
+            old_layer,
+            int(x),
+            int(y),
+            expected_token=old_token or None,
+        )
+        placements.remove(entry)
+        return {
+            "x": int(x),
+            "y": int(y),
+            "layer": old_layer,
+            "token": old_token,
+            "source": "layer_placements",
+        }
+
+    for layer_name in ("base_2", "base_1", "base"):
+        grid = map_block.get(layer_name)
+        if not grid or int(y) >= len(grid) or int(x) >= len(grid[int(y)]):
+            continue
+        cell_token = grid[int(y)][int(x)]
+        if cell_token in _FILLER_CHARS:
+            continue
+        _clear_layer_grid_cell(
+            map_block,
+            layer_name,
+            int(x),
+            int(y),
+            expected_token=cell_token,
+        )
+        return {
+            "x": int(x),
+            "y": int(y),
+            "layer": layer_name,
+            "token": cell_token,
+        }
+
+    raise KeyError(f"No removable fixture at ({x}, {y})")
+
+
+def remove_map_item(
+    session,
+    map_name: str,
+    *,
+    item_id: str,
+    kind: str,
+    token: str | None = None,
+    layer: str | None = None,
+    source: str | None = None,
+    index: int | None = None,
+    x: int | None = None,
+    y: int | None = None,
+) -> dict[str, Any]:
+    """Remove one editable map fixture and persist to the campaign YAML file."""
+    path = resolve_map_yaml_path(session, map_name)
+    data = copy.deepcopy(load_map_document(path))
+    map_block = _map_block(data)
+    legend = _legend_for(data)
+    removed: dict[str, Any] = {
+        "item_id": item_id,
+        "kind": kind,
+        "source": source,
+    }
+
+    if kind in {"entity", "object"} and (source == "entities" or source is None):
+        entities = map_block.get("entities") or []
+        target_idx = _resolve_entity_entry_index(
+            entities,
+            legend,
+            item_id=item_id,
+            index=index,
+            token=token,
+            from_x=x,
+            from_y=y,
+        )
+        if target_idx is None:
+            raise KeyError(f"Entity entry not found: {item_id}")
+        entry = entities.pop(target_idx)
+        pos = entry.get("pos") or []
+        if len(pos) >= 2:
+            removed["x"] = int(pos[0])
+            removed["y"] = int(pos[1])
+        removed["token"] = entry.get("token")
+    elif source == "layer_placements" or str(item_id).startswith("lp_"):
+        placements = _layer_placements_list(map_block)
+        target = _find_layer_placement(placements, placement_id=item_id)
+        if target is None and layer is not None and x is not None and y is not None:
+            target = _find_layer_placement(placements, layer=layer, x=int(x), y=int(y))
+        if target is None:
+            raise KeyError(f"Layer placement not found: {item_id}")
+        old_layer = str(target.get("layer") or "base_1")
+        old_pos = target.get("pos") or [0, 0]
+        old_token = str(target.get("token") or "")
+        if len(old_pos) >= 2:
+            _clear_layer_grid_cell(
+                map_block,
+                old_layer,
+                int(old_pos[0]),
+                int(old_pos[1]),
+                expected_token=old_token or None,
+            )
+            removed["x"] = int(old_pos[0])
+            removed["y"] = int(old_pos[1])
+        placements.remove(target)
+        removed["layer"] = old_layer
+        removed["token"] = old_token
+    elif kind in {"entity", "meta"} and source == "meta":
+        meta_rows = map_block.get("meta") or []
+        if not meta_rows:
+            raise KeyError("meta layer missing")
+        move_char = token
+        if not move_char:
+            for row in meta_rows:
+                for cell in row:
+                    if cell not in _FILLER_CHARS:
+                        leg = legend.get(cell) or {}
+                        if _entry_uid(str(cell), {}, legend) == item_id:
+                            move_char = cell
+                            break
+                if move_char:
+                    break
+        if not move_char:
+            raise KeyError(f"Meta token not found: {item_id}")
+        old_pos = None
+        for row_y, row in enumerate(meta_rows):
+            for col_x, cell in enumerate(row):
+                if cell == move_char and (
+                    _entry_uid(str(cell), {}, legend) == item_id
+                    or f"meta:{cell}:{col_x}:{row_y}" == item_id
+                ):
+                    old_pos = (col_x, row_y)
+                    break
+            if old_pos:
+                break
+        if old_pos is None:
+            raise KeyError(f"Meta placement not found: {item_id}")
+        ox, oy = old_pos
+        row_chars = list(meta_rows[oy])
+        row_chars[ox] = "."
+        meta_rows[oy] = "".join(row_chars)
+        removed["x"] = int(ox)
+        removed["y"] = int(oy)
+        removed["token"] = move_char
+        removed["layer"] = "meta"
+    elif kind == "terrain":
+        if not layer and str(item_id).startswith("terrain:"):
+            parts = str(item_id).split(":")
+            if len(parts) >= 4:
+                layer = parts[1]
+                if x is None:
+                    x = int(parts[2])
+                if y is None:
+                    y = int(parts[3])
+        if x is not None and y is not None and (
+            str(item_id).startswith("pos:") or not layer
+        ):
+            pos_removed = _remove_fixture_at_position(map_block, int(x), int(y))
+            removed.update(pos_removed)
+        else:
+            if not layer:
+                raise ValueError("terrain removal requires layer")
+            if x is None or y is None:
+                raise ValueError("terrain removal requires x and y")
+            grid = map_block.get(layer)
+            if not grid:
+                raise KeyError(f"Layer not found: {layer}")
+            cell_token = grid[int(y)][int(x)]
+            expected = token or (cell_token if cell_token not in _FILLER_CHARS else None)
+            _clear_layer_grid_cell(
+                map_block,
+                layer,
+                int(x),
+                int(y),
+                expected_token=expected,
+            )
+            removed["layer"] = layer
+            removed["x"] = int(x)
+            removed["y"] = int(y)
+            removed["token"] = expected or cell_token
+    else:
+        raise ValueError(f"Unsupported remove kind: {kind}")
+
+    save_map_document(path, data)
+    return removed
+
+
 def _terrain_token_char(session, object_type: str) -> str:
     try:
         obj = session.load_object(object_type)
@@ -915,13 +1112,24 @@ def _terrain_token_char(session, object_type: str) -> str:
         obj = {}
     token_spec = obj.get("token")
     if isinstance(token_spec, list) and token_spec:
-        candidate = str(token_spec[0])
+        raw = token_spec[0]
+        if raw is None:
+            candidate = ""
+        else:
+            candidate = str(raw)
     elif isinstance(token_spec, str):
         candidate = token_spec
     else:
         candidate = object_type[:1] or "?"
+    if candidate in {"", "None", "none"}:
+        candidate = ""
     if len(candidate) != 1:
-        fallback = {"water": "^", "difficult_terrain": "~", "briar": "▓"}
+        fallback = {
+            "water": "^",
+            "difficult_terrain": "~",
+            "briar": "▓",
+            "stone_wall": "#",
+        }
         candidate = fallback.get(object_type, "?")
     return candidate
 
@@ -953,6 +1161,74 @@ def _ensure_legend_token(data: dict[str, Any], session, object_type: str) -> str
     return token
 
 
+def _placement_mode_for_type(type_name: str | None) -> str:
+    """Terrain paint writes the ASCII grid; object overlay uses map.entities."""
+    category = _categorize_type(type_name)
+    if category in ("wall", "door"):
+        return "terrain"
+    if type_name and str(type_name) in _TERRAIN_OVERLAY_TYPES:
+        return "terrain"
+    return "object"
+
+
+def _default_legend_props(
+    session,
+    object_type: str,
+    map_name: str,
+    x: int,
+    y: int,
+) -> dict[str, Any]:
+    if object_type == "teleporter":
+        return {
+            "target_map": map_name,
+            "target_position": [int(x), int(y)],
+        }
+    return {}
+
+
+def _apply_legend_defaults(
+    legend: dict[str, Any],
+    token: str,
+    session,
+    object_type: str,
+    map_name: str,
+    x: int,
+    y: int,
+) -> None:
+    entry = legend.setdefault(str(token), {})
+    if not entry.get("type"):
+        entry["type"] = object_type
+    if not entry.get("name"):
+        try:
+            obj = session.load_object(object_type)
+        except Exception:
+            obj = {}
+        entry["name"] = obj.get("name", object_type.replace("_", " ").title())
+    for key, value in _default_legend_props(session, object_type, map_name, x, y).items():
+        entry.setdefault(key, copy.deepcopy(value))
+
+
+def _place_object_layer_fixture(
+    map_block: dict[str, Any],
+    *,
+    token: str,
+    x: int,
+    y: int,
+) -> None:
+    """Place an interactable object without overwriting terrain in the ASCII grid."""
+    entities = map_block.setdefault("entities", [])
+    entities[:] = [
+        entry
+        for entry in entities
+        if not (
+            isinstance(entry, dict)
+            and str(entry.get("layer") or "object") == "object"
+            and list(entry.get("pos") or []) == [int(x), int(y)]
+        )
+    ]
+    entities.append({"token": str(token), "pos": [int(x), int(y)], "layer": "object"})
+
+
 def _target_terrain_layer(map_block: dict[str, Any], x: int, y: int) -> tuple[str, list[str]]:
     """Pick the topmost layer with a writable filler cell at (x, y)."""
     for layer_name in ("base_2", "base_1", "base"):
@@ -978,10 +1254,45 @@ def place_map_layer_item(
     placement_id: str | None = None,
     extra_fields: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Place or replace a layer fixture using map.layer_placements (stable editor ids)."""
+    """Place or replace a map fixture and persist to the campaign YAML file."""
     path = resolve_map_yaml_path(session, map_name)
     data = copy.deepcopy(load_map_document(path))
     map_block = _map_block(data)
+
+    resolved_type = object_type
+    if not resolved_type and token:
+        resolved_type = (_legend_for(data).get(str(token)) or {}).get("type")
+
+    if resolved_type and _placement_mode_for_type(str(resolved_type)) == "object":
+        if not object_type:
+            object_type = str(resolved_type)
+        token = _ensure_legend_token(data, session, str(object_type))
+        _apply_legend_defaults(
+            data.setdefault("legend", {}),
+            str(token),
+            session,
+            str(object_type),
+            map_name,
+            int(x),
+            int(y),
+        )
+        if extra_fields:
+            legend_entry = data["legend"][str(token)]
+            for key, value in extra_fields.items():
+                if key in {"id", "layer", "token", "pos", "type"}:
+                    continue
+                legend_entry[key] = value
+        _place_object_layer_fixture(map_block, token=str(token), x=int(x), y=int(y))
+        save_map_document(path, data)
+        return {
+            "id": _entry_uid(str(token), {"token": token, "pos": [int(x), int(y)]}, _legend_for(data))
+            or f"entities:{token}:{x}:{y}",
+            "placement_kind": "object",
+            "token": str(token),
+            "x": int(x),
+            "y": int(y),
+            "object_type": object_type,
+        }
 
     if object_type:
         token = _ensure_legend_token(data, session, object_type)
@@ -1034,6 +1345,7 @@ def place_map_layer_item(
     save_map_document(path, data)
     return {
         "id": pid,
+        "placement_kind": "terrain",
         "layer": str(target_layer),
         "token": str(token),
         "x": int(x),
@@ -1099,7 +1411,34 @@ def _sync_layer_from_yaml(battle_map, map_block: dict[str, Any], layer: str) -> 
             grid[x][y] = _yaml_char_to_grid_cell(layer, ch)
 
 
+def _is_removable_map_fixture(obj) -> bool:
+    """Return True for map-authored tiles (walls, doors, terrain overlays)."""
+    from natural20.item_library.common import StoneWall, StoneWallDirectional
+    from natural20.item_library.door_object import DoorObject, DoorObjectWall
+
+    if isinstance(obj, (StoneWall, StoneWallDirectional, DoorObject, DoorObjectWall)):
+        return True
+    return _terrain_object_type(obj) is not None
+
+
+def _fixture_token_for_tile(map_block: dict[str, Any], legend: dict[str, Any], x: int, y: int) -> str | None:
+    """Return the topmost non-filler YAML token that should spawn objects at (x, y)."""
+    for layer_name in ("base_2", "base_1", "base"):
+        grid = map_block.get(layer_name)
+        if not grid or int(y) >= len(grid) or int(x) >= len(grid[int(y)]):
+            continue
+        ch = grid[int(y)][int(x)]
+        if ch in _FILLER_CHARS:
+            continue
+        if ch == "#":
+            return "#"
+        if legend.get(ch):
+            return str(ch)
+    return None
+
+
 def _resync_terrain_tile(battle_map, x: int, y: int) -> None:
+    from natural20.item_library.common import Ground
     from natural20.npc import Npc
     from natural20.player_character import PlayerCharacter
 
@@ -1108,18 +1447,18 @@ def _resync_terrain_tile(battle_map, x: int, y: int) -> None:
             continue
         if obj in battle_map.entities:
             continue
-        if _terrain_object_type(obj) is not None:
+        if _is_removable_map_fixture(obj):
             battle_map.remove(obj)
 
-    for layer_name in ("base_2", "base_1", "base"):
-        grid_attr = _LAYER_GRID_ATTR[layer_name]
-        grid = getattr(battle_map, grid_attr)
-        if x >= len(grid) or y >= len(grid[x]):
-            continue
-        ch = grid[x][y]
-        if not ch or ch in _FILLER_CHARS or ch == "#":
-            continue
-        battle_map._setup_object_with_token(ch, (x, y))
+    map_block = (getattr(battle_map, "properties", None) or {}).get("map") or {}
+    legend = (getattr(battle_map, "properties", None) or {}).get("legend") or {}
+    token = _fixture_token_for_tile(map_block, legend, int(x), int(y))
+    if token:
+        battle_map._setup_object_with_token(token, (int(x), int(y)))
+        return
+
+    if not any(isinstance(obj, Ground) for obj in battle_map.objects_at(x, y)):
+        battle_map._setup_object_with_token(".", (int(x), int(y)))
 
 
 def apply_terrain_placement_to_live_map(
@@ -1144,5 +1483,32 @@ def apply_terrain_placement_to_live_map(
                 if ch not in _FILLER_CHARS:
                     battle_map.meta_map[x][y] = ch
     _resync_terrain_tile(battle_map, int(placement["x"]), int(placement["y"]))
+    if hasattr(battle_map, "_compute_lights"):
+        battle_map._compute_lights()
+
+
+def apply_terrain_removal_to_live_map(
+    battle_map,
+    session,
+    map_name: str,
+    removal: dict[str, Any],
+) -> None:
+    """Apply a single fixture removal to the in-memory map without a full reload."""
+    if removal.get("x") is None or removal.get("y") is None:
+        return
+    data = _sync_map_properties_from_disk(battle_map, session, map_name)
+    map_block = data.get("map") or {}
+    layer = str(removal.get("layer") or "base_1")
+    if layer in _LAYER_GRID_ATTR:
+        _sync_layer_from_yaml(battle_map, map_block, layer)
+    elif layer == "meta" and map_block.get("meta") is not None:
+        battle_map.meta_map = [
+            [None for _ in range(len(row))] for row in map_block.get("meta") or []
+        ]
+        for y, row in enumerate(map_block.get("meta") or []):
+            for x, ch in enumerate(row):
+                if ch not in _FILLER_CHARS:
+                    battle_map.meta_map[x][y] = ch
+    _resync_terrain_tile(battle_map, int(removal["x"]), int(removal["y"]))
     if hasattr(battle_map, "_compute_lights"):
         battle_map._compute_lights()

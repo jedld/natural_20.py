@@ -11,6 +11,7 @@ from natural20.map_editor import (
     build_edit_overlay,
     move_map_item,
     place_map_terrain,
+    remove_map_item,
     save_map_document,
 )
 
@@ -378,6 +379,103 @@ def test_place_map_terrain_writes_base_overlay_layer(tmp_path: Path):
     assert saved["map"]["layer_placements"][0]["id"].startswith("lp_")
 
 
+def test_place_map_terrain_writes_directional_wall_token(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "base": ["...", "...", "..."],
+        },
+        "legend": {},
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+        def load_object(self, object_type):
+            return {
+                "stone_wall_tl": {
+                    "name": "Stone Wall Thin Top Left",
+                    "item_class": "StoneWallDirectional",
+                    "token": ["┌"],
+                },
+                "stone_wall": {
+                    "name": "Stone Wall",
+                    "item_class": "StoneWall",
+                    "token": [None],
+                },
+            }[object_type]
+
+    placed = place_map_terrain(_Session(), "hub", object_type="stone_wall_tl", x=1, y=1)
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    assert placed["token"] == "┌"
+    assert saved["map"]["base"][1][1] == "┌"
+    assert saved["legend"]["┌"]["type"] == "stone_wall_tl"
+
+    placed_wall = place_map_terrain(_Session(), "hub", object_type="stone_wall", x=0, y=0)
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    assert placed_wall["token"] == "#"
+    assert saved["map"]["base"][0][0] == "#"
+
+
+def test_place_teleporter_on_wall_preserves_terrain(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [3, 3],
+            "base": [".┌.", "...", "..."],
+            "layer_placements": [
+                {"id": "lp_wall", "layer": "base", "token": "┌", "pos": [1, 0]},
+            ],
+            "entities": [],
+        },
+        "legend": {
+            "┌": {"name": "Wall", "type": "stone_wall_tl"},
+        },
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+        def load_object(self, object_type):
+            return {
+                "teleporter": {
+                    "name": "Teleporter",
+                    "item_class": "Teleporter",
+                    "token": ["T"],
+                },
+            }[object_type]
+
+    placed = place_map_terrain(_Session(), "hub", object_type="teleporter", x=1, y=0)
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    assert placed["placement_kind"] == "object"
+    assert saved["map"]["base"][0][1] == "┌"
+    assert saved["map"]["layer_placements"]
+    assert saved["map"]["entities"] == [
+        {"token": "T", "pos": [1, 0], "layer": "object"},
+    ]
+    assert saved["legend"]["T"]["type"] == "teleporter"
+    assert saved["legend"]["T"]["target_map"] == "hub"
+    assert saved["legend"]["T"]["target_position"] == [1, 0]
+
+
 def test_build_edit_overlay_prefers_layer_placements_over_grid_scan():
     map_data = {
         "map": {
@@ -438,6 +536,123 @@ def test_move_layer_placement_updates_list_and_grid(tmp_path: Path):
     assert saved["map"]["layer_placements"][0]["pos"] == [1, 1]
     assert saved["map"]["base_1"][2][2] == "."
     assert saved["map"]["base_1"][1][1] == "^"
+
+
+def test_remove_layer_placement_clears_list_and_grid(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [5, 5],
+            "base_1": [".....", ".....", "..^..", ".....", "....."],
+            "layer_placements": [
+                {"id": "lp_water_pool", "layer": "base_1", "token": "^", "pos": [2, 2]},
+            ],
+        },
+        "legend": {"^": {"name": "Water", "type": "water"}},
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+    removed = remove_map_item(
+        _Session(),
+        "hub",
+        item_id="lp_water_pool",
+        kind="terrain",
+        source="layer_placements",
+        layer="base_1",
+        token="^",
+        x=2,
+        y=2,
+    )
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    assert removed["x"] == 2
+    assert removed["y"] == 2
+    assert saved["map"]["layer_placements"] == []
+    assert saved["map"]["base_1"][2][2] == "."
+
+
+def test_remove_grid_terrain_clears_ascii_cell(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [3, 3],
+            "base": [".┌.", "...", "..."],
+        },
+        "legend": {"┌": {"name": "Wall", "type": "stone_wall_tl"}},
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+    remove_map_item(
+        _Session(),
+        "hub",
+        item_id="terrain:base:1:0",
+        kind="terrain",
+        layer="base",
+        token="┌",
+        x=1,
+        y=0,
+    )
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    assert saved["map"]["base"][0][1] == "."
+
+
+def test_remove_fixture_at_position_clears_layer_placement(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [3, 3],
+            "base": [".┌.", "...", "..."],
+            "layer_placements": [
+                {"id": "lp_wall", "layer": "base", "token": "┌", "pos": [1, 0]},
+            ],
+        },
+        "legend": {"┌": {"name": "Wall", "type": "stone_wall_tl"}},
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+    remove_map_item(
+        _Session(),
+        "hub",
+        item_id="pos:1:0",
+        kind="terrain",
+        x=1,
+        y=0,
+    )
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    assert saved["map"]["layer_placements"] == []
+    assert saved["map"]["base"][0][1] == "."
 
 
 def test_build_edit_overlay_includes_water_terrain(tmp_path: Path):
@@ -543,3 +758,42 @@ def test_apply_terrain_placement_to_live_map(tmp_path: Path):
         getattr(obj, "type", None) == "water"
         for obj in battle_map.objects_at(2, 2)
     )
+
+
+def test_resync_terrain_tile_replaces_directional_wall(tmp_path: Path):
+    from natural20.item_library.common import StoneWallDirectional
+    from natural20.map import Map
+    from natural20.map_editor import _resync_terrain_tile
+    from natural20.session import Session
+
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [3, 3],
+            "base": ["...", ".┌.", "..."],
+        },
+        "legend": {
+            "┌": {"name": "Wall TL", "type": "stone_wall_tl"},
+            "┐": {"name": "Wall TR", "type": "stone_wall_tr"},
+        },
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    session = Session(str(campaign))
+    battle_map = Map(session, str(map_path), name="hub")
+    walls = [obj for obj in battle_map.objects_at(1, 1) if isinstance(obj, StoneWallDirectional)]
+    assert len(walls) == 1
+    assert walls[0].wall_direction == "stone_wall_tl"
+
+    battle_map.properties["map"]["base"][1] = ".┐."
+    _resync_terrain_tile(battle_map, 1, 1)
+    walls = [obj for obj in battle_map.objects_at(1, 1) if isinstance(obj, StoneWallDirectional)]
+    assert len(walls) == 1
+    assert walls[0].wall_direction == "stone_wall_tr"

@@ -502,6 +502,14 @@ class MirrorImageSpell(UtilityWizardSpell):
     pass
 
 
+class HideousLaughterSpell(UtilityWizardSpell):
+    TARGET_TYPES = ['enemies']
+
+
+class BlindnessDeafnessSpell(UtilityWizardSpell):
+    TARGET_TYPES = ['enemies']
+
+
 class ComprehendLanguagesSpell(UtilityWizardSpell):
     pass
 

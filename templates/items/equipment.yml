@@ -750,3 +750,28 @@ tavern_safe_key:
   name: Tavern Safe Key
   type: key
   weight: 0
+tavern_room_key_1:
+  name: Standard Room 1 Key
+  type: key
+  weight: 0
+  description: Brass key for Prancing Flagon guest room 1 (upstairs, east wing).
+tavern_room_key_2:
+  name: Standard Room 2 Key
+  type: key
+  weight: 0
+  description: Brass key for Prancing Flagon guest room 2 (upstairs, east wing).
+tavern_room_key_3:
+  name: Standard Room 3 Key
+  type: key
+  weight: 0
+  description: Brass key for Prancing Flagon guest room 3 (upstairs, east wing).
+tavern_room_key_4:
+  name: Standard Room 4 Key
+  type: key
+  weight: 0
+  description: Brass key for Prancing Flagon guest room 4 (upstairs, west wing).
+tavern_suite_key:
+  name: Tavern Suite Key
+  type: key
+  weight: 0
+  description: Iron key for the Prancing Flagon suite (upstairs, west wing).

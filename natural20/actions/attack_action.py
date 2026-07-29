@@ -596,6 +596,13 @@ class AttackAction(Action):
             else:
                 target_ac, cover_ac_adjustments = effective_ac(battle, self.source, target)
                 hit = attack_roll.result() >= target_ac
+                if hit:
+                    try:
+                        from natural20.spell.mirror_image_spell import MirrorImageSpell
+                        if MirrorImageSpell.mirror_image_redirect(target, attack_roll, battle):
+                            hit = False
+                    except Exception:
+                        pass
 
         if damage is None:
             raise Exception('damage should is required')

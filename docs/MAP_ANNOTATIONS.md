@@ -90,14 +90,17 @@ When an NPC with `known_places` is pathing toward one of those landmarks (`[MOVE
 
 Run the webapp with `N20_EDIT_MODE=1` or `./start_web.sh --edit <campaign>`.
 
-The edit banner includes **Landmarks** tools:
+A **Landmarks** panel appears at the bottom-left of the map:
 
-- **Point** — click a tile, enter id/label/description
-- **Rectangle** — click opposite corners
-- **Polygon** — click vertices, then **Finish polygon**
+- **+ Point** — click a tile, then fill in id/label/description in the modal
+- **+ Rectangle** — click opposite corners, then save in the modal
+- **+ Polygon** — click vertices, **Finish polygon**, then save in the modal
+- **List** — click a landmark to edit; use **×** or the modal **Delete** button to remove
 - **Move** — hold **Shift** and drag a landmark label (same gesture as fixture labels)
 
-Landmarks persist to the map YAML via `POST /edit/annotations` (create/update) or `POST /edit/annotations/move` (drag reposition).
+Cross-map landmarks (e.g. upstairs guest rooms reached via stairs/teleporters) resolve across all campaign maps. NPCs with the landmark in `known_places` can path via teleporter links using `PathCompute.compute_cross_map_path`.
+
+Landmarks persist to the map YAML via `POST /edit/annotations` (create/update), `POST /edit/annotations/move` (drag reposition), or `DELETE /edit/annotations/<id>` (remove).
 
 ## HTTP API (DM)
 

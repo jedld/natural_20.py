@@ -129,9 +129,140 @@ stone_wall:
   name: Stone Wall
   opaque: true
   passable: false
+  placeable: true
   token:
-    - null
+    - '#'
   wall: true
+stone_wall_tl:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  spawner_category: walls
+  max_hp: 27
+  name: Stone Wall Thin Top Left
+  opaque: true
+  passable: false
+  placeable: true
+  token:
+    - ┌
+stone_wall_t:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  spawner_category: walls
+  max_hp: 27
+  name: Stone Wall Thin Top
+  opaque: true
+  passable: false
+  placeable: true
+  token:
+    - ┬
+stone_wall_tr:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  spawner_category: walls
+  max_hp: 27
+  name: Stone Wall Thin Top Right
+  opaque: true
+  passable: false
+  placeable: true
+  token:
+    - ┐
+stone_wall_r:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  spawner_category: walls
+  max_hp: 27
+  name: Stone Wall Thin Right
+  opaque: true
+  passable: false
+  placeable: true
+  token:
+    - ┤
+stone_wall_l:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  spawner_category: walls
+  max_hp: 27
+  name: Stone Wall Thin Left
+  opaque: true
+  passable: false
+  placeable: true
+  token:
+    - ├
+stone_wall_b:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  spawner_category: walls
+  max_hp: 27
+  name: Stone Wall Thin Bottom
+  opaque: true
+  passable: false
+  placeable: true
+  token:
+    - ┴
+stone_wall_br:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  spawner_category: walls
+  max_hp: 27
+  name: Stone Wall Thin Bottom Right
+  opaque: true
+  passable: false
+  placeable: true
+  token:
+    - ┘
+stone_wall_bl:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  spawner_category: walls
+  max_hp: 27
+  name: Stone Wall Thin Bottom Left
+  opaque: true
+  passable: false
+  placeable: true
+  token:
+    - └
+stone_wall_tb:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  spawner_category: walls
+  max_hp: 27
+  name: Stone Wall Thin Top Bottom
+  opaque: true
+  passable: false
+  placeable: true
+  border:
+    - 1
+    - 0
+    - 1
+    - 0
+  token:
+    - Z
+stone_wall_lr:
+  color: light_magenta
+  default_ac: 17
+  item_class: StoneWallDirectional
+  spawner_category: walls
+  max_hp: 27
+  name: Stone Wall Thin Left Right
+  opaque: true
+  passable: false
+  placeable: true
+  border:
+    - 0
+    - 1
+    - 0
+    - 1
+  token:
+    - H
 switch:
   color: yellow
   interactable: true
@@ -188,6 +319,90 @@ wooden_door:
   token_image: wooden_door
   token:
     - '='
+door_top:
+  color: magenta
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  spawner_category: door_walls
+  max_hp: 18
+  name: Door Top
+  token_image: door_top
+  door_pos: 0
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
+  token:
+    - ╒
+  token_open:
+    - │
+door_bottom:
+  color: magenta
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  spawner_category: door_walls
+  max_hp: 18
+  name: Door Bottom
+  token_image: door_bottom
+  door_pos: 2
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
+  token:
+    - ╒
+  token_open:
+    - │
+door_right:
+  color: magenta
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  spawner_category: door_walls
+  max_hp: 18
+  name: Door Right
+  token_image: door_right
+  door_pos: 1
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
+  token:
+    - ╒
+  token_open:
+    - │
+door_left:
+  color: magenta
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: DoorObjectWall
+  spawner_category: door_walls
+  max_hp: 18
+  name: Door Left
+  token_image: door_left
+  door_pos: 3
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
+  token:
+    - ╒
+  token_open:
+    - │
 corner_door_tl:
   color: magenta
   damage_threshold: 5
@@ -328,7 +543,8 @@ teleporter:
 
 # Hub/tavern containers for LLM staff item exchange (see docs/CONVERSATION_RAG.md).
 # Campaigns override inventory, entity_uid, notes, and annotations in items/objects.yml
-# or map legend overrides. Type keys: tavern_bar_counter, tavern_till_safe.
+# or map legend overrides. Type keys: tavern_bar_counter, tavern_till_safe,
+# tavern_guest_chest.
 # @mention handles come from entity_uid (e.g. tavern_bar, tavern_safe).
 
 tavern_bar_counter:
@@ -372,4 +588,25 @@ tavern_till_safe:
   placeable: false
   interactable: true
   token: "S"
+  inventory: []
+
+tavern_guest_chest:
+  name: Guest Chest
+  description: A sturdy wooden chest for storing guest belongings during their stay.
+  color: yellow
+  item_class: Chest
+  lockable: true
+  locked: true
+  state: closed
+  passable: true
+  placeable: false
+  interactable: true
+  token_image: wood_chest
+  buttons:
+    - name: Open Chest
+      action: open
+      image: open_chest
+    - name: Close Chest
+      action: close
+      image: closed_chest
   inventory: []

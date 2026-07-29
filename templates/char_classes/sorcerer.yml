@@ -21,6 +21,7 @@ spellcasting_ability: charisma
 spell_list:
   cantrip:
     - acid_splash
+    - booming_blade
     - chill_touch
     - dancing_lights
     - firebolt
@@ -35,6 +36,7 @@ spell_list:
     - shocking_grasp
     - true_strike
   level_1:
+    - absorb_elements
     - burning_hands
     - chromatic_orb
     - color_spray
@@ -53,8 +55,20 @@ spell_list:
     - thunderwave
     - witch_bolt
   level_2:
+    - aganazzars_scorcher
     - darkness
+    - enlarge_reduce
+    - hold_person
     - misty_step
+    - scorching_ray
+  level_3:
+    - counterspell
+    - dispel_magic
+    - fireball
+    - haste
+    - lightning_bolt
+    - protection_from_energy
+    - slow
 class_features:
   - font_of_magic
 sorcerous_origins:

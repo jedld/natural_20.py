@@ -63,6 +63,7 @@ spell_list:
     - shillelagh
     - thorn_whip
   level_1:
+    - absorb_elements
     - animal_friendship
     - charm_person
     - create_or_destroy_water
@@ -98,6 +99,9 @@ spell_list:
     - pass_without_trace
     - protection_from_poison
     - spike_growth
+  level_3:
+    - dispel_magic
+    - protection_from_energy
 proficiency_bonuses:
 - 2
 - 2

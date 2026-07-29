@@ -68,7 +68,9 @@ spell_list:
     - mending
     - resistance
     - sacred_flame
+    - spare_the_dying
     - thaumaturgy
+    - toll_the_dying
   level_1:
     - bless
     - command
@@ -85,7 +87,7 @@ spell_list:
   level_2:
     - aid
     - augury
-    - blindness/deafness
+    - blindness_deafness
     - calm_emotions
     - hold_person
     - lesser_restoration
@@ -93,6 +95,9 @@ spell_list:
     - silence
     - spiritual_weapon
     - warding_bond
+  level_3:
+    - dispel_magic
+    - protection_from_energy
 proficiency_bonuses:
 - 2
 - 2
