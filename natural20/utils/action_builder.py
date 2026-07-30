@@ -51,11 +51,33 @@ def acquire_targets(param, entity, battle, map=None):
     def in_range_and_visible(targets):
         if not map or spell_range <= 0:
             return {t for t in targets if t.allow_targeting()}
-        return {
-            t
-            for t in targets
-            if map.can_see(entity, t) and not t.concealed() and t.allow_targeting() and map.distance(entity, t) <= spell_range
-        }
+        visible = set()
+        stack = getattr(map, 'map_stack', None) if map else None
+        for t in targets:
+            if not t.allow_targeting() or t.concealed():
+                continue
+            if battle:
+                if not battle.can_see(entity, t):
+                    continue
+                caster_map = battle.map_for(entity)
+                target_map = battle.map_for(t)
+                if stack is not None and caster_map and target_map and caster_map is not target_map:
+                    from natural20.map_stack_targeting import stack_entity_distance_ft
+                    dist_ft = stack_entity_distance_ft(
+                        stack, entity, caster_map, t, target_map,
+                        feet_per_grid=caster_map.feet_per_grid,
+                    )
+                    if dist_ft > spell_range:
+                        continue
+                elif caster_map and battle.map_for(t):
+                    if caster_map.distance(entity, t) * caster_map.feet_per_grid > spell_range:
+                        continue
+            elif not map.can_see(entity, t):
+                continue
+            elif map.distance(entity, t) * map.feet_per_grid > spell_range:
+                continue
+            visible.add(t)
+        return visible
 
     target_types = param.get("target_types", ['enemies'])
 

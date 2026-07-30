@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 from natural20.die_roll import DieRoll
 from natural20.map_stack import MapStack
+from natural20.map_stack_descent import preview_fall_damage
 
 
 def _apply_fall_damage(entity, damage_die: str, battle, session, source=None):
@@ -118,8 +119,9 @@ def _descend_to_lower_floor(entity, stack, battle_map, wx, wy, elev, battle, ses
         return None
     delta = stack.elevation_delta_ft(elev, lower.elevation_ft)
     damage_die = stack.fall_damage_die(delta)
-    if damage_die and not (hasattr(entity, 'is_flying') and entity.is_flying()):
-        _apply_fall_damage(entity, damage_die, battle, session)
+    fall_preview = preview_fall_damage(entity, damage_die)
+    if fall_preview['die'] and session:
+        _apply_fall_damage(entity, fall_preview['die'], battle, session)
     if hasattr(entity, 'dead') and entity.dead():
         return None
     transfer_entity_to_map(entity, battle_map, lower.map, local[0], local[1], battle)
@@ -130,3 +132,57 @@ def _descend_to_lower_floor(entity, stack, battle_map, wx, wy, elev, battle, ses
         except Exception:
             pass
     return {'type': 'stack_fall', 'map': lower.map, 'position': list(local), 'fall_ft': delta}
+
+
+def apply_voluntary_stack_descent(entity, battle_map, descent_info, *, battle=None, session=None):
+    """Execute a planned voluntary stack descent after walking to the egress tile."""
+    if not descent_info:
+        return None
+    stack: Optional[MapStack] = getattr(battle_map, 'map_stack', None)
+    if stack is None or session is None:
+        return None
+
+    to_map_name = descent_info.get('to_map')
+    to_map = session.maps.get(to_map_name)
+    if to_map is None:
+        return None
+
+    land = descent_info.get('land_position') or descent_info.get('target_position')
+    if not land or len(land) < 2:
+        return None
+
+    lx, ly = int(land[0]), int(land[1])
+    floor = stack.floor_for_map(battle_map.name)
+    if floor is None:
+        return None
+    wx, wy, elev = stack.local_to_world(battle_map.name, *battle_map.position_of(entity))
+    lower = stack.lower_floor_at(wx, wy, elev)
+    if lower is None:
+        lower = stack.floor_for_map(to_map_name)
+    delta = float(descent_info.get('fall_ft') or 0.0)
+    if lower is not None and delta <= 0:
+        delta = stack.elevation_delta_ft(elev, lower.elevation_ft)
+
+    damage_die = stack.fall_damage_die(delta)
+    fall_preview = preview_fall_damage(entity, damage_die)
+    if fall_preview['die']:
+        _apply_fall_damage(entity, fall_preview['die'], battle, session)
+    if hasattr(entity, 'dead') and entity.dead():
+        return None
+
+    transfer_entity_to_map(entity, battle_map, to_map, lx, ly, battle)
+    entity.altitude_ft = 0.0
+    if descent_info.get('prone_on_land') and hasattr(entity, 'make_prone'):
+        try:
+            entity.make_prone()
+        except Exception:
+            pass
+
+    return {
+        'type': 'stack_fall',
+        'map': to_map,
+        'position': [lx, ly],
+        'fall_ft': delta,
+        'voluntary': True,
+        'descent_type': descent_info.get('descent_type'),
+    }

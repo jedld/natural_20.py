@@ -93,6 +93,16 @@ Entity helpers: `entity.world_position(map)`, `entity.elevation_ft(map)`, `entit
 - **Window + fall_through**: forced descent + prone.
 - **Flying**: can ascend to upper floor at open columns.
 
+### Voluntary descent (Ctrl / jump mode / `allow_stack_descent`)
+
+By default pathfinding stays on the entity's current floor. Hold **Ctrl** during movement preview or toggle **jump mode (J)** to plan a voluntary drop to a lower floor in the same stack:
+
+- Valid egress: `fall_through` windows, `stack_opening` shafts, and overlay **edge exits**.
+- Movement cost includes extra grids for vertical drop (1 grid per 5 ft fallen).
+- Preview shows **Jump to lower level** with expected fall damage (mitigated by flying or `feather_fall` status).
+- Committing the move applies fall damage, may land **prone**, and continues on the base map segment.
+- LLM/NPC path tools: pass `allow_stack_descent=true` (and `target_map` when needed) on `compute_path_to`; read `stack_descent` / `stack_descent_summary` in the response before choosing that route.
+
 ## Combat
 
 `Battle.can_see` uses stack LOS when both entities share a stack. Overlay floor slabs block vertical sight by default; pierce only at `stack_opening`, window tiles, or `floor_mask` with `allows_sight`. All stack maps auto-register when battle starts on any member.
@@ -112,7 +122,12 @@ When the active map is an **overlay floor** in a stack, `/update` renders:
 
 Overlay tile grids omit map padding (no fog ring over the base map). Only in-bounds overlay cells are rendered.
 
-When the active map is the **base floor**, only that map is rendered (no overlay DOM).
+When the active map is the **base floor**, the base map is rendered plus:
+
+- **Stack LOS tokens** — overlay-floor creatures visible to the POV (via `Battle.can_see` / `stack_can_see`) appear on the base grid at their world coordinates, styled with a blue outline and elevation badge.
+- **Floor focus control** — when a map belongs to a stack, a **Floor** dropdown (top-right, next to coords) switches the view to any stack floor (same as `switch_map` but scoped to the building). Use this to interact with upstairs tokens/targeting in composite mode.
+
+Cross-floor **targeting and attacks** (spells, ranged/melee) use world-space distance and stack LOS on both directions (upstairs→down and down→up). Window/edge peek clicks resolve to world coordinates on the base map.
 
 Edit mode `GET /edit/overlay` includes `map_stack` metadata for the ghost overlay UI. When viewing a composited overlay floor, drag-and-drop placement sends `map_name` and **overlay-local** `(x, y)` to `/edit/layer/place`.
 

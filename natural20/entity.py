@@ -520,6 +520,28 @@ class Entity(EntityStateEvaluator, Notable):
                 except Exception:
                     continue
 
+        # Dialog NPCs explicitly targeted in talk mode should always receive the
+        # line even when acoustics (walls, volume) would block overhearing.
+        for target in targets or []:
+            if target is None or target == self or target in delivered_entities:
+                continue
+            try:
+                if not callable(getattr(target, 'is_npc', None)) or not target.is_npc():
+                    continue
+                if not getattr(target, 'dialog', False):
+                    continue
+            except Exception:
+                continue
+            target.receive_conversation(
+                self,
+                message or '',
+                language=language,
+                directed_to=targets,
+                actions=action_entries,
+            )
+            nearby.append([target, message or '', targets])
+            delivered_entities.add(target)
+
         return nearby
 
 

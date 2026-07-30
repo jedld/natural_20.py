@@ -170,7 +170,7 @@ class LlmMcpController(GenericController):
 			"type": "function",
 			"function": {
 				"name": "compute_path_to",
-				"description": "Calculate the shortest path from your current position to a target position. Returns the path as a list of coordinates, the total movement cost in feet, and whether the path triggers any opportunity attacks. Use this to plan your movement tactically.",
+				"description": "Calculate the shortest path from your current position to a target position. Returns the path as a list of coordinates, the total movement cost in feet, and whether the path triggers any opportunity attacks. Use this to plan your movement tactically. On multi-level map stacks, set allow_stack_descent=true only when deliberately jumping/falling to a lower floor (windows, shafts, building edge). Voluntary descent causes fall damage (unless flying or under feather fall), may land prone, and switches maps — see stack_descent in the response.",
 				"parameters": {
 					"type": "object",
 					"properties": {
@@ -181,6 +181,14 @@ class LlmMcpController(GenericController):
 						"target_y": {
 							"type": "integer",
 							"description": "The target y coordinate on the map grid.",
+						},
+						"allow_stack_descent": {
+							"type": "boolean",
+							"description": "When true on a stacked map, allow routing through a voluntary jump/drop to a lower floor (fall damage, prone, map change). Default false.",
+						},
+						"target_map": {
+							"type": "string",
+							"description": "Optional destination map name when the target is on a different floor of the same stack (e.g. town_market from tavern_2nd_floor).",
 						},
 					},
 					"required": ["target_x", "target_y"],
@@ -1038,9 +1046,50 @@ class LlmMcpController(GenericController):
 			my_pos = current_map.position_of(entity)
 			source_x, source_y = my_pos
 			feet_per = getattr(current_map, 'feet_per_grid', 5) or 5
-			
-			# Use PathCompute for A* pathfinding
+			allow_stack_descent = bool(args.get('allow_stack_descent'))
+			target_map_name = args.get('target_map')
+
 			path_compute = PathCompute(battle, current_map, entity)
+			target_map = current_map
+			session = battle.session
+			if target_map_name and target_map_name != current_map.name:
+				target_map = session.maps.get(target_map_name)
+			elif allow_stack_descent:
+				stack = getattr(current_map, 'map_stack', None)
+				if stack is not None:
+					base_floor = next((f for f in stack.floors if f.is_base), None)
+					if base_floor and base_floor.map_name != current_map.name:
+						blx, bly = stack.world_to_local(target_x, target_y, base_floor.map_name)
+						if blx is not None:
+							target_map = base_floor.map
+
+			if allow_stack_descent and target_map is not current_map:
+				from natural20.map_stack_descent import plan_voluntary_stack_route
+				plan = plan_voluntary_stack_route(
+					path_compute, session, battle, entity,
+					current_map, source_x, source_y,
+					target_map, target_x, target_y,
+				)
+				if plan:
+					sd = plan.get('stack_descent') or {}
+					movement_cost_ft = (plan['cost']['original_budget'] - plan['cost']['budget']) * feet_per
+					state = battle.entity_state_for(entity) or {}
+					movement_left = state.get('movement', getattr(entity, 'speed', lambda: 0)())
+					triggers_oa, oa_foe = self._move_oa_info(battle, entity, plan['path'])
+					return {
+						'path': plan['path'],
+						'segments': plan.get('segments'),
+						'stack_descent': sd,
+						'stack_descent_summary': sd.get('llm_summary'),
+						'movement_cost_ft': movement_cost_ft,
+						'movement_available_ft': movement_left,
+						'can_reach': movement_cost_ft <= movement_left,
+						'triggers_opportunity_attack': triggers_oa,
+						'opportunity_attack_from': oa_foe if triggers_oa else None,
+						'reachable': True,
+					}
+
+			# Use PathCompute for A* pathfinding
 			path = path_compute.compute_path(source_x, source_y, target_x, target_y)
 			
 			if not path:
