@@ -184,6 +184,8 @@ class Battle():
             self.maps = None
 
         self.session = session
+        self._ensure_stack_maps()
+
         self.combat_order = []
         self.current_turn_index = 0
         self.battle_field_events = {}
@@ -727,6 +729,21 @@ class Battle():
     def register_map(self, map):
         if map not in self.maps:
             self.maps.append(map)
+
+    def _ensure_stack_maps(self):
+        if not self.maps or not self.session:
+            return
+        extra = []
+        for m in list(self.maps):
+            stack = getattr(m, 'map_stack', None)
+            if not stack:
+                continue
+            for name in stack.maps_in_stack():
+                sm = self.session.maps.get(name)
+                if sm and sm not in self.maps:
+                    extra.append(sm)
+        for sm in extra:
+            self.register_map(sm)
 
     def unregister_map(self, map):
         if map in self.maps:
@@ -1529,10 +1546,19 @@ class Battle():
     def can_see(self, entity1, entity2, active_perception=0, entity_1_pos=None, entity_2_pos=None):
         map1 = self.map_for(entity1)
         map2 = self.map_for(entity2)
-        if map1 != map2:
+        if map1 is None or map2 is None:
             return False
         if entity1 == entity2:
             return True
+        if map1 != map2:
+            stack1 = getattr(map1, 'map_stack', None)
+            stack2 = getattr(map2, 'map_stack', None)
+            if stack1 and stack2 is stack1:
+                from natural20.map_stack_los import stack_can_see
+                if stack_can_see(stack1, entity1, entity2, map1, map2, battle=self):
+                    return map1.can_see(entity1, entity2, entity_1_pos=entity_1_pos, entity_2_pos=entity_2_pos, active_perception=active_perception)
+                return False
+            return False
         if not map1.can_see(entity1, entity2, entity_1_pos=entity_1_pos, entity_2_pos=entity_2_pos, active_perception=active_perception):
             return False
 

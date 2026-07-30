@@ -63,9 +63,39 @@ class JsonRenderer:
             'objects': [],
         }
 
-    def render(self, entity_pov=None, path=None, select_pos=None):
+    def _resolve_entity_pov(self, entity_pov):
+        """Return (pov entities, optional viewer map for cross-floor stack POV)."""
+        if entity_pov is None:
+            return None, None
+        pov_list = entity_pov if isinstance(entity_pov, list) else [entity_pov]
+        pov_list = [e for e in pov_list if e is not None]
+        if not pov_list:
+            return None, None
+
+        on_map = [e for e in pov_list if e in self.map.entities]
+        if on_map:
+            resolved = on_map if len(on_map) > 1 else on_map[0]
+            return resolved, None
+
+        stack = getattr(self.map, 'map_stack', None)
+        if stack is None:
+            return None, None
+
+        for floor in stack.floors:
+            on_floor = [e for e in pov_list if e in floor.map.entities]
+            if on_floor:
+                resolved = on_floor if len(on_floor) > 1 else on_floor[0]
+                return resolved, floor.map
+        return None, None
+
+    def render(self, entity_pov=None, path=None, select_pos=None, stack_peek_config=None):
         if path is None:
            path = []
+        pov_viewer_map = None
+        if stack_peek_config is None:
+            entity_pov, pov_viewer_map = self._resolve_entity_pov(entity_pov)
+        if entity_pov is not None and not isinstance(entity_pov, list):
+            entity_pov = [entity_pov]
         result = []
         entity_pov_locations = None
         width, height = self.map.size
@@ -89,7 +119,39 @@ class JsonRenderer:
             key = (id(entity), pos, force_dark_vision, inclusive)
             v = _can_see_square_cache.get(key)
             if v is None:
-                v = self.map.can_see_square(entity, pos, force_dark_vision=force_dark_vision, inclusive=inclusive)
+                if stack_peek_config is not None:
+                    from natural20.map_stack_los import stack_peek_visible_at
+                    v = stack_peek_visible_at(
+                        stack_peek_config['stack'],
+                        entity,
+                        stack_peek_config['viewer_map'],
+                        self.map,
+                        pos[0],
+                        pos[1],
+                    )
+                elif pov_viewer_map is not None and pov_viewer_map is not self.map:
+                    stack = getattr(self.map, 'map_stack', None)
+                    if stack is not None:
+                        wx, wy, _ = stack.local_to_world(self.map.name, pos[0], pos[1])
+                        viewer_local = stack.world_to_local(wx, wy, pov_viewer_map.name)
+                        if viewer_local is not None:
+                            v = pov_viewer_map.can_see_square(
+                                entity,
+                                viewer_local,
+                                force_dark_vision=force_dark_vision,
+                                inclusive=inclusive,
+                            )
+                        else:
+                            from natural20.map_stack_los import stack_base_visible_from_overlay
+                            v = stack_base_visible_from_overlay(
+                                stack, entity, pov_viewer_map, self.map, wx, wy,
+                            )
+                    else:
+                        v = False
+                else:
+                    v = self.map.can_see_square(
+                        entity, pos, force_dark_vision=force_dark_vision, inclusive=inclusive,
+                    )
                 _can_see_square_cache[key] = v
             return v
 
@@ -110,8 +172,25 @@ class JsonRenderer:
                 entity_pov = [entity_pov]
             for entity in entity_pov:
                 if entity:
-                    for pos in self.map.entity_squares(entity):
-                        entity_pov_locations.append(pos)
+                    if stack_peek_config is not None:
+                        viewer_map = stack_peek_config['viewer_map']
+                        stack = stack_peek_config['stack']
+                        for pos in viewer_map.entity_squares(entity):
+                            wx, wy, _ = stack.local_to_world(viewer_map.name, pos[0], pos[1])
+                            entity_pov_locations.append((wx, wy))
+                    elif pov_viewer_map is not None:
+                        stack = getattr(self.map, 'map_stack', None)
+                        for pos in pov_viewer_map.entity_squares(entity):
+                            if stack is not None:
+                                wx, wy, _ = stack.local_to_world(pov_viewer_map.name, pos[0], pos[1])
+                                local = stack.world_to_local(wx, wy, self.map.name)
+                                if local is not None:
+                                    entity_pov_locations.append(local)
+                            else:
+                                entity_pov_locations.append(pos)
+                    else:
+                        for pos in self.map.entity_squares(entity):
+                            entity_pov_locations.append(pos)
 
         self.logger.debug(f"entity_pov_locations: {entity_pov_locations}")
         pov_list = entity_pov
@@ -185,6 +264,13 @@ class JsonRenderer:
 
                 object_entities = self.map.objects_at(x, y)
                 entity = self.map.entity_at(x, y)
+                stack = getattr(self.map, 'map_stack', None)
+                peek_through = False
+                stack_opening = False
+                if stack is not None:
+                    wx, wy, _ = stack.local_to_world(self.map.name, x, y)
+                    peek_through = stack.is_window_at(wx, wy, self.map.name)
+                    stack_opening = stack.is_stack_opening(wx, wy)
                 light = 0.0 if hidden_door_tile else light_at(x, y)
 
                 darkvision_color = False
@@ -222,8 +308,13 @@ class JsonRenderer:
                     'has_darkvision': has_darkvision,
                     'darkvision_color': darkvision_color,
                     'is_flying': entity.is_flying() if entity else False,
-                    'conversation_languages': []
+                    'conversation_languages': [],
+                    'peek_through': peek_through,
+                    'stack_opening': stack_opening,
                 }
+                if stack is not None:
+                    shared_attributes['world_x'] = wx
+                    shared_attributes['world_y'] = wy
                 if detect_magic_viewers and session is not None:
                     shared_attributes['magical_auras'] = magical_auras_for_tile(
                         session, self.map, x, y, detect_magic_viewers,

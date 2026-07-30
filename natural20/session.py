@@ -6,6 +6,7 @@ from natural20.npc import Npc
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
 from natural20.map import Map
+from natural20.map_stack import MapStackRegistry
 from natural20.entity_registry import EntityRegistry
 import i18n
 from copy import deepcopy
@@ -86,6 +87,17 @@ class Session:
             if _entity in map_obj.interactable_objects.keys():
                 return map_obj
         return None
+
+    def stack_for_map(self, map_name):
+        if not hasattr(self, 'map_stacks'):
+            return None
+        return self.map_stacks.stack_for_map(map_name)
+
+    def stack_for_entity(self, entity):
+        m = self.map_for_entity(entity)
+        if m is None:
+            return None
+        return self.stack_for_map(m.name)
 
     def entity_by_uid(self, entity_uid):
         # Prefer centralized registry for O(1) lookup
@@ -175,6 +187,7 @@ class Session:
 
         if 'maps' not in game_file:
             self.maps['index'] = Map(self, game_file.get('starting_map'), name = 'index')
+            self.map_stacks = MapStackRegistry()
             return self.maps
 
         map_with_key = game_file.get('maps', {})
@@ -191,6 +204,8 @@ class Session:
             for name, linked_map in self.maps.items():
                 if map_obj!=linked_map:
                     map_obj.add_linked_map(name, linked_map)
+
+        self.map_stacks = MapStackRegistry.from_game_config(game_file, self.maps)
 
         return self.maps
 
