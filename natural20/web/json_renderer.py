@@ -73,19 +73,24 @@ class JsonRenderer:
             return None, None
 
         on_map = [e for e in pov_list if e in self.map.entities]
+        stack = getattr(self.map, 'map_stack', None)
+        if stack is not None:
+            placements = []
+            for floor in stack.floors:
+                on_floor = [e for e in pov_list if e in floor.map.entities]
+                if on_floor:
+                    placements.append((floor, on_floor))
+            if placements:
+                placements.sort(key=lambda item: item[0].elevation_ft, reverse=True)
+                floor, on_floor = placements[0]
+                resolved = on_floor if len(on_floor) > 1 else on_floor[0]
+                if floor.map is self.map:
+                    return resolved, None
+                return resolved, floor.map
         if on_map:
             resolved = on_map if len(on_map) > 1 else on_map[0]
             return resolved, None
 
-        stack = getattr(self.map, 'map_stack', None)
-        if stack is None:
-            return None, None
-
-        for floor in stack.floors:
-            on_floor = [e for e in pov_list if e in floor.map.entities]
-            if on_floor:
-                resolved = on_floor if len(on_floor) > 1 else on_floor[0]
-                return resolved, floor.map
         return None, None
 
     def render(self, entity_pov=None, path=None, select_pos=None, stack_peek_config=None):
@@ -162,7 +167,34 @@ class JsonRenderer:
             key = (id(entity), id(target), allow_dark_vision, active_perception)
             v = _can_see_entity_cache.get(key)
             if v is None:
-                v = self.map.can_see(entity, target, allow_dark_vision=allow_dark_vision, active_perception=active_perception)
+                if pov_viewer_map is not None and pov_viewer_map is not self.map:
+                    stack = getattr(self.map, 'map_stack', None)
+                    if stack is not None:
+                        try:
+                            if entity in pov_viewer_map.entities and target in self.map.entities:
+                                from natural20.map_stack_los import stack_can_see
+                                v = stack_can_see(
+                                    stack, entity, target, pov_viewer_map, self.map, battle=self.battle,
+                                )
+                            elif self.battle is not None:
+                                m1 = self.battle.map_for(entity)
+                                m2 = self.battle.map_for(target)
+                                if m1 and m2 and m1 is not m2:
+                                    v = self.battle.can_see(
+                                        entity, target,
+                                        allow_dark_vision=allow_dark_vision,
+                                        active_perception=active_perception,
+                                    )
+                        except Exception:
+                            v = None
+                    if v is None:
+                        v = False
+                else:
+                    v = self.map.can_see(
+                        entity, target,
+                        allow_dark_vision=allow_dark_vision,
+                        active_perception=active_perception,
+                    )
                 _can_see_entity_cache[key] = v
             return v
 

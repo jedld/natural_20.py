@@ -19,6 +19,7 @@ class MoveAction(Action):
             opts = {}
         self.move_path = opts.get('move_path', [])
         self.jump_index = []
+        self.stack_descent = opts.get('stack_descent')
         self.as_dash = False
         self.as_bonus_action = False
         # Out-of-combat exploration: when True the move budget is not
@@ -34,6 +35,7 @@ class MoveAction(Action):
         hash['as_dash'] = self.as_dash
         hash['as_bonus_action'] = self.as_bonus_action
         hash['unlimited_movement'] = self.unlimited_movement
+        hash['stack_descent'] = self.stack_descent
         return hash
     
     @staticmethod
@@ -44,6 +46,7 @@ class MoveAction(Action):
         action.as_dash = hash['as_dash']
         action.as_bonus_action = hash['as_bonus_action']
         action.unlimited_movement = hash.get('unlimited_movement', False)
+        action.stack_descent = hash.get('stack_descent')
         return action
 
     def __str__(self):
@@ -162,6 +165,8 @@ class MoveAction(Action):
         if len(_safe_moves) > 0:
             move_segments.append(_safe_moves)
 
+        stack_descent = self.stack_descent
+
         for index, safe_moves in enumerate(move_segments):
             movement = compute_actual_moves(self.source, safe_moves, map, battle, movement_budget, manual_jump=jumps)
 
@@ -211,6 +216,36 @@ class MoveAction(Action):
 
             for effect in grapple_effects:
                 self.result.append(effect)
+
+            if stack_descent and index == len(move_segments) - 1 and stack_descent.get('base_path'):
+                to_map_name = stack_descent.get('to_map')
+                to_map = self.session.maps.get(to_map_name) if to_map_name else None
+                if to_map is not None:
+                    self.result.append({
+                        'source': self.source,
+                        'type': 'stack_descent',
+                        'from_map': map,
+                        'to_map': to_map,
+                        'battle': battle,
+                        'descent_info': stack_descent,
+                    })
+                    base_moves = stack_descent['base_path']
+                    base_budget = movement.budget if movement.budget > 0 else 0
+                    base_movement = compute_actual_moves(
+                        self.source, base_moves, to_map, battle, base_budget, manual_jump=jumps,
+                    )
+                    base_cost = base_budget - base_movement.budget if base_budget else 0
+                    self.result.append({
+                        'source': self.source,
+                        'map': to_map,
+                        'battle': battle,
+                        'as_dash': self.as_dash,
+                        'as_bonus_action': self.as_bonus_action,
+                        'type': 'move',
+                        'path': base_movement.movement,
+                        'move_cost': base_cost,
+                        'position': base_movement.movement[-1] if base_movement.movement else base_moves[-1],
+                    })
 
             if index < len(segment_effects):
                 for effect in segment_effects[index]:
@@ -284,10 +319,17 @@ class MoveAction(Action):
             session.event_manager.received_event({"event": 'drop_grapple',
                                                   "target": target,
                                                   "source":item['source']})
+        elif item_type == 'stack_descent':
+            from natural20.map_stack_movement import apply_voluntary_stack_descent
+            apply_voluntary_stack_descent(
+                item['source'],
+                item['from_map'],
+                item['descent_info'],
+                battle=battle,
+                session=session,
+            )
         elif item_type == 'move':
             if item['map'].move_to(item['source'], *item['position'], battle):
-
-                # mark path
                 if battle:
                     path_taken = item['path']
                     positions_entered = battle.entity_state_for(item['source'])['positions_entered']

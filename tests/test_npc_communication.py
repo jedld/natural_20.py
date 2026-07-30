@@ -513,3 +513,42 @@ class TestConversationHistory:
         history = fighter.conversation_history(npc_a)
         messages = [entry['message'] for entry in history]
         assert "Between us only." not in messages
+
+
+class TestDialogTargetDelivery:
+    def test_dialog_target_receives_explicit_address_when_acoustics_block(self, battle_with_npcs):
+        battle, npc_a, _npc_b, fighter = battle_with_npcs
+        npc_a.dialog = True
+        npc_a.conversation_buffer.clear()
+
+        with patch('natural20.entity.delivered_conversations', return_value=[]):
+            fighter.send_conversation(
+                'do you have a room available?',
+                distance_ft=30,
+                targets=[npc_a],
+                language='common',
+            )
+
+        assert any(
+            entry.get('message') == 'do you have a room available?'
+            and entry.get('source') == fighter
+            for entry in npc_a.conversation_buffer
+        )
+
+    def test_non_dialog_target_not_delivered_when_acoustics_block(self, battle_with_npcs):
+        battle, npc_a, _npc_b, fighter = battle_with_npcs
+        npc_a.dialog = False
+        npc_a.conversation_buffer.clear()
+
+        with patch('natural20.entity.delivered_conversations', return_value=[]):
+            fighter.send_conversation(
+                'hello?',
+                distance_ft=30,
+                targets=[npc_a],
+                language='common',
+            )
+
+        assert not any(
+            entry.get('message') == 'hello?' and entry.get('source') == fighter
+            for entry in npc_a.conversation_buffer
+        )

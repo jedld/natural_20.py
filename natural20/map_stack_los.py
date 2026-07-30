@@ -127,7 +127,18 @@ def stack_can_see(
     if viewer_map == target_map:
         return bool(target_map.can_see_square(viewer, tpos, inclusive=True))
 
-    # Cross-floor: geometric 3D ray cleared; verify target tile visibility.
+    viewer_floor = stack.floor_for_map(viewer_map.name)
+    target_floor = stack.floor_for_map(target_map.name)
+    if viewer_floor and target_floor:
+        if viewer_floor.elevation_ft > target_floor.elevation_ft:
+            return stack_base_visible_from_overlay(
+                stack, viewer, viewer_map, target_map, t_world.x, t_world.y,
+            )
+        if target_floor.elevation_ft > viewer_floor.elevation_ft:
+            return stack_peek_visible_at(
+                stack, viewer, viewer_map, target_map, t_world.x, t_world.y,
+            )
+
     try:
         return bool(target_map.can_see_square(viewer, tpos, inclusive=True))
     except Exception:

@@ -260,6 +260,124 @@ def _map_position_for(entity, battle_map):
     return None
 
 
+def _entity_map_for(entity, battle_map, battle=None):
+    if battle is not None:
+        mapped = battle.map_for(entity)
+        if mapped is not None:
+            return mapped
+    if battle_map is not None:
+        try:
+            if entity in battle_map.entities:
+                return battle_map
+        except Exception:
+            pass
+    return battle_map
+
+
+def _shared_stack(source_map, listener_map):
+    if source_map is None or listener_map is None:
+        return None
+    stack = getattr(source_map, 'map_stack', None)
+    if stack is None:
+        return None
+    if getattr(listener_map, 'map_stack', None) is not stack:
+        return None
+    return stack
+
+
+def _door_penalty_at_entity(battle_map, entity) -> int:
+    if battle_map is None or entity is None:
+        return 0
+    pos = _map_position_for(entity, battle_map)
+    if pos is None:
+        return 0
+    penalty = 0
+    try:
+        objects = battle_map.objects_at(*pos)
+    except Exception:
+        objects = []
+    for obj in objects or []:
+        if _closed_door(obj):
+            penalty += ACOUSTIC_CLOSED_DOOR_PENALTY_FT
+    return penalty
+
+
+def _stack_acoustic_profile(source, listener, source_map, listener_map, stack, battle):
+    profile = {
+        'penalty_ft': 0,
+        'closed_doors': 0,
+        'walls': 0,
+        'opaque_objects': 0,
+        'line_blocked': False,
+        'summary': '',
+    }
+    if not battle.can_see(source, listener):
+        profile['penalty_ft'] = ACOUSTIC_BLOCKED_LINE_PENALTY_FT
+        profile['line_blocked'] = True
+        profile['summary'] = 'blocked acoustic line'
+        return profile
+
+    for obj_map, ent in ((source_map, source), (listener_map, listener)):
+        pos = _map_position_for(ent, obj_map)
+        if pos is None:
+            continue
+        try:
+            for obj in obj_map.objects_at(*pos) or []:
+                if _closed_door(obj):
+                    profile['closed_doors'] += 1
+                    profile['penalty_ft'] += ACOUSTIC_CLOSED_DOOR_PENALTY_FT
+        except Exception:
+            pass
+
+    parts = []
+    if profile['closed_doors']:
+        label = 'closed door' if profile['closed_doors'] == 1 else 'closed doors'
+        parts.append(f"{profile['closed_doors']} {label}")
+    profile['summary'] = ', '.join(parts)
+    return profile
+
+
+def _listeners_in_range(source, battle_map, search_distance_ft, *, battle=None, require_conversable=True):
+    source_map = _entity_map_for(source, battle_map, battle=battle)
+    stack = getattr(source_map, 'map_stack', None) if source_map else None
+    listeners = []
+    seen = set()
+
+    if battle is not None and stack is not None and battle.maps:
+        from natural20.map_stack_targeting import stack_entity_distance_ft
+
+        for listener_map in battle.maps:
+            if getattr(listener_map, 'map_stack', None) is not stack:
+                continue
+            for listener in list(listener_map.entities.keys()):
+                if listener == source:
+                    continue
+                uid = getattr(listener, 'entity_uid', None) or id(listener)
+                if uid in seen:
+                    continue
+                if require_conversable and not getattr(listener, 'conversable', lambda: True)():
+                    continue
+                try:
+                    distance_ft = stack_entity_distance_ft(
+                        stack, source, source_map, listener, listener_map,
+                        feet_per_grid=source_map.feet_per_grid,
+                    )
+                except Exception:
+                    continue
+                if distance_ft <= search_distance_ft:
+                    seen.add(uid)
+                    listeners.append((listener, distance_ft))
+        return listeners
+
+    nearby = _entities_in_search_radius(
+        source,
+        battle_map,
+        search_distance_ft,
+        fallback_distances=[SPEECH_BASE_RANGES['shout']],
+    )
+    return [(listener, None) for listener in nearby]
+
+
 def _closed_door(obj):
     kind_of_door = getattr(obj, 'kind_of_door', lambda: False)
     opened = getattr(obj, 'opened', lambda: False)
@@ -271,17 +389,26 @@ def _closed_door(obj):
 
 
 def _wall_like_object(obj, origin=None):
-    wall = getattr(obj, 'wall', lambda: False)
-    opaque = getattr(obj, 'opaque', lambda _origin=None: False)
-    try:
-        if wall():
-            return True
-    except Exception:
-        pass
-    try:
-        return bool(opaque(origin))
-    except Exception:
-        return False
+    opaque = getattr(obj, 'opaque', None)
+    if callable(opaque):
+        try:
+            return bool(opaque(origin))
+        except Exception:
+            pass
+    wall_attr = getattr(obj, 'wall', None)
+    if callable(wall_attr):
+        try:
+            if origin is not None:
+                try:
+                    return bool(wall_attr(origin))
+                except TypeError:
+                    pass
+            return bool(wall_attr())
+        except Exception:
+            return False
+    if wall_attr is not None:
+        return bool(wall_attr)
+    return False
 
 
 # Simple dict-based cache for acoustic profiles keyed on positions.
@@ -307,7 +434,42 @@ def _acoustic_line_blocked(battle_map, source_pos, listener_pos) -> bool:
         return False
 
 
-def acoustic_profile(source, listener, battle_map):
+def _passable_interactable_objects(battle_map, square):
+    try:
+        objects = battle_map.objects_at(*square) or []
+    except Exception:
+        return []
+    fixtures = []
+    for obj in objects:
+        try:
+            if obj.passable() and obj.interactable():
+                fixtures.append(obj)
+        except Exception:
+            continue
+    return fixtures
+
+
+def _path_square_blocks_speech(battle_map, square, prev_square):
+    """True when a square along the speech path should add wall-like acoustic penalty."""
+    if _passable_interactable_objects(battle_map, square):
+        # Speech carries over bar counters, tables, and similar service fixtures.
+        return False
+    try:
+        objects = battle_map.objects_at(*square) or []
+    except Exception:
+        objects = []
+    if any(_wall_like_object(obj, origin=prev_square) for obj in objects):
+        return True
+    # Fallback for terrain flagged only via map.wall() (unit-test fakes, legacy maps).
+    if not objects:
+        try:
+            return bool(battle_map.wall(*square))
+        except Exception:
+            return False
+    return False
+
+
+def acoustic_profile(source, listener, battle_map, battle=None):
     profile = {
         'penalty_ft': 0,
         'closed_doors': 0,
@@ -320,21 +482,28 @@ def acoustic_profile(source, listener, battle_map):
     if source is None or listener is None or battle_map is None:
         return profile
 
-    source_pos = _map_position_for(source, battle_map)
-    listener_pos = _map_position_for(listener, battle_map)
+    source_map = _entity_map_for(source, battle_map, battle=battle)
+    listener_map = _entity_map_for(listener, battle_map, battle=battle)
+    stack = _shared_stack(source_map, listener_map)
+    if battle is not None and stack is not None and source_map is not listener_map:
+        return _stack_acoustic_profile(source, listener, source_map, listener_map, stack, battle)
+
+    effective_map = source_map if source in getattr(source_map, 'entities', {}) else listener_map
+    source_pos = _map_position_for(source, effective_map or battle_map)
+    listener_pos = _map_position_for(listener, effective_map or battle_map)
     if source_pos is None or listener_pos is None:
         return profile
 
     # Check cache
     source_uid = getattr(source, 'entity_uid', None) or id(source)
     listener_uid = getattr(listener, 'entity_uid', None) or id(listener)
-    cache_key = (source_uid, listener_uid, source_pos, listener_pos, id(battle_map))
+    cache_key = (source_uid, listener_uid, source_pos, listener_pos, id(effective_map or battle_map))
     cached = _acoustic_cache.get(cache_key)
     if cached is not None:
         return cached
 
     try:
-        path = battle_map.squares_in_path(*source_pos, *listener_pos, inclusive=True)
+        path = (effective_map or battle_map).squares_in_path(*source_pos, *listener_pos, inclusive=True)
     except Exception:
         return profile
 
@@ -342,24 +511,26 @@ def acoustic_profile(source, listener, battle_map):
         return profile
 
     seen_objects = set()
+    path_end = len(path) - 1
     for index, square in enumerate(path):
-        if index == 0:
+        # Only count obstacles strictly between the speakers — not their own tiles.
+        if index == 0 or index == path_end:
             continue
 
         prev_square = path[index - 1]
 
-        try:
-            square_is_wall = bool(battle_map.wall(*square))
-        except Exception:
-            square_is_wall = False
+        square_is_wall = _path_square_blocks_speech(effective_map or battle_map, square, prev_square)
         if square_is_wall:
             profile['walls'] += 1
             profile['penalty_ft'] += ACOUSTIC_WALL_PENALTY_FT
 
         try:
-            objects = battle_map.objects_at(*square)
+            objects = (effective_map or battle_map).objects_at(*square)
         except Exception:
             objects = []
+
+        if _passable_interactable_objects(effective_map or battle_map, square):
+            continue
 
         for obj in objects or []:
             object_id = id(obj)
@@ -378,7 +549,7 @@ def acoustic_profile(source, listener, battle_map):
                 profile['penalty_ft'] += ACOUSTIC_OPAQUE_OBJECT_PENALTY_FT
                 seen_objects.add(object_id)
 
-    if _acoustic_line_blocked(battle_map, source_pos, listener_pos):
+    if _acoustic_line_blocked(effective_map or battle_map, source_pos, listener_pos):
         if profile['penalty_ft'] <= 0:
             profile['penalty_ft'] += ACOUSTIC_BLOCKED_LINE_PENALTY_FT
             profile['line_blocked'] = True
@@ -433,7 +604,7 @@ def minimum_speech_mode_for(listener, distance_ft):
     return None
 
 
-def conversation_reachability(source, battle_map, mode=None, distance_ft=None, include_source=False, require_conversable=True):
+def conversation_reachability(source, battle_map, mode=None, distance_ft=None, include_source=False, require_conversable=True, battle=None):
     if source is None or battle_map is None:
         return []
 
@@ -441,11 +612,10 @@ def conversation_reachability(source, battle_map, mode=None, distance_ft=None, i
     selected_distance = speech_distance_for(mode=selected_mode, distance_ft=distance_ft)
     max_distance = SPEECH_BASE_RANGES['shout']
     search_distance = max_distance + MAX_HEARING_MODIFIER
-    nearby = _entities_in_search_radius(
-        source,
-        battle_map,
-        search_distance,
-        fallback_distances=[selected_distance, max_distance],
+    source_map = _entity_map_for(source, battle_map, battle=battle)
+    stack = getattr(source_map, 'map_stack', None) if source_map else None
+    listener_hits = _listeners_in_range(
+        source, battle_map, search_distance, battle=battle, require_conversable=require_conversable,
     )
 
     reachability = []
@@ -462,16 +632,17 @@ def conversation_reachability(source, battle_map, mode=None, distance_ft=None, i
             'status': 'self',
         })
 
-    for listener in nearby:
+    for listener, preset_distance_ft in listener_hits:
         if listener == source:
             continue
-        if require_conversable and not getattr(listener, 'conversable', lambda: True)():
-            continue
 
-        try:
-            distance_to_source = battle_map.distance(source, listener) * battle_map.feet_per_grid
-        except Exception:
-            distance_to_source = selected_distance
+        if preset_distance_ft is not None:
+            distance_to_source = preset_distance_ft
+        else:
+            try:
+                distance_to_source = battle_map.distance(source, listener) * battle_map.feet_per_grid
+            except Exception:
+                distance_to_source = selected_distance
 
         # Early-exit: if raw distance already exceeds the absolute maximum hearing
         # range (shout + best hearing modifier), skip the expensive acoustic profile
@@ -497,7 +668,7 @@ def conversation_reachability(source, battle_map, mode=None, distance_ft=None, i
             })
             continue
 
-        acoustic = acoustic_profile(source, listener, battle_map)
+        acoustic = acoustic_profile(source, listener, battle_map, battle=battle)
         adjusted_distance = int(distance_to_source + acoustic['penalty_ft'])
 
         current_effective_distance = effective_hearing_distance(listener, selected_distance)
@@ -532,7 +703,7 @@ def conversation_reachability(source, battle_map, mode=None, distance_ft=None, i
     return sorted(reachability, key=lambda entry: (entry['distance_ft'], entity_label(entry['entity']).lower()))
 
 
-def audible_entities(source, battle_map, distance_ft=None, mode=None, include_source=False, require_conversable=True):
+def audible_entities(source, battle_map, distance_ft=None, mode=None, include_source=False, require_conversable=True, battle=None):
     return [
         entry for entry in conversation_reachability(
             source,
@@ -541,6 +712,7 @@ def audible_entities(source, battle_map, distance_ft=None, mode=None, include_so
             distance_ft=distance_ft,
             include_source=include_source,
             require_conversable=require_conversable,
+            battle=battle,
         )
         if entry.get('reachable_now') or entry.get('status') == 'self'
     ]

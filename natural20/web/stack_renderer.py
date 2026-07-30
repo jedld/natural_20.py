@@ -99,7 +99,7 @@ def build_stack_render_layers(session, battle_map, battle, *, padding=None, enti
         # cells are not rendered as opaque fog over the town below.
         renderer = JsonRenderer(floor.map, battle, padding=None)
         tile_grid = renderer.render(entity_pov=overlay_pov)
-        _annotate_stack_tiles(stack, floor, tile_grid)
+        _annotate_stack_tiles(stack, floor, tile_grid, viewer_map=battle_map, entity_pov=overlay_pov)
         layers.append({
             'name': floor.map_name,
             'role': 'overlay',
@@ -320,6 +320,107 @@ def build_base_peek_underlay(stack, base_floor, overlay_floor, battle, padding, 
     return result
 
 
+def stack_floors_for_ui(stack) -> list[dict[str, Any]]:
+    """Floor options for the layer-focus UI."""
+    if stack is None:
+        return []
+    floors = []
+    for floor in stack.floors:
+        short = floor.map_name.replace('_', ' ').title()
+        label = f"{short} ({int(floor.elevation_ft)} ft)" if floor.elevation_ft else short
+        floors.append({
+            'map_name': floor.map_name,
+            'label': label,
+            'elevation_ft': floor.elevation_ft,
+            'is_base': floor.is_base,
+        })
+    return floors
+
+
+def annotate_base_tiles_with_stack_overlay_entities(
+    stack,
+    base_grid,
+    battle,
+    entity_pov,
+    viewer_map,
+) -> None:
+    """Project overlay-floor creatures onto the base map when POV has stack LOS."""
+    from natural20.map_stack_los import stack_can_see
+
+    pov_list = entity_pov if isinstance(entity_pov, list) else ([entity_pov] if entity_pov else [])
+    pov_list = [e for e in pov_list if e is not None]
+    if not pov_list:
+        return
+
+    tile_by_pos: dict[tuple[int, int], dict] = {}
+    for row in base_grid:
+        for tile in row:
+            if isinstance(tile, dict) and tile.get('x') is not None and tile.get('y') is not None:
+                tile_by_pos[(tile['x'], tile['y'])] = tile
+
+    for floor in stack.floors:
+        if floor.is_base:
+            continue
+        omap = floor.map
+        for entity in list(omap.entities.keys()):
+            if not getattr(entity, 'allow_targeting', lambda: True)():
+                continue
+            pos = omap.entity_or_object_pos(entity)
+            if pos is None:
+                continue
+            wx, wy, _ = stack.local_to_world(floor.map_name, pos[0], pos[1])
+            visible = False
+            for pov in pov_list:
+                pov_map = battle.map_for(pov) if battle else viewer_map
+                if battle:
+                    visible = battle.can_see(pov, entity)
+                else:
+                    visible = stack_can_see(stack, pov, entity, pov_map, omap, battle=battle)
+                if visible:
+                    break
+            if not visible:
+                continue
+            tile = tile_by_pos.get((wx, wy))
+            if tile is None or not tile.get('line_of_sight', True):
+                continue
+            if tile.get('stack_overlay_entity') or (tile.get('id') and tile.get('entity')):
+                continue
+            _apply_overlay_entity_to_tile(tile, entity, floor, wx, wy, battle)
+
+
+def _apply_overlay_entity_to_tile(tile, entity, floor, wx: int, wy: int, battle) -> None:
+    team_group, team_border_tint = None, None
+    try:
+        renderer = JsonRenderer(floor.map, battle, padding=None)
+        team_group, team_border_tint = renderer._team_visuals_for(entity)
+    except Exception:
+        pass
+    tile.update({
+        'id': entity.entity_uid,
+        'entity': entity.token_image(),
+        'name': entity.label(),
+        'label': entity.label(),
+        'hp': entity.hp(),
+        'max_hp': entity.max_hp(),
+        'entity_size': entity.size(),
+        'stack_overlay_entity': True,
+        'stack_layer_map': floor.map_name,
+        'stack_elevation_ft': floor.elevation_ft,
+        'world_x': wx,
+        'world_y': wy,
+        'hiding': entity.hidden(),
+        'prone': entity.prone(),
+        'dead': entity.dead(),
+        'unconscious': entity.unconscious(),
+        'effects': [str(effect['effect']) for effect in entity.current_effects()],
+        'in_battle': bool(battle and entity in getattr(battle, 'combat_order', [])),
+        'opacity': 1.0,
+        'team_group': team_group,
+        'team_border_tint': team_border_tint,
+        'objects': tile.get('objects') or [],
+    })
+
+
 def _empty_underlay_tile(lx: int, ly: int) -> dict:
     return {
         'x': lx,
@@ -347,8 +448,12 @@ def _pov_entities_on_map(entity_pov, battle_map):
     return on_map
 
 
-def _annotate_stack_tiles(stack, floor, tile_grid) -> None:
+def _annotate_stack_tiles(stack, floor, tile_grid, *, viewer_map=None, entity_pov=None) -> None:
     """Tag tiles with peek_through / stack_opening for client compositing."""
+    base_floor = next((f for f in stack.floors if f.is_base), None)
+    entity = entity_pov
+    if isinstance(entity_pov, list):
+        entity = entity_pov[0] if entity_pov else None
     ow, oh = floor.map.size
     for row in tile_grid:
         for tile in row:
@@ -369,4 +474,11 @@ def _annotate_stack_tiles(stack, floor, tile_grid) -> None:
                 stack.is_window_at(wx, wy, floor.map_name)
                 or _is_edge_peek_cell(stack, floor, x, y)
             )
+            if tile['peek_through'] and base_floor is not None:
+                peek_target = _peek_underlay_world_target(
+                    stack, base_floor, floor, viewer_map, entity, x, y,
+                )
+                if peek_target is not None:
+                    tile['descent_target_x'] = peek_target[0]
+                    tile['descent_target_y'] = peek_target[1]
             tile['floor_mask'] = stack.floor_mask_blocks(wx, wy, 'up')

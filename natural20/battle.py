@@ -1555,9 +1555,7 @@ class Battle():
             stack2 = getattr(map2, 'map_stack', None)
             if stack1 and stack2 is stack1:
                 from natural20.map_stack_los import stack_can_see
-                if stack_can_see(stack1, entity1, entity2, map1, map2, battle=self):
-                    return map1.can_see(entity1, entity2, entity_1_pos=entity_1_pos, entity_2_pos=entity_2_pos, active_perception=active_perception)
-                return False
+                return stack_can_see(stack1, entity1, entity2, map1, map2, battle=self)
             return False
         if not map1.can_see(entity1, entity2, entity_1_pos=entity_1_pos, entity_2_pos=entity_2_pos, active_perception=active_perception):
             return False
@@ -1602,7 +1600,20 @@ class Battle():
                 continue
             if 'ignore_los' not in target_types and not entity==k and not self.can_see(entity, k, active_perception=active_perception):
                 continue
-            if self.maps and self.map_for(k).distance(k, entity) * self.map_for(k).feet_per_grid > attack_range:
+            target_map = self.map_for(k)
+            caster_map = self.map_for(entity)
+            if target_map is None or caster_map is None:
+                continue
+            stack = getattr(caster_map, 'map_stack', None)
+            if stack is not None and target_map is not caster_map:
+                from natural20.map_stack_targeting import stack_entity_distance_ft
+                distance_ft = stack_entity_distance_ft(
+                    stack, entity, caster_map, k, target_map,
+                    feet_per_grid=caster_map.feet_per_grid,
+                )
+            else:
+                distance_ft = target_map.distance(k, entity) * target_map.feet_per_grid
+            if distance_ft > attack_range:
                 continue
             if filter and not k.eval_if(filter):
                 continue

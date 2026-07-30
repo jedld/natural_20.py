@@ -8,6 +8,7 @@ from natural20.utils.conversation import (
     resolve_mention_targets,
     strip_spoken_address_prefix,
     _closed_door,
+    _path_square_blocks_speech,
     _wall_like_object,
 )
 
@@ -259,3 +260,24 @@ def test_strip_spoken_address_prefix_removes_target_header():
 def test_strip_spoken_address_prefix_leaves_plain_dialogue():
     raw = 'There you go! Enjoy that ale.'
     assert strip_spoken_address_prefix(raw) == raw
+
+
+def test_directional_wall_open_side_does_not_block_speech():
+    """Thin walls only attenuate sound crossing the bordered face, not the open side."""
+    from natural20.event_manager import EventManager
+    from natural20.session import Session
+
+    session = Session(root_path='user_levels/wild_sheep_chase', event_manager=EventManager())
+    base = session.maps['town_market']
+    wall = next(
+        obj for obj in base.objects_at(9, 20)
+        if getattr(obj, 'border', None) is not None
+    )
+
+    # Taproom patron standing in front of Mara — open side of stone_wall_l.
+    assert _wall_like_object(wall, origin=(10, 19)) is False
+    assert _path_square_blocks_speech(base, (9, 20), (10, 19)) is False
+
+    # Listener on the walled-off left flank — bordered side blocks speech.
+    assert _wall_like_object(wall, origin=(8, 20)) is True
+    assert _path_square_blocks_speech(base, (9, 20), (8, 20)) is True
