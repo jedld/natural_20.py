@@ -78,6 +78,8 @@ class Map(SerializableObject):
         # UID-backed maps for entities and interactables (keys as object, stored by uid)
         self.entities = EntitiesUIDMap(self.session)
         self.interactable_objects = EntitiesUIDMap(self.session)
+        self.map_stack = None
+        self.stack_floor = None
         self.legend = self.properties.get('legend', {})
         self.linked_maps = {}
         self.image_offset_px = self.properties.get('image_offset_px', [0, 0])
@@ -670,6 +672,18 @@ class Map(SerializableObject):
                             obj.on_enter(entity, self, battle, from_pos=(cur_x, cur_y), to_pos=(pos_x, pos_y))
                         except TypeError:
                             obj.on_enter(entity, self, battle)
+            # Stack transitions (edge descent, shafts, windows)
+            try:
+                from natural20.map_stack_movement import resolve_stack_move_after_step
+                is_flying = hasattr(entity, 'is_flying') and entity.is_flying()
+                resolve_stack_move_after_step(
+                    entity, self, pos_x, pos_y,
+                    battle=battle,
+                    session=self.session,
+                    is_flying_or_jumping=is_flying,
+                )
+            except Exception:
+                pass
             return True
         return False
 

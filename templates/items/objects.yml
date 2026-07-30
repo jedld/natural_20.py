@@ -610,3 +610,17 @@ tavern_guest_chest:
       action: close
       image: closed_chest
   inventory: []
+
+window:
+  name: Window
+  description: An opening in the wall; you can look and fall through to the level below.
+  color: cyan
+  item_class: Object
+  passable: true
+  placeable: false
+  interactable: false
+  peek_through: true
+  fall_through: true
+  type: window
+  token_image: wood_chest
+  opaque: false

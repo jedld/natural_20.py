@@ -45,6 +45,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.grapples = []
         self.grappling = []
         self.flying = False
+        self.altitude_ft = 0.0
         self.casted_effects = []
         self.death_fails = 0
         self.death_saves = 0
@@ -1666,12 +1667,60 @@ class Entity(EntityStateEvaluator, Notable):
 
     def land(self):
         self.flying = False
+        self.altitude_ft = 0.0
     
+    def floor_elevation_ft(self, battle_map=None):
+        m = battle_map
+        if m is None and hasattr(self, 'session') and self.session is not None:
+            m = self.session.map_for_entity(self)
+        if m is None:
+            return 0.0
+        floor = getattr(m, 'stack_floor', None)
+        if floor is not None:
+            return float(floor.elevation_ft)
+        return 0.0
+
+    def elevation_ft(self, battle_map=None):
+        return self.floor_elevation_ft(battle_map) + float(getattr(self, 'altitude_ft', 0.0) or 0.0)
+
+    def standing_height_ft(self):
+        from natural20.utils.entity_height import standing_height_ft as _standing_height_ft
+        return _standing_height_ft(self)
+
+    def eye_height_ft(self):
+        from natural20.utils.entity_height import eye_height_ft as _eye_height_ft
+        return _eye_height_ft(self)
+
+    def sight_elevation_ft(self, battle_map=None):
+        """Floor elevation + flying altitude + standing eye height for 3D LOS."""
+        return self.elevation_ft(battle_map) + self.eye_height_ft()
+
+    def sight_world_position(self, battle_map=None):
+        wp = self.world_position(battle_map)
+        if wp is None:
+            return None
+        from natural20.map_stack import WorldCoord
+        return WorldCoord(wp.x, wp.y, wp.elevation_ft + self.eye_height_ft())
+
+    def world_position(self, battle_map=None):
+        m = battle_map
+        if m is None and hasattr(self, 'session') and self.session is not None:
+            m = self.session.map_for_entity(self)
+        if m is None:
+            return None
+        pos = m.entity_or_object_pos(self)
+        if pos is None:
+            return None
+        stack = getattr(m, 'map_stack', None)
+        if stack is None:
+            from natural20.map_stack import WorldCoord
+            return WorldCoord(pos[0], pos[1], self.elevation_ft(m))
+        wx, wy, elev = stack.local_to_world(m.name, pos[0], pos[1])
+        from natural20.map_stack import WorldCoord
+        return WorldCoord(wx, wy, elev + float(getattr(self, 'altitude_ft', 0.0) or 0.0))
+
     def can_fly(self):
         return self.properties.get('speed_fly')
-    
-    def melee_distance(self):
-        return 0
     
     def entered_melee(self, map, entity, pos_x, pos_y):
         entity_1_sq = map.entity_squares(self)

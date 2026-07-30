@@ -426,6 +426,45 @@ def test_place_map_terrain_writes_directional_wall_token(tmp_path: Path):
     assert saved["map"]["base"][0][0] == "#"
 
 
+def test_place_wall_overwrites_occupied_base_cell(tmp_path: Path):
+    """Walls/doors may replace non-filler terrain (e.g. teleporter token on stairs)."""
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  upstairs: maps/upstairs\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "base": ["T......", "......."],
+        },
+        "legend": {
+            "T": {"name": "Stairs", "type": "teleporter"},
+        },
+    }
+    map_path = maps_dir / "upstairs.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"upstairs": "maps/upstairs"}}
+
+        def load_object(self, object_type):
+            return {
+                "stone_wall_tl": {
+                    "name": "Stone Wall Thin Top Left",
+                    "item_class": "StoneWallDirectional",
+                    "token": ["┌"],
+                },
+            }[object_type]
+
+    placed = place_map_terrain(_Session(), "upstairs", object_type="stone_wall_tl", x=0, y=0)
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    assert placed["token"] == "┌"
+    assert saved["map"]["base"][0][0] == "┌"
+
+
 def test_place_teleporter_on_wall_preserves_terrain(tmp_path: Path):
     campaign = tmp_path / "demo"
     maps_dir = campaign / "maps"

@@ -9,7 +9,7 @@ from typing import Any, Iterable, Optional, Sequence, Tuple
 Point = Tuple[int, int]
 Bounds = dict[str, int]
 
-_VALID_KINDS = frozenset({'point', 'area', 'polygon', 'object_ref'})
+_VALID_KINDS = frozenset({'point', 'area', 'polygon', 'object_ref', 'stack_opening', 'floor_mask'})
 _SLUG_RE = re.compile(r'^[a-z][a-z0-9_\-]{0,63}$')
 
 
@@ -99,6 +99,59 @@ def normalize_annotation(raw: dict[str, Any], *, index: int = 0) -> dict[str, An
         if not entity_uid:
             raise ValueError(f'object_ref annotation {annotation_id} requires entity_uid')
         normalized['entity_uid'] = entity_uid
+    elif kind == 'stack_opening':
+        stack_ref = str(raw.get('stack') or raw.get('stack_id') or '').strip()
+        if stack_ref:
+            normalized['stack'] = stack_ref
+        shape = str(raw.get('shape') or 'point').strip().lower()
+        normalized['shape'] = shape
+        if shape == 'area' or raw.get('bounds'):
+            bounds = raw.get('bounds') or {}
+            if isinstance(bounds, dict):
+                try:
+                    normalized['bounds'] = {
+                        'x1': int(bounds['x1']),
+                        'y1': int(bounds['y1']),
+                        'x2': int(bounds['x2']),
+                        'y2': int(bounds['y2']),
+                    }
+                except (KeyError, TypeError, ValueError):
+                    pass
+        pos = _as_int_pair(raw.get('pos') or raw.get('position'))
+        if pos is not None:
+            normalized['pos'] = [pos[0], pos[1]]
+        if raw.get('fall_damage'):
+            normalized['fall_damage'] = str(raw.get('fall_damage'))
+    elif kind == 'floor_mask':
+        stack_ref = str(raw.get('stack') or raw.get('stack_id') or '').strip()
+        if stack_ref:
+            normalized['stack'] = stack_ref
+        if raw.get('blocks_sight'):
+            normalized['blocks_sight'] = str(raw.get('blocks_sight'))
+        if raw.get('allows_sight'):
+            normalized['allows_sight'] = str(raw.get('allows_sight'))
+        shape = str(raw.get('shape') or 'area').strip().lower()
+        if shape == 'polygon' and raw.get('points'):
+            points: list[list[int]] = []
+            for entry in raw.get('points') or []:
+                pair = _as_int_pair(entry)
+                if pair is not None:
+                    points.append([pair[0], pair[1]])
+            if len(points) >= 3:
+                normalized['points'] = points
+                normalized['shape'] = 'polygon'
+        elif raw.get('bounds'):
+            bounds = raw.get('bounds') or {}
+            if isinstance(bounds, dict):
+                try:
+                    normalized['bounds'] = {
+                        'x1': int(bounds['x1']),
+                        'y1': int(bounds['y1']),
+                        'x2': int(bounds['x2']),
+                        'y2': int(bounds['y2']),
+                    }
+                except (KeyError, TypeError, ValueError):
+                    pass
 
     return normalized
 
@@ -157,9 +210,19 @@ def point_in_polygon(x: int, y: int, points: Sequence[Sequence[int]]) -> bool:
 
 def annotation_contains_point(annotation: dict[str, Any], x: int, y: int) -> bool:
     kind = annotation.get('kind')
-    if kind == 'point':
+    if kind == 'point' or kind == 'stack_opening':
         pos = _as_int_pair(annotation.get('pos'))
-        return pos is not None and pos == (int(x), int(y))
+        if pos is not None and pos == (int(x), int(y)):
+            return True
+        if kind == 'stack_opening' and annotation.get('bounds'):
+            return point_in_bounds(int(x), int(y), annotation.get('bounds') or {})
+        return False
+    if kind == 'floor_mask':
+        if annotation.get('points'):
+            return point_in_polygon(int(x), int(y), annotation.get('points') or [])
+        if annotation.get('bounds'):
+            return point_in_bounds(int(x), int(y), annotation.get('bounds') or {})
+        return False
     if kind == 'area':
         return point_in_bounds(int(x), int(y), annotation.get('bounds') or {})
     if kind == 'polygon':

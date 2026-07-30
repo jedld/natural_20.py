@@ -563,6 +563,26 @@ class PathCompute:
                     parents[goal_state] = (state, direct, None, current_map)
                     return self._reconstruct_cross_map(goal_state, parents)
 
+            # Expand via stack openings (stairs/shafts) on the current map.
+            stack = getattr(current_map, 'map_stack', None)
+            if stack is not None:
+                for next_name, nx, ny in stack.transitions_from(current_map.name, x, y):
+                    next_map = current_map.linked_maps.get(next_name)
+                    if next_map is None:
+                        continue
+                    maps_by_id.setdefault(id(next_map), next_map)
+                    if (x, y) == (nx, ny):
+                        seg = [(x, y)]
+                    else:
+                        seg = self._compute_path_on(current_map, x, y, nx, ny,
+                                                    door_navigation=door_navigation)
+                        if seg is None:
+                            continue
+                    nxt_state = (id(next_map), int(nx), int(ny))
+                    if nxt_state in visited:
+                        continue
+                    push(nxt_state, cost + len(seg), state, seg, None, current_map)
+
             # Expand via teleporters on the current map.
             for tport, tx, ty in self._iter_teleporters_on(current_map):
                 if (x, y) == (tx, ty):

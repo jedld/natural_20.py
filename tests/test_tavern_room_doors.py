@@ -29,6 +29,17 @@ def _find_interactable(upstairs, entity_uid):
     return None
 
 
+def test_door_object_wall_closed_transform_is_not_none():
+    session = Session(root_path='user_levels/wild_sheep_chase')
+    upstairs = session.maps['tavern_2nd_floor']
+    door = _find_interactable(upstairs, 'tavern_room_1_door')
+    assert door is not None
+    assert door.closed()
+    transform = door.token_image_transform()
+    assert transform
+    assert 'rotate' in transform
+
+
 def test_tavern_guest_room_doors_are_locked_with_matching_keys():
     session = Session(root_path='user_levels/wild_sheep_chase')
     upstairs = session.maps['tavern_2nd_floor']

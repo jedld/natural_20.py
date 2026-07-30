@@ -463,7 +463,7 @@ class DoorObjectWall(DoorObject, StoneWallDirectional):
         return DoorObject.token_closed(self)
 
     def token_image_transform(self):
-        return StoneWallDirectional.token_image_transform(self)
+        return DoorObject.token_image_transform(self)
 
     def opaque(self, origin=None):
         pos_x, pos_y = self.map.position_of(self)

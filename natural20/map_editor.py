@@ -1242,6 +1242,24 @@ def _target_terrain_layer(map_block: dict[str, Any], x: int, y: int) -> tuple[st
     raise ValueError(f"No writable terrain layer at ({x}, {y})")
 
 
+def _resolve_terrain_target_layer(
+    map_block: dict[str, Any],
+    x: int,
+    y: int,
+    object_type: str | None,
+) -> str:
+    """Resolve terrain layer for painting; walls/doors may overwrite occupied base cells."""
+    try:
+        layer_name, _grid = _target_terrain_layer(map_block, x, y)
+        return layer_name
+    except ValueError:
+        if object_type and _categorize_type(object_type) in ("wall", "door"):
+            grid = map_block.get("base")
+            if grid and 0 <= y < len(grid) and 0 <= x < len(grid[y]):
+                return "base"
+        raise
+
+
 def place_map_layer_item(
     session,
     map_name: str,
@@ -1301,7 +1319,7 @@ def place_map_layer_item(
 
     target_layer = layer
     if not target_layer:
-        target_layer, _grid = _target_terrain_layer(map_block, int(x), int(y))
+        target_layer = _resolve_terrain_target_layer(map_block, int(x), int(y), object_type)
 
     placements = _layer_placements_list(map_block)
     placements[:] = [
