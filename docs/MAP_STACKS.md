@@ -45,8 +45,35 @@ map_annotations:
   - id: tavern_stair_shaft
     kind: stack_opening
     stack: amphail_tavern
-    shape: area
-    bounds: { x1: 9, y1: 16, x2: 9, y2: 17 }
+    shape: point
+    pos: [9, 16]
+    description: Stairs up to the Prancing Flagon guest rooms.
+```
+
+**Important**: Use `shape: point` with `pos` for a single-cell stairwell. `shape: area` with
+`bounds` spanning multiple cells causes `MapStack.is_stack_opening()` to match cells where the
+entity is not actually standing, breaking `transitions_from()` lookup.
+
+#### Teleporter wiring
+
+Teleporter objects (`target_map`, `target_position`) provide legacy fallback for floor changes.
+**Always set `target_position` to the actual teleporter tile on the destination map, not an
+interior cell**:
+
+```yaml
+# town_market.yml — going up
+- token: STAIRS_UP
+  pos: [9, 16]
+  layer: object
+  target_map: tavern_2nd_floor
+  target_position: [0, 0]  # Must be the teleporter tile on destination
+
+# tavern_2nd_floor.yml — going down
+- token: Teleporter
+  pos: [0, 0]
+  layer: object
+  target_map: town_market
+  target_position: [9, 16]  # Back to town_market stairwell
 ```
 
 ## Floor masks
@@ -131,6 +158,48 @@ Cross-floor **targeting and attacks** (spells, ranged/melee) use world-space dis
 
 Edit mode `GET /edit/overlay` includes `map_stack` metadata for the ghost overlay UI. When viewing a composited overlay floor, drag-and-drop placement sends `map_name` and **overlay-local** `(x, y)` to `/edit/layer/place`.
 
+## Cross-Map Navigation for NPCs and LLM Agents
+
+NPCs and LLM-driven agents use `PathCompute.compute_cross_map_path()` to navigate between
+maps. The algorithm runs A* over a graph of `(map_id, x, y)` states linked by:
+
+1. **Stack transitions** — `MapStack.transitions_from()` at `stack_opening` cells
+2. **Teleporters** — objects with `target_map` + `target_position`
+
+### How it works
+
+```
+NPC on town_market [9,19] → path to stack opening [9,16]
+  → stack transition → tavern_2nd_floor [0,0]
+  → path to annotation target [1,3] (tavern_suite_room)
+```
+
+**Key requirements:**
+
+1. **Stack opening must match teleporter position**: `shape: point` with `pos: [9, 16]` on
+   `town_market` must align with the STAIRS_UP teleporter at `[9, 16]`.
+2. **Teleporter `target_position` must be the destination teleporter tile**: `[0, 0]` on
+   `tavern_2nd_floor`, NOT an interior cell.
+3. **Destination annotation must be in NPC `known_places`**: NPCs resolve `tavern_suite_room`
+   from their YAML `known_places` list, then the pathfinder computes the cross-map route.
+4. **`linked_maps` must be bidirectional**: Each `Map` object auto-populates `linked_maps`
+   during session load (`Session._load_all_maps`).
+
+### Infinite loop protection
+
+`compute_cross_map_path()` tracks push counts per state `(map_id, x, y)` and skips pushes
+that exceed `max_pushes_per_state = 8`. This prevents pathological exploration when two
+teleporters swap entities back and forth between maps.
+
+### Diagnostic script
+
+Run `python scripts/diagnose_cross_map_path.py user_levels/<campaign>` to verify:
+- Map stack registration and anchor configuration
+- Stack opening transitions (must return non-empty list)
+- Teleporter target positions
+- `linked_maps` bidirectional linking
+- Annotation resolution for destination targets
+
 ## Wild Sheep Chase example
 
-`amphail_tavern` stack: `town_market` (base) + `tavern_2nd_floor` at anchor `[9, 16]`. STAIRS_UP teleporter remains as a legacy fallback during migration.
+`amphail_tavern` stack: `town_market` (base) + `tavern_2nd_floor` at anchor `[9, 16]`. STAIRS_UP teleporter targets `[0, 0]` on the overlay.

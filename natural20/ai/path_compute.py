@@ -540,6 +540,13 @@ class PathCompute:
         max_pops = max(64, max_segments * 32)
         pops = 0
 
+        # Infinite loop detection: track how many times each (map_id, x, y) state
+        # has been pushed to the priority queue. If a state is pushed more than
+        # max_pushes_per_state times, we have a potential infinite loop (e.g.
+        # two teleporters swapping entities back and forth between maps).
+        max_pushes_per_state = 8
+        push_counts = {}
+
         while pq and pops < max_pops:
             pops += 1
             cost, _, state, parent, seg_path, tport_in, seg_map = heapq.heappop(pq)
@@ -578,33 +585,43 @@ class PathCompute:
                                                     door_navigation=door_navigation)
                         if seg is None:
                             continue
-                    nxt_state = (id(next_map), int(nx), int(ny))
+                        nxt_state = (id(next_map), int(nx), int(ny))
+                        if nxt_state in visited:
+                            continue
+                        # Infinite loop detection: skip pushes that exceed the threshold.
+                        cnt = push_counts.get(nxt_state, 0) + 1
+                        push_counts[nxt_state] = cnt
+                        if cnt > max_pushes_per_state:
+                            continue
+                        push(nxt_state, cost + len(seg), state, seg, None, current_map)
+    
+                # Expand via teleporters on the current map.
+                for tport, tx, ty in self._iter_teleporters_on(current_map):
+                    if (x, y) == (tx, ty):
+                        seg = [(x, y)]
+                    else:
+                        seg = self._compute_path_on(current_map, x, y, tx, ty,
+                                                    door_navigation=door_navigation)
+                        if seg is None:
+                            continue
+                    next_map = current_map.linked_maps.get(tport.target_map)
+                    if next_map is None:
+                        continue
+                    maps_by_id.setdefault(id(next_map), next_map)
+                    tpos = tport.target_position
+                    try:
+                        nxt_state = (id(next_map), int(tpos[0]), int(tpos[1]))
+                    except Exception:
+                        continue
                     if nxt_state in visited:
                         continue
-                    push(nxt_state, cost + len(seg), state, seg, None, current_map)
-
-            # Expand via teleporters on the current map.
-            for tport, tx, ty in self._iter_teleporters_on(current_map):
-                if (x, y) == (tx, ty):
-                    seg = [(x, y)]
-                else:
-                    seg = self._compute_path_on(current_map, x, y, tx, ty,
-                                                door_navigation=door_navigation)
-                    if seg is None:
+                    # Infinite loop detection: skip pushes that exceed the threshold.
+                    cnt = push_counts.get(nxt_state, 0) + 1
+                    push_counts[nxt_state] = cnt
+                    if cnt > max_pushes_per_state:
                         continue
-                next_map = current_map.linked_maps.get(tport.target_map)
-                if next_map is None:
-                    continue
-                maps_by_id.setdefault(id(next_map), next_map)
-                tpos = tport.target_position
-                try:
-                    nxt_state = (id(next_map), int(tpos[0]), int(tpos[1]))
-                except Exception:
-                    continue
-                if nxt_state in visited:
-                    continue
-                # Cost = current segment length (in tiles); teleport hop free.
-                push(nxt_state, cost + len(seg), state, seg, tport, current_map)
+                    # Cost = current segment length (in tiles); teleport hop free.
+                    push(nxt_state, cost + len(seg), state, seg, tport, current_map)
 
         return None
 
