@@ -12,6 +12,7 @@ from natural20.actions.interact_action import InteractAction
 from natural20.concern.event_loader import EventLoader
 from natural20.concern.container import Container
 from natural20.concern.annotatable import Annotatable
+from natural20.utils.contextual_sound import build_contextual_sound
 import uuid
 import pdb
 
@@ -123,6 +124,27 @@ class Object(Entity, Container, EventLoader, Annotatable):
             'message': message,
             'position': self.position()
         }
+
+    def contextual_sound_at(
+        self,
+        message,
+        source=None,
+        *,
+        position=None,
+        duration_ms=4000,
+        label=None,
+        sound_id=None,
+    ) -> Dict[str, Any]:
+        """Emit a contextual sound toast at this object's tile."""
+        return build_contextual_sound(
+            source or self,
+            message,
+            position or self.position(),
+            duration_ms=duration_ms,
+            label=label,
+            sound_id=sound_id,
+            anchor=self,
+        )
 
     def color(self) -> Optional[str]:
         return self.properties.get('color')

@@ -11,6 +11,7 @@ import uuid
 from natural20.utils.conversation import delivered_conversations
 from natural20.utils.gibberish import gibberish
 from natural20.utils.language_comprehension import understands_language, understands_language_for_languages
+from natural20.utils.contextual_sound import build_contextual_sound
 import i18n
 class Entity(EntityStateEvaluator, Notable):
 
@@ -770,6 +771,18 @@ class Entity(EntityStateEvaluator, Notable):
         if self.properties.get('label'):
             return self.properties.get('label')
         return i18n.t(self.name)
+
+    def contextual_sound(self, message, position=None, *, duration_ms=4000, label=None, sound_id=None, anchor=None):
+        """Return a short-lived on-map sound toast payload anchored near *anchor* (defaults to self)."""
+        return build_contextual_sound(
+            self,
+            message,
+            position,
+            duration_ms=duration_ms,
+            label=label,
+            sound_id=sound_id,
+            anchor=anchor or self,
+        )
 
     def token_image(self):
         return self.properties.get('token_image') or f"token_{(self.properties.get('kind') or self.properties.get('sub_type') or self.properties.get('name').replace(' ', '_')).lower()}.png"

@@ -84,6 +84,18 @@ overrides:
 
 Known landmarks are listed first in conversation/movement prompts.
 
+### Current location in NPC prompts
+
+When an NPC stands inside a `point`, `area`, or `polygon` landmark, the engine injects an
+authoritative **Current location** line into:
+
+- Conversation landmark prompts (`map_landmarks_prompt_for_entity`)
+- Movement / goal situational context (`build_npc_situational_context`)
+
+Use `kind: area` with `bounds` for guest rooms, taproom, hallways, etc. so staff get
+"You are in Standard Room 1" while anywhere in the bedroom, not only on the door tile.
+`stack_opening` and `floor_mask` annotations are excluded from location context.
+
 When an NPC with `known_places` is pathing toward one of those landmarks (`[MOVE: target=<id>]`), movement uses **door-aware pathfinding** — they route up to closed doors instead of treating them as impassable walls. If a closed or locked door blocks the route, the NPC LLM receives a movement tick with door state and available interactions (`open`, `unlock`, `lockpick`) so it can `[INTERACT: ...]` and then resume navigation on the next tick.
 
 ## Authoring UI (edit mode)

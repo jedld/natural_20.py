@@ -1,5 +1,7 @@
 import re
 
+from natural20.utils.contextual_sound import build_contextual_sound
+
 def camel_case_to_human_readable(camel_case_string):
     # Insert spaces before uppercase letters and capitalize the first letter
     human_readable = re.sub(r'(?<!^)(?=[A-Z])', '_', camel_case_string).capitalize()
@@ -64,6 +66,28 @@ class Spell:
 
     def label(self):
         return self.properties.get('label', self.short_name())
+
+    def contextual_sound(
+        self,
+        message,
+        *,
+        position=None,
+        anchor=None,
+        duration_ms=4000,
+        label=None,
+        sound_id=None,
+    ):
+        """Append-friendly payload for a spell sound cue near *anchor* (target, then caster)."""
+        resolved_anchor = anchor or self.target or self.source
+        return build_contextual_sound(
+            self.source,
+            message,
+            position,
+            duration_ms=duration_ms,
+            label=label or self.label(),
+            sound_id=sound_id,
+            anchor=resolved_anchor,
+        )
 
     def clone(self):
         spell = self.__class__(self.session, self.source, self.name, self.properties)
