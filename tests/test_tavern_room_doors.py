@@ -29,6 +29,52 @@ def _find_interactable(upstairs, entity_uid):
     return None
 
 
+ROOM_DOOR_NOTES = {
+    'tavern_room_1_door': 'Standard Room 1',
+    'tavern_room_2_door': 'Standard Room 2',
+    'tavern_room_3_door': 'Standard Room 3',
+    'tavern_room_4_door': 'Standard Room 4',
+    'tavern_suite_door': 'Tavern Suite',
+}
+
+
+def test_tavern_guest_room_doors_have_perception_notes():
+    session = Session(root_path='user_levels/wild_sheep_chase')
+    upstairs = session.maps['tavern_2nd_floor']
+
+    found = {}
+    for obj, _pos in upstairs.interactable_objects.items():
+        if not isinstance(obj, DoorObjectWall):
+            continue
+        uid = getattr(obj, 'entity_uid', None)
+        if uid not in ROOM_DOOR_NOTES:
+            continue
+        found[uid] = obj
+        assert obj.has_notes()
+        notes = (obj.properties.get('notes') or [])
+        assert len(notes) == 1
+        assert ROOM_DOOR_NOTES[uid] in notes[0]['note']
+        assert notes[0].get('perception_dc') == 5
+
+    assert set(found) == set(ROOM_DOOR_NOTES)
+
+
+def test_tavern_door_room_plaque_visible_on_perception():
+    from unittest.mock import MagicMock
+
+    session = Session(root_path='user_levels/wild_sheep_chase')
+    upstairs = session.maps['tavern_2nd_floor']
+    door = _find_interactable(upstairs, 'tavern_room_1_door')
+    assert door is not None
+
+    guest = MagicMock()
+    guest.passive_perception.return_value = 12
+    guest.is_admin = False
+
+    visible, _ = door.list_notes(entity=guest, perception=12)
+    assert any('Standard Room 1' in (entry.get('note') or '') for entry in visible)
+
+
 def test_door_object_wall_closed_transform_is_not_none():
     session = Session(root_path='user_levels/wild_sheep_chase')
     upstairs = session.maps['tavern_2nd_floor']
@@ -76,21 +122,23 @@ def test_tavern_guest_room_chests_are_locked_with_matching_keys():
     assert set(found) == set(CHEST_KEYS)
 
 
-def test_mara_carries_guest_room_keys():
+def test_mara_carries_tavern_skeleton_key():
     session = Session(root_path='user_levels/wild_sheep_chase')
     mara = session.maps['town_market'].entity_by_uid('mara_bartender')
 
+    assert mara.item_count('tavern_skeleton_key') >= 1
     for key_slug in (
         'tavern_room_key_1',
         'tavern_room_key_2',
         'tavern_room_key_3',
         'tavern_room_key_4',
         'tavern_suite_key',
+        'tavern_safe_key',
     ):
-        assert mara.item_count(key_slug) >= 1
+        assert mara.item_count(key_slug) == 0
 
 
-def test_mara_can_unlock_room_door_with_key():
+def test_mara_can_unlock_room_door_with_skeleton_key():
     session = Session(root_path='user_levels/wild_sheep_chase')
     upstairs = session.maps['tavern_2nd_floor']
     mara = session.maps['town_market'].entity_by_uid('mara_bartender')
@@ -118,3 +166,26 @@ def test_mara_can_unlock_room_chest_with_key():
     result = chest.resolve(mara, 'unlock', {}, {})
     chest.use(mara, result, session)
     assert chest.locked() is False
+
+
+def test_mara_can_unlock_till_safe_with_skeleton_key():
+    from natural20.item_library.chest import Chest
+
+    session = Session(root_path='user_levels/wild_sheep_chase')
+    market = session.maps['town_market']
+    mara = market.entity_by_uid('mara_bartender')
+
+    safe = next(
+        (
+            obj for obj in market.interactable_objects
+            if isinstance(obj, Chest) and getattr(obj, 'key_name', None) == 'tavern_safe_key'
+        ),
+        None,
+    )
+    assert safe is not None
+
+    unlock_action = safe.available_interactions(mara).get('unlock', {})
+    assert not unlock_action.get('disabled')
+    result = safe.resolve(mara, 'unlock', {}, {})
+    safe.use(mara, result, session)
+    assert safe.locked() is False

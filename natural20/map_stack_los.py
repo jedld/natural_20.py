@@ -440,7 +440,15 @@ def _overlay_cell_blocks_ray(omap, lx: int, ly: int, origin=None) -> bool:
 
 
 def _overlay_edge_allows_peek(omap, lx: int, ly: int) -> bool:
-    """True when an overlay border cell is open (not void/wall/door/window)."""
+    """True when an overlay border cell is a valid exit point to the base map.
+
+    Only **doors** and explicitly open **passages** at the overlay edge allow
+    peek-through to the base map.  Pure floor tiles (``.``) and interior
+    terrain at the edge are surrounded by exterior walls and must **not**
+    allow sight to the base map.
+
+    Windows are handled separately via ``is_window_at`` and are excluded here.
+    """
     if omap.base_map[lx][ly] == '#':
         return False
     from natural20.map_editor import _legend_for
@@ -449,11 +457,48 @@ def _overlay_edge_allows_peek(omap, lx: int, ly: int) -> bool:
     leg = legend.get(omap.base_map[lx][ly]) or {}
     type_name = leg.get('type')
     category = _overlay_legend_category(omap, lx, ly)
-    if category in ('wall', 'door'):
+    # Solid walls and parapets never allow peek-through.
+    if category in ('wall',):
         return False
-    if type_name == 'window':
+    # Doors on the edge are openings — they connect interior to exterior.
+    if category in ('door',):
+        return True
+    # Windows are handled separately by is_window_at; exclude them here.
+    if type_name == 'window' or type_name == 'peek_through':
         return False
-    return True
+    # Interior floor tiles and generic terrain at the edge do NOT allow peeking
+    # — the exterior wall prevents sight. Only explicit passages/openings do.
+    if category in ('floor', 'terrain', 'ground', 'open', 'decor', 'object'):
+        return False
+    # Default for unrecognized edge tiles: block sight (conservative).
+    return False
+
+
+def _overlay_edge_is_gap_at_base(stack, egress_wx: int, egress_wy: int) -> bool:
+    """Return True when the base map at world coords has a wall, marking overlay . as a gap.
+
+    When the overlay edge cell is a ``.`` (floor tile) and the base map at the
+    same world coordinate has a wall token or exterior void (``#``), the overlay
+    cell represents a **gap in the roof/wall** that allows sight past the wall.
+    When the base map has floor (``.``), the overlay cell is just an interior
+    floor tile and must NOT allow peek-through.
+    """
+    base_floor = next((f for f in stack.floors if f.is_base), None)
+    if base_floor is None:
+        return False
+    bw, bh = base_floor.map.size
+    if not (0 <= egress_wx < bw and 0 <= egress_wy < bh):
+        return False
+    base_cell = base_floor.map.base_map[egress_wx][egress_wy]
+    # Wall tokens and exterior void indicate the overlay edge is a gap.
+    if base_cell == '#':
+        return True
+    wall_set = frozenset(
+        '┬┴┌┐└┘├┤─┼'
+        'abcdez'
+        '╒╓╕╜╔╗╝╚╟╢╠╣╡╞╖'
+    )
+    return base_cell in wall_set
 
 
 def _overlay_outdoor_egress_allowed(
@@ -489,7 +534,20 @@ def _overlay_outdoor_egress_allowed(
     egress_wx, egress_wy, lx, ly = egress
     if stack.is_window_at(egress_wx, egress_wy, omap_name):
         return True
-    return _overlay_edge_allows_peek(omap, lx, ly)
+    if _overlay_edge_allows_peek(omap, lx, ly):
+        return True
+    # Allow peek-through when the overlay edge cell is a floor tile (``.``)
+    # that corresponds to a wall/gap in the base map (e.g. roof gap over
+    # exterior wall).  Only floor tiles on the overlay edge represent gaps;
+    # wall tokens on the overlay edge must NOT allow peek-through.
+    overlay_cell = omap.base_map[lx][ly]
+    if overlay_cell != '#' and _overlay_edge_is_gap_at_base(stack, egress_wx, egress_wy):
+        # Only wall/door tiles block the gap. Floor tiles (including those
+        # categorized as 'object' with no explicit type) allow peek-through.
+        category = _overlay_legend_category(omap, lx, ly)
+        if category not in ('wall', 'door'):
+            return True
+    return False
 
 
 def _overlay_perimeter_wall(omap, lx: int, ly: int) -> bool:

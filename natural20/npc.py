@@ -29,6 +29,7 @@ from natural20.actions.pickpocket_action import PickpocketAction
 from natural20.utils.multiattack import Multiattack
 from natural20.utils.npc_random_name_generator import generate_goblinoid_name, generate_ogre_name
 from natural20.concern.lootable import Lootable
+from natural20.concern.inventory import Inventory
 from natural20.concern.event_loader import EventLoader
 import pdb
 
@@ -57,7 +58,7 @@ def _normalize_damage_traits(value):
             normalized.append(cleaned)
     return normalized
 
-class Npc(Entity, Multiattack, Lootable, EventLoader):
+class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader):
     ACTION_LIST = [
         AttackAction, DashAction, DashBonusAction, DisengageAction,
         DisengageBonusAction, HideAction, HideBonusAction,
@@ -98,6 +99,8 @@ class Npc(Entity, Multiattack, Lootable, EventLoader):
 
         for inventory in self.properties.get("inventory", []):
             self.inventory[inventory["type"]] = { "qty": inventory["qty"]}
+
+        self._ensure_container_flags(self.session)
 
         self.npc_actions = self.properties["actions"]
         self.legendary_actions = self.properties.get("legendary_actions", [])

@@ -1,4 +1,5 @@
 from natural20.item_library.object import Object
+from natural20.utils.key_utils import entity_has_key
 
 import pdb
 
@@ -127,7 +128,7 @@ class Chest(Object):
         interactions = super().available_interactions(entity, battle, admin)
         if self.locked():
             interactions['unlock'] = {
-                    'disabled': not (entity.item_count(self.key_name) > 0),
+                    'disabled': not entity_has_key(entity, self.key_name),
                     'disabled_text': 'Key required'
                 }
             # Example lockpick check
@@ -147,7 +148,7 @@ class Chest(Object):
                 interactions['open'] = {}
                 if self.key_name:
                     interactions['lock'] = {
-                        'disabled': not (entity and entity.item_count(self.key_name) > 0),
+                        'disabled': not (entity and entity_has_key(entity, self.key_name)),
                         'disabled_text': 'Key required'
                     }
 
@@ -181,9 +182,9 @@ class Chest(Object):
             else:
                 return {'action': 'lockpick_fail', 'roll': roll, 'cost': 'action'}
         elif action == 'unlock':
-            return {'action': 'unlock'} if entity.item_count(self.key_name) > 0 else {'action': 'unlock_failed'}
+            return {'action': 'unlock'} if entity_has_key(entity, self.key_name) else {'action': 'unlock_failed'}
         elif action == 'lock':
-            return {'action': 'lock'} if entity.item_count(self.key_name) > 0 else {'action': 'lock_failed'}
+            return {'action': 'lock'} if entity_has_key(entity, self.key_name) else {'action': 'lock_failed'}
         return None
 
     def use(self, entity, result, session=None):

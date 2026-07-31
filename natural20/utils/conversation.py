@@ -173,8 +173,15 @@ def mention_handle_for(entity):
 
 
 def _word_aliases_for(entity):
-    words = re.findall(r'[A-Za-z0-9]+', entity_label(entity).lower())
-    return {word for word in words if len(word) >= 3}
+    label = entity_label(entity)
+    words = re.findall(r'[A-Za-z0-9]+', label.lower())
+    role_words = set()
+    for inner in re.findall(r'\(([^)]*)\)', label):
+        role_words.update(re.findall(r'[A-Za-z0-9]+', inner.lower()))
+    return {
+        word for word in words
+        if len(word) >= 3 and word not in role_words
+    }
 
 
 def _candidate_alias_map(entities):

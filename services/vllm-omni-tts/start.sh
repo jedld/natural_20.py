@@ -32,14 +32,24 @@ fi
 
 DEPLOY_CONFIG="${VLLM_DEPLOY_CONFIG:-}"
 if [[ -z "${DEPLOY_CONFIG}" ]]; then
+  # find_spec avoids importing vllm_omni (its import logs to stdout and breaks capture).
   DEPLOY_CONFIG="$("${PYTHON_BIN}" -c "
+import importlib.util
 import pathlib
-import vllm_omni
-print(pathlib.Path(vllm_omni.__file__).resolve().parent / 'deploy' / 'qwen3_tts.yaml')
+import sys
+
+spec = importlib.util.find_spec('vllm_omni')
+if spec and spec.origin:
+    path = pathlib.Path(spec.origin).resolve().parent / 'deploy' / 'qwen3_tts.yaml'
+    if path.is_file():
+        print(path)
+        sys.exit(0)
+sys.exit(1)
 " 2>/dev/null || true)"
 fi
 if [[ -z "${DEPLOY_CONFIG}" || ! -f "${DEPLOY_CONFIG}" ]]; then
-  DEPLOY_CONFIG="vllm_omni/deploy/qwen3_tts.yaml"
+  echo "[vllm-omni-tts] deploy config not found (set VLLM_DEPLOY_CONFIG in .env)" >&2
+  exit 1
 fi
 
 EXTRA_ARGS=()

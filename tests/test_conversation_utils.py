@@ -6,6 +6,7 @@ from natural20.utils.conversation import (
     format_entity_gear_for_conversation,
     mention_handle_for,
     resolve_mention_targets,
+    resolve_named_targets,
     strip_spoken_address_prefix,
     _closed_door,
     _path_square_blocks_speech,
@@ -260,6 +261,17 @@ def test_strip_spoken_address_prefix_removes_target_header():
 def test_strip_spoken_address_prefix_leaves_plain_dialogue():
     raw = 'There you go! Enjoy that ale.'
     assert strip_spoken_address_prefix(raw) == raw
+
+
+def test_resolve_named_targets_ignores_role_words_in_parentheticals():
+    sella = FakeEntity('sella_merchant', 'Sella (Merchant)')
+    mara = FakeEntity('mara_bartender', 'Mara (Bartender)')
+    message = (
+        "I do. I've got a few standard rooms left, or the suite if you're "
+        "looking to spend like a merchant prince."
+    )
+    targets = resolve_named_targets(message, [sella, mara])
+    assert targets == []
 
 
 def test_directional_wall_open_side_does_not_block_speech():

@@ -750,6 +750,18 @@ tavern_safe_key:
   name: Tavern Safe Key
   type: key
   weight: 0
+tavern_skeleton_key:
+  name: Tavern Skeleton Key
+  type: key
+  weight: 0
+  description: Master key on Mara's ring — opens every lock in the Prancing Flagon.
+  opens:
+    - tavern_room_key_1
+    - tavern_room_key_2
+    - tavern_room_key_3
+    - tavern_room_key_4
+    - tavern_suite_key
+    - tavern_safe_key
 tavern_room_key_1:
   name: Standard Room 1 Key
   type: key
