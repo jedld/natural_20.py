@@ -156,6 +156,10 @@ When the active map is the **base floor**, the base map is rendered plus:
 
 Cross-floor **targeting and attacks** (spells, ranged/melee) use world-space distance and stack LOS on both directions (upstairs→down and down→up). Window/edge peek clicks resolve to world coordinates on the base map.
 
+**Movement and viewport:** In composited overlay view, entities render twice — on the overlay (local coords) and as a projected token on the base layer (world coords). Pathfinding (`/path`) and viewport centering must use **overlay-local** coords for the active floor; the client prefers the `.map-stack-overlay` tile and converts world→local when needed. The server `_resolve_path_source` helper accepts mistaken world coords from the projected base token.
+
+**Window peek visibility:** Overlay tiles only receive the `peek-through` CSS class (transparent + no fog) when the POV entity has line of sight to that tile **and** `stack_base_visible_from_overlay` confirms outdoor sight through that opening. Geometric edge/window candidates alone are not enough.
+
 Edit mode `GET /edit/overlay` includes `map_stack` metadata for the ghost overlay UI. When viewing a composited overlay floor, drag-and-drop placement sends `map_name` and **overlay-local** `(x, y)` to `/edit/layer/place`.
 
 ## Cross-Map Navigation for NPCs and LLM Agents

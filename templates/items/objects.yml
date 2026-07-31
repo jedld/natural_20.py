@@ -329,7 +329,7 @@ door_top:
   spawner_category: door_walls
   max_hp: 18
   name: Door Top
-  token_image: door_top
+  hide_map_token: true
   door_pos: 0
   border:
     - 0
@@ -350,7 +350,7 @@ door_bottom:
   spawner_category: door_walls
   max_hp: 18
   name: Door Bottom
-  token_image: door_bottom
+  hide_map_token: true
   door_pos: 2
   border:
     - 0
@@ -371,7 +371,7 @@ door_right:
   spawner_category: door_walls
   max_hp: 18
   name: Door Right
-  token_image: door_right
+  hide_map_token: true
   door_pos: 1
   border:
     - 0
@@ -392,7 +392,7 @@ door_left:
   spawner_category: door_walls
   max_hp: 18
   name: Door Left
-  token_image: door_left
+  hide_map_token: true
   door_pos: 3
   border:
     - 0
@@ -413,7 +413,7 @@ corner_door_tl:
   spawner_category: door_walls
   max_hp: 18
   name: Corner Door Top Left
-  token_image: corner_door_tl
+  hide_map_token: true
   door_pos: 0
   border:
     - 0
@@ -433,7 +433,7 @@ corner_door_tr:
   item_class: DoorObjectWall
   max_hp: 18
   name: Corner Door Top Right
-  token_image: corner_door_tr
+  hide_map_token: true
   door_pos: 3
   border:
     - 1
@@ -453,7 +453,7 @@ corner_door_bl:
   item_class: DoorObjectWall
   max_hp: 18
   name: Corner Door Bottom Left
-  token_image: corner_door_bl
+  hide_map_token: true
   door_pos: 1
   border:
     - 1
@@ -473,7 +473,7 @@ corner_door_br:
   item_class: DoorObjectWall
   max_hp: 18
   name: Corner Door Bottom Right
-  token_image: corner_door_br
+  hide_map_token: true
   door_pos: 3
   border:
     - 0

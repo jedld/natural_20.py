@@ -209,6 +209,52 @@ def test_perimeter_walls_do_not_edge_peek(stack_session):
     assert _edge_peek_world_target(stack, floor, 4, 0) is not None
 
 
+def test_peek_through_requires_line_of_sight_and_outdoor_egress(stack_session):
+    from natural20.map_stack_movement import transfer_entity_to_map
+    from natural20.web.stack_renderer import (
+        build_stack_render_layers,
+        _viewer_can_peek_through,
+    )
+
+    session = stack_session
+    stack = session.map_stacks.get('amphail_tavern')
+    upstairs = session.maps['tavern_2nd_floor']
+    base = session.maps['town_market']
+    base_floor = stack.floor_for_map('town_market')
+    overlay_floor = stack.floor_for_map('tavern_2nd_floor')
+    entity = base.entity_by_uid('mara_bartender')
+
+    # Suite room — cannot see through distant north-edge roof gap.
+    transfer_entity_to_map(entity, base, upstairs, 1, 3, None)
+    layers = build_stack_render_layers(session, upstairs, None, entity_pov=entity)
+    overlay = next(layer for layer in layers['layers'] if layer['role'] == 'overlay')
+    edge_tile = next(
+        tile
+        for row in overlay['tiles']
+        for tile in row
+        if isinstance(tile, dict) and tile.get('x') == 4 and tile.get('y') == 0
+    )
+    assert not edge_tile.get('peek_through')
+
+    peek_underlay = layers.get('base_peek_underlay') or []
+    assert peek_underlay[0][4].get('underlay_empty')
+
+    for row in overlay['tiles']:
+        for tile in row:
+            if not isinstance(tile, dict) or not tile.get('peek_through'):
+                continue
+            assert tile.get('line_of_sight'), 'peek-through tiles must be in line of sight'
+            assert _viewer_can_peek_through(
+                stack,
+                base_floor,
+                overlay_floor,
+                upstairs,
+                entity,
+                int(tile['x']),
+                int(tile['y']),
+            )
+
+
 def test_eye_height_from_size_category():
     from natural20.utils.entity_height import eye_height_ft, standing_height_ft
 

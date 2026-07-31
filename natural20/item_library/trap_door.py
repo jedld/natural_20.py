@@ -1,6 +1,7 @@
 from natural20.item_library.object import Object
 from natural20.item_library.teleporter import Teleporter
 from natural20.item_library.door_object import DoorObject
+from natural20.utils.key_utils import entity_has_key
 from typing import Optional
 from natural20.entity import Entity
 import pdb
@@ -71,7 +72,7 @@ class TrapDoor(DoorObject, Teleporter):
 
         actions = {}
         if entity:
-            has_key = entity.item_count(self.key_name) > 0 or admin
+            has_key = entity_has_key(entity, self.key_name) or admin
         else:
             has_key = False
 

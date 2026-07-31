@@ -1,4 +1,5 @@
 from natural20.item_library.object import Object
+from natural20.utils.key_utils import entity_has_key
 from natural20.item_library.common import StoneWallDirectional
 from natural20.event_manager import EventManager
 import pdb
@@ -206,7 +207,7 @@ class DoorObject(Object):
 
         actions = super().available_interactions(entity, battle, admin)
         if entity:
-            has_key = entity.item_count(self.key_name) > 0
+            has_key = entity_has_key(entity, self.key_name)
         else:
             has_key = False
 
@@ -280,7 +281,7 @@ class DoorObject(Object):
                 return {"action": "lockpick_fail", "roll": lock_pick_roll, "dc" : self.lockpick_dc(),
                          "cost": "action"}
         elif action == "unlock":
-            return {"action": "unlock"} if entity.item_count(self.key_name) > 0 else {"action": "unlock_failed"}
+            return {"action": "unlock"} if entity_has_key(entity, self.key_name) else {"action": "unlock_failed"}
         elif action == "lock":
             return {"action": "lock"} if not self.unlocked() else {"action": "lock_failed"}
 

@@ -25,10 +25,28 @@ def _apply_fall_damage(entity, damage_die: str, battle, session, source=None):
     return damage
 
 
+_entity_relocation_hooks: list = []
+
+
+def on_entity_relocation(hook) -> None:
+    """Register a callback invoked after transfer_entity_to_map relocates an entity."""
+    if hook not in _entity_relocation_hooks:
+        _entity_relocation_hooks.append(hook)
+
+
+def _notify_entity_relocation(entity) -> None:
+    for hook in _entity_relocation_hooks:
+        try:
+            hook(entity)
+        except Exception:
+            pass
+
+
 def transfer_entity_to_map(entity, from_map, to_map, lx: int, ly: int, battle=None):
     """Remove entity from from_map and place on to_map at local coords."""
     from_map.remove(entity, battle=battle)
     to_map.add(entity, lx, ly, group=getattr(entity, 'group', 'b'))
+    _notify_entity_relocation(entity)
 
 
 def resolve_stack_move_after_step(

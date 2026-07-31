@@ -268,15 +268,53 @@ def _is_edge_peek_cell(stack, floor, lx: int, ly: int) -> bool:
     return _edge_peek_world_target(stack, floor, lx, ly) is not None
 
 
+def _peek_candidate_at(stack, floor, lx: int, ly: int) -> bool:
+    wx, wy, _ = stack.local_to_world(floor.map_name, lx, ly)
+    return bool(
+        stack.is_window_at(wx, wy, floor.map_name)
+        or _is_edge_peek_cell(stack, floor, lx, ly)
+    )
+
+
+def _viewer_can_peek_through(
+    stack,
+    base_floor,
+    overlay_floor,
+    viewer_map,
+    entity_pov,
+    lx: int,
+    ly: int,
+) -> bool:
+    """True when a POV entity on the overlay can see outdoors through this cell."""
+    if viewer_map is None or base_floor is None:
+        return False
+    pov_list = entity_pov if isinstance(entity_pov, list) else ([entity_pov] if entity_pov else [])
+    pov_list = [entity for entity in pov_list if entity is not None]
+    if not pov_list:
+        return False
+
+    entity = pov_list[0]
+    peek_target = _peek_underlay_world_target(
+        stack, base_floor, overlay_floor, viewer_map, entity, lx, ly,
+    )
+    if peek_target is None:
+        return False
+
+    from natural20.map_stack_los import stack_base_visible_from_overlay
+
+    peek_wx, peek_wy = peek_target
+    return any(
+        stack_base_visible_from_overlay(
+            stack, viewer_entity, viewer_map, base_floor.map, peek_wx, peek_wy,
+        )
+        for viewer_entity in pov_list
+    )
+
+
 def build_base_peek_underlay(stack, base_floor, overlay_floor, battle, padding, entity_pov, viewer_map):
     """Overlay-sized grid: base-map tiles visible through windows and open map edges."""
     ax, ay = overlay_floor.anchor
     ow, oh = overlay_floor.map.size
-    omap = overlay_floor.map_name
-
-    entity = entity_pov
-    if isinstance(entity_pov, list):
-        entity = entity_pov[0] if entity_pov else None
 
     renderer = JsonRenderer(base_floor.map, battle, padding=padding)
     full_base = renderer.render(entity_pov=entity_pov)
@@ -287,24 +325,28 @@ def build_base_peek_underlay(stack, base_floor, overlay_floor, battle, padding, 
         if isinstance(t, dict) and t.get('x') is not None and t.get('y') is not None
     }
 
-    from natural20.map_stack_los import stack_base_visible_from_overlay
-
     result = []
     for ly in range(oh):
         row = []
         for lx in range(ow):
+            if not _viewer_can_peek_through(
+                stack, base_floor, overlay_floor, viewer_map, entity_pov, lx, ly,
+            ):
+                row.append(_empty_underlay_tile(lx, ly))
+                continue
             peek_target = _peek_underlay_world_target(
-                stack, base_floor, overlay_floor, viewer_map, entity, lx, ly,
+                stack,
+                base_floor,
+                overlay_floor,
+                viewer_map,
+                entity_pov[0] if isinstance(entity_pov, list) and entity_pov else entity_pov,
+                lx,
+                ly,
             )
             if peek_target is None:
                 row.append(_empty_underlay_tile(lx, ly))
                 continue
             peek_wx, peek_wy = peek_target
-            if entity is not None and not stack_base_visible_from_overlay(
-                stack, entity, viewer_map, base_floor.map, peek_wx, peek_wy,
-            ):
-                row.append(_empty_underlay_tile(lx, ly))
-                continue
             base_tile = base_by_pos.get((peek_wx, peek_wy))
             if base_tile is None:
                 row.append(_empty_underlay_tile(lx, ly))
@@ -470,10 +512,17 @@ def _annotate_stack_tiles(stack, floor, tile_grid, *, viewer_map=None, entity_po
             tile['world_y'] = wy
             tile['layer_map'] = floor.map_name
             tile['stack_opening'] = stack.is_stack_opening(wx, wy)
-            tile['peek_through'] = (
-                stack.is_window_at(wx, wy, floor.map_name)
-                or _is_edge_peek_cell(stack, floor, x, y)
-            )
+            is_peek_candidate = _peek_candidate_at(stack, floor, x, y)
+            tile['peek_through'] = False
+            if (
+                is_peek_candidate
+                and tile.get('line_of_sight', True)
+                and base_floor is not None
+                and _viewer_can_peek_through(
+                    stack, base_floor, floor, viewer_map, entity_pov, x, y,
+                )
+            ):
+                tile['peek_through'] = True
             if tile['peek_through'] and base_floor is not None:
                 peek_target = _peek_underlay_world_target(
                     stack, base_floor, floor, viewer_map, entity, x, y,
