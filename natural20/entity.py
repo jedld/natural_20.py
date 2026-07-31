@@ -3299,16 +3299,23 @@ class Entity(EntityStateEvaluator, Notable):
 
             if not item_details or not item_details.get('usable', False):
                 continue
-            if item_details['consumable'] and v['qty'] == 0:
+
+            inventory_entry = (self.inventory or {}).get(k) or {}
+            item_props = dict(item_details)
+            for meta_key in ('room_label', 'room_landmark', 'notify_npc', 'source_entity_uid'):
+                if inventory_entry.get(meta_key) is not None:
+                    item_props[meta_key] = inventory_entry.get(meta_key)
+
+            if item_props.get('consumable') and v['qty'] == 0:
                 continue
 
             usable.append({
                 'name': str(k),
-                'label': item_details.get('label', str(k)),
-                'image': item_details.get('image', k),
-                'item': item_details,
+                'label': item_props.get('label', str(k)),
+                'image': item_props.get('image', k),
+                'item': item_props,
                 'qty': v['qty'],
-                'consumable': item_details['consumable']
+                'consumable': item_props.get('consumable', item_details.get('consumable')),
             })
         return usable
 

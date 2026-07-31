@@ -188,6 +188,16 @@ healing_potion:
   name: Potion of Healing
   type: potion
   usable: true
+tavern_room_buzzer:
+  name: Room Service Buzzer
+  label: Room Service Buzzer
+  description: A brass bell pull wired with a whisper cantrip — rings Pip at the bar.
+  type: gear
+  usable: true
+  consumable: false
+  item_class: RoomServiceBuzzerItem
+  weight: 0.5
+  image: tavern_room_buzzer
 leather_armor:
   ac: 11
   cost: 10

@@ -217,6 +217,28 @@ class Teleporter(Object):
         props = getattr(self, 'properties', {}) or {}
         return props.get('marker_color') or '#22c55e'
 
+    def destination_label(self):
+        """Human-readable destination for map UI hover labels."""
+        props = getattr(self, 'properties', {}) or {}
+        session = getattr(self, 'session', None)
+        if session is None:
+            session = getattr(getattr(self, 'map', None), 'session', None)
+
+        if self.target_map:
+            dest_map = session.maps.get(self.target_map) if session else None
+            if dest_map and getattr(dest_map, 'name', None):
+                base = str(dest_map.name)
+            else:
+                base = str(self.target_map).replace('_', ' ').title()
+        else:
+            target_position = self.target_position or [0, 0]
+            base = f"Square ({target_position[0]}, {target_position[1]})"
+
+        custom = (props.get('label') or '').strip()
+        if custom and custom.casefold() != base.casefold():
+            return f"{custom} → {base}"
+        return base
+
     def to_dict(self):
         hash =  super().to_dict()
         hash['target_map'] = self.target_map

@@ -15,6 +15,16 @@ def _session():
     return Session(root_path='tests/fixtures', event_manager=em)
 
 
+def _session_with_groups():
+    session = _session()
+    session.game_properties['groups'] = {
+        'a': {'default': True, 'enemies': ['b', 'c']},
+        'b': {'enemies': ['a', 'c']},
+        'c': {'enemies': ['b']},
+    }
+    return session
+
+
 class TestBattleTPK(unittest.TestCase):
     def test_pcs_alive_is_not_tpk(self):
         session = _session()
@@ -58,17 +68,35 @@ class TestBattleTPK(unittest.TestCase):
         self.assertIn('a', battle.player_groups())
         self.assertNotIn('a', battle.winning_groups())
 
-    def test_player_groups_falls_back_to_session_default(self):
-        """When no PCs are registered, ``player_groups`` should fall back to
-        the session-level default group so ``tpk()`` can still classify."""
-        session = _session()
+    def test_player_groups_empty_without_pcs(self):
+        session = _session_with_groups()
         battle_map = Map(session, 'tests/fixtures/battle_sim_objects')
         battle = Battle(session, battle_map)
-        # Empty combat order — no PCs added.
         groups = battle.player_groups()
-        # Either the fixture declares a default or the set is empty; both are
-        # valid. The contract is "no crash, returns a set".
-        self.assertIsInstance(groups, set)
+        self.assertEqual(groups, set())
+        self.assertFalse(battle.has_player_combatants())
+
+    def test_npc_only_battle_ends_by_group_decimation_not_tpk(self):
+        session = _session_with_groups()
+        battle_map = Map(session, 'tests/fixtures/battle_sim_objects')
+        battle = Battle(session, battle_map)
+        goblin_a = session.npc('goblin', {"name": 'g1'})
+        goblin_b = session.npc('goblin', {"name": 'g2'})
+        battle.add(goblin_a, 'b')
+        battle.add(goblin_b, 'c')
+
+        random.seed(7)
+        battle.start(combat_order=[goblin_a, goblin_b])
+
+        self.assertFalse(battle.has_player_combatants())
+        self.assertFalse(battle.battle_ends())
+        self.assertFalse(battle.tpk())
+
+        goblin_b.take_damage(DieRoll([20], 80).result(), session=session)
+        self.assertTrue(battle.battle_ends())
+        self.assertIn('b', battle.winning_groups())
+        self.assertNotIn('c', battle.winning_groups())
+        self.assertFalse(battle.tpk())
 
 
 if __name__ == '__main__':

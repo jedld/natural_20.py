@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 
 from natural20.actions.interact_action import InteractAction
+from natural20.actions.use_item_action import UseItemAction
 from natural20.item_library.room_service_buzzer import RoomServiceBuzzer
 from natural20.session import Session
 
@@ -33,6 +34,65 @@ def test_tavern_rooms_have_service_buzzers():
         assert buzzer.properties.get('room_landmark') == landmark
         found[uid] = buzzer
     assert set(found) == set(expected)
+
+
+def test_guest_can_take_buzzer_into_inventory():
+    session = Session(root_path='user_levels/wild_sheep_chase')
+    upstairs = session.maps['tavern_2nd_floor']
+    buzzer = _find_buzzer(upstairs, 'tavern_room_1_buzzer')
+    assert buzzer is not None
+
+    guest = MagicMock()
+    guest.label.return_value = 'Aldric'
+    guest.is_admin = False
+    guest.entity_uid = 'pc-1'
+    guest.inventory = {}
+
+    def _add_item(slug, qty=1, source_item=None):
+        guest.inventory[slug] = dict(source_item or {'type': slug, 'qty': qty})
+
+    guest.add_item = _add_item
+
+    action = InteractAction(session, guest, 'interact', {'target': buzzer, 'object_action': 'take'})
+    action.resolve(session, upstairs)
+    InteractAction.apply(None, action.result[0], session=session)
+
+    assert buzzer not in upstairs.interactable_objects
+    assert guest.inventory.get('tavern_room_buzzer', {}).get('qty') == 1
+    assert guest.inventory['tavern_room_buzzer']['room_label'] == 'Standard Room 1'
+
+
+def test_carried_buzzer_can_be_used_from_inventory():
+    session = Session(root_path='user_levels/wild_sheep_chase')
+    guest = MagicMock()
+    guest.label.return_value = 'Aldric'
+    guest.entity_uid = 'pc-1'
+    guest.inventory = {
+        'tavern_room_buzzer': {
+            'type': 'tavern_room_buzzer',
+            'qty': 1,
+            'room_label': 'Standard Room 1',
+            'room_landmark': 'landmark_standard_room_1',
+            'notify_npc': 'pip_barmaid',
+        }
+    }
+
+    events = []
+    session.event_manager.register_event_listener(
+        'room_service_buzz',
+        lambda event: events.append(event),
+    )
+
+    action = UseItemAction(session, guest, 'use_item')
+    built = action.build_map()
+    step = built['next']('tavern_room_buzzer')
+    action.target_item = step.target_item
+    action.resolve(session, map=None, opts={})
+    UseItemAction.apply(None, action.result[0], session=session)
+
+    assert len(events) == 1
+    assert events[0]['room_label'] == 'Standard Room 1'
+    assert guest.inventory['tavern_room_buzzer']['qty'] == 1
 
 
 def test_guest_can_buzz_and_emits_room_service_event():
@@ -85,4 +145,5 @@ def test_buzzer_has_usage_note_for_guests():
     notes_text = ' '.join(n['note'] for n in visible).lower()
     assert 'interact' in notes_text
     assert 'ring for room service' in notes_text
-    assert buzzer.token_image() == 'objects/tavern_room_buzzer'
+    assert buzzer.token_image() is None
+    assert buzzer.profile_image() == 'tavern_room_buzzer.png'

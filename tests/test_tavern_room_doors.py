@@ -37,6 +37,14 @@ ROOM_DOOR_NOTES = {
     'tavern_suite_door': 'Tavern Suite',
 }
 
+HALLWAY_DOOR_SIGNS = {
+    'tavern_room_1_door_sign': ('Standard Room 1', (5, 1)),
+    'tavern_room_2_door_sign': ('Standard Room 2', (5, 4)),
+    'tavern_room_3_door_sign': ('Standard Room 3', (5, 7)),
+    'tavern_room_4_door_sign': ('Standard Room 4', (4, 3)),
+    'tavern_suite_door_sign': ('Tavern Suite', (4, 7)),
+}
+
 
 def test_tavern_guest_room_doors_have_perception_notes():
     session = Session(root_path='user_levels/wild_sheep_chase')
@@ -50,13 +58,39 @@ def test_tavern_guest_room_doors_have_perception_notes():
         if uid not in ROOM_DOOR_NOTES:
             continue
         found[uid] = obj
-        assert obj.has_notes()
-        notes = (obj.properties.get('notes') or [])
-        assert len(notes) == 1
-        assert ROOM_DOOR_NOTES[uid] in notes[0]['note']
-        assert notes[0].get('perception_dc') == 5
+        assert not obj.has_notes(), f'{uid} notes moved to hallway sign objects'
 
     assert set(found) == set(ROOM_DOOR_NOTES)
+
+
+def test_tavern_hallway_door_signs_are_discoverable_from_the_hall():
+    session = Session(root_path='user_levels/wild_sheep_chase')
+    upstairs = session.maps['tavern_2nd_floor']
+
+    found = {}
+    for obj, pos in upstairs.interactable_objects.items():
+        uid = getattr(obj, 'entity_uid', None)
+        if uid not in HALLWAY_DOOR_SIGNS:
+            continue
+        assert obj.has_notes(), uid
+        found[uid] = pos
+        label, expected_pos = HALLWAY_DOOR_SIGNS[uid]
+        assert pos == list(expected_pos), uid
+        assert obj.properties.get('hide_map_token') is True
+        notes = obj.properties.get('notes') or []
+        assert len(notes) == 1
+        assert label in notes[0]['note']
+        assert notes[0].get('perception_dc') == 5
+
+    assert set(found) == set(HALLWAY_DOOR_SIGNS)
+
+    pc = session.entity_by_uid('finethir_shinebright')
+    assert pc is not None
+    upstairs.entities[pc] = (4, 4)
+    for uid in HALLWAY_DOOR_SIGNS:
+        sign = _find_interactable(upstairs, uid)
+        assert sign is not None
+        assert upstairs.can_see(pc, sign), uid
 
 
 def test_tavern_door_room_plaque_visible_on_perception():
@@ -64,14 +98,14 @@ def test_tavern_door_room_plaque_visible_on_perception():
 
     session = Session(root_path='user_levels/wild_sheep_chase')
     upstairs = session.maps['tavern_2nd_floor']
-    door = _find_interactable(upstairs, 'tavern_room_1_door')
-    assert door is not None
+    sign = _find_interactable(upstairs, 'tavern_room_1_door_sign')
+    assert sign is not None
 
     guest = MagicMock()
     guest.passive_perception.return_value = 12
     guest.is_admin = False
 
-    visible, _ = door.list_notes(entity=guest, perception=12)
+    visible, _ = sign.list_notes(entity=guest, perception=12)
     assert any('Standard Room 1' in (entry.get('note') or '') for entry in visible)
 
 
@@ -122,7 +156,7 @@ def test_tavern_guest_room_chests_are_locked_with_matching_keys():
     assert set(found) == set(CHEST_KEYS)
 
 
-def test_mara_carries_tavern_skeleton_key():
+def test_mara_carries_tavern_keys():
     session = Session(root_path='user_levels/wild_sheep_chase')
     mara = session.maps['town_market'].entity_by_uid('mara_bartender')
 
@@ -133,9 +167,9 @@ def test_mara_carries_tavern_skeleton_key():
         'tavern_room_key_3',
         'tavern_room_key_4',
         'tavern_suite_key',
-        'tavern_safe_key',
     ):
-        assert mara.item_count(key_slug) == 0
+        assert mara.item_count(key_slug) >= 1, key_slug
+    assert mara.item_count('tavern_safe_key') == 0
 
 
 def test_mara_can_unlock_room_door_with_skeleton_key():
@@ -149,8 +183,12 @@ def test_mara_can_unlock_room_door_with_skeleton_key():
     unlock_action = door.available_interactions(mara).get('unlock', {})
     assert not unlock_action.get('disabled')
     result = door.resolve(mara, 'unlock', {}, {})
-    door.use(mara, result, session)
+    use_results = door.use(mara, result, session)
     assert door.locked is False
+    sounds = [item for item in (use_results or []) if item.get('type') == 'contextual_sound']
+    assert len(sounds) == 1
+    assert 'unlocked' in sounds[0]['message'].lower()
+    assert sounds[0]['position'] == upstairs.position_of(door)
 
 
 def test_mara_can_unlock_room_chest_with_key():
@@ -164,8 +202,12 @@ def test_mara_can_unlock_room_chest_with_key():
     unlock_action = chest.available_interactions(mara).get('unlock', {})
     assert not unlock_action.get('disabled')
     result = chest.resolve(mara, 'unlock', {}, {})
-    chest.use(mara, result, session)
+    use_results = chest.use(mara, result, session)
     assert chest.locked() is False
+    sounds = [item for item in (use_results or []) if item.get('type') == 'contextual_sound']
+    assert len(sounds) == 1
+    assert 'unlocked' in sounds[0]['message'].lower()
+    assert sounds[0]['position'] == upstairs.position_of(chest)
 
 
 def test_mara_can_unlock_till_safe_with_skeleton_key():
@@ -187,5 +229,8 @@ def test_mara_can_unlock_till_safe_with_skeleton_key():
     unlock_action = safe.available_interactions(mara).get('unlock', {})
     assert not unlock_action.get('disabled')
     result = safe.resolve(mara, 'unlock', {}, {})
-    safe.use(mara, result, session)
+    use_results = safe.use(mara, result, session)
     assert safe.locked() is False
+    sounds = [item for item in (use_results or []) if item.get('type') == 'contextual_sound']
+    assert len(sounds) == 1
+    assert 'unlocked' in sounds[0]['message'].lower()

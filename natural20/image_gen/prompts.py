@@ -290,6 +290,27 @@ _ACTION_VISUAL_HINTS: dict[str, str] = {
     "interact_loot": (
         "open treasure chest with upward arrow, take items symbol"
     ),
+    "interact_open": (
+        "wooden door panel swinging open with curved arrow, door open UI symbol, "
+        "medieval latch visible"
+    ),
+    "interact_close": (
+        "closed wooden door with inward arrow, shut door UI symbol, iron hinges"
+    ),
+    "interact_lock": (
+        "iron padlock on door latch, lock door UI symbol, closed shackle"
+    ),
+    "interact_unlock": (
+        "open padlock with small key, unlock door UI symbol, raised shackle"
+    ),
+    "open_chest": (
+        "wooden treasure chest with lid raised open, glowing contents hint, "
+        "open chest UI symbol"
+    ),
+    "closed_chest": (
+        "closed wooden treasure chest with metal bands and padlock hasp, "
+        "shut chest UI symbol"
+    ),
     "grapple": (
         "two hands gripping wrists, wrestling grapple symbol"
     ),

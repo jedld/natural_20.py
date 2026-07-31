@@ -613,12 +613,18 @@ class Battle():
                 groups.add(self.entities[entity]['group'])
         return groups
 
+    def has_player_combatants(self):
+        """Return True when at least one player character is in this battle."""
+        for entity in self.combat_order:
+            try:
+                if not entity.npc():
+                    return True
+            except Exception:
+                pass
+        return False
+
     def player_groups(self):
-        """
-        Returns the set of groups that contain player characters in this battle.
-        Falls back to the session's default group (the one flagged ``default: true``
-        in game.yml) when no PCs are registered.
-        """
+        """Return the set of groups that contain player characters in this battle."""
         groups = set()
         for entity in self.combat_order:
             try:
@@ -627,28 +633,21 @@ class Battle():
                 is_npc = True
             if not is_npc:
                 groups.add(self.entities[entity]['group'])
-        if not groups:
-            try:
-                for name, info in (self.session.groups() or {}).items():
-                    if isinstance(info, dict) and info.get('default'):
-                        groups.add(name)
-                        break
-            except Exception:
-                pass
         return groups
 
     def tpk(self):
         """
-        Total Party Kill: the battle has ended and no player-character group is
-        among the winners. Returns ``False`` if combat is still ongoing or if at
-        least one PC group is still standing.
+        Total Party Kill: the battle has ended, player characters took part,
+        and no player-character group is among the winners. Returns ``False``
+        if combat is still ongoing, no PCs were in the fight, or at least one
+        PC group is still standing.
         """
         if not self.battle_ends():
             return False
+        if not self.has_player_combatants():
+            return False
         winners = self.winning_groups()
         pc_groups = self.player_groups()
-        if not pc_groups:
-            return False
         return not (pc_groups & winners)
 
     def compute_movement_inefficiency(self, entity):

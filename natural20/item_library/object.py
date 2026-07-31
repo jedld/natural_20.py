@@ -146,6 +146,17 @@ class Object(Entity, Container, EventLoader, Annotatable):
             anchor=self,
         )
 
+    def interaction_sound_toast(
+        self,
+        locale_key: str,
+        source=None,
+        *,
+        label: str = 'Unlock',
+    ) -> Dict[str, Any]:
+        """Localized on-map sound toast for object interactions (unlock, lock, etc.)."""
+        message = self.session.t(locale_key)
+        return self.contextual_sound_at(message, source=source, label=label)
+
     def color(self) -> Optional[str]:
         return self.properties.get('color')
 

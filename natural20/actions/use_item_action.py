@@ -73,9 +73,14 @@ class UseItemAction(Action):
         }
 
     def build_next(self, item):
-        item_details = self.session.load_equipment(item)
+        item_details = dict(self.session.load_equipment(item) or {})
         if not item_details.get("usable"):
-            raise Exception(f"item {item_details['name']} not usable!")
+            raise Exception(f"item {item_details.get('name', item)} not usable!")
+
+        inventory_entry = (getattr(self.source, 'inventory', None) or {}).get(item) or {}
+        for meta_key in ('room_label', 'room_landmark', 'notify_npc', 'source_entity_uid'):
+            if inventory_entry.get(meta_key) is not None:
+                item_details[meta_key] = inventory_entry.get(meta_key)
 
         klass = UseItemAction.to_item_class(item_details['item_class'])
         item_details['name'] = item
@@ -93,6 +98,9 @@ class UseItemAction(Action):
             klass = MagicSpellItem
         elif item_class == 'PotionEffectItem':
             klass = PotionEffectItem
+        elif item_class == 'RoomServiceBuzzerItem':
+            from natural20.item_library.room_service_buzzer import RoomServiceBuzzerItem
+            klass = RoomServiceBuzzerItem
         else:
             raise Exception(f"item class {item_class} not found")
         return klass

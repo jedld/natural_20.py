@@ -5,8 +5,12 @@ from natural20.utils.conversation_offers import (
     adjust_item_offer_target,
     canonical_item_slug,
     evaluate_offer_block,
+    format_available_offer_items,
+    item_offer_suppression_note,
+    listener_chose_item,
     offer_guidance_lines,
     record_completed_item_offer,
+    requires_listener_disambiguation,
 )
 
 
@@ -151,3 +155,99 @@ def test_offer_guidance_prefers_player_character_target():
     )
     assert any('target=@aldric' in line for line in lines)
     assert any('not tavern staff' in line for line in lines)
+
+
+def test_offer_guidance_lists_carried_inventory():
+    session = Mock()
+    session.load_state.return_value = {}
+    actor = Mock(
+        entity_uid='mara_bartender',
+        inventory={
+            'tavern_room_key_1': {'qty': 1},
+            'tavern_room_key_2': {'qty': 1},
+        },
+    )
+    game_properties = {
+        'conversation_item_offers': {
+            'tavern_room_key_1': {'item_label': 'Standard Room 1 key'},
+            'tavern_room_key_2': {'item_label': 'Standard Room 2 key'},
+        },
+    }
+
+    lines = offer_guidance_lines(
+        session,
+        actor,
+        None,
+        game_properties=game_properties,
+    )
+    assert any('Items you can hand over right now' in line for line in lines)
+    assert any('tavern_room_key_1' in line for line in lines)
+
+
+def test_item_offer_suppression_note_lists_available_items():
+    actor = Mock(
+        entity_uid='mara_bartender',
+        inventory={
+            'tavern_room_key_2': {'qty': 1},
+        },
+    )
+    target = Mock(entity_uid='sable')
+    game_properties = {
+        'conversation_item_offers': {
+            'tavern_room_key_1': {'item_label': 'Standard Room 1 key'},
+            'tavern_room_key_2': {'item_label': 'Standard Room 2 key'},
+        },
+    }
+
+    note = item_offer_suppression_note(
+        actor,
+        target,
+        'tavern_room_key_1',
+        'actor_lacks_item',
+        game_properties=game_properties,
+    )
+    assert note is not None
+    assert 'tavern_room_key_2' in note
+    assert 'could not be completed' in note
+
+
+def test_room_key_offer_blocked_until_guest_chooses_room():
+    session = Mock()
+    session.load_state.return_value = {}
+    actor = Mock(
+        entity_uid='mara',
+        inventory={
+            'tavern_room_key_1': {'qty': 1},
+            'tavern_room_key_2': {'qty': 1},
+        },
+    )
+    target = Mock(entity_uid='sable', inventory={})
+
+    assert requires_listener_disambiguation(session, actor, 'tavern_room_key_1')
+
+    allowed, reason = evaluate_offer_block(
+        session,
+        actor,
+        target,
+        'tavern_room_key_1',
+        player_message='would you have any rooms to spare?',
+    )
+    assert allowed is False
+    assert reason == 'listener_has_not_chosen'
+
+    allowed, reason = evaluate_offer_block(
+        session,
+        actor,
+        target,
+        'tavern_room_key_1',
+        player_message='I will take standard room 1 please',
+    )
+    assert allowed is True
+    assert reason == 'ok'
+
+
+def test_listener_chose_item_patterns():
+    session = Mock()
+    assert listener_chose_item(session, 'tavern_room_key_1', 'standard room 1 please')
+    assert listener_chose_item(session, 'tavern_suite_key', 'the suite sounds good')
+    assert not listener_chose_item(session, 'tavern_room_key_1', 'any rooms available?')

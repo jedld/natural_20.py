@@ -3,6 +3,11 @@ import pdb
 from natural20.map import Map
 from natural20.battle import Battle
 from natural20.item_library.door_object import DoorObject, DoorObjectWall
+from natural20.web.object_quick_interactions import (
+    door_quick_interact_anchor,
+    quick_interact_actions_for,
+)
+from natural20.utils.localization import localize_quick_interact_actions
 from natural20.item_library.teleporter import Teleporter
 from natural20.item_library.chasm import Chasm
 from natural20.spell.objects.grease_surface import GreaseSurface
@@ -444,6 +449,9 @@ class JsonRenderer:
                         object_info['teleporter_marker_color'] = (
                             object_entity.marker_color() if is_visible_teleporter else None
                         )
+                        object_info['teleporter_destination'] = (
+                            object_entity.destination_label() if is_visible_teleporter else None
+                        )
 
                         is_grease_surface = isinstance(object_entity, GreaseSurface) or bool(
                             object_entity.properties.get('grease_surface')
@@ -477,6 +485,28 @@ class JsonRenderer:
                             object_info['token_offset_px'] = object_entity.properties.get('token_offset_px')
                         else:
                             object_info['token_offset_px'] = [0, 0]
+
+                        if entity_pov:
+                            pov_for_interact = entity_pov[0] if len(entity_pov) == 1 else next(
+                                (ep for ep in entity_pov if ep and not (
+                                    callable(getattr(ep, 'is_npc', None)) and ep.is_npc()
+                                )),
+                                entity_pov[0],
+                            )
+                            quick_actions = quick_interact_actions_for(
+                                object_entity, pov_for_interact, self.battle, admin=False,
+                            )
+                            if quick_actions:
+                                session = getattr(self.map, 'session', None)
+                                if session is not None:
+                                    quick_actions = localize_quick_interact_actions(quick_actions, session)
+                                object_info['quick_interact'] = quick_actions
+                                if is_door_fixture:
+                                    anchor = door_quick_interact_anchor(
+                                        object_entity, pov_for_interact,
+                                    )
+                                    if anchor:
+                                        object_info['quick_interact_anchor'] = anchor
 
                         shared_attrs['objects'].append(object_info)
 
