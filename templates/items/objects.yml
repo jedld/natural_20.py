@@ -627,6 +627,7 @@ tavern_room_buzzer:
   notify_npc: pip_barmaid
   token: "!"
   token_image: tavern_room_buzzer
+  hide_map_token: true
   icon_prompt: >
     fantasy tavern room service bell pull game icon, brass cord and small rune plate
     on a wooden wall mount, faint magical whisper cantrip glow, warm inn guest room
@@ -635,10 +636,14 @@ tavern_room_buzzer:
     - name: Ring for Room Service
       action: buzz
       image: interact_buzz
+    - name: Take Buzzer
+      action: take
+      image: interact_pickup_drop
   notes:
     - note: >
-        Etched on the rune plate — Interact with this bell pull and choose
-        "Ring for Room Service" to whisper-call Pip at the bar for room service.
+        Etched on the rune plate — Interact and choose "Ring for Room Service"
+        to whisper-call Pip at the bar, or "Take Buzzer" to carry it in your
+        inventory and use it from your items menu.
       perception_dc: 0
     - note: >
         A brass pull-cord and tiny rune plate — Mara's whisper-cantrip carries

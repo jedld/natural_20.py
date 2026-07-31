@@ -110,3 +110,20 @@ def test_teleporter_bypass_any_and_inventory_proof():
     session.session_state = {'a': True}
     entity.inventory = {'black_rose_pin': {'qty': 1}}
     assert tp._session_gate_allows(entity, source_map) is True
+
+
+def test_teleporter_destination_label_uses_map_name():
+    session = MagicMock()
+    dest_map = MagicMock()
+    dest_map.name = 'Woodland Path to the Tower'
+    session.maps = {'woodland_path': dest_map}
+    tp, _ = _make_teleporter({'label': 'Road to Town'}, session=session)
+    tp.target_map = 'woodland_path'
+    assert tp.destination_label() == 'Road to Town → Woodland Path to the Tower'
+
+
+def test_teleporter_destination_label_same_map_square():
+    tp, _ = _make_teleporter({'label': ''})
+    tp.target_map = None
+    tp.target_position = [4, 7]
+    assert tp.destination_label() == 'Square (4, 7)'

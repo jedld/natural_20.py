@@ -46,9 +46,8 @@ class Session:
         # Centralized entity registry for UID-based lookup/serialization
         self.entity_registry = EntityRegistry()
         locale_path = os.path.join(self.root_path, 'locales')
-        if os.path.isdir(locale_path) and locale_path not in i18n.load_path:
-            i18n.load_path.append(locale_path)
-        i18n.set('filename_format', '{locale}.{format}')
+        from natural20.utils.localization import ensure_default_locale_paths
+        ensure_default_locale_paths(locale_path)
         game_file = os.path.join(self.root_path, 'game.yml')
         if os.path.exists(game_file):
             self.game_properties = load_yaml(game_file, campaign_root=self.root_path)

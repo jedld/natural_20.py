@@ -4,6 +4,23 @@ from natural20.item_library.common import StoneWallDirectional
 from natural20.event_manager import EventManager
 import pdb
 
+
+def _entity_on_map(map_obj, entity) -> bool:
+    """True when ``entity`` has a position on ``map_obj`` (not another stack floor)."""
+    if not map_obj or not entity:
+        return False
+    if entity in map_obj.entities:
+        return True
+    uid = getattr(entity, 'entity_uid', None)
+    if not uid:
+        return False
+    try:
+        resolved = map_obj.entity_by_uid(uid)
+    except Exception:
+        return False
+    return resolved is not None and resolved in map_obj.entities
+
+
 class DoorObject(Object):
     def __init__(self, session, map, properties):
         Object.__init__(self, session, map, properties)
@@ -160,6 +177,9 @@ class DoorObject(Object):
 
         if self.concealed() and not admin:
             return {}
+
+        if entity and not admin and not _entity_on_map(self.map, entity):
+            return super().available_interactions(entity, battle, admin)
 
         def inside_range_for_locking():
             if admin:
@@ -322,6 +342,7 @@ class DoorObject(Object):
             if self.locked:
                 self.unlock()
                 results.append(self.toast_message(entity, f"{entity} successfully lockpicked {self.label()} with {result['roll']} = {result['roll'].result()}."))
+                results.append(self.interaction_sound_toast('object.door.unlock', source=entity))
                 session.event_manager.received_event( { "source": entity,
                                                         "target": self,
                                                         "event": "object_interaction",
@@ -344,6 +365,7 @@ class DoorObject(Object):
         elif action == "unlock":
             if self.locked:
                 self.unlock()
+                results.append(self.interaction_sound_toast('object.door.unlock', source=entity))
                 if session:
                     session.event_manager.received_event({
                                                         "source": entity,

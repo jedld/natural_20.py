@@ -225,6 +225,7 @@ class Chest(Object):
                 if self.is_locked:
                     self.unlock()
                     results.append(self.toast_message(entity, f"{entity} successfully lockpicked {self.label()} with {result['roll']} = {result['roll'].result()}."))
+                    results.append(self.interaction_sound_toast('object.chest.unlock', source=entity))
                     if session:
                         session.event_manager.received_event({
                             'source': entity,
@@ -254,6 +255,7 @@ class Chest(Object):
             elif action == 'unlock':
                 if self.is_locked:
                     self.unlock()
+                    results.append(self.interaction_sound_toast('object.chest.unlock', source=entity))
                     if session:
                         session.event_manager.received_event({
                             'source': entity,

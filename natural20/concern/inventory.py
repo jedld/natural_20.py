@@ -34,6 +34,10 @@ def snapshot_inventory_entry(entry, amount=None):
         if entry.get('is_container'):
             snapshot['is_container'] = True
 
+    for key in ('room_label', 'room_landmark', 'notify_npc', 'source_entity_uid'):
+        if entry.get(key) is not None:
+            snapshot[key] = copy.deepcopy(entry.get(key))
+
     return snapshot
 
 
@@ -53,6 +57,9 @@ def merge_inventory_entry(existing_entry, received_entry, amount=1):
         existing_entry['contents'] = copy.deepcopy(received_contents)
     if received_entry.get('is_container'):
         existing_entry['is_container'] = True
+    for key in ('room_label', 'room_landmark', 'notify_npc', 'source_entity_uid'):
+        if received_entry.get(key) is not None and existing_entry.get(key) is None:
+            existing_entry[key] = copy.deepcopy(received_entry.get(key))
     return existing_entry
 
 
