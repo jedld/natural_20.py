@@ -14,6 +14,7 @@ from natural20.item_library.chasm import Chasm
 from natural20.item_library.switch import Switch
 from natural20.item_library.trap_door import TrapDoor
 from natural20.item_library.proximity_trigger import ProximityTrigger
+from natural20.item_library.room_service_buzzer import RoomServiceBuzzer
 from natural20.item_library.multi_switch import MultiSwitch
 from natural20.player_character import PlayerCharacter
 from natural20.serializable_object import SerializableObject

@@ -511,6 +511,10 @@ class EventManager:
             'flavor': lambda event: self.output_logger.log(self.t(f"event.flavor.{event['text']}", **event)),
             'lucky_reroll': lambda event: self.output_logger.log(f"{self.show_name(event)} uses luck to reroll from {event['old_roll']} to {event['roll']}"),
             'grapple_immune': lambda event: self.output_logger.log(f"For some reason, {self.show_target_name(event)} is immune to grapple."),
+            'room_service_buzz': lambda event: self.output_logger.log(
+                event.get('message')
+                or f"{self.show_name(event)} rang the room-service buzzer ({event.get('room_label', 'guest room')})."
+            ),
             'object_interaction': object_interaction,
             'grapple_success': lambda event: self.output_logger.log(f"{self.show_name(event)} grapples {self.show_target_name(event)}"),
             'move': lambda event: self.output_logger.log(f"{self.show_name(event)} moved to {event['position']} {event['move_cost'] * 5} feet"),

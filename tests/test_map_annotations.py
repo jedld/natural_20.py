@@ -5,6 +5,8 @@ from __future__ import annotations
 from natural20.map_annotations import (
     annotation_contains_point,
     annotation_label_anchor,
+    current_location_annotations_at_position,
+    format_current_location_for_llm,
     list_map_annotations,
     normalize_annotation,
     point_in_polygon,
@@ -102,3 +104,86 @@ def test_magical_annotation_fields_preserved():
     assert ann['magical'] is True
     assert ann['magic_school'] == 'abjuration'
     assert ann['aura_strength'] == 'strong'
+
+
+def test_current_location_prefers_area_over_point():
+    props = {
+        'map_annotations': [
+            {
+                'id': 'taproom',
+                'label': 'Taproom',
+                'kind': 'area',
+                'bounds': {'x1': 7, 'y1': 16, 'x2': 14, 'y2': 24},
+                'description': 'Main common room.',
+            },
+            {
+                'id': 'bar_stool',
+                'label': 'Bar stool',
+                'kind': 'point',
+                'pos': [9, 20],
+            },
+        ],
+    }
+    hits = current_location_annotations_at_position(props, 9, 20)
+    assert [h['id'] for h in hits] == ['taproom', 'bar_stool']
+    line = format_current_location_for_llm(
+        hits,
+        map_name='town_market',
+        position=(9, 20),
+    )
+    assert line.startswith('Current location on town_market at grid 9,20:')
+    assert 'Taproom' in line
+    assert 'Main common room' in line
+
+
+def test_current_location_excludes_stack_opening():
+    props = {
+        'map_annotations': [
+            {
+                'id': 'stairs',
+                'label': 'Stairs',
+                'kind': 'stack_opening',
+                'stack': 'tavern',
+                'shape': 'point',
+                'pos': [9, 16],
+            },
+            {
+                'id': 'taproom',
+                'label': 'Taproom',
+                'kind': 'area',
+                'bounds': {'x1': 7, 'y1': 16, 'x2': 14, 'y2': 24},
+            },
+        ],
+    }
+    hits = current_location_annotations_at_position(props, 9, 16)
+    assert [h['id'] for h in hits] == ['taproom']
+
+
+def test_current_location_prefers_smallest_nested_area():
+    props = {
+        'map_annotations': [
+            {
+                'id': 'amphail_market',
+                'label': 'Market square',
+                'kind': 'area',
+                'bounds': {'x1': 7, 'y1': 14, 'x2': 20, 'y2': 24},
+            },
+            {
+                'id': 'taproom',
+                'label': 'Taproom',
+                'kind': 'area',
+                'bounds': {'x1': 7, 'y1': 16, 'x2': 14, 'y2': 24},
+            },
+            {
+                'id': 'behind_the_bar',
+                'label': 'Behind the bar',
+                'kind': 'area',
+                'bounds': {'x1': 6, 'y1': 16, 'x2': 10, 'y2': 21},
+            },
+        ],
+    }
+    hits = current_location_annotations_at_position(props, 9, 20)
+    line = format_current_location_for_llm(hits, map_name='town_market', position=(9, 20))
+    assert 'Behind the bar' in line
+    assert 'Market square' not in line
+    assert 'Taproom' not in line

@@ -876,6 +876,18 @@ class Battle():
                     self.animation_log.append({"type": "perception", "targets": [p.entity_uid for p in perception_targets]})
                 if item["type"] == "message":
                     self.animation_log.append({"type": "message_toaster", "source": item["source"].entity_uid, "message": item["message"], "position": item["position"]})
+                elif item["type"] == "contextual_sound":
+                    source = item.get("source")
+                    source_uid = getattr(source, "entity_uid", None) if source is not None else None
+                    self.animation_log.append({
+                        "type": "contextual_sound",
+                        "source": source_uid,
+                        "message": item.get("message"),
+                        "position": item.get("position"),
+                        "duration_ms": item.get("duration_ms"),
+                        "label": item.get("label"),
+                        "sound_id": item.get("sound_id"),
+                    })
             index += 1
         if action.action_type == 'move':
             self.trigger_event('movement', action.source, { 'move_path': action.move_path})

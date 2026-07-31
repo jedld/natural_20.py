@@ -306,6 +306,91 @@ def format_annotations_block(annotations: Iterable[dict[str, Any]]) -> str:
     return '\n'.join(f"- {line}" for line in lines if line)
 
 
+# Landmark kinds surfaced as an NPC's "you are here" context (not stack/mask geometry).
+_LOCATION_CONTEXT_KINDS = frozenset({'point', 'area', 'polygon', 'object_ref'})
+_LOCATION_KIND_PRIORITY = {'area': 0, 'polygon': 1, 'object_ref': 2, 'point': 3}
+
+
+def _annotation_area_size(annotation: dict[str, Any]) -> int:
+    kind = annotation.get('kind')
+    if kind == 'point':
+        return 1
+    if kind == 'area':
+        bounds = annotation.get('bounds') or {}
+        try:
+            w = abs(int(bounds['x2']) - int(bounds['x1'])) + 1
+            h = abs(int(bounds['y2']) - int(bounds['y1'])) + 1
+            return w * h
+        except (KeyError, TypeError, ValueError):
+            return 10**9
+    if kind == 'polygon':
+        points = annotation.get('points') or []
+        if not points:
+            return 10**9
+        xs = [int(p[0]) for p in points]
+        ys = [int(p[1]) for p in points]
+        return (max(xs) - min(xs) + 1) * (max(ys) - min(ys) + 1)
+    return 10**9
+
+
+def _most_specific_location_annotations(
+    annotations: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Drop broad parent areas when a smaller containing landmark also matches."""
+    if len(annotations) <= 1:
+        return list(annotations)
+    ordered = sorted(
+        annotations,
+        key=lambda item: (
+            _LOCATION_KIND_PRIORITY.get(str(item.get('kind') or ''), 9),
+            _annotation_area_size(item),
+            str(item.get('label') or item.get('id') or ''),
+        ),
+    )
+    smallest = _annotation_area_size(ordered[0])
+    selected = [ordered[0]]
+    for item in ordered[1:]:
+        kind = item.get('kind')
+        if kind == 'point':
+            selected.append(item)
+        elif kind in ('area', 'polygon') and _annotation_area_size(item) == smallest:
+            selected.append(item)
+    return selected[:4]
+
+
+def current_location_annotations_at_position(
+    map_properties: dict[str, Any] | None,
+    x: int,
+    y: int,
+) -> list[dict[str, Any]]:
+    """Area/point landmarks containing ``(x, y)`` for NPC situational prompts."""
+    return [
+        item
+        for item in annotations_at_position(map_properties, int(x), int(y))
+        if item.get('kind') in _LOCATION_CONTEXT_KINDS
+    ]
+
+
+def format_current_location_for_llm(
+    annotations: Sequence[dict[str, Any]],
+    *,
+    map_name: str | None = None,
+    position: Point | None = None,
+) -> str:
+    if not annotations:
+        return ''
+    ordered = _most_specific_location_annotations(annotations)
+    where = f" on {map_name}" if map_name else ''
+    if position is not None:
+        where = f"{where} at grid {position[0]},{position[1]}"
+    if len(ordered) == 1:
+        return f"Current location{where}: {format_annotation_for_llm(ordered[0], include_description=True)}"
+    lines = [f"Current location{where}:"]
+    for item in ordered[:4]:
+        lines.append(f"- {format_annotation_for_llm(item, include_description=True)}")
+    return '\n'.join(lines)
+
+
 def upsert_map_annotation(
     data: dict[str, Any],
     annotation: dict[str, Any],

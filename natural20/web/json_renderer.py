@@ -506,12 +506,14 @@ class JsonRenderer:
                                 if language not in listener_languages:
                                     listener_languages.append(language)
 
+                    is_npc_entity = callable(getattr(entity, 'is_npc', None)) and entity.is_npc()
                     attributes.update({
                     'id': entity.entity_uid,
                     'hp': entity.hp(),
                     'max_hp': entity.max_hp(),
                     'entity_size': entity.size(),
                     'dialog': entity.dialog,
+                    'is_npc': is_npc_entity,
                     'conversation_buffer': entity.conversation(listener_languages=listener_languages),
                     'conversation_languages': ",".join(entity.languages() if entity.languages() and hasattr(entity.languages(), '__iter__') and not isinstance(entity.languages(), str) else ['common'])
                     })

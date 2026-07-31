@@ -78,7 +78,7 @@ Developer workflows and commands (verified in repo README):
 - Tests:
   - Python: `pytest` (supports `-n auto` for parallel runs)
   - JS unit tests for `webapp/static/engine.js`: `npm install` then `npx jest` (Node 18+ recommended). See README section "JavaScript tests".
-- Web asset optimization: `npm run build:assets` (minify JS/CSS → `*.min.js` / `*.min.css` + `manifest.assets.json`); `npm run optimize:images` (raster compression under `webapp/static`); `npm run optimize:assets` (both). Templates use `asset_url('engine.js')`; production serves minified bundles when `FLASK_ENV=production` or `N20_USE_MINIFIED_ASSETS=1`.
+- Web asset optimization: `npm run build:assets` (minify JS/CSS → `*.min.js` / `*.min.css` + `manifest.assets.json`); `npm run optimize:images` (tiered raster passes: general 1024px, UI icons 256px, large assets 512px, campaign `user_levels/` 2048px); `npm run optimize:assets` (both). Templates use `asset_url('engine.js')`; production serves minified bundles when `FLASK_ENV=production` or `N20_USE_MINIFIED_ASSETS=1`.
 
 Important environment variables (used by code):
 
@@ -115,6 +115,7 @@ MCP tool catalogue (keep this list in sync with `webapp/mcp/tools_*.py`). Design
     - Audio: `dm.sound` (op=list|play|volume|seek) — mirrors `/tracks`, `/sound`, `/volume`, `/seek`.
     - Time: `dm.advance_time` (op=add|set, `seconds`) — wraps `Session.increment_game_time` for narrative time skips.
     - Map landmarks: `dm.map_landmark` (op=list|upsert|delete, optional `map_name`, `annotation`, `annotation_id`) — YAML `map_annotations` for NPC navigation/LLM place context. See `docs/MAP_ANNOTATIONS.md`.
+    - User accounts: `dm.user_admin` (op=list|create|update|delete|assign_character|unassign_character; `username`, `password`, `roles`, `character_uid`, optional `spawn`) — mirrors `GET/POST /admin/users`; persists `logins` and `default_controllers` to campaign `index.json`.
   - `tools_actions`: `actions.list_available`, `actions.execute` (for `InteractAction` with `target`, `entity_uid` optional — omit or `dungeon_master` for DM-direct door/object interaction), `actions.move`, `actions.end_turn`, `actions.start_battle`, `actions.end_battle`.
 
   When adding a new DM-only Flask endpoint, also extend the matching `tools_dm` tool (preferring an extra `op` value over a brand-new tool) and update this catalogue.

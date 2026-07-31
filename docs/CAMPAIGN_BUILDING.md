@@ -405,6 +405,7 @@ dimensions.
 | `map` | string | Starting map path (without `.yml`) |
 | `other_maps` | object | Named map paths for DM map-switching UI |
 | `login_background` | string | Image filename in `assets/` for the login screen |
+| `login_ui` | object | Optional login screen layout/theme (panel position, fonts, colors). See [Login screen styling](#login-screen-styling). |
 | `character_selection_background` | string | Image for character selection |
 | `autosave` | bool | Enable automatic save |
 | `selectable_characters` | array | Characters players can pick at login |
@@ -413,6 +414,46 @@ dimensions.
 | `soundtracks` | array | Background music tracks |
 | `logins` | array | User accounts (`role`: `"player"` or `"dm"`) |
 | `default_controllers` | array | Which users control which entities |
+
+### Login screen styling
+
+Set `login_background` to an image under `assets/` (served at `/assets/<file>`). For
+full layout control, add a `login_ui` object in `index.json`:
+
+```json
+{
+  "login_background": "title.png",
+  "login_ui": {
+    "background": "title.png",
+    "show_title_text": false,
+    "background_fit": "cover",
+    "background_position": "center top",
+    "font_family": "'Cinzel', serif",
+    "google_fonts": "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&display=swap",
+    "panel": {
+      "layout": "bottom-right",
+      "width": "300px",
+      "offset_x": "4vw",
+      "offset_y": "7vh",
+      "background": "rgba(46, 26, 71, 0.94)",
+      "padding": "22px",
+      "border_radius": "14px",
+      "border": "2px solid #d4af37",
+      "box_shadow": "0 14px 36px rgba(0,0,0,0.55)"
+    },
+    "labels": { "color": "#f5deb3" },
+    "inputs": { "background": "#fff8dc", "border": "1px solid #d4af37", "color": "#2e1a47" },
+    "button": { "text": "Enter the Chase", "background": "#d4af37", "color": "#2e1a47" },
+    "error": { "background": "rgba(120,12,12,0.92)", "color": "#fff" }
+  }
+}
+```
+
+`panel.layout` supports `center`, `bottom-right`, `bottom-left`, `top-right`, and
+`top-left`. Optional `login_ui.custom_css` appends campaign-specific CSS rules.
+
+See `user_levels/wild_sheep_chase/index.json` for a worked example using
+`assets/title.png`.
 
 ---
 

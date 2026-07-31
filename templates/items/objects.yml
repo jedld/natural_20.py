@@ -560,6 +560,10 @@ tavern_bar_counter:
   token: "="
   hide_map_token: true  # bar art is painted into the map background
   token_image: tavern_bar_counter
+  staff_workplace: taproom
+  staff_viewers:
+    - mara_bartender
+    - pip_barmaid
   icon_prompt: >
     fantasy tavern bar counter game icon, long oak bar with ale mugs, bread loaf,
     cheese wheel, and stew pot, warm candlelit taproom
@@ -610,6 +614,36 @@ tavern_guest_chest:
       action: close
       image: closed_chest
   inventory: []
+
+tavern_room_buzzer:
+  name: Room Service Buzzer
+  description: A brass bell pull wired with a whisper cantrip — rings Pip at the bar.
+  color: gold
+  item_class: RoomServiceBuzzer
+  passable: true
+  placeable: true
+  interactable: true
+  interact_distance: 5
+  notify_npc: pip_barmaid
+  token: "!"
+  token_image: tavern_room_buzzer
+  icon_prompt: >
+    fantasy tavern room service bell pull game icon, brass cord and small rune plate
+    on a wooden wall mount, faint magical whisper cantrip glow, warm inn guest room
+  buzz_prompt: Ring for Room Service (Message)
+  buttons:
+    - name: Ring for Room Service
+      action: buzz
+      image: interact_buzz
+  notes:
+    - note: >
+        Etched on the rune plate — Interact with this bell pull and choose
+        "Ring for Room Service" to whisper-call Pip at the bar for room service.
+      perception_dc: 0
+    - note: >
+        A brass pull-cord and tiny rune plate — Mara's whisper-cantrip carries
+        your call to the taproom when rung.
+      perception_dc: 5
 
 window:
   name: Window
