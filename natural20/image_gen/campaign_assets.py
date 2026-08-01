@@ -11,6 +11,7 @@ from typing import Any, Callable, Iterable
 import yaml
 from PIL import Image
 
+from natural20.image_gen.campaign_prompt_profile import load_campaign_prompt_profile
 from natural20.image_gen.mcp_client import (
     GeneratedImage,
     ImageGenMcpClient,
@@ -257,6 +258,7 @@ def generate_campaign_assets(
 ) -> CampaignAssetReport:
     campaign = Path(campaign).resolve()
     meta = load_campaign_meta(campaign)
+    prompt_profile = load_campaign_prompt_profile(campaign)
     theme = campaign_asset_mood(meta)
     title = meta.get("title") or meta.get("name") or campaign.name
     if isinstance(title, list):
@@ -312,6 +314,7 @@ def generate_campaign_assets(
                             race=_race_label(npc.get("race")),
                             scene=portrait_scene or "town",
                             theme=theme,
+                            profile=prompt_profile,
                         )[:80]
                         if portrait_scene
                         else npc_token_prompt(
@@ -321,6 +324,7 @@ def generate_campaign_assets(
                             race=_race_label(npc.get("race")),
                             alignment=str(npc.get("alignment") or "") or None,
                             theme=theme,
+                            profile=prompt_profile,
                         )[:80]
                     )
                     report.results.append(
@@ -337,6 +341,7 @@ def generate_campaign_assets(
                             race=_race_label(npc.get("race")),
                             scene=portrait_scene,
                             theme=theme,
+                            profile=prompt_profile,
                         )
                         generated = generator(
                             prompt=prompt,
@@ -365,6 +370,7 @@ def generate_campaign_assets(
                         race=_race_label(npc.get("race")),
                         alignment=str(npc.get("alignment") or "") or None,
                         theme=theme,
+                        profile=prompt_profile,
                     )
                     generated = generator(
                         prompt=prompt,
@@ -412,6 +418,7 @@ def generate_campaign_assets(
                     title=str(title),
                     description=description,
                     theme_keywords=theme,
+                    profile=prompt_profile,
                 )
                 if dry_run:
                     report.results.append(
@@ -485,6 +492,7 @@ def generate_campaign_assets(
                     race=_race_label(sheet.get("race")),
                     character_class=selectable_character_class_label(sheet),
                     theme=theme,
+                    profile=prompt_profile,
                 )
                 if dry_run:
                     report.results.append(

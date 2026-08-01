@@ -498,6 +498,22 @@ class BeyondImporter:
             yaml_data["description"] = flavor["description"]
         if flavor.get("backstory"):
             yaml_data["backstory"] = flavor["backstory"]
+        for key in (
+            "outward_appearance",
+            "personality_traits",
+            "ideals",
+            "bonds",
+            "flaws",
+            "faith",
+            "age",
+            "hair",
+            "eyes",
+            "skin",
+            "height",
+            "weight",
+        ):
+            if flavor.get(key):
+                yaml_data[key] = flavor[key]
 
         yaml_data["classes"] = classes_map
         yaml_data["level"] = total_level
@@ -595,8 +611,23 @@ class BeyondImporter:
                 subclasses[name] = _normalize_subclass(name, subdef["name"])
         return classes_map, total, subclasses
 
+    def _trait_text(self, value: Any) -> str:
+        if not value:
+            return ""
+        if isinstance(value, list):
+            lines: List[str] = []
+            for item in value:
+                if isinstance(item, dict):
+                    line = (item.get("description") or "").strip()
+                else:
+                    line = str(item).strip()
+                if line:
+                    lines.append(line)
+            return "\n".join(lines)
+        return str(value).strip()
+
     def _extract_character_flavor(self, data: Dict[str, Any]) -> Dict[str, str]:
-        """Pull description/backstory text used by NPC dialog and character sheets."""
+        """Pull description/backstory and structured personality fields from D&D Beyond."""
         flavor: Dict[str, str] = {}
         notes = data.get("notes") or {}
         if isinstance(notes, dict):
@@ -609,32 +640,26 @@ class BeyondImporter:
             pieces: List[str] = []
             appearance = (traits.get("appearance") or "").strip()
             if appearance:
+                flavor["outward_appearance"] = appearance
                 pieces.append(f"Appearance: {appearance}")
-            for key, label in (
-                ("personalityTraits", "Personality"),
-                ("ideals", "Ideals"),
-                ("bonds", "Bonds"),
-                ("flaws", "Flaws"),
-            ):
-                value = traits.get(key)
-                if not value:
-                    continue
-                if isinstance(value, list):
-                    lines: List[str] = []
-                    for item in value:
-                        if isinstance(item, dict):
-                            line = (item.get("description") or "").strip()
-                        else:
-                            line = str(item).strip()
-                        if line:
-                            lines.append(line)
-                    text = "\n".join(lines)
-                else:
-                    text = str(value).strip()
+            trait_map = (
+                ("personalityTraits", "personality_traits", "Personality"),
+                ("ideals", "ideals", "Ideals"),
+                ("bonds", "bonds", "Bonds"),
+                ("flaws", "flaws", "Flaws"),
+            )
+            for ddb_key, yaml_key, label in trait_map:
+                text = self._trait_text(traits.get(ddb_key))
                 if text:
+                    flavor[yaml_key] = text
                     pieces.append(f"{label}: {text}")
             if pieces:
                 flavor["description"] = "\n\n".join(pieces)
+
+        for field in ("faith", "age", "hair", "eyes", "skin", "height", "weight"):
+            value = data.get(field)
+            if value not in (None, ""):
+                flavor[field] = str(value).strip()
         return flavor
 
     def _extract_ability_scores(self, data: Dict[str, Any],
@@ -865,6 +890,55 @@ class BeyondImporter:
     def _warn(self, message: str) -> None:
         self.warnings.append(message)
         warnings.warn(message)
+
+
+def _resize_ddb_avatar_url(
+    url: str,
+    *,
+    width: int,
+    height: int,
+    fit: str,
+) -> str:
+    """Rewrite D&D Beyond avatar CDN query params for desired dimensions."""
+    base = str(url or "").strip().split("?", 1)[0]
+    if not base:
+        return ""
+    return f"{base}?width={width}&height={height}&fit={fit}&quality=95&auto=webp"
+
+
+def extract_avatar_urls(character_data: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+    """Return ``(portrait_url, token_url)`` from a D&D Beyond character payload.
+
+    Priority for the player's chosen art:
+    1. ``decorations.avatarUrl`` — the character's selected avatar/portrait.
+    2. ``race.portraitAvatarUrl`` / ``race.largeAvatarUrl`` — stock race art (fallback).
+
+    The token URL reuses the character avatar when available; otherwise it falls
+    back to the race portrait cropped for a map token.
+    """
+    decorations = character_data.get("decorations") or {}
+    race = character_data.get("race") or {}
+
+    char_avatar = str(decorations.get("avatarUrl") or "").strip() or None
+    race_portrait = (
+        str(race.get("portraitAvatarUrl") or "").strip()
+        or str(race.get("largeAvatarUrl") or "").strip()
+        or str(race.get("avatarUrl") or "").strip()
+        or None
+    )
+
+    portrait_source = char_avatar or race_portrait
+    if not portrait_source:
+        return None, None
+
+    portrait_url = _resize_ddb_avatar_url(
+        portrait_source, width=1000, height=1000, fit="bounds"
+    )
+    token_source = char_avatar or portrait_source
+    token_url = _resize_ddb_avatar_url(
+        token_source, width=256, height=256, fit="crop"
+    )
+    return portrait_url, token_url
 
 
 # ---------------------------------------------------------------------------

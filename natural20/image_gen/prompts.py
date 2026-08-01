@@ -1,9 +1,17 @@
-"""Prompt builders for campaign tokens and title backgrounds."""
+"""Generic prompt builders for campaign tokens and title backgrounds.
+
+Campaign-specific token/portrait styles and scene backdrops live in each campaign's
+``asset_prompts.yml`` (see ``natural20.image_gen.campaign_prompt_profile``).
+``game.yml`` may still set ``asset_theme`` for a short mood string in prompts.
+"""
 
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from natural20.image_gen.campaign_prompt_profile import CampaignPromptProfile
 
 # CLIP text encoders (FLUX / SD) truncate at 77 tokens; keep prompts conservative.
 CLIP_MAX_WORDS = 65
@@ -19,23 +27,13 @@ BACKGROUND_NEGATIVE = (
     "bright cheerful daylight, cartoon sticker sheet"
 )
 
-WILD_SHEEP_TOKEN_STYLE = (
-    "fantasy VTT token bust, close-up head and shoulders, face centered, fills frame, "
-    "painterly, warm afternoon light, high-detail face"
-)
 
-WILD_SHEEP_PORTRAIT_STYLE = (
-    "painterly fantasy portrait, head and shoulders, face centered, close-up, warm natural light, no text"
-)
+def _resolve_profile(profile: CampaignPromptProfile | None) -> CampaignPromptProfile:
+    if profile is not None:
+        return profile
+    from natural20.image_gen.campaign_prompt_profile import CampaignPromptProfile
 
-DEATH_HOUSE_TOKEN_STYLE = (
-    "fantasy VTT token bust, close-up head and shoulders, face centered, fills frame, "
-    "painterly gothic horror, Barovia, cold desaturated light, high-detail face"
-)
-
-DEATH_HOUSE_PORTRAIT_STYLE = (
-    "painterly gothic horror portrait, head and shoulders, face centered, Barovia, cold misty light, no text"
-)
+    return CampaignPromptProfile.default()
 
 
 def clip_word_limit(text: str, max_words: int = CLIP_MAX_WORDS) -> str:
@@ -84,54 +82,8 @@ def campaign_asset_mood(campaign_meta: dict[str, Any]) -> str:
     return clip_word_limit(str(title).strip(), 8)
 
 
-def _token_style_for_theme(theme: str) -> str:
-    lowered = theme.lower()
-    if any(
-        marker in lowered
-        for marker in ("barovia", "death house", "gothic horror", "strahd", "durst")
-    ):
-        return DEATH_HOUSE_TOKEN_STYLE
-    if "sheep" in lowered or "prancing flagon" in lowered or "market town" in lowered:
-        return WILD_SHEEP_TOKEN_STYLE
-    return (
-        "fantasy VTT token bust, close-up head and shoulders, face centered, fills frame, "
-        "painterly, dramatic lighting, high-detail face"
-    )
-
-
-def _scene_backdrop(scene: str) -> str:
-    normalized = (scene or "town").strip().lower()
-    if normalized == "tavern":
-        return "medieval tavern, hearth glow, blurred patrons"
-    if normalized == "market":
-        return "market stall, canvas awning, timber buildings"
-    if normalized == "street":
-        return "cobblestone street, timber shops, afternoon sun"
-    if normalized == "bedroom":
-        return "treehouse wizard bedroom, warm lamplight, rumpled sheets"
-    if normalized == "laboratory":
-        return "wizard treehouse lab, enchanted lamps, branch walls"
-    if normalized in {"barovia_road", "barovia road"}:
-        return "foggy Old Svalich Road, twisted bare trees, gray overcast, distant manor silhouette"
-    if normalized in {"durst_manor", "manor", "attic"}:
-        return "decaying Victorian manor interior, peeling wallpaper, dusty candlelight"
-    if normalized in {"dungeon", "basement", "cult"}:
-        return "stone cult dungeon, rusted chains, dim torchlight, Barovia horror"
-    if normalized == "nursery":
-        return "abandoned Victorian nursery, cracked crib, cold moonlight through grimy window"
-    return "medieval fantasy town, warm afternoon light"
-
-
-def portrait_style_for_theme(theme: str) -> str:
-    lowered = theme.lower()
-    if any(
-        marker in lowered
-        for marker in ("barovia", "death house", "gothic horror", "strahd", "durst")
-    ):
-        return DEATH_HOUSE_PORTRAIT_STYLE
-    if "sheep" in lowered or "prancing flagon" in lowered or "market town" in lowered:
-        return WILD_SHEEP_PORTRAIT_STYLE
-    return "painterly fantasy portrait, head and shoulders, face centered, dramatic lighting, no text"
+def scene_backdrop(scene: str, profile: CampaignPromptProfile | None = None) -> str:
+    return _resolve_profile(profile).scene_backdrop(scene)
 
 
 def npc_scene_portrait_prompt(
@@ -142,17 +94,19 @@ def npc_scene_portrait_prompt(
     race: str | None = None,
     scene: str = "tavern",
     theme: str = "",
+    profile: CampaignPromptProfile | None = None,
 ) -> str:
+    resolved = _resolve_profile(profile)
     race_bit = f"{race} " if race else ""
     subject = f"Portrait of {name}, a {race_bit}{kind.replace('_', ' ')}"
     desc = clip_word_limit((description or "").replace("\n", " "), 28)
-    scene_bit = _scene_backdrop(scene)
+    scene_bit = resolved.scene_backdrop(scene)
     mood_bit = clip_word_limit(theme, 10) if theme else ""
     return fit_clip_prompt(
         subject,
         desc,
         scene_bit,
-        portrait_style_for_theme(theme),
+        resolved.portrait_style,
         f"Mood: {mood_bit}" if mood_bit else "",
         max_words=CLIP_MAX_WORDS,
     )
@@ -166,51 +120,37 @@ def npc_token_prompt(
     race: str | None = None,
     alignment: str | None = None,
     theme: str = "",
+    profile: CampaignPromptProfile | None = None,
 ) -> str:
+    resolved = _resolve_profile(profile)
     race_bit = f"{race} " if race else ""
     align_bit = f", {alignment}" if alignment else ""
     subject = f"VTT bust of {name}, a {race_bit}{kind.replace('_', ' ')}{align_bit}"
     desc = clip_word_limit((description or "").replace("\n", " "), 30)
-    style = _token_style_for_theme(theme)
     mood_bit = clip_word_limit(theme, 10) if theme else ""
     return fit_clip_prompt(
         subject,
         desc,
-        style,
+        resolved.token_style,
         f"Mood: {mood_bit}" if mood_bit else "",
         max_words=CLIP_MAX_WORDS,
     )
 
 
-def _login_scene_for_theme(theme: str) -> str:
-    lowered = theme.lower()
-    if "sheep" in lowered or "prancing flagon" in lowered:
-        return (
-            "bustling medieval market square, Prancing Flagon tavern sign, timber stalls, "
-            "curious white sheep with scroll in mouth, warm golden afternoon sun"
-        )
-    return "medieval fantasy town, cobblestone, timber buildings, warm afternoon light"
-
-
-def _character_select_scene_for_theme(theme: str) -> str:
-    lowered = theme.lower()
-    if "sheep" in lowered or "prancing flagon" in lowered:
-        return (
-            "diverse level-five adventuring party: human fighter in plate, half-elf wizard "
-            "with staff, dwarf cleric in holy vestments, halfling rogue with daggers, "
-            "gathered outside Prancing Flagon tavern, white sheep nearby"
-        )
-    return "party of fantasy adventurers, dramatic group portrait, warm torchlight"
-
-
-def login_background_prompt(*, title: str, description: str, theme_keywords: str = "") -> str:
+def login_background_prompt(
+    *,
+    title: str,
+    description: str,
+    theme_keywords: str = "",
+    profile: CampaignPromptProfile | None = None,
+) -> str:
+    resolved = _resolve_profile(profile)
     theme = theme_keywords or "medieval fantasy, warm afternoon light"
     desc = clip_word_limit((description or "").replace("\n", " "), 40)
-    scene = _login_scene_for_theme(theme)
     return fit_clip_prompt(
         f"Cinematic wide establishing shot for D&D campaign '{title}'",
         desc,
-        scene,
+        resolved.login_scene,
         f"Atmosphere: {clip_word_limit(theme, 12)}",
         "No readable text, no UI, painterly 16:9, warm volumetric lighting",
         max_words=75,
@@ -222,14 +162,15 @@ def character_selection_background_prompt(
     title: str,
     description: str,
     theme_keywords: str = "",
+    profile: CampaignPromptProfile | None = None,
 ) -> str:
+    resolved = _resolve_profile(profile)
     theme = theme_keywords or "medieval fantasy, warm afternoon light"
     desc = clip_word_limit((description or "").replace("\n", " "), 35)
-    scene = _character_select_scene_for_theme(theme)
     return fit_clip_prompt(
         f"Character selection splash art for D&D campaign '{title}'",
         desc,
-        scene,
+        resolved.character_selection_scene,
         f"Atmosphere: {clip_word_limit(theme, 12)}",
         "No readable text, no UI, painterly 16:9, warm heroic lighting",
         max_words=75,
@@ -243,19 +184,18 @@ def character_portrait_prompt(
     race: str | None = None,
     character_class: str | None = None,
     theme: str = "",
+    profile: CampaignPromptProfile | None = None,
 ) -> str:
+    resolved = _resolve_profile(profile)
     race_bit = f"{race.replace('_', ' ')} " if race else ""
     class_bit = f"{character_class.replace('_', ' ')} " if character_class else ""
     subject = f"Character select portrait of {name}, {race_bit}{class_bit}fantasy adventurer".replace("  ", " ")
     desc = clip_word_limit((description or "").replace("\n", " "), 35)
     mood_bit = clip_word_limit(theme, 10) if theme else ""
-    style = WILD_SHEEP_PORTRAIT_STYLE if "sheep" in theme.lower() or "prancing flagon" in theme.lower() else (
-        "Vertical composition, dramatic lighting, painterly, no text"
-    )
     return fit_clip_prompt(
         subject,
         desc,
-        style,
+        resolved.portrait_style,
         f"Mood: {mood_bit}" if mood_bit else "",
         max_words=CLIP_MAX_WORDS,
     )

@@ -80,6 +80,14 @@ Developer workflows and commands (verified in repo README):
   - JS unit tests for `webapp/static/engine.js`: `npm install` then `npx jest` (Node 18+ recommended). See README section "JavaScript tests".
 - Web asset optimization: `npm run build:assets` (minify JS/CSS → `*.min.js` / `*.min.css` + `manifest.assets.json`); `npm run optimize:images` (tiered raster passes: general 1024px, UI icons 256px, large assets 512px, campaign `user_levels/` 2048px); `npm run optimize:assets` (both). Templates use `asset_url('engine.js')`; production serves minified bundles when `FLASK_ENV=production` or `N20_USE_MINIFIED_ASSETS=1`.
 
+### Campaign image-gen prompts (do not put campaign flavor in `natural20/`)
+
+- **Generic builders** live in `natural20/image_gen/prompts.py` (CLIP helpers, SRD item/spell/action icon hints, default fantasy scenes).
+- **Campaign-specific** token/portrait styles, login splash scenes, and named portrait backdrops belong in **`user_levels/<campaign>/asset_prompts.yml`**, loaded via `natural20.image_gen.campaign_prompt_profile`.
+- **`game.yml` → `asset_theme`**: short mood string only (e.g. one line of atmosphere); not story text, not style paragraphs.
+- **Never** add campaign names, locations, or adventure-specific scene strings to `natural20/image_gen/prompts.py`. Copy `asset_prompts.yml` from `death_house` or `wild_sheep_chase` when starting a new campaign.
+- Generator: `python scripts/generate_campaign_assets.py --campaign user_levels/<name>`. See **`docs/CAMPAIGN_ASSET_GENERATOR.md`**.
+
 Important environment variables (used by code):
 
 - LLM_PROVIDER (ollama|openai|anthropic|mock) — default `ollama` in the controller.

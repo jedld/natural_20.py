@@ -73,10 +73,32 @@ Optional per-NPC fields:
 
 | Field | Purpose |
 |-------|---------|
-| `portrait_scene` | Scene-backed portrait prompt (`tavern`, `market`, `street`, `town`) |
+| `portrait_scene` | Scene key from `asset_prompts.yml` → `scenes` (e.g. `tavern`, `durst_manor`) |
 | `outward_appearance` | Physical look used for token/portrait prompts (preferred over `description`) |
 | `image_prompt` | Override auto-generated diffusion prompt (keep under ~65 words for CLIP) |
-| `asset_theme` (in `game.yml`) | Campaign-wide mood string appended to prompts |
+
+Campaign-wide prompt configuration (keep **out of** `natural20/image_gen/prompts.py`):
+
+| Field | Location | Purpose |
+|-------|----------|---------|
+| `asset_theme` | `game.yml` | Short mood string appended to prompts (CLIP-safe; not the full story description) |
+| `asset_prompts.yml` | campaign root | Token/portrait styles, login art scenes, and named `scenes:` backdrops |
+
+Example `user_levels/<campaign>/asset_prompts.yml`:
+
+```yaml
+token_style: fantasy VTT token bust, painterly gothic horror, ...
+portrait_style: painterly gothic horror portrait, ...
+login_scene: foggy road, decaying manor, ...
+character_selection_scene: adventurers outside manor, ...
+scenes:
+  durst_manor: decaying Victorian interior, candlelight
+  barovia_road: foggy Old Svalich Road
+```
+
+See `user_levels/death_house/asset_prompts.yml` and `user_levels/wild_sheep_chase/asset_prompts.yml`.
+Loader: `natural20.image_gen.campaign_prompt_profile.load_campaign_prompt_profile`.
+Generic defaults live in `campaign_prompt_profile.py`; only SRD-wide icon hints stay in `prompts.py`.
 
 `Entity.token_image()` resolves generated tokens under `/assets/`.
 

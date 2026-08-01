@@ -50,6 +50,7 @@ Conversation routes (`/talk`, etc.) are registered by `conversation_service.regi
 | `special_effects.py` | Client effect payload filtering |
 | `journal_utils.py` | `_record_narration_for_pcs` (shared by effects and battle) |
 | `character_builder_utils.py` | Character builder/import helpers |
+| `character_builder_restrictions.py` | Campaign min/max level and class/spell/feat/ability blacklists |
 | `pvp.py` | PvP team config and battle autofill |
 | `llm_init.py` | LLM handler init, game-context function registration |
 | `campaign_config.py` | Campaign path / index loading |
@@ -58,6 +59,23 @@ Conversation routes (`/talk`, etc.) are registered by `conversation_service.regi
 | `conversation_wiring.py` | `ConversationService` setup and `/talk` route registration |
 
 Blueprints read shared state through `runtime_state` accessors, **not** by importing from `webapp.app`.
+
+### Campaign character builder limits
+
+Set in `user_levels/<campaign>/game.yml` (or `index.json`) under `character_builder`:
+
+```yaml
+character_builder:
+  min_level: 1
+  max_level: 3
+  blacklist:
+    classes: [warlock, paladin]
+    spells: [fireball, wish]
+    feats: [sharpshooter]
+    abilities: [action_surge]   # class features / subclasses by slug
+```
+
+`game.yml` overrides `index.json` when both define the same keys. The builder UI and `/create_character` / `/update_character` enforce these limits server-side.
 
 ## Adding or moving routes
 

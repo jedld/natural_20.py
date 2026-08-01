@@ -91,6 +91,7 @@ from natural20.image_gen.prompts import (
     npc_scene_portrait_prompt,
     npc_visual_description,
 )
+from natural20.image_gen.campaign_prompt_profile import load_campaign_prompt_profile
 
 
 def test_npc_visual_description_prefers_outward_appearance():
@@ -122,6 +123,7 @@ def test_fit_clip_prompt_limits_word_count():
 
 
 def test_npc_scene_portrait_prompt_stays_within_clip_budget():
+    profile = load_campaign_prompt_profile(Path("user_levels/wild_sheep_chase"))
     prompt = npc_scene_portrait_prompt(
         name="Pip",
         kind="Pip",
@@ -133,9 +135,30 @@ def test_npc_scene_portrait_prompt_stays_within_clip_budget():
         race="halfling",
         scene="tavern",
         theme="whimsical D&D one-shot, Prancing Flagon market town, warm afternoon light",
+        profile=profile,
     )
     assert len(prompt.split()) <= CLIP_MAX_WORDS
     assert "Finethir" not in prompt
+    assert "warm natural light" in prompt
+
+
+def test_load_campaign_prompt_profile_death_house(tmp_path: Path):
+    campaign = Path("user_levels/death_house")
+    if not campaign.is_dir():
+        pytest.skip("death_house campaign missing")
+    profile = load_campaign_prompt_profile(campaign)
+    assert "gothic horror" in profile.token_style.lower()
+    assert "Barovia" in profile.portrait_style
+    assert "Svalich" in profile.login_scene
+    assert "barovia" in profile.scene_backdrop("basement").lower()
+
+
+def test_load_campaign_prompt_profile_defaults_without_file(tmp_path: Path):
+    campaign = tmp_path / "bare"
+    campaign.mkdir()
+    profile = load_campaign_prompt_profile(campaign)
+    assert profile.scene_backdrop("tavern") == "medieval tavern, hearth glow, blurred patrons"
+    assert "dramatic lighting" in profile.token_style
 
 
 def test_discover_outcasts_npcs():
