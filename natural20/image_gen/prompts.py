@@ -28,6 +28,15 @@ WILD_SHEEP_PORTRAIT_STYLE = (
     "painterly fantasy portrait, head and shoulders, face centered, close-up, warm natural light, no text"
 )
 
+DEATH_HOUSE_TOKEN_STYLE = (
+    "fantasy VTT token bust, close-up head and shoulders, face centered, fills frame, "
+    "painterly gothic horror, Barovia, cold desaturated light, high-detail face"
+)
+
+DEATH_HOUSE_PORTRAIT_STYLE = (
+    "painterly gothic horror portrait, head and shoulders, face centered, Barovia, cold misty light, no text"
+)
+
 
 def clip_word_limit(text: str, max_words: int = CLIP_MAX_WORDS) -> str:
     """Trim prompt text to a CLIP-safe word budget (keeps the start)."""
@@ -77,6 +86,11 @@ def campaign_asset_mood(campaign_meta: dict[str, Any]) -> str:
 
 def _token_style_for_theme(theme: str) -> str:
     lowered = theme.lower()
+    if any(
+        marker in lowered
+        for marker in ("barovia", "death house", "gothic horror", "strahd", "durst")
+    ):
+        return DEATH_HOUSE_TOKEN_STYLE
     if "sheep" in lowered or "prancing flagon" in lowered or "market town" in lowered:
         return WILD_SHEEP_TOKEN_STYLE
     return (
@@ -97,7 +111,27 @@ def _scene_backdrop(scene: str) -> str:
         return "treehouse wizard bedroom, warm lamplight, rumpled sheets"
     if normalized == "laboratory":
         return "wizard treehouse lab, enchanted lamps, branch walls"
+    if normalized in {"barovia_road", "barovia road"}:
+        return "foggy Old Svalich Road, twisted bare trees, gray overcast, distant manor silhouette"
+    if normalized in {"durst_manor", "manor", "attic"}:
+        return "decaying Victorian manor interior, peeling wallpaper, dusty candlelight"
+    if normalized in {"dungeon", "basement", "cult"}:
+        return "stone cult dungeon, rusted chains, dim torchlight, Barovia horror"
+    if normalized == "nursery":
+        return "abandoned Victorian nursery, cracked crib, cold moonlight through grimy window"
     return "medieval fantasy town, warm afternoon light"
+
+
+def portrait_style_for_theme(theme: str) -> str:
+    lowered = theme.lower()
+    if any(
+        marker in lowered
+        for marker in ("barovia", "death house", "gothic horror", "strahd", "durst")
+    ):
+        return DEATH_HOUSE_PORTRAIT_STYLE
+    if "sheep" in lowered or "prancing flagon" in lowered or "market town" in lowered:
+        return WILD_SHEEP_PORTRAIT_STYLE
+    return "painterly fantasy portrait, head and shoulders, face centered, dramatic lighting, no text"
 
 
 def npc_scene_portrait_prompt(
@@ -118,7 +152,7 @@ def npc_scene_portrait_prompt(
         subject,
         desc,
         scene_bit,
-        WILD_SHEEP_PORTRAIT_STYLE,
+        portrait_style_for_theme(theme),
         f"Mood: {mood_bit}" if mood_bit else "",
         max_words=CLIP_MAX_WORDS,
     )
