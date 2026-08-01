@@ -540,6 +540,7 @@ class TestPolymorphSpell(unittest.TestCase):
         self.battle.add(self.caster, 'a', position=[4, 5])
         self.enemy = self.map.entity_at(5, 5)
         self.battle.start()
+        self.battle.add(self.enemy, 'b')
         self.caster.reset_turn(self.battle)
 
     def test_polymorph_class_exists(self):

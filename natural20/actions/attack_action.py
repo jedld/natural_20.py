@@ -426,7 +426,12 @@ class AttackAction(Action):
 
             if self.attack_roll is None:
                 self.attack_roll = DieRoll.roll_with_lucky(self.source, f"1d20+{attack_mod}", disadvantage=self.with_disadvantage(),
-                                            advantage=self.with_advantage(), description='dice_roll.attack', battle=battle)
+                                            advantage=self.with_advantage(), description='dice_roll.attack', battle=battle,
+                                            entity=self.source)
+                if not hasattr(self.attack_roll, 'metadata'):
+                    self.attack_roll.metadata = {}
+                self.attack_roll.metadata['is_attack_roll'] = True
+                self.attack_roll.metadata['roll_kind'] = 'attack_roll'
 
                 if self.source.has_effect('bless'):
                     bless_roll = DieRoll.roll("1d4", description='dice_roll.bless', entity=self.source, battle=battle)
@@ -595,6 +600,11 @@ class AttackAction(Action):
                 hit = False
             else:
                 target_ac, cover_ac_adjustments = effective_ac(battle, self.source, target)
+                from natural20.effects.bardic_inspiration_effect import apply_bardic_inspiration_to_roll
+                self.attack_roll = apply_bardic_inspiration_to_roll(
+                    self.attack_roll, self.source, target_ac, 'ge', battle=battle,
+                )
+                attack_roll = self.attack_roll
                 hit = attack_roll.result() >= target_ac
                 if hit:
                     try:

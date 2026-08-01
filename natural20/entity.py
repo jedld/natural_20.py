@@ -499,7 +499,9 @@ class Entity(EntityStateEvaluator, Notable):
                 rendered_message,
                 language=language,
                 directed_to=targets,
+                narrative=narrative_entries,
                 actions=action_entries,
+                segments=segment_entries,
             )
             delivered_entities.add(other_entity)
 
@@ -508,13 +510,15 @@ class Entity(EntityStateEvaluator, Notable):
                 if target is None or target == self or target in delivered_entities:
                     continue
                 try:
-                    if entity_map.can_see(target, self):
+                    if self.session.map_for_entity(target) is entity_map:
                         target.receive_conversation(
                             self,
                             message or '',
                             language=language,
                             directed_to=targets,
+                            narrative=narrative_entries,
                             actions=action_entries,
+                            segments=segment_entries,
                         )
                         nearby.append([target, message or '', targets])
                         delivered_entities.add(target)
@@ -538,7 +542,9 @@ class Entity(EntityStateEvaluator, Notable):
                 message or '',
                 language=language,
                 directed_to=targets,
+                narrative=narrative_entries,
                 actions=action_entries,
+                segments=segment_entries,
             )
             nearby.append([target, message or '', targets])
             delivered_entities.add(target)
@@ -666,6 +672,7 @@ class Entity(EntityStateEvaluator, Notable):
                 roll.metadata = {}
             roll.metadata['skill'] = skill
             roll.metadata['is_ability_check'] = True
+            roll.metadata['roll_kind'] = 'ability_check'
             return roll
         return skill_check
 
@@ -770,6 +777,8 @@ class Entity(EntityStateEvaluator, Notable):
     def label(self):
         if self.properties.get('label'):
             return self.properties.get('label')
+        if self.name is None:
+            return self.__class__.__name__
         return i18n.t(self.name)
 
     def contextual_sound(self, message, position=None, *, duration_ms=4000, label=None, sound_id=None, anchor=None):
@@ -917,8 +926,12 @@ class Entity(EntityStateEvaluator, Notable):
             self.casted_effects.append(effect)
 
     def has_casted_effect(self, effect: str):
-        casted_effects_id = [effect['effect'].id for effect in self.casted_effects]
-        return effect in casted_effects_id
+        for entry in self.casted_effects:
+            entry_effect = entry.get('effect')
+            effect_id = entry_effect if isinstance(entry_effect, str) else getattr(entry_effect, 'id', None)
+            if effect_id == effect:
+                return True
+        return False
 
     def has_spell_effect(self, spell):
         active_effects = [effect for effects in self.effects.values() for effect in effects if not effect.get('expiration') or effect.get('expiration') > self.session.game_time]
@@ -989,15 +1002,15 @@ class Entity(EntityStateEvaluator, Notable):
     # Equips an item
     # @param item_name [String,Symbol]
     def equip(self, item_name, ignore_inventory=False):
-        self.properties['equipped'] = self.properties.get('equipped', [])
+        equipped = self.properties.setdefault('equipped', [])
         item_name_str = str(item_name)
         if ignore_inventory:
-            self.properties['equipped'].append(item_name_str)
+            equipped.append(item_name_str)
             self.resolve_trigger('equip')
             return
         item = self.deduct_item(item_name)
         if item:
-            self.properties['equipped'].append(item_name_str)
+            equipped.append(item_name_str)
             self.resolve_trigger('equip')
             loaded_item = self.session.load_equipment(item_name)
             if loaded_item and loaded_item.get('effect'):
@@ -1007,7 +1020,7 @@ class Entity(EntityStateEvaluator, Notable):
             # Fallback: try to load from session (magic items not in inventory)
             loaded_item = self.session.load_thing(item_name)
             if loaded_item:
-                self.properties['equipped'].append(item_name_str)
+                equipped.append(item_name_str)
                 self.resolve_trigger('equip')
                 if loaded_item.get('effect'):
                     for effect in loaded_item['effect']:
@@ -1951,15 +1964,24 @@ class Entity(EntityStateEvaluator, Notable):
     def remove_effect(self, effect, opts={}):
         def resolve_effect(effect_id):
             for f in self.casted_effects:
-                if f['effect'].id == effect_id:
-                    effect = f['effect']
-                    return effect
+                entry_effect = f.get('effect')
+                if isinstance(entry_effect, str) and entry_effect == effect_id:
+                    return entry_effect
+                if getattr(entry_effect, 'id', None) == effect_id:
+                    return entry_effect
             return None
 
         if isinstance(effect, str):
-            effect = resolve_effect(effect)
-            if not effect:
+            resolved = resolve_effect(effect)
+            if not resolved:
                 return 0
+            if isinstance(resolved, str):
+                before = len(self.casted_effects)
+                self.casted_effects = [
+                    f for f in self.casted_effects if f.get('effect') != resolved
+                ]
+                return before - len(self.casted_effects)
+            effect = resolved
 
         removed_effects = {}
         if hasattr(effect, 'source') and effect.source:
@@ -2106,7 +2128,7 @@ class Entity(EntityStateEvaluator, Notable):
                     {
                         **opts,
                         'effect': active_hook['effect'],
-                        'source': active_hook.get('source'),
+                        'source': active_hook.get('source') or opts.get('source'),
                     },
                 )
                 if _temp_results:
@@ -2161,7 +2183,11 @@ class Entity(EntityStateEvaluator, Notable):
 
         delete_casted_effects = [f for f in self.casted_effects if f.get('expiration') and f['expiration'] <= self.session.game_time]
         for effect in delete_casted_effects:
-            self.dismiss_effect(effect['effect'])
+            entry_effect = effect.get('effect')
+            if isinstance(entry_effect, str):
+                self.casted_effects = [f for f in self.casted_effects if f is not effect]
+            else:
+                self.dismiss_effect(entry_effect)
 
 
     # Checks if an entity still has an action available
@@ -2416,8 +2442,14 @@ class Entity(EntityStateEvaluator, Notable):
 
     def has_effect(self, effect_type):
         for item in self.equipped_items():
-            for effect in item.get('effect', []):
-                if effect == 'protection':
+            effects = item.get('effect', [])
+            if isinstance(effects, str):
+                effects = [effects]
+            for effect in effects:
+                if effect == 'protection' or (
+                    effect == 'cloak_of_protection'
+                    and effect_type == 'saving_throw_override'
+                ):
                     effect_obj = ProtectionEffect(self)
                     if hasattr(effect_obj, effect_type):
                         return True
@@ -2665,6 +2697,11 @@ class Entity(EntityStateEvaluator, Notable):
         disadvantage_str = ",".join(disadvantages) if len(disadvantages) > 0 else ""
         save_roll = DieRoll.roll(f"d20{op}{modifier}", advantage=has_advantage, disadvantage=has_disadvantage, battle=battle, entity=self,
                             description=f"dice_roll.{save_type}_saving_throw", advantage_str=advantage_str, disadvantage_str=disadvantage_str)
+        if not hasattr(save_roll, 'metadata'):
+            save_roll.metadata = {}
+        save_roll.metadata['is_saving_throw'] = True
+        save_roll.metadata['roll_kind'] = 'saving_throw'
+        save_roll.metadata['save_type'] = save_type
 
         if self.has_effect('saving_throw_override'):
             save_roll = self.eval_effect('saving_throw_override', { 'save_roll' : save_roll })
@@ -3195,10 +3232,17 @@ class Entity(EntityStateEvaluator, Notable):
                 result = getattr(active_effect['handler'], active_effect['method'])(self, opts)
 
         for item in self.equipped_items():
-            for effect in item.get('effect', []):
-                if effect == 'protection':
+            effects = item.get('effect', [])
+            if isinstance(effects, str):
+                effects = [effects]
+            for effect in effects:
+                effect_obj = None
+                if effect == 'protection' or (
+                    effect == 'cloak_of_protection'
+                    and effect_type == 'saving_throw_override'
+                ):
                     effect_obj = ProtectionEffect(self)
-                if hasattr(effect_obj, effect_type):
+                if effect_obj is not None and hasattr(effect_obj, effect_type):
                     result = getattr(effect_obj, effect_type)(self, opts)
 
         return result
@@ -3320,6 +3364,7 @@ class Entity(EntityStateEvaluator, Notable):
 
             inventory_entry = (self.inventory or {}).get(k) or {}
             item_props = dict(item_details)
+            item_props['name'] = str(k)
             for meta_key in ('room_label', 'room_landmark', 'notify_npc', 'source_entity_uid'):
                 if inventory_entry.get(meta_key) is not None:
                     item_props[meta_key] = inventory_entry.get(meta_key)

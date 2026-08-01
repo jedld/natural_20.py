@@ -1675,7 +1675,11 @@ class Battle():
             if object.incapacitated():
                 continue
 
-            if self.allies(source, object) and (_map.distance(target, object, entity_1_pos=source_pos) <= (object.melee_distance() / _map.feet_per_grid)):
+            melee_distance = object.melee_distance() if hasattr(object, 'melee_distance') else None
+            if melee_distance is None or melee_distance <= 0 or _map.feet_per_grid <= 0:
+                continue
+
+            if self.allies(source, object) and (_map.distance(target, object, entity_1_pos=source_pos) <= (melee_distance / _map.feet_per_grid)):
                 return True
 
         return False

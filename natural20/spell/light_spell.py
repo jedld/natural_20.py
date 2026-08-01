@@ -50,7 +50,7 @@ class LightEffect:
         return 'light'
 
     def __str__(self):
-        return f'Light ({self.color})'
+        return 'light'
 
     def dismiss(self, entity, effect, opts=None):
         """Strip the light_override registration from the target.
@@ -111,6 +111,17 @@ class LightSpell(Spell):
     # ------------------------------------------------------------------ #
     # Validation
     # ------------------------------------------------------------------ #
+    def _target_distance_feet(self, battle_map, target):
+        if battle_map is None or self.source is None or target is None:
+            return None
+        if isinstance(target, (list, tuple)) and len(target) >= 2:
+            grid_distance = battle_map.distance_to_square(
+                self.source, int(target[0]), int(target[1]),
+            )
+        else:
+            grid_distance = battle_map.distance(self.source, target)
+        return grid_distance * battle_map.feet_per_grid
+
     def validate(self, battle_map, target=None):
         self.errors = []
         if target is None:
@@ -125,10 +136,9 @@ class LightSpell(Spell):
             # YAML might say "touch"; treat as 5 ft.
             max_range = 5
 
-        if battle_map is not None and self.source is not None:
-            distance_feet = battle_map.distance(self.source, target) * battle_map.feet_per_grid
-            if distance_feet > max_range:
-                self.errors.append("target out of range")
+        distance_feet = self._target_distance_feet(battle_map, target)
+        if distance_feet is not None and distance_feet > max_range:
+            self.errors.append("target out of range")
 
         return len(self.errors) == 0
 

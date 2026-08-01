@@ -9,6 +9,7 @@ from natural20.player_character import PlayerCharacter
 from natural20.battle import Battle
 from natural20.map import Map
 from natural20.actions.bardic_inspiration_action import BardicInspirationAction
+from natural20.effects.bardic_inspiration_effect import BardicInspirationEffect
 
 
 class TestBard(unittest.TestCase):
@@ -73,9 +74,39 @@ class TestBard(unittest.TestCase):
         self.assertEqual(self.bard.bardic_inspiration_count, 2)
         self.assertEqual(self.battle.entity_state_for(self.bard)['bonus_action'], 0)
         # Recipient is stamped with the bardic inspiration effect
-        effects = [e for e in ally.casted_effects if e.get('effect') == 'bardic_inspiration']
+        effects = [
+            e for e in ally.casted_effects
+            if isinstance(e.get('effect'), BardicInspirationEffect)
+        ]
         self.assertEqual(len(effects), 1)
         self.assertEqual(effects[0]['die'], '1d6')
+
+    def test_has_casted_effect_with_mixed_casted_effect_formats(self):
+        """Regression: has_casted_effect must handle string and object effect entries."""
+        from natural20.effects.bardic_inspiration_effect import BardicInspirationEffect
+        from natural20.spell.light_spell import LightEffect
+
+        ally = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        self.battle.add(ally, 'a', position=[1, 5])
+
+        action = BardicInspirationAction(self.session, self.bard, 'bardic_inspiration')
+        action.target = ally
+        action.resolve(self.session, None, {'battle': self.battle})
+        self.battle.commit(action)
+
+        ally.casted_effects.append({
+            'effect': LightEffect(self.bard, ally),
+            'target': ally,
+        })
+
+        self.assertTrue(ally.has_casted_effect('light'))
+        self.assertFalse(ally.has_casted_effect('familiar'))
+        self.assertTrue(ally.has_casted_effect('bardic_inspiration'))
+
+    def test_bardic_inspiration_die_at_level_5(self):
+        self.bard.properties['classes'] = {'bard': 5}
+        self.bard.bard_level = 5
+        self.assertEqual(self.bard.bardic_inspiration_die(), '1d8')
 
     def test_long_rest_refills_bardic_inspiration_and_slots(self):
         self.bard.consume_bardic_inspiration(2)

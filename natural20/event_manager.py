@@ -540,6 +540,12 @@ class EventManager:
             'resummon_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} summons {event['familiar'].name}"),
             'dismiss_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} dismisses {event['familiar'].name}"),
             'find_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} creates a familiar {event['familiar'].name}"),
+            'bardic_inspiration': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} inspires {self.show_target_name(event)} with a {event.get('die', '1d6')} Bardic Inspiration die."
+            ),
+            'bardic_inspiration_used': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} uses Bardic Inspiration ({event.get('die', '1d6')}) and adds {event.get('bonus')} (rolled {event.get('roll')})."
+            ),
             'look': look,
             'message': lambda event: self.output_logger.log(f"{self.show_name(event)}: {event['message']}"),
             'narration': self._handle_narration_event,

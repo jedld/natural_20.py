@@ -26,6 +26,26 @@ class AsyncReactionHandler(Exception):
     def __str__(self):
         return f"{self.source} -> {self.reaction_type} on {self.action} by {self.action.source}"
 
+
+class BardicInspirationPrompt(Exception):
+    """Pause resolution so the player can choose whether to spend BI."""
+
+    def __init__(self, entity, die_roll, context, generator):
+        self.entity = entity
+        self.die_roll = die_roll
+        self.context = context
+        self.generator = generator
+
+    def resolve(self):
+        return self.generator
+
+    def send(self, use_die):
+        try:
+            self.generator.send(bool(use_die))
+        except StopIteration as e:
+            return e.value
+        return None
+
 class Action:
     def __init__(self, session, source, action_type, opts=None):
         self.uid = uuid.uuid4()

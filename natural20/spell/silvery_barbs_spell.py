@@ -32,6 +32,9 @@ class SilveryBarbsAdvantageEffect:
         # ``remove_effect`` keys effects by ``id``; use a stable per-instance id.
         self.id = f"silvery_barbs_advantage:{id(self)}"
 
+    def __str__(self):
+        return 'silvery_barbs'
+
     @staticmethod
     def attack_advantage_modifier(entity, opt=None):
         return [['silvery_barbs_advantage'], []]

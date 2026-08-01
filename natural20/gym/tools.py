@@ -1,7 +1,6 @@
 import numpy as np
 from natural20.entity import Entity
 from natural20.player_character import PlayerCharacter
-import pdb
 # from natural20.actions.look_action import LookAction
 # from natural20.actions.stand_action import StandAction
 
@@ -183,10 +182,10 @@ def dndenv_action_to_nat20action(entity, battle, map, available_actions, gym_act
                     return action
             else:
                 return action
-    pdb.set_trace()
-    # No matching action found
-    action_name = simple_actions.get(action_type, f"action type {action_type}")
-    raise ValueError(f"No matching {action_name} action found for gym_action {gym_action}")
+    # The action list can become stale after an internally controlled turn.
+    # Let DndEnv.step apply its normal invalid-action penalty instead of
+    # blocking in an interactive debugger or crashing the episode.
+    return None
 
 def render_object_token(map, pos_x, pos_y):
     object_meta = map.object_at(pos_x, pos_y)

@@ -8,6 +8,13 @@ class ChillTouchSpellUndeadEffect:
         self.source = source
         self.target = target
 
+    @property
+    def id(self):
+        return 'chill_touch'
+
+    def __str__(self):
+        return 'chill_touch'
+
     @staticmethod
     def attack_advantage_modifier(entity, opt=None):
         if opt['target'] == opt['effect'].source:

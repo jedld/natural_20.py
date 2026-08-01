@@ -15,6 +15,9 @@ class MageHandEffect:
     def id(self):
         return 'mage_hand'
 
+    def __str__(self):
+        return 'mage_hand'
+
     def dismiss(self, entity, effect, opts=None):
         if opts is None:
             opts = {}

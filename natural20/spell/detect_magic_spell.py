@@ -19,7 +19,7 @@ class DetectMagicEffect:
         return 'detect_magic'
 
     def __str__(self):
-        return 'Detect Magic'
+        return 'detect_magic'
 
 
 class DetectMagicSpell(Spell):

@@ -44,4 +44,8 @@ class WebController(GenericController):
 
     def select_reaction(self, entity, battle, map, valid_actions, event):
         yield battle , entity, valid_actions
+
+    def prompt_bardic_inspiration(self, entity, battle, context):
+        use_die = yield entity, context
+        return bool(use_die)
     

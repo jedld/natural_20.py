@@ -11,7 +11,10 @@ class SpiritualWeaponEffect:
     @property
     def id(self):
         return 'spiritual_weapon'
-    
+
+    def __str__(self):
+        return 'spiritual_weapon'
+
     def dismiss(self, entity, effect, opts=None):
         if opts is None:
             opts = {}

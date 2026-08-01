@@ -17,7 +17,7 @@ class DarknessEffect:
         return 'darkness'
 
     def __str__(self):
-        return 'Darkness'
+        return 'darkness'
 
     def dismiss(self, entity, effect, opts=None):
         if self.darkness in self.battle_map.entities:

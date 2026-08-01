@@ -46,6 +46,16 @@ class Controller:
         available_actions = self._compute_available_moves(entity, battle)
         # environment, entity = self._build_environment(battle, entity)
         return self.select_action(battle, entity, available_actions)
+
+    def prompt_bardic_inspiration(self, entity, battle, context):
+        """Return True to spend the die, False to hold it. Override for player UX."""
+        from natural20.effects.bardic_inspiration_effect import would_bardic_inspiration_help
+        return would_bardic_inspiration_help(
+            context.get('base_total'),
+            context.get('threshold'),
+            context.get('comparator'),
+            context.get('die'),
+        )
     
     def _compute_available_moves(self, entity, battle):
         self._initialize_battle_data(battle, entity)

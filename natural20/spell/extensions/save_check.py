@@ -71,5 +71,7 @@ class SaveCheck:
                               ability=ability, auto_failed=True)
 
         roll = entity.save_throw(ability, battle, opts)
-        passed = not (roll < dc)
+        from natural20.effects.bardic_inspiration_effect import apply_bardic_inspiration_to_roll
+        roll = apply_bardic_inspiration_to_roll(roll, entity, dc, 'ge', battle=battle)
+        passed = roll.result() >= dc
         return SaveResult(passed=passed, roll=roll, dc=dc, ability=ability)

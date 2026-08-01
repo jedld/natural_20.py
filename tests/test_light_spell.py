@@ -37,6 +37,10 @@ class TestLightSpell(unittest.TestCase):
         self.assertIn('Wizard', spell['spell_list_classes'])
         self.assertEqual(spell['spell_class'], 'Natural20::Light')
 
+    def test_light_effect_icon_slug(self):
+        effect = LightEffect(self.wizard, self.wizard, color='white')
+        self.assertEqual(str(effect), 'light')
+
     def test_loader_resolves_class(self):
         from natural20.utils.spell_loader import load_spell_class
         cls = load_spell_class('LightSpell')
@@ -115,6 +119,15 @@ class TestLightSpell(unittest.TestCase):
         self.wizard.remove_effect('light')
         self.assertFalse(self.wizard.has_effect('light_override'))
         self.assertFalse(self.wizard.has_casted_effect('light'))
+
+    def test_validate_accepts_coordinate_target_for_preview(self):
+        spell = self._make_spell()
+        self.assertTrue(spell.validate(self.battle_map, [0, 5]))
+        self.assertFalse(spell.validate(self.battle_map, [10, 10]))
+
+    def test_validate_uses_entity_target_when_in_range(self):
+        spell = self._make_spell()
+        self.assertTrue(spell.validate(self.battle_map, self.wizard))
 
     # -- hostile target requires DEX save -----------------------------
     def test_hostile_save_success_fizzles_spell(self):

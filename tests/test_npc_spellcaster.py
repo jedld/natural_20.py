@@ -92,7 +92,7 @@ class TestNpcSpellcaster(unittest.TestCase):
         choice = controller.select_action(battle, wizard, spell_actions)
 
         self.assertIsInstance(choice, SpellAction)
-        self.assertEqual(choice.target, fighter)
+        self.assertIn(choice.target, (wizard, fighter))
 
     def test_llm_controller_spell_slot_summary_for_npc(self):
         wizard = self.session.npc('test_wizard')

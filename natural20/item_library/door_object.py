@@ -222,8 +222,10 @@ class DoorObject(Object):
 
             off = offsets.get(self.facing())
             off_opposite = offset_opposite.get(self.facing())
+            if off is None or off_opposite is None:
+                return False
             is_in_range = [(ex, ey) == (dx + off[0], dy + off[1]), (ex, ey) == (dx + off_opposite[0], dy + off_opposite[1])]
-            return any(is_in_range) if off else False
+            return any(is_in_range)
 
         actions = super().available_interactions(entity, battle, admin)
         if entity:

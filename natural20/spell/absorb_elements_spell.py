@@ -16,6 +16,9 @@ class AbsorbElementsMeleeEffect:
         self.dice_count = max(1, int(dice_count or 1))
         self.spell_properties = spell_properties or {}
 
+    def __str__(self):
+        return 'absorb_elements'
+
     def on_attack_hit(self, entity, opts=None):
         opts = opts or {}
         if entity is not self.owner:

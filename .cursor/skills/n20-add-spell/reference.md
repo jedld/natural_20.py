@@ -9,7 +9,7 @@
 | Python | `natural20/spell/<slug>_spell.py` | `Spell` subclass |
 | Loader | `natural20/utils/spell_loader.py` | `import` + `'FooSpell': FooSpell` in `spell_classes` |
 | Tests | `tests/test_<slug>_spell.py` | Engine behavior |
-| Effect icon | `webapp/static/assets/effect/<slug>.png` | 64×64-ish; shown on map tile via `JsonRenderer` → `effects: [str(effect)]` |
+| Effect icon | `webapp/static/assets/effect/<slug>.png` | 64×64-ish; shown on map tile via `JsonRenderer` → `effects: [str(effect)]` — slug must match `Effect.__str__()` (see `scripts/audit_effect_assets.py`) |
 | Cast FX | `webapp/static/spell_effects.js` | `register('<slug>', renderer)` — key must match `spell_action.short_name()` |
 | Persistent FX | `webapp/static/status_effects.js` | `EFFECT_CLASS`, CSS class, optional extra overlay layer |
 | Minify | `npm run build:assets` | After editing `spell_effects.js` or `status_effects.js` |

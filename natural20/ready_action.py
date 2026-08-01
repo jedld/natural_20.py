@@ -87,6 +87,9 @@ class HeldSpellEffect:
     def label(self):
         return self.label_text
 
+    def __str__(self):
+        return 'held_spell'
+
     def __repr__(self):  # pragma: no cover - debug only
         return f"HeldSpellEffect({self.spell_slug} held by {self.owner_uid})"
 

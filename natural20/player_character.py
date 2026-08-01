@@ -630,13 +630,14 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       self._feline_movement_start = entity_state.get('movement', 0)
 
   def _wearing_armor_or_shield(self):
-    if not self.equipped:
+    equipped = self.properties.get('equipped', [])
+    if not equipped:
       return False
     try:
       equipments = self.session.load_all_equipments()
     except FileNotFoundError:
       return False
-    for item_id in self.equipped:
+    for item_id in equipped:
       meta = equipments.get(item_id)
       if not meta:
         continue
@@ -1243,14 +1244,15 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     magic_items = self.session.load_all_magic_items() if hasattr(self.session, 'load_all_magic_items') else {}
     # Merge: magic items override base equipment for same keys
     all_items = {**equipments, **magic_items}
-    equipped_meta = [all_items[e] for e in self.equipped if e in all_items]
+    equipped = self.properties.get('equipped', [])
+    equipped_meta = [all_items[e] for e in equipped if e in all_items]
     # Reverse to prefer last-equipped armor/shield (most recently equipped wins)
     armor = next((equipment for equipment in reversed(equipped_meta) if equipment['type'] == 'armor'), None)
     shield = next((equipment for equipment in reversed(equipped_meta) if equipment['type'] == 'shield'), None)
 
     # Collect magic AC bonus from accessories (Ring of Protection, Cloak of Protection, etc.)
     accessory_ac_bonus = 0
-    for e in self.equipped:
+    for e in equipped:
       item = all_items.get(e)
       if item and item.get('type') == 'accessory' and item.get('magic_bonus', 0):
         accessory_ac_bonus += item.get('magic_bonus', 0)
