@@ -140,7 +140,7 @@ class TestSpellAction(unittest.TestCase):
         self.setupMageArmor()
         self.assertEqual(self.entity.armor_class(), 15)
         self.entity.equip('studded_leather', ignore_inventory=True)
-        self.assertEqual(self.entity.armor_class(), 12)
+        self.assertEqual(self.entity.armor_class(), 14)
 
     def test_chill_touch(self):
         random.seed(1002)
@@ -728,7 +728,7 @@ class TestSpellAction(unittest.TestCase):
         self.assertIsNotNone(mage_hand_tile)
         self.assertEqual(mage_hand.token_image(), 'token_mage_hand.png')
         self.assertEqual(mage_hand_tile.get('entity'), 'token_mage_hand.png')
-        self.assertTrue(os.path.exists('webapp/static/assets/token_mage_hand.png'))
+        self.assertTrue(os.path.exists('n20-webapp/webapp/static/assets/token_mage_hand.png'))
 
 
     def test_protection_from_poison(self):

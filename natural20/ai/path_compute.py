@@ -595,33 +595,33 @@ class PathCompute:
                             continue
                         push(nxt_state, cost + len(seg), state, seg, None, current_map)
     
-                # Expand via teleporters on the current map.
-                for tport, tx, ty in self._iter_teleporters_on(current_map):
-                    if (x, y) == (tx, ty):
-                        seg = [(x, y)]
-                    else:
-                        seg = self._compute_path_on(current_map, x, y, tx, ty,
-                                                    door_navigation=door_navigation)
-                        if seg is None:
-                            continue
-                    next_map = current_map.linked_maps.get(tport.target_map)
-                    if next_map is None:
+            # Expand via teleporters independently of map-stack support.
+            for tport, tx, ty in self._iter_teleporters_on(current_map):
+                if (x, y) == (tx, ty):
+                    seg = [(x, y)]
+                else:
+                    seg = self._compute_path_on(current_map, x, y, tx, ty,
+                                                door_navigation=door_navigation)
+                    if seg is None:
                         continue
-                    maps_by_id.setdefault(id(next_map), next_map)
-                    tpos = tport.target_position
-                    try:
-                        nxt_state = (id(next_map), int(tpos[0]), int(tpos[1]))
-                    except Exception:
+                next_map = current_map.linked_maps.get(tport.target_map)
+                if next_map is None:
                         continue
-                    if nxt_state in visited:
-                        continue
-                    # Infinite loop detection: skip pushes that exceed the threshold.
-                    cnt = push_counts.get(nxt_state, 0) + 1
-                    push_counts[nxt_state] = cnt
-                    if cnt > max_pushes_per_state:
-                        continue
-                    # Cost = current segment length (in tiles); teleport hop free.
-                    push(nxt_state, cost + len(seg), state, seg, tport, current_map)
+                maps_by_id.setdefault(id(next_map), next_map)
+                tpos = tport.target_position
+                try:
+                    nxt_state = (id(next_map), int(tpos[0]), int(tpos[1]))
+                except Exception:
+                    continue
+                if nxt_state in visited:
+                    continue
+                # Infinite loop detection: skip pushes that exceed the threshold.
+                cnt = push_counts.get(nxt_state, 0) + 1
+                push_counts[nxt_state] = cnt
+                if cnt > max_pushes_per_state:
+                    continue
+                # Cost = current segment length (in tiles); teleport hop free.
+                push(nxt_state, cost + len(seg), state, seg, tport, current_map)
 
         return None
 

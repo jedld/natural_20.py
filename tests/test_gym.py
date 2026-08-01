@@ -11,23 +11,30 @@ from natural20.event_manager import EventManager
 # trunk-ignore(ruff/F401)
 from natural20.gym import dndenv
 from natural20.gym.dndenv import GymInternalController
-import pdb
 
 class TestGym(unittest.TestCase):
     def test_reset(self):
-        env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True)
-        observation, info = env.reset(seed=42)
-        # sample a move from info
-        while True:
-            action = random.choice(info["available_moves"])
-            observation, reward, done, truncated, info = env.step(action)
-            assert observation is not None
-            assert reward is not None
-            if done or truncated:
-                break
-        assert env is not None
-        assert info is not None
-        self.assertEqual(observation['player_type'], [3])
+        env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=False)
+        action_rng = random.Random(42)
+        try:
+            observation, info = env.reset(seed=42)
+            # A random policy must terminate no later than the environment's
+            # configured truncation limit. Keep this test bounded even if a
+            # future battle-loop regression stops advancing rounds.
+            for _ in range(env.unwrapped.max_rounds + 1):
+                action = action_rng.choice(info["available_moves"])
+                observation, reward, done, truncated, info = env.step(action)
+                self.assertIsNotNone(observation)
+                self.assertIsNotNone(reward)
+                if done or truncated:
+                    break
+            else:
+                self.fail("Gym episode did not terminate at max_rounds")
+
+            self.assertIsNotNone(info)
+            self.assertEqual(observation['player_type'], [3])
+        finally:
+            env.close()
 
     def test_character_sampling(self):
         def sample_character():
@@ -36,6 +43,7 @@ class TestGym(unittest.TestCase):
 
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True,
                    profiles=sample_character)
+        self.addCleanup(env.close)
         observation, info = env.reset(seed=42)
         self.assertIsNotNone(observation)
         observation, info = env.reset(seed=43)
@@ -45,15 +53,17 @@ class TestGym(unittest.TestCase):
 
     def test_ability_info(self):
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True)
+        self.addCleanup(env.close)
         observation, info = env.reset(seed=42)
         self.assertEqual(observation['ability_info'][0], 0)
-        _, _, main_player, _ = env.players[0]
+        _, _, main_player, _ = env.unwrapped.players[0]
         main_player.second_wind_count = 0
-        observation = env.generate_observation(main_player)
+        observation = env.unwrapped.generate_observation(main_player)
         self.assertEqual(observation['ability_info'][0], 0)
 
     def test_pc_mage_available_actions(self):
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True, profiles=['high_elf_mage.yml'])
+        self.addCleanup(env.close)
 
         _, info = env.reset(seed=42)
         print(info['available_moves'])
@@ -83,6 +93,7 @@ class TestGym(unittest.TestCase):
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True, map_file='battle_sim',
                    custom_initializer=custom_dndenv_initializer,
                    session=session)
+        self.addCleanup(env.close)
         observation, info = env.reset(seed=44)
         self.assertIsNotNone(observation)
         attack_actions = [action for action in info['available_moves'] if action[0] == 0]
@@ -151,6 +162,7 @@ class TestGym(unittest.TestCase):
                    custom_initializer=custom_dndenv_initializer,
                    reaction_callback=reaction_callback,
                    session=session)
+        self.addCleanup(env.close)
         observation, info = env.reset(seed=44)
         print(env.render())
         self.assertIsNotNone(observation)
@@ -160,6 +172,7 @@ class TestGym(unittest.TestCase):
 
     def test_render(self):
         env = make("dndenv-v0", render_mode="ansi", root_path='tests/fixtures', debug=True)
+        self.addCleanup(env.close)
         observation, info = env.reset(seed=42)
         assert observation is not None
         assert info is not None

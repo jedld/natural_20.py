@@ -127,6 +127,15 @@ class GenericController(Controller):
         action = self._sort_actions(entity, battle, valid_actions)[0]
         return action
 
+    def prompt_bardic_inspiration(self, entity, battle, context):
+        from natural20.effects.bardic_inspiration_effect import would_bardic_inspiration_help
+        return would_bardic_inspiration_help(
+            context.get('base_total'),
+            context.get('threshold'),
+            context.get('comparator'),
+            context.get('die'),
+        )
+
     def move_for(self, entity: Entity, battle) -> Optional[Action]:
         # choose available moves at random and return it
         available_actions = self._compute_available_moves(entity, battle)

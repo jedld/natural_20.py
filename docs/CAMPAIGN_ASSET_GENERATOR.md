@@ -168,8 +168,36 @@ python scripts/generate_game_icons.py --campaign user_levels/wild_sheep_chase \
 | `--webp` | Also emit `.webp` siblings (UI still uses `.png` unless templates are updated) |
 | `--only ID` | Limit to one item/spell/action slug (repeatable) |
 | `--item-size` / `--spell-size` / `--action-size` | Resize output (default 128px) |
+| `--audit-effects` | With `--scan-only`, include runtime `*Effect` class slug audit |
+| `--effect-fallback auto\|copy\|placeholder\|mcp\|none` | Effect icon strategy before MCP (default: `auto`) |
 
 Per-entry YAML overrides: `image_prompt` or `icon_prompt` on the item/spell entry.
+
+### Map tile effect icons
+
+Active spell/status effects on tokens load ``assets/effect/<slug>.png`` where
+``slug`` is ``str(effect).lower()`` from Python effect classes. Mismatched
+``__str__`` values (e.g. ``Light (white)``) or missing PNGs cause 404s in the
+browser console.
+
+```bash
+# Audit slugs + missing PNGs (exit 1 on problems — suitable for CI)
+python scripts/audit_effect_assets.py
+
+# Fill gaps without GPU: copy spell_light.png → effect/light.png, else placeholder
+python scripts/audit_effect_assets.py --fix-fallback
+
+# Scan missing icons including effect audit JSON
+python scripts/generate_game_icons.py --root templates --scan-only --audit-effects 2>/dev/null | tail
+
+# Generate remaining effect icons: spell-art copy/placeholder first, then MCP
+python scripts/generate_game_icons.py --root templates --no-items --no-spells --no-actions \
+  --effect-fallback auto --icon-style "flat style icons"
+```
+
+Runtime discovery lives in ``natural20/image_gen/effect_assets.py``; it walks
+``natural20/**/*Effect`` classes, validates tile slugs, and maps fallbacks to
+``webapp/static/spells/spell_<slug>.png`` when available.
 
 Action icons are discovered from `natural20/actions` build literals, attack flavor
 suffixes (`attack_melee`, …), class-feature buttons (`divine_smite`, `wild_shape`, …),

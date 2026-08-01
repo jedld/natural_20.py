@@ -1,6 +1,7 @@
 from natural20.action import Action
 from natural20.entity import Entity
-import pdb; 
+from natural20.spell.find_familiar_spell import FindFamiliarEffect
+
 
 class FindFamiliarAction(Action):
     def __init__(self, session, source, action_type, opts=None):
@@ -39,11 +40,19 @@ class FindFamiliarAction(Action):
         }
 
     @staticmethod
+    def _familiar_effect_entry(entity):
+        for effect_entry in getattr(entity, 'casted_effects', []):
+            effect = effect_entry.get('effect')
+            if isinstance(effect, FindFamiliarEffect):
+                return effect_entry
+        return None
+
+    @staticmethod
     def can(entity: Entity, battle, options=None):
         if battle and not entity.has_action(battle):
             return False
         # Can only dismiss if the entity has a familiar effect
-        return any(effect['effect'].id == 'familiar' for effect in entity.casted_effects)
+        return FindFamiliarAction._familiar_effect_entry(entity) is not None
 
     def resolve(self, session, map, opts=None):
         if opts is None:
@@ -51,7 +60,7 @@ class FindFamiliarAction(Action):
         self.result.clear()
 
         # Find the familiar effect
-        familiar_effect = next((effect for effect in self.source.casted_effects if effect['effect'].id == 'familiar'), None)
+        familiar_effect = FindFamiliarAction._familiar_effect_entry(self.source)
         if not familiar_effect:
             return self
 

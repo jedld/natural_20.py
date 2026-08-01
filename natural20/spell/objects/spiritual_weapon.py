@@ -3,7 +3,6 @@ from natural20.actions.move_action import MoveAction
 from natural20.actions.attack_action import LinkedAttackAction
 from natural20.session import Session
 import uuid
-import pdb
 
 
 class SpiritualWeapon(Entity):
@@ -48,6 +47,9 @@ class SpiritualWeapon(Entity):
 
     def size(self):
         return 'medium'
+
+    def melee_distance(self):
+        return 5
     
     def health_percent(self):
         return 1.0

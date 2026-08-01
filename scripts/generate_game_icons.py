@@ -199,6 +199,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Probe MCP readiness and exit",
     )
+    parser.add_argument(
+        "--audit-effects",
+        action="store_true",
+        help="Include runtime *Effect* class slug audit in --scan-only JSON",
+    )
+    parser.add_argument(
+        "--effect-fallback",
+        choices=("auto", "copy", "placeholder", "mcp", "none"),
+        default="auto",
+        help=(
+            "For effect icons: auto=copy spell art then placeholder before MCP; "
+            "mcp=always use Image Gen MCP; none=skip missing effects"
+        ),
+    )
     return parser
 
 
@@ -264,7 +278,16 @@ def main(argv: list[str] | None = None) -> int:
             }
             for ref in missing
         ]
-        print(json.dumps({"missing": len(payload), "icons": payload}, indent=2))
+        result = {"missing": len(payload), "icons": payload}
+        if args.audit_effects:
+            from natural20.image_gen.effect_assets import (
+                audit_effect_assets,
+                audit_report_as_dict,
+            )
+
+            audit = audit_effect_assets(effect_output_dir=effect_output)
+            result["effect_audit"] = audit_report_as_dict(audit)
+        print(json.dumps(result, indent=2))
         return 0
 
     print(f"Missing icons: {len(missing)} (root={root})", flush=True)
@@ -299,6 +322,7 @@ def main(argv: list[str] | None = None) -> int:
         webp_quality=args.webp_quality,
         include_objects=args.item_objects,
         include_packs=args.item_packs,
+        effect_fallback=args.effect_fallback,
     )
 
     for result in report.results:

@@ -1,77 +1,135 @@
-A Dungeons and Dragons game engine that can be used for AI related research
+# natural_20.py — D&D 5e Game Engine for AI Research
 
-This project provides a complete Gymnasium compatible environment for performing
-AI related research on the Dungeons and Dragons 5th edition RPGs. 
+A Dungeons and Dragons 5th edition game engine that can be used for AI-related research.
 
-# Table of Contents
+This project provides a complete [Gymnasium](https://gymnasium.farama.org/) compatible environment for performing AI research on the Dungeons and Dragons 5th edition RPGs. It includes a full virtual tabletop (VTT) with LLM-powered NPC and DM interactions.
 
-- [Project Title](#project-title)
+## Table of Contents
+
+- [Project Overview](#project-overview)
+- [Repository Structure](#repository-structure)
 - [Disclaimer](#disclaimer)
 - [Features](#features)
+- [Character Classes](#character-classes)
 - [Installation](#installation)
-  - [Installing Gym](#installing-gym)
 - [Quickstart](#quickstart)
 - [Samples](#samples)
-- [Environment and Setup](#environment-and-setup)
+- [Visual Effects](#visual-effects)
 - [Dice Rolls](#dice-rolls)
-  - [DieRoll Class Usage](#dieroll-class-usage)
-    - [Basic Usage](#basic-usage)
-    - [Extracting Individual Die Roll Details](#extracting-individual-die-roll-details)
-- [Setting Up LLM Agents](#setting-up-llm-agents)
-- [Running the interactive Webapp](#running-the-interactive-webapp)
+- [Running the Webapp](#running-the-webapp)
+- [LLM Configuration](#llm-configuration)
+- [LLM NPC Controller (MCP)](#llm-npc-controller-mcp)
 - [Running Tests](#running-tests)
 - [Observation and Action Spaces](#observation-and-action-spaces)
 - [Environment Initialization Options](#environment-initialization-options)
- - [LLM NPC Controller (MCP)](#llm-npc-controller-mcp)
-- [Conversation RAG Reference](docs/CONVERSATION_RAG.md)
-- [Changelog](docs/CHANGELOG_llm_support_merge.md)
+- [Documentation](#documentation)
 
-Disclaimer
-==========
+---
 
-Note that this library is meant as an independent research project for AI research. The developers and researchers in this project is in no way affiliate
-  abilities that are outside the SRD and come from official published sources will be included in this library.
+## Project Overview
 
-Features
-========
+natural_20.py is a complete D&D 5e simulation engine with:
 
-- Simulation of DnD Maps, Line of Sight Computations, Cover
-- Character classes (Fighter, Rogue, Cleric & Mage)
-- Weapons and Spells systems
-- Text-based interface with ability to be used as a backend for web based interfaces.
-- Web-based VTT (virtual tabletop) interface for playing against agents.
+- **Core simulation**: Map rendering, line of sight, cover computation, turn-based battle system
+- **AI research**: Gymnasium-compatible environments for reinforcement learning and LLM agents
+- **Web VTT**: Full-featured virtual tabletop with real-time multiplayer support
+- **LLM Integration**: Multi-provider LLM support (OpenAI, Anthropic, Ollama, llama.cpp) for DM conversations, NPC interactions, and combat decisions
 
+## Repository Structure
 
-Installation
-============
+This repository uses **git submodules** to separate the engine from the VTT and campaign content:
 
-This environment works with Gymnasium
+| Path | Remote | Role |
+|------|--------|------|
+| `natural20/` | — | Core engine (Python package) |
+| `templates/` | — | SRD templates (spells, items, classes, maps) |
+| `n20-webapp/` | `n20-webapp.git` | Flask VTT, static assets, web tests |
+| `user_levels/` | `n20-campaigns.git` | Campaign YAML, maps, assets (audio via Git LFS) |
 
-Installing Gym
---------------
+Clone with submodules:
 
-You can install the Gymnasium library using pip:
-
+```bash
+git clone --recurse-submodules git@github.com:jedld/natural_20.py.git
+cd natural_20.py
+git lfs install
+git -C user_levels lfs pull
+pip install -e .
+pip install -e "./n20-webapp[dev]"
+cd n20-webapp && npm install && cd ..
 ```
- 
-gymnasium
+
+Existing clone:
+
+```bash
+git submodule update --init --recursive
+git -C user_levels lfs pull
 ```
 
-For development you may run the prequisite libraries using:
+For the full repository layout guide, see [docs/REPOSITORY_SPLIT.md](docs/REPOSITORY_SPLIT.md).
 
-```
+## Disclaimer
+
+This library is an independent research project for AI research. The developers and researchers in this project are in no way affiliated with Wizards of the Coast or Hasbro. D&D is a registered trademark of Wizards of the Coast. This project only includes content from the System Reference Document (SRD). Abilities outside the SRD from official published sources may be included for research purposes but are clearly marked.
+
+## Features
+
+- **D&D 5e Simulation**: Complete map system with line of sight, cover computation, and terrain effects
+- **Character Classes**: Fighter, Rogue, Cleric, Mage (Wizard), Paladin, Barbarian, Bard, Druid, Sorcerer, Warlock, Ranger, Monk
+- **Race System**: Dragonborn and other races with racial abilities
+- **Weapons & Spells**: Full SRD weapon and spell systems with customizable AoE effects
+- **Battle System**: Turn-based combat with initiative, legendary actions, opportunity attacks, and rest mechanics
+- **LLM-Powered NPCs**: Multi-provider LLM integration for NPC conversations and combat decisions
+- **Web VTT**: Full-featured virtual tabletop with real-time multiplayer, character builder, and inventory management
+- **Gymnasium Integration**: Ready-to-use reinforcement learning environments
+- **Entity Registry**: Centralized UID-based entity lookup and serialization
+- **Map Stacking**: Multi-level maps with vertical movement and line of sight
+- **Time of Day**: Day/night cycle affecting gameplay
+- **TTS Integration**: Text-to-speech for NPC voices with campaign-specific voice profiles
+
+## Character Classes
+
+| Class | Module | Key Features |
+|-------|--------|-------------|
+| Fighter | `natural20/entity_class/fighter.py` | Action Surge, Second Wind, fighting styles |
+| Rogue | `natural20/entity_class/rogue.py` | Sneak Attack, Cunning Action, Evasion |
+| Cleric | `natural20/entity_class/cleric.py` | Spellcasting, Turn Undead, domain abilities |
+| Wizard | `natural20/entity_class/wizard.py` | Spellbook, Arcane Recovery, ritual casting |
+| Paladin | `natural20/entity_class/paladin.py` | Divine Smite, Lay on Hands, aura abilities |
+| Barbarian | `natural20/entity_class/barbarian.py` | Rage, Reckless Attack, Unarmored Defense |
+| Bard | `natural20/entity_class/bard.py` | Bardic Inspiration, Magical Secrets, spellcasting |
+| Druid | `natural20/entity_class/druid.py` | Wild Shape, spellcasting, druidic lore |
+| Sorcerer | `natural20/entity_class/sorcerer.py` | Sorcery Points, Metamagic, spellcasting |
+| Warlock | `natural20/entity_class/warlock.py` | Eldritch Blast, Pact Magic, Invocations |
+| Ranger | `natural20/entity_class/ranger.py` | Favored Enemy, Spellcasting, Natural Explorer |
+| Monk | `natural20/entity_class/monk.py` | Martial Arts, Flurry of Blows, Step of the Wind |
+
+## Installation
+
+### Prerequisites
+
+- Python 3.10+
+- Node.js 18+ (for webapp JS assets)
+- Git LFS (for campaign audio assets)
+
+### Install Dependencies
+
+```bash
+# Engine only
 pip install -r requirements.txt
+
+# Engine + Webapp (development)
+pip install -e .
+pip install -e "./n20-webapp[dev]"
+cd n20-webapp && npm install && cd ..
 ```
 
-Quickstart
-==========
+## Quickstart
 
-Here is a simple example to get started with gym-dndenv. Below is an example demonstrates how to create the environment for testing battles against LLMs (e.g. GPT-4), reset it for the initial observation, and interact with it using a language model interfacer:
-
+Here is a simple example to get started with the gym environment:
 
 ```python
 from gymnasium import make
-from llm_interface import GPT4Interfacer
+from samples.llm_interface import GPT4Interfacer
 
 MAX_EPISODES = 20
 
@@ -101,53 +159,60 @@ while not terminal and episode < MAX_EPISODES:
         break
 ```
 
-Samples
-=======
+## Samples
 
-Please see the samples directory for more samples. In particular, the notebook at samples/dnd_dqn.ipynb illustrates how to train an agent using Reinforcement Learning against a Rules-based AI (see generic_controller.py)
+Please see the `samples/` directory for more examples:
 
-Visual Effects and Map-defined Point Fires
-=========================================
+| Script | Purpose |
+|--------|---------|
+| `samples/dnd_dqn.ipynb` | Train an RL agent against rules-based AI |
+| `samples/agent_vs_ai.py` | Rules-based AI vs rules-based AI |
+| `samples/llm_vs_ai.py` | LLM vs rules-based AI |
+| `samples/llm_vs_llm.py` | LLM vs LLM battle |
+| `samples/agent_vs_llm.py` | Rules-based AI vs LLM |
+
+DQN training scripts using LLMs:
+
+- `DQN_tests_gpt4o.py` — GPT-4o agent training
+- `DQN_tests_llama.py` — Local Llama agent training
+- `DQN_tests_mistral.py` — Mistral agent training
+
+For local LLM hosting, [VLLM](https://github.com/vllm-project/vllm) is recommended:
+
+```bash
+docker run --runtime=nvidia --gpus all -p 8000:8000 -v ~/.cache/huggingface:/root/.cache/huggingface \
+       -it vllm --model NousResearch/Meta-Llama-3-8B-Instruct --dtype=auto --api-key token1234
+```
+
+## Visual Effects
 
 The web client supports map-wide effects (fog, rain, snow, water) and per-tile fire emitters defined in your map YAML.
 
-Point Fire emitters can be used for candles, bonfires, fireplaces, etc. Define them in your map YAML at the root level:
+### Point Fire Emitters
 
-```
+Point fires are for candles, bonfires, fireplaces, etc. Define them in your map YAML:
+
+```yaml
 point_fires:
   - pos: [x, y]            # required tile coordinates
-    intensity: 0.0..1.0    # optional, default 0.7 (brightness/size)
+    intensity: 0.0..1.0    # optional, default 0.7
     color: "#ffb347"       # optional hex color, default warm amber
-    size_px: 18..48        # optional pixel size of core flame; auto-scales if omitted
+    size_px: 18..48        # optional pixel size; auto-scales if omitted
     speed: 0.5..2.0        # optional flicker speed, default 1.0
-    turbulence: 0.0..1.0   # optional randomness in flicker, default 0.6
-    offset_px: [dx, dy]    # optional pixel offset relative to tile center
+    turbulence: 0.0..1.0   # optional randomness, default 0.6
+    offset_px: [dx, dy]    # optional pixel offset from tile center
 ```
 
-Example:
+### Flame Shapes
 
-```
-point_fires:
-  - pos: [9, 8]
-    intensity: 0.9
-    color: "#ff7a2b"
-    size_px: 40
-  - pos: [2, 3]
-    intensity: 0.3
-    size_px: 18
-
-Shapes
-------
 Use `shape` to control flame characteristics:
 
-- `bonfire` – larger, hotter core and glow
-- `campfire` or `circular` – round campfire glow
-- `candle` – tall, thin flame
-- `fireflies` – a small cluster of flickering fireflies around the point
+- `bonfire` — larger, hotter core and glow
+- `campfire` or `circular` — round campfire glow
+- `candle` — tall, thin flame
+- `fireflies` — cluster of flickering fireflies around the point
 
-Example with shapes:
-
-```
+```yaml
 point_fires:
   - pos: [9, 8]
     shape: bonfire
@@ -163,190 +228,186 @@ point_fires:
     spread_px: 28
     fly_count: 8
 ```
-```
 
 Notes:
-- Point fires are automatically sent to clients on map load/switch based on the YAML; no DM toggle needed.
-- They render relative to the center of the specified tiles and respect Fog of War.
-- They appear under tokens/objects and above the background image.
+- Point fires are automatically sent to clients on map load/switch
+- They render relative to tile centers and respect Fog of War
+- They appear under tokens/objects and above the background image
 
-Performance and Disabling Effects
----------------------------------
-On lower-end machines or mobile, you can disable visual effects:
+### Performance and Disabling Effects
 
-- In the web client, use the small “Effects: On/Off” button at the top-right to toggle.
-- Your preference is saved in the browser (localStorage) under key `vtt.effects.enabled`.
-- When disabled, currently running effects are stopped and future effects are ignored until re-enabled.
+- Toggle with the "Effects: On/Off" button in the web client
+- Preference saved in `localStorage` under key `vtt.effects.enabled`
+- When disabled, running effects stop and future effects are ignored
 
-Environment and Setup
-=====================
+## Environment and Setup
 
-Building of maps and setting up of obstacles and walls can be done by editing the "game" .yml files. The number of possible customizations is extensive. The templates folder contains a directory that comprises the entire setup of the game
-including npcs, races, the player character sheets, maps etc.
+Map building and customization is done through `.yml` files. The `templates/` directory contains a complete game setup including NPCs, races, character sheets, maps, and more.
 
-Dice Rolls
-==========
+Campaign-specific configurations go in `user_levels/<campaign>/`. See [docs/CAMPAIGN_BUILDING.md](docs/CAMPAIGN_BUILDING.md).
 
-Natural20.py comes with a complete Dungeons and Dragons die rolls simulator that you can use for other projects.
+## Dice Rolls
 
-## DieRoll Class Usage
+natural_20.py includes a complete D&D dice roll simulator that can be used standalone.
 
-The `DieRoll` class provides a powerful and flexible way to handle dice rolls within tabletop RPGs and similar games. Below are examples on how to utilize this class effectively in your game sessions. It also parses the same die roll string format presented in DnD books and materials.
+### DieRoll Class Usage
 
-### Basic Usage
+The `DieRoll` class handles dice rolls with advantage/disadvantage, critical hits, and language-aware output.
 
 ```python
 from natural20.die_roll import DieRoll
 
-# Rolling a single d20 die
+# Single d20
 result = DieRoll.roll('1d20').result()
-print("Result of a d20 roll: ", result)
-# Result of a d20 roll:  7
 
-# Rolling two d6 dice with a +2 modifier            
+# Multiple dice with modifier
 result = DieRoll.roll('2d6+2').result()
-print("Result of 2d6 + 2: ", result)
 
+# Advantage / Disadvantage
+adv_roll = DieRoll.roll('1d20', advantage=True)
+dis_roll = DieRoll.roll('1d20', disadvantage=True)
 
-# Rolling with advantage
-advantage_roll = DieRoll.roll('1d20', advantage=True)
-print("Roll with advantage: ", advantage_roll)
-# Roll with advantage:  (5 | 15)
-
-# Rolling with disadvantage
-disadvantage_roll = DieRoll.roll('1d20', disadvantage=True)
-print("Roll with disadvantage: ", disadvantage_roll)
-# Roll with disadvantage:  (15 | 3)
-
-# Critical hit dice rolls e.g. indicated Die are rolled twice
+# Critical hit (double dice)
 critical_roll = DieRoll.roll('1d6', crit=True)
-print("Critical roll (double dice): ", critical_roll)
-# Critical roll (double dice):  (5 + 1)
 
-# Expected value of rolling 1d6 + 2
-expected_value = DieRoll.roll('1d6+2').expected()
-print("Expected value of 1d6 + 2: ", expected_value)
-# Expected value of 1d6 + 2:  5.5
+# Expected value
+expected = DieRoll.roll('1d6+2').expected()
 
-# Probability of rolling at least 10 on 1d20+5
+# Probability
 probability = DieRoll.roll('1d20+5').prob(10)
-print("Probability of rolling at least 10 on 1d20+5: ", round(probability, 2))
-# Probability of rolling at least 10 on 1d20+5:  0.8
-```
 
-These also feature the fact that you are able to        self.assertEqual(self.entity.armor_class(), 12) extract the details of the individual die rolls
-and not just the end result.
-
-### Extracting Individual Die Roll Details
-Get a die roll for 3d6: 
-
-
-# Roll multiple dice
-```python
-print("Get a die roll for 3d6: ")
-multi_die_roll = DieRoll.roll('3d6')
-
-print("Final Result: ", multi_die_roll.result())
-# Final Result:  7
-```
-
-# Access individual rolls
-```python
-individual_rolls = multi_die_roll.rolls
-print("Individual rolls: ", individual_rolls)
-# Individual rolls:  [1, 2, 4]
-```
-
-# Print each die roll from a complex roll with advantage
-```python
+# Complex roll with advantage
 complex_roll = DieRoll.roll('2d20', advantage=True)
 for roll_pair in complex_roll.rolls:
-    print("Roll pair: ", roll_pair, " -> Chosen roll: ", max(roll_pair))
-# Roll pair:  (10, 11)  -> Chosen roll:  11
-```
+    print(f"Roll pair: {roll_pair} -> Chosen: {max(roll_pair)}")
 
-# Using detailed information to check for specific conditions
-```python
+# Check for specific conditions
 contains_max = any(roll == complex_roll.die_sides for roll in complex_roll.rolls)
-print("Contains a roll equal to max die side: ", contains_max)
-# Contains a roll equal to max die side:  False
 ```
 
-Setting Up LLM Agents
-=====================
+## Running the Webapp
 
-The following sample scripts illustrates how to setup LLM vs agent, ai fights:
+### Development Mode
 
-samples/agent_vs_ai.py
-samples/llm_vs_ai.py
-samples/llm_vs_llm.py
-
-There are also training scripts that uses LLMs instead of the built-in AI:
-
-DQN_tests_gpt4o.py
-DQN_tests_llama.py
-DQN_tests_mistral.py
-
-Note that it is recommended to use [VLLM](https://github.com/vllm-project/vllm) to host your local LLMs, OpenAIs gpt4o has better performance but at the cost of being more expensive to run. For OpenAI's gpt4 it goes without saying that you need a subscription to take advantage of API access.
-
-The recommended route to run and setup VLLM is via Docker, below is a sample on how to get started with LLama 3:
+The simplest way to run the webapp is from the repository root:
 
 ```bash
-docker run --runtime=nvidia --gpus all -p 8000:8000 -v ~/.cache/huggingface:/root/.cache/huggingface \
-       -it vllm --model NousResearch/Meta-Llama-3-8B-Instruct --dtype=auto --api-key token1234
+# Defaults to wild_sheep_chase campaign
+./start_web.sh
+
+# Specify a campaign
+./start_web.sh death_house
+./start_web.sh wild_sheep_chase
+./start_web.sh pvp
+
+# Or use the submodule launcher directly
+./n20-webapp/start_web.sh wild_sheep_chase
 ```
 
-LLM Configuration for Web Application
-=====================================
+The dev server runs on port 5001 by default (`http://localhost:5001`).
 
-The web application supports multiple LLM providers that can be configured using environment variables. This allows you to use different AI models for the DM chatbot and NPC conversations.
+### Production Mode (Gunicorn)
+
+```bash
+N20_USE_GUNICORN=1 ./start_web.sh user_levels/death_house
+```
+
+Or standalone:
+
+```bash
+N20_USE_GUNICORN=1 ./n20-webapp/start_web.sh ../user_levels/death_house
+```
+
+### Remote Access via ngrok (in tmux)
+
+1. Create tmux session:
+   ```bash
+   tmux new-session -d -s n20
+   ```
+
+2. Start the webapp in the session:
+   ```bash
+   tmux send-keys -t n20 './start_web.sh death_house' Enter
+   ```
+
+3. Split and start ngrok:
+   ```bash
+   tmux split-window -t n20 -v
+   tmux send-keys -t n20.1 'ngrok http 5001' Enter
+   ```
+
+4. Get the ngrok URL:
+   ```bash
+   tmux capture-pane -t n20.1 -p
+   ```
+
+5. Attach to view:
+   ```bash
+   tmux attach -t n20
+   ```
+
+### Docker
+
+```bash
+cd n20-webapp
+docker build -t n20-webapp .
+docker run --env-file webapp/.env \
+  -e TEMPLATE_DIR=/campaigns/wild_sheep_chase \
+  -v /path/to/user_levels:/campaigns:ro \
+  -p 5001:5001 n20-webapp
+```
+
+### Login Credentials
+
+Login details are defined in each campaign's `index.json`. For the bundled templates, the DM login is `dm/admin`. Character logins are listed in `user_levels/<campaign>/index.json`.
+
+### Webapp Architecture
+
+The webapp uses a Flask Blueprint architecture for modular route organization. See [docs/WEBAPP_BLUEPRINTS.md](docs/WEBAPP_BLUEPRINTS.md) for the full blueprint map and conventions.
+
+## LLM Configuration
+
+The webapp supports multiple LLM providers for the DM chatbot and NPC conversations.
 
 ### Supported Providers
 
-- **OpenAI** (GPT models) - Requires API key
-- **Anthropic** (Claude models) - Requires API key  
-- **llama.cpp** (Local models) - Free, runs locally via OpenAI-compatible server
-- **Ollama** (Local models) - Free, runs locally
-- **Mock** (Testing) - For development/testing
+| Provider | Models | Requirements |
+|----------|--------|-------------|
+| **OpenAI** | GPT-4o, GPT-4, GPT-3.5 | API key |
+| **Anthropic** | Claude 3/3.5 Sonnet | API key |
+| **llama.cpp** | Any GGUF model | Local server (OpenAI-compatible) |
+| **Ollama** | Gemma, Llama, Mistral, etc. | Local Ollama instance |
+| **Mock** | N/A | None (testing only) |
 
 ### Quick Configuration
 
-1. **Copy the example environment file:**
+1. Copy the example environment file:
    ```bash
-   cp webapp/env.example webapp/.env
+   cp n20-webapp/webapp/env.example n20-webapp/webapp/.env
    ```
 
-2. **Edit the `.env` file with your preferred configuration:**
+2. Edit `.env` with your preferred configuration:
    ```bash
-   # For OpenAI
+   # OpenAI
    LLM_PROVIDER=openai
    OPENAI_API_KEY=your_api_key_here
    OPENAI_MODEL=gpt-4o-mini
-   
-  # For llama.cpp (default)
-  LLM_PROVIDER=llama_cpp
-  LLAMA_CPP_BASE_URL=http://localhost:8011
-  LLAMA_CPP_API_KEY=llama-cpp
-  # LLAMA_CPP_MODEL=your-loaded-model-name
 
-  # For Ollama
-  LLM_PROVIDER=ollama
-  OLLAMA_BASE_URL=http://localhost:11434
-  OLLAMA_MODEL=gemma3:27b
+   # llama.cpp (local)
+   LLM_PROVIDER=llama_cpp
+   LLAMA_CPP_BASE_URL=http://localhost:8011
+   LLAMA_CPP_API_KEY=llama-cpp
+
+   # Ollama (local, default)
+   LLM_PROVIDER=ollama
+   OLLAMA_BASE_URL=http://localhost:11434
+   OLLAMA_MODEL=gemma3:27b
    ```
 
-3. **Start the application:**
+3. Start the application:
    ```bash
-   cd webapp
-   ./start_web.sh ../user_levels/wild_sheep_chase
+   ./start_web.sh wild_sheep_chase
    ```
-   `start_web.sh` passes `--exclude-patterns` so autosave/session files under `webapp/saves/` do not restart the dev server. If you use `flask run` directly, add the same flag (see `webapp/env.example`).
-
-### running using gunicorn in production mode
-
-```
-TEMPLATE_DIR=../user_levels/death_house/  gunicorn --worker-class eventlet --workers 1 --bind 0.0.0.0:5001 --timeout 120 app:app
-```
 
 ### Environment Variables
 
@@ -354,48 +415,67 @@ TEMPLATE_DIR=../user_levels/death_house/  gunicorn --worker-class eventlet --wor
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `CORS_ORIGINS` | Comma-separated list of allowed origins | Environment-based | No |
+| `CORS_ORIGINS` | Comma-separated allowed origins | Development-based | No |
 
 **CORS Defaults:**
 - **Development**: `http://localhost:5000`, `http://127.0.0.1:5000`, `http://localhost:5001`, `http://127.0.0.1:5001`
 - **Production**: AWS ALB domain + wildcard (`*`)
 
-**Examples:**
-```bash
-# Custom domains
-export CORS_ORIGINS="https://myapp.com,https://www.myapp.com"
-
-# Allow all origins (use with caution)
-export CORS_ORIGINS="*"
-
-# Mixed protocols
-export CORS_ORIGINS="http://localhost:5000,https://myapp.com"
-```
-
 #### LLM Configuration
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `LLM_PROVIDER` | Provider to use (llama_cpp, openai, anthropic, ollama, mock) | `llama_cpp` | No |
-| `OPENAI_API_KEY` | OpenAI API key | - | Yes (for OpenAI) |
+| `LLM_PROVIDER` | Provider (`ollama`, `openai`, `anthropic`, `llama_cpp`, `mock`) | `ollama` | No |
+| `OPENAI_API_KEY` | OpenAI API key | — | Yes (for OpenAI) |
 | `OPENAI_MODEL` | OpenAI model name | `gpt-4o-mini` | No |
 | `OPENAI_BASE_URL` | Custom OpenAI endpoint | `https://api.openai.com/v1` | No |
-| `ANTHROPIC_API_KEY` | Anthropic API key | - | Yes (for Anthropic) |
+| `ANTHROPIC_API_KEY` | Anthropic API key | — | Yes (for Anthropic) |
 | `ANTHROPIC_MODEL` | Anthropic model name | `claude-3-5-sonnet-20241022` | No |
-| `LLAMA_CPP_BASE_URL` | llama.cpp OpenAI-compatible server URL | `http://localhost:8011` | No |
-| `LLAMA_CPP_MODEL` | llama.cpp model name | first available model | No |
-| `LLAMA_CPP_API_KEY` | llama.cpp API key/header value | `llama-cpp` | No |
+| `LLAMA_CPP_BASE_URL` | llama.cpp server URL | `http://localhost:8011` | No |
+| `LLAMA_CPP_MODEL` | llama.cpp model name | first available | No |
+| `LLAMA_CPP_API_KEY` | llama.cpp API key | `llama-cpp` | No |
 | `OLLAMA_BASE_URL` | Ollama server URL | `http://localhost:11434` | No |
 | `OLLAMA_MODEL` | Ollama model name | `gemma3:27b` | No |
-| `NPC_LLM_COMBAT_ENABLED` | Force NPCs to use the LLM controller during combat regardless of the per-level default controller | `false` | No |
 
-LLM NPC Controller (MCP)
-========================
+#### NPC LLM (Separate Provider for Conversations)
 
-You can drive NPCs with a language model via the built-in LLM controller. This works both in auto battles and manual initiative using the web UI.
+Optional: run a dedicated fast/cheap model for NPC conversations while keeping the DM on a larger model.
 
-- In the initiative window, each entity has a Controller dropdown with: Manual, AI (heuristic), and LLM.
-- To make LLM the default for NPCs added automatically, set this in your level config (`templates/index.json`):
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NPC_LLM_ENABLED` | Enable dedicated NPC LLM | `1` (enabled) |
+| `NPC_LLM_PROVIDER` | Provider (`ollama`, `openai`, `anthropic`, `llama_cpp`, `mock`) | Inherits DM provider |
+| `NPC_MODEL` / `NPC_OLLAMA_MODEL` | NPC model name | Inherits DM model |
+| `NPC_BASE_URL` / `NPC_OLLAMA_BASE_URL` | NPC server URL | Inherits DM URL |
+| `NPC_API_KEY` / `NPC_OLLAMA_API_KEY` | NPC API key | Inherits DM key |
+| `N20_NPC_BACKGROUND_LLM` | Skip NPC LLM for background ticks | `1` (enabled) |
+
+**NPC Context Budget** (auto-compacts conversation history):
+- `N20_NPC_CONTEXT_SIZE` / `N20_LLM_CONTEXT_SIZE` — context window size
+- `N20_LLM_CONTEXT_AUTO_DETECT=1` — auto-detect from provider API
+- `N20_LLM_CONTEXT_SAFETY_MARGIN` — reserved tokens (default: 512)
+- `N20_LLM_CONTEXT_COMPACT_PCT` — compact threshold (default: 85%)
+- `N20_NPC_CONTEXT_KEEP_RECENT_TURNS` — keep recent turns (default: 6)
+
+DM override at runtime: `POST /ai/set-context-window` with `{"context_window": 32768, "target": "npc"}`.
+
+#### MCP Bridge
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `N20_MCP_URL` | External MCP server URL for action selection | — |
+| `N20_MCP_DM_TOKEN` | Shared secret for unauthenticated MCP tool access | — |
+| `N20_LLM_PROMPT_MAX_CHARS` | Max prompt length before truncation | — |
+
+## LLM NPC Controller (MCP)
+
+Drive NPCs with a language model via the built-in LLM controller. Works in both auto battles and manual initiative mode.
+
+### Controller Selection
+
+In the initiative window, each entity has a Controller dropdown: **Manual**, **AI** (heuristic), and **LLM**.
+
+To set LLM as the default for NPCs in a level config (`user_levels/<campaign>/index.json`):
 
 ```json
 {
@@ -403,198 +483,158 @@ You can drive NPCs with a language model via the built-in LLM controller. This w
 }
 ```
 
-- To force all NPCs to use the LLM controller in combat globally, set this environment variable when starting the webapp:
+### Force LLM for All Combat NPCs
 
 ```bash
 export NPC_LLM_COMBAT_ENABLED=true
+./start_web.sh death_house
 ```
 
-This override takes precedence over `npc_default_controller` from `templates/index.json` and over the DM "Default NPC Controller" dropdown for combat controller selection. The dropdown remains visible in the UI, but when the flag is enabled it reflects the forced `llm` value.
+This override takes precedence over `npc_default_controller` from the campaign config.
 
-Example:
+### MCP Action Bridge
 
-```bash
-cd webapp
-LLM_PROVIDER=llama_cpp NPC_LLM_COMBAT_ENABLED=true TEMPLATE_DIR=../user_levels/death_house python -m flask run
-```
-
-Optional: MCP bridge
---------------------
-
-The LLM controller supports an optional MCP-style HTTP tool to choose among enumerated actions. Set this env var for the webapp:
+The LLM controller supports an optional MCP-style HTTP tool for action selection:
 
 ```bash
 export N20_MCP_URL="http://localhost:3000/mcp/choose_action"
 ```
 
-Expected request body:
-
+Request:
 ```json
 { "prompt": "...state and actions...", "n_actions": 7 }
 ```
 
-Expected response:
-
+Response:
 ```json
 { "index": 2 }
 ```
 
-When not configured, the controller tries local LLMs (if configured elsewhere) or falls back to the built-in heuristic safely.
+### MCP Tool Surface
 
-### Docker Configuration
+When `N20_MCP_DM_TOKEN` is set, callers can hit the in-process MCP tool surface at `/mcp/*` with header `X-MCP-Token: <value>`.
 
-When running in Docker, pass environment variables:
+**Tool Catalogue:**
 
-```bash
-docker run -e LLM_PROVIDER=openai \
-           -e OPENAI_API_KEY=your_api_key \
-           -e OPENAI_MODEL=gpt-4o-mini \
-           your-app-image
-```
+| Category | Tools |
+|----------|-------|
+| `tools_world` | `world.list_maps`, `world.get_map`, `world.list_entities`, `world.get_entity`, `world.get_battle`, `world.list_npc_types` |
+| `tools_dm` | `dm.set_hp`, `dm.heal`, `dm.damage`, `dm.add_status`, `dm.remove_status`, `dm.set_property`, `dm.add_item`, `dm.remove_item`, `dm.equipment`, `dm.set_resource`, `dm.award_xp`, `dm.grant_level_up`, `dm.spawn_npc`, `dm.spawn_object`, `dm.remove_entity`, `dm.teleport`, `dm.battle_admin`, `dm.set_controller`, `dm.rest`, `dm.save_load`, `dm.effect`, `dm.sound`, `dm.advance_time`, `dm.map_landmark`, `dm.user_admin` |
+| `tools_actions` | `actions.list_available`, `actions.execute`, `actions.move`, `actions.end_turn`, `actions.start_battle`, `actions.end_battle` |
 
-For detailed configuration options, see [LLM Configuration Guide](webapp/LLM_CONFIGURATION.md).
+For the complete tool catalogue, see [AGENTS.md](AGENTS.md).
 
-Running the interactive Webapp
-==============================
+## Running Tests
 
-A built-in webapp can be used to interact and test the agent. It is a full featured VTT that allows you to play against various types of AI including Reinforcement Learning trained or rules based agents.
-
-To run the webapp in gym mode, navigate to the project root
-
-```
-cd webapp
-TEMPLATE_DIR=../samples/map_with_obstacles python -m flask run
-
-```
-
-A sample battlemap template, is available to get started quickly. You can test it by running:
-
-```
-TEMPLATE_DIR=../templates python -m flask run
-```
-
-A flask app should be running at port 5000 and can be accessed by going pointing your web browser to http://localhost:5000.
-
-Battle is not yet started at this point, so as the player with the DM role, you need to click on "Start Battle" and include the characters that are part of the battle.
-
-Note: Login details of the PCs and DM on this game can be found at templates/index.json, for example the dm login is dm/admin
-
-By default this will open a port 5000 where you can view using the web browser at http://localhost:5000, clicking on this will allow you to login and view the battlemap.
-
-For the list of usernames/passwords you may checkout the natural_20.py/samples/map_with_obstacles/index.json file
-
-![Web Screenshot](./web_screenshot.png)
-
-Running Tests
-=============
-
-Use pytest as the unified test runner:
+### Python Tests
 
 ```bash
+# Run all tests
 pytest
-```
 
-Run specific tests:
-
-```bash
+# Run specific test
 pytest tests/test_gym.py::TestGym::test_reset
-pytest tests/test_map.py::TestMap::test_line_of_sight
-```
 
-Run tests in parallel:
-
-```bash
+# Parallel runs
 pytest -n auto
 ```
 
-Observation and Action Spaces
-=============================
+### JavaScript Tests (webapp/engine.js)
 
-The `dndenv` environment provides a detailed observation space and a flexible action space to interact with the Dungeons and Dragons game.
+```bash
+cd n20-webapp
+npm install --no-audit --no-fund
+npx jest --runInBand --colors
+npm run test:coverage
+```
+
+### Webapp Endpoint Parity Tests
+
+After any webapp route changes, run:
+
+```bash
+python scripts/generate_baseline_artifacts.py
+pytest tests/webapp/test_*_parity.py
+```
+
+### CI
+
+GitHub Actions runs both JS and Python tests on pushes and PRs. JS tests include coverage reporting.
+
+## Observation and Action Spaces
 
 ### Observation Space
 
-The observation space is a dictionary containing the following keys:
+The observation is a dictionary with:
 
-- `map`: A 3D array representing the game map with dimensions `(view_port_size[0], view_port_size[0], 5)`.
-- `turn_info`: A 1D array of shape `(3,)` indicating the turn information.
-- `conditions`: A 1D array of shape `(8,)` representing the conditions affecting the player.
-- `player_ac`: A 1D array of shape `(1,)` representing the player's armor class.
-- `player_equipped`: A 1D array of shape `(5,)` representing the items equipped by the player.
-- `enemy_ac`: A 1D array of shape `(1,)` representing the enemy's armor class.
-- `health_pct`: A 1D array of shape `(1,)` representing the player's health percentage.
-- `health_enemy`: A 1D array of shape `(1,)` representing the enemy's health percentage.
-- `enemy_reactions`: A 1D array of shape `(1,)` representing the enemy's reactions.
-- `enemy_conditions`: A 1D array of shape `(8,)` representing the conditions affecting the enemy.
-- `player_type`: A 1D array of shape `(1,)` representing the player's type.
-- `enemy_type`: A 1D array of shape `(1,)` representing the enemy's type.
-- `ability_info`: A 1D array of shape `(8,)` representing the player's ability information.
-- `movement`: A 1D array of shape `(1,)` representing the player's movement.
-- `spell_slots`: A 1D array of shape `(9,)` representing the player's spell slots.
-- `is_reaction`: A 1D array of shape `(1,)` indicating if the current action is a reaction.
+| Key | Shape | Description |
+|-----|-------|-------------|
+| `map` | `(viewport_size, viewport_size, 5)` | Game map array |
+| `turn_info` | `(3,)` | Turn information |
+| `conditions` | `(8,)` | Player conditions |
+| `player_ac` | `(1,)` | Player armor class |
+| `player_equipped` | `(5,)` | Equipped items |
+| `enemy_ac` | `(1,)` | Enemy armor class |
+| `health_pct` | `(1,)` | Player health percentage |
+| `health_enemy` | `(1,)` | Enemy health percentage |
+| `enemy_reactions` | `(1,)` | Enemy reactions |
+| `enemy_conditions` | `(8,)` | Enemy conditions |
+| `player_type` | `(1,)` | Player type |
+| `enemy_type` | `(1,)` | Enemy type |
+| `ability_info` | `(8,)` | Player abilities |
+| `movement` | `(1,)` | Movement remaining |
+| `spell_slots` | `(9,)` | Spell slots by level |
+| `is_reaction` | `(1,)` | Whether current action is a reaction |
 
 ### Action Space
 
-The action space is a tuple containing the following elements:
+Tuple containing:
 
-- `action_type`: A 1D array of shape `(1,)` representing the type of action to be performed.
-- `target_position`: A 1D array of shape `(2,)` representing the target position for the action.
-- `movement_vector`: A 1D array of shape `(2,)` representing the movement vector.
-- `spell_index`: A discrete value representing the index of the spell to be cast.
-- `item_index`: A discrete value representing the index of the item to be used.
+| Element | Shape | Description |
+|---------|-------|-------------|
+| `action_type` | `(1,)` | Action type identifier |
+| `target_position` | `(2,)` | Target coordinates |
+| `movement_vector` | `(2,)` | Movement direction |
+| `spell_index` | `int` | Spell to cast |
+| `item_index` | `int` | Item to use |
 
-Environment Initialization Options
-==================================
+## Environment Initialization Options
 
-The `dndenv` environment can be initialized with various options to customize the game setup:
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `view_port_size` | int | 12 | Viewport size (12x12) |
+| `max_rounds` | int | — | Max rounds before auto-end |
+| `render_mode` | str | — | Render mode (`ansi`, etc.) |
+| `root_path` | str | — | Campaign root path |
+| `map_file` | str | — | Specific map file |
+| `profiles` | list | — | Hero profiles |
+| `enemies` | list | — | Enemy profiles |
+| `hero_names` | list/lambda | — | Hero name generator |
+| `enemy_names` | list | — | Enemy names |
+| `show_logs` | bool | — | Show battle logs |
+| `custom_controller` | obj | — | Custom AI controller |
+| `custom_agent` | lambda | — | Custom agent function |
+| `custom_initializer` | obj | — | Custom initializer |
+| `control_groups` | list | — | Agent control groups |
+| `damage_based_reward` | bool | — | Damage-based reward function |
+| `event_manager` | obj | — | Custom event manager |
+| `custom_session` | obj | — | Custom session object |
+| `reactions_callback` | func | — | Reaction callback |
 
-- `view_port_size`: The size of the view port for the agent (default is 12x12).
-- `max_rounds`: The maximum number of rounds before the game ends.
-- `render_mode`: The mode to render the game in (e.g., 'ansi').
-- `root_path`: The root path for the game.
-- `map_file`: The file to load the map from.
-- `profiles`: The profiles to load for the heroes.
-- `enemies`: The profiles to load for the enemies.
-- `hero_names`: The names of the heroes, can be a list or a lambda function.
-- `enemy_names`: The names of the enemies.
-- `show_logs`: Whether to show logs.
-- `custom_controller`: A custom controller to use.
-- `custom_agent`: A custom agent to use, can be a lambda function.
-- `custom_initializer`: A custom initializer to use.
-- `control_groups`: The control groups that the agent controls.
-- `damage_based_reward`: Whether to use damage based rewards, -10 * (enemy final hp / enemy initial hp).
-- `event_manager`: An event manager to handle game events.
-- `custom_session`: A custom session to use.
-- `reactions_callback`: A callback function for reactions.
+## Documentation
 
-## JavaScript tests
-
-This repo includes a small Jest suite for `webapp/static/engine.js`.
-
-- Install dev deps (Node 18+ recommended):
-
-  ```bash
-  npm install --no-audit --no-fund
-  ```
-
-- Run tests:
-
-  ```bash
-  npx jest --runInBand --colors
-  ```
-
-- Run with coverage:
-
-  ```bash
-  npm run test:coverage
-  ```
-
-CI
---
-
-This repo includes GitHub Actions workflows for both JS and Python tests:
-
-- JS: runs Jest with coverage on pushes and pull requests. Coverage reports are uploaded as build artifacts.
-- Python: runs the test suite with `pytest` on pushes and pull requests.
-
-The JS tests use a lightweight DOM/jQuery stub to exercise pure functions and the event queue without starting the full UI.
+| Document | Description |
+|----------|-------------|
+| [AGENTS.md](AGENTS.md) | AI agent quick reference and patterns |
+| [docs/CAMPAIGN_BUILDING.md](docs/CAMPAIGN_BUILDING.md) | Campaign creation guide |
+| [docs/CAMPAIGN_ASSET_GENERATOR.md](docs/CAMPAIGN_ASSET_GENERATOR.md) | AI asset generation |
+| [docs/CONVERSATION_RAG.md](docs/CONVERSATION_RAG.md) | NPC RAG conversation system |
+| [docs/DUNGEON_GENERATOR.md](docs/DUNGEON_GENERATOR.md) | Dungeon generation |
+| [docs/MAP_ANNOTATIONS.md](docs/MAP_ANNOTATIONS.md) | Map landmarks and annotations |
+| [docs/MAP_IMAGE_GENERATOR.md](docs/MAP_IMAGE_GENERATOR.md) | Map image generation |
+| [docs/MERCHANT_TRADING.md](docs/MERCHANT_TRADING.md) | Merchant trading system |
+| [docs/PICKPOCKET.md](docs/PICKPOCKET.md) | Pickpocket mechanics |
+| [docs/REPOSITORY_SPLIT.md](docs/REPOSITORY_SPLIT.md) | Repository structure |
+| [docs/WEBAPP_BLUEPRINTS.md](docs/WEBAPP_BLUEPRINTS.md) | Webapp architecture |
+| [docs/CHANGELOG_llm_support_merge.md](docs/CHANGELOG_llm_support_merge.md) | Major merge changelog |
+| [docs/TTS_PROVIDERS.md](docs/TTS_PROVIDERS.md) | Text-to-speech providers |

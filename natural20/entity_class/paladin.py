@@ -37,6 +37,9 @@ class DivineSmiteEffect:
     def __init__(self, owner):
         self.owner = owner
 
+    def __str__(self):
+        return 'divine_smite'
+
     def on_attack_hit(self, entity, opts=None):
         if opts is None:
             opts = {}

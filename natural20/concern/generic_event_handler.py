@@ -69,7 +69,8 @@ class GenericEventHandler:
                 entity_uid = teleport_properties.get('id')
 
                 if entity_uid is None:
-                    entity_uid = opts['source'].entity_uid if 'source' in opts else entity.entity_uid
+                    source = opts.get('source') or entity
+                    entity_uid = source.entity_uid
 
                 target_map_name = teleport_properties.get('map', None)
                 source_map_name = teleport_properties.get('source_map', None)

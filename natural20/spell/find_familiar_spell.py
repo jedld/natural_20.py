@@ -12,6 +12,9 @@ class FindFamiliarEffect:
     def id(self):
         return 'familiar'
 
+    def __str__(self):
+        return 'find_familiar'
+
     def dismiss(self, entity, effect, opts=None):
         if opts is None:
             opts = {}
@@ -121,7 +124,7 @@ class FindFamiliarSpell(Spell):
 
 
             for effect in item['source'].casted_effects:
-                if effect['effect'].id == 'familiar':
+                if isinstance(effect.get('effect'), FindFamiliarEffect):
                     item['source'].remove_effect(effect['effect'])
 
             item['source'].add_casted_effect({

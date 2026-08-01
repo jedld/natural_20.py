@@ -243,12 +243,14 @@ class DieRollResult(int):
             return self._numeric_value(), other_numeric
 
         base_total = self._base_value()
+        die_roll._maybe_apply_bardic_inspiration(base_total, other_numeric, comparator)
         die_roll._maybe_apply_guidance(base_total, other_numeric, comparator)
         left_numeric = die_roll.metadata.get('last_result', self._numeric_value())
 
         if isinstance(other, DieRollResult):
             other_die_roll = getattr(other, "_die_roll", None)
             if other_die_roll:
+                other_die_roll._maybe_apply_bardic_inspiration(other._base_value(), left_numeric, comparator)
                 other_die_roll._maybe_apply_guidance(other._base_value(), left_numeric, comparator)
                 other_numeric = other_die_roll.metadata.get('last_result', other._numeric_value())
 
@@ -396,6 +398,29 @@ class DieRoll(Rollable):
             result = int(result // 2)
 
         return result
+
+    def _maybe_apply_bardic_inspiration(self, base_total, comparison_value, comparator):
+        if not getattr(self, 'metadata', None):
+            return
+        if self.metadata.get('bardic_inspiration_applied'):
+            return
+        if comparison_value is None:
+            return
+
+        entity = self.roller.entity if self.roller else None
+        if entity is None:
+            return
+
+        from natural20.effects.bardic_inspiration_effect import apply_bardic_inspiration_to_roll
+
+        battle = self.roller.battle if self.roller else None
+        apply_bardic_inspiration_to_roll(
+            self,
+            entity,
+            comparison_value,
+            comparator,
+            battle=battle,
+        )
 
     def _maybe_apply_guidance(self, base_total, comparison_value, comparator):
         if not getattr(self, 'metadata', None):

@@ -22,6 +22,10 @@ from natural20.image_gen.prompts import (
     item_icon_prompt,
     spell_icon_prompt,
 )
+from natural20.image_gen.effect_assets import (
+    discover_runtime_effect_refs,
+    materialize_effect_icon,
+)
 from natural20.image_gen.spell_scroll_icons import (
     is_spell_scroll_item,
     render_spell_scroll_icon,
@@ -122,8 +126,11 @@ def default_effect_output_dir() -> Path:
 
 _EFFECT_ICON_TYPES = frozenset({"buff", "debuff", "control", "transmutation", "summon"})
 
-# Non-spell tile effects (engulf, etc.) that still need bundled icons.
-_EXTRA_EFFECT_SLUGS = frozenset({"engulf", "absorb_elements", "mirror_image"})
+# Deprecated: prefer runtime *Effect* class discovery in effect_assets.py.
+# Kept for spell-YAML-only slugs not tied to a Python Effect class.
+_EXTRA_EFFECT_SLUGS = frozenset({
+    "engulf",
+})
 
 
 def spell_needs_effect_icon(meta: dict[str, Any]) -> bool:
@@ -417,6 +424,11 @@ def discover_effect_refs(
                 source="effects",
             )
         )
+    for ref in discover_runtime_effect_refs(effect_output_dir=out_dir):
+        if ref.key in seen:
+            continue
+        seen.add(ref.key)
+        refs.append(ref)
     return refs
 
 
@@ -579,6 +591,8 @@ def generate_game_icons(
     webp: bool = False,
     webp_quality: int = 82,
     spell_output_dir: Path | None = None,
+    effect_output_dir: Path | None = None,
+    effect_fallback: str = "auto",
 ) -> GameIconReport:
     report = GameIconReport(scanned=len(missing), missing=len(missing))
     if not missing:
@@ -611,6 +625,20 @@ def generate_game_icons(
                     AssetJobResult(ref.kind, ref.key, out, skipped=True, reason="exists")
                 )
                 continue
+
+            if ref.kind == "effect" and effect_fallback not in {"", "none", "mcp"}:
+                ok, note = materialize_effect_icon(
+                    ref,
+                    mode=effect_fallback,
+                    spell_output_dir=spell_output_dir,
+                    effect_output_dir=effect_output_dir or out.parent,
+                    size=effect_size,
+                )
+                if ok:
+                    report.results.append(
+                        AssetJobResult(ref.kind, ref.key, out, reason=note)
+                    )
+                    continue
 
             prompt = _prompt_for_ref(ref, icon_style=icon_style, theme=theme)
             if dry_run:
@@ -740,5 +768,6 @@ def run_icon_generation(
         session=session,
         missing=missing,
         spell_output_dir=spell_output_dir,
+        effect_output_dir=effect_output_dir,
         **kwargs,
     )

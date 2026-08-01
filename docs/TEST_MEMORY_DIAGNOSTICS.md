@@ -26,8 +26,23 @@ python scripts/run_tests_with_memory_monitor.py --auto-fix --auto-xfail
 ### Diagnose memory hogs
 
 ```bash
-# Run diagnostic on all tests (safe, isolated subprocesses)
-python scripts/diagnose_memory_hogs.py
+# First, bound the complete run. The report tail identifies the active test if
+# cumulative growth crosses the limit.
+python scripts/diagnose_memory_hogs.py tests --granularity suite --limit-mb 1024 \
+	--report test_memory_profiles/suite.json
+
+# Use a controlled xdist worker count when the serial suite is too slow. RSS
+# still includes the complete worker process tree.
+python scripts/diagnose_memory_hogs.py tests --granularity suite --workers 4 \
+	--limit-mb 1024 --report test_memory_profiles/suite-parallel.json
+
+# Then sweep files in isolated subprocesses (fast and OOM-safe).
+python scripts/diagnose_memory_hogs.py tests --granularity file --limit-mb 1024 \
+	--report test_memory_profiles/files.json
+
+# Finally, isolate every test in the suspect file.
+python scripts/diagnose_memory_hogs.py tests/test_suspect.py --granularity test \
+	--limit-mb 1024 --report test_memory_profiles/suspect.json
 
 # Filter by keyword
 python scripts/diagnose_memory_hogs.py -k "test_spell"
@@ -101,9 +116,13 @@ Identifies memory-hungry tests by running each in isolation:
 | Flag | Description |
 |---|---|
 | `--top <N>` | Show top N consumers (default: 20) |
-| `--limit-mb <N>` | Memory limit per subprocess (default: 4096) |
-| `--batch <N>` | Tests per batch (default: 5) |
+| `--limit-mb <N>` | RSS limit per process tree (default: 1024); a larger emergency virtual-address ceiling (at least 8x the RSS cap) catches runaway allocations without blocking normal thread stack reservations. Address-space failures are reported separately from RSS breaches. |
+| `--batch <N>` | Sequential results per console group (default: 5); diagnostics intentionally avoid parallel memory pressure |
 | `--report <path>` | Save JSON report |
+| `--granularity suite\|file\|test` | Detect cumulative growth, sweep files, or precisely isolate a test |
+| `--workers N` | Run with N pytest-xdist workers while monitoring their combined RSS |
+| `--timeout <seconds>` | Kill the process tree if a test/file stops making progress (default: 120) |
+| `--sample-interval <seconds>` | Process-tree RSS sampling interval (default: 0.1) |
 
 ### `scripts/test_sweep.py`
 

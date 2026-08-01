@@ -195,7 +195,7 @@ class TestInteractAction(unittest.TestCase):
         build = InteractAction.build(self.session, self.entity)
         build = build['next'](self.door)
         self.assertEqual(build['param'], [{'type': 'interact', 'target': self.door }])
-        self.assertEqual(set(self.door.available_interactions(self.entity).keys()),set(['open','investigation_check']))
+        self.assertEqual(set(self.door.available_interactions(self.entity).keys()),set(['open','lock','investigation_check']))
 
         self.assertFalse(self.door.opened())
         build = build['next']('open')
@@ -235,7 +235,7 @@ class TestInteractAction(unittest.TestCase):
     def test_player_item_transfer(self):
         self.entity2 = PlayerCharacter.load(self.session, os.path.join("dwarf_cleric.yml"))
         self.battle_map.place((0, 6), self.entity2, "G")
-        self.assertListEqual([str(s) for s in self.battle_map.objects_near(self.entity, self.battle)], ['Shor Valu', 'front_door', 'chest','Ground'])
+        self.assertListEqual([str(s) for s in self.battle_map.objects_near(self.entity, self.battle)], ['Shor Valu', 'front_door', 'chest','ground'])
         print(MapRenderer(self.battle_map).render())
         self.assertListEqual([str(a) for a in self.entity.available_actions(self.session, self.battle)], ['Hide',
             'Dash',
@@ -253,10 +253,12 @@ class TestInteractAction(unittest.TestCase):
             'Interact(Shor Valu,give)',
             'Interact(front_door,investigation_check)',
             'Interact(front_door,open)',
+            'Interact(front_door,lock)',
             'Interact(chest,open)',
-            'Interact(Ground,pickup_drop)',
+            'Interact(ground,pickup_drop)',
             'Look',
-            'Speak'])
+            'Speak',
+            'Pickpocket'])
 
     def test_looting_unconscious_player_character_transfers_items(self):
         self.entity2 = PlayerCharacter.load(self.session, os.path.join("dwarf_cleric.yml"))
@@ -292,12 +294,13 @@ class TestInteractAction(unittest.TestCase):
 
     def test_autobuild(self):
         self.assertTrue(self.door.closed())
-        self.assertEqual(set(self.door.available_interactions(self.entity).keys()), set(['open', 'investigation_check']))
+        self.assertEqual(set(self.door.available_interactions(self.entity).keys()), set(['open', 'lock', 'investigation_check']))
         action_list = autobuild(self.session, InteractAction, self.entity, self.battle)
         self.assertEqual([str(item) for item in action_list], ['Interact(front_door,investigation_check)',
             'Interact(front_door,open)',
+            'Interact(front_door,lock)',
             'Interact(chest,open)',
-            'Interact(Ground,pickup_drop)'])
+            'Interact(ground,pickup_drop)'])
 
     def test_failed_lockpick_logs_roll_for_cabinet(self):
         logger = ListLogger()

@@ -27,6 +27,8 @@ See **`docs/WEBAPP_BLUEPRINTS.md`** for the full architecture guide (blueprint m
 | `character` | `blueprints/character.py` | `/character_builder/*`, journal CRUD |
 | `battle` | `blueprints/battle.py` | `/start`, `/action`, `/target`, `/actions`, combat log, turn order |
 | `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, `/available_objects`, inventory, `/rest`, audio |
+| `edit` | `blueprints/edit.py` | `/edit/*` — campaign map edit mode, drag-and-drop authoring, terrain/layer placement |
+| `merchant` | `blueprints/merchant.py` | `/merchant` — NPC merchant trading with discount and session management |
 | SocketIO | `blueprints/socketio_handlers.py` | `connect`, `register`, `message`, `disconnect`, `request_effects` |
 | *(conversation)* | `helpers/conversation_wiring.py` + `conversation_service.py` | `/talk` (registered at bootstrap, not a blueprint) |
 

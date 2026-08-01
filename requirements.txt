@@ -10,6 +10,7 @@ requests>=2.31.0
 httpx>=0.27.0
 openpyxl
 pytest
+psutil>=5.9
 termcolor
 prompt_toolkit
 lark

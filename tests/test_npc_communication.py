@@ -30,7 +30,7 @@ def battle_with_npcs(session):
 
     battle.add(npc_a, 'b', position=(2, 2), token='g')
     battle.add(npc_b, 'b', position=(3, 2), token='G')
-    battle.add(fighter, 'a', position=(4, 2), token='F')
+    battle.add(fighter, 'a', position=(4, 3), token='F')
 
     npc_a.reset_turn(battle)
     npc_b.reset_turn(battle)

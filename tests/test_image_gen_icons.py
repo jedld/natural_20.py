@@ -9,6 +9,14 @@ import pytest
 from PIL import Image
 
 from natural20.image_gen.campaign_assets import AssetJobResult
+from natural20.image_gen.effect_assets import (
+    audit_effect_assets,
+    discover_runtime_effect_refs,
+    is_valid_effect_slug,
+    materialize_effect_icon,
+    resolve_effect_tile_slug,
+    scan_effect_classes,
+)
 from natural20.image_gen.game_icons import (
     collect_action_icon_slugs,
     discover_effect_refs,
@@ -360,3 +368,112 @@ def test_generate_game_icons_uses_spell_scroll_compositor(tmp_path: Path):
     assert calls == []
     assert refs[0].output_path.is_file()
     assert report.results[0].reason == "spell-scroll-composite"
+
+
+def test_is_valid_effect_slug_rejects_human_readable_labels():
+    assert is_valid_effect_slug("light")
+    assert is_valid_effect_slug("detect_magic")
+    assert not is_valid_effect_slug("light (white)")
+    assert not is_valid_effect_slug("detect magic")
+    assert not is_valid_effect_slug("<object at 0x1>")
+
+
+def test_light_effect_class_resolves_tile_slug():
+    from natural20.spell.light_spell import LightEffect
+
+    slug, source = resolve_effect_tile_slug(LightEffect)
+    assert slug == "light"
+    assert source == "__str__"
+
+
+def test_discover_runtime_effect_refs_includes_light(tmp_path: Path):
+    effect_dir = tmp_path / "effects"
+    effect_dir.mkdir()
+    refs = discover_runtime_effect_refs(effect_output_dir=effect_dir)
+    slugs = {ref.key for ref in refs}
+    assert "light" in slugs
+
+
+def test_materialize_effect_icon_copies_spell_art(tmp_path: Path):
+    spell_dir = tmp_path / "spells"
+    effect_dir = tmp_path / "effects"
+    spell_dir.mkdir()
+    effect_dir.mkdir()
+    spell_icon = spell_dir / "spell_light.png"
+    Image.new("RGB", (64, 64), (255, 240, 120)).save(spell_icon, format="PNG")
+
+    refs = discover_runtime_effect_refs(effect_output_dir=effect_dir)
+    light_ref = next(ref for ref in refs if ref.key == "light")
+    ok, note = materialize_effect_icon(
+        light_ref,
+        mode="copy",
+        spell_output_dir=spell_dir,
+        effect_output_dir=effect_dir,
+    )
+    assert ok
+    assert note.startswith("copied:")
+    assert light_ref.output_path.is_file()
+
+
+def test_materialize_effect_icon_placeholder(tmp_path: Path):
+    effect_dir = tmp_path / "effects"
+    effect_dir.mkdir()
+    refs = discover_runtime_effect_refs(effect_output_dir=effect_dir)
+    stench_ref = next(ref for ref in refs if ref.key == "stench")
+    ok, note = materialize_effect_icon(
+        stench_ref,
+        mode="placeholder",
+        effect_output_dir=effect_dir,
+    )
+    assert ok
+    assert note == "placeholder"
+    assert stench_ref.output_path.is_file()
+
+
+def test_generate_game_icons_effect_fallback_skips_mcp(tmp_path: Path):
+    session = Session(root_path="templates", event_manager=EventManager())
+    spell_dir = tmp_path / "spells"
+    effect_dir = tmp_path / "effects"
+    spell_dir.mkdir()
+    effect_dir.mkdir()
+    Image.new("RGB", (64, 64), (255, 255, 200)).save(
+        spell_dir / "spell_light.png",
+        format="PNG",
+    )
+
+    refs = [
+        ref
+        for ref in discover_runtime_effect_refs(effect_output_dir=effect_dir)
+        if ref.key == "light"
+    ]
+    assert len(refs) == 1
+
+    calls: list[dict] = []
+
+    def fake_generate(**kwargs):
+        calls.append(kwargs)
+        return GeneratedImage(image=_solid(256), summary="ok")
+
+    report = generate_game_icons(
+        session=session,
+        missing=refs,
+        generator=fake_generate,
+        effect_fallback="auto",
+        spell_output_dir=spell_dir,
+        effect_output_dir=effect_dir,
+        effect_size=64,
+        optimize=False,
+        force=True,
+    )
+    assert calls == []
+    assert not report.errors
+    assert refs[0].output_path.is_file()
+    assert report.results[0].reason.startswith("copied:")
+
+
+def test_bundled_effect_audit_passes_for_light_icon():
+    audit = audit_effect_assets()
+    slugs = {info.slug: info for info in audit.effects}
+    assert "light" in slugs
+    assert slugs["light"].asset_exists
+    assert not slugs["light"].issues
