@@ -1,11 +1,13 @@
 import unittest
 import random
+from unittest import mock
 from natural20.session import Session
 from natural20.battle import Battle
 from natural20.player_character import PlayerCharacter
 from natural20.event_manager import EventManager
 from natural20.map import Map
 from natural20.actions.attack_action import AttackAction, TwoWeaponAttackAction
+from natural20.die_roll import DieRoll
 from natural20.map_renderer import MapRenderer
 from natural20.utils.ac_utils import calculate_cover_ac
 from natural20.weapons import compute_advantages_and_disadvantages
@@ -47,6 +49,33 @@ class TestAttackAction(unittest.TestCase):
         self.assertEqual(ptr.target, npc)
         self.assertEqual(ptr.source, character)
         self.assertEqual(ptr.using, 'vicious_rapier')
+
+    def test_battle_action_attack_roll_uses_roll_with_lucky_signature(self):
+        """Regression: battle.action(attack) must not pass entity= to roll_with_lucky."""
+        session = self.make_session()
+        battle_map = Map(session, 'battle_sim')
+        battle = Battle(session, battle_map)
+        character = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        npc = session.npc('goblin')
+
+        battle.add(character, 'a', position='spawn_point_1', token='G')
+        battle.add(npc, 'b', position='spawn_point_2', token='g')
+        battle.start()
+        battle_map.move_to(character, 0, 0, battle)
+        battle_map.move_to(npc, 1, 0, battle)
+        character.reset_turn(battle)
+
+        action = autobuild(session, AttackAction, character, battle, match=[npc, 'vicious_rapier'])[0]
+
+        with mock.patch.object(DieRoll, 'roll_with_lucky', wraps=DieRoll.roll_with_lucky) as roll_with_lucky:
+            battle.action(action)
+            roll_with_lucky.assert_called_once()
+            args, kwargs = roll_with_lucky.call_args
+            self.assertIs(args[0], character)
+            self.assertNotIn('entity', kwargs)
+
+        self.assertIsNotNone(action.attack_roll)
+        self.assertTrue(action.attack_roll.metadata.get('is_attack_roll'))
 
     def test_two_weapon_fighting(self):
         session = self.make_session()

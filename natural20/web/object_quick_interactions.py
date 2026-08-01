@@ -554,6 +554,45 @@ def _object_loot_quick_actions(obj: Object, pov_entity, battle=None, admin: bool
     return [entry] if entry else []
 
 
+def _perception_capable(entity) -> bool:
+    return callable(getattr(entity, 'perception_check', None))
+
+
+def pov_self_quick_interact_anchor(map_obj, entity) -> str | None:
+    """Place the POV perception button toward the map interior for visibility."""
+    if map_obj is None or entity is None:
+        return None
+    try:
+        _x, y = map_obj.position_of(entity)
+        _w, height = map_obj.size
+    except (ValueError, KeyError, TypeError):
+        return 'top'
+    if height <= 1:
+        return 'bottom'
+    return 'bottom' if y < (height / 2) else 'top'
+
+
+def pov_self_quick_interact_actions_for(
+    entity,
+    battle=None,
+    map_obj=None,
+) -> List[Dict[str, Any]]:
+    """Hover quick action for the POV character to roll Perception on their own token."""
+    if entity is None or not _perception_capable(entity):
+        return []
+    if map_obj is not None and not _entity_on_map(map_obj, entity):
+        return []
+
+    return [{
+        'action': 'perception_check',
+        'kind': 'pov_perception',
+        'label': 'action.look',
+        'image': 'look',
+        'show_label': False,
+        'disabled': False,
+    }]
+
+
 def entity_quick_interact_actions_for(
     entity,
     pov_entity,

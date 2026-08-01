@@ -1,4 +1,5 @@
 from natural20.action import Action
+from natural20.utils.target_validation import clear_validation, has_validation_failures
 import pdb
 class ShoveAction(Action):
     def __init__(self, session, source, action_type):
@@ -11,15 +12,16 @@ class ShoveAction(Action):
         return battle is None or entity.total_actions(battle) > 0
 
     def validate(self, battle_map, target=None):
+        clear_validation(self)
         if target is None:
             target = self.target
 
-        errors = []
         if target is None:
-            errors.append("target is a required option for :attack")
+            self.add_validation_issue("validation.targeting.required")
+            return not has_validation_failures(self)
         if (target.size_identifier() - self.source.size_identifier()) > 1:
-            errors.append("validation.shove.invalid_target_size")
-        return errors
+            self.add_validation_issue("validation.shove.invalid_target_size")
+        return not has_validation_failures(self)
 
     def __str__(self):
         return str(self.action_type).capitalize()

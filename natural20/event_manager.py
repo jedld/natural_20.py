@@ -525,6 +525,16 @@ class EventManager:
             'detect_magic': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} senses magic within {event.get('range_ft', 30)} feet."
             ),
+            'silvery_barbs_reroll': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts {event.get('spell_label', 'Silvery Barbs')} on "
+                f"{self.decorate_name(event['target'])}: forces a reroll "
+                f"({event.get('old_roll')} → {event.get('new_roll')}"
+                f"{', using the lower result' if event.get('replaced') else ', keeping the lower original result'})."
+            ),
+            'silvery_barbs_advantage': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} grants advantage on the next roll to "
+                f"{self.show_target_name(event)} ({event.get('spell_label', 'Silvery Barbs')})."
+            ),
             'spell_buf': lambda event: self.output_logger.log(f"{self.show_name(event)} cast {event['spell'].name if hasattr(event['spell'], 'name') else event['spell']} on {self.show_target_name(event)}"),
             'spell_debuff': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} cast {event['spell'].label() if hasattr(event.get('spell'), 'label') else (event['spell'].name if hasattr(event.get('spell'), 'name') else event.get('spell'))} on {self.show_target_name(event)}"

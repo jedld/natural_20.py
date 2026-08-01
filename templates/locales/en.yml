@@ -394,6 +394,18 @@ en:
   tpk: The entire party has fallen. Game Over!
   unequip: Unequip
   validation:
+    targeting:
+      required: A target is required.
+      self: You cannot target yourself.
+      deafened: The target cannot hear you.
+      not_ally: The target must be an ally.
+      not_enemy: The target must be an enemy.
+      different_map: The target is on a different map.
+      unavailable: The target is not available.
+      out_of_range: Target is out of range (%{distance_ft} ft; max %{range_ft} ft).
+      invalid_position: Invalid target location.
+      occupied: The target square must be empty.
+      not_visible: The target is not visible.
     shove:
       invalid_target_size: The target must be no more than one size larger than you
   waive_opportunity_attack: Waive Opportunity Attack

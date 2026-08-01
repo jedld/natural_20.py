@@ -100,6 +100,12 @@ class TestDieRoll(unittest.TestCase):
     self.assertEqual(str(roll), 'd20(1* | 13) lucky -> d20(12* | 13)')
     self.assertEqual(roll.description, '(lucky) None [(1, 13)] -> [(12, 13)]')
 
+  def test_roll_with_lucky_rejects_duplicate_entity_keyword(self):
+    session = Session(root_path='tests/fixtures')
+    player = PlayerCharacter.load(session, 'halfling_rogue.yml')
+    with self.assertRaises(TypeError):
+      DieRoll.roll_with_lucky(player, '1d20', entity=player)
+
   def test_nat_1_only_on_d20(self):
     # Test that a 1 on a d6 is not considered a natural 1
     DieRoll.fudge(1, 6)

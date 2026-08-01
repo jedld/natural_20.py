@@ -159,12 +159,14 @@ class SpellAction(Action):
 
         return True
 
-    def validate(self, battle_map, target=None):
+    def validate(self, battle_map, target=None, battle=None):
         if target is None:
             target = self.target
 
-        self.spell_action.validate(battle_map, target)
-        self.errors = self.spell_action.errors
+        self.clear_validation_errors()
+        self.spell_action.validate(battle_map, target, battle=battle)
+        self.errors = list(self.spell_action.errors)
+        self.validation_issues = list(getattr(self.spell_action, 'validation_issues', []))
 
     @staticmethod
     def build(session, source):
