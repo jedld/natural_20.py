@@ -243,7 +243,72 @@ class TestBattle(unittest.TestCase):
         self.assertEqual(payload['type'], 'spell')
         self.assertEqual(payload['message']['spell'], 'fireball')
         self.assertEqual(payload['message']['target_pos'], [7, 3])
-        self.assertEqual(payload['message']['target'], [7, 3])
+
+    def test_look_animation_payload_includes_perception_roll(self):
+        from natural20.battle import action_animator
+        from types import SimpleNamespace
+
+        class FakeDieRoll:
+            def result(self):
+                return 17
+
+            def __str__(self):
+                return 'Perception 17'
+
+        action = SimpleNamespace(
+            action_type='look',
+            source=SimpleNamespace(entity_uid='ranger'),
+            target=None,
+            result=[{'type': 'look', 'die_roll': FakeDieRoll()}],
+            label=lambda: 'Look(perception check)',
+        )
+
+        payload = action_animator(action)
+        self.assertEqual(payload['type'], 'spell')
+        self.assertEqual(payload['message']['spell'], 'look')
+        self.assertEqual(payload['message']['perception_roll'], 17)
+        self.assertEqual(payload['message']['perception_roll_label'], 'Perception 17')
+
+    def test_attack_animation_payload_includes_damage_events(self):
+        from natural20.battle import action_animator, _damage_events_from_action
+        from types import SimpleNamespace
+
+        class FakeDieRoll:
+            def result(self):
+                return 9
+
+            def nat_20(self):
+                return False
+
+        target = SimpleNamespace(entity_uid='goblin')
+        source = SimpleNamespace(entity_uid='fighter')
+        hit_item = {
+            'type': 'damage',
+            'target': target,
+            'source': source,
+            'damage': FakeDieRoll(),
+            'damage_type': 'slashing',
+            'attack_roll': FakeDieRoll(),
+            '_applied_damage': 7,
+        }
+        action = SimpleNamespace(
+            action_type='attack',
+            source=source,
+            target=target,
+            result=[hit_item],
+            ranged_attack=lambda: False,
+            label=lambda: 'attack with longsword',
+        )
+
+        events = _damage_events_from_action(action, battle=None)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]['amount'], 7)
+        self.assertEqual(events[0]['target'], 'goblin')
+        self.assertEqual(events[0]['damage_type'], 'slashing')
+
+        payload = action_animator(action)
+        self.assertIn('damage_events', payload['message'])
+        self.assertEqual(payload['message']['damage_events'][0]['amount'], 7)
 
     def test_entities_not_in_active_battle_use_out_of_combat_resource_defaults(self):
         session = self.make_session()

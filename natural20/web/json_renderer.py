@@ -8,6 +8,8 @@ from natural20.web.object_quick_interactions import (
     door_quick_interact_anchor,
     entity_quick_interact_actions_for,
     object_quick_interact_anchor,
+    pov_self_quick_interact_actions_for,
+    pov_self_quick_interact_anchor,
     quick_interact_actions_for,
     quick_interact_layout_for,
 )
@@ -595,7 +597,25 @@ class JsonRenderer:
                                 )),
                                 entity_pov[0],
                             )
-                            if pov_for_interact and getattr(entity, 'entity_uid', None) != getattr(
+                            if pov_for_interact and getattr(entity, 'entity_uid', None) == getattr(
+                                pov_for_interact, 'entity_uid', None,
+                            ):
+                                pov_self_quick = pov_self_quick_interact_actions_for(
+                                    entity,
+                                    self.battle,
+                                    map_obj=self.map,
+                                )
+                                if pov_self_quick:
+                                    session = getattr(self.map, 'session', None)
+                                    if session is not None:
+                                        pov_self_quick = localize_quick_interact_actions(
+                                            pov_self_quick, session,
+                                        )
+                                    attributes['pov_self_quick_interact'] = pov_self_quick
+                                    anchor = pov_self_quick_interact_anchor(self.map, entity)
+                                    if anchor:
+                                        attributes['pov_self_quick_interact_anchor'] = anchor
+                            elif pov_for_interact and getattr(entity, 'entity_uid', None) != getattr(
                                 pov_for_interact, 'entity_uid', None,
                             ):
                                 entity_quick = entity_quick_interact_actions_for(

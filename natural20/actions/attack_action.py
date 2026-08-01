@@ -426,8 +426,7 @@ class AttackAction(Action):
 
             if self.attack_roll is None:
                 self.attack_roll = DieRoll.roll_with_lucky(self.source, f"1d20+{attack_mod}", disadvantage=self.with_disadvantage(),
-                                            advantage=self.with_advantage(), description='dice_roll.attack', battle=battle,
-                                            entity=self.source)
+                                            advantage=self.with_advantage(), description='dice_roll.attack', battle=battle)
                 if not hasattr(self.attack_roll, 'metadata'):
                     self.attack_roll.metadata = {}
                 self.attack_roll.metadata['is_attack_roll'] = True

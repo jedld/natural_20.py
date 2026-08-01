@@ -1,3 +1,9 @@
+from natural20.utils.target_validation import (
+    add_validation_issue,
+    clear_validation,
+    extend_validation_issues,
+    has_validation_failures,
+)
 import inflect
 import i18n
 import uuid
@@ -55,6 +61,7 @@ class Action:
         self.as_bonus_action = False
         self.async_reactions = {}
         self.errors = []
+        self.validation_issues = []
         self.result = []
         self.committed = False
         self.disabled = False
@@ -111,8 +118,20 @@ class Action:
             return "actions"
         return p.plural(self.action_type)
 
-    def validate(self, battle_map, target=None):
-        pass
+    def validate(self, battle_map, target=None, battle=None):
+        clear_validation(self)
+
+    def clear_validation_errors(self):
+        clear_validation(self)
+
+    def add_validation_issue(self, entry, /, **params):
+        add_validation_issue(self, entry, **params)
+
+    def extend_validation_issues(self, issues):
+        extend_validation_issues(self, issues)
+
+    def validation_failed(self) -> bool:
+        return has_validation_failures(self)
 
     def button_label(self):
         return None

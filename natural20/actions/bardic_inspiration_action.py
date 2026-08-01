@@ -10,8 +10,12 @@ from natural20.action import Action
 from natural20.effects.bardic_inspiration_effect import (
     BARDIC_INSPIRATION_DURATION_SECONDS,
     BardicInspirationEffect,
-    find_bardic_inspiration_entry,
     remove_bardic_inspiration_die,
+)
+from natural20.utils.target_validation import (
+    evaluate_bardic_inspiration_target,
+    has_validation_failures,
+    resolve_battle_for_validation,
 )
 
 
@@ -28,23 +32,12 @@ class BardicInspirationAction(Action):
         return 'BardicInspiration'
 
     @staticmethod
+    def evaluate_target(entity, target, battle):
+        return evaluate_bardic_inspiration_target(entity, target, battle)
+
+    @staticmethod
     def _can_target(entity, target, battle):
-        if target is None or target == entity:
-            return False
-        if getattr(target, 'deafened', None) and target.deafened():
-            return False
-        if battle is None:
-            return True
-        if not battle.allies(entity, target):
-            return False
-        target_map = battle.map_for(target)
-        caster_map = battle.map_for(entity)
-        if target_map is None or caster_map is None:
-            return False
-        if target_map is not caster_map:
-            return False
-        distance_ft = target_map.distance(target, entity) * target_map.feet_per_grid
-        return distance_ft <= 60
+        return not evaluate_bardic_inspiration_target(entity, target, battle)
 
     @staticmethod
     def can(entity, battle, options=None):
@@ -78,18 +71,19 @@ class BardicInspirationAction(Action):
             "next": set_target,
         }
 
-    def validate(self, battle_map, target=None):
-        self.errors = []
+    def validate(self, battle_map, target=None, battle=None):
+        self.clear_validation_errors()
         chosen = target if target is not None else self.target
-        battle = battle_map.battle if battle_map and hasattr(battle_map, 'battle') else None
-        if chosen is not None and not BardicInspirationAction._can_target(self.source, chosen, battle):
-            self.errors.append('Invalid Bardic Inspiration target')
-        return len(self.errors) == 0
+        battle = resolve_battle_for_validation(battle_map, self.source, battle)
+        self.extend_validation_issues(
+            self.evaluate_target(self.source, chosen, battle),
+        )
+        return not has_validation_failures(self)
 
     def resolve(self, _session, _map, opts=None):
         opts = opts or {}
         battle = opts.get('battle')
-        if not BardicInspirationAction._can_target(self.source, self.target, battle):
+        if not self._can_target(self.source, self.target, battle):
             self.result = []
             return self
         die = getattr(self.source, 'bardic_inspiration_die', lambda: '1d6')()

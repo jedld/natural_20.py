@@ -643,6 +643,13 @@ class Entity(EntityStateEvaluator, Notable):
 
             self.help_actions.clear()
 
+            if self.has_effect('ability_check_advantage_modifier'):
+                check_adv, check_dis = self.eval_effect(
+                    'ability_check_advantage_modifier', {'value': [[], []]},
+                )
+                advantage_modifiers.extend(check_adv or [])
+                disavantage_modifiers.extend(check_dis or [])
+
             advantage = len(advantage_modifiers) > 0
             disadvantage = len(disavantage_modifiers) > 0
 
@@ -673,6 +680,14 @@ class Entity(EntityStateEvaluator, Notable):
             roll.metadata['skill'] = skill
             roll.metadata['is_ability_check'] = True
             roll.metadata['roll_kind'] = 'ability_check'
+            hook_results = self.resolve_trigger(
+                'ability_check_resolved',
+                {'roll': roll, 'skill': skill, 'battle': battle},
+            )
+            if hook_results:
+                for hook_event in hook_results:
+                    if hook_event.get('type') == 'dismiss_effect':
+                        self.dismiss_effect(hook_event['effect'])
             return roll
         return skill_check
 
@@ -2691,6 +2706,13 @@ class Entity(EntityStateEvaluator, Notable):
         if frightened_check and self.class_feature('fearless'):
             advantages.append('fearless')
 
+        if self.has_effect('save_advantage_modifier'):
+            save_adv, save_dis = self.eval_effect(
+                'save_advantage_modifier', {'value': [[], []]},
+            )
+            advantages.extend(save_adv or [])
+            disadvantages.extend(save_dis or [])
+
         has_advantage = len(advantages) > 0
         has_disadvantage = len(disadvantages) > 0
         advantage_str = ",".join(advantages) if len(advantages) > 0 else ""
@@ -2755,6 +2777,15 @@ class Entity(EntityStateEvaluator, Notable):
                 save_roll += DieRoll.roll(f"{sign}{iv}",
                                           description=f"save_modifier:{entry.get('source')}",
                                           entity=self, battle=battle)
+
+        hook_results = self.resolve_trigger(
+            'save_resolved',
+            {'save_roll': save_roll, 'save_type': save_type, 'battle': battle},
+        )
+        if hook_results:
+            for hook_event in hook_results:
+                if hook_event.get('type') == 'dismiss_effect':
+                    self.dismiss_effect(hook_event['effect'])
 
         return save_roll
 
@@ -3190,6 +3221,9 @@ class Entity(EntityStateEvaluator, Notable):
 
         if self.hp() <= 0:
             self.attributes["hp"] = 0
+
+        if item is not None:
+            item['_applied_damage'] = total_damage
 
         session.event_manager.received_event({'source': self, 'event': 'damage', 'total_damage': total_damage, 'damage_threshold_active': damage_threshold_active, 'value': dmg, 'damage_type': damage_type, 'roll_info': roll_info, 'instant_death': instant_death, 'sneak_attack': sneak_attack, 'temp_hp_absorbed': temp_hp_absorbed})
 

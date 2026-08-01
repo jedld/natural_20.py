@@ -1,6 +1,12 @@
 import re
 
 from natural20.utils.contextual_sound import build_contextual_sound
+from natural20.utils.target_validation import (
+    add_validation_issue,
+    clear_validation,
+    extend_validation_issues,
+    has_validation_failures,
+)
 
 def camel_case_to_human_readable(camel_case_string):
     # Insert spaces before uppercase letters and capitalize the first letter
@@ -55,6 +61,7 @@ class Spell:
         self.source = source
         self.target = None
         self.errors = []
+        self.validation_issues = []
         self.attack_roll = None
 
     def short_name(self):
@@ -118,8 +125,20 @@ class Spell:
     def apply(battle, item, session=None):
         pass
 
-    def validate(self, battle_map, target=None):
-        self.errors.clear()
+    def validate(self, battle_map, target=None, battle=None):
+        clear_validation(self)
+
+    def clear_validation_errors(self):
+        clear_validation(self)
+
+    def add_validation_issue(self, entry, /, **params):
+        add_validation_issue(self, entry, **params)
+
+    def extend_validation_issues(self, issues):
+        extend_validation_issues(self, issues)
+
+    def validation_failed(self) -> bool:
+        return has_validation_failures(self)
 
     def load_spell_info(self):
         return self.session.load_spell(self.name)

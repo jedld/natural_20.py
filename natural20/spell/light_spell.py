@@ -25,6 +25,12 @@ Implementation notes:
 """
 
 from natural20.spell.spell import Spell
+from natural20.utils.target_validation import (
+    evaluate_coordinate_target,
+    evaluate_entity_target,
+    has_validation_failures,
+    resolve_battle_for_validation,
+)
 
 
 class LightEffect:
@@ -122,25 +128,42 @@ class LightSpell(Spell):
             grid_distance = battle_map.distance(self.source, target)
         return grid_distance * battle_map.feet_per_grid
 
-    def validate(self, battle_map, target=None):
-        self.errors = []
+    def validate(self, battle_map, target=None, battle=None):
+        self.clear_validation_errors()
         if target is None:
             target = self.target
 
         if target is None:
-            self.errors.append("target required")
+            self.add_validation_issue("validation.targeting.required")
             return False
 
         max_range = self.properties.get('range', 5)
         if isinstance(max_range, str):
-            # YAML might say "touch"; treat as 5 ft.
             max_range = 5
 
-        distance_feet = self._target_distance_feet(battle_map, target)
-        if distance_feet is not None and distance_feet > max_range:
-            self.errors.append("target out of range")
+        battle = resolve_battle_for_validation(battle_map, self.source, battle)
 
-        return len(self.errors) == 0
+        if isinstance(target, (list, tuple)):
+            self.extend_validation_issues(
+                evaluate_coordinate_target(
+                    self.source,
+                    target,
+                    battle_map,
+                    max_range_ft=max_range,
+                )
+            )
+        else:
+            self.extend_validation_issues(
+                evaluate_entity_target(
+                    self.source,
+                    target,
+                    battle,
+                    max_range_ft=max_range,
+                    allow_self=True,
+                )
+            )
+
+        return not has_validation_failures(self)
 
     # ------------------------------------------------------------------ #
     # Resolution

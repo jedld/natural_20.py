@@ -8,7 +8,7 @@ from natural20.utils.ac_utils import cover_calculation
 from natural20.map import Map
 from natural20.session import Session
 from natural20.entity import Entity
-from natural20.die_roll import DieRoll
+from natural20.die_roll import DieRoll, Rollable
 from natural20.spell.effects.stench_effect import StenchEffect
 import pdb
 from natural20.uid_containers import EntitiesUIDMap
@@ -87,6 +87,93 @@ def _target_grid_positions(battle, target):
     return primary, ([primary] if primary else None)
 
 
+def _look_perception_roll_payload(action):
+    """Extract perception roll totals from a resolved LookAction for UI feedback."""
+    perception_roll = None
+    perception_roll_label = None
+    try:
+        for item in (getattr(action, 'result', None) or []):
+            if item.get('type') != 'look':
+                continue
+            die_roll = item.get('die_roll')
+            if die_roll is None:
+                break
+            result_attr = getattr(die_roll, 'result', None)
+            perception_roll = result_attr() if callable(result_attr) else result_attr
+            try:
+                perception_roll_label = str(die_roll)
+            except Exception:
+                perception_roll_label = f"Perception {perception_roll}"
+            break
+    except Exception:
+        pass
+    return perception_roll, perception_roll_label
+
+
+def _resolve_result_damage_amount(item):
+    """Return HP actually applied when available, else pre-mitigation roll total."""
+    applied = item.get('_applied_damage')
+    if applied is not None:
+        return max(0, int(applied))
+    damage = item.get('damage')
+    if damage is None:
+        return 0
+    amount = damage.result() if isinstance(damage, Rollable) else int(damage)
+    sneak = item.get('sneak_attack')
+    if sneak is not None:
+        amount += sneak.result() if isinstance(sneak, Rollable) else int(sneak)
+    return max(0, amount)
+
+
+def _damage_events_from_action(action, battle=None):
+    """Build client-facing damage number payloads from resolved action results."""
+    events = []
+    for item in getattr(action, 'result', None) or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get('type') not in ('damage', 'spell_damage'):
+            continue
+        target = item.get('target')
+        if target is None:
+            continue
+        amount = _resolve_result_damage_amount(item)
+        if amount <= 0:
+            continue
+        source = item.get('source') or getattr(action, 'source', None)
+        attack_roll = item.get('attack_roll')
+        critical = False
+        attack_roll_total = None
+        if attack_roll is not None:
+            if hasattr(attack_roll, 'nat_20'):
+                try:
+                    critical = bool(attack_roll.nat_20())
+                except Exception:
+                    critical = False
+            if hasattr(attack_roll, 'result'):
+                try:
+                    attack_roll_total = attack_roll.result()
+                except Exception:
+                    attack_roll_total = None
+        save_failed = item.get('save_failed') if item.get('type') == 'spell_damage' else None
+        half = bool(
+            item.get('type') == 'spell_damage'
+            and save_failed is False
+            and item.get('spell_save') is not None
+        )
+        events.append({
+            'target': _animation_uid(getattr(target, 'entity_uid', None)),
+            'source': _animation_uid(getattr(source, 'entity_uid', None) if source is not None else None),
+            'position': _entity_grid_pos(battle, target),
+            'amount': amount,
+            'damage_type': item.get('damage_type') or 'damage',
+            'critical': critical,
+            'save_failed': save_failed,
+            'half': half,
+            'attack_roll_total': attack_roll_total,
+        })
+    return events
+
+
 def action_animator(action, battle=None):
     def target_id(action):
         if hasattr(action, 'target') and action.target:
@@ -102,20 +189,21 @@ def action_animator(action, battle=None):
 
     if action and action.action_type == 'attack':
         target_pos, target_positions = _target_grid_positions(battle, getattr(action, 'target', None))
-        return {
+        message = {
+            'target': target_id(action),
+            'source': _animation_uid(action.source.entity_uid),
+            'ranged': action.ranged_attack(),
             'type': 'attack',
-            'message': {
-                'target': target_id(action),
-                'source': _animation_uid(action.source.entity_uid),
-                'ranged': action.ranged_attack(),
-                'type': 'attack',
-                'label': action.label(),
-                'miss': _attack_animation_missed(action),
-                'source_pos': _entity_grid_pos(battle, action.source),
-                'target_pos': target_pos,
-                'target_positions': target_positions,
-            }
+            'label': action.label(),
+            'miss': _attack_animation_missed(action),
+            'source_pos': _entity_grid_pos(battle, action.source),
+            'target_pos': target_pos,
+            'target_positions': target_positions,
         }
+        damage_events = _damage_events_from_action(action, battle)
+        if damage_events:
+            message['damage_events'] = damage_events
+        return {'type': 'attack', 'message': message}
     elif action and action.action_type == 'move':
         return {
             'type': 'move',
@@ -147,19 +235,34 @@ def action_animator(action, battle=None):
 
         target_pos, target_positions = _target_grid_positions(battle, getattr(action, 'target', None))
 
-        return {
+        message = {
+            'target': target_id(action),
+            'target_pos': target_pos,
+            'target_positions': target_positions,
+            'source': _animation_uid(action.source.entity_uid),
             'type': 'spell',
-            'message': {
-                'target': target_id(action),
-                'target_pos': target_pos,
-                'target_positions': target_positions,
-                'source': _animation_uid(action.source.entity_uid),
-                'type': 'spell',
-                'label': action.label(),
-                'spell': spell_name,
-                **extra_message
-            }
+            'label': action.label(),
+            'spell': spell_name,
+            **extra_message
         }
+        damage_events = _damage_events_from_action(action, battle)
+        if damage_events:
+            message['damage_events'] = damage_events
+        return {'type': 'spell', 'message': message}
+    elif action and action.action_type == 'look':
+        perception_roll, perception_roll_label = _look_perception_roll_payload(action)
+        message = {
+            'target': target_id(action),
+            'source': _animation_uid(action.source.entity_uid),
+            'type': 'look',
+            'label': action.label(),
+            'spell': 'look',
+        }
+        if perception_roll is not None:
+            message['perception_roll'] = perception_roll
+        if perception_roll_label:
+            message['perception_roll_label'] = perception_roll_label
+        return {'type': 'spell', 'message': message}
     else:
         return {
             'type': 'spell',
@@ -1629,7 +1732,7 @@ class Battle():
             if filter and not k.eval_if(filter):
                 continue
 
-            action.validate(self.map_for(k), target=k)
+            action.validate(self.map_for(k), target=k, battle=self)
 
             if not action.errors:
                 targets.append(k)

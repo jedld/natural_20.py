@@ -9,6 +9,8 @@ from natural20.player_character import PlayerCharacter
 from natural20.session import Session
 from natural20.web.object_quick_interactions import (
     entity_quick_interact_actions_for,
+    pov_self_quick_interact_actions_for,
+    pov_self_quick_interact_anchor,
     quick_interact_actions_for,
     quick_interact_layout_for,
 )
@@ -188,6 +190,54 @@ class TestObjectQuickInteractions(unittest.TestCase):
             living, self.entity, self.battle, map_obj=self.battle_map,
         )
         self.assertEqual(actions, [])
+
+    def test_pov_self_perception_quick_action_for_player(self):
+        actions = pov_self_quick_interact_actions_for(
+            self.entity, self.battle, map_obj=self.battle_map,
+        )
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0]['action'], 'perception_check')
+        self.assertEqual(actions[0]['kind'], 'pov_perception')
+        self.assertEqual(actions[0]['label'], 'action.look')
+        self.assertEqual(actions[0]['image'], 'look')
+        self.assertFalse(actions[0]['show_label'])
+
+    def test_pov_self_perception_anchor_toward_map_interior(self):
+        self.battle_map.move_to(self.entity, 0, 0, self.battle)
+        self.assertEqual(
+            pov_self_quick_interact_anchor(self.battle_map, self.entity),
+            'bottom',
+        )
+        height = self.battle_map.size[1]
+        self.battle_map.move_to(self.entity, 0, height - 1, self.battle)
+        self.assertEqual(
+            pov_self_quick_interact_anchor(self.battle_map, self.entity),
+            'top',
+        )
+
+    def test_pov_self_perception_not_offered_without_perception_check(self):
+        class _NoPerception:
+            entity_uid = 'dummy'
+
+        actions = pov_self_quick_interact_actions_for(
+            _NoPerception(), self.battle, map_obj=self.battle_map,
+        )
+        self.assertEqual(actions, [])
+
+    def test_json_renderer_includes_pov_self_perception_on_pov_tile(self):
+        from natural20.web.json_renderer import JsonRenderer
+
+        renderer = JsonRenderer(self.battle_map, self.battle, padding=[0, 0])
+        result = renderer.render(entity_pov=[self.entity])
+        tile = next(
+            cell
+            for row in result
+            for cell in row
+            if cell.get('id') == self.entity.entity_uid
+        )
+        self.assertIn('pov_self_quick_interact', tile)
+        self.assertEqual(tile['pov_self_quick_interact'][0]['action'], 'perception_check')
+        self.assertIn('pov_self_quick_interact_anchor', tile)
 
 
 if __name__ == '__main__':
