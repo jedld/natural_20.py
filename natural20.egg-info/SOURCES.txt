@@ -168,6 +168,7 @@ natural20/item_library/note.py
 natural20/item_library/object.py
 natural20/item_library/pit_trap.py
 natural20/item_library/proximity_trigger.py
+natural20/item_library/room_service_buzzer.py
 natural20/item_library/speak_with_animals_scroll.py
 natural20/item_library/spell_scroll.py
 natural20/item_library/switch.py
@@ -268,6 +269,7 @@ natural20/utils/animal_communication.py
 natural20/utils/attack_util.py
 natural20/utils/char_class_spells.py
 natural20/utils/class_feature_registry.py
+natural20/utils/contextual_sound.py
 natural20/utils/conversation.py
 natural20/utils/conversation_hostility.py
 natural20/utils/conversation_offers.py
@@ -276,8 +278,10 @@ natural20/utils/cow.py
 natural20/utils/effect_registry.py
 natural20/utils/entity_height.py
 natural20/utils/gibberish.py
+natural20/utils/key_utils.py
 natural20/utils/language_comprehension.py
 natural20/utils/list_utils.py
+natural20/utils/localization.py
 natural20/utils/magical_aura.py
 natural20/utils/merchant.py
 natural20/utils/movement.py
@@ -299,6 +303,7 @@ natural20/utils/string_utils.py
 natural20/utils/summoned_entity.py
 natural20/utils/utils.py
 natural20/web/json_renderer.py
+natural20/web/object_quick_interactions.py
 natural20/web/stack_renderer.py
 natural20/web/terrain_tooltip.py
 natural20/web/web_controller.py
@@ -487,6 +492,7 @@ tests/test_concentration_tracker.py
 tests/test_concurrency.py
 tests/test_container_capacity.py
 tests/test_container_transfer.py
+tests/test_contextual_sound.py
 tests/test_control_override.py
 tests/test_conversation_offers.py
 tests/test_conversation_performance.py
@@ -526,11 +532,13 @@ tests/test_interact_action.py
 tests/test_items.py
 tests/test_journal.py
 tests/test_json_renderer.py
+tests/test_key_utils.py
 tests/test_language_comprehension.py
 tests/test_lay_on_hands_action.py
 tests/test_light_spell.py
 tests/test_llm_controller.py
 tests/test_llm_controller_improvements.py
+tests/test_localization.py
 tests/test_low_coverage_core.py
 tests/test_magic_items.py
 tests/test_magical_aura.py
@@ -562,6 +570,7 @@ tests/test_npc_communication.py
 tests/test_npc_memory_store.py
 tests/test_npc_spellcaster.py
 tests/test_object_editor_icons.py
+tests/test_object_quick_interactions.py
 tests/test_objects.py
 tests/test_outward_appearance.py
 tests/test_path_compute.py
@@ -585,6 +594,7 @@ tests/test_resistance_spell.py
 tests/test_resource_pool.py
 tests/test_resource_serialization.py
 tests/test_rest_restrictions.py
+tests/test_room_service_buzzer.py
 tests/test_save_check.py
 tests/test_save_namespace.py
 tests/test_secret_door_perception.py

@@ -1835,7 +1835,8 @@ class LlmMcpController(GenericController):
 			parts.append("Memory notes:\n" + "\n".join(f"- {n}" for n in memory_notes) + "\n")
 
 		# Add backstory context if available
-		backstory = self._get_backstory_summary(entity)
+		profile_limit = 700 if getattr(entity, 'player_character', False) else 200
+		backstory = self._get_backstory_summary(entity, max_chars=profile_limit)
 		if backstory:
 			parts.append(f"Character context: {backstory}\n")
 
@@ -2242,6 +2243,11 @@ class LlmMcpController(GenericController):
 		Returns a truncated version suitable for prompt context.
 		"""
 		try:
+			from natural20.utils.character_profile import llm_character_context
+			summary = llm_character_context(entity, max_chars=max_chars)
+			if summary:
+				return summary
+
 			backstory = ""
 			
 			# Try to get backstory from entity methods or properties

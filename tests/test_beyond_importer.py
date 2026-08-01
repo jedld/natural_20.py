@@ -197,6 +197,71 @@ def test_token_alignment_entity_uid_defaults(importer, payload):
     assert out["hit_die"] == "inherit"
 
 
+def test_structured_personality_and_physical_fields(importer, payload):
+    payload = dict(payload)
+    payload.update({
+        "faith": "Corellon",
+        "age": "102",
+        "hair": "Silver",
+        "eyes": "Green",
+        "skin": "Pale",
+        "height": "5'4\"",
+        "weight": "90 lb",
+        "traits": {
+            "appearance": "A tall elf in blue robes.",
+            "personalityTraits": [{"description": "I love arcane mysteries."}],
+            "ideals": [{"description": "Knowledge is power."}],
+            "bonds": [{"description": "My spellbook is sacred."}],
+            "flaws": [{"description": "I hoard secrets."}],
+        },
+        "notes": {"backstory": "Studied at a tower."},
+    })
+    out = importer.convert_to_yaml(payload)
+    assert out["outward_appearance"] == "A tall elf in blue robes."
+    assert out["personality_traits"] == "I love arcane mysteries."
+    assert out["ideals"] == "Knowledge is power."
+    assert out["bonds"] == "My spellbook is sacred."
+    assert out["flaws"] == "I hoard secrets."
+    assert out["backstory"] == "Studied at a tower."
+    assert out["faith"] == "Corellon"
+    assert out["eyes"] == "Green"
+
+
+def test_extract_avatar_urls_prefers_character_decorations():
+    from beyond_importer import extract_avatar_urls, _resize_ddb_avatar_url
+
+    data = {
+        "decorations": {
+            "avatarUrl": "https://www.dndbeyond.com/avatars/10/83/636339381554374819.png?width=150&height=150&fit=crop",
+        },
+        "race": {
+            "portraitAvatarUrl": "https://www.dndbeyond.com/avatars/9/383/636327460327748907.jpeg?width=1000&height=1000&fit=bounds",
+        },
+    }
+    portrait, token = extract_avatar_urls(data)
+    assert portrait == _resize_ddb_avatar_url(
+        data["decorations"]["avatarUrl"], width=1000, height=1000, fit="bounds"
+    )
+    assert token == _resize_ddb_avatar_url(
+        data["decorations"]["avatarUrl"], width=256, height=256, fit="crop"
+    )
+
+
+def test_extract_avatar_urls_falls_back_to_race_portrait():
+    from beyond_importer import extract_avatar_urls
+
+    data = {
+        "decorations": {},
+        "race": {
+            "portraitAvatarUrl": "https://www.dndbeyond.com/avatars/9/383/portrait.jpeg?width=1000&height=1000&fit=bounds",
+        },
+    }
+    portrait, token = extract_avatar_urls(data)
+    assert portrait is not None
+    assert "portrait.jpeg" in portrait
+    assert token is not None
+
+
 def test_load_character_accepts_dict_path_and_file(tmp_path, importer, payload):
     # dict
     assert importer.load_character(payload)["name"] == payload["name"]

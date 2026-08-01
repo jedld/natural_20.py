@@ -97,9 +97,10 @@ actions: []
 
 | Field | Values | Effect |
 |-------|--------|--------|
-| `portrait_scene` | `tavern`, `market`, `street`, `town` | Scene-backed portrait in `assets/portraits/` + circular token |
+| `portrait_scene` | key from `asset_prompts.yml` → `scenes` | Scene-backed portrait in `assets/portraits/` + circular token |
 | `image_prompt` | free text | Override auto prompt entirely |
-| `asset_theme` | in `game.yml` | Campaign-wide mood for prompts |
+| `asset_theme` | in `game.yml` | Short campaign mood string for prompts |
+| `asset_prompts.yml` | campaign root | Token/portrait styles, login scenes, `scenes:` map (see `docs/CAMPAIGN_ASSET_GENERATOR.md`) |
 
 After generation, YAML gets:
 
@@ -209,10 +210,17 @@ python scripts/generate_campaign_assets.py \
 
 Use `--dry-run` before long GPU jobs. Do not fabricate binary assets if MCP is down.
 
-Set `asset_theme` in `game.yml` for consistent prompts:
+Set `asset_theme` in `game.yml` (short mood line) and campaign styles in `asset_prompts.yml`:
 
 ```yaml
-asset_theme: whimsical D&D one-shot, Prancing Flagon market town, warm afternoon light
+# game.yml
+asset_theme: whimsical D&D one-shot, Amphail market town, warm afternoon light
+
+# asset_prompts.yml (campaign root — not in natural20/)
+token_style: fantasy VTT token bust, painterly, warm afternoon light, ...
+portrait_style: painterly fantasy portrait, warm natural light, ...
+scenes:
+  tavern: medieval tavern, hearth glow, blurred patrons
 ```
 
 ## 6. Validate

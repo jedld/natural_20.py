@@ -25,8 +25,22 @@ def spell_is_implemented(spell_slug: str, spell_meta: dict | None = None) -> boo
     return True
 
 
+_SPELL_CLASSES_CACHE = None
+
+
 def load_spell_class(spell_name):
-    # Import all spell classes
+    global _SPELL_CLASSES_CACHE
+    if _SPELL_CLASSES_CACHE is None:
+        _SPELL_CLASSES_CACHE = _build_spell_class_registry()
+
+    if spell_name not in _SPELL_CLASSES_CACHE:
+        raise Exception(f"spell class not found {spell_name}")
+
+    return _SPELL_CLASSES_CACHE[spell_name]
+
+
+def _build_spell_class_registry():
+    # Import all spell classes once; registry is reused for every lookup.
     from natural20.spell.shocking_grasp_spell import ShockingGraspSpell
     from natural20.spell.firebolt_spell import FireboltSpell
     from natural20.spell.mage_armor_spell import MageArmorSpell
@@ -220,11 +234,7 @@ def load_spell_class(spell_name):
         'TeleportSpell': TeleportSpell,
         'WallOfForceSpell': WallOfForceSpell,
     }
-
-    if spell_name not in spell_classes:
-        raise Exception(f"spell class not found {spell_name}")
-
-    return spell_classes[spell_name]
+    return spell_classes
 
 
 def register_serializable_effects():
