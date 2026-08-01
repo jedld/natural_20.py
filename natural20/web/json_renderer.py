@@ -4,8 +4,12 @@ from natural20.map import Map
 from natural20.battle import Battle
 from natural20.item_library.door_object import DoorObject, DoorObjectWall
 from natural20.web.object_quick_interactions import (
+    door_open_approach_anchors,
     door_quick_interact_anchor,
+    entity_quick_interact_actions_for,
+    object_quick_interact_anchor,
     quick_interact_actions_for,
+    quick_interact_layout_for,
 )
 from natural20.utils.localization import localize_quick_interact_actions
 from natural20.item_library.teleporter import Teleporter
@@ -501,9 +505,31 @@ class JsonRenderer:
                                 if session is not None:
                                     quick_actions = localize_quick_interact_actions(quick_actions, session)
                                 object_info['quick_interact'] = quick_actions
+                                object_info['quick_interact_layout'] = quick_interact_layout_for(quick_actions)
                                 if is_door_fixture:
+                                    approach_anchors = door_open_approach_anchors(object_entity)
+                                    if approach_anchors:
+                                        object_info['door_approach_anchors'] = approach_anchors
+
+                                    def _approach_tile_visible(ax, ay):
+                                        viewers = entity_pov if isinstance(entity_pov, list) else [entity_pov]
+                                        return any(
+                                            cached_can_see_square(viewer, (ax, ay))
+                                            for viewer in viewers
+                                            if viewer
+                                        )
+
                                     anchor = door_quick_interact_anchor(
-                                        object_entity, pov_for_interact,
+                                        object_entity,
+                                        pov_for_interact,
+                                        approach_tile_visible=_approach_tile_visible,
+                                    )
+                                    if anchor:
+                                        object_info['quick_interact_anchor'] = anchor
+                                else:
+                                    anchor = object_quick_interact_anchor(
+                                        object_entity,
+                                        pov_for_interact,
                                     )
                                     if anchor:
                                         object_info['quick_interact_anchor'] = anchor
@@ -562,6 +588,28 @@ class JsonRenderer:
                             'team_group': team_group,
                             'team_border_tint': team_border_tint
                         })
+                        if entity_pov:
+                            pov_for_interact = entity_pov[0] if len(entity_pov) == 1 else next(
+                                (ep for ep in entity_pov if ep and not (
+                                    callable(getattr(ep, 'is_npc', None)) and ep.is_npc()
+                                )),
+                                entity_pov[0],
+                            )
+                            if pov_for_interact and getattr(entity, 'entity_uid', None) != getattr(
+                                pov_for_interact, 'entity_uid', None,
+                            ):
+                                entity_quick = entity_quick_interact_actions_for(
+                                    entity,
+                                    pov_for_interact,
+                                    self.battle,
+                                    map_obj=self.map,
+                                    admin=False,
+                                )
+                                if entity_quick:
+                                    session = getattr(self.map, 'session', None)
+                                    if session is not None:
+                                        entity_quick = localize_quick_interact_actions(entity_quick, session)
+                                    attributes['quick_interact'] = entity_quick
                     attributes['terrain_tooltip'] = build_terrain_tooltip(
                         attributes, self.map, self.battle,
                         entity=entity, map_objects=object_entities,

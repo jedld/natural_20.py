@@ -859,13 +859,31 @@ class Entity(EntityStateEvaluator, Notable):
         return self.strength()
 
     def passive_perception(self):
-        return self.properties.get('passive_perception', 10 + self.wis_mod())
+        stored = self.properties.get('passive_perception')
+        if stored is not None:
+            return stored
+        wis = self.wis_mod()
+        if wis is None:
+            return None
+        return 10 + wis
 
     def passive_insight(self):
-        return self.properties.get('passive_insight', 10 + self.wis_mod())
+        stored = self.properties.get('passive_insight')
+        if stored is not None:
+            return stored
+        wis = self.wis_mod()
+        if wis is None:
+            return None
+        return 10 + wis
 
     def passive_investigation(self):
-        return self.properties.get('passive_investigation', 10 + self.int_mod())
+        stored = self.properties.get('passive_investigation')
+        if stored is not None:
+            return stored
+        intelligence = self.int_mod()
+        if intelligence is None:
+            return None
+        return 10 + intelligence
 
     # def perception_check(self, battle, advantage=False, disadvantage=False):
     #     entity_state = battle.entity_state_for(self)

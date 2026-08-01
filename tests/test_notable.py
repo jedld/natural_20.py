@@ -59,6 +59,31 @@ class TestNotableNotes(unittest.TestCase):
         self.assertIn('scarred dwarf', visible[0]['note'])
         self.assertIn(pc, new_notes)
 
+    def test_list_notes_skips_owned_summons_without_passive_perception(self):
+        session = _session()
+        obj = Object(session, None, {
+            'name': 'clue',
+            'outward_appearance': 'A faint spectral weapon hovers nearby.',
+        })
+        owner = mock.MagicMock()
+        owner.passive_perception.return_value = 14
+        summon = mock.MagicMock()
+        summon.passive_perception.return_value = None
+
+        visible, _ = obj.list_notes(entity_pov=[owner, summon])
+        self.assertEqual(len(visible), 1)
+        self.assertIn('spectral weapon', visible[0]['note'])
+
+    def test_passive_perception_without_ability_scores_returns_none(self):
+        from natural20.spell.objects.spiritual_weapon import SpiritualWeapon
+        from natural20.player_character import PlayerCharacter
+
+        session = _session()
+        owner = PlayerCharacter.load(session, 'characters/dwarf_cleric.yml')
+        weapon = SpiritualWeapon(session, owner, 'spiritual_weapon', '', {})
+        self.assertIsNone(weapon.passive_perception())
+        self.assertIsNone(weapon.wis_mod())
+
 
 if __name__ == '__main__':
     unittest.main()

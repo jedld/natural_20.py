@@ -97,13 +97,17 @@ class Notable:
                     for e in entity_pov:
                         pp = getattr(e, 'passive_perception', None)
                         if callable(pp):
-                            passive_perceptions.append(pp())
+                            value = pp()
+                            if value is not None:
+                                passive_perceptions.append(value)
                     if passive_perceptions:
                         effective_perception = max(passive_perceptions)
                 elif effective_perception is None and entity is not None:
                     pp = getattr(entity, 'passive_perception', None)
                     if callable(pp):
-                        effective_perception = pp()
+                        value = pp()
+                        if value is not None:
+                            effective_perception = value
 
                 # Store new perception check
                 if perception is not None and entity is not None:

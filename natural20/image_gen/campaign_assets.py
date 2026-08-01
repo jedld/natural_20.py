@@ -182,11 +182,17 @@ def discover_npc_defs(campaign: Path) -> list[dict[str, Any]]:
 
 
 def token_filename_for_npc(npc: dict[str, Any]) -> str:
+    explicit = str(npc.get("token_image") or "").strip()
+    if explicit:
+        return Path(explicit).name
     kind = npc.get("kind") or npc.get("_file_stem") or npc.get("name") or "npc"
     return f"token_{_slug(str(kind))}.png"
 
 
 def portrait_filename_for_npc(npc: dict[str, Any]) -> str:
+    explicit = str(npc.get("profile_image") or "").strip()
+    if explicit:
+        return explicit.replace("\\", "/")
     kind = npc.get("kind") or npc.get("_file_stem") or npc.get("name") or "npc"
     return f"portraits/portrait_{_slug(str(kind))}.jpg"
 
@@ -280,6 +286,7 @@ def generate_campaign_assets(
         if tokens:
             for npc in discover_npc_defs(campaign):
                 key = str(npc.get("kind") or npc.get("_file_stem"))
+                display_name = str(npc.get("name") or npc.get("label") or key)
                 if only_set and key.lower() not in only_set and _slug(key) not in only_set:
                     continue
                 filename = token_filename_for_npc(npc)
@@ -299,7 +306,7 @@ def generate_campaign_assets(
                     visual_desc = npc_visual_description(npc)
                     preview = custom_prompt or (
                         npc_scene_portrait_prompt(
-                            name=str(npc.get("kind") or key),
+                            name=display_name,
                             kind=str(npc.get("kind") or key),
                             description=visual_desc,
                             race=_race_label(npc.get("race")),
@@ -308,7 +315,7 @@ def generate_campaign_assets(
                         )[:80]
                         if portrait_scene
                         else npc_token_prompt(
-                            name=str(npc.get("kind") or key),
+                            name=display_name,
                             kind=str(npc.get("kind") or key),
                             description=visual_desc,
                             race=_race_label(npc.get("race")),
@@ -324,7 +331,7 @@ def generate_campaign_assets(
                     visual_desc = npc_visual_description(npc)
                     if portrait_scene:
                         prompt = custom_prompt or npc_scene_portrait_prompt(
-                            name=str(npc.get("kind") or key),
+                            name=display_name,
                             kind=str(npc.get("kind") or key),
                             description=visual_desc,
                             race=_race_label(npc.get("race")),
@@ -352,7 +359,7 @@ def generate_campaign_assets(
                         continue
 
                     prompt = custom_prompt or npc_token_prompt(
-                        name=str(npc.get("kind") or key),
+                        name=display_name,
                         kind=str(npc.get("kind") or key),
                         description=visual_desc,
                         race=_race_label(npc.get("race")),

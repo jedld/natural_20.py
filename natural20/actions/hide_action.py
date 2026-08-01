@@ -33,8 +33,9 @@ class HideAction(Action):
 
         source_map = self.session.map_for_entity(self.source)
 
-        if opts['battle']:
-            opponents = [opp for opp in opts['battle'].opponents_of(self.source) if opp.conscious()]
+        battle = opts.get('battle')
+        if battle:
+            opponents = [opp for opp in battle.opponents_of(self.source) if opp.conscious()]
         else:
             opponents = []
 
@@ -66,7 +67,7 @@ class HideAction(Action):
                 'bonus_action': self.as_bonus_action,
                 'result': 'failed',
                 'roll': stealth_roll,
-                'battle': opts['battle'],
+                'battle': battle,
                 'reason': hide_failed_reasons
             }]
         else:
@@ -76,7 +77,7 @@ class HideAction(Action):
                 'type': 'hide',
                 'result': 'success',
                 'roll': stealth_roll,
-                'battle': opts['battle']
+                'battle': battle
             }]
         return self
 

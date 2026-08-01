@@ -63,3 +63,15 @@ class TestHideAction(unittest.TestCase):
         HideAction.apply(None, hide_action.result[0], session=self.session)
 
         self.assertTrue(fighter.hidden())
+
+    def test_hide_resolve_without_battle_in_opts(self):
+        battle_map = Map(self.session, 'hide_test')
+        battle = Battle(self.session, battle_map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position='spawn_point_2')
+
+        hide_action = HideAction.build(self.session, fighter)
+        hide_action.resolve(self.session, battle_map, {})
+        HideAction.apply(None, hide_action.result[0], session=self.session)
+
+        self.assertTrue(fighter.hidden())
