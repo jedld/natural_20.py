@@ -42,8 +42,9 @@ for the Natural20 D&D simulation engine.
 ## Campaign Directory Structure
 
 A campaign is a directory that mirrors the `templates/` layout. The engine
-resolves resources by first checking the campaign directory and then falling
-back to `templates/`. Item catalogues (`weapons`, `equipment`, `magic_items`,
+resolves resources by first checking the campaign directory, then any imported
+campaigns declared in `game.yml`, and finally falling back to `templates/`.
+Item catalogues (`weapons`, `equipment`, `magic_items`,
 `objects`, `spells`, `equipment_packs`) are **automatically merged** with the
 bundled templates when a campaign file exists without an explicit `inherit`
 directive — campaign keys override template keys.
@@ -116,6 +117,8 @@ Path resolution (first match wins):
 | `@templates/items/equipment.yml` | Same as above |
 | `./relative.yml` | Relative to the current file |
 | `/absolute/path.yml` | Absolute path |
+| `@campaign/death_house/items/equipment.yml` | Sibling campaign path under the same campaigns parent directory |
+| `campaigns/death_house/items/equipment.yml` | Same as above |
 
 When `inherit` is present, **automatic template merging is disabled** for that
 file — the inherit chain is authoritative.
@@ -149,6 +152,21 @@ investigators_badge:
 Individual resource files under `npcs/`, `races/`, `char_classes/`,
 `backgrounds/`, and `maps/` also support `inherit` and fall back to the
 bundled template file when the campaign copy is missing.
+
+### Importing from another campaign
+
+You can share content directly across campaigns by adding imports in `game.yml`:
+
+```yaml
+imports:
+  - death_house               # sibling campaign folder name
+  - ../shared_content_pack    # relative path
+  - /absolute/path/to/campaign
+```
+
+Imported campaigns are searched after the current campaign and before bundled
+templates. Earlier entries in `imports` have higher precedence than later
+entries.
 
 ### Running a Campaign
 
@@ -1236,6 +1254,7 @@ object type has a key that matches the `type` field in legend entries.
 | `token_image` | string | — | Image name for web UI |
 | `token_image_transform` | string | — | CSS transform for the image |
 | `profile_image` | string | — | Portrait image |
+| `image_gallery` | list | — | Gallery entries `{id, label, image, description}` for character sheet and JRPG dialog portraits |
 | `passable` | bool | varies | Can entities walk through? |
 | `placeable` | bool | varies | Can entities stand on this square? |
 | `opaque` | bool | false | Blocks line of sight? |
@@ -1993,6 +2012,167 @@ python scripts/generate_dungeon.py --theme sewer --seed 42 \
   --objective relic:symbol:treasure:far \
   -o maps/generated.yml --render assets/maps/generated.png
 ```
-
 LLM/tool schema: `python scripts/generate_dungeon.py --print-schema`
 
+---
+
+## Campaign-Specific Event Listeners
+
+Campaigns can register custom event listeners by placing a `webapp/custom_listeners.py`
+file inside the campaign root directory. The webapp bootstrap will auto-discover
+and load it.
+
+### Pattern
+
+1. Create `user_levels/<campaign>/webapp/custom_listeners.py`.
+2. Implement a function named `register_campaign_listeners(event_manager)` that
+   registers event listeners:
+
+```python
+"""Campaign custom event listeners.
+
+Any campaign can place this file to register handlers for custom events.
+The webapp bootstrap calls ``register_campaign_listeners(event_manager)``
+if the function exists.
+"""
+
+def handle_thing_happened(event: dict) -> None:
+    from webapp.blueprints.helpers.runtime_state import (
+        get_current_game,
+        get_socketio,
+    )
+    current_game = get_current_game()
+    if current_game is None:
+        return
+    session = current_game.game_session
+    socketio = get_socketio()
+
+    # ... handle the event ...
+
+def register_campaign_listeners(event_manager) -> None:
+    """Entry point — called from webapp/app.py bootstrap."""
+    event_manager.register_event_listener('thing_happened', handle_thing_happened)
+```
+
+### Example: Crypt Chambers (Death House)
+
+The death_house campaign implements crypt chambers where placing child skeletal
+remains in coffins causes the ghosts to find peace. The implementation uses:
+
+- **Engine core** (`natural20/item_library/crypt_coffin.py`): A reusable `CryptCoffin`
+  class that extends `Chest` and fires events when specific items are placed inside.
+- **Campaign YAML** (`user_levels/death_house/items/objects.yml`): Object definitions
+  that configure which items the coffin accepts and which event to fire.
+- **Campaign listeners** (`user_levels/death_house/webapp/custom_listeners.py`): Event
+  handlers that remove ghost NPCs from the game world.
+
+**YAML object definition** (`user_levels/death_house/items/objects.yml`):
+
+```yaml
+rose_coffin:
+  color: brown
+  default_ac: 5
+  item_class: CryptCoffin
+  max_hp: 10
+  name: Rose Durst Crypt Coffin
+  passable: true
+  placeable: true
+  opaque: false
+  interact_distance: 0
+  token_image: objects/coffin
+  description: >-
+    An empty coffin resting on a stone bier, etched with the name Rosavalda.
+    The child's remains might find peace here.
+  accepted_items:
+    - rose_remains
+  on_accept: rose_ghost_peaced
+  buttons:
+    store:
+      label: Place in coffin
+      prompt: Place an item in the coffin
+    loot:
+      label: Take from coffin
+      prompt: Take an item from the coffin
+    give:
+      label: Give to coffin
+      prompt: Give an item to the coffin
+```
+
+**Map legend entry** (`user_levels/death_house/maps/basement_1.yml`):
+
+```yaml
+R:
+  name: Rose's Crypt Coffin
+  type: rose_coffin
+  entity_uid: rose_coffin
+  label: Rose Durst Crypt Coffin
+  image_offset_px: [0, 30]
+  notes:
+    - note: An empty coffin resting on a stone bier, etched with the name Rosavalda Durst.
+  events:
+    - event: rose_ghost_peaced
+      message: You place the remains of Rosavalda "Rose" Durst into the coffin. ...
+      update_state:
+        target: rose_coffin
+        state: activated
+    - event: rose_ghost_peaced
+      message: The remains of Rosavalda "Rose" Durst are already at rest.
+      if: "state:activated"
+```
+
+**Event handler** (`user_levels/death_house/webapp/custom_listeners.py`):
+
+```python
+_GHOST_ENTITY_UIDS = {
+    'rose_ghost_peaced': 'rose_durst',
+    'thorn_ghost_peaced': 'thorn_durst',
+}
+
+def handle_ghost_peaced(event: dict) -> None:
+    # Find and remove ghost entity from all maps
+    # Emit SocketIO notification for UI refresh
+
+def register_campaign_listeners(event_manager) -> None:
+    for event_name in _GHOST_ENTITY_UIDS:
+        event_manager.register_event_listener(event_name, handle_ghost_peaced)
+```
+
+### Custom Object Classes (Engine Core)
+
+When a campaign needs new object types, add them to the engine core under
+`natural20/item_library/` and register them in `natural20/utils/serialization.py`:
+
+```python
+# natural20/item_library/crypt_coffin.py
+from natural20.item_library.chest import Chest
+
+class CryptCoffin(Chest):
+    """A coffin that triggers events when specific remains are placed inside."""
+
+    def __init__(self, session, map, properties=None):
+        super().__init__(session, map, properties or {})
+        self.accepted_items = properties.get('accepted_items', []) or []
+        self.on_accept_event = properties.get('on_accept', '') or ''
+        self._peaced = False
+
+    def add_item(self, item_name, qty, source_item=None):
+        super().add_item(item_name, qty, source_item)
+        if item_name in self.accepted_items:
+            if not self._peaced and self.on_accept_event:
+                self._peaced = True
+                self.resolve_trigger(self.on_accept_event)
+```
+
+```python
+# natural20/utils/serialization.py
+from natural20.item_library.crypt_coffin import CryptCoffin
+
+CLASS_TAG_MAPPING = {
+    # ... existing entries ...
+    CryptCoffin: '!crypt_coffin',
+}
+```
+
+**Rule:** Object classes that are generic (usable across campaigns) belong in
+the engine core. Campaign-specific logic (like entity removal) should live in
+the campaign's `webapp/` folder as event listeners.
