@@ -15,6 +15,7 @@ from natural20.item_library.spell_scroll import SpellScroll
 from natural20.item_library.healing_potion import HealingPotion
 from natural20.item_library.proximity_trigger import ProximityTrigger
 from natural20.item_library.room_service_buzzer import RoomServiceBuzzer
+from natural20.item_library.crypt_coffin import CryptCoffin
 from natural20.spell.mage_armor_spell import MageArmorSpell
 from natural20.actions.spell_action import SpellAction
 from natural20.actions.move_action import MoveAction
@@ -96,6 +97,7 @@ CLASS_TAG_MAPPING = {
     AttackAction: '!attack_action',
     MultiSwitch: '!multi_switch',
     RoomServiceBuzzer: '!room_service_buzzer',
+    CryptCoffin: '!crypt_coffin',
 }
 def snake_case(str):
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', str)

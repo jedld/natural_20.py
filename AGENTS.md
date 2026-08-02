@@ -50,6 +50,8 @@ Conventions:
 Core patterns and conventions (do not invent alternatives):
 
 - Session-centered data: a `Session(root_path)` loads `game.yml` and YAML resources (maps, npcs, characters). Use `Session.register_entity` and `Session.entity_by_uid` for UID-based lookup; the centralized `EntityRegistry` is the canonical lookup.
+- Campaign resource imports are supported from `game.yml` via `imports` (also `import_campaigns` or `campaign_imports`). Resolution order is: current campaign -> imported campaigns (earlier entries win) -> bundled `templates/`. This applies to items, characters, classes, races, NPCs, and backgrounds.
+- YAML inherit references also support cross-campaign forms `@campaign/<name>/...`, `@campaigns/<name>/...`, and `campaigns/<name>/...` (resolved relative to the current campaign parent directory).
 - Controllers implement `select_action(battle, entity, available_actions)` and `move_for(entity, battle)`. `GenericController` provides heuristics; `LlmMcpController` (in `natural20/llm_controller.py`) delegates to an LLM and falls back safely to heuristics.
 - Actions resolve via subclasses in `natural20/actions/`: each action builds intent with `build_map()`, gets auto-targeted by `natural20.utils.action_builder.autobuild`, and resolves through `Action.resolve` to enqueue battle events.
 - Spells pair YAML definitions (`templates/items/spells.yml`) with Python classes in `natural20/spell/`; `SpellAction` loads the class through `natural20/utils/spell_loader.py`, applies resource costs via `Spell.consume`, and emits damage/miss events for the battle log.
@@ -60,6 +62,16 @@ Core patterns and conventions (do not invent alternatives):
 - Make sure new objects/spells/items/entities can be properly serialized for save/load game support.
 - Ensure UI/Engine features are designed for maximum reusability with regards to similar spells/abilities as well as being able to reuse UI with minimal changes.
 - Spells/Classes/Items/Abilities that are part of the SRD should also be defined in the templates folder.
+
+## Notes on Campaign Specific features and Copyrighted Material
+
+* For copyright/trademark and management reasons, *DO* not wire or reference campaign specific objects, items and events in the core webapp and natural20 engine. These should live in the campaign specific folders (user_levels), if a new ability, event, or trigger is needed, add a new yaml attribute in the item/entity or new yaml file type and add generic support in the webapp or engine - The goal is for future campaigns with similar mechanics to be able to take advantage of it. Campaign specifc names like "Strahd Von Sarovich" should not show up in the main core engine or webapp - while generic terms like vampire is permissable.
+
+* Features found in the SRD, DM guide, or Player's handbook can and should be incorporated in the webapp or engine. Campaign specific features include named characters, story beats, overly specific abilities, items that are very specific to the campaign (and not found in the SRD) and have little use outside of it. However specific ability features like granting invisiblity can have the invisibility mechanic implemented as part of the core engine feature when there is an obvious gap. Public Domain, spells, NPCs, items, races, abilities etc and generated assets should be placed under the templates folder.
+
+* NPCs, Spells/Races/Features/Abilities/Images/Narration that are explicitly part of a paid and copyrighted expansion material like "Monsters of the Multiverse", "Fixban's Treasury of Dragons" and have not been promoted to public domain via the SRD but are not specifically part of one campaign should be defined in instead in the expansion_packs folder, campaigns that use them should then import these. However when implementing spells and there is clearly a gap in the engine to support these, non-specific enhancements should be performed on the webapp and engine.
+
+* Use web search or other agentic research tools to verify which category content should be classified as.
 
 Developer workflows and commands (verified in repo README):
 
