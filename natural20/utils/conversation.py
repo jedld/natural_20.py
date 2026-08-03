@@ -345,6 +345,40 @@ def _stack_acoustic_profile(source, listener, source_map, listener_map, stack, b
 
 
 def _listeners_in_range(source, battle_map, search_distance_ft, *, battle=None, require_conversable=True):
+    # Cache-bust on entity movement AND map changes: key includes source
+    # position and battle_map identity so different maps (or re-created maps)
+    # don't share stale cached results.
+    source_uid = getattr(source, 'entity_uid', None) or id(source)
+    try:
+        source_pos = battle_map.position_of(source)
+        if source_pos:
+            source_pos = (int(source_pos[0]), int(source_pos[1]))
+    except Exception:
+        source_pos = None
+    battle_id = id(battle) if battle else None
+    map_id = id(battle_map)
+    cache_key = (source_uid, search_distance_ft, battle_id, source_pos, map_id)
+    cached = _listeners_cache.get(cache_key)
+    if cached is not None:
+        # Validate cached listeners: they must exist in the current map's
+        # entities and be within the requested search range.  This guards
+        # against stale entries caused by Python reusing object memory
+        # across test runs or campaign reloads.
+        valid = []
+        for listener, dist in cached:
+            try:
+                if listener not in battle_map.entities:
+                    continue
+                if require_conversable and not getattr(listener, 'conversable', lambda: True)():
+                    continue
+                if dist is not None and dist > search_distance_ft:
+                    continue
+                valid.append((listener, dist))
+            except Exception:
+                continue
+        if valid:
+            return valid
+
     source_map = _entity_map_for(source, battle_map, battle=battle)
     stack = getattr(source_map, 'map_stack', None) if source_map else None
     listeners = []
@@ -374,6 +408,10 @@ def _listeners_in_range(source, battle_map, search_distance_ft, *, battle=None, 
                 if distance_ft <= search_distance_ft:
                     seen.add(uid)
                     listeners.append((listener, distance_ft))
+        _listeners_cache[cache_key] = listeners
+        if len(_listeners_cache) > _LISTENERS_CACHE_MAX_SIZE:
+            # Evict oldest entry
+            _listeners_cache.pop(next(iter(_listeners_cache)), None)
         return listeners
 
     nearby = _entities_in_search_radius(
@@ -382,7 +420,11 @@ def _listeners_in_range(source, battle_map, search_distance_ft, *, battle=None, 
         search_distance_ft,
         fallback_distances=[SPEECH_BASE_RANGES['shout']],
     )
-    return [(listener, None) for listener in nearby]
+    result = [(listener, None) for listener in nearby]
+    _listeners_cache[cache_key] = result
+    if len(_listeners_cache) > _LISTENERS_CACHE_MAX_SIZE:
+        _listeners_cache.pop(next(iter(_listeners_cache)), None)
+    return result
 
 
 def _closed_door(obj):
@@ -422,7 +464,16 @@ def _wall_like_object(obj, origin=None):
 # Key: (source_uid, listener_uid, source_pos, listener_pos, map_id)
 # Positions in the key ensure automatic cache misses when entities move.
 _acoustic_cache: dict = {}
-_ACOUSTIC_CACHE_MAX_SIZE = 256
+# Increase acoustic cache to cover more combat scenarios. 256 entries is too
+# small when many entities are in range — causes repeated expensive
+# line-of-sight + opaque() recomputation.
+_ACOUSTIC_CACHE_MAX_SIZE = 1024
+
+
+# Cache for _listeners_in_range to avoid repeated entity range scans.
+# Key: (source_uid, search_distance_ft, battle_id or None)
+_listeners_cache: dict = {}
+_LISTENERS_CACHE_MAX_SIZE = 64
 
 
 def _acoustic_line_blocked(battle_map, source_pos, listener_pos) -> bool:

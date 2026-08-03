@@ -860,6 +860,15 @@ class AttackAction(Action):
                 weapon = dict(weapon)
                 weapon['damage_type'] = 'slashing'
 
+            # Tortle - Claws: unarmed strikes deal slashing damage (1d6+STR).
+            if (
+                getattr(self.source, 'class_feature', None)
+                and self.source.class_feature('tortle_claws')
+                and 'unarmed' in (weapon.get('properties') or [])
+            ):
+                weapon = dict(weapon)
+                weapon['damage_type'] = 'slashing'
+
         return weapon, attack_name, attack_mod, damage_roll, ammo_type
 
     def evaluate_feature_protection(self, battle, map, target, adv_info):

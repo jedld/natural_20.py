@@ -31,10 +31,52 @@ def build_pathfinding_snapshot(
     ignore_opposing: bool = False,
     allowed_hazard_tiles: Optional[Sequence[Tuple[int, int]]] = None,
 ) -> Dict[str, Any]:
-    """Precompute tile flags and passability bits for JS PathCompute."""
+    """Precompute tile flags and passability bits for JS PathCompute.
+
+    When *battle* is active, opposing combatant positions are marked as
+    blocked so the client-side A* avoids walking through enemies (DnD 5e rule:
+    you cannot move through another creature's space unless it is at least
+    two sizes larger or you are squeezing).
+    """
     w, h = int(battle_map.size[0]), int(battle_map.size[1])
     pc = PathCompute(battle, battle_map, entity, ignore_opposing=ignore_opposing)
     allowed = set(allowed_hazard_tiles or ())
+
+    # Collect opposing combatant positions from the battle.
+    # These tiles must be treated as blocked for the POV entity.
+    opposing_positions: set = set()
+    if battle is not None and entity is not None:
+        combatants = getattr(battle, 'entities', None)
+        if combatants is not None:
+            for combatant in combatants:
+                if combatant is entity:
+                    continue
+                # Skip incapacitated creatures — they can be moved through
+                # if size difference allows (handled by passable check below)
+                if combatant.incapacitated():
+                    continue
+                # Only block opposing factions (friendly movement is allowed
+                # unless ignore_opposing is set, in which case we skip blocking
+                # entirely)
+                if ignore_opposing:
+                    continue
+                try:
+                    if not battle.opposing(combatant, entity):
+                        continue
+                except Exception:
+                    continue
+                # Get combatant position on this battle map
+                try:
+                    c_pos = battle.entity_or_object_pos(combatant)
+                    if c_pos is not None:
+                        # Add all tiles occupied by the combatant (supports multi-tile entities)
+                        c_x, c_y = int(c_pos[0]), int(c_pos[1])
+                        c_size = getattr(combatant, 'token_size', lambda: 1)()
+                        for dx in range(c_size):
+                            for dy in range(c_size):
+                                opposing_positions.add((c_x + dx, c_y + dy))
+                except Exception:
+                    pass
 
     difficult: List[bool] = []
     hazard: List[bool] = []
@@ -49,13 +91,19 @@ def build_pathfinding_snapshot(
             hazard.append(bool(pc._is_avoidable_hazard(x, y)))
             is_door = bool(pc._is_door_tile(x, y))
             door.append(is_door)
-            blocked.append(bool(battle_map.base_map[x][y] == '#'))
+            # Block tiles occupied by opposing combatants (and static walls)
+            is_wall = bool(battle_map.base_map[x][y] == '#')
+            is_opposing = (x, y) in opposing_positions
+            blocked.append(is_wall or is_opposing)
 
             pn = 0
             ps = 0
             for di, (dx, dy) in enumerate(DIR_OFFSETS):
                 nx, ny = x + dx, y + dy
                 if not (0 <= nx < w and 0 <= ny < h):
+                    continue
+                # Skip if the destination tile is occupied by an opposing combatant
+                if (nx, ny) in opposing_positions:
                     continue
                 if pc._is_avoidable_hazard(nx, ny) and (nx, ny) not in allowed:
                     continue

@@ -10,6 +10,7 @@ import time
 
 from natural20.utils.conversation import (
     _acoustic_cache,
+    _listeners_cache,
     _closed_door,
     _wall_like_object,
     acoustic_profile,
@@ -139,6 +140,7 @@ def test_acoustic_profile_cache_hits_on_same_positions():
     """Same source/listener at same positions should use cached result."""
     FakeMap.reset_counts()
     _acoustic_cache.clear()
+    _listeners_cache.clear()
 
     speaker = FakeEntity('speaker', 'Speaker')
     listener = FakeEntity('listener', 'Listener')
@@ -165,6 +167,7 @@ def test_acoustic_profile_cache_misses_on_position_change():
     """Changed positions should produce a cache miss."""
     FakeMap.reset_counts()
     _acoustic_cache.clear()
+    _listeners_cache.clear()
 
     speaker = FakeEntity('speaker', 'Speaker')
     listener = FakeEntity('listener', 'Listener')
@@ -189,7 +192,10 @@ def test_acoustic_profile_cache_misses_on_position_change():
 
 def test_acoustic_profile_cache_evicts_old_entries():
     """Cache should evict oldest entries when max size is reached."""
+    from natural20.utils.conversation import _ACOUSTIC_CACHE_MAX_SIZE
+    
     _acoustic_cache.clear()
+    _listeners_cache.clear()
     FakeMap.reset_counts()
 
     battle_map = FakeMap({}, walls=set())
@@ -201,8 +207,8 @@ def test_acoustic_profile_cache_evicts_old_entries():
         battle_map.positions[listener] = (1, i)
         acoustic_profile(speaker, listener, battle_map)
 
-    assert len(_acoustic_cache) <= 256, (
-        f"Cache size {len(_acoustic_cache)} exceeds max 256"
+    assert len(_acoustic_cache) <= _ACOUSTIC_CACHE_MAX_SIZE, (
+        f"Cache size {len(_acoustic_cache)} exceeds max {_ACOUSTIC_CACHE_MAX_SIZE}"
     )
 
 
@@ -213,6 +219,7 @@ def test_conversation_reachability_skips_acoustic_for_distant_entities():
     """Entities at the edge of search range should use early-exit (no acoustic profile)."""
     FakeMap.reset_counts()
     _acoustic_cache.clear()
+    _listeners_cache.clear()
 
     speaker = FakeEntity('speaker', 'Speaker')
     # search_distance = shout(60) + MAX_HEARING_MODIFIER(20) = 80ft
@@ -242,6 +249,7 @@ def test_conversation_reachability_entity_beyond_search_range_not_found():
     """Entities beyond search_distance should not appear in results at all."""
     FakeMap.reset_counts()
     _acoustic_cache.clear()
+    _listeners_cache.clear()
 
     speaker = FakeEntity('speaker', 'Speaker')
     # search_distance = 80ft; place entity at 100ft (20 grid * 5ft)
@@ -261,6 +269,7 @@ def test_conversation_reachability_still_computes_acoustic_for_nearby_entities()
     """Nearby entities should still get full acoustic computation."""
     FakeMap.reset_counts()
     _acoustic_cache.clear()
+    _listeners_cache.clear()
 
     speaker = FakeEntity('speaker', 'Speaker')
     listener = FakeEntity('listener', 'Listener', passive_perception=10)
@@ -286,6 +295,7 @@ def test_conversation_reachability_still_computes_acoustic_for_nearby_entities()
 def test_acoustic_profile_closed_door_penalty():
     """Verify closed door adds acoustic penalty."""
     _acoustic_cache.clear()
+    _listeners_cache.clear()
     speaker = FakeEntity('speaker', 'Speaker')
     listener = FakeEntity('listener', 'Listener')
     battle_map = FakeMap(
@@ -305,6 +315,7 @@ def test_acoustic_profile_closed_door_penalty():
 def test_acoustic_profile_opened_door_no_penalty():
     """Opened doors should not add acoustic penalty."""
     _acoustic_cache.clear()
+    _listeners_cache.clear()
     speaker = FakeEntity('speaker', 'Speaker')
     listener = FakeEntity('listener', 'Listener')
     battle_map = FakeMap(
@@ -323,6 +334,7 @@ def test_acoustic_profile_opened_door_no_penalty():
 def test_acoustic_profile_wall_penalty():
     """Verify wall tiles add acoustic penalty."""
     _acoustic_cache.clear()
+    _listeners_cache.clear()
     speaker = FakeEntity('speaker', 'Speaker')
     listener = FakeEntity('listener', 'Listener')
     battle_map = FakeMap(
@@ -342,6 +354,7 @@ def test_acoustic_profile_wall_penalty():
 def test_acoustic_profile_multiple_walls_cumulative():
     """Multiple wall tiles should accumulate penalties."""
     _acoustic_cache.clear()
+    _listeners_cache.clear()
     speaker = FakeEntity('speaker', 'Speaker')
     listener = FakeEntity('listener', 'Listener')
     battle_map = FakeMap(
@@ -360,6 +373,7 @@ def test_acoustic_profile_multiple_walls_cumulative():
 def test_acoustic_profile_combined_door_and_wall():
     """Doors and walls should both contribute to penalty."""
     _acoustic_cache.clear()
+    _listeners_cache.clear()
     speaker = FakeEntity('speaker', 'Speaker')
     listener = FakeEntity('listener', 'Listener')
     battle_map = FakeMap(
@@ -380,6 +394,7 @@ def test_acoustic_profile_combined_door_and_wall():
 def test_acoustic_profile_summary_string():
     """Summary string should describe all obstacles."""
     _acoustic_cache.clear()
+    _listeners_cache.clear()
     speaker = FakeEntity('speaker', 'Speaker')
     listener = FakeEntity('listener', 'Listener')
     battle_map = FakeMap(
@@ -402,6 +417,7 @@ def test_acoustic_profile_summary_string():
 def test_conversation_reachability_reachable_entity():
     """Entity within range should be marked reachable."""
     _acoustic_cache.clear()
+    _listeners_cache.clear()
     speaker = FakeEntity('speaker', 'Speaker')
     listener = FakeEntity('listener', 'Listener', passive_perception=10)
     battle_map = FakeMap({
@@ -418,6 +434,7 @@ def test_conversation_reachability_reachable_entity():
 def test_conversation_reachability_requires_louder_voice():
     """Entity at edge of range should require louder voice."""
     _acoustic_cache.clear()
+    _listeners_cache.clear()
     speaker = FakeEntity('speaker', 'Speaker')
     listener = FakeEntity('listener', 'Listener', passive_perception=10)
     battle_map = FakeMap({
@@ -434,6 +451,7 @@ def test_conversation_reachability_requires_louder_voice():
 def test_audible_entities_only_returns_reachable():
     """audible_entities should filter to only reachable entries."""
     _acoustic_cache.clear()
+    _listeners_cache.clear()
     speaker = FakeEntity('speaker', 'Speaker')
     near = FakeEntity('near', 'Near Listener', passive_perception=10)
     far = FakeEntity('far', 'Far Listener', passive_perception=10)
@@ -455,6 +473,7 @@ def test_audible_entities_only_returns_reachable():
 def test_conversation_reachability_performance_10_entities():
     """Reachability for 10 entities should complete within 200ms."""
     _acoustic_cache.clear()
+    _listeners_cache.clear()
     FakeMap.reset_counts()
 
     speaker = FakeEntity('speaker', 'Speaker')
@@ -481,6 +500,7 @@ def test_conversation_reachability_performance_10_entities():
 def test_conversation_reachability_cached_repeated_calls():
     """Repeated calls with same positions should be fast (cache hit)."""
     _acoustic_cache.clear()
+    _listeners_cache.clear()
     FakeMap.reset_counts()
 
     speaker = FakeEntity('speaker', 'Speaker')

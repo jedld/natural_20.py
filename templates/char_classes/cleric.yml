@@ -32,6 +32,14 @@ progression:
       - divine_intervention
 spellcasting_ability: wisdom
 divine_domain_spell_list:
+  tempest:
+    level_1:
+      - thunderwave
+    level_3:
+      - lightning_bolt
+      - shatter
+    level_5:
+      - flaming_sphere
   life:
     level_1:
       - bless
@@ -49,6 +57,18 @@ divine_domain_spell_list:
       - mass_cure_wounds
       - raise_dead
 divine_domain_features:
+  tempest:
+    level_1:
+      - wrath_of_the_storm
+      - stormborn
+    level_2:
+      - channel_divinity_wrack_the_storm
+    level_6:
+      - thunderbolt_step
+    level_8:
+      - divine_strike
+    level_17:
+      - supernal_thunder
   life:
     level_1:
       - disciple_of_life
