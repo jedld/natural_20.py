@@ -38,6 +38,7 @@ from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.stand_action import StandAction
 from natural20.actions.prone_action import ProneAction
 from natural20.actions.shove_action import ShoveAction
+from natural20.actions.shell_defense_action import ShellDefenseAction, EmergenceAction
 from natural20.actions.help_action import HelpAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.ground_interact_action import GroundInteractAction
@@ -123,7 +124,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     WitchBoltSustainAction,
     SpeakAction,
     PickpocketAction,
-    PickpocketBonusAction
+    PickpocketBonusAction,
+    ShellDefenseAction,
+    EmergenceAction,
   ]
 
   def __init__(self, session, properties, name=None):
@@ -845,6 +848,12 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         elif action_type == StandAction:
           action = StandAction(session, self, 'stand')
           action_list.append(action)
+        elif action_type == ShellDefenseAction:
+          action = ShellDefenseAction(session, self, 'shell_defense')
+          action_list.append(action)
+        elif action_type == EmergenceAction:
+          action = EmergenceAction(session, self, 'shell_emerge')
+          action_list.append(action)
         elif action_type == DisengageBonusAction:
           action = DisengageBonusAction(session, self, 'disengage_bonus')
           action_list.append(action)
@@ -1257,6 +1266,15 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       if item and item.get('type') == 'accessory' and item.get('magic_bonus', 0):
         accessory_ac_bonus += item.get('magic_bonus', 0)
 
+    # Tortle - Natural Armor (5e SRD): base AC 17, DEX modifier doesn't
+    # affect this number.  Tortles can't wear light, medium, or heavy armor,
+    # but can apply a shield's bonus as normal.
+    if self.class_feature('natural_armor'):
+      shell_bonus = 4 if getattr(self, '_in_shell', False) else 0
+      base_ac = 17 + shell_bonus
+      shield_ac = 0 if shield is None else shield['bonus_ac'] + shield.get('magic_bonus', 0)
+      return base_ac + shield_ac + accessory_ac_bonus
+
     # Monk - Unarmored Defense (5e SRD): while wearing no armor and no
     # shield, AC = 10 + DEX modifier + WIS modifier.
     if armor is None and shield is None and self.class_feature('unarmored_defense_monk'):
@@ -1660,6 +1678,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       '_wild_shape_state': copy.deepcopy(getattr(self, '_wild_shape_state', None)),
       'npc_actions': copy.deepcopy(getattr(self, 'npc_actions', None) or []),
       'journal': copy.deepcopy(getattr(self, 'journal', []) or []),
+      '_in_shell': getattr(self, '_in_shell', False),
     }
     return base_dict
 
@@ -1705,4 +1724,6 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     else:
       player_character.journal = []
     player_character.seed_initial_journal_from_properties()
+    # Tortle shell state
+    player_character._in_shell = data.get('_in_shell', False)
     return player_character

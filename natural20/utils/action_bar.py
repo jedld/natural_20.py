@@ -19,6 +19,7 @@ DEFAULT_COMMON_ACTION_TYPES = frozenset({
     'help',
     'hide',
     'hide_bonus',
+    'move',
 })
 
 TAB_COMMON = 'common'
@@ -27,6 +28,7 @@ TAB_SPELLS = 'spells'
 TAB_ITEMS = 'items'
 TAB_INTERACT = 'interact'
 TAB_UTILITY = 'utility'
+TAB_ALL = 'all'
 
 DEFAULT_TAB_ORDER = (
     TAB_COMMON,

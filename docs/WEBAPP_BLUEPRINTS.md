@@ -36,6 +36,45 @@ Do **not** add new HTTP routes to `app.py` unless they are bootstrap-only (healt
 
 Conversation routes (`/talk`, etc.) are registered by `conversation_service.register_conversation_routes` via `helpers/conversation_wiring.py`, not a blueprint.
 
+## Pathfinding in battle mode
+
+The webapp uses a **server-client pathfinding architecture** for combat movement:
+
+1. **Server-side** (`natural20/ai/path_compute.py`): Full A* pathfinding with `map.passable()` which checks `map.tokens[]` for battle entities. Respects DnD 5e creature blocking rules (you cannot move through another creature's space unless two sizes larger or squeezing).
+2. **Client-side** (`webapp/static/path_compute.js`): Lightweight A* using a **pathfinding snapshot** built by `natural20/ai/pathfinding_cost_map.build_pathfinding_snapshot()`. The snapshot precomputes tile flags (blocked, difficult, hazard, passability bitmasks) for O(1) client-side lookups.
+
+### Battle entity blocking
+
+When `build_pathfinding_snapshot()` receives a `battle` argument, it collects opposing combatant positions and marks them as blocked in the snapshot's `blocked` array and passability bitmasks. This ensures client-side A* avoids walking through enemies — the same behavior as server-side pathfinding.
+
+**Key implementation details:**
+
+- `navigation.py:compute_path()` (line ~544) calls `PathCompute(battle, battle_map, entity)` for server-side paths.
+- `navigation.py:path_cost_map()` (line ~741) calls `build_pathfinding_snapshot(battle_map, entity, battle)` for client-side cost maps.
+- `build_pathfinding_snapshot()` filters combatants by: `battle.opposing()`, `incapacitated()` check, and `token_size()` for multi-tile entities.
+- Enemies at `battle.entity_or_object_pos(combatant)` positions are marked in the `blocked` array and excluded from `pass_normal`/`pass_squeeze` bitmasks.
+- The `ignore_opposing` flag (used for out-of-combat movement) skips enemy blocking entirely.
+
+### Movement distance computation
+
+Server-side `PathCompute.trim_path_by_movement()` correctly converts grid distance to feet:
+
+```python
+# distances[px][py] = grid steps from source
+grid_steps = distances[px][py]
+available_movement_cost = grid_steps * self.map.feet_per_grid
+# Compare against entity's available movement (feet)
+if available_movement_cost > entity.available_movement(battle):
+    # Trim path here
+```
+
+This conforms with DnD 5e where movement is measured in feet (5 ft = 1 grid square by default).
+
+### Tests
+
+- `tests/test_pathfinding_cost_map.py` — parity between `PathCompute` and `SnapshotPathCompute`
+- `tests/test_pathfinding_battle_entities.py` — battle combatant blocking verification (mock + real `Battle` object tests)
+
 ## Shared helpers
 
 `webapp/blueprints/helpers/` holds cross-cutting logic. Helpers must **not** import blueprint modules (avoid cycles).

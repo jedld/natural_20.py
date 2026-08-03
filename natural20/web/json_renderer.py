@@ -130,6 +130,29 @@ class JsonRenderer:
                 _light_cache[key] = v
             return v
 
+        # Per-render memoization for Map.opaque() (called by line_of_sight for
+        # every tile along the LOS path).  This is the dominant cost during
+        # render — opening a door extends LOS and triggers many opaque() calls.
+        # Cache key: ((x, y), (origin_x, origin_y))  where origin is optional.
+        _opaque_cache: dict = {}
+        _map_opaque = self.map.opaque
+        def cached_opaque(x, y, origin=None):
+            # Convert list to tuple for hashable cache key (line_of_sight passes lists)
+            if isinstance(origin, list):
+                origin_key = tuple(origin)
+            else:
+                origin_key = origin
+            key = (x, y, origin_key)
+            v = _opaque_cache.get(key)
+            if v is None:
+                v = _map_opaque(x, y, origin=origin)
+                _opaque_cache[key] = v
+            return v
+
+        # Monkey-patch Map.opaque so that line_of_sight() uses our cache.
+        _original_opaque = self.map.opaque
+        self.map.opaque = cached_opaque
+
         # Per-render memoization for can_see_square (called per tile per POV entity).
         _can_see_square_cache: dict = {}
 
@@ -253,423 +276,427 @@ class JsonRenderer:
             x_offset = 0
             y_offset = 0
 
-        for index_1 in range(width):
-            x = index_1 - x_offset
-            result_row = []
-            for index_2 in range(height):
-                has_darkvision = False
-                hidden_door_tile = False
-                hidden_door_line_of_sight = False
-
-                y = height - index_2 - 1 - y_offset
-                soft_shadow_direction = [0,0,0,0,0,0,0,0]
-
-                if entity_pov is not None:
-                    if not isinstance(entity_pov, list):
-                        entity_pov = [entity_pov]
-
-                    entity_pov = [e for e in entity_pov if e]
-                    # Optimized distance: avoid numpy array allocation per tile
-                    if entity_pov_locations:
-                        distance_to_square = min(
-                            ((x - pos[0]) ** 2 + (y - pos[1]) ** 2) ** 0.5
-                            for pos in entity_pov_locations
-                        )
-                    else:
-                        distance_to_square = None
-
-                    if distance_to_square is not None and any([e.darkvision(distance_to_square * self.map.feet_per_grid) for e in entity_pov if e]):
-                        has_darkvision = True
-                    else:
-                        has_darkvision = False
-
-                    if len(entity_pov) > 0:
-                        if not any([cached_can_see_square(entity, (x, y)) for entity in entity_pov]):
-                            if any([cached_can_see_square(entity, (x, y), force_dark_vision=True) for entity in entity_pov]):
-                                result_row.append({'x': x, 'y': y, 'difficult': self.map.difficult_terrain(entity, x, y), 'line_of_sight': True, 'light': 0.0, 'opacity': 0.95, 'soft_shadow_direction': soft_shadow_direction})
+        try:
+            for index_1 in range(width):
+                x = index_1 - x_offset
+                result_row = []
+                for index_2 in range(height):
+                    has_darkvision = False
+                    hidden_door_tile = False
+                    hidden_door_line_of_sight = False
+    
+                    y = height - index_2 - 1 - y_offset
+                    soft_shadow_direction = [0,0,0,0,0,0,0,0]
+    
+                    # Padding tiles outside map bounds should not run LOS/light
+                    # calculations; they are always hidden placeholders.
+                    if x < 0 or y < 0 or x >= self.map.size[0] or y >= self.map.size[1]:
+                        result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 0.0, 'soft_shadow_direction': soft_shadow_direction})
+                        continue
+    
+                    if entity_pov is not None:
+                        # Optimized distance: avoid numpy array allocation per tile
+                        if entity_pov_locations:
+                            distance_to_square = min(
+                                ((x - pos[0]) ** 2 + (y - pos[1]) ** 2) ** 0.5
+                                for pos in entity_pov_locations
+                            )
+                        else:
+                            distance_to_square = None
+    
+                        # Use generator expressions (no list brackets) to enable short-circuiting —
+                        # stops evaluating entities as soon as one returns True instead of checking
+                        # every POV entity for every tile.
+                        if distance_to_square is not None and any(e.darkvision(distance_to_square * self.map.feet_per_grid) for e in entity_pov if e):
+                            has_darkvision = True
+                        else:
+                            has_darkvision = False
+    
+                        if len(entity_pov) > 0:
+                            if not any(cached_can_see_square(entity, (x, y)) for entity in entity_pov):
+                                if any(cached_can_see_square(entity, (x, y), force_dark_vision=True) for entity in entity_pov):
+                                    result_row.append({'x': x, 'y': y, 'difficult': self.map.difficult_terrain(entity, x, y), 'line_of_sight': True, 'light': 0.0, 'opacity': 0.95, 'soft_shadow_direction': soft_shadow_direction})
+                                    continue
+                                # check if there is a door like object in the square
+                                if self.map.kind_of_door(x, y):
+                                    hidden_door_tile = True
+                                    hidden_door_line_of_sight = any(cached_can_see_square(entity, (x, y), force_dark_vision=True, inclusive=False) for entity in entity_pov)
+                                else:
+                                    sense_tile = self._detect_magic_sense_tile(
+                                        x, y, detect_magic_viewers, session, soft_shadow_direction,
+                                    )
+                                    if sense_tile:
+                                        result_row.append(sense_tile)
+                                    else:
+                                        result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 1.0, 'soft_shadow_direction': soft_shadow_direction})
+                                    continue
+    
+                    object_entities = self.map.objects_at(x, y)
+                    entity = self.map.entity_at(x, y)
+                    stack = getattr(self.map, 'map_stack', None)
+                    peek_through = False
+                    stack_opening = False
+                    if stack is not None:
+                        wx, wy, _ = stack.local_to_world(self.map.name, x, y)
+                        peek_through = stack.is_window_at(wx, wy, self.map.name)
+                        stack_opening = stack.is_stack_opening(wx, wy)
+                    light = 0.0 if hidden_door_tile else light_at(x, y)
+    
+                    darkvision_color = False
+                    if has_darkvision and not hidden_door_tile:
+                        if light == 0.0:
+                            darkvision_color = True
+                        light += 0.5
+    
+                    opacity = 0.9 if hidden_door_tile else 1.0 - max(min(1.0, light), 0.2)
+    
+    
+                    soft_shadow_index = 0
+                    for offset_x in [-1, 0, 1]:
+                        for offset_y in [-1, 0, 1]:
+                            if offset_x == 0 and offset_y == 0:
                                 continue
-                            # check if there is a door like object in the square
-                            if self.map.kind_of_door(x, y):
-                                hidden_door_tile = True
-                                hidden_door_line_of_sight = any([cached_can_see_square(entity, (x, y), force_dark_vision=True, inclusive=False) for entity in entity_pov])
+                            if x + offset_x < 0 or y + offset_y < 0 or x + offset_x >= self.map.size[0] or y + offset_y >= self.map.size[1]:
+                                soft_shadow_direction[soft_shadow_index] = 0
+                            elif light_at(x + offset_x, y + offset_y) > light:
+                                soft_shadow_direction[soft_shadow_index] = 1
                             else:
-                                sense_tile = self._detect_magic_sense_tile(
-                                    x, y, detect_magic_viewers, session, soft_shadow_direction,
-                                )
-                                if sense_tile:
-                                    result_row.append(sense_tile)
-                                else:
-                                    result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 1.0, 'soft_shadow_direction': soft_shadow_direction})
-                                continue
-
-                # Guard against out-of-bounds coordinates (e.g., padding extending beyond map)
-                if x < 0 or y < 0 or x >= self.map.size[0] or y >= self.map.size[1]:
-                    result_row.append({'x': x, 'y': y, 'difficult': False, 'line_of_sight': False, 'light': 0.0, 'opacity': 0.0, 'soft_shadow_direction': soft_shadow_direction})
-                    continue
-
-                object_entities = self.map.objects_at(x, y)
-                entity = self.map.entity_at(x, y)
-                stack = getattr(self.map, 'map_stack', None)
-                peek_through = False
-                stack_opening = False
-                if stack is not None:
-                    wx, wy, _ = stack.local_to_world(self.map.name, x, y)
-                    peek_through = stack.is_window_at(wx, wy, self.map.name)
-                    stack_opening = stack.is_stack_opening(wx, wy)
-                light = 0.0 if hidden_door_tile else light_at(x, y)
-
-                darkvision_color = False
-                if has_darkvision and not hidden_door_tile:
-                    if light == 0.0:
-                        darkvision_color = True
-                    light += 0.5
-
-                opacity = 0.9 if hidden_door_tile else 1.0 - max(min(1.0, light), 0.2)
-
-
-                soft_shadow_index = 0
-                for offset_x in [-1, 0, 1]:
-                    for offset_y in [-1, 0, 1]:
-                        if offset_x == 0 and offset_y == 0:
-                            continue
-                        if x + offset_x < 0 or y + offset_y < 0 or x + offset_x >= self.map.size[0] or y + offset_y >= self.map.size[1]:
-                            soft_shadow_direction[soft_shadow_index] = 0
-                        elif light_at(x + offset_x, y + offset_y) > light:
-                            soft_shadow_direction[soft_shadow_index] = 1
-                        else:
-                            soft_shadow_direction[soft_shadow_index] = 0
-                        soft_shadow_index += 1
-
-                shared_attributes = {
-                    'x': x,
-                    'y': y,
-                    'difficult': False if hidden_door_tile else self.map.difficult_terrain(entity, x, y),
-                    'blocked': self.map.base_map[x][y] == '#',
-                    'door': bool(self.map.kind_of_door(x, y)),
-                    'line_of_sight': hidden_door_line_of_sight if hidden_door_tile else True,
-                    'light': light,
-                    'soft_shadow_direction': soft_shadow_direction,
-                    'opacity': opacity,
-                    'has_darkvision': has_darkvision,
-                    'darkvision_color': darkvision_color,
-                    'is_flying': entity.is_flying() if entity else False,
-                    'conversation_languages': [],
-                    'peek_through': peek_through,
-                    'stack_opening': stack_opening,
-                }
-                if stack is not None:
-                    shared_attributes['world_x'] = wx
-                    shared_attributes['world_y'] = wy
-                if detect_magic_viewers and session is not None:
-                    shared_attributes['magical_auras'] = magical_auras_for_tile(
-                        session, self.map, x, y, detect_magic_viewers,
-                    )
-
-                def render_objects(entity_pov=None, shared_attrs=None, objects=None, current_entity=None):
-                    shared_attrs['objects'] = []
-                    for object_entity in objects:
-                        viewer_revealed_secret = False
-                        if entity_pov and entity_pov != current_entity:
-                            viewer_revealed_secret = any([
-                                getattr(object_entity, 'perception_results', {}).get(entity_p, {}).get('revealed')
-                                for entity_p in entity_pov
-                            ])
-                            visible_to_pov = any([cached_can_see(entity_p, object_entity, allow_dark_vision=True,
-                                                                   active_perception=self.battle.active_perception_for(entity_p) if self.battle and entity_p in self.battle.entities else 0)
-                                                  for entity_p in entity_pov])
-                            visible_to_pov = visible_to_pov or viewer_revealed_secret
-                            if (isinstance(object_entity, DoorObject) or isinstance(object_entity, DoorObjectWall)) \
-                                    and not object_entity.concealed() and not object_entity.secret():
-                                visible_to_pov = True
-                            elif not visible_to_pov:
-                                continue
-                        object_info = {
-                            "id" : object_entity.entity_uid,
-                            "name" : object_entity.name,
-                            "label" : object_entity.label(),
-                            "image" : object_entity.token_image(),
-                            "transforms" : object_entity.token_image_transform()
-                        }
-
-                        marker_edges = None
-                        door_edges = getattr(object_entity, 'door_pos', None)
-                        if isinstance(door_edges, list) and len(door_edges) == 4:
-                            marker_edges = {
-                                'top': bool(door_edges[0]),
-                                'right': bool(door_edges[1]),
-                                'bottom': bool(door_edges[2]),
-                                'left': bool(door_edges[3]),
+                                soft_shadow_direction[soft_shadow_index] = 0
+                            soft_shadow_index += 1
+    
+                    shared_attributes = {
+                        'x': x,
+                        'y': y,
+                        'difficult': False if hidden_door_tile else self.map.difficult_terrain(entity, x, y),
+                        'blocked': self.map.base_map[x][y] == '#',
+                        'door': bool(self.map.kind_of_door(x, y)),
+                        'line_of_sight': hidden_door_line_of_sight if hidden_door_tile else True,
+                        'light': light,
+                        'soft_shadow_direction': soft_shadow_direction,
+                        'opacity': opacity,
+                        'has_darkvision': has_darkvision,
+                        'darkvision_color': darkvision_color,
+                        'is_flying': entity.is_flying() if entity else False,
+                        'conversation_languages': [],
+                        'peek_through': peek_through,
+                        'stack_opening': stack_opening,
+                    }
+                    if stack is not None:
+                        shared_attributes['world_x'] = wx
+                        shared_attributes['world_y'] = wy
+                    if detect_magic_viewers and session is not None:
+                        shared_attributes['magical_auras'] = magical_auras_for_tile(
+                            session, self.map, x, y, detect_magic_viewers,
+                        )
+    
+                    def render_objects(entity_pov=None, shared_attrs=None, objects=None, current_entity=None):
+                        shared_attrs['objects'] = []
+                        for object_entity in objects:
+                            viewer_revealed_secret = False
+                            if entity_pov and entity_pov != current_entity:
+                                viewer_revealed_secret = any([
+                                    getattr(object_entity, 'perception_results', {}).get(entity_p, {}).get('revealed')
+                                    for entity_p in entity_pov
+                                ])
+                                visible_to_pov = any([cached_can_see(entity_p, object_entity, allow_dark_vision=True,
+                                                                       active_perception=self.battle.active_perception_for(entity_p) if self.battle and entity_p in self.battle.entities else 0)
+                                                      for entity_p in entity_pov])
+                                visible_to_pov = visible_to_pov or viewer_revealed_secret
+                                if (isinstance(object_entity, DoorObject) or isinstance(object_entity, DoorObjectWall)) \
+                                        and not object_entity.concealed() and not object_entity.secret():
+                                    visible_to_pov = True
+                                elif not visible_to_pov:
+                                    continue
+                            object_info = {
+                                "id" : object_entity.entity_uid,
+                                "name" : object_entity.name,
+                                "label" : object_entity.label(),
+                                "image" : object_entity.token_image(),
+                                "transforms" : object_entity.token_image_transform()
                             }
-                        elif isinstance(door_edges, int):
-                            marker_edges = {
-                                'top': door_edges == 0,
-                                'right': door_edges == 1,
-                                'bottom': door_edges == 2,
-                                'left': door_edges == 3,
-                            }
-
-                        originally_secret_door = bool(
-                            object_entity.secret()
-                            or viewer_revealed_secret
-                            or object_entity.properties.get('secret')
-                            or object_entity.secret_perception_dc() is not None
-                            or object_entity.properties.get('secret_dc') is not None
-                            or (
-                                object_entity.properties.get('secret_door')
-                                and (
-                                    object_entity.secret()
-                                    or viewer_revealed_secret
-                                    or (hasattr(object_entity, 'opened') and object_entity.opened())
+    
+                            marker_edges = None
+                            door_edges = getattr(object_entity, 'door_pos', None)
+                            if isinstance(door_edges, list) and len(door_edges) == 4:
+                                marker_edges = {
+                                    'top': bool(door_edges[0]),
+                                    'right': bool(door_edges[1]),
+                                    'bottom': bool(door_edges[2]),
+                                    'left': bool(door_edges[3]),
+                                }
+                            elif isinstance(door_edges, int):
+                                marker_edges = {
+                                    'top': door_edges == 0,
+                                    'right': door_edges == 1,
+                                    'bottom': door_edges == 2,
+                                    'left': door_edges == 3,
+                                }
+    
+                            originally_secret_door = bool(
+                                object_entity.secret()
+                                or viewer_revealed_secret
+                                or object_entity.properties.get('secret')
+                                or object_entity.secret_perception_dc() is not None
+                                or object_entity.properties.get('secret_dc') is not None
+                                or (
+                                    object_entity.properties.get('secret_door')
+                                    and (
+                                        object_entity.secret()
+                                        or viewer_revealed_secret
+                                        or (hasattr(object_entity, 'opened') and object_entity.opened())
+                                    )
                                 )
                             )
-                        )
-                        is_secret_door = (
-                            isinstance(object_entity, DoorObjectWall)
-                            and originally_secret_door
-                        )
-                        object_info['secret_door_marker'] = bool(
-                            is_secret_door
-                            and not object_info['image']
-                            and marker_edges
-                            and any(marker_edges.values())
-                        )
-                        object_info['secret_door_marker_opened'] = bool(
-                            object_info['secret_door_marker']
-                            and hasattr(object_entity, 'opened')
-                            and object_entity.opened()
-                        )
-                        object_info['secret_door_marker_edges'] = marker_edges or {
-                            'top': False,
-                            'right': False,
-                            'bottom': False,
-                            'left': False,
-                        }
-
-                        # Visible-teleporter marker (configurable per-instance via
-                        # YAML ``visible: true`` on a teleporter). Excludes Chasms,
-                        # which have their own visual treatment.
-                        is_visible_teleporter = (
-                            isinstance(object_entity, Teleporter)
-                            and not isinstance(object_entity, Chasm)
-                            and getattr(object_entity, 'is_visible_marker', lambda: False)()
-                        )
-                        object_info['teleporter_marker'] = bool(is_visible_teleporter)
-                        object_info['teleporter_marker_color'] = (
-                            object_entity.marker_color() if is_visible_teleporter else None
-                        )
-                        object_info['teleporter_destination'] = (
-                            object_entity.destination_label() if is_visible_teleporter else None
-                        )
-
-                        is_grease_surface = isinstance(object_entity, GreaseSurface) or bool(
-                            object_entity.properties.get('grease_surface')
-                        )
-                        object_info['grease_marker'] = bool(is_grease_surface)
-                        object_info['grease_marker_seed'] = (
-                            object_entity.properties.get('grease_seed') if is_grease_surface else None
-                        )
-
-                        is_stinking_cloud_gas = isinstance(object_entity, StinkingCloudGas) or bool(
-                            object_entity.properties.get('stinking_cloud_gas')
-                        )
-                        object_info['stinking_cloud_marker'] = bool(is_stinking_cloud_gas)
-                        object_info['stinking_cloud_marker_seed'] = (
-                            object_entity.properties.get('stinking_cloud_seed')
-                            if is_stinking_cloud_gas else None
-                        )
-
-                        is_tiny_hut_dome = isinstance(object_entity, TinyHutDome) or bool(
-                            object_entity.properties.get('tiny_hut_dome')
-                        )
-                        object_info['tiny_hut_dome'] = bool(is_tiny_hut_dome)
-                        if is_tiny_hut_dome:
-                            object_info['tiny_hut_center'] = list(getattr(object_entity, 'center', [x, y]))
-                            object_info['tiny_hut_radius_ft'] = getattr(object_entity, 'radius_ft', 10)
-                            object_info['tiny_hut_shell'] = [
-                                list(s) for s in getattr(object_entity, 'shell_squares', [])
-                            ]
-                            object_info['tiny_hut_lighting'] = getattr(
-                                object_entity, 'interior_lighting', 'default'
+                            is_secret_door = (
+                                isinstance(object_entity, DoorObjectWall)
+                                and originally_secret_door
                             )
-                            object_info['tiny_hut_color'] = getattr(
-                                object_entity, 'dome_color', 'sapphire'
+                            object_info['secret_door_marker'] = bool(
+                                is_secret_door
+                                and not object_info['image']
+                                and marker_edges
+                                and any(marker_edges.values())
                             )
-
-                        is_door_fixture = isinstance(object_entity, (DoorObject, DoorObjectWall))
-                        object_info['door_highlight'] = bool(is_door_fixture)
-                        object_info['door_highlight_opened'] = bool(
-                            is_door_fixture
-                            and hasattr(object_entity, 'opened')
-                            and object_entity.opened()
-                        )
-                        object_info['door_highlight_edges'] = marker_edges or {
-                            'top': True,
-                            'right': True,
-                            'bottom': True,
-                            'left': True,
-                        }
-
-                        object_info['notes'], _ = object_entity.list_notes(entity_pov=entity_pov)
-                        if object_entity.properties.get('image_offset_px'):
-                            object_info['image_offset_px'] = object_entity.properties.get('image_offset_px')
-                        else:
-                            object_info['image_offset_px'] = [0, 0]
-
-                        if object_entity.properties.get('token_offset_px'):
-                            object_info['token_offset_px'] = object_entity.properties.get('token_offset_px')
-                        else:
-                            object_info['token_offset_px'] = [0, 0]
-
-                        if entity_pov:
-                            pov_for_interact = entity_pov[0] if len(entity_pov) == 1 else next(
-                                (ep for ep in entity_pov if ep and not (
-                                    callable(getattr(ep, 'is_npc', None)) and ep.is_npc()
-                                )),
-                                entity_pov[0],
+                            object_info['secret_door_marker_opened'] = bool(
+                                object_info['secret_door_marker']
+                                and hasattr(object_entity, 'opened')
+                                and object_entity.opened()
                             )
-                            quick_actions = quick_interact_actions_for(
-                                object_entity, pov_for_interact, self.battle, admin=False,
+                            object_info['secret_door_marker_edges'] = marker_edges or {
+                                'top': False,
+                                'right': False,
+                                'bottom': False,
+                                'left': False,
+                            }
+    
+                            # Visible-teleporter marker (configurable per-instance via
+                            # YAML ``visible: true`` on a teleporter). Excludes Chasms,
+                            # which have their own visual treatment.
+                            is_visible_teleporter = (
+                                isinstance(object_entity, Teleporter)
+                                and not isinstance(object_entity, Chasm)
+                                and getattr(object_entity, 'is_visible_marker', lambda: False)()
                             )
-                            if quick_actions:
-                                session = getattr(self.map, 'session', None)
-                                if session is not None:
-                                    quick_actions = localize_quick_interact_actions(quick_actions, session)
-                                object_info['quick_interact'] = quick_actions
-                                object_info['quick_interact_layout'] = quick_interact_layout_for(quick_actions)
-                                if is_door_fixture:
-                                    approach_anchors = door_open_approach_anchors(object_entity)
-                                    if approach_anchors:
-                                        object_info['door_approach_anchors'] = approach_anchors
-
-                                    def _approach_tile_visible(ax, ay):
-                                        viewers = entity_pov if isinstance(entity_pov, list) else [entity_pov]
-                                        return any(
-                                            cached_can_see_square(viewer, (ax, ay))
-                                            for viewer in viewers
-                                            if viewer
+                            object_info['teleporter_marker'] = bool(is_visible_teleporter)
+                            object_info['teleporter_marker_color'] = (
+                                object_entity.marker_color() if is_visible_teleporter else None
+                            )
+                            object_info['teleporter_destination'] = (
+                                object_entity.destination_label() if is_visible_teleporter else None
+                            )
+    
+                            is_grease_surface = isinstance(object_entity, GreaseSurface) or bool(
+                                object_entity.properties.get('grease_surface')
+                            )
+                            object_info['grease_marker'] = bool(is_grease_surface)
+                            object_info['grease_marker_seed'] = (
+                                object_entity.properties.get('grease_seed') if is_grease_surface else None
+                            )
+    
+                            is_stinking_cloud_gas = isinstance(object_entity, StinkingCloudGas) or bool(
+                                object_entity.properties.get('stinking_cloud_gas')
+                            )
+                            object_info['stinking_cloud_marker'] = bool(is_stinking_cloud_gas)
+                            object_info['stinking_cloud_marker_seed'] = (
+                                object_entity.properties.get('stinking_cloud_seed')
+                                if is_stinking_cloud_gas else None
+                            )
+    
+                            is_tiny_hut_dome = isinstance(object_entity, TinyHutDome) or bool(
+                                object_entity.properties.get('tiny_hut_dome')
+                            )
+                            object_info['tiny_hut_dome'] = bool(is_tiny_hut_dome)
+                            if is_tiny_hut_dome:
+                                object_info['tiny_hut_center'] = list(getattr(object_entity, 'center', [x, y]))
+                                object_info['tiny_hut_radius_ft'] = getattr(object_entity, 'radius_ft', 10)
+                                object_info['tiny_hut_shell'] = [
+                                    list(s) for s in getattr(object_entity, 'shell_squares', [])
+                                ]
+                                object_info['tiny_hut_lighting'] = getattr(
+                                    object_entity, 'interior_lighting', 'default'
+                                )
+                                object_info['tiny_hut_color'] = getattr(
+                                    object_entity, 'dome_color', 'sapphire'
+                                )
+    
+                            is_door_fixture = isinstance(object_entity, (DoorObject, DoorObjectWall))
+                            object_info['door_highlight'] = bool(is_door_fixture)
+                            object_info['door_highlight_opened'] = bool(
+                                is_door_fixture
+                                and hasattr(object_entity, 'opened')
+                                and object_entity.opened()
+                            )
+                            object_info['door_highlight_edges'] = marker_edges or {
+                                'top': True,
+                                'right': True,
+                                'bottom': True,
+                                'left': True,
+                            }
+    
+                            object_info['notes'], _ = object_entity.list_notes(entity_pov=entity_pov)
+                            if object_entity.properties.get('image_offset_px'):
+                                object_info['image_offset_px'] = object_entity.properties.get('image_offset_px')
+                            else:
+                                object_info['image_offset_px'] = [0, 0]
+    
+                            if object_entity.properties.get('token_offset_px'):
+                                object_info['token_offset_px'] = object_entity.properties.get('token_offset_px')
+                            else:
+                                object_info['token_offset_px'] = [0, 0]
+    
+                            if entity_pov:
+                                pov_for_interact = entity_pov[0] if len(entity_pov) == 1 else next(
+                                    (ep for ep in entity_pov if ep and not (
+                                        callable(getattr(ep, 'is_npc', None)) and ep.is_npc()
+                                    )),
+                                    entity_pov[0],
+                                )
+                                quick_actions = quick_interact_actions_for(
+                                    object_entity, pov_for_interact, self.battle, admin=False,
+                                )
+                                if quick_actions:
+                                    session = getattr(self.map, 'session', None)
+                                    if session is not None:
+                                        quick_actions = localize_quick_interact_actions(quick_actions, session)
+                                    object_info['quick_interact'] = quick_actions
+                                    object_info['quick_interact_layout'] = quick_interact_layout_for(quick_actions)
+                                    if is_door_fixture:
+                                        approach_anchors = door_open_approach_anchors(object_entity)
+                                        if approach_anchors:
+                                            object_info['door_approach_anchors'] = approach_anchors
+    
+                                        def _approach_tile_visible(ax, ay):
+                                            viewers = entity_pov if isinstance(entity_pov, list) else [entity_pov]
+                                            return any(
+                                                cached_can_see_square(viewer, (ax, ay))
+                                                for viewer in viewers
+                                                if viewer
+                                            )
+    
+                                        anchor = door_quick_interact_anchor(
+                                            object_entity,
+                                            pov_for_interact,
+                                            approach_tile_visible=_approach_tile_visible,
                                         )
-
-                                    anchor = door_quick_interact_anchor(
-                                        object_entity,
-                                        pov_for_interact,
-                                        approach_tile_visible=_approach_tile_visible,
-                                    )
-                                    if anchor:
-                                        object_info['quick_interact_anchor'] = anchor
-                                else:
-                                    anchor = object_quick_interact_anchor(
-                                        object_entity,
-                                        pov_for_interact,
-                                    )
-                                    if anchor:
-                                        object_info['quick_interact_anchor'] = anchor
-
-                        shared_attrs['objects'].append(object_info)
-
-                        if object_entity.__class__.__name__ == 'Ground':
-                            shared_attrs['ground_items'] = object_entity.inventory.keys()
-
-                if entity:
-                    if entity_pov and len(entity_pov) > 0:
-                        visible_to_pov = any([cached_can_see(entity_p, entity, allow_dark_vision=True) for entity_p in entity_pov])
-                        if not visible_to_pov or hidden_door_tile:
-                            shared_attributes['terrain_tooltip'] = build_terrain_tooltip(
-                                shared_attributes, self.map, self.battle,
-                                entity=entity, map_objects=object_entities,
-                            )
-                            result_row.append(shared_attributes)
-                            continue
-
-                    shared_attributes['in_battle'] = self.battle and entity in self.battle.combat_order
-                    m_x, m_y = self.map.entities[entity]
-                    render_objects(entity_pov=entity_pov, shared_attrs=shared_attributes, objects=object_entities, current_entity=entity)
-                    attributes = shared_attributes.copy()
-                    listener_languages = []
-
-                    if entity_pov:
-                        for _entity in entity_pov:
-                            for language in _entity.languages():
-                                if language not in listener_languages:
-                                    listener_languages.append(language)
-
-                    is_npc_entity = callable(getattr(entity, 'is_npc', None)) and entity.is_npc()
-                    attributes.update({
-                    'id': entity.entity_uid,
-                    'hp': entity.hp(),
-                    'max_hp': entity.max_hp(),
-                    'entity_size': entity.size(),
-                    'dialog': entity.dialog,
-                    'is_npc': is_npc_entity,
-                    'conversation_buffer': entity.conversation(listener_languages=listener_languages),
-                    'conversation_languages': ",".join(entity.languages() if entity.languages() and hasattr(entity.languages(), '__iter__') and not isinstance(entity.languages(), str) else ['common'])
-                    })
-                    assert entity.languages() is not None
-                    if m_x == x and m_y == y:
-                        team_group, team_border_tint = self._team_visuals_for(entity)
+                                        if anchor:
+                                            object_info['quick_interact_anchor'] = anchor
+                                    else:
+                                        anchor = object_quick_interact_anchor(
+                                            object_entity,
+                                            pov_for_interact,
+                                        )
+                                        if anchor:
+                                            object_info['quick_interact_anchor'] = anchor
+    
+                            shared_attrs['objects'].append(object_info)
+    
+                            if object_entity.__class__.__name__ == 'Ground':
+                                shared_attrs['ground_items'] = object_entity.inventory.keys()
+    
+                    if entity:
+                        if entity_pov and len(entity_pov) > 0:
+                            visible_to_pov = any([cached_can_see(entity_p, entity, allow_dark_vision=True) for entity_p in entity_pov])
+                            if not visible_to_pov or hidden_door_tile:
+                                shared_attributes['terrain_tooltip'] = build_terrain_tooltip(
+                                    shared_attributes, self.map, self.battle,
+                                    entity=entity, map_objects=object_entities,
+                                )
+                                result_row.append(shared_attributes)
+                                continue
+    
+                        shared_attributes['in_battle'] = self.battle and entity in self.battle.combat_order
+                        m_x, m_y = self.map.entities[entity]
+                        render_objects(entity_pov=entity_pov, shared_attrs=shared_attributes, objects=object_entities, current_entity=entity)
+                        attributes = shared_attributes.copy()
+                        listener_languages = []
+    
+                        if entity_pov:
+                            for _entity in entity_pov:
+                                for language in _entity.languages():
+                                    if language not in listener_languages:
+                                        listener_languages.append(language)
+    
+                        is_npc_entity = callable(getattr(entity, 'is_npc', None)) and entity.is_npc()
                         attributes.update({
-                            'entity': entity.token_image(),
-                            'name': entity.label(),
-                            'label': entity.label(),
-                            'hiding' : entity.hidden(),
-                            'prone': entity.prone(),
-                            'dead': entity.dead(),
-                            'unconscious': entity.unconscious(),
-                            'effects' : [str(effect['effect']) for effect in entity.current_effects()],
-                            'team_group': team_group,
-                            'team_border_tint': team_border_tint
+                        'id': entity.entity_uid,
+                        'hp': entity.hp(),
+                        'max_hp': entity.max_hp(),
+                        'entity_size': entity.size(),
+                        'dialog': entity.dialog,
+                        'is_npc': is_npc_entity,
+                        'conversation_buffer': entity.conversation(listener_languages=listener_languages),
+                        'conversation_languages': ",".join(entity.languages() if entity.languages() and hasattr(entity.languages(), '__iter__') and not isinstance(entity.languages(), str) else ['common'])
                         })
-                        if entity_pov:
-                            pov_for_interact = entity_pov[0] if len(entity_pov) == 1 else next(
-                                (ep for ep in entity_pov if ep and not (
-                                    callable(getattr(ep, 'is_npc', None)) and ep.is_npc()
-                                )),
-                                entity_pov[0],
-                            )
-                            if pov_for_interact and getattr(entity, 'entity_uid', None) == getattr(
-                                pov_for_interact, 'entity_uid', None,
-                            ):
-                                pov_self_quick = pov_self_quick_interact_actions_for(
-                                    entity,
-                                    self.battle,
-                                    map_obj=self.map,
+                        assert entity.languages() is not None
+                        if m_x == x and m_y == y:
+                            team_group, team_border_tint = self._team_visuals_for(entity)
+                            attributes.update({
+                                'entity': entity.token_image(),
+                                'name': entity.label(),
+                                'label': entity.label(),
+                                'hiding' : entity.hidden(),
+                                'prone': entity.prone(),
+                                'dead': entity.dead(),
+                                'unconscious': entity.unconscious(),
+                                'effects' : [str(effect['effect']) for effect in entity.current_effects()],
+                                'team_group': team_group,
+                                'team_border_tint': team_border_tint
+                            })
+                            if entity_pov:
+                                pov_for_interact = entity_pov[0] if len(entity_pov) == 1 else next(
+                                    (ep for ep in entity_pov if ep and not (
+                                        callable(getattr(ep, 'is_npc', None)) and ep.is_npc()
+                                    )),
+                                    entity_pov[0],
                                 )
-                                if pov_self_quick:
-                                    session = getattr(self.map, 'session', None)
-                                    if session is not None:
-                                        pov_self_quick = localize_quick_interact_actions(
-                                            pov_self_quick, session,
-                                        )
-                                    attributes['pov_self_quick_interact'] = pov_self_quick
-                                    anchor = pov_self_quick_interact_anchor(self.map, entity)
-                                    if anchor:
-                                        attributes['pov_self_quick_interact_anchor'] = anchor
-                            elif pov_for_interact and getattr(entity, 'entity_uid', None) != getattr(
-                                pov_for_interact, 'entity_uid', None,
-                            ):
-                                entity_quick = entity_quick_interact_actions_for(
-                                    entity,
-                                    pov_for_interact,
-                                    self.battle,
-                                    map_obj=self.map,
-                                    admin=False,
-                                )
-                                if entity_quick:
-                                    session = getattr(self.map, 'session', None)
-                                    if session is not None:
-                                        entity_quick = localize_quick_interact_actions(entity_quick, session)
-                                    attributes['quick_interact'] = entity_quick
-                    attributes['terrain_tooltip'] = build_terrain_tooltip(
-                        attributes, self.map, self.battle,
-                        entity=entity, map_objects=object_entities,
-                    )
-                    result_row.append(attributes)
-
-                else:
-                    render_objects(entity_pov=entity_pov, shared_attrs=shared_attributes, objects=object_entities, current_entity=entity)
-                    shared_attributes['terrain_tooltip'] = build_terrain_tooltip(
-                        shared_attributes, self.map, self.battle,
-                        map_objects=object_entities,
-                    )
-                    result_row.append(shared_attributes)
-            result.append(result_row)
-        return result
+                                if pov_for_interact and getattr(entity, 'entity_uid', None) == getattr(
+                                    pov_for_interact, 'entity_uid', None,
+                                ):
+                                    pov_self_quick = pov_self_quick_interact_actions_for(
+                                        entity,
+                                        self.battle,
+                                        map_obj=self.map,
+                                    )
+                                    if pov_self_quick:
+                                        session = getattr(self.map, 'session', None)
+                                        if session is not None:
+                                            pov_self_quick = localize_quick_interact_actions(
+                                                pov_self_quick, session,
+                                            )
+                                        attributes['pov_self_quick_interact'] = pov_self_quick
+                                        anchor = pov_self_quick_interact_anchor(self.map, entity)
+                                        if anchor:
+                                            attributes['pov_self_quick_interact_anchor'] = anchor
+                                elif pov_for_interact and getattr(entity, 'entity_uid', None) != getattr(
+                                    pov_for_interact, 'entity_uid', None,
+                                ):
+                                    entity_quick = entity_quick_interact_actions_for(
+                                        entity,
+                                        pov_for_interact,
+                                        self.battle,
+                                        map_obj=self.map,
+                                        admin=False,
+                                    )
+                                    if entity_quick:
+                                        session = getattr(self.map, 'session', None)
+                                        if session is not None:
+                                            entity_quick = localize_quick_interact_actions(entity_quick, session)
+                                        attributes['quick_interact'] = entity_quick
+                        attributes['terrain_tooltip'] = build_terrain_tooltip(
+                            attributes, self.map, self.battle,
+                            entity=entity, map_objects=object_entities,
+                        )
+                        result_row.append(attributes)
+    
+                    else:
+                        render_objects(entity_pov=entity_pov, shared_attrs=shared_attributes, objects=object_entities, current_entity=entity)
+                        shared_attributes['terrain_tooltip'] = build_terrain_tooltip(
+                            shared_attributes, self.map, self.battle,
+                            map_objects=object_entities,
+                        )
+                        result_row.append(shared_attributes)
+                result.append(result_row)
+            return result
+        finally:
+            # Restore original Map.opaque (monkey-patch cleanup).
+            self.map.opaque = _original_opaque

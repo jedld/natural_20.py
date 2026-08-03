@@ -35,6 +35,18 @@ if _PATH_MAX_MS_ENV:
 else:
     MAX_MS = 5000
 
+# Max wall-clock time (ms) for the door-navigation second A* pass.
+# The second pass should be much faster (entity is already close to target),
+# so we cap it tighter to avoid wasting time on doomed queries.
+_PATH_MAX_MS_DOOR_ENV = os.environ.get('N20_PATH_MAX_MS_DOOR', '')
+if _PATH_MAX_MS_DOOR_ENV:
+    try:
+        MAX_MS_DOOR = int(_PATH_MAX_MS_DOOR_ENV)
+    except ValueError:
+        MAX_MS_DOOR = 2000
+else:
+    MAX_MS_DOOR = 2000
+
 
 def _path_timing_log(msg):
     """Emit a pathfinding timing log when N20_DEBUG_TIMING=1."""
@@ -174,6 +186,22 @@ class PathCompute:
         if available_movement_cost is not None:
             available_movement_cost -= initial_cost
 
+        # PathCompute g-cost units are "grid-move cost" (not feet). Convert
+        # movement budget once so we can prune the search during expansion.
+        budget_units = None
+        if available_movement_cost is not None:
+            budget_units = available_movement_cost / float(self.map.feet_per_grid)
+            if budget_units < 0:
+                budget_units = 0.0
+
+        # If no movement remains and source != destination, skip A* entirely.
+        if budget_units is not None and budget_units <= 0 and (source_x, source_y) != (destination_x, destination_y):
+            _path_timing_log(
+                f"compute_path:early_exit entity={entity_name} map={map_name} "
+                f"reason=no_budget budget_units={budget_units:.2f}"
+            )
+            return None
+
         # Allow the destination tile itself to be a hazard (intentional jump);
         # all other visible chasms are avoided. Also allow the source tile so
         # an entity already standing on a chasm can plan a path off of it.
@@ -189,14 +217,17 @@ class PathCompute:
         neighbors_checked = 0
         pq_pushes = 0
         _t_astart = time.perf_counter()
+        # Use a tighter timeout for door-navigation pass since the entity
+        # is already close to the target after the first pass.
+        _pass_max_ms = MAX_MS_DOOR if door_navigation else MAX_MS
         
         while pq:
             # Timeout guard: bail out if A* is taking too long.
-            if MAX_MS > 0 and (time.perf_counter() - _t_astart) * 1000 > MAX_MS:
+            if _pass_max_ms > 0 and (time.perf_counter() - _t_astart) * 1000 > _pass_max_ms:
                 _path_timing_log(
                     f"compute_path:timeout entity={entity_name} map={map_name} "
                     f"explored={nodes_explored} neighbors={neighbors_checked} "
-                    f"pq_pushes={pq_pushes} elapsed_ms={(time.perf_counter()-_t_astart)*1000:.1f}"
+                    f"pq_pushes={pq_pushes} elapsed_ms={(time.perf_counter()-_t_astart)*1000:.1f} door={door_navigation}"
                 )
                 break
 
@@ -217,6 +248,17 @@ class PathCompute:
             if current_g > distances[cx][cy]:
                 continue
 
+            # Hard prune: do not expand nodes that already exceed movement budget.
+            if budget_units is not None and current_g > budget_units + 1e-9:
+                continue
+
+            # Destination-aware prune: even with perfect straight-line travel,
+            # this node cannot reach the destination within remaining budget.
+            if budget_units is not None:
+                optimistic_remaining = self.heuristic(cx, cy, destination_x, destination_y)
+                if (current_g + optimistic_remaining) > budget_units + 1e-9:
+                    continue
+
             # If we've reached destination, we can stop
             if (cx, cy) == (destination_x, destination_y):
                 break
@@ -225,6 +267,15 @@ class PathCompute:
             for (nx, ny), move_cost in self.get_neighbors(cx, cy, door_navigation=door_navigation):
                 neighbors_checked += 1
                 new_g = current_g + move_cost
+
+                if budget_units is not None and new_g > budget_units + 1e-9:
+                    continue
+
+                if budget_units is not None:
+                    optimistic_remaining = self.heuristic(nx, ny, destination_x, destination_y)
+                    if (new_g + optimistic_remaining) > budget_units + 1e-9:
+                        continue
+
                 if new_g < distances[nx][ny]:
                     distances[nx][ny] = new_g
                     parents[nx][ny] = (cx, cy)
