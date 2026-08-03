@@ -2,9 +2,68 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any, Optional
 
 from natural20.web.json_renderer import JsonRenderer
+
+
+class RenderCache:
+    """Per-request cache for stack LOS computations to avoid repeated bresenham/egress checks."""
+
+    __slots__ = ('stack_los', 'peek_target', 'peek_candidate')
+
+    def __init__(self):
+        self.stack_los: dict[tuple, bool] = {}
+        self.peek_target: dict[tuple, Any] = {}
+        self.peek_candidate: dict[tuple, bool] = {}
+
+    def stack_los_key(self, stack, viewer, viewer_map_name: str, target_map_name: str, wx: int, wy: int) -> tuple:
+        return ('los', id(stack), id(viewer), viewer_map_name, target_map_name, wx, wy)
+
+    def peek_target_key(self, stack_key: tuple, base_map_name: str, overlay_map_name: str, lx: int, ly: int) -> tuple:
+        return ('peek_tgt', stack_key, base_map_name, overlay_map_name, lx, ly)
+
+    def peek_candidate_key(self, stack_key: tuple, map_name: str, lx: int, ly: int) -> tuple:
+        return ('peek_cand', stack_key, map_name, lx, ly)
+
+    def get_stack_los(self, stack, viewer, viewer_map_name: str, target_map_name: str, wx: int, wy: int) -> bool | None:
+        key = self.stack_los_key(stack, viewer, viewer_map_name, target_map_name, wx, wy)
+        return self.stack_los.get(key)
+
+    def set_stack_los(self, stack, viewer, viewer_map_name: str, target_map_name: str, wx: int, wy: int, value: bool):
+        key = self.stack_los_key(stack, viewer, viewer_map_name, target_map_name, wx, wy)
+        self.stack_los[key] = value
+
+    def get_peek_target(self, stack_key: tuple, base_map_name: str, overlay_map_name: str, lx: int, ly: int) -> Any | None:
+        key = self.peek_target_key(stack_key, base_map_name, overlay_map_name, lx, ly)
+        return self.peek_target.get(key)
+
+    def set_peek_target(self, stack_key: tuple, base_map_name: str, overlay_map_name: str, lx: int, ly: int, value: Any):
+        key = self.peek_target_key(stack_key, base_map_name, overlay_map_name, lx, ly)
+        self.peek_target[key] = value
+
+    def get_peek_candidate(self, stack_key: tuple, map_name: str, lx: int, ly: int) -> bool | None:
+        key = self.peek_candidate_key(stack_key, map_name, lx, ly)
+        return self.peek_candidate.get(key)
+
+    def set_peek_candidate(self, stack_key: tuple, map_name: str, lx: int, ly: int, value: bool):
+        key = self.peek_candidate_key(stack_key, map_name, lx, ly)
+        self.peek_candidate[key] = value
+
+
+def _cached_stack_base_visible(stack, viewer, viewer_map, base_map, wx: int, wy: int, cache: RenderCache | None) -> bool:
+    """Cache-aware wrapper for stack_base_visible_from_overlay."""
+    from natural20.map_stack_los import stack_base_visible_from_overlay
+
+    if cache is not None:
+        cached = cache.get_stack_los(stack, viewer, viewer_map.name, base_map.name, wx, wy)
+        if cached is not None:
+            return cached
+    result = stack_base_visible_from_overlay(stack, viewer, viewer_map, base_map, wx, wy)
+    if cache is not None:
+        cache.set_stack_los(stack, viewer, viewer_map.name, base_map.name, wx, wy, result)
+    return result
 
 
 def _pov_on_map(entity_pov, battle_map):
@@ -49,6 +108,9 @@ def build_stack_render_layers(session, battle_map, battle, *, padding=None, enti
     if stack is None:
         return None
 
+    # Create per-request render cache to deduplicate stack LOS/peek computations
+    render_cache = RenderCache()
+
     base_floor = next((f for f in stack.floors if f.is_base), None)
     if base_floor is None:
         return None
@@ -76,7 +138,7 @@ def build_stack_render_layers(session, battle_map, battle, *, padding=None, enti
     if mask_under_overlay is not None:
         _mask_base_tiles_under_overlay(stack, mask_under_overlay, base_tiles)
         _reveal_base_surround_for_overlay_view(
-            stack, mask_under_overlay, base_floor.map, base_tiles, entity_pov, battle_map,
+            stack, mask_under_overlay, base_floor.map, base_tiles, entity_pov, battle_map, cache=render_cache,
         )
     layers.append({
         'name': base_floor.map_name,
@@ -99,7 +161,7 @@ def build_stack_render_layers(session, battle_map, battle, *, padding=None, enti
         # cells are not rendered as opaque fog over the town below.
         renderer = JsonRenderer(floor.map, battle, padding=None)
         tile_grid = renderer.render(entity_pov=overlay_pov)
-        _annotate_stack_tiles(stack, floor, tile_grid, viewer_map=battle_map, entity_pov=overlay_pov)
+        _annotate_stack_tiles(stack, floor, tile_grid, viewer_map=battle_map, entity_pov=overlay_pov, cache=render_cache)
         layers.append({
             'name': floor.map_name,
             'role': 'overlay',
@@ -119,6 +181,7 @@ def build_stack_render_layers(session, battle_map, battle, *, padding=None, enti
                 padding,
                 _pov_on_map(entity_pov, battle_map),
                 battle_map,
+                cache=render_cache,
             )
 
     payload = {
@@ -157,7 +220,7 @@ def _mask_base_tiles_under_overlay(stack, overlay_floor, base_grid) -> None:
                 tile['opacity'] = 0
 
 
-def _reveal_base_surround_for_overlay_view(stack, overlay_floor, base_map, base_grid, entity_pov, viewer_map) -> None:
+def _reveal_base_surround_for_overlay_view(stack, overlay_floor, base_map, base_grid, entity_pov, viewer_map, *, cache=None) -> None:
     """Outdoor base tiles around the overlay footprint, with stack-aware LOS."""
     from natural20.map_stack_los import stack_base_visible_from_overlay
 
@@ -175,7 +238,7 @@ def _reveal_base_surround_for_overlay_view(stack, overlay_floor, base_map, base_
                 continue
             if pov_list and viewer_map is not None:
                 tile['line_of_sight'] = any(
-                    stack_base_visible_from_overlay(stack, entity, viewer_map, base_map, wx, wy)
+                    _cached_stack_base_visible(stack, entity, viewer_map, base_map, wx, wy, cache)
                     for entity in pov_list
                 )
             else:
@@ -252,28 +315,51 @@ def _edge_peek_world_target(stack, overlay_floor, lx: int, ly: int):
     return None
 
 
-def _peek_underlay_world_target(stack, base_floor, overlay_floor, viewer_map, entity, lx: int, ly: int):
+def _peek_underlay_world_target(stack, base_floor, overlay_floor, viewer_map, entity, lx: int, ly: int, *, cache: RenderCache | None = None):
     ax, ay = overlay_floor.anchor
     wx, wy = ax + lx, ay + ly
     omap = overlay_floor.map_name
+    if cache is not None:
+        stack_key = ('stack', id(stack), base_floor.map_name, omap)
+        cached = cache.get_peek_target(stack_key, base_floor.map_name, omap, lx, ly)
+        if cached is not None:
+            return cached
     if stack.is_window_at(wx, wy, omap):
-        return _outdoor_cell_beyond_window(stack, base_floor, overlay_floor, viewer_map, entity, wx, wy)
-    edge = _edge_peek_world_target(stack, overlay_floor, lx, ly)
-    if edge is not None:
-        return edge
-    return None
+        result = _outdoor_cell_beyond_window(stack, base_floor, overlay_floor, viewer_map, entity, wx, wy)
+    else:
+        result = _edge_peek_world_target(stack, overlay_floor, lx, ly)
+    if cache is not None:
+        stack_key = ('stack', id(stack), base_floor.map_name, omap)
+        cache.set_peek_target(stack_key, base_floor.map_name, omap, lx, ly, result)
+    return result
 
 
-def _is_edge_peek_cell(stack, floor, lx: int, ly: int) -> bool:
-    return _edge_peek_world_target(stack, floor, lx, ly) is not None
+def _is_edge_peek_cell(stack, floor, lx: int, ly: int, *, cache: RenderCache | None = None) -> bool:
+    if cache is not None:
+        stack_key = ('stack', id(stack), floor.map_name)
+        cached = cache.get_peek_target(stack_key, floor.map_name, floor.map_name, lx, ly)
+        if cached is not None:
+            return cached is not None
+    result = _edge_peek_world_target(stack, floor, lx, ly) is not None
+    if cache is not None:
+        stack_key = ('stack', id(stack), floor.map_name)
+        cache.set_peek_target(stack_key, floor.map_name, floor.map_name, lx, ly, result)
+    return result
 
 
-def _peek_candidate_at(stack, floor, lx: int, ly: int) -> bool:
+def _peek_candidate_at(stack, floor, lx: int, ly: int, *, cache: RenderCache | None = None) -> bool:
+    if cache is not None:
+        stack_key = ('stack', id(stack), floor.map_name)
+        cached = cache.get_peek_candidate(stack_key, floor.map_name, lx, ly)
+        if cached is not None:
+            return cached
     wx, wy, _ = stack.local_to_world(floor.map_name, lx, ly)
-    return bool(
-        stack.is_window_at(wx, wy, floor.map_name)
-        or _is_edge_peek_cell(stack, floor, lx, ly)
-    )
+    is_window = stack.is_window_at(wx, wy, floor.map_name)
+    is_edge = _is_edge_peek_cell(stack, floor, lx, ly, cache=cache)
+    result = bool(is_window or is_edge)
+    if cache is not None:
+        cache.set_peek_candidate(stack_key, floor.map_name, lx, ly, result)
+    return result
 
 
 def _viewer_can_peek_through(
@@ -284,6 +370,7 @@ def _viewer_can_peek_through(
     entity_pov,
     lx: int,
     ly: int,
+    cache: RenderCache | None = None,
 ) -> bool:
     """True when a POV entity on the overlay can see outdoors through this cell."""
     if viewer_map is None or base_floor is None:
@@ -295,23 +382,21 @@ def _viewer_can_peek_through(
 
     entity = pov_list[0]
     peek_target = _peek_underlay_world_target(
-        stack, base_floor, overlay_floor, viewer_map, entity, lx, ly,
+        stack, base_floor, overlay_floor, viewer_map, entity, lx, ly, cache=cache,
     )
     if peek_target is None:
         return False
 
-    from natural20.map_stack_los import stack_base_visible_from_overlay
-
     peek_wx, peek_wy = peek_target
     return any(
-        stack_base_visible_from_overlay(
-            stack, viewer_entity, viewer_map, base_floor.map, peek_wx, peek_wy,
+        _cached_stack_base_visible(
+            stack, viewer_entity, viewer_map, base_floor.map, peek_wx, peek_wy, cache
         )
         for viewer_entity in pov_list
     )
 
 
-def build_base_peek_underlay(stack, base_floor, overlay_floor, battle, padding, entity_pov, viewer_map):
+def build_base_peek_underlay(stack, base_floor, overlay_floor, battle, padding, entity_pov, viewer_map, *, cache=None):
     """Overlay-sized grid: base-map tiles visible through windows and open map edges."""
     ax, ay = overlay_floor.anchor
     ow, oh = overlay_floor.map.size
@@ -331,6 +416,7 @@ def build_base_peek_underlay(stack, base_floor, overlay_floor, battle, padding, 
         for lx in range(ow):
             if not _viewer_can_peek_through(
                 stack, base_floor, overlay_floor, viewer_map, entity_pov, lx, ly,
+                cache=cache,
             ):
                 row.append(_empty_underlay_tile(lx, ly))
                 continue
@@ -342,6 +428,7 @@ def build_base_peek_underlay(stack, base_floor, overlay_floor, battle, padding, 
                 entity_pov[0] if isinstance(entity_pov, list) and entity_pov else entity_pov,
                 lx,
                 ly,
+                cache=cache,
             )
             if peek_target is None:
                 row.append(_empty_underlay_tile(lx, ly))
@@ -490,7 +577,7 @@ def _pov_entities_on_map(entity_pov, battle_map):
     return on_map
 
 
-def _annotate_stack_tiles(stack, floor, tile_grid, *, viewer_map=None, entity_pov=None) -> None:
+def _annotate_stack_tiles(stack, floor, tile_grid, *, viewer_map=None, entity_pov=None, cache: RenderCache | None = None) -> None:
     """Tag tiles with peek_through / stack_opening for client compositing."""
     base_floor = next((f for f in stack.floors if f.is_base), None)
     entity = entity_pov
@@ -512,7 +599,7 @@ def _annotate_stack_tiles(stack, floor, tile_grid, *, viewer_map=None, entity_po
             tile['world_y'] = wy
             tile['layer_map'] = floor.map_name
             tile['stack_opening'] = stack.is_stack_opening(wx, wy)
-            is_peek_candidate = _peek_candidate_at(stack, floor, x, y)
+            is_peek_candidate = _peek_candidate_at(stack, floor, x, y, cache=cache)
             tile['peek_through'] = False
             if (
                 is_peek_candidate
@@ -520,12 +607,14 @@ def _annotate_stack_tiles(stack, floor, tile_grid, *, viewer_map=None, entity_po
                 and base_floor is not None
                 and _viewer_can_peek_through(
                     stack, base_floor, floor, viewer_map, entity_pov, x, y,
+                    cache=cache,
                 )
             ):
                 tile['peek_through'] = True
             if tile['peek_through'] and base_floor is not None:
                 peek_target = _peek_underlay_world_target(
                     stack, base_floor, floor, viewer_map, entity, x, y,
+                    cache=cache,
                 )
                 if peek_target is not None:
                     tile['descent_target_x'] = peek_target[0]

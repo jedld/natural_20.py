@@ -7,6 +7,22 @@ from natural20.utils.target_validation import (
 import inflect
 import i18n
 import uuid
+
+# Cache the list of Action subclasses to avoid repeated runtime introspection.
+# battle.commit() and commit_and_update iterate this for every result item.
+_ACTION_SUBCLASSES = None
+
+
+def get_action_subclasses():
+    """Return a cached list of Action subclasses (lazy-initialised)."""
+    global _ACTION_SUBCLASSES
+    if _ACTION_SUBCLASSES is None:
+        try:
+            from natural20 import action as _action_mod
+            _ACTION_SUBCLASSES = list(_action_mod.Action.__subclasses__())
+        except Exception:
+            _ACTION_SUBCLASSES = []
+    return _ACTION_SUBCLASSES
 # typed: true
 class AsyncReactionHandler(Exception):
     def __init__(self, source, generator, action, reaction_type):

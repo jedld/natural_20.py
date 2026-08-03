@@ -969,9 +969,12 @@ class Battle():
         # check_action_serialization(action)
         other_results = []
         index = 0
+        # Use cached subclass list to avoid repeated runtime introspection.
+        from natural20.action import get_action_subclasses
+        _action_subclasses = get_action_subclasses()
         while index < len(action.result):
             item = action.result[index]
-            for klass in Action.__subclasses__():
+            for klass in _action_subclasses:
                 other_results = klass.apply(self, item, self.session)
                 if isinstance(other_results, list):
                     for result in other_results:
