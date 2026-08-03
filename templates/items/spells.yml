@@ -79,6 +79,7 @@ bless:
     You bless up to three creatures of your choice within range. Whenever a target makes an attack roll or a saving throw before the spell ends, the target can roll a d4 and add the number rolled to the attack roll or saving throw.
   duration: 1m
   level: 1
+  upcast: true
   name: Bless
   range: 30
   school: enchantment
@@ -96,6 +97,7 @@ bane:
     Up to three creatures of your choice that you can see within range must make Charisma saving throws. Whenever a target that fails this saving throw makes an attack roll or a saving throw before the spell ends, the target must roll a d4 and subtract the number rolled from the attack roll or saving throw.
   duration: 1m
   level: 1
+  upcast: true
   name: Bane
   range: 30
   school: enchantment
@@ -151,6 +153,7 @@ burning_hands:
     The fire ignites any flammable objects in the area that aren't being worn or carried.
   duration: instant
   level: 1
+  upcast: true
   name: Burning Hands
   range_cone: 15
   school: evocation
@@ -168,6 +171,7 @@ thunderwave:
     At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d8 for each slot level above 1st.
   duration: instant
   level: 1
+  upcast: true
   name: Thunderwave
   range_cube: 15
   school: evocation
@@ -189,6 +193,7 @@ hellish_rebuke:
     - somatic
   duration: instant
   level: 1
+  upcast: true
   name: Hellish Rebuke
   range: 60
   school: evocation
@@ -276,6 +281,7 @@ ice_knife:
     At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the cold damage increases by 1d6 for each slot level above 1st.
   duration: instant
   level: 1
+  upcast: true
   name: Ice Knife
   range: 60
   school: conjuration
@@ -296,6 +302,7 @@ guiding_bolt:
     At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d6 for each slot level above 1st.
   duration: instant
   level: 1
+  upcast: true
   name: Guiding Bolt
   range: 120
   school: evocation
@@ -313,6 +320,7 @@ cure_wounds:
     At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the healing increases by 1d8 for each slot level above 1st.
   duration: instant
   level: 1
+  upcast: true
   name: Cure Wounds
   range: 5
   school: evocation
@@ -397,6 +405,7 @@ inflict_wounds:
     At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d10 for each slot level above 1st.
   duration: instant
   level: 1
+  upcast: true
   name: Inflict Wounds
   range: 5
   school: necromancy
@@ -504,6 +513,7 @@ armor_of_agathys:
     At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, both the temporary hit points and the cold damage increase by 5 for each slot level above 1st.
   duration: 1h
   level: 1
+  upcast: true
   name: Armor of Agathys
   range: self
   school: abjuration
@@ -542,6 +552,7 @@ healing_word:
     At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the healing increases by 1d4 for each slot level above 1st.
   duration: instant
   level: 1
+  upcast: true
   name: Healing Word
   range: 60
   school: evocation
@@ -575,8 +586,8 @@ magic_missile:
   casting_time: 1:action
   damage_type: force
   description: You create three glowing darts of magical force. Each dart hits a creature of your choice that you can see within range.
-  higher_level: true
   level: 1
+  upcast: true
   name: Magic Missile
   range: 120
   school: evocation
@@ -722,6 +733,7 @@ sleep:
   duration: 1m
   duration_seconds: 60
   level: 1
+  upcast: true
   name: Sleep
   range: 90
   radius: 20
@@ -850,6 +862,7 @@ false_life:
     Bolstering yourself with a necromantic facsimile of life, you gain 1d4 + 4 temporary hit points for the duration. At Higher Levels: When you cast this spell using a spell slot of 2nd level or higher, you gain 5 additional temporary hit points for each slot level above 1st.
   duration: 1h
   level: 1
+  upcast: true
   name: False Life
   range: self
   school: necromancy
@@ -873,6 +886,7 @@ chromatic_orb:
     At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the damage increases by 1d8 for each slot level above 1st.
   duration: instant
   level: 1
+  upcast: true
   name: Chromatic Orb
   range: 90
   school: evocation
@@ -898,6 +912,7 @@ color_spray:
     At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, roll an additional 1d10 for each slot level above 1st.
   duration: 1R
   level: 1
+  upcast: true
   name: Color Spray
   range_cone: 15
   school: illusion
@@ -924,6 +939,7 @@ witch_bolt:
     At Higher Levels. When you cast this spell using a spell slot of 2nd level or higher, the initial damage increases by 1d12 for each slot level above 1st.
   duration: 1m
   level: 1
+  upcast: true
   name: Witch Bolt
   range: 30
   school: evocation
@@ -1104,6 +1120,7 @@ fireball:
     higher, the damage increases by 1d6 for each slot level above 3rd.
   duration: instant
   level: 3
+  upcast: true
   name: Fireball
   range: 150
   radius: 20
@@ -1131,16 +1148,25 @@ leomunds_tiny_hut:
   label: Leomund's Tiny Hut
   casting_time: 1:minute
   components: [verbal, somatic, material]
-  description: Creates an immobile protective dome.
+  material: a small crystal bead
+  description: >-
+    A 10-foot-radius immobile dome of force springs into existence around and above you.
+    Nine Medium or smaller creatures can fit inside with you. The spell fails if a Large
+    or larger creature is in the area, or if more than nine other creatures are present.
+    Occupants present when cast may pass through freely; all others are barred. Spells
+    cannot extend through or be cast through the dome. You can command dim or dark lighting
+    inside until the spell ends (8 hours) or you leave the area.
   duration: 8h
   duration_seconds: 28800
   level: 3
   name: Leomund's Tiny Hut
-  range: 30
-  target_types: [point]
+  radius: 10
+  range: 0
+  target_types: [self]
   school: evocation
   type: utility
-  spell_list_classes: [Wizard]
+  concentration: false
+  spell_list_classes: [Wizard, Bard]
   spell_class: Natural20::LeomundsTinyHut
 knock:
   label: Knock
@@ -1164,6 +1190,7 @@ scorching_ray:
   description: Make three rays of fire at one or more targets.
   duration: instant
   level: 2
+  upcast: true
   name: Scorching Ray
   range: 120
   school: evocation
@@ -1247,6 +1274,7 @@ aganazzars_scorcher:
   description: A 30-foot line of roaring flame.
   duration: instant
   level: 2
+  upcast: true
   name: Aganazzar's Scorcher
   range: 30
   length: 30
@@ -1324,6 +1352,7 @@ lightning_bolt:
   description: A 100-foot line of lightning.
   duration: instant
   level: 3
+  upcast: true
   name: Lightning Bolt
   range: 100
   length: 100
@@ -1496,6 +1525,7 @@ cloudkill:
   duration: 10m
   duration_seconds: 600
   level: 5
+  upcast: true
   name: Cloudkill
   range: 120
   radius: 20
@@ -1512,6 +1542,7 @@ cone_of_cold:
   description: A blast of cold air erupts from your hands.
   duration: instant
   level: 5
+  upcast: true
   name: Cone of Cold
   range: 60
   range_cone: 60
@@ -1554,13 +1585,25 @@ stinking_cloud:
   label: Stinking Cloud
   casting_time: 1:action
   components: [verbal, somatic, material]
-  description: Create a nauseating 20-foot-radius cloud.
+  material: a rotten egg or several skunk cabbage leaves
+  description: >-
+    You create a 20-foot-radius sphere of yellow, nauseating gas centered on a
+    point within range. The cloud spreads around corners, and its area is heavily
+    obscured. The cloud lingers in the air for the duration. Each creature that is
+    completely within the cloud at the start of its turn must make a Constitution
+    saving throw against poison. On a failed save, the creature spends its action
+    that turn retching and reeling. Creatures that don't need to breathe or are
+    immune to poison automatically succeed on this saving throw. A moderate wind
+    (at least 10 miles per hour) disperses the cloud after 4 rounds. A strong wind
+    (at least 20 miles per hour) disperses it after 1 round.
   duration: 1m
   duration_seconds: 60
   level: 3
   name: Stinking Cloud
   range: 90
   radius: 20
+  save: constitution
+  damage_type: poison
   target_types: [point]
   school: conjuration
   concentration: true
@@ -1600,14 +1643,25 @@ message:
   label: Message
   casting_time: 1:action
   components: [verbal, somatic, material]
-  description: Whisper a message to a creature in range.
+  material: a short piece of copper wire
+  description: >-
+    You point your finger toward a creature within range and whisper a message.
+    The target (and only the target) hears the message and can reply in a whisper
+    that only you can hear. You can cast this spell through solid objects if you
+    are familiar with the target and know it is beyond the barrier. Magical silence,
+    1 foot of stone, 1 inch of common metal, a thin sheet of lead, or 3 feet of
+    wood blocks the spell. The spell doesn't have to follow a straight line and can
+    travel freely around corners or through openings.
   duration: 1 round
+  duration_seconds: 6
   level: 0
   name: Message
   range: 120
   school: transmutation
   type: utility
-  spell_list_classes: [Wizard, Sorcerer, Bard]
+  target_types: [allies, enemies]
+  provokes_hostility: false
+  spell_list_classes: [Wizard, Sorcerer, Bard, Artificer]
   spell_class: Natural20::Message
 teleport:
   label: Teleport
@@ -1664,6 +1718,7 @@ absorb_elements:
  duration: 1 round
  duration_seconds: 6
  level: 1
+ upcast: true
  name: Absorb Elements
  range: 0
  school: abjuration
@@ -1701,6 +1756,7 @@ hold_person:
  duration: 1m
  duration_seconds: 60
  level: 2
+ upcast: true
  name: Hold Person
  range: 60
  school: enchantment

@@ -17,6 +17,8 @@ from natural20.utils.localization import localize_quick_interact_actions
 from natural20.item_library.teleporter import Teleporter
 from natural20.item_library.chasm import Chasm
 from natural20.spell.objects.grease_surface import GreaseSurface
+from natural20.spell.objects.stinking_cloud_gas import StinkingCloudGas
+from natural20.spell.objects.tiny_hut import TinyHutDome
 import logging
 from natural20.web.terrain_tooltip import build_terrain_tooltip
 from natural20.utils.magical_aura import magical_auras_for_tile, viewer_has_detect_magic
@@ -466,6 +468,32 @@ class JsonRenderer:
                         object_info['grease_marker_seed'] = (
                             object_entity.properties.get('grease_seed') if is_grease_surface else None
                         )
+
+                        is_stinking_cloud_gas = isinstance(object_entity, StinkingCloudGas) or bool(
+                            object_entity.properties.get('stinking_cloud_gas')
+                        )
+                        object_info['stinking_cloud_marker'] = bool(is_stinking_cloud_gas)
+                        object_info['stinking_cloud_marker_seed'] = (
+                            object_entity.properties.get('stinking_cloud_seed')
+                            if is_stinking_cloud_gas else None
+                        )
+
+                        is_tiny_hut_dome = isinstance(object_entity, TinyHutDome) or bool(
+                            object_entity.properties.get('tiny_hut_dome')
+                        )
+                        object_info['tiny_hut_dome'] = bool(is_tiny_hut_dome)
+                        if is_tiny_hut_dome:
+                            object_info['tiny_hut_center'] = list(getattr(object_entity, 'center', [x, y]))
+                            object_info['tiny_hut_radius_ft'] = getattr(object_entity, 'radius_ft', 10)
+                            object_info['tiny_hut_shell'] = [
+                                list(s) for s in getattr(object_entity, 'shell_squares', [])
+                            ]
+                            object_info['tiny_hut_lighting'] = getattr(
+                                object_entity, 'interior_lighting', 'default'
+                            )
+                            object_info['tiny_hut_color'] = getattr(
+                                object_entity, 'dome_color', 'sapphire'
+                            )
 
                         is_door_fixture = isinstance(object_entity, (DoorObject, DoorObjectWall))
                         object_info['door_highlight'] = bool(is_door_fixture)

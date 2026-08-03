@@ -51,6 +51,18 @@ class UseItemAction(Action):
     def usable_items(self):
         return self.source.usable_items()
 
+    def charge_badge_text(self):
+        """Compact charge label for the Use Item action icon (single charged item only)."""
+        charged = []
+        for entry in self.usable_items():
+            summary = self.source.item_charge_summary(entry['name'])
+            if summary is not None:
+                charged.append(summary)
+        if len(charged) == 1:
+            s = charged[0]
+            return f"{s['current']}/{s['max']}"
+        return None
+
     @staticmethod
     def build(session, source):
         action = UseItemAction(session, source, "use_item")

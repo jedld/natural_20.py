@@ -52,6 +52,7 @@ python scripts/generate_campaign_assets.py \
 |-------|------|--------|
 | NPC tokens | `assets/token_<kind>.png` | Circular, 256px, ring border |
 | NPC scene portraits | `assets/portraits/portrait_<kind>.jpg` | When NPC YAML has `portrait_scene` |
+| NPC full-body sheet art | `assets/portraits/full_body_<kind>.jpg` | When NPC YAML has `full_body_scene` or `full_body_image` |
 | Login / title | `assets/<login_background>` from `index.json` | e.g. `thyros_cityscape.jpg` |
 | PC portraits (optional) | `assets/characters/<name>.png` | `--portraits` |
 
@@ -74,6 +75,15 @@ Optional per-NPC fields:
 | Field | Purpose |
 |-------|---------|
 | `portrait_scene` | Scene key from `asset_prompts.yml` → `scenes` (e.g. `tavern`, `durst_manor`) |
+| `full_body_scene` | Scene key for full-body character sheet art (defaults to `portrait_scene`) |
+| `full_body_image` | Output path under `assets/` (default `portraits/full_body_<kind>.jpg`) |
+| `full_body_prompt` | Override auto full-body diffusion prompt (CLIP-safe; prefer under ~65 words) |
+| `full_body_negative_prompt` | Extra negative prompt terms appended when generating full-body art |
+| `sheet_images` | Optional gallery entries `{label, image}` shown on the NPC character sheet |
+| `image_gallery` | Gallery entries `{id, label, image, description}` for sheet UI and NPC `[PORTRAIT: id]` dialog switching |
+| `gallery_prompt` | Per-entry diffusion prompt override (on `image_gallery` items) |
+| `gallery_negative_prompt` | Per-entry extra negative prompt terms |
+| `gallery_scene` | Scene key from `asset_prompts.yml` when auto-building gallery prompts |
 | `outward_appearance` | Physical look used for token/portrait prompts (preferred over `description`) |
 | `image_prompt` | Override auto-generated diffusion prompt (keep under ~65 words for CLIP) |
 
@@ -89,6 +99,7 @@ Example `user_levels/<campaign>/asset_prompts.yml`:
 ```yaml
 token_style: fantasy VTT token bust, painterly gothic horror, ...
 portrait_style: painterly gothic horror portrait, ...
+full_body_style: painterly fantasy full body character art, ...
 login_scene: foggy road, decaying manor, ...
 character_selection_scene: adventurers outside manor, ...
 scenes:
@@ -109,12 +120,47 @@ Generic defaults live in `campaign_prompt_profile.py`; only SRD-wide icon hints 
 | `--tokens` / `--no-tokens` | NPC circular tokens (default on) |
 | `--background` / `--no-background` | Login/title image (default on) |
 | `--portraits` | Selectable character portraits |
+| `--full-body` / `--no-full-body` | NPC full-body sheet images (default on when YAML requests them) |
 | `--force` | Overwrite existing files |
 | `--dry-run` | Print plan; no MCP calls |
 | `--only KIND` | Limit to NPC kind / portrait name (repeatable) |
 | `--token-size N` | Output token size (default 256) |
 | `--quality low\|medium\|high\|auto` | MCP quality preset |
 | `--status` | MCP readiness probe |
+
+## NPC image gallery
+
+Generate additional `image_gallery` JPEGs (character sheet + JRPG `[PORTRAIT: id]` switching):
+
+```bash
+# List configured gallery entries
+python scripts/generate_npc_gallery_images.py \
+  --campaign user_levels/wild_sheep_chase \
+  --npc pip_barmaid --list
+
+# Generate entries defined in NPC YAML (uses gallery_prompt per entry)
+python scripts/generate_npc_gallery_images.py \
+  --campaign user_levels/wild_sheep_chase \
+  --npc pip_barmaid \
+  --id bedroom_doorway --id bedroom_lounging
+
+# Fully custom one-off image + append to YAML
+python scripts/generate_npc_gallery_images.py \
+  --campaign user_levels/wild_sheep_chase \
+  --npc pip_barmaid \
+  --id my_scene \
+  --output portraits/pip_my_scene.jpg \
+  --label "My Scene" \
+  --description "When to use this portrait in dialog." \
+  --scene tavern_bedroom \
+  --prompt-file prompts/pip_my_scene.txt \
+  --negative-file prompts/pip_my_scene_negative.txt \
+  --append-yaml --force
+```
+
+Per-entry YAML fields on `image_gallery` items: `gallery_prompt`, `gallery_negative_prompt`, `gallery_scene`.
+
+**CLIP limit:** diffusion prompts are trimmed to ~48 words (~60 tokens). Avoid `D&D` (use `DnD` or `fantasy`), long comma chains, and repeating "halfling". Put the most important pose/scene details first. Use `--dry-run` to see word/token estimates.
 
 ## Programmatic use
 
@@ -131,6 +177,19 @@ report = generate_campaign_assets(
 ```
 
 Inject a fake generator in tests via `generator=callable`.
+
+Gallery images:
+
+```python
+from natural20.image_gen.campaign_assets import generate_npc_gallery_images
+
+report = generate_npc_gallery_images(
+    "user_levels/wild_sheep_chase",
+    "pip_barmaid",
+    entry_ids=["bedroom_doorway"],
+    force=False,
+)
+```
 
 ## Item and spell icons
 

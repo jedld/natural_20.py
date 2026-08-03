@@ -13,8 +13,7 @@ overflow damage is applied to the druid form.
 """
 
 import copy
-import os
-import yaml
+from natural20.yaml_loader import load_campaign_resource_path
 
 
 # Beasts available at druid level 2 (CR <= 1/4, no fly / swim speed).
@@ -22,12 +21,13 @@ WILD_SHAPE_BEASTS_LEVEL_2 = ('wolf', 'giant_rat', 'boar', 'cat')
 
 
 def _load_beast_yaml(session, beast_id):
-  """Load a beast NPC yaml from session.root_path/npcs/<beast_id>.yml."""
-  path = os.path.join(session.root_path, 'npcs', f'{beast_id}.yml')
-  if not os.path.exists(path):
-    raise FileNotFoundError(f'beast statblock not found: {path}')
-  with open(path) as f:
-    return yaml.safe_load(f)
+  """Load a beast NPC YAML from campaign/import/template resources."""
+  try:
+    return load_campaign_resource_path(session.root_path, f'npcs/{beast_id}.yml')
+  except FileNotFoundError as exc:
+    raise FileNotFoundError(
+      f'beast statblock not found for {beast_id} in campaign/import/template resources'
+    ) from exc
 
 
 def available_beasts(druid_level):

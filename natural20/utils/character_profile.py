@@ -32,6 +32,8 @@ PROFILE_TEXT_FIELDS = (
     'flaws',
     'backstory',
     'outward_appearance',
+    'harrowing_event',
+    'background_trinket',
 )
 
 PERSONALITY_FIELDS = ('personality_traits', 'ideals', 'bonds', 'flaws')
@@ -58,19 +60,34 @@ def _templates_root() -> Path:
     return here / 'templates'
 
 
-def load_profile_tables(*, templates_root: Optional[Path] = None) -> Dict[str, Any]:
+def load_profile_tables(
+    *,
+    templates_root: Optional[Path] = None,
+    campaign_root: Optional[str | Path] = None,
+) -> Dict[str, Any]:
     global _TABLES_CACHE
-    if _TABLES_CACHE is not None and templates_root is None:
+    if _TABLES_CACHE is not None and templates_root is None and campaign_root is None:
         return _TABLES_CACHE
+
+    merged: Dict[str, Any] = {}
     root = templates_root or _templates_root()
-    path = root / 'character_profile_tables.yml'
-    if not path.is_file():
-        return {}
-    with open(path, 'r', encoding='utf-8') as fh:
-        data = yaml.safe_load(fh) or {}
-    if templates_root is None:
-        _TABLES_CACHE = data
-    return data
+    template_path = root / 'character_profile_tables.yml'
+    if template_path.is_file():
+        with open(template_path, 'r', encoding='utf-8') as fh:
+            merged = yaml.safe_load(fh) or {}
+
+    if campaign_root is not None:
+        campaign_path = Path(campaign_root) / 'character_profile_tables.yml'
+        if campaign_path.is_file():
+            with open(campaign_path, 'r', encoding='utf-8') as fh:
+                campaign_data = yaml.safe_load(fh) or {}
+            if isinstance(campaign_data, dict):
+                from natural20.yaml_loader import deep_merge
+                merged = deep_merge(merged, campaign_data)
+
+    if templates_root is None and campaign_root is None:
+        _TABLES_CACHE = merged
+    return merged
 
 
 def _clean_text(value: Any) -> str:
@@ -204,10 +221,29 @@ def _background_tables(tables: Mapping[str, Any], background: str) -> Dict[str, 
     bg = backgrounds.get(background) or {}
     default = tables.get('default') or {}
     merged: Dict[str, Sequence[str]] = {}
-    for key in PERSONALITY_FIELDS:
+    keys = set(PERSONALITY_FIELDS) | {'harrowing_events', 'gothic_trinkets'}
+    for key in keys:
         options = bg.get(key) or default.get(key) or []
         merged[key] = list(options)
     return merged
+
+
+def roll_background_table(
+    *,
+    background: str = '',
+    table_name: str = '',
+    rng: Optional[random.Random] = None,
+    templates_root: Optional[Path] = None,
+    campaign_root: Optional[str | Path] = None,
+) -> str:
+    """Roll a named background table (e.g. harrowing_events, gothic_trinkets)."""
+    rng = rng or random.Random()
+    tables = load_profile_tables(templates_root=templates_root, campaign_root=campaign_root)
+    bg_tables = _background_tables(tables, background)
+    options = list(bg_tables.get(table_name) or [])
+    if not options:
+        return ''
+    return str(rng.choice(options))
 
 
 def randomize_profile(
@@ -218,12 +254,15 @@ def randomize_profile(
     include_personality: bool = True,
     include_physical: bool = True,
     include_alignment: bool = True,
+    include_harrowing_event: bool = False,
+    include_background_trinket: bool = False,
     rng: Optional[random.Random] = None,
     templates_root: Optional[Path] = None,
+    campaign_root: Optional[str | Path] = None,
 ) -> Dict[str, str]:
     """Roll PHB/DMG-style profile fields for character creation."""
     rng = rng or random.Random()
-    tables = load_profile_tables(templates_root=templates_root)
+    tables = load_profile_tables(templates_root=templates_root, campaign_root=campaign_root)
     resolved_size = (size or default_size_for_race(race_def)).lower()
     if resolved_size not in SIZE_CATEGORIES:
         resolved_size = 'medium'
@@ -239,6 +278,26 @@ def randomize_profile(
                 profile[key] = str(rng.choice(list(options)))
     if include_alignment:
         profile['alignment'] = str(rng.choice(ALIGNMENT_OPTIONS))
+    if include_harrowing_event:
+        rolled = roll_background_table(
+            background=background,
+            table_name='harrowing_events',
+            rng=rng,
+            templates_root=templates_root,
+            campaign_root=campaign_root,
+        )
+        if rolled:
+            profile['harrowing_event'] = rolled
+    if include_background_trinket:
+        rolled = roll_background_table(
+            background=background,
+            table_name='gothic_trinkets',
+            rng=rng,
+            templates_root=templates_root,
+            campaign_root=campaign_root,
+        )
+        if rolled:
+            profile['background_trinket'] = rolled
     return profile
 
 
@@ -268,6 +327,8 @@ def format_profile_for_llm(profile: Mapping[str, str], *, max_field_chars: int =
         'ideals': 'Ideals',
         'bonds': 'Bonds',
         'flaws': 'Flaws',
+        'harrowing_event': 'Harrowing event',
+        'background_trinket': 'Significant trinket',
         'backstory': 'Backstory',
     }
     lines = []

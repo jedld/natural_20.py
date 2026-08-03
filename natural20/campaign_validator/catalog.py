@@ -6,7 +6,7 @@ import difflib
 from pathlib import Path
 from typing import Any
 
-from natural20.yaml_loader import load_campaign_yaml, templates_root
+from natural20.yaml_loader import campaign_import_roots, load_campaign_yaml, templates_root
 
 
 def _stem_index(folder: Path) -> dict[str, str]:
@@ -27,6 +27,7 @@ class CampaignCatalog:
     def __init__(self, campaign: Path, templates: Path | None = None) -> None:
         self.campaign = campaign.expanduser().resolve()
         self.templates = (templates or templates_root()).resolve()
+        self.imports = campaign_import_roots(self.campaign)
         self.weapons = self._merge_item_file("weapons")
         self.equipment = self._merge_item_file("equipment")
         self.magic_items = self._merge_item_file("magic_items")
@@ -48,7 +49,9 @@ class CampaignCatalog:
 
     def _merge_stems(self, category: str) -> dict[str, str]:
         merged: dict[str, str] = {}
-        for root in (self.templates, self.campaign):
+        # Earlier imports have higher precedence than later imports.
+        roots = [self.templates] + list(reversed(self.imports)) + [self.campaign]
+        for root in roots:
             merged.update(_stem_index(root / category))
         return merged
 

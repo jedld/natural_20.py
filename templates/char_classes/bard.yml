@@ -122,6 +122,7 @@ spell_list:
   level_3:
     - dispel_magic
     - tongues
+    - stinking_cloud
 proficiency_bonuses:
 - 2
 - 2

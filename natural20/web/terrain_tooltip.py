@@ -9,6 +9,8 @@ def _light_description(tile, battle_map):
         lights = battle_map.light_at(tile['x'], tile['y'])
     if lights is None:
         lights = 0.0
+    if battle_map is not None and hasattr(battle_map, '_light_builder') and battle_map._light_builder.obscuring_gas_at(tile['x'], tile['y']):
+        return "Stinking Cloud (heavily obscured)"
     if lights == 0.0:
         if battle_map is not None and battle_map.magical_darkness_at(tile['x'], tile['y']):
             return "Magical Darkness (heavily obscured)"

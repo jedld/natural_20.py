@@ -63,7 +63,7 @@ class UtilityWizardSpell(Spell):
     @staticmethod
     def apply(battle, item, session=None):
         if item.get('type') != 'wizard_spell_effect':
-            return
+            return None
         if battle and session is None:
             session = battle.session
         target = item.get('target')
@@ -121,7 +121,7 @@ class ProtectionFromEnergySpell(UtilityWizardSpell):
     @staticmethod
     def apply(battle, item, session=None):
         if item.get('type') != 'protection_from_energy':
-            return UtilityWizardSpell.apply(battle, item, session)
+            return None
         if battle and session is None:
             session = battle.session
         target = item.get('target')
@@ -224,7 +224,7 @@ class AreaSaveSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
             battle=battle,
         )
 
-    def validate(self, battle_map, target=None):
+    def validate(self, battle_map, target=None, battle=None):
         self.errors.clear()
         if target is None:
             target = self.target
@@ -298,10 +298,6 @@ class SunbeamSpell(AreaSaveSpell):
     BASE_LEVEL = 6
     SHAPE = 'line'
     SAVE = 'constitution'
-
-
-class StinkingCloudSpell(UtilityWizardSpell):
-    TARGET_TYPES = ['point']
 
 
 class WallOfForceSpell(UtilityWizardSpell):
@@ -490,10 +486,6 @@ class OtilukesResilientSphereSpell(CounterspellSpell):
     TARGET_TYPES = ['enemies', 'allies', 'self']
 
 
-class LeomundsTinyHutSpell(UtilityWizardSpell):
-    TARGET_TYPES = ['point']
-
-
 class KnockSpell(UtilityWizardSpell):
     TARGET_TYPES = ['point']
 
@@ -540,10 +532,6 @@ class AnimateDeadSpell(UtilityWizardSpell):
 
 class TeleportSpell(UtilityWizardSpell):
     TARGET_TYPES = ['point']
-
-
-class MessageSpell(UtilityWizardSpell):
-    TARGET_TYPES = ['allies']
 
 
 class MinorIllusionSpell(UtilityWizardSpell):

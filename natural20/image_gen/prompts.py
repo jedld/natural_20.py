@@ -14,7 +14,11 @@ if TYPE_CHECKING:
     from natural20.image_gen.campaign_prompt_profile import CampaignPromptProfile
 
 # CLIP text encoders (FLUX / SD) truncate at 77 tokens; keep prompts conservative.
+CLIP_MAX_TOKENS = 77
 CLIP_MAX_WORDS = 65
+# Gallery/custom prompts tokenize longer (punctuation, short words); stay well under 77 tokens.
+CLIP_GALLERY_MAX_WORDS = 48
+CLIP_NEGATIVE_MAX_WORDS = 40
 
 
 TOKEN_NEGATIVE = (
@@ -45,6 +49,34 @@ def clip_word_limit(text: str, max_words: int = CLIP_MAX_WORDS) -> str:
     if len(words) <= max_words:
         return cleaned
     return " ".join(words[:max_words]).rstrip(".,;:")
+
+
+def normalize_for_clip(text: str) -> str:
+    """Collapse whitespace and replace patterns that inflate CLIP token counts."""
+    cleaned = re.sub(r"\s+", " ", (text or "").strip())
+    cleaned = re.sub(r"\bD\s*&\s*D\b", "DnD", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bpainterly fantasy DnD halfling\b", "painterly fantasy halfling", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
+def estimate_clip_tokens(text: str) -> int:
+    """Rough CLIP token estimate without loading the tokenizer."""
+    cleaned = normalize_for_clip(text)
+    if not cleaned:
+        return 0
+    words = cleaned.split()
+    punctuation = sum(cleaned.count(c) for c in ",.;:!?()[]\"'")
+    specials = len(re.findall(r"[&/\\-]", cleaned))
+    return max(len(words), int(len(words) * 1.12) + punctuation + specials)
+
+
+def fit_gallery_prompt(text: str, max_words: int = CLIP_GALLERY_MAX_WORDS) -> str:
+    """Normalize and trim gallery/custom diffusion prompts for CLIP safety."""
+    return clip_word_limit(normalize_for_clip(text), max_words=max_words)
+
+
+def fit_negative_prompt(text: str, max_words: int = CLIP_NEGATIVE_MAX_WORDS) -> str:
+    return clip_word_limit(normalize_for_clip(text), max_words=max_words)
 
 
 def fit_clip_prompt(*segments: str, max_words: int = CLIP_MAX_WORDS) -> str:
@@ -84,6 +116,32 @@ def campaign_asset_mood(campaign_meta: dict[str, Any]) -> str:
 
 def scene_backdrop(scene: str, profile: CampaignPromptProfile | None = None) -> str:
     return _resolve_profile(profile).scene_backdrop(scene)
+
+
+def npc_full_body_prompt(
+    *,
+    name: str,
+    kind: str,
+    description: str,
+    race: str | None = None,
+    scene: str = "tavern",
+    theme: str = "",
+    profile: CampaignPromptProfile | None = None,
+) -> str:
+    resolved = _resolve_profile(profile)
+    race_bit = f"{race} " if race else ""
+    subject = f"Full body illustration of {name}, a {race_bit}{kind.replace('_', ' ')}"
+    desc = clip_word_limit((description or "").replace("\n", " "), 28)
+    scene_bit = resolved.scene_backdrop(scene)
+    mood_bit = clip_word_limit(theme, 10) if theme else ""
+    return fit_clip_prompt(
+        subject,
+        desc,
+        scene_bit,
+        resolved.full_body_style,
+        f"Mood: {mood_bit}" if mood_bit else "",
+        max_words=CLIP_MAX_WORDS,
+    )
 
 
 def npc_scene_portrait_prompt(
@@ -217,6 +275,50 @@ DEFAULT_ICON_STYLE = (
 SPELL_ICON_COMPOSITION = (
     "single symbolic spell effect only, flat vector art, bold dark outline, "
     "bright saturated colors, no characters, no scenery"
+)
+
+_SPELL_VISUAL_HINTS: dict[str, str] = {
+    "message": (
+        "curved magical sound wave arcs and whisper lines, copper wire coil motif, "
+        "silent telepathy symbol"
+    ),
+    "teleport": (
+        "swirling arcane portal circle with runes, silhouette dissolving into "
+        "sparkling mist trails, dimensional gateway"
+    ),
+    "stinking_cloud": (
+        "billowing sickly green-yellow toxic gas cloud, nauseating vapor fumes"
+    ),
+    "minor_illusion": (
+        "shimmering translucent ghost image fragment, magic sparkle and wand tip, "
+        "floating illusion glyph"
+    ),
+    "misty_step": (
+        "silvery mist swirl with footprints vanishing, short-range blink portal"
+    ),
+    "darkness": (
+        "black void sphere with curling shadow tendrils, magical darkness orb"
+    ),
+    "detect_magic": (
+        "open eye with arcane aura rings, magical sight symbol"
+    ),
+    "grease": (
+        "spilled oil puddle with slick shine, slippery grease splash"
+    ),
+}
+
+_FIRE_SPELL_SLUGS = frozenset(
+    {
+        "fireball",
+        "firebolt",
+        "burning_hands",
+        "flame_strike",
+        "green_flame_blade",
+        "hellish_rebuke",
+        "scorching_ray",
+        "wall_of_fire",
+        "witch_bolt",
+    }
 )
 
 
@@ -519,6 +621,27 @@ def item_icon_prompt(
     )
 
 
+def spell_visual_hint(slug: str, label: str = "") -> str:
+    key = (slug or "").strip().lower()
+    if key in _SPELL_VISUAL_HINTS:
+        return _SPELL_VISUAL_HINTS[key]
+    return clip_word_limit(
+        f"abstract magical symbol for {label or key.replace('_', ' ')}",
+        18,
+    )
+
+
+def spell_icon_negative(*, slug: str = "", spell_meta: dict | None = None) -> str:
+    meta = spell_meta or {}
+    damage = str(meta.get("damage_type") or "").lower()
+    if damage == "fire" or (slug or "").strip().lower() in _FIRE_SPELL_SLUGS:
+        return ICON_NEGATIVE
+    return (
+        f"{ICON_NEGATIVE}, flame, fire, torch, candle, brazier, lantern, "
+        "bonfire, campfire, lightning bolt, storm cloud"
+    )
+
+
 def spell_icon_prompt(
     *,
     name: str,
@@ -529,10 +652,11 @@ def spell_icon_prompt(
     theme: str = "",
 ) -> str:
     del description, theme  # bundled spell icons use label/school only
+    visual = spell_visual_hint(name, label)
     school_bit = school.replace("_", " ").strip()
-    subject = f"RPG spell icon: {label or name}"
+    subject = f"RPG spell icon: {visual}"
     if school_bit:
-        subject = f"{subject}, {school_bit} school"
+        subject = f"{subject}, {school_bit} school magic"
     style = clip_word_limit(icon_style or DEFAULT_ICON_STYLE, 20)
     return fit_clip_prompt(
         subject,

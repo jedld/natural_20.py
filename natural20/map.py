@@ -1766,7 +1766,27 @@ class Map(SerializableObject):
                     if not ignore_opposing and battle.opposing(location_entity, entity) and abs(location_entity.size_identifier() - entity.size_identifier()) < 2:
                         return False
 
+                if origin:
+                    try:
+                        from natural20.spell.objects.tiny_hut import force_dome_blocks_movement
+                        if force_dome_blocks_movement(self, entity, tuple(origin), (relative_x, relative_y)):
+                            return False
+                    except Exception:
+                        pass
+
         return True
+
+    @staticmethod
+    def _entities_can_share_space(entity, occupant):
+        if occupant is None or entity is occupant:
+            return entity is occupant
+        can_share = getattr(entity, 'class_feature', None)
+        if callable(can_share) and can_share('swarm'):
+            return True
+        can_share = getattr(occupant, 'class_feature', None)
+        if callable(can_share) and can_share('swarm'):
+            return True
+        return False
     
     def placeable(self, entity, pos_x, pos_y, battle=None, squeeze=True):
         if not self.passable(entity, pos_x, pos_y, battle, squeeze):
@@ -1777,6 +1797,9 @@ class Map(SerializableObject):
             if self.tokens[p_x][p_y] and self.tokens[p_x][p_y]['entity'] == entity:
                 continue
             if self.tokens[p_x][p_y]:
+                occupant = self.tokens[p_x][p_y]['entity']
+                if self._entities_can_share_space(entity, occupant):
+                    continue
                 return False
             if self.object_at(p_x, p_y) and not self.object_at(p_x, p_y).passable():
                 return False
@@ -1828,6 +1851,13 @@ class Map(SerializableObject):
 
                 if creature_size_min and self.entity_at(*s) and self.entity_at(*s).size_identifier() >= creature_size_min:
                     return None
+
+                try:
+                    from natural20.spell.objects.tiny_hut import force_dome_blocks_outside_vision
+                    if force_dome_blocks_outside_vision(self, tuple(prev_square), tuple(s)):
+                        return None
+                except Exception:
+                    pass
 
             prev_square = s
 
@@ -1908,10 +1938,24 @@ class Map(SerializableObject):
         if self._light_builder.magical_darkness_at(pos_x, pos_y):
             return 0.0
 
+        try:
+            from natural20.spell.objects.tiny_hut import iter_tiny_hut_domes
+            interior_override = None
+            for dome in iter_tiny_hut_domes(self):
+                if dome.contains((pos_x, pos_y)):
+                    interior_override = dome.interior_light_value()
+                    break
+        except Exception:
+            interior_override = None
+
         if self._light_map is not None:
-            return self._light_map[pos_x][pos_y] + self._light_builder.light_at(pos_x, pos_y)
+            intensity = self._light_map[pos_x][pos_y] + self._light_builder.light_at(pos_x, pos_y)
         else:
-            return self._light_builder.light_at(pos_x, pos_y)
+            intensity = self._light_builder.light_at(pos_x, pos_y)
+
+        if interior_override is not None:
+            return interior_override
+        return intensity
 
     def magical_darkness_at(self, pos_x, pos_y):
         """True when the given square is inside a magical darkness sphere."""

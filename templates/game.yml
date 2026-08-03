@@ -34,3 +34,12 @@ groups:
       - a
     neutral:
       - c
+action_bar:
+  common_action_types:
+    - attack
+    - dash
+    - dodge
+    - disengage
+    - help
+    - hide
+  default_tab: common

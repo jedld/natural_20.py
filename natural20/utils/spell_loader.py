@@ -102,6 +102,9 @@ def _build_spell_class_registry():
     from natural20.spell.wall_of_fire_spell import WallOfFireSpell
     from natural20.spell.tongues_spell import TonguesSpell
     from natural20.spell.detect_magic_spell import DetectMagicSpell
+    from natural20.spell.leomunds_tiny_hut_spell import LeomundsTinyHutSpell
+    from natural20.spell.message_spell import MessageSpell
+    from natural20.spell.stinking_cloud_spell import StinkingCloudSpell
     from natural20.spell.wizard_spells import (
         AganazzarsScorcherSpell,
         AnimateDeadSpell,
@@ -119,19 +122,16 @@ def _build_spell_class_registry():
         FireballSpell,
         GustOfWindSpell,
         KnockSpell,
-        LeomundsTinyHutSpell,
         HideousLaughterSpell,
         BlindnessDeafnessSpell,
         LightningBoltSpell,
         MazeSpell,
         MelfsAcidArrowSpell,
-        MessageSpell,
         MinorIllusionSpell,
         OtilukesResilientSphereSpell,
         PrestidigitationSpell,
         ProtectionFromEnergySpell,
         ScorchingRaySpell,
-        StinkingCloudSpell,
         SunbeamSpell,
         SunburstSpell,
         TeleportSpell,

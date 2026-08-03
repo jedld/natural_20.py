@@ -515,6 +515,41 @@ def test_place_teleporter_on_wall_preserves_terrain(tmp_path: Path):
     assert saved["legend"]["T"]["target_position"] == [1, 0]
 
 
+def test_build_edit_overlay_includes_chest_note_trigger_and_inline_notes():
+    map_data = {
+        "map": {
+            "size": [3, 3],
+            "base": ["...", ".c.", "..."],
+            "meta": ["...", ".p.", ".W."],
+        },
+        "legend": {
+            "c": {"name": "Chest", "type": "chest"},
+            "p": {
+                "name": "Ambush",
+                "type": "proximity_trigger",
+                "events": [{"event": "activate", "message": "Surprise!"}],
+            },
+            "W": {
+                "name": "Footprints",
+                "type": "note",
+                "notes": [{"note": "You notice an absence of footprints in the dust."}],
+            },
+        },
+    }
+    overlay = build_edit_overlay(map_data)
+    combined = (overlay.get("items") or []) + (overlay.get("terrain") or [])
+    object_types = {item.get("object_type") for item in combined}
+    categories = {item.get("category") for item in combined}
+    assert "chest" in object_types
+    assert "proximity_trigger" in object_types
+    assert "note" in object_types
+    assert "container" in categories
+    assert "trigger" in categories
+    inline_notes = [item for item in overlay["items"] if item.get("source") == "inline_note"]
+    assert len(inline_notes) == 1
+    assert "footprints" in inline_notes[0]["label"].lower()
+
+
 def test_build_edit_overlay_prefers_layer_placements_over_grid_scan():
     map_data = {
         "map": {
@@ -747,6 +782,75 @@ def test_build_edit_overlay_includes_wall_and_door_edges():
     assert door_tile["door_edges"] == {
         "top": True,
         "right": False,
+        "bottom": False,
+        "left": False,
+    }
+
+
+def test_build_edit_overlay_includes_hash_wall_edges():
+    map_data = {
+        "map": {
+            "size": [3, 3],
+            "base": [
+                "###",
+                "#.#",
+                "###",
+            ],
+        },
+        "legend": {},
+    }
+    overlay = build_edit_overlay(map_data)
+    wall_tiles = [item for item in overlay["terrain"] if item["token"] == "#"]
+    assert len(wall_tiles) == 8
+    for tile in wall_tiles:
+        assert tile["category"] == "wall"
+        assert tile["wall_edges"] == {
+            "top": True,
+            "right": True,
+            "bottom": True,
+            "left": True,
+        }
+
+
+def test_build_edit_overlay_includes_barrier_edges():
+    map_data = {
+        "map": {
+            "size": [4, 4],
+            "base": [
+                "....",
+                ".┏.",
+                ".┫.",
+                "....",
+            ],
+        },
+        "legend": {
+            "┏": {
+                "name": "lt_corner_barrier",
+                "type": "barrier",
+                "border": [1, 0, 0, 1],
+            },
+            "┫": {
+                "name": "r_corner_barrier",
+                "type": "barrier",
+                "border": [0, 1, 0, 0],
+            },
+        },
+    }
+    overlay = build_edit_overlay(map_data)
+    lt_tile = next(item for item in overlay["terrain"] if item["token"] == "┏")
+    right_tile = next(item for item in overlay["terrain"] if item["token"] == "┫")
+
+    assert lt_tile["category"] == "wall"
+    assert lt_tile["wall_edges"] == {
+        "top": True,
+        "right": False,
+        "bottom": False,
+        "left": True,
+    }
+    assert right_tile["category"] == "wall"
+    assert right_tile["wall_edges"] == {
+        "top": False,
+        "right": True,
         "bottom": False,
         "left": False,
     }

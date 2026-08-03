@@ -108,6 +108,20 @@ class TestPlayerCharacter(unittest.TestCase):
         ]
         self.assertEqual([str(action) for action in self.player.available_actions(self.session, self.battle)], expected_actions)
 
+    def test_load_spell_populates_catalog_once(self):
+        session = self.make_session()
+        session.load_spell('firebolt')
+        self.assertIn('magic_missile', session.spells)
+        self.assertIn('shield', session.spells)
+        self.assertTrue(getattr(session, '_spells_catalog_loaded', False))
+
+    def test_castable_spells_by_level(self):
+        self.player = self.load_mage_character()
+        by_level = self.player.castable_spells_by_level(self.battle)
+        self.assertIn(0, by_level)
+        self.assertIn(1, by_level)
+        self.assertIn('firebolt', by_level[0])
+
     def test_wizard_spell_attack_modifier(self):
         self.player = self.load_mage_character()
         self.assertEqual(self.player.spell_attack_modifier(), 6)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from natural20.spell.spell import Spell
 from natural20.spell.extensions.persistent_zone import PersistentAoEZone
+from natural20.environment_zones import register_persistent_zone
 from natural20.spell.objects.grease_surface import GreaseSurface
 
 
@@ -125,7 +126,7 @@ class GreaseSpell(Spell):
             battle_map.place_object(tile, pos[0], pos[1])
             zone._tile_objects.append(tile)
 
-        battle.register_zone(zone)
+        register_persistent_zone(zone, battle)
 
         affected = set()
         for x, y in squares:

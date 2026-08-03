@@ -88,6 +88,7 @@ spell_list:
     - lightning_bolt
     - protection_from_energy
     - slow
+    - stinking_cloud
 progression:
   level_1:
     class_features:

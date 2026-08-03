@@ -6,10 +6,10 @@ turns and reacts to creatures entering or starting their turn inside it
 etc.). Concrete spells subclass it and override ``on_enter`` /
 ``on_turn_start`` / ``on_dismiss`` as needed.
 
-Zones register themselves with ``Battle.active_zones`` via
-``Battle.register_zone(zone)``. The battle ticks them on
-``start_of_turn`` / ``end_of_turn`` and on ``movement_step`` events; zones
-self-expire by ``expiration_round`` or ``expiration_time``, on owner death
+Zones register with ``Battle.active_zones`` during combat (ticked on
+``start_of_turn`` / ``end_of_turn``) or with ``Map.environment_zones`` during
+exploration (ticked on each 6-second environment time advance via
+``natural20.environment_zones.tick_environment_zones``). Zones self-expire by ``expiration_round`` or ``expiration_time``, on owner death
 or unconsciousness, or on concentration drop.
 """
 
@@ -118,6 +118,11 @@ class PersistentAoEZone:
         finally:
             if self.battle is not None:
                 self.battle.unregister_zone(self)
+            try:
+                from natural20.environment_zones import unregister_environment_zone
+                unregister_environment_zone(self)
+            except Exception:
+                pass
 
     # --- serialization (Phase 4 will plug into the registry) -----------
 

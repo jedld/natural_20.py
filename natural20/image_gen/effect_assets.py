@@ -39,6 +39,7 @@ _EFFECT_FALLBACK_SPELL_SLUGS: dict[str, str] = {
     "chill_touch": "chill_touch",
     "detect_magic": "detect_magic",
     "darkness": "darkness",
+    "stinking_cloud": "stinking_cloud",
     "witch_bolt": "witch_bolt",
     "guidance": "guidance",
     "bardic_inspiration": "guidance",

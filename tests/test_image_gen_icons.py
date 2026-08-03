@@ -86,6 +86,12 @@ def test_item_and_spell_icon_prompts_include_style():
     assert "Fire Bolt" in spell
     assert "Detect Magic" in effect
     assert "streak of fire" not in spell
+    assert "sound wave" in spell_icon_prompt(
+        name="message",
+        label="Message",
+        school="transmutation",
+        icon_style="flat style icons, bold outline",
+    ).lower()
     assert "Goblin" not in spell
     assert "flat vector art" in spell
     assert "Status effect buff icon" in effect

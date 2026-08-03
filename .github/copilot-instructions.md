@@ -10,6 +10,8 @@ Webapp layout: `app.py` registers blueprints (`assets`, `auth`, `ai`, `navigatio
 Core patterns and conventions (do not invent alternatives):
 
 - Session-centered data: a `Session(root_path)` loads `game.yml` and YAML resources (maps, npcs, characters). Use `Session.register_entity` and `Session.entity_by_uid` for UID-based lookup; the centralized `EntityRegistry` is the canonical lookup.
+- Campaign resource imports are supported from `game.yml` via `imports` (also `import_campaigns` or `campaign_imports`). Resolution order is: current campaign -> imported campaigns (earlier entries win) -> bundled `templates/`. This applies to items, characters, classes, races, NPCs, and backgrounds.
+- YAML inherit references also support cross-campaign forms `@campaign/<name>/...`, `@campaigns/<name>/...`, and `campaigns/<name>/...` (resolved relative to the current campaign parent directory).
 - Controllers implement `select_action(battle, entity, available_actions)` and `move_for(entity, battle)`. `GenericController` provides heuristics; `LlmMcpController` (in `natural20/llm_controller.py`) delegates to an LLM and falls back safely to heuristics.
 - Actions resolve via subclasses in `natural20/actions/`: each action builds intent with `build_map()`, gets auto-targeted by `natural20.utils.action_builder.autobuild`, and resolves through `Action.resolve` to enqueue battle events.
 - Spells pair YAML definitions (`templates/items/spells.yml`) with Python classes in `natural20/spell/`; `SpellAction` loads the class through `natural20/utils/spell_loader.py`, applies resource costs via `Spell.consume`, and emits damage/miss events for the battle log.

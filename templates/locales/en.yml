@@ -406,6 +406,16 @@ en:
       invalid_position: Invalid target location.
       occupied: The target square must be empty.
       not_visible: The target is not visible.
+    spell:
+      tiny_hut:
+        no_position: You must be on the map to raise the hut.
+        too_many_creatures: More than nine creatures are in the area (the hut can hold you plus nine Medium or smaller creatures).
+        creature_too_large: A creature larger than Medium is in the area.
+        blocks_spell_line: Spells and magical effects cannot pass through the hut's dome.
+      message:
+        blocked: Barriers or magical silence block the Message spell.
+        link_expired: The Message spell link has expired.
+        not_participant: You are not part of this Message link.
     shove:
       invalid_target_size: The target must be no more than one size larger than you
   waive_opportunity_attack: Waive Opportunity Attack

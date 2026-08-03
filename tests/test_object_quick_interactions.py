@@ -239,6 +239,12 @@ class TestObjectQuickInteractions(unittest.TestCase):
         self.assertEqual(tile['pov_self_quick_interact'][0]['action'], 'perception_check')
         self.assertIn('pov_self_quick_interact_anchor', tile)
 
+    def test_map_objects_with_null_inventory_expose_no_usable_items(self):
+        self.assertIsNone(self.door.inventory)
+        self.assertEqual(self.door.usable_items(), [])
+        self.assertEqual(self.door.other_items(), [])
+        self.assertEqual(self.door.inventory_items(self.session), [])
+
 
 if __name__ == '__main__':
     unittest.main()

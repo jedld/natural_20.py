@@ -88,6 +88,7 @@ from natural20.image_gen.prompts import (
     CLIP_MAX_WORDS,
     campaign_asset_mood,
     fit_clip_prompt,
+    npc_full_body_prompt,
     npc_scene_portrait_prompt,
     npc_visual_description,
 )
@@ -140,6 +141,46 @@ def test_npc_scene_portrait_prompt_stays_within_clip_budget():
     assert len(prompt.split()) <= CLIP_MAX_WORDS
     assert "Finethir" not in prompt
     assert "warm natural light" in prompt
+
+
+def test_npc_full_body_prompt_stays_within_clip_budget():
+    profile = load_campaign_prompt_profile(Path("user_levels/wild_sheep_chase"))
+    prompt = npc_full_body_prompt(
+        name="Pip",
+        kind="Pip",
+        description=(
+            "Cheerful halfling woman barely four feet tall, quick on her feet with bright "
+            "hazel eyes and a dusting of freckles across her nose."
+        ),
+        race="halfling",
+        scene="tavern",
+        theme="whimsical D&D one-shot, Prancing Flagon market town, warm afternoon light",
+        profile=profile,
+    )
+    assert len(prompt.split()) <= CLIP_MAX_WORDS
+    assert "full body" in prompt.lower()
+    assert "head to toe" in profile.full_body_style
+
+
+def test_fit_gallery_prompt_stays_within_token_budget():
+    from natural20.image_gen.prompts import (
+        CLIP_GALLERY_MAX_WORDS,
+        CLIP_MAX_TOKENS,
+        estimate_clip_tokens,
+        fit_gallery_prompt,
+    )
+
+    long_prompt = (
+        "Short halfling barmaid Pip, barely four feet tall, small halfling proportions, "
+        "standing in a tavern guest bedroom doorway. Fitted green wool dress with low "
+        "neckline and mid-thigh skirt, white apron, chestnut curls, freckles, playful "
+        "flirtatious smile, one hand on the doorframe. Cozy timber guest room behind her, "
+        "warm oil lamp light. Painterly fantasy D&D halfling, modest, no nudity."
+    )
+    fitted = fit_gallery_prompt(long_prompt)
+    assert len(fitted.split()) <= CLIP_GALLERY_MAX_WORDS
+    assert "D&D" not in fitted
+    assert estimate_clip_tokens(fitted) < CLIP_MAX_TOKENS
 
 
 def test_load_campaign_prompt_profile_death_house(tmp_path: Path):

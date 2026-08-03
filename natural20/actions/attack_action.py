@@ -835,6 +835,12 @@ class AttackAction(Action):
             attack_name = npc_action["name"]
             attack_mod = npc_action.get("attack", None)
             damage_roll = npc_action.get("damage_die", None)
+            half_hp_die = npc_action.get("damage_die_half_hp")
+            if half_hp_die:
+                max_hp = self.source.max_hp()
+                current_hp = self.source.hp()
+                if max_hp and current_hp is not None and current_hp <= max_hp // 2:
+                    damage_roll = half_hp_die
             ammo_type = npc_action.get("ammo", None)
         else:
             weapon = self.session.load_weapon(using)

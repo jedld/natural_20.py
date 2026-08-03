@@ -1,0 +1,55 @@
+kind: Swarm of Insects (Centipedes)
+description: A writhing mass of tiny centipedes that skitters across stone and flesh alike.
+outward_appearance: Dense swarm of tiny centipedes, chitinous brown and black bodies, countless legs, crawling horror
+portrait_scene: basement
+token_image: token_swarm_of_centipedes.png
+size: medium
+race:
+  - beast
+alignment: unaligned
+default_ac: 12
+max_hp: 22
+hp_die: 5d8
+speed: 20
+speed_climb: 20
+blindsight: 10
+passive_perception: 8
+token:
+  - i
+color: dark_green
+ability:
+  str: 3
+  dex: 13
+  con: 10
+  int: 1
+  wis: 7
+  cha: 1
+attributes:
+  - swarm
+  - swarm_centipede_venom
+resistances:
+  - bludgeoning
+  - piercing
+  - slashing
+condition_immunities:
+  - charmed
+  - frightened
+  - grappled
+  - paralyzed
+  - petrified
+  - prone
+  - restrained
+  - stunned
+cr: 0.5
+xp: 100
+proficiency_bonus: 2
+actions:
+  - name: bite
+    type: melee_attack
+    range: 0
+    targets: 1
+    attack: 3
+    damage: 10
+    damage_die: 4d4
+    damage_die_half_hp: 2d4
+    damage_type: piercing

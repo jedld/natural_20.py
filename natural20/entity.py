@@ -13,6 +13,10 @@ from natural20.utils.gibberish import gibberish
 from natural20.utils.language_comprehension import understands_language, understands_language_for_languages
 from natural20.utils.contextual_sound import build_contextual_sound
 import i18n
+import logging
+
+logger = logging.getLogger(__name__)
+
 class Entity(EntityStateEvaluator, Notable):
 
     ATTRIBUTE_TYPES = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']
@@ -104,8 +108,110 @@ class Entity(EntityStateEvaluator, Notable):
     def immune_to_condition(self, condition):
         return condition in self.condition_immunities
 
+    def needs_to_breathe(self):
+        attrs = []
+        props = getattr(self, 'properties', None) or {}
+        if isinstance(props.get('attributes'), list):
+            attrs.extend(props['attributes'])
+        if props.get('does_not_breathe') or props.get('no_breath'):
+            return False
+        for flag in ('does_not_breathe', 'no_breath', 'construct', 'undead', 'oozing'):
+            if flag in attrs:
+                return False
+        creature_type = str(props.get('creature_type') or '').lower()
+        if creature_type in ('construct', 'undead', 'ooze', 'elemental'):
+            return False
+        return True
+
     def profile_image(self):
         return self.properties.get('profile_image') or self.token_image()
+
+    def sheet_images(self):
+        """Labeled portrait/gallery images for the character sheet UI."""
+        gallery = self.image_gallery()
+        return [
+            {
+                'label': entry['label'],
+                'image': entry['image'],
+                'description': entry.get('description') or '',
+            }
+            for entry in gallery
+        ]
+
+    def image_gallery(self):
+        """NPC/PC image gallery entries with id, label, image path, and description metadata."""
+        raw = self.properties.get('image_gallery')
+        if isinstance(raw, list) and raw:
+            normalized: list[dict[str, str]] = []
+            for index, entry in enumerate(raw):
+                if not isinstance(entry, dict):
+                    continue
+                image = str(entry.get('image') or '').strip()
+                if not image:
+                    continue
+                entry_id = str(entry.get('id') or entry.get('key') or f'image_{index}').strip()
+                label = str(entry.get('label') or entry_id).strip() or entry_id
+                description = str(entry.get('description') or '').strip()
+                normalized.append({
+                    'id': entry_id,
+                    'label': label,
+                    'image': image,
+                    'description': description,
+                })
+            if normalized:
+                return normalized
+
+        images: list[dict[str, str]] = []
+        profile = self.properties.get('profile_image')
+        if profile:
+            images.append({
+                'id': 'portrait',
+                'label': 'Portrait',
+                'image': str(profile),
+                'description': 'Default head-and-shoulders portrait.',
+            })
+        extra = self.properties.get('sheet_images') or []
+        if isinstance(extra, list):
+            for index, entry in enumerate(extra):
+                if not isinstance(entry, dict):
+                    continue
+                image = str(entry.get('image') or '').strip()
+                if not image:
+                    continue
+                entry_id = str(entry.get('id') or entry.get('label') or f'image_{index}').strip()
+                label = str(entry.get('label') or entry_id).strip() or entry_id
+                description = str(entry.get('description') or '').strip()
+                images.append({
+                    'id': entry_id,
+                    'label': label,
+                    'image': image,
+                    'description': description,
+                })
+        if not images:
+            token = self.token_image()
+            if token:
+                images.append({
+                    'id': 'token',
+                    'label': 'Token',
+                    'image': str(token),
+                    'description': 'Map token image.',
+                })
+        return images
+
+    def gallery_entry(self, gallery_id: str | None):
+        if not gallery_id:
+            return None
+        target = str(gallery_id).strip().lower()
+        for entry in self.image_gallery():
+            if str(entry.get('id') or '').strip().lower() == target:
+                return entry
+        return None
+
+    def resolve_gallery_image(self, gallery_id: str | None = None):
+        entry = self.gallery_entry(gallery_id)
+        if entry:
+            return entry['image']
+        return self.profile_image()
 
     def passive(self):
         return self.is_passive
@@ -252,6 +358,30 @@ class Entity(EntityStateEvaluator, Notable):
         for pool in self._resources_dict().values():
             pool.restore_for(rest_kind)
 
+    @staticmethod
+    def item_charge_resource_name(item_name):
+        return f"{item_name}_charges"
+
+    def is_item_charge_resource(self, resource_name):
+        if not isinstance(resource_name, str) or not resource_name.endswith('_charges'):
+            return False
+        item_name = resource_name[: -len('_charges')]
+        return item_name in (self.inventory or {})
+
+    def item_charge_summary(self, item_name):
+        pool = self.get_resource(self.item_charge_resource_name(item_name))
+        if pool is None:
+            return None
+        return {'current': pool.current, 'max': pool.max_value}
+
+    def character_resource_pools(self):
+        """Named resource pools that are not magic-item charge counters."""
+        return {
+            name: pool
+            for name, pool in self._resources_dict().items()
+            if not self.is_item_charge_resource(name)
+        }
+
     def kind_of_door(self):
         """
         Returns True if this entity is a kind of door, False otherwise.
@@ -352,6 +482,7 @@ class Entity(EntityStateEvaluator, Notable):
                         'type': _speaker_message_type(),
                         'narrative': _narrative_entries(message),
                         'segments': _segment_entries(message),
+                        'gallery_image_id': message.get('gallery_image_id'),
                     })
                 else:
                     history.append({
@@ -362,6 +493,7 @@ class Entity(EntityStateEvaluator, Notable):
                         'type': _speaker_message_type(),
                         'narrative': _narrative_entries(message),
                         'segments': _segment_entries(message),
+                        'gallery_image_id': message.get('gallery_image_id'),
                     })
             elif (
                 message.get('source') is not self
@@ -378,6 +510,7 @@ class Entity(EntityStateEvaluator, Notable):
                     'narrative': _narrative_entries(message),
                     'segments': _segment_entries(message),
                     'actions': _action_entries(message),
+                    'gallery_image_id': message.get('gallery_image_id'),
                 })
         return history
     
@@ -416,7 +549,7 @@ class Entity(EntityStateEvaluator, Notable):
                         incoming_messages.append(gibberish(message['message'], language=language))
             return incoming_messages
 
-    def receive_conversation(self, source, message, language=None, directed_to=None, narrative=None, actions=None, segments=None):
+    def receive_conversation(self, source, message, language=None, directed_to=None, narrative=None, actions=None, segments=None, gallery_image_id=None):
         if language is None:
             language = "common"
         if directed_to is None:
@@ -443,6 +576,8 @@ class Entity(EntityStateEvaluator, Notable):
             'segments': segment_entries,
             'actions': action_entries,
         }
+        if gallery_image_id:
+            entry['gallery_image_id'] = gallery_image_id
         self.conversation_buffer.append(entry)
         self.memory_buffer.append(dict(entry))
         self.resolve_trigger('conversation', { 'source': source, 'message': message, 'memory_buffer': self.memory_buffer,
@@ -450,7 +585,7 @@ class Entity(EntityStateEvaluator, Notable):
         if self.conversation_controller:
             self.conversation_controller.process_message(self, source, message, language, self.memory_buffer, directed_to)
 
-    def send_conversation(self, message, distance_ft=30, targets=None, language=None, volume=None, narrative=None, actions=None, segments=None) -> List[Tuple['Entity', str, List['Entity']]]:
+    def send_conversation(self, message, distance_ft=30, targets=None, language=None, volume=None, narrative=None, actions=None, segments=None, gallery_image_id=None) -> List[Tuple['Entity', str, List['Entity']]]:
         if language is None:
             language = "common"
         language = language.lower()
@@ -477,6 +612,8 @@ class Entity(EntityStateEvaluator, Notable):
             'segments': segment_entries,
             'actions': action_entries,
         }
+        if gallery_image_id:
+            buffer_entry['gallery_image_id'] = gallery_image_id
         self.conversation_buffer.append(buffer_entry)
         self.memory_buffer.append(dict(buffer_entry))
         self.session.event_manager.received_event({"source": self,
@@ -502,6 +639,7 @@ class Entity(EntityStateEvaluator, Notable):
                 narrative=narrative_entries,
                 actions=action_entries,
                 segments=segment_entries,
+                gallery_image_id=gallery_image_id,
             )
             delivered_entities.add(other_entity)
 
@@ -519,6 +657,7 @@ class Entity(EntityStateEvaluator, Notable):
                             narrative=narrative_entries,
                             actions=action_entries,
                             segments=segment_entries,
+                            gallery_image_id=gallery_image_id,
                         )
                         nearby.append([target, message or '', targets])
                         delivered_entities.add(target)
@@ -726,6 +865,9 @@ class Entity(EntityStateEvaluator, Notable):
         return self._temp_hp_source
 
     def grant_temp_hp(self, amount, source=None, effect=None):
+        if self.class_feature('swarm'):
+            return self._temp_hp
+
         if amount is None:
             return self._temp_hp
 
@@ -2189,6 +2331,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.resolve_trigger('escape_grapple_from', {'grappler': grappler})
 
     def _cleanup_effects(self):
+        self._maybe_expire_swarm_centipede_venom()
         for _, value in self.effects.items():
             delete_effects = [f for f in value if f.get('expiration') and f['expiration'] <= self.session.game_time]
             for effect in delete_effects:
@@ -2280,6 +2423,22 @@ class Entity(EntityStateEvaluator, Notable):
 
     def available_spells(self, battle, touch=False):
         return []
+
+    def castable_spells_by_level(self, battle):
+        """Spells the entity can cast right now, grouped by spell level."""
+        from natural20.actions.spell_action import SpellAction
+
+        spells_by_level = {}
+        for spell_name, details in self.spell_list(battle).items():
+            if details.get('disabled'):
+                continue
+            if not SpellAction.can_cast(self, battle, spell_name):
+                continue
+            level = details['level']
+            spells_by_level.setdefault(level, []).append(spell_name)
+        for level in spells_by_level:
+            spells_by_level[level].sort()
+        return spells_by_level
 
     def familiar(self):
       return self.properties.get('familiar', False)
@@ -3194,6 +3353,10 @@ class Entity(EntityStateEvaluator, Notable):
             # drop concentration spells
             if self.concentration:
                 self.dismiss_effect(self.concentration)
+            if (not self.npc()
+                    and attacker is not None
+                    and getattr(attacker, 'class_feature', lambda _f: False)('swarm_centipede_venom')):
+                self._apply_swarm_centipede_venom()
 
         elif self.hp() > 0:
             if self.concentration:
@@ -3281,6 +3444,27 @@ class Entity(EntityStateEvaluator, Notable):
 
         return result
     
+    def _apply_swarm_centipede_venom(self, duration_seconds=3600):
+        """Centipede swarm venom: stable at 0 HP, poisoned 1 hour, paralyzed while poisoned."""
+        if self.dead() or self.npc():
+            return
+        if self.unconscious() and not self.stable():
+            self.make_stable()
+        if 'poisoned' not in self.statuses:
+            self.statuses.append('poisoned')
+        if 'paralyzed' not in self.statuses:
+            self.statuses.append('paralyzed')
+        self._swarm_centipede_venom_until = self.session.game_time + int(duration_seconds)
+
+    def _maybe_expire_swarm_centipede_venom(self):
+        expires = getattr(self, '_swarm_centipede_venom_until', None)
+        if expires is None or self.session.game_time < expires:
+            return
+        self._swarm_centipede_venom_until = None
+        for status in ('poisoned', 'paralyzed'):
+            if status in self.statuses:
+                self.statuses.remove(status)
+
     def make_stable(self):
         if 'stable' not in self.statuses:
             self.statuses.append("stable")
@@ -3295,6 +3479,9 @@ class Entity(EntityStateEvaluator, Notable):
 
     def heal(self, original_amt):
         if self.dead():
+            return
+
+        if self.class_feature('swarm'):
             return
 
         amt = original_amt
@@ -3390,7 +3577,7 @@ class Entity(EntityStateEvaluator, Notable):
     def usable_items(self):
         usable = []
 
-        for k, v in self.inventory.items():
+        for k, v in (self.inventory or {}).items():
             item_details = self.session.load_equipment(k)
 
             if not item_details or not item_details.get('usable', False):
@@ -3418,7 +3605,7 @@ class Entity(EntityStateEvaluator, Notable):
 
     def other_items(self):
         other = []
-        for k, v in self.inventory.items():
+        for k, v in (self.inventory or {}).items():
             item_details = self.session.load_equipment(k)
             if not item_details or item_details.get('usable', False):
                 continue
@@ -3484,10 +3671,23 @@ class Entity(EntityStateEvaluator, Notable):
     # @return [List]
     def inventory_items(self, session):
         items = []
-        for k, v in self.inventory.items():
-            item = session.load_thing(k)
+        for k, v in (self.inventory or {}).items():
+            try:
+                item = session.load_thing(k)
+            except AssertionError:
+                logger.warning(
+                    "Skipping inventory item '%s' for entity '%s' because it cannot be loaded",
+                    k,
+                    getattr(self, 'name', '<unknown>'),
+                )
+                continue
             if item is None:
-                raise Exception(f"unable to load unknown item {k}")
+                logger.warning(
+                    "Skipping unknown inventory item '%s' for entity '%s'",
+                    k,
+                    getattr(self, 'name', '<unknown>'),
+                )
+                continue
             if v['qty'] > 0:
                 items.append({
                     'name': k,

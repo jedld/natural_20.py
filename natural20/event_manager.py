@@ -593,6 +593,14 @@ class EventManager:
                 f"{'keeps footing' if event.get('success') else 'slips prone'} "
                 f"in Grease ({event.get('roll')}={event.get('roll').result()} vs DC {event.get('dc')}, {event.get('reason')})."
             ),
+            'stinking_cloud': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} conjures a Stinking Cloud at {event.get('target')}."
+            ),
+            'stinking_cloud_save': lambda event: self.output_logger.log(
+                f"{self.show_target_name(event)} "
+                f"{'resists the nauseating gas' if event.get('success') else 'retches and reels, losing their action'} "
+                f"in Stinking Cloud ({event.get('roll')}={event.get('roll').result()} vs DC {event.get('dc')})."
+            ),
             'rage_start': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} flies into a rage! ({event.get('rounds', 10)} rounds remaining)"
             ),
@@ -604,6 +612,26 @@ class EventManager:
             ),
             'darkness': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} casts Darkness, filling a 15-foot sphere at {event.get('target')} with magical darkness."
+            ),
+            'tiny_hut': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} raises Leomund's Tiny Hut — an immobile dome of force."
+            ),
+            'tiny_hut_failed': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} tried to cast Leomund's Tiny Hut, but the spell fails"
+                f" ({event.get('reason', 'invalid area')})."
+            ),
+            'tiny_hut_ended': lambda event: self.output_logger.log(
+                f"Leomund's Tiny Hut collapses as {self.show_name(event)} leaves the dome."
+            ),
+            'tiny_hut_lighting': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} commands the hut interior to become {event.get('mode', 'lit')}."
+            ),
+            'message_spell': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Message on {self.show_target_name(event)}."
+            ),
+            'message_spell_failed': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} tried to cast Message, but the spell fails"
+                f" ({event.get('reason', 'blocked')})."
             ),
             'ready_action_declared': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} readies an action: "

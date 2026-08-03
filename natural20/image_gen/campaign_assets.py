@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,8 +27,13 @@ from natural20.image_gen.prompts import (
     campaign_theme_blurb,
     character_portrait_prompt,
     character_selection_background_prompt,
+    estimate_clip_tokens,
     fit_clip_prompt,
+    fit_gallery_prompt,
+    fit_negative_prompt,
+    CLIP_MAX_TOKENS,
     login_background_prompt,
+    npc_full_body_prompt,
     npc_scene_portrait_prompt,
     npc_token_prompt,
     npc_visual_description,
@@ -35,6 +41,7 @@ from natural20.image_gen.prompts import (
 from natural20.image_gen.tokens import make_circular_token
 from natural20.yaml_loader import load_yaml
 
+logger = logging.getLogger(__name__)
 
 GenerateFn = Callable[..., GeneratedImage]
 
@@ -198,6 +205,21 @@ def portrait_filename_for_npc(npc: dict[str, Any]) -> str:
     return f"portraits/portrait_{_slug(str(kind))}.jpg"
 
 
+def full_body_filename_for_npc(npc: dict[str, Any]) -> str:
+    explicit = str(npc.get("full_body_image") or "").strip()
+    if explicit:
+        return explicit.replace("\\", "/")
+    kind = npc.get("kind") or npc.get("_file_stem") or npc.get("name") or "npc"
+    return f"portraits/full_body_{_slug(str(kind))}.jpg"
+
+
+def npc_wants_full_body(npc: dict[str, Any]) -> bool:
+    return bool(
+        str(npc.get("full_body_image") or "").strip()
+        or str(npc.get("full_body_scene") or "").strip()
+    )
+
+
 def ensure_npc_profile_image_field(campaign: Path, npc: dict[str, Any], filename: str) -> None:
     source = npc.get("_source")
     if not source:
@@ -216,6 +238,316 @@ def ensure_npc_profile_image_field(campaign: Path, npc: dict[str, Any], filename
         return
     target["profile_image"] = filename
     path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def ensure_npc_full_body_image_field(campaign: Path, npc: dict[str, Any], filename: str) -> None:
+    source = npc.get("_source")
+    if not source:
+        return
+    path = campaign / source
+    if not path.is_file():
+        return
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        return
+    entry_key = npc.get("_entry_key")
+    target = data[entry_key] if entry_key and isinstance(data.get(entry_key), dict) else data
+    if not isinstance(target, dict):
+        return
+    if target.get("full_body_image") == filename:
+        return
+    target["full_body_image"] = filename
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def ensure_npc_sheet_images_field(
+    campaign: Path,
+    npc: dict[str, Any],
+    *,
+    label: str,
+    image: str,
+) -> None:
+    source = npc.get("_source")
+    if not source:
+        return
+    path = campaign / source
+    if not path.is_file():
+        return
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        return
+    entry_key = npc.get("_entry_key")
+    target = data[entry_key] if entry_key and isinstance(data.get(entry_key), dict) else data
+    if not isinstance(target, dict):
+        return
+    sheet_images = target.get("sheet_images")
+    if not isinstance(sheet_images, list):
+        sheet_images = []
+    for entry in sheet_images:
+        if isinstance(entry, dict) and str(entry.get("image") or "").strip() == image:
+            return
+    sheet_images.append({"label": label, "image": image})
+    target["sheet_images"] = sheet_images
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def find_npc_def(campaign: Path, npc_ref: str) -> dict[str, Any] | None:
+    ref = (npc_ref or "").strip().lower()
+    if not ref:
+        return None
+    slug_ref = _slug(npc_ref)
+    for npc in discover_npc_defs(campaign):
+        kind = str(npc.get("kind") or "").strip().lower()
+        stem = str(npc.get("_file_stem") or "").strip().lower()
+        if ref in {kind, stem, _slug(kind)} or slug_ref in {kind, stem, _slug(kind)}:
+            return npc
+    return None
+
+
+def npc_gallery_entries(npc: dict[str, Any]) -> list[dict[str, Any]]:
+    raw = npc.get("image_gallery") or []
+    if not isinstance(raw, list):
+        return []
+    entries: list[dict[str, Any]] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            continue
+        image = str(item.get("image") or "").strip()
+        entry_id = str(item.get("id") or item.get("key") or f"image_{index}").strip()
+        if not image or not entry_id:
+            continue
+        entries.append(dict(item))
+        entries[-1]["id"] = entry_id
+        entries[-1]["image"] = image.replace("\\", "/")
+    return entries
+
+
+def build_gallery_image_prompt(
+    npc: dict[str, Any],
+    entry: dict[str, Any],
+    *,
+    theme: str,
+    prompt_profile,
+    override_prompt: str | None = None,
+) -> str:
+    custom = str(override_prompt or entry.get("gallery_prompt") or "").strip()
+    if custom:
+        return fit_gallery_prompt(custom)
+    key = str(npc.get("kind") or npc.get("_file_stem") or "npc")
+    display_name = str(npc.get("name") or npc.get("label") or key)
+    scene = (
+        str(entry.get("gallery_scene") or "").strip()
+        or str(npc.get("portrait_scene") or "").strip()
+        or "town"
+    )
+    return npc_full_body_prompt(
+        name=display_name,
+        kind=str(npc.get("kind") or key),
+        description=npc_visual_description(npc),
+        race=_race_label(npc.get("race")),
+        scene=scene,
+        theme=theme,
+        profile=prompt_profile,
+    )
+
+
+def gallery_negative_prompt(npc: dict[str, Any], entry: dict[str, Any], override: str | None = None) -> str:
+    custom = str(override or entry.get("gallery_negative_prompt") or "").strip()
+    if not custom:
+        custom = str(npc.get("full_body_negative_prompt") or "").strip()
+    negative = TOKEN_NEGATIVE
+    if custom:
+        negative = f"{TOKEN_NEGATIVE}, {fit_negative_prompt(custom)}"
+    return negative
+
+
+def ensure_npc_image_gallery_entry(
+    campaign: Path,
+    npc: dict[str, Any],
+    entry: dict[str, Any],
+) -> None:
+    source = npc.get("_source")
+    if not source:
+        return
+    path = campaign / source
+    if not path.is_file():
+        return
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        return
+    entry_key = npc.get("_entry_key")
+    target = data[entry_key] if entry_key and isinstance(data.get(entry_key), dict) else data
+    if not isinstance(target, dict):
+        return
+    gallery = target.get("image_gallery")
+    if not isinstance(gallery, list):
+        gallery = []
+    entry_id = str(entry.get("id") or "").strip()
+    image = str(entry.get("image") or "").strip().replace("\\", "/")
+    if not entry_id or not image:
+        return
+    normalized = {
+        "id": entry_id,
+        "label": str(entry.get("label") or entry_id).strip() or entry_id,
+        "image": image,
+    }
+    if entry.get("description"):
+        normalized["description"] = str(entry.get("description")).strip()
+    if entry.get("gallery_prompt"):
+        normalized["gallery_prompt"] = str(entry.get("gallery_prompt")).strip()
+    if entry.get("gallery_negative_prompt"):
+        normalized["gallery_negative_prompt"] = str(entry.get("gallery_negative_prompt")).strip()
+    if entry.get("gallery_scene"):
+        normalized["gallery_scene"] = str(entry.get("gallery_scene")).strip()
+    for index, existing in enumerate(gallery):
+        if not isinstance(existing, dict):
+            continue
+        if str(existing.get("id") or "").strip() == entry_id:
+            gallery[index] = {**existing, **normalized}
+            target["image_gallery"] = gallery
+            path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+            return
+    gallery.append(normalized)
+    target["image_gallery"] = gallery
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def generate_npc_gallery_images(
+    campaign: Path | str,
+    npc_ref: str,
+    *,
+    mcp_url: str | None = None,
+    entry_ids: Iterable[str] | None = None,
+    force: bool = False,
+    dry_run: bool = False,
+    update_yaml: bool = True,
+    quality: str = "medium",
+    model: str | None = None,
+    generator: GenerateFn | None = None,
+    client: ImageGenMcpClient | None = None,
+    custom_entries: list[dict[str, Any]] | None = None,
+    prompt_overrides: dict[str, str] | None = None,
+    negative_overrides: dict[str, str] | None = None,
+) -> CampaignAssetReport:
+    """Generate ``image_gallery`` assets for one NPC via Image Gen MCP."""
+    campaign = Path(campaign).resolve()
+    npc = find_npc_def(campaign, npc_ref)
+    if npc is None:
+        report = CampaignAssetReport()
+        report.results.append(
+            AssetJobResult("gallery", npc_ref, campaign / "assets", error=f"NPC not found: {npc_ref}")
+        )
+        return report
+
+    meta = load_campaign_meta(campaign)
+    prompt_profile = load_campaign_prompt_profile(campaign)
+    theme = campaign_asset_mood(meta)
+    key = str(npc.get("kind") or npc.get("_file_stem") or npc_ref)
+    only_set = {x.lower() for x in entry_ids} if entry_ids else None
+
+    entries = list(custom_entries or []) or npc_gallery_entries(npc)
+    if only_set:
+        entries = [entry for entry in entries if str(entry.get("id") or "").lower() in only_set]
+
+    owns_client = False
+    if generator is None:
+        if client is None:
+            client = ImageGenMcpClient(mcp_url or default_mcp_url())
+            owns_client = True
+            client.initialize()
+
+        def _gen(**kwargs):
+            if model and "model" not in kwargs:
+                kwargs["model"] = model
+            return client.generate_image(**kwargs)
+
+        generator = _gen
+
+    report = CampaignAssetReport()
+    assets_dir = campaign / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    prompt_overrides = prompt_overrides or {}
+    negative_overrides = negative_overrides or {}
+
+    try:
+        for entry in entries:
+            entry_id = str(entry.get("id") or "").strip()
+            rel = str(entry.get("image") or "").strip().replace("\\", "/")
+            if not entry_id or not rel:
+                continue
+            out = assets_dir / rel
+            if out.is_file() and not force:
+                report.results.append(
+                    AssetJobResult("gallery", entry_id, out, skipped=True, reason="exists")
+                )
+                continue
+            raw_custom = str(
+                prompt_overrides.get(entry_id)
+                or entry.get("gallery_prompt")
+                or ""
+            ).strip()
+            prompt = build_gallery_image_prompt(
+                npc,
+                entry,
+                theme=theme,
+                prompt_profile=prompt_profile,
+                override_prompt=prompt_overrides.get(entry_id),
+            )
+            negative_prompt = gallery_negative_prompt(
+                npc,
+                entry,
+                override=negative_overrides.get(entry_id),
+            )
+            est_tokens = estimate_clip_tokens(prompt)
+            if raw_custom and len(raw_custom.split()) > len(prompt.split()):
+                logger.warning(
+                    "Gallery prompt for %s trimmed from %d words to %d words (~%d est. CLIP tokens)",
+                    entry_id,
+                    len(raw_custom.split()),
+                    len(prompt.split()),
+                    est_tokens,
+                )
+            elif est_tokens >= CLIP_MAX_TOKENS - 3:
+                logger.warning(
+                    "Gallery prompt for %s may still be near CLIP limit (~%d est. tokens): %s",
+                    entry_id,
+                    est_tokens,
+                    prompt[:120],
+                )
+            if dry_run:
+                report.results.append(
+                    AssetJobResult(
+                        "gallery",
+                        entry_id,
+                        out,
+                        skipped=True,
+                        reason=(
+                            f"dry-run: {len(prompt.split())} words, ~{est_tokens} est. tokens — "
+                            f"{prompt[:100]}"
+                        ),
+                    )
+                )
+                continue
+            try:
+                generated = generator(
+                    prompt=prompt,
+                    size="896x1152",
+                    quality=quality,
+                    negative_prompt=negative_prompt,
+                    output_format="jpeg",
+                )
+                out.parent.mkdir(parents=True, exist_ok=True)
+                save_pil(generated.image.convert("RGB"), out, format="JPEG")
+                if update_yaml:
+                    ensure_npc_image_gallery_entry(campaign, npc, entry)
+                report.results.append(AssetJobResult("gallery", entry_id, out))
+            except Exception as exc:  # noqa: BLE001
+                report.results.append(AssetJobResult("gallery", entry_id, out, error=str(exc)))
+    finally:
+        if owns_client and client is not None:
+            client.close()
+
+    return report
 
 
 def ensure_npc_token_image_field(campaign: Path, npc: dict[str, Any], filename: str) -> None:
@@ -246,6 +578,7 @@ def generate_campaign_assets(
     tokens: bool = True,
     background: bool = True,
     portraits: bool = False,
+    full_body: bool = True,
     force: bool = False,
     update_yaml: bool = True,
     token_size: int = 256,
@@ -303,7 +636,7 @@ def generate_campaign_assets(
                 portrait_scene = str(npc.get("portrait_scene") or "").strip()
                 custom_prompt = str(npc.get("image_prompt") or "").strip()
                 if custom_prompt:
-                    custom_prompt = fit_clip_prompt(custom_prompt)
+                    custom_prompt = fit_gallery_prompt(custom_prompt)
                 if dry_run:
                     visual_desc = npc_visual_description(npc)
                     preview = custom_prompt or (
@@ -387,6 +720,90 @@ def generate_campaign_assets(
                 except Exception as exc:  # noqa: BLE001 — collect per-asset failures
                     report.results.append(
                         AssetJobResult("token", key, out, error=str(exc))
+                    )
+
+        if full_body:
+            for npc in discover_npc_defs(campaign):
+                if not npc_wants_full_body(npc):
+                    continue
+                key = str(npc.get("kind") or npc.get("_file_stem"))
+                display_name = str(npc.get("name") or npc.get("label") or key)
+                if only_set and key.lower() not in only_set and _slug(key) not in only_set:
+                    continue
+                rel = full_body_filename_for_npc(npc)
+                out = assets_dir / rel
+                if out.is_file() and not force:
+                    report.results.append(
+                        AssetJobResult("full_body", key, out, skipped=True, reason="exists")
+                    )
+                    if update_yaml and not dry_run:
+                        ensure_npc_full_body_image_field(campaign, npc, rel)
+                        ensure_npc_sheet_images_field(
+                            campaign, npc, label="Full Body", image=rel
+                        )
+                    continue
+                scene = (
+                    str(npc.get("full_body_scene") or "").strip()
+                    or str(npc.get("portrait_scene") or "").strip()
+                    or "town"
+                )
+                custom_prompt = str(npc.get("full_body_prompt") or "").strip()
+                if custom_prompt:
+                    custom_prompt = fit_gallery_prompt(custom_prompt)
+                custom_negative = str(npc.get("full_body_negative_prompt") or "").strip()
+                negative_prompt = TOKEN_NEGATIVE
+                if custom_negative:
+                    negative_prompt = f"{TOKEN_NEGATIVE}, {custom_negative}"
+                if dry_run:
+                    visual_desc = npc_visual_description(npc)
+                    preview = custom_prompt or npc_full_body_prompt(
+                        name=display_name,
+                        kind=str(npc.get("kind") or key),
+                        description=visual_desc,
+                        race=_race_label(npc.get("race")),
+                        scene=scene,
+                        theme=theme,
+                        profile=prompt_profile,
+                    )[:80]
+                    report.results.append(
+                        AssetJobResult(
+                            "full_body",
+                            key,
+                            out,
+                            skipped=True,
+                            reason=f"dry-run: {preview}",
+                        )
+                    )
+                    continue
+                try:
+                    visual_desc = npc_visual_description(npc)
+                    prompt = custom_prompt or npc_full_body_prompt(
+                        name=display_name,
+                        kind=str(npc.get("kind") or key),
+                        description=visual_desc,
+                        race=_race_label(npc.get("race")),
+                        scene=scene,
+                        theme=theme,
+                        profile=prompt_profile,
+                    )
+                    generated = generator(
+                        prompt=prompt,
+                        size="896x1152",
+                        quality=quality,
+                        negative_prompt=negative_prompt,
+                        output_format="jpeg",
+                    )
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    save_pil(generated.image.convert("RGB"), out, format="JPEG")
+                    if update_yaml:
+                        ensure_npc_full_body_image_field(campaign, npc, rel)
+                        ensure_npc_sheet_images_field(
+                            campaign, npc, label="Full Body", image=rel
+                        )
+                    report.results.append(AssetJobResult("full_body", key, out))
+                except Exception as exc:  # noqa: BLE001
+                    report.results.append(
+                        AssetJobResult("full_body", key, out, error=str(exc))
                     )
 
         if background:
