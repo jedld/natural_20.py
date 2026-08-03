@@ -18,6 +18,10 @@ DEFAULT_PORTRAIT_STYLE = (
     "painterly fantasy portrait, head and shoulders, face centered, dramatic lighting, no text"
 )
 
+DEFAULT_FULL_BODY_STYLE = (
+    "painterly fantasy full body character art, head to toe, centered figure, no text"
+)
+
 DEFAULT_LOGIN_SCENE = (
     "medieval fantasy town, cobblestone, timber buildings, warm afternoon light"
 )
@@ -45,6 +49,7 @@ class CampaignPromptProfile:
 
     token_style: str = DEFAULT_TOKEN_STYLE
     portrait_style: str = DEFAULT_PORTRAIT_STYLE
+    full_body_style: str = DEFAULT_FULL_BODY_STYLE
     login_scene: str = DEFAULT_LOGIN_SCENE
     character_selection_scene: str = DEFAULT_CHARACTER_SELECTION_SCENE
     scenes: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_SCENES))
@@ -77,6 +82,8 @@ class CampaignPromptProfile:
             or DEFAULT_TOKEN_STYLE,
             portrait_style=str(data.get("portrait_style") or DEFAULT_PORTRAIT_STYLE).strip()
             or DEFAULT_PORTRAIT_STYLE,
+            full_body_style=str(data.get("full_body_style") or DEFAULT_FULL_BODY_STYLE).strip()
+            or DEFAULT_FULL_BODY_STYLE,
             login_scene=str(data.get("login_scene") or DEFAULT_LOGIN_SCENE).strip()
             or DEFAULT_LOGIN_SCENE,
             character_selection_scene=str(

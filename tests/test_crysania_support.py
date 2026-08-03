@@ -65,6 +65,13 @@ def test_charged_magic_items_initialize_resource_pools_and_are_usable():
     assert character.resource_value('staff_of_defense_charges') == 10
     assert character.resource_value('necklace_of_fireballs_charges') == 6
 
+    assert character.is_item_charge_resource('wand_of_magic_missiles_charges')
+    assert not character.is_item_charge_resource('arcane_ward')
+    assert character.item_charge_summary('wand_of_magic_missiles') == {'current': 7, 'max': 7}
+    pools = character.character_resource_pools()
+    assert 'arcane_ward' in pools
+    assert 'wand_of_magic_missiles_charges' not in pools
+
     usable = {item['name'] for item in character.usable_items()}
     assert 'wand_of_magic_missiles' in usable
     assert 'staff_of_defense' in usable

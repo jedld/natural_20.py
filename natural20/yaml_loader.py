@@ -18,6 +18,87 @@ TEMPLATE_MERGE_RESOURCES = frozenset(
 )
 
 
+def _iter_campaign_import_entries(raw: Any) -> list[str]:
+    """Normalize game.yml import entries into a list of path-like strings."""
+    if raw is None:
+        return []
+    if isinstance(raw, (str, dict)):
+        raw = [raw]
+    if not isinstance(raw, list):
+        return []
+
+    imports: list[str] = []
+    for entry in raw:
+        value: str | None = None
+        if isinstance(entry, str):
+            value = entry.strip()
+        elif isinstance(entry, dict):
+            for key in ("path", "campaign", "name"):
+                candidate = entry.get(key)
+                if isinstance(candidate, str) and candidate.strip():
+                    value = candidate.strip()
+                    break
+        if value:
+            imports.append(value)
+    return imports
+
+
+def _resolve_campaign_import_path(campaign_root: Path, raw: str) -> Path:
+    """Resolve import entry to an absolute campaign directory path."""
+    candidate = Path(raw).expanduser()
+    if candidate.is_absolute():
+        return candidate.resolve()
+
+    # Bare names ("death_house") resolve to sibling campaign folders.
+    if "/" not in raw and "\\" not in raw and not raw.startswith("."):
+        return (campaign_root.parent / raw).resolve()
+
+    # Relative paths resolve from the current campaign root.
+    return (campaign_root / raw).resolve()
+
+
+def campaign_import_roots(campaign_root: str | Path) -> list[Path]:
+    """Return imported campaign roots from game.yml (depth-first, de-duplicated).
+
+    Supported game.yml keys:
+    - imports
+    - import_campaigns
+    - campaign_imports
+    """
+    campaign = Path(campaign_root).resolve()
+    ordered: list[Path] = []
+    seen: set[Path] = set()
+
+    def _visit(root: Path, stack: set[Path]) -> None:
+        game_file = root / "game.yml"
+        if not game_file.is_file():
+            return
+        with game_file.open("r", encoding="utf-8") as stream:
+            game_data = yaml.safe_load(stream) or {}
+        if not isinstance(game_data, dict):
+            return
+
+        raw_imports = (
+            game_data.get("imports")
+            or game_data.get("import_campaigns")
+            or game_data.get("campaign_imports")
+        )
+        for entry in _iter_campaign_import_entries(raw_imports):
+            import_root = _resolve_campaign_import_path(root, entry)
+            if import_root in stack:
+                continue
+
+            if import_root.is_dir():
+                _visit(import_root, stack | {root})
+
+            if import_root not in seen and import_root.is_dir():
+                seen.add(import_root)
+                ordered.append(import_root)
+
+    _visit(campaign, {campaign})
+    return ordered
+
+
 def templates_root() -> Path:
     """Return the bundled SRD/templates directory shipped with the engine."""
     import os
@@ -104,6 +185,23 @@ def resolve_yaml_reference(
         candidates.append(templates / ref_path[len("@templates/") :])
     elif ref_path.startswith("templates/"):
         candidates.append(templates / ref_path[len("templates/") :])
+    elif ref_path.startswith("@campaign/") or ref_path.startswith("@campaigns/"):
+        if campaign_root is not None:
+            if ref_path.startswith("@campaign/"):
+                rem = ref_path[len("@campaign/") :]
+            else:
+                rem = ref_path[len("@campaigns/") :]
+            campaign_name, _, inner = rem.partition("/")
+            if campaign_name and inner:
+                campaign = Path(campaign_root).resolve()
+                candidates.append((campaign.parent / campaign_name / inner).resolve())
+    elif ref_path.startswith("campaigns/"):
+        if campaign_root is not None:
+            rem = ref_path[len("campaigns/") :]
+            campaign_name, _, inner = rem.partition("/")
+            if campaign_name and inner:
+                campaign = Path(campaign_root).resolve()
+                candidates.append((campaign.parent / campaign_name / inner).resolve())
 
     path_obj = Path(ref_path)
     if path_obj.is_absolute():
@@ -114,6 +212,8 @@ def resolve_yaml_reference(
     if campaign_root is not None:
         campaign = Path(campaign_root).resolve()
         candidates.append((campaign / ref_path).resolve())
+        for import_root in campaign_import_roots(campaign):
+            candidates.append((import_root / ref_path).resolve())
 
     seen: set[Path] = set()
     for candidate in candidates:
@@ -217,6 +317,10 @@ def load_campaign_yaml(
     campaign = Path(campaign_root).resolve()
     campaign_path = campaign / category / f"{resource}.yml"
     template_path = templates_root() / category / f"{resource}.yml"
+    import_roots = campaign_import_roots(campaign)
+    import_paths = [
+        root / category / f"{resource}.yml" for root in import_roots
+    ]
 
     template_data: dict[str, Any] | None = None
     if template_path.is_file():
@@ -236,8 +340,56 @@ def load_campaign_yaml(
             and not explicit_inherit
         )
         if should_merge and template_data is not None:
-            return deep_merge(template_data, campaign_data)
+            merged: dict[str, Any] = copy.deepcopy(template_data)
+            imported_dicts: list[dict[str, Any]] = []
+            for import_path, import_root in zip(import_paths, import_roots):
+                if not import_path.is_file():
+                    continue
+                import_data = load_yaml(import_path, campaign_root=import_root)
+                if isinstance(import_data, dict):
+                    imported_dicts.append(import_data)
+            # Earlier imports have higher precedence than later imports.
+            for import_data in reversed(imported_dicts):
+                merged = deep_merge(merged, import_data)
+            return deep_merge(merged, campaign_data)
+        if should_merge:
+            merged: dict[str, Any] = {}
+            if template_data is not None:
+                merged = deep_merge(merged, template_data)
+            imported_dicts: list[dict[str, Any]] = []
+            for import_path, import_root in zip(import_paths, import_roots):
+                if not import_path.is_file():
+                    continue
+                import_data = load_yaml(import_path, campaign_root=import_root)
+                if isinstance(import_data, dict):
+                    imported_dicts.append(import_data)
+            for import_data in reversed(imported_dicts):
+                merged = deep_merge(merged, import_data)
+            return deep_merge(merged, campaign_data)
         return campaign_data
+
+    # No local file: for item catalogues, merge template + imported campaigns.
+    if merge_templates and category == "items" and resource in TEMPLATE_MERGE_RESOURCES:
+        merged: dict[str, Any] = {}
+        if template_data is not None:
+            merged = deep_merge(merged, template_data)
+        imported_dicts: list[dict[str, Any]] = []
+        for import_path, import_root in zip(import_paths, import_roots):
+            if not import_path.is_file():
+                continue
+            import_data = load_yaml(import_path, campaign_root=import_root)
+            if isinstance(import_data, dict):
+                imported_dicts.append(import_data)
+        for import_data in reversed(imported_dicts):
+            merged = deep_merge(merged, import_data)
+        if merged:
+            return merged
+
+    # Non-item resources: imported campaigns are a fallback between local and templates.
+    for import_path, import_root in zip(import_paths, import_roots):
+        if not import_path.is_file():
+            continue
+        return load_yaml(import_path, campaign_root=import_root)
 
     if template_data is not None:
         return template_data
@@ -265,6 +417,10 @@ def load_campaign_resource_path(
         template_path = templates_root() / relative
         if campaign_path.is_file():
             return load_yaml(campaign_path, campaign_root=campaign)
+        for import_root in campaign_import_roots(campaign):
+            import_path = import_root / relative
+            if import_path.is_file():
+                return load_yaml(import_path, campaign_root=import_root)
         if template_path.is_file():
             return load_yaml(template_path, campaign_root=campaign)
         raise FileNotFoundError(f"YAML resource not found: {campaign_path}")

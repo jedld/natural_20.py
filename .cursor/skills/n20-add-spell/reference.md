@@ -4,7 +4,7 @@
 
 | Layer | Path | What to add |
 |-------|------|-------------|
-| YAML | `templates/items/spells.yml` | SRD text, `level`, `range`, `school`, `type`, `concentration`, `duration_seconds`, `spell_class`, `spell_list_classes` |
+| YAML | `templates/items/spells.yml` | SRD text, `level`, `upcast` (when slot level changes effect), `range`, `school`, `type`, `concentration`, `duration_seconds`, `spell_class`, `spell_list_classes` |
 | Class lists | `templates/char_classes/<class>.yml` | Entry under `spell_list` for appropriate level |
 | Python | `natural20/spell/<slug>_spell.py` | `Spell` subclass |
 | Loader | `natural20/utils/spell_loader.py` | `import` + `'FooSpell': FooSpell` in `spell_classes` |
@@ -32,6 +32,7 @@ hold_person:
   duration: 1m
   duration_seconds: 60
   level: 2
+  upcast: true
   name: Hold Person
   range: 60
   school: enchantment
@@ -42,6 +43,18 @@ hold_person:
 ```
 
 `type` hints VTT/asset generation: `control`, `debuff`, `buff` → concentration effect icons (`natural20/image_gen/game_icons.py`).
+
+### Upcast metadata
+
+Set `upcast: true` when casting the spell in a higher slot changes damage, targets, rays, duration pool, etc. Omit the key (or use `upcast: false`) for spells like *Shield* or *Mage Armor* that do not scale.
+
+The action bar uses this flag first, then SRD description text, then spell-class introspection as a fallback. After adding or changing scaling behavior, run:
+
+```bash
+python scripts/sync_spell_upcast_metadata.py --write
+```
+
+Legacy aliases `higher_level: true` and `scales_with_slot: true` are still read but `upcast` is preferred.
 
 ## Python class skeleton (concentration debuff)
 

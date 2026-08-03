@@ -69,6 +69,7 @@ spell_list:
     - lightning_bolt
     - protection_from_energy
     - slow
+    - stinking_cloud
 class_features:
   - font_of_magic
 sorcerous_origins:

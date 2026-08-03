@@ -96,6 +96,7 @@ bless:
     '
   duration: 1m
   level: 1
+  upcast: true
   name: Bless
   range: 30
   school: enchantment
@@ -162,6 +163,7 @@ burning_hands:
     '
   duration: instant
   level: 1
+  upcast: true
   name: Burning Hands
   range_cone: 15
   school: evocation
@@ -185,6 +187,7 @@ thunderwave:
     '
   duration: instant
   level: 1
+  upcast: true
   name: Thunderwave
   range_cube: 15
   school: evocation
@@ -212,6 +215,7 @@ hellish_rebuke:
   - somatic
   duration: instant
   level: 1
+  upcast: true
   name: Hellish Rebuke
   range: 60
   school: evocation
@@ -320,6 +324,7 @@ ice_knife:
     '
   duration: instant
   level: 1
+  upcast: true
   name: Ice Knife
   range: 60
   school: conjuration
@@ -347,6 +352,7 @@ guiding_bolt:
     '
   duration: instant
   level: 1
+  upcast: true
   name: Guiding Bolt
   range: 120
   school: evocation
@@ -368,6 +374,7 @@ cure_wounds:
     '
   duration: instant
   level: 1
+  upcast: true
   name: Cure Wounds
   range: 5
   school: evocation
@@ -479,6 +486,7 @@ inflict_wounds:
     '
   duration: instant
   level: 1
+  upcast: true
   name: Inflict Wounds
   range: 5
   school: necromancy
@@ -579,6 +587,7 @@ armor_of_agathys:
     '
   duration: 1h
   level: 1
+  upcast: true
   name: Armor of Agathys
   range: self
   school: abjuration
@@ -629,6 +638,7 @@ healing_word:
     '
   duration: instant
   level: 1
+  upcast: true
   name: Healing Word
   range: 60
   school: evocation
@@ -700,8 +710,8 @@ magic_missile:
   damage_type: force
   description: You create three glowing darts of magical force. Each dart hits a creature
     of your choice that you can see within range.
-  higher_level: true
   level: 1
+  upcast: true
   name: Magic Missile
   range: 120
   school: evocation
@@ -843,6 +853,7 @@ sleep:
   duration: 1m
   duration_seconds: 60
   level: 1
+  upcast: true
   name: Sleep
   range: 90
   radius: 20
@@ -1001,6 +1012,7 @@ false_life:
     '
   duration: 1h
   level: 1
+  upcast: true
   name: False Life
   range: self
   school: necromancy
@@ -1030,6 +1042,7 @@ chromatic_orb:
     '
   duration: instant
   level: 1
+  upcast: true
   name: Chromatic Orb
   range: 90
   school: evocation
@@ -1064,6 +1077,7 @@ color_spray:
     '
   duration: 1R
   level: 1
+  upcast: true
   name: Color Spray
   range_cone: 15
   school: illusion
@@ -1100,6 +1114,7 @@ witch_bolt:
     '
   duration: 1m
   level: 1
+  upcast: true
   name: Witch Bolt
   range: 30
   school: evocation
@@ -1180,6 +1195,7 @@ fireball:
     higher, the damage increases by 1d6 for each slot level above 3rd.
   duration: instant
   level: 3
+  upcast: true
   name: Fireball
   range: 150
   radius: 20
@@ -1214,18 +1230,23 @@ leomunds_tiny_hut:
   - verbal
   - somatic
   - material
-  description: Creates an immobile protective dome.
+  material: a small crystal bead
+  description: >-
+    A 10-foot-radius immobile dome of force springs into existence around and above you.
   duration: 8h
   duration_seconds: 28800
   level: 3
   name: Leomund's Tiny Hut
-  range: 30
+  radius: 10
+  range: 0
   target_types:
-  - point
+  - self
   school: evocation
   type: utility
+  concentration: false
   spell_list_classes:
   - Wizard
+  - Bard
   spell_class: Natural20::LeomundsTinyHut
 knock:
   label: Knock
@@ -1254,6 +1275,7 @@ scorching_ray:
   description: Make three rays of fire at one or more targets.
   duration: instant
   level: 2
+  upcast: true
   name: Scorching Ray
   range: 120
   school: evocation
@@ -1292,6 +1314,7 @@ aganazzars_scorcher:
   description: A 30-foot line of roaring flame.
   duration: instant
   level: 2
+  upcast: true
   name: Aganazzar's Scorcher
   range: 30
   length: 30
@@ -1395,6 +1418,7 @@ lightning_bolt:
   description: A 100-foot line of lightning.
   duration: instant
   level: 3
+  upcast: true
   name: Lightning Bolt
   range: 100
   length: 100
@@ -1630,6 +1654,7 @@ cloudkill:
   duration: 10m
   duration_seconds: 600
   level: 5
+  upcast: true
   name: Cloudkill
   range: 120
   radius: 20
@@ -1651,6 +1676,7 @@ cone_of_cold:
   description: A blast of cold air erupts from your hands.
   duration: instant
   level: 5
+  upcast: true
   name: Cone of Cold
   range: 60
   range_cone: 60
@@ -1707,13 +1733,25 @@ stinking_cloud:
   - verbal
   - somatic
   - material
-  description: Create a nauseating 20-foot-radius cloud.
+  material: a rotten egg or several skunk cabbage leaves
+  description: >-
+    You create a 20-foot-radius sphere of yellow, nauseating gas centered on a
+    point within range. The cloud spreads around corners, and its area is heavily
+    obscured. The cloud lingers in the air for the duration. Each creature that is
+    completely within the cloud at the start of its turn must make a Constitution
+    saving throw against poison. On a failed save, the creature spends its action
+    that turn retching and reeling. Creatures that don't need to breathe or are
+    immune to poison automatically succeed on this saving throw. A moderate wind
+    (at least 10 miles per hour) disperses the cloud after 4 rounds. A strong wind
+    (at least 20 miles per hour) disperses it after 1 round.
   duration: 1m
   duration_seconds: 60
   level: 3
   name: Stinking Cloud
   range: 90
   radius: 20
+  save: constitution
+  damage_type: poison
   target_types:
   - point
   school: conjuration
@@ -1771,13 +1809,20 @@ message:
   - verbal
   - somatic
   - material
-  description: Whisper a message to a creature in range.
+  material: a short piece of copper wire
+  description: >-
+    You point your finger toward a creature within range and whisper a message.
+    The target (and only the target) hears the message and can reply in a whisper
+    that only you can hear.
   duration: 1 round
+  duration_seconds: 6
   level: 0
   name: Message
   range: 120
   school: transmutation
   type: utility
+  target_types: [allies, enemies]
+  provokes_hostility: false
   spell_list_classes:
   - Wizard
   - Sorcerer

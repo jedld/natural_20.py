@@ -433,6 +433,10 @@ class DoorObject(Object):
             self.is_secret = False
         elif state == "concealed":
             self.is_concealed = True
+        elif state == "activated":
+            self.activated = True
+        elif state == "deactivated":
+            self.activated = False
         else:
             raise ValueError("Invalid state for door object: %s" % state)
 

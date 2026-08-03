@@ -123,6 +123,19 @@ class StaticLightBuilder:
         if self.magical_darkness_at(pos_x, pos_y):
             return 0.0
 
+        if self.obscuring_gas_at(pos_x, pos_y):
+            intensity = min(intensity, 0.2)
+
+        try:
+            from natural20.spell.objects.tiny_hut import iter_tiny_hut_domes
+            for dome in iter_tiny_hut_domes(self.map):
+                if dome.contains((pos_x, pos_y)):
+                    override = dome.interior_light_value()
+                    if override is not None:
+                        return override
+        except Exception:
+            pass
+
         return intensity
 
     def magical_darkness_at(self, pos_x, pos_y):
@@ -146,4 +159,18 @@ class StaticLightBuilder:
                 # so ignore line-of-sight blocking inside the radius.
                 if max(abs(dx), abs(dy)) <= radius_squares:
                     return True
+        return False
+
+    def obscuring_gas_at(self, pos_x, pos_y):
+        """True when a square is inside a heavily obscuring gas cloud."""
+        for obj in (self.map.interactable_objects or {}):
+            props = getattr(obj, 'properties', None) or {}
+            if not (props.get('stinking_cloud_gas') or props.get('obscuring_gas')):
+                continue
+            try:
+                ox, oy = self.map.entity_or_object_pos(obj)
+            except Exception:
+                continue
+            if ox == pos_x and oy == pos_y:
+                return True
         return False

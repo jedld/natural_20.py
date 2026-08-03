@@ -31,6 +31,18 @@ class TestNpc(unittest.TestCase):
         self.assertEqual(lower.npc_type, 'wolf')
         self.assertEqual(titled.npc_type, 'wolf')
 
+    def test_load_npcs_skips_asset_manifest_yaml(self):
+        session = Session(root_path='user_levels/death_house', event_manager=EventManager())
+        loaded = session.load_npcs()
+        types = {npc.npc_type for npc in loaded}
+        self.assertNotIn('story_characters', types)
+        self.assertIn('bat', types)
+        self.assertNotIn('story_characters', session.npc_info())
+
+    def test_is_spawnable_npc_sheet_requires_stat_block_fields(self):
+        self.assertFalse(Session._is_spawnable_npc_sheet({'rose_durst': {'name': 'Rose'}}))
+        self.assertTrue(Session._is_spawnable_npc_sheet({'ability': {'str': 10}, 'actions': []}))
+
     def test_stench_effect(self):
         battle = Battle(self.session, self.map)
         fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')

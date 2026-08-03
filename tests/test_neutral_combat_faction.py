@@ -112,3 +112,110 @@ def test_battle_treats_neutral_group_as_non_opposing():
 
     assert not battle.opposing(pc, mara)
     assert battle.opposing(pc, guz)
+
+
+def _battle_sim_game():
+    from webapp.utils import GameManagement
+
+    session = Session(root_path='tests/fixtures', event_manager=EventManager())
+    session.game_properties.setdefault('groups', {
+        'a': {'enemies': ['b']},
+        'b': {'enemies': ['a']},
+    })
+    battle_map = Map(session, 'battle_sim_objects')
+    game = GameManagement(
+        game_session=session,
+        map_location='battle_sim_objects',
+        other_maps={},
+        socketio=DummySocket(),
+        output_logger=DummyLogger(),
+        tile_px=16,
+        controllers=[],
+        npc_controller='ai',
+        autosave=False,
+        auto_battle=True,
+        system_logger=DummyLogger(),
+        soundtrack=[],
+    )
+    game.maps = {'battle_sim_objects': battle_map}
+    return session, battle_map, game
+
+
+def test_only_witnessing_npcs_join_on_aggressive_action():
+    session, battle_map, game = _battle_sim_game()
+    pc = PlayerCharacter.load(session, 'high_elf_mage.yml', override={'entity_uid': 'witness_test_pc'})
+    victim = session.npc('goblin', {'name': 'Victim'})
+    witness = session.npc('goblin', {'name': 'Witness'})
+    distant = session.npc('goblin', {'name': 'Distant'})
+
+    battle_map.add(pc, 1, 1, group='a')
+    battle_map.add(victim, 3, 1, group='b')
+    battle_map.add(witness, 4, 1, group='b')
+    battle_map.add(distant, 6, 6, group='b')
+
+    assert battle_map.can_see(witness, victim)
+    assert not battle_map.can_see(distant, victim)
+    assert not game._npc_witnesses_fight(distant, {pc, victim}, battle_map)
+
+    game.loop_environment(aggressive_pairs=[(pc, victim)])
+
+    assert game.battle is not None
+    combatants = set(game.battle.entities.keys())
+    assert pc in combatants
+    assert victim in combatants
+    assert witness in combatants
+    assert distant not in combatants
+
+
+def test_npc_can_join_combat_by_hearing_without_line_of_sight():
+    from unittest.mock import patch
+
+    session, battle_map, game = _battle_sim_game()
+    pc = PlayerCharacter.load(session, 'high_elf_mage.yml', override={'entity_uid': 'hearing_test_pc'})
+    victim = session.npc('goblin', {'name': 'Victim'})
+    listener = session.npc('goblin', {'name': 'Listener'})
+
+    battle_map.add(pc, 1, 1, group='a')
+    battle_map.add(victim, 2, 1, group='b')
+    battle_map.add(listener, 1, 2, group='b')
+
+    real_can_see = battle_map.can_see
+
+    def _can_see(observer, observed):
+        if observer is listener and observed in {pc, victim}:
+            return False
+        return real_can_see(observer, observed)
+
+    with patch.object(battle_map, 'can_see', side_effect=_can_see):
+        assert not battle_map.can_see(listener, victim)
+        assert game._npc_witnesses_fight(listener, {pc, victim}, battle_map)
+        game.loop_environment(aggressive_pairs=[(pc, victim)])
+
+    assert game.battle is not None
+    combatants = set(game.battle.entities.keys())
+    assert listener in combatants
+
+
+def test_party_pcs_join_combat_across_maps():
+    session, battle_map, game = _battle_sim_game()
+    other_map = Map(session, 'battle_sim_4')
+    game.maps['battle_sim_4'] = other_map
+
+    fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml', override={'entity_uid': 'party_fighter'})
+    mage = PlayerCharacter.load(session, 'high_elf_mage.yml', override={'entity_uid': 'party_mage'})
+    victim = session.npc('goblin', {'name': 'Victim'})
+
+    battle_map.add(fighter, 1, 1, group='a')
+    other_map.add(mage, 2, 2, group='a')
+    battle_map.add(victim, 3, 1, group='b')
+
+    assert game.get_map_for_entity(fighter) is battle_map
+    assert game.get_map_for_entity(mage) is other_map
+
+    game.loop_environment(aggressive_pairs=[(fighter, victim)])
+
+    assert game.battle is not None
+    combatants = set(game.battle.entities.keys())
+    assert fighter in combatants
+    assert mage in combatants
+    assert victim in combatants

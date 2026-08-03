@@ -7,7 +7,14 @@ from pathlib import Path
 import pytest
 
 from natural20.session import Session
-from natural20.yaml_loader import deep_merge, load_campaign_yaml, load_yaml, templates_root
+from natural20.yaml_loader import (
+  campaign_import_roots,
+  deep_merge,
+  load_campaign_resource_path,
+  load_campaign_yaml,
+  load_yaml,
+  templates_root,
+)
 
 
 @pytest.fixture
@@ -46,6 +53,46 @@ player_spawn_points:
         encoding="utf-8",
     )
     return campaign
+
+
+def _write_game_yml(path: Path, *, imports: list[str] | None = None) -> None:
+    imports_yaml = ""
+    if imports:
+        imports_yaml = "imports:\n" + "\n".join(f"  - {entry}" for entry in imports) + "\n"
+    (path / "game.yml").write_text(
+        (
+            """
+name: Inherit Test
+starting_map: maps/start
+maps:
+  start: maps/start
+groups:
+  a:
+    default: true
+    enemies: []
+    neutral: []
+    allies: []
+"""
+            + imports_yaml
+        ).strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    (path / "maps").mkdir(exist_ok=True)
+    (path / "maps" / "start.yml").write_text(
+        """
+name: Start
+map:
+  base:
+    - "."
+legend: {}
+npc: []
+player_spawn_points:
+  - [0, 0]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def test_deep_merge_nested_dicts() -> None:
@@ -163,3 +210,148 @@ custom_badge:
 def test_missing_campaign_item_file_falls_back_to_templates(mini_campaign: Path) -> None:
     data = load_campaign_yaml(mini_campaign, "items", "equipment")
     assert "chain_mail" in data
+
+
+def test_campaign_import_roots_by_name(tmp_path: Path) -> None:
+    campaigns = tmp_path / "campaigns"
+    parent = campaigns / "base_campaign"
+    child = campaigns / "child_campaign"
+    parent.mkdir(parents=True)
+    child.mkdir(parents=True)
+    _write_game_yml(parent)
+    _write_game_yml(child, imports=["base_campaign"])
+
+    roots = campaign_import_roots(child)
+    assert roots == [parent.resolve()]
+
+
+def test_load_campaign_yaml_merges_imported_items(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    templates = tmp_path / "templates"
+    (templates / "items").mkdir(parents=True)
+    (templates / "items" / "equipment.yml").write_text(
+        """
+template_badge:
+  name: Template Badge
+  type: trinket
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("NATURAL20_TEMPLATES_ROOT", str(templates))
+
+    campaigns = tmp_path / "campaigns"
+    parent = campaigns / "base_campaign"
+    child = campaigns / "child_campaign"
+    (parent / "items").mkdir(parents=True)
+    (child / "items").mkdir(parents=True)
+    _write_game_yml(parent)
+    _write_game_yml(child, imports=["base_campaign"])
+
+    (parent / "items" / "equipment.yml").write_text(
+        """
+shared_kit:
+  name: Parent Shared Kit
+  type: trinket
+parent_only:
+  name: Parent Only
+  type: trinket
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    (child / "items" / "equipment.yml").write_text(
+        """
+shared_kit:
+  name: Child Override Kit
+  type: trinket
+child_only:
+  name: Child Only
+  type: trinket
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    data = load_campaign_yaml(child, "items", "equipment")
+    assert data["template_badge"]["name"] == "Template Badge"
+    assert data["parent_only"]["name"] == "Parent Only"
+    assert data["shared_kit"]["name"] == "Child Override Kit"
+    assert data["child_only"]["name"] == "Child Only"
+
+
+def test_load_campaign_resource_path_falls_back_to_imported_campaign(tmp_path: Path) -> None:
+    campaigns = tmp_path / "campaigns"
+    parent = campaigns / "base_campaign"
+    child = campaigns / "child_campaign"
+    (parent / "races").mkdir(parents=True)
+    child.mkdir(parents=True)
+    _write_game_yml(parent)
+    _write_game_yml(child, imports=["base_campaign"])
+
+    (parent / "races" / "moon_touched.yml").write_text(
+        """
+name: Moon Touched
+size: medium
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    race = load_campaign_resource_path(child, "races/moon_touched.yml")
+    assert race["name"] == "Moon Touched"
+
+
+def test_session_loads_imported_npc_info(tmp_path: Path) -> None:
+    campaigns = tmp_path / "campaigns"
+    parent = campaigns / "base_campaign"
+    child = campaigns / "child_campaign"
+    (parent / "npcs").mkdir(parents=True)
+    child.mkdir(parents=True)
+    _write_game_yml(parent)
+    _write_game_yml(child, imports=["base_campaign"])
+
+    (parent / "npcs" / "imported_wolf.yml").write_text(
+        """
+name: Imported Wolf
+ability:
+  str: 12
+  dex: 15
+  con: 12
+  int: 3
+  wis: 12
+  cha: 6
+actions:
+  - name: bite
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    session = Session(root_path=str(child))
+    info = session.npc_info()
+    assert "imported_wolf" in info
+    assert info["imported_wolf"]["name"] == "Imported Wolf"
+
+
+def test_session_loads_imported_characters(tmp_path: Path) -> None:
+    campaigns = tmp_path / "campaigns"
+    parent = campaigns / "base_campaign"
+    child = campaigns / "child_campaign"
+    (parent / "characters").mkdir(parents=True)
+    child.mkdir(parents=True)
+    _write_game_yml(parent)
+    _write_game_yml(child, imports=["base_campaign"])
+
+    source_character = (
+        Path(__file__).resolve().parent / "fixtures" / "high_elf_fighter.yml"
+    )
+    (parent / "characters" / "imported_hero.yml").write_text(
+        source_character.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    session = Session(root_path=str(child))
+    characters = session.load_characters()
+    names = {character.name for character in characters}
+    assert "Gomerin" in names

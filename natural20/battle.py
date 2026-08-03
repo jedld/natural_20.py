@@ -439,6 +439,11 @@ class Battle():
         """
         self.started = True
         self.current_turn_index = 0
+        try:
+            from natural20.environment_zones import promote_environment_zones_to_battle
+            promote_environment_zones_to_battle(self)
+        except Exception:
+            pass
 
         if combat_order:
             self.combat_order = combat_order
@@ -990,6 +995,22 @@ class Battle():
                         "label": item.get("label"),
                         "sound_id": item.get("sound_id"),
                     })
+                elif item["type"] == "message_spell":
+                    source = item.get("source")
+                    target = item.get("target")
+                    self.animation_log.append({
+                        "type": "message_spell_link",
+                        "source": getattr(source, "entity_uid", None) if source is not None else None,
+                        "target_uid": getattr(target, "entity_uid", None) if target is not None else None,
+                        "target_name": getattr(target, "name", None) if target is not None else None,
+                        "caster_name": getattr(source, "name", None) if source is not None else None,
+                        "link_id": item.get("link_id"),
+                        "message": (
+                            f"Message spell link — magical whisper only. Whisper to "
+                            f"{getattr(target, 'name', 'the target')} in Local Chat "
+                            "(not normal speech)."
+                        ),
+                    })
             index += 1
         if action.action_type == 'move':
             self.trigger_event('movement', action.source, { 'move_path': action.move_path})
@@ -1042,27 +1063,29 @@ class Battle():
             # readied-trigger purposes (e.g. holding a spell to fire when the
             # enemy casts at you).
             if action.action_type == 'spell':
-                try:
-                    target = getattr(action, 'target', None)
-                    if isinstance(target, (list, tuple)):
-                        targets = list(target)
-                    else:
-                        targets = [target]
-                    for t in targets:
-                        if t is None or not hasattr(t, 'entity_uid'):
-                            continue
-                        self.trigger_event('attacked', action.source, {
-                            'target': t,
-                            'attack_name': getattr(action, 'spell_class', None),
-                            'as_reaction': bool(getattr(action, 'as_reaction', False)),
-                        })
-                        self.trigger_event('ally_attacks', action.source, {
-                            'target': t,
-                            'attack_name': getattr(action, 'spell_class', None),
-                            'as_reaction': bool(getattr(action, 'as_reaction', False)),
-                        })
-                except Exception:
-                    pass
+                from natural20.actions.spell_action import spell_action_provokes_hostility
+                if spell_action_provokes_hostility(action):
+                    try:
+                        target = getattr(action, 'target', None)
+                        if isinstance(target, (list, tuple)):
+                            targets = list(target)
+                        else:
+                            targets = [target]
+                        for t in targets:
+                            if t is None or not hasattr(t, 'entity_uid'):
+                                continue
+                            self.trigger_event('attacked', action.source, {
+                                'target': t,
+                                'attack_name': getattr(action, 'spell_class', None),
+                                'as_reaction': bool(getattr(action, 'as_reaction', False)),
+                            })
+                            self.trigger_event('ally_attacks', action.source, {
+                                'target': t,
+                                'attack_name': getattr(action, 'spell_class', None),
+                                'as_reaction': bool(getattr(action, 'as_reaction', False)),
+                            })
+                    except Exception:
+                        pass
 
         self.battle_log.append(action)
         return None
@@ -1639,6 +1662,15 @@ class Battle():
             if zone.expired():
                 zone.dismiss()
                 continue
+            on_move = getattr(zone, 'on_movement_step', None)
+            if callable(on_move):
+                try:
+                    on_move(entity, from_pos, to_pos)
+                except Exception as exc:  # pragma: no cover - defensive
+                    self.event_manager.received_event({
+                        'source': zone, 'event': 'zone_error',
+                        'phase': 'on_movement_step', 'error': str(exc),
+                    })
             if not zone.contains(target):
                 continue
             # Don't fire on_enter when the entity was already inside the

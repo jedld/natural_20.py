@@ -1,7 +1,7 @@
 import uuid
 import os
 import random
-from natural20.yaml_loader import load_yaml, templates_root
+from natural20.yaml_loader import load_campaign_resource_path, load_yaml
 from natural20.die_roll import DieRoll
 from natural20.entity import Entity
 from natural20.actions.dodge_action import DodgeAction
@@ -31,6 +31,7 @@ from natural20.utils.npc_random_name_generator import generate_goblinoid_name, g
 from natural20.concern.lootable import Lootable
 from natural20.concern.inventory import Inventory
 from natural20.concern.event_loader import EventLoader
+from natural20.entity_class.mimic import Mimic, _ensure_mimic_properties
 import pdb
 
 
@@ -58,7 +59,7 @@ def _normalize_damage_traits(value):
             normalized.append(cleaned)
     return normalized
 
-class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader):
+class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
     ACTION_LIST = [
         AttackAction, DashAction, DashBonusAction, DisengageAction,
         DisengageBonusAction, HideAction, HideBonusAction,
@@ -72,21 +73,17 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader):
         super().__init__(type, "npc", {})
         if opt is None:
             opt = {}
-        campaign_npc = os.path.join(session.root_path, "npcs", f"{type}.yml")
-        if os.path.exists(campaign_npc):
-            self.properties = copy.deepcopy(
-                load_yaml(campaign_npc, campaign_root=session.root_path)
-            )
-        else:
-            template_npc = templates_root() / "npcs" / f"{type}.yml"
-            self.properties = copy.deepcopy(
-                load_yaml(template_npc, campaign_root=session.root_path)
-            )
+        self.properties = copy.deepcopy(
+            load_campaign_resource_path(session.root_path, f"npcs/{type}.yml")
+        )
 
         self.properties.update(opt.get("overrides", {}))
 
-        self.ability_scores = self.properties["ability"]
-        self.color = self.properties["color"]
+        # Ensure mimic-specific properties are set before initialization.
+        self.properties = _ensure_mimic_properties(self.properties)
+
+        self.ability_scores = self.properties.get("ability") or self.properties.get("ability_scores") or {}
+        self.color = self.properties.get("color", "#64748b")
         self.session = session
         self.npc_type = type
         self.group = opt.get("group", "b")
@@ -102,7 +99,7 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader):
 
         self._ensure_container_flags(self.session)
 
-        self.npc_actions = self.properties["actions"]
+        self.npc_actions = self.properties.get("actions", [])
         self.legendary_actions = self.properties.get("legendary_actions", [])
         self.battle_defaults = self.properties.get("battle_defaults", None)
         self.hidden_stealth = self.properties.get("hidden_stealth", None)
@@ -166,8 +163,7 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader):
         if not path.endswith(".yml"):
             path = f"{path}.yml"
 
-        npc_path = os.path.join(session.root_path, path)
-        properties = load_yaml(npc_path, campaign_root=session.root_path)
+        properties = load_campaign_resource_path(session.root_path, path)
 
         properties.update(override)
 
@@ -230,6 +226,9 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader):
     def take_damage(self, dmg: int, battle=None, damage_type='piercing', \
                     session=None, item=None,
                     critical=False, roll_info=None, sneak_attack=None):
+        # Trigger mimic attack when damaged while camouflaged.
+        if self.properties.get("mimic_door") and not self.camouflage_revealed:
+            self.on_mimic_takes_damage(dmg, battle)
         if self.linked_hp:
             self.linked_hp.take_damage(dmg, battle, damage_type, session, item, critical, roll_info, sneak_attack)
         else:
@@ -488,6 +487,10 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader):
 
 
     def use(self, entity, result, session=None):
+        # --- Mimic door interaction trigger ---
+        if self.properties.get("mimic_door") and not self.camouflage_revealed:
+            return self._mimic_door_use(entity, result, session)
+        # ---------------------------------------
         if result['action'] == 'give':
             self.transfer(result['battle'], result['target'], result['source'], result['items'])
         elif result['action'] == 'loot':
@@ -495,6 +498,52 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader):
             return True
         else:
             raise NotImplementedError(f"unknown action {result['action']}")
+
+    def _mimic_door_use(self, entity, result, session=None):
+        """Handle interaction with a disguised mimic door.
+
+        When a creature attempts to open or interact with the disguised door,
+        the mimic reveals itself and attacks.
+        """
+        action = result.get('action', 'interact')
+        # Only trigger on open/close/interact actions (not give/loot).
+        if action not in ('open', 'close', 'interact', 'unlock', 'lock',
+                          'lockpick_success', 'lockpick_fail'):
+            return []
+
+        # Resolve the battle_map via session.
+        battle_map = None
+        if session is not None:
+            battle_map = getattr(session, 'map_for_entity', None)
+            if battle_map is not None:
+                battle_map = battle_map(self)
+            else:
+                battle_map = None
+        if battle_map is None:
+            # Fallback: try self.map if available (some entity types carry it).
+            battle_map = getattr(self, 'map', None)
+
+        # Try to find the current battle if one exists.
+        battle = None
+        if session is not None:
+            battle = getattr(session, 'battle', None)
+            if battle is None:
+                battle = getattr(session, 'current_battle', None)
+
+        # Trigger the mimic attack.
+        self.on_mimic_interaction(
+            entity.entity_uid,
+            session or self.session,
+            battle_map,
+            battle,
+        )
+
+        # Return a narration result so the UI shows the reveal message.
+        return [{
+            'type': 'narration',
+            'message': f"The '{self.label()}' IS NOT A DOOR! It is a mimic and attacks!",
+            'source': self,
+        }]
 
     def generate_npc_attack_actions(self, battle, opportunity_attack=False, auto_target=True, legendary_actions=False):
         if self.familiar():
@@ -534,6 +583,9 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader):
         hp_details = DieRoll.parse(self.properties.get("hp_die", "1d6"))
         self._max_hit_die = {self.npc_type: hp_details.die_count}
         self._current_hit_die = {int(hp_details.die_type): hp_details.die_count}
+
+        # Initialize mimic-specific state (camouflage, adhesive).
+        self.initialize_mimic()
 
     def is_npc(self):
         return True

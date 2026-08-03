@@ -1,7 +1,14 @@
 import yaml
 import os
+from pathlib import Path
 from collections import deque
-from natural20.yaml_loader import load_campaign_resource_path, load_campaign_yaml, load_yaml
+from natural20.yaml_loader import (
+    campaign_import_roots,
+    load_campaign_resource_path,
+    load_campaign_yaml,
+    load_yaml,
+    templates_root,
+)
 from natural20.npc import Npc
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
@@ -43,6 +50,7 @@ class Session:
         self.default_locale = 'en'
         self.event_manager = event_manager
         self.conversation_handlers = conversation_handlers or {}
+        self.message_spell_links = {}
         # Centralized entity registry for UID-based lookup/serialization
         self.entity_registry = EntityRegistry()
         locale_path = os.path.join(self.root_path, 'locales')
@@ -266,14 +274,41 @@ class Session:
         self.game_time += seconds
 
     def load_characters(self):
-        files = os.listdir(os.path.join(self.root_path, 'characters'))
         characters = []
-        for file in files:
-            if file.endswith('.yml'):
-                char_path = os.path.join(self.root_path, 'characters', file)
-                char_content = load_yaml(char_path, campaign_root=self.root_path)
-                characters.append(PlayerCharacter(self, char_content))
+        for char_path in self._iter_category_files('characters'):
+            char_content = load_yaml(
+                char_path,
+                campaign_root=str(char_path.parent.parent),
+            )
+            characters.append(PlayerCharacter(self, char_content))
         return characters
+
+    def _category_roots(self, category, include_templates=False):
+        roots = [Path(self.root_path).resolve()]
+        roots.extend(campaign_import_roots(self.root_path))
+        if include_templates:
+            roots.append(templates_root())
+
+        folders = []
+        seen = set()
+        for root in roots:
+            folder = (root / category).resolve()
+            if folder in seen:
+                continue
+            seen.add(folder)
+            if folder.is_dir():
+                folders.append(folder)
+        return folders
+
+    def _iter_category_files(self, category, include_templates=False):
+        seen = set()
+        for folder in self._category_roots(category, include_templates=include_templates):
+            for path in sorted(folder.glob('*.yml')):
+                key = path.stem.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                yield path
 
     def save_state(self, state_type, value=None):
         if value is None:
@@ -330,19 +365,8 @@ class Session:
 
         keys = (raw.lower(), raw.lower().replace(' ', '_'))
 
-        search_roots = [os.path.join(self.root_path, 'npcs')]
-        try:
-            import natural20 as _n20
-
-            _pkg = os.path.dirname(os.path.abspath(_n20.__file__))
-            search_roots.append(
-                os.path.normpath(os.path.join(_pkg, '..', 'templates', 'npcs'))
-            )
-        except Exception:
-            pass
-
-        for folder in search_roots:
-            idx = _index_yml_stems(folder)
+        for folder in self._category_roots('npcs', include_templates=True):
+            idx = _index_yml_stems(str(folder))
             for k in keys:
                 if k in idx:
                     return idx[k]
@@ -356,66 +380,76 @@ class Session:
             npc_type = self._canonical_npc_type(npc_type)
         return Npc(self, npc_type, options)
 
+    @staticmethod
+    def _is_spawnable_npc_sheet(details) -> bool:
+        """True when a YAML document is a combat/stat NPC sheet, not an asset manifest."""
+        if not isinstance(details, dict) or not details:
+            return False
+        return "ability" in details and "actions" in details
+
     def load_npcs(self):
-        files = os.listdir(os.path.join(self.root_path, 'npcs'))
         npcs = []
-        for file in files:
-            if file.endswith('.yml'):
-                npc_name = os.path.splitext(file)[0]
-                npcs.append(Npc(self, npc_name, { "rand_life" : True}))
+        for path in self._iter_category_files('npcs', include_templates=True):
+            npc_name = path.stem
+            npc_details = load_yaml(path, campaign_root=str(path.parent.parent))
+            if not self._is_spawnable_npc_sheet(npc_details):
+                continue
+            npcs.append(Npc(self, npc_name, { 'rand_life': True }))
         return npcs
     
 
     def npc_info(self, familiar=False):
-        files = os.listdir(os.path.join(self.root_path, 'npcs'))
         npc_info = {}
-        for file in files:
-            if file.endswith('.yml'):
-                npc_name = os.path.splitext(file)[0]
-                npc_details = load_campaign_resource_path(self.root_path, f"npcs/{file}")
-                if familiar:
-                    if not npc_details.get('familiar', False):
-                        continue
+        for path in self._iter_category_files('npcs', include_templates=True):
+            npc_name = path.stem
+            npc_details = load_yaml(path, campaign_root=str(path.parent.parent))
+            if not self._is_spawnable_npc_sheet(npc_details):
+                continue
+            if familiar and not npc_details.get('familiar', False):
+                continue
 
-                npc_info[npc_name] = {**npc_details, 'id': npc_name, 'label': npc_details.get('label', npc_name)}
+            npc_info[npc_name] = {
+                **npc_details,
+                'id': npc_name,
+                'label': npc_details.get('label', npc_name),
+            }
         return npc_info
 
     def load_races(self):
-        files = os.listdir(os.path.join(self.root_path, 'races'))
         races = {}
-        for file in files:
-            if file.endswith('.yml'):
-                race_name = os.path.splitext(file)[0]
-                races[race_name] = load_campaign_resource_path(
-                    self.root_path, f"races/{file}"
-                )
+        for path in self._iter_category_files('races', include_templates=True):
+            race_name = path.stem
+            races[race_name] = load_yaml(path, campaign_root=str(path.parent.parent))
         return races
 
     def load_classes(self):
-        files = os.listdir(os.path.join(self.root_path, 'char_classes'))
         classes = {}
-        for file in files:
-            if file.endswith('.yml'):
-                class_name = os.path.splitext(file)[0]
-                classes[class_name] = load_campaign_resource_path(
-                    self.root_path, f"char_classes/{file}"
-                )
+        for path in self._iter_category_files('char_classes', include_templates=True):
+            class_name = path.stem
+            classes[class_name] = load_yaml(path, campaign_root=str(path.parent.parent))
         return classes
 
     def load_spell(self, spell):
         if spell not in self.spells:
-            spells = self.load_yaml_file('items', 'spells')
-            spell_details = spells.get(spell)
-
+            self._ensure_spells_loaded()
+            spell_details = self.spells.get(spell)
             if not spell_details:
                 raise Exception(f'Spell {spell} not found')
-
-            self.spells[spell] = spell_details
-            self.spells[spell]['id'] = spell
         return self.spells[spell]
+
+    def _ensure_spells_loaded(self):
+        if getattr(self, '_spells_catalog_loaded', False):
+            return
+        for spell_id, spell_details in self.load_yaml_file('items', 'spells').items():
+            if spell_id in self.spells:
+                continue
+            self.spells[spell_id] = spell_details
+            self.spells[spell_id]['id'] = spell_id
+        self._spells_catalog_loaded = True
     
     def load_all_spells(self):
-        return self.load_yaml_file('items', 'spells')
+        self._ensure_spells_loaded()
+        return dict(self.spells)
 
     def load_class(self, klass):
         if klass not in self.char_classes:
@@ -502,27 +536,14 @@ class Session:
             return {}
 
     def load_backgrounds(self):
-        """Load backgrounds from campaign backgrounds/ with template fallback."""
-        from natural20.yaml_loader import templates_root
-
+        """Load backgrounds from campaign, imported campaigns, and templates."""
         backgrounds = {}
-        scan_dirs = []
-        campaign_dir = os.path.join(self.root_path, 'backgrounds')
-        template_dir = templates_root() / 'backgrounds'
-        if os.path.isdir(campaign_dir):
-            scan_dirs.append(campaign_dir)
-        if template_dir.is_dir():
-            scan_dirs.append(str(template_dir))
-        for bg_dir in scan_dirs:
-            for file in os.listdir(bg_dir):
-                if not file.endswith('.yml'):
-                    continue
-                background_name = os.path.splitext(file)[0]
-                if background_name in backgrounds:
-                    continue
-                backgrounds[background_name] = load_campaign_resource_path(
-                    self.root_path, f"backgrounds/{file}"
-                )
+        for path in self._iter_category_files('backgrounds', include_templates=True):
+            background_name = path.stem
+            backgrounds[background_name] = load_yaml(
+                path,
+                campaign_root=str(path.parent.parent),
+            )
         return backgrounds
 
     def load_object(self, object_name):

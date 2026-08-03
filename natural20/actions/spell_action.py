@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import inspect
 from natural20.utils.attack_util import damage_event
 from natural20.action import Action
 from natural20.utils.spell_loader import load_spell_class
@@ -10,6 +11,27 @@ import pdb
 class SpellActionConstants(Enum):
     SPELL_DAMAGE = "spell_damage"
     SPELL_MISS = "spell_miss"
+
+
+PEACEFUL_SPELL_RESULT_TYPES = frozenset({
+    'message_spell',
+    'message_spell_failed',
+})
+
+
+def spell_action_provokes_hostility(action) -> bool:
+    """False for utility/contact spells (e.g. Message) that must not start fights."""
+    if getattr(action, 'action_type', None) != 'spell':
+        return True
+    spell_action = getattr(action, 'spell_action', None)
+    if spell_action is not None:
+        props = getattr(spell_action, 'properties', None) or {}
+        if props.get('provokes_hostility') is False:
+            return False
+    for item in getattr(action, 'result', []) or []:
+        if item.get('type') in PEACEFUL_SPELL_RESULT_TYPES:
+            return False
+    return True
 
 @dataclass
 class SpellAction(Action):
@@ -164,9 +186,40 @@ class SpellAction(Action):
             target = self.target
 
         self.clear_validation_errors()
-        self.spell_action.validate(battle_map, target, battle=battle)
+        validate = self.spell_action.validate
+        params = inspect.signature(validate).parameters
+        if 'battle' in params:
+            validate(battle_map, target, battle=battle)
+        else:
+            validate(battle_map, target)
         self.errors = list(self.spell_action.errors)
         self.validation_issues = list(getattr(self.spell_action, 'validation_issues', []))
+        self._validate_force_dome(battle_map, target)
+
+    def _validate_force_dome(self, battle_map, target):
+        if battle_map is None or self.source not in battle_map.entities:
+            return
+        try:
+            from natural20.spell.objects.tiny_hut import force_dome_blocks_spell
+            from natural20.utils.target_validation import add_validation_issue
+        except Exception:
+            return
+
+        caster_pos = tuple(battle_map.entities[self.source])
+        targets = target if isinstance(target, list) else [target]
+        for tgt in targets:
+            if tgt is None:
+                continue
+            if isinstance(tgt, (tuple, list)) and len(tgt) == 2:
+                tgt_pos = tuple(tgt)
+            elif tgt in battle_map.entities:
+                tgt_pos = tuple(battle_map.entities[tgt])
+            else:
+                continue
+            if force_dome_blocks_spell(battle_map, caster_pos, tgt_pos):
+                add_validation_issue(self.spell_action, 'spell.tiny_hut.blocks_spell_line')
+                self.validation_issues = list(getattr(self.spell_action, 'validation_issues', []))
+                return
 
     @staticmethod
     def build(session, source):
@@ -241,11 +294,22 @@ class SpellAction(Action):
             if r.get('attack_roll',None) is not None:
                 self.source.break_stealth()
 
-        if 'verbal' in self.spell_action.properties.get('components', []):
+        if (
+            'verbal' in self.spell_action.properties.get('components', [])
+            and spell_action_provokes_hostility(self)
+        ):
             self.source.break_stealth()
 
         if not getattr(self, 'skip_consume_at_resolve', False):
-            self.spell_action.consume(battle)
+            failed_only = (
+                self.result
+                and all(
+                    r.get('type') in ('tiny_hut_failed', 'message_spell_failed')
+                    for r in self.result
+                )
+            )
+            if not failed_only:
+                self.spell_action.consume(battle)
 
         return self
 
@@ -284,10 +348,14 @@ class SpellAction(Action):
             session = battle.session
 
         spell_apply_result = None
-        for klass in SpellAction._all_spell_descendants():
-            result = klass.apply(battle, item, session)
-            if result is not None:
-                spell_apply_result = result
+        effect = item.get('effect')
+        if isinstance(effect, Spell):
+            spell_apply_result = type(effect).apply(battle, item, session)
+        else:
+            for klass in SpellAction._all_spell_descendants():
+                result = klass.apply(battle, item, session)
+                if result is not None:
+                    spell_apply_result = result
 
         item['_spell_action_applied'] = True
         item['_spell_action_result'] = spell_apply_result

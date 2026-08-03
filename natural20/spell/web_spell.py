@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from natural20.spell.extensions.persistent_zone import PersistentAoEZone
+from natural20.environment_zones import register_persistent_zone
 from natural20.spell.spell import Spell
 
 
@@ -150,7 +151,7 @@ class WebSpell(Spell):
     effect = item.get('effect')
 
     zone = WebZone(source, battle, battle_map, squares, effect)
-    battle.register_zone(zone)
+    register_persistent_zone(zone, battle)
 
     if effect is not None:
       source.add_casted_effect({

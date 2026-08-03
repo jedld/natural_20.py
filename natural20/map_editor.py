@@ -22,7 +22,7 @@ from natural20.map_annotations import (
 from natural20.yaml_loader import load_yaml
 
 _FILLER_CHARS = {".", " ", None, ""}
-_WALL_HINTS = ("wall", "stone_wall")
+_WALL_HINTS = ("wall", "stone_wall", "barrier")
 _DOOR_HINTS = ("door",)
 _TELEPORTER_HINTS = ("teleporter",)
 _TERRAIN_OVERLAY_TYPES = frozenset({"water", "difficult_terrain", "briar", "ground"})
@@ -250,7 +250,7 @@ def _overlay_item_from_layer_placement(
     layer = str(entry.get("layer") or "base_1")
     leg = {**dict(legend.get(token) or {}), **{k: v for k, v in entry.items() if k not in {"id", "token", "pos", "layer"}}}
     type_name = leg.get("type")
-    category = _categorize_type(type_name)
+    category = _overlay_display_category(type_name)
     label = leg.get("label") or leg.get("name") or token or entry.get("id") or f"placement:{index}"
     placement_id = str(entry.get("id") or f"layer_placements:{index}")
     if layer == "meta" and type_name == "npc":
@@ -300,6 +300,81 @@ def _categorize_type(type_name: str | None) -> str:
     if any(hint in lowered for hint in _WALL_HINTS):
         return "wall"
     return "object"
+
+
+def _overlay_display_category(type_name: str | None) -> str:
+    """Finer-grained fixture categories for the edit-mode label overlay."""
+    lowered = str(type_name or "").lower()
+    if lowered == "note":
+        return "note"
+    if "trigger" in lowered:
+        return "trigger"
+    if lowered in {"chest", "barrel"} or "container" in lowered:
+        return "container"
+    if "trap" in lowered or lowered.endswith("_pit") or lowered == "pit":
+        return "trap"
+    return _categorize_type(type_name)
+
+
+def _legend_note_entries(leg: dict[str, Any]) -> list[Any]:
+    entries: list[Any] = []
+    raw = leg.get("notes")
+    if isinstance(raw, list):
+        entries.extend(raw)
+    overrides = leg.get("overrides") or {}
+    if isinstance(overrides, dict):
+        override_notes = overrides.get("notes")
+        if isinstance(override_notes, list):
+            entries.extend(override_notes)
+    return entries
+
+
+def _note_text(entry: Any) -> str | None:
+    if isinstance(entry, dict):
+        for key in ("note", "content", "message"):
+            value = entry.get(key)
+            if value:
+                return str(value)
+        return None
+    if entry is None:
+        return None
+    text = str(entry).strip()
+    return text or None
+
+
+def _note_preview(text: str, limit: int = 42) -> str:
+    collapsed = " ".join(str(text or "").split())
+    if len(collapsed) <= limit:
+        return collapsed
+    return f"{collapsed[: limit - 1]}…"
+
+
+def _append_inline_note_items(
+    items: list[dict[str, Any]],
+    *,
+    x: int,
+    y: int,
+    token: str,
+    leg: dict[str, Any],
+    parent_id: str,
+) -> None:
+    for idx, entry in enumerate(_legend_note_entries(leg)):
+        text = _note_text(entry)
+        if not text:
+            continue
+        items.append(
+            {
+                "id": f"inline-note:{parent_id}:{idx}",
+                "kind": "meta",
+                "token": str(token),
+                "x": int(x),
+                "y": int(y),
+                "label": f"Note: {_note_preview(text)}",
+                "category": "note",
+                "source": "inline_note",
+                "object_type": "note",
+            }
+        )
 
 
 _WALL_SIDES = ("top", "right", "bottom", "left")
@@ -608,13 +683,21 @@ def build_edit_overlay(map_properties: dict[str, Any]) -> dict[str, Any]:
             "x": int(pos[0]),
             "y": int(pos[1]),
             "label": str(label),
-            "category": _categorize_type(type_name),
+            "category": _overlay_display_category(type_name),
             "source": "entities",
             "index": index,
             "object_type": str(type_name) if type_name else None,
         }
         _attach_fixture_edges(item, merged, type_name)
         items.append(item)
+        _append_inline_note_items(
+            items,
+            x=int(pos[0]),
+            y=int(pos[1]),
+            token=str(token),
+            leg=merged,
+            parent_id=str(uid),
+        )
 
     for index, raw in enumerate(map_properties.get("player_spawn_points") or []):
         if isinstance(raw, dict):
@@ -647,10 +730,22 @@ def build_edit_overlay(map_properties: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(entry, dict):
             continue
         placement_item = _overlay_item_from_layer_placement(entry, index=index, legend=legend)
+        placement_leg = {
+            **dict(legend.get(str(entry.get("token") or "")) or {}),
+            **{k: v for k, v in entry.items() if k not in {"id", "token", "pos", "layer"}},
+        }
         if placement_item.get("kind") == "terrain":
             terrain.append(placement_item)
         else:
             items.append(placement_item)
+        _append_inline_note_items(
+            items,
+            x=int(placement_item["x"]),
+            y=int(placement_item["y"]),
+            token=str(entry.get("token") or ""),
+            leg=placement_leg,
+            parent_id=str(placement_item["id"]),
+        )
 
     meta_rows = map_block.get("meta") or []
     for y, row in enumerate(meta_rows):
@@ -665,7 +760,7 @@ def build_edit_overlay(map_properties: dict[str, Any]) -> dict[str, Any]:
             label = (leg.get("overrides") or {}).get("label") if isinstance(leg.get("overrides"), dict) else None
             label = label or leg.get("label") or leg.get("name") or str(ch)
             kind = "meta"
-            category = _categorize_type(type_name)
+            category = _overlay_display_category(type_name)
             if type_name == "npc":
                 kind = "entity"
                 category = "npc"
@@ -682,26 +777,53 @@ def build_edit_overlay(map_properties: dict[str, Any]) -> dict[str, Any]:
             }
             _attach_fixture_edges(item, leg, type_name)
             items.append(item)
+            _append_inline_note_items(
+                items,
+                x=int(x),
+                y=int(y),
+                token=str(ch),
+                leg=leg,
+                parent_id=str(uid),
+            )
 
     for layer_name in ("base", "base_1", "base_2"):
         grid = map_block.get(layer_name) or []
         for y, row in enumerate(grid):
             for x, ch in enumerate(row):
-                if ch in _FILLER_CHARS or ch == "#":
+                if ch in _FILLER_CHARS:
                     continue
                 if (layer_name, int(x), int(y)) in placement_cells:
+                    continue
+                if ch == "#":
+                    terrain.append(
+                        {
+                            "id": f"terrain:{layer_name}:{x}:{y}",
+                            "kind": "terrain",
+                            "token": "#",
+                            "layer": layer_name,
+                            "x": int(x),
+                            "y": int(y),
+                            "label": "Solid wall",
+                            "category": "wall",
+                            "object_type": "stone_wall",
+                            "wall_edges": {
+                                "top": True,
+                                "right": True,
+                                "bottom": True,
+                                "left": True,
+                            },
+                        }
+                    )
                     continue
                 leg = legend.get(ch)
                 if not leg:
                     continue
                 type_name = leg.get("type")
-                category = _categorize_type(type_name)
-                if category == "object" and type_name not in _DOOR_HINTS and "wall" not in str(type_name).lower():
-                    if type_name not in _TERRAIN_OVERLAY_TYPES:
-                        continue
+                category = _overlay_display_category(type_name)
                 label = leg.get("label") or leg.get("name") or str(ch)
+                terrain_id = f"terrain:{layer_name}:{x}:{y}"
                 terrain_item = {
-                    "id": f"terrain:{layer_name}:{x}:{y}",
+                    "id": terrain_id,
                     "kind": "terrain",
                     "token": str(ch),
                     "layer": layer_name,
@@ -713,6 +835,14 @@ def build_edit_overlay(map_properties: dict[str, Any]) -> dict[str, Any]:
                 }
                 _attach_fixture_edges(terrain_item, leg, type_name)
                 terrain.append(terrain_item)
+                _append_inline_note_items(
+                    items,
+                    x=int(x),
+                    y=int(y),
+                    token=str(ch),
+                    leg=leg,
+                    parent_id=terrain_id,
+                )
 
     return {"items": items, "terrain": terrain, "annotations": _annotations_for_overlay(map_properties)}
 

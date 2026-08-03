@@ -51,6 +51,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Also generate selectable character portraits under assets/characters/",
     )
     parser.add_argument(
+        "--full-body",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Generate NPC full-body sheet images when full_body_scene/full_body_image is set (default: true)",
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Overwrite existing assets",
@@ -115,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         tokens=args.tokens,
         background=args.background,
         portraits=args.portraits,
+        full_body=args.full_body,
         force=args.force,
         update_yaml=args.update_yaml,
         token_size=args.token_size,

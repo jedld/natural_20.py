@@ -30,9 +30,13 @@ class Background(SerializableObject):
         self.label = data.get('label', self.name)
         self.description = data.get('description', '')
         self.skill_proficiencies: list[str] = list(data.get('skill_proficiencies', []))
+        self.skill_choice_count: int = int(data.get('skill_choice_count', 0))
+        self.skills_pool: list[str] = list(data.get('skills_pool', []))
         self.tool_proficiencies: list[str] = list(data.get('tool_proficiencies', []))
         self.languages: list[str] = list(data.get('languages', []))
         self.languages_pool: list[str] = list(data.get('languages_pool', []))
+        self.exotic_languages_pool: list[str] = list(data.get('exotic_languages_pool', []))
+        self.exotic_language_min: int = int(data.get('exotic_language_min', 0))
         self.language_count: int = int(data.get('language_count', 0))
         self.language_choice_count: int = int(data.get('language_choice_count', 0))
         self.feature: dict = data.get('feature', {})
@@ -48,7 +52,12 @@ class Background(SerializableObject):
         return self.feature.get('description', '') if self.feature else ''
 
     def has_language_choices(self) -> bool:
-        return self.language_choice_count > 0 and bool(self.languages_pool)
+        return self.language_choice_count > 0 and bool(
+            self.languages_pool or self.exotic_languages_pool
+        )
+
+    def has_skill_choices(self) -> bool:
+        return self.skill_choice_count > 0 and bool(self.skills_pool)
 
     def to_dict(self) -> dict:
         """Serialize back to a plain dict (for YAML save / JSON API)."""
@@ -57,9 +66,13 @@ class Background(SerializableObject):
             'label': self.label,
             'description': self.description,
             'skill_proficiencies': self.skill_proficiencies,
+            'skill_choice_count': self.skill_choice_count,
+            'skills_pool': self.skills_pool,
             'tool_proficiencies': self.tool_proficiencies,
             'languages': self.languages,
             'languages_pool': self.languages_pool,
+            'exotic_languages_pool': self.exotic_languages_pool,
+            'exotic_language_min': self.exotic_language_min,
             'language_count': self.language_count,
             'language_choice_count': self.language_choice_count,
             'feature': self.feature,

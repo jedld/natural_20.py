@@ -22,7 +22,7 @@ Read [reference.md](reference.md) for file paths, archetype templates, and VTT w
 
 ```text
 Engine
-- [ ] templates/items/spells.yml — entry (components, duration_seconds, concentration, spell_class)
+- [ ] templates/items/spells.yml — entry (components, duration_seconds, concentration, spell_class, upcast when applicable)
 - [ ] natural20/spell/<slug>_spell.py — build_map, resolve, apply (+ hooks/dismiss if needed)
 - [ ] natural20/utils/spell_loader.py — import + spell_classes dict entry
 - [ ] templates/char_classes/*.yml — spell_list level slot (if new to a class)

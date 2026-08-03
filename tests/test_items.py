@@ -56,3 +56,11 @@ class TestItems(unittest.TestCase):
         self.assertEqual(arrows['label'], 'Arrows')
         self.assertEqual(arrows['image'], 'arrows')
         self.assertEqual(arrows['type'], 'arrows')
+
+    def test_inventory_items_skips_unknown_item_ids(self):
+        goblin = self.session.npc('goblin')
+        goblin.inventory['deed_to_the_house'] = {'qty': 1}
+
+        items = goblin.inventory_items(self.session)
+
+        self.assertFalse(any(item['name'] == 'deed_to_the_house' for item in items))

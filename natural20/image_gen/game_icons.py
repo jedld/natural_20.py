@@ -20,6 +20,7 @@ from natural20.image_gen.prompts import (
     effect_icon_prompt,
     item_icon_negative,
     item_icon_prompt,
+    spell_icon_negative,
     spell_icon_prompt,
 )
 from natural20.image_gen.effect_assets import (
@@ -543,6 +544,10 @@ def _prompt_for_ref(ref: IconAssetRef, *, icon_style: str, theme: str) -> str:
 def _negative_for_ref(ref: IconAssetRef) -> str:
     if ref.kind == "action":
         return action_icon_negative(slug=ref.key)
+    if ref.kind == "spell":
+        return spell_icon_negative(slug=ref.key, spell_meta=ref.meta)
+    if ref.kind == "effect":
+        return spell_icon_negative(slug=ref.key, spell_meta=ref.meta)
     if ref.kind != "item":
         return ICON_NEGATIVE
     if is_spell_scroll_item(ref.meta):
