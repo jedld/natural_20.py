@@ -1,9 +1,50 @@
 import heapq
 import math
+import os
 import copy
+import time
 from natural20.item_library.door_object import DoorObject, DoorObjectWall
 from natural20.item_library.chasm import Chasm
 MAX_DISTANCE = 4_000_000
+
+# Timing instrumentation — set N20_DEBUG_TIMING=1 to log per-query timings.
+_DEBUG_TIMING = bool(int(os.environ.get('N20_DEBUG_TIMING', '0')))
+
+# Pathfinding performance safeguards:
+# Max nodes to explore before giving up per A* pass. Prevents 30+ second runs
+# on unreachable targets where A* exhaustively searches the entire reachable component.
+# Default: 1024 nodes (sufficient for most reachable paths, cuts unreachable queries to ~2-5s).
+_PATH_MAX_NODES_ENV = os.environ.get('N20_PATH_MAX_NODES', '')
+if _PATH_MAX_NODES_ENV:
+    try:
+        MAX_NODES = int(_PATH_MAX_NODES_ENV)
+    except ValueError:
+        MAX_NODES = 1024
+else:
+    MAX_NODES = 1024
+
+# Max wall-clock time (ms) for a single A* pass before bailing out.
+# This catches cases where node exploration is fast but the reachable component
+# is very large (e.g., maps with many open tiles).
+_PATH_MAX_MS_ENV = os.environ.get('N20_PATH_MAX_MS', '')
+if _PATH_MAX_MS_ENV:
+    try:
+        MAX_MS = int(_PATH_MAX_MS_ENV)
+    except ValueError:
+        MAX_MS = 5000
+else:
+    MAX_MS = 5000
+
+
+def _path_timing_log(msg):
+    """Emit a pathfinding timing log when N20_DEBUG_TIMING=1."""
+    if _DEBUG_TIMING:
+        try:
+            import logging
+            logging.warning(f"[path_timing] {msg}")
+        except Exception:
+            pass
+
 
 class PathCompute:
     def __init__(self, battle, map_, entity, ignore_opposing=False):
@@ -20,12 +61,18 @@ class PathCompute:
         self._objects_cache = {}          # (x, y, reveal_concealed) -> list
         self._difficult_cache = {}        # (x, y) -> bool
         self._passable_cache = {}         # (x, y, allow_squeeze, origin_tuple) -> bool
+        # Per-query timing stats.
+        self._timing_stats = {}
+        # Track whether the last compute_path was interrupted by cap/timeout.
+        self._last_interrupted = False
    
     def _clear_caches(self):
         """Reset per-query caches."""
         self._objects_cache.clear()
         self._difficult_cache.clear()
         self._passable_cache.clear()
+        self._timing_stats.clear()
+        self._last_interrupted = False
 
     def _cached_objects_at(self, x, y, reveal_concealed=False):
         """Return cached result of ``map.objects_at`` for the given tile."""
@@ -65,15 +112,50 @@ class PathCompute:
             A list of (x, y) for the path or None if no path exists.
             If available_movement_cost is given, trims path that exceeds the cost in feet.
         """
+        _t0 = time.perf_counter()
+        entity_name = getattr(self.entity, 'name', '?')
+        map_name = getattr(self.map, 'name', '?')
+        
         # Reset per-query caches so they don't leak across calls.
         self._clear_caches()
+        _t1 = time.perf_counter()
 
-        # Validate and clamp coordinates to avoid out-of-bounds access
+        # Validate source coordinates — early exit before any expensive work.
         if not (0 <= source_x < self.max_x and 0 <= source_y < self.max_y):
+            _path_timing_log(f"compute_path:early_exit entity={entity_name} map={map_name} reason=bad_source")
             return None
-        # Clamp destination to map bounds
+
+        # Check if destination is out-of-bounds — return immediately instead of
+        # clamping and exploring the entire map to prove unreachability.
+        original_dest_x, original_dest_y = destination_x, destination_y
+        if not (0 <= destination_x < self.max_x and 0 <= destination_y < self.max_y):
+            _path_timing_log(
+                f"compute_path:early_exit entity={entity_name} map={map_name} "
+                f"reason=bad_dest dest=({original_dest_x},{original_dest_y}) "
+                f"bounds=({self.max_x},{self.max_y})"
+            )
+            return None
+
+        # Clamp destination to map bounds (for valid-but-edge cases)
         destination_x = max(0, min(destination_x, self.max_x - 1))
         destination_y = max(0, min(destination_y, self.max_y - 1))
+
+        # Quick feasibility check: is the destination even within max movement range?
+        # If available_movement_cost is provided, estimate minimum grid steps using
+        # Chebyshev distance (max of dx, dy for 8-directional movement) and check
+        # that the entity can reach it even on difficult terrain.
+        if available_movement_cost is not None and available_movement_cost > 0:
+            dx = abs(destination_x - source_x)
+            dy = abs(destination_y - source_y)
+            chebyshev = max(dx, dy)
+            # Even on best-case terrain (cost=1 per step + 0.1 diagonal),
+            # minimum cost ≈ chebyshev * 1.0
+            if chebyshev * 1.0 > available_movement_cost:
+                _path_timing_log(
+                    f"compute_path:early_exit entity={entity_name} map={map_name} "
+                    f"reason=exceeds_movement chebyshev={chebyshev} budget={available_movement_cost}"
+                )
+                return None
 
         # Initialize arrays
         distances = [[MAX_DISTANCE] * self.max_y for _ in range(self.max_x)]  # g-cost
@@ -102,9 +184,34 @@ class PathCompute:
         start_heuristic = self.heuristic(source_x, source_y, destination_x, destination_y)
         heapq.heappush(pq, (start_heuristic, 0, (source_x, source_y)))
 
-        # A* main loop
+        # A* main loop — track stats
+        nodes_explored = 0
+        neighbors_checked = 0
+        pq_pushes = 0
+        _t_astart = time.perf_counter()
+        
         while pq:
+            # Timeout guard: bail out if A* is taking too long.
+            if MAX_MS > 0 and (time.perf_counter() - _t_astart) * 1000 > MAX_MS:
+                _path_timing_log(
+                    f"compute_path:timeout entity={entity_name} map={map_name} "
+                    f"explored={nodes_explored} neighbors={neighbors_checked} "
+                    f"pq_pushes={pq_pushes} elapsed_ms={(time.perf_counter()-_t_astart)*1000:.1f}"
+                )
+                break
+
+            # Exploration cap: bail out if we've searched too many nodes.
+            # This prevents 30+ second runs on unreachable targets.
+            if nodes_explored >= MAX_NODES:
+                _path_timing_log(
+                    f"compute_path:cap entity={entity_name} map={map_name} "
+                    f"explored={nodes_explored} cap={MAX_NODES} "
+                    f"neighbors={neighbors_checked} pq_pushes={pq_pushes}"
+                )
+                break
+
             current_f, current_g, (cx, cy) = heapq.heappop(pq)
+            nodes_explored += 1
 
             # If this is stale data (we already found a better route), skip
             if current_g > distances[cx][cy]:
@@ -116,6 +223,7 @@ class PathCompute:
 
             # Explore neighbors
             for (nx, ny), move_cost in self.get_neighbors(cx, cy, door_navigation=door_navigation):
+                neighbors_checked += 1
                 new_g = current_g + move_cost
                 if new_g < distances[nx][ny]:
                     distances[nx][ny] = new_g
@@ -125,9 +233,36 @@ class PathCompute:
                     h = self.heuristic(nx, ny, destination_x, destination_y)
                     f = new_g + h
                     heapq.heappush(pq, (f, new_g, (nx, ny)))
+                    pq_pushes += 1
 
-        # If destination is unreachable
+        _t_astart_done = time.perf_counter()
+
+        # Determine why we stopped: cap/timeout, unreachable, or found.
+        reached_dest = (cx, cy) == (destination_x, destination_y) if nodes_explored > 0 else False
+        elapsed = (_t_astart_done - _t0) * 1000
+        hit_cap_or_timeout = not reached_dest and (
+            distances[destination_x][destination_y] == MAX_DISTANCE and
+            (nodes_explored >= MAX_NODES or
+             (MAX_MS > 0 and elapsed > MAX_MS))
+        )
+        
+        # If destination is unreachable or we hit a safety cap
         if distances[destination_x][destination_y] == MAX_DISTANCE:
+            if hit_cap_or_timeout:
+                self._last_interrupted = True
+                _path_timing_log(
+                    f"compute_path:interrupted entity={entity_name} map={map_name} "
+                    f"size={self.max_x}x{self.max_y} explored={nodes_explored} "
+                    f"neighbors={neighbors_checked} pq_pushes={pq_pushes} "
+                    f"total_ms={elapsed:.1f}"
+                )
+            else:
+                _path_timing_log(
+                    f"compute_path:unreachable entity={entity_name} map={map_name} "
+                    f"size={self.max_x}x{self.max_y} explored={nodes_explored} "
+                    f"neighbors={neighbors_checked} pq_pushes={pq_pushes} "
+                    f"total_ms={elapsed:.1f}"
+                )
             return None
 
         # Reconstruct path
@@ -142,6 +277,31 @@ class PathCompute:
         # If we have a movement budget, trim
         if available_movement_cost is not None:
             path = self.trim_path_by_movement(path, distances, available_movement_cost)
+
+        total_elapsed = (time.perf_counter() - _t0) * 1000
+        astart_elapsed = (_t_astart_done - _t_astart) * 1000
+        
+        # Store timing stats for endpoint to log
+        self._timing_stats = {
+            'entity': entity_name,
+            'map': map_name,
+            'size': f"{self.max_x}x{self.max_y}",
+            'path_len': len(path),
+            'nodes_explored': nodes_explored,
+            'neighbors_checked': neighbors_checked,
+            'pq_pushes': pq_pushes,
+            'astart_ms': round(astart_elapsed, 1),
+            'total_ms': round(total_elapsed, 1),
+            'cache_init_ms': round((_t1 - _t0) * 1000, 1),
+        }
+        
+        if _DEBUG_TIMING:
+            _path_timing_log(
+                f"compute_path:done entity={entity_name} map={map_name} "
+                f"path_len={len(path)} explored={nodes_explored} "
+                f"neighbors={neighbors_checked} pq_pushes={pq_pushes} "
+                f"astart_ms={astart_elapsed:.1f} total_ms={total_elapsed:.1f}"
+            )
 
         # If door navigation is enabled, truncate only at the first NON-PASSABLE door encountered
         # (i.e., skip truncation when the door is already open/passable).
