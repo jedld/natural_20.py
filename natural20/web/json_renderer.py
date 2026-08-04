@@ -267,6 +267,23 @@ class JsonRenderer:
         pov_list = [e for e in (pov_list or []) if e]
         detect_magic_viewers = [e for e in pov_list if viewer_has_detect_magic(e)]
         session = getattr(self.map, 'session', None)
+
+        # Pre-compute adjacency cache: tiles adjacent (8-way) to any POV position
+        # are always visible — skip the full can_see_square Bresenham walk.
+        _adj_visible: set[tuple[int, int]] = set()
+        _entity_pov_on_map = [e for e in pov_list if e in self.map.entities]
+        for _ep in _entity_pov_on_map:
+            for _sx, _sy in self.map.entity_squares(_ep):
+                for _dx in (-1, 0, 1):
+                    for _dy in (-1, 0, 1):
+                        nx, ny = _sx + _dx, _sy + _dy
+                        if 0 <= nx < self.map.size[0] and 0 <= ny < self.map.size[1]:
+                            _adj_visible.add((nx, ny))
+        # Also mark the POV position itself as always visible.
+        for _ep in _entity_pov_on_map:
+            for _sx, _sy in self.map.entity_squares(_ep):
+                _adj_visible.add((_sx, _sy))
+
         if self.padding:
             width += self.padding[0]
             height += self.padding[1]
@@ -303,7 +320,7 @@ class JsonRenderer:
                             )
                         else:
                             distance_to_square = None
-    
+
                         # Use generator expressions (no list brackets) to enable short-circuiting —
                         # stops evaluating entities as soon as one returns True instead of checking
                         # every POV entity for every tile.
@@ -311,8 +328,14 @@ class JsonRenderer:
                             has_darkvision = True
                         else:
                             has_darkvision = False
-    
-                        if len(entity_pov) > 0:
+
+                        # Adjacent-tile shortcut: skip full can_see_square Bresenham walk
+                        # for tiles orthogonally or diagonally adjacent to any POV position.
+                        if (x, y) in _adj_visible:
+                            # Adjacent tiles are always visible — skip the "not visible"
+                            # early-exit block and fall through to normal rendering.
+                            pass
+                        elif len(entity_pov) > 0:
                             if not any(cached_can_see_square(entity, (x, y)) for entity in entity_pov):
                                 if any(cached_can_see_square(entity, (x, y), force_dark_vision=True) for entity in entity_pov):
                                     result_row.append({'x': x, 'y': y, 'difficult': self.map.difficult_terrain(entity, x, y), 'line_of_sight': True, 'light': 0.0, 'opacity': 0.95, 'soft_shadow_direction': soft_shadow_direction})
