@@ -391,6 +391,40 @@ def format_current_location_for_llm(
     return '\n'.join(lines)
 
 
+def format_location_hierarchy_for_llm(
+    annotations: Sequence[dict[str, Any]],
+    *,
+    map_name: str | None = None,
+    position: Point | None = None,
+) -> str:
+    """Format the full enclosing hierarchy of area annotations (most specific to broadest).
+
+    Unlike ``format_current_location_for_llm`` which filters to most-specific-only,
+    this returns the complete nesting chain so the NPC LLM understands spatial context
+    (e.g., behind_bar -> taproom -> tavern_ground_floor).
+    """
+    if not annotations:
+        return ''
+    # Sort by area size (smallest/most-specific first)
+    ordered = sorted(annotations, key=lambda item: (
+        _LOCATION_KIND_PRIORITY.get(str(item.get('kind') or ''), 9),
+        _annotation_area_size(item),
+        str(item.get('label') or item.get('id') or ''),
+    ))
+    where = f" on {map_name}" if map_name else ''
+    if position is not None:
+        where = f"{where} at grid {position[0]},{position[1]}"
+
+    if len(ordered) == 1:
+        return f"Current location{where}: {format_annotation_for_llm(ordered[0], include_description=True)}"
+
+    lines = [f"Current location{where}:"]
+    for idx, item in enumerate(ordered[:6]):
+        prefix = '  ' * idx
+        lines.append(f"{prefix}- {format_annotation_for_llm(item, include_description=True)}")
+    return '\n'.join(lines)
+
+
 def upsert_map_annotation(
     data: dict[str, Any],
     annotation: dict[str, Any],

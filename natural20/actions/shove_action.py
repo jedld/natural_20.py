@@ -80,14 +80,23 @@ class ShoveAction(Action):
 
         shove_loc = None
         additional_effects = []
-        if not self.knock_prone:
-            try:
-                shove_loc = self.target.push_from(map, *map.entity_or_object_pos(self.source))
-            except ValueError:
-                # Geometry didn't line up for a clean push (e.g. reach attack,
-                # source moved mid-turn). Treat as a failed shove rather than
-                # crashing the turn loop.
-                shove_loc = None
+        if map is None:
+            # Entity is on a map not loaded in this battle; skip shove push
+            pass
+        else:
+            source_pos = map.entity_or_object_pos(self.source) if self.source else None
+            target_pos = map.entity_or_object_pos(self.target) if self.target else None
+            if source_pos is None or target_pos is None:
+                # Source or target not on this battle map; skip shove push
+                pass
+            elif not self.knock_prone:
+                try:
+                    shove_loc = self.target.push_from(map, *source_pos)
+                except (ValueError, TypeError):
+                    # Geometry didn't line up for a clean push (e.g. reach attack,
+                    # source moved mid-turn). Treat as a failed shove rather than
+                    # crashing the turn loop.
+                    shove_loc = None
             if shove_loc:
                 trigger_results = map.area_trigger(self.target, shove_loc, False)
                 additional_effects += trigger_results
@@ -131,10 +140,34 @@ class ShoveAction(Action):
                 if item["knock_prone"]:
                     item["target"].prone()
                 elif item["shove_loc"]:
-                    if item["map"].entity_at(*item["shove_loc"]):
-                        item["target"].prone()
-                    else:
-                        item["map"].move_to(item["target"], *item["shove_loc"], battle)
+                    # Defensive: the target may have been moved by an area
+                    # trigger (e.g. teleporter, chasm) during resolve().  If
+                    # the target is no longer on the original battle map, skip
+                    # the move_to so we don't crash with a NoneType / stale-map
+                    # error.
+                    try:
+                        target_map = item["map"]
+                        if target_map is None:
+                            # Map reference missing — can't move the target.
+                            pass
+                        elif target_map.entity_at(*item["shove_loc"]):
+                            item["target"].prone()
+                        else:
+                            # Verify the target is still on this map (it may
+                            # have been teleported away by an area trigger).
+                            try:
+                                current_map = target_map.map_for(item["target"])
+                            except Exception:
+                                current_map = None
+                            if current_map is target_map:
+                                target_map.move_to(item["target"], *item["shove_loc"], battle)
+                            # Else: target was moved to another map (teleporter /
+                            # chasm) — leave it where the area trigger put it.
+                    except Exception:
+                        # If anything goes wrong (stale map, missing entity,
+                        # etc.), treat as a failed shove — do not crash the
+                        # turn loop.
+                        pass
                 else:
                     raise Exception(f"Invalid shove action {item}")
                 event_manager.received_event(
@@ -158,3 +191,4 @@ class ShoveAction(Action):
 
 class PushAction(ShoveAction):
     pass
+
