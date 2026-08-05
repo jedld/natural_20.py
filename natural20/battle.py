@@ -15,17 +15,67 @@ from natural20.uid_containers import EntitiesUIDMap
 
 
 def build_opposing_groups(session):
-    """Derive battle faction hostility from campaign ``game.yml`` groups."""
+    """Derive battle faction hostility from campaign ``game.yml`` groups.
+
+    Resolution order:
+    1. If ANY group explicitly lists enemies, honour those and auto-mirror
+       missing reverse edges (so 'a' → ['b'] also adds 'b' → ['a']).
+    2. If no enemies are defined anywhere, fall back to default factions
+       ``{'a': ['b'], 'b': ['a'], 'c': ['c']}`` so that standard group
+       names 'a' vs 'b' automatically oppose each other.
+    """
     opposing = {}
     for group_name, info in (session.groups() or {}).items():
         if isinstance(info, dict):
             opposing[group_name] = list(info.get('enemies', []))
+
     if not opposing:
+        # No groups defined at all → use defaults
         opposing = {
             'a': ['b'],
             'b': ['a'],
             'c': ['c'],
         }
+    else:
+        # If at least one enemy list was populated, mirror reverse edges
+        # so opposition is bidirectional even when only one side declares it.
+        all_group_names = set(opposing.keys())
+        for group_name, enemies in list(opposing.items()):
+            for enemy in enemies:
+                if enemy not in opposing:
+                    opposing[enemy] = []
+                if group_name not in opposing[enemy]:
+                    opposing[enemy].append(group_name)
+
+        # If no enemies were explicitly declared anywhere (all empty),
+        # fall back to sensible defaults for common group names.
+        has_any_enemies = any(opposing.get(g, []) for g in opposing)
+        if not has_any_enemies:
+            # Check which group names are actually present
+            present_groups = list(all_group_names)
+            if 'a' in present_groups or 'b' in present_groups:
+                # Default: 'a' vs 'b' are opposing
+                if 'a' not in opposing:
+                    opposing['a'] = []
+                if 'b' not in opposing:
+                    opposing['b'] = []
+                if 'b' not in opposing.get('a', []):
+                    opposing['a'].append('b')
+                if 'a' not in opposing.get('b', []):
+                    opposing['b'].append('a')
+            elif len(present_groups) >= 2:
+                # Two or more arbitrary groups: make the first two oppose each other
+                g1, g2 = present_groups[0], present_groups[1]
+                if g1 not in opposing:
+                    opposing[g1] = []
+                if g2 not in opposing:
+                    opposing[g2] = []
+                if g2 not in opposing[g1]:
+                    opposing[g1].append(g2)
+                if g1 not in opposing[g2]:
+                    opposing[g2].append(g1)
+            # Single group stays neutral (c-type)
+
     return opposing
 
 

@@ -54,8 +54,9 @@ def test_build_opposing_groups_reads_campaign_config():
     session = _wild_sheep_session()
     opposing = build_opposing_groups(session)
 
+    # Reverse-edge mirroring: when 'd' declares 'b' as enemy, 'b' also gets 'd' as opponent
     assert opposing['a'] == ['b']
-    assert opposing['b'] == ['a']
+    assert set(opposing['b']) == {'a', 'd'}
     assert opposing['c'] == []
     assert opposing['d'] == ['b']
 

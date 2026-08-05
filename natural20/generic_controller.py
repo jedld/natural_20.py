@@ -199,6 +199,8 @@ class GenericController(Controller):
         if enemy_positions is None:
             enemy_positions = {}
         current_map = battle.map_for(entity)
+        if current_map is None:
+            return enemy_positions
         objects_around_me = current_map.look(entity)
 
         entity_x, entity_y = current_map.position_of(entity)
@@ -537,6 +539,9 @@ class GenericController(Controller):
 
         # Build target-driven movement scores
         def build_move_scores():
+            # Guard: if the entity has no map loaded in this battle, skip movement scoring
+            if current_map is None:
+                return {}, [], None
             scores = {}
             targets = []
             target_kind = None

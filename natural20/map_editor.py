@@ -899,6 +899,34 @@ def move_map_annotation(session, map_name: str, annotation_id: str, x: int, y: i
     return annotation_by_id(data, moved['id']) or moved
 
 
+def update_area_annotation_bounds(
+    session,
+    map_name: str,
+    annotation_id: str,
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
+) -> dict[str, Any]:
+    """Update the bounds of an area annotation."""
+    path = resolve_map_yaml_path(session, map_name)
+    data = load_map_document(path)
+    existing = annotation_by_id(data, annotation_id)
+    if existing is None:
+        raise KeyError(f'annotation not found: {annotation_id}')
+    if existing.get('kind') != 'area':
+        raise ValueError(f'annotation {annotation_id} is not an area annotation')
+
+    # Normalize so x1 <= x2 and y1 <= y2
+    x1, x2 = min(x1, x2), max(x1, x2)
+    y1, y2 = min(y1, y2), max(y1, y2)
+
+    existing['bounds'] = {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2}
+    data = upsert_map_annotation(data, existing)
+    save_map_document(path, data)
+    return annotation_by_id(data, annotation_id) or existing
+
+
 def move_map_item(
     session,
     map_name: str,
