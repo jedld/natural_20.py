@@ -63,6 +63,59 @@ def merge_inventory_entry(existing_entry, received_entry, amount=1):
     return existing_entry
 
 
+def yaml_inventory_source_item(entry: dict) -> dict | None:
+    """Build an ``add_item`` source snapshot from a map/YAML inventory row."""
+    if not isinstance(entry, dict):
+        return None
+    item_type = entry.get('type') or entry.get('item')
+    if not item_type:
+        return None
+    try:
+        qty = max(1, int(entry.get('qty', 1)))
+    except (TypeError, ValueError):
+        qty = 1
+    source = {
+        'type': str(item_type),
+        'qty': qty,
+    }
+    if entry.get('contents') is not None:
+        source['contents'] = copy.deepcopy(entry.get('contents') or [])
+        source['is_container'] = True
+    elif entry.get('is_container'):
+        source['contents'] = []
+        source['is_container'] = True
+    for key in ('room_label', 'room_landmark', 'notify_npc', 'source_entity_uid'):
+        if entry.get(key) is not None:
+            source[key] = copy.deepcopy(entry.get(key))
+    return source
+
+
+def serialize_inventory_for_yaml(inventory: dict | None) -> list[dict] | None:
+    """Serialize a runtime inventory dict back to YAML-style rows (with contents)."""
+    if not inventory:
+        return None
+    rows = []
+    for item_type, entry in inventory.items():
+        if not isinstance(entry, dict):
+            continue
+        try:
+            qty = int(entry.get('qty', 0) or 0)
+        except (TypeError, ValueError):
+            qty = 0
+        if qty <= 0:
+            continue
+        row = {
+            'type': entry.get('type') or entry.get('item') or item_type,
+            'qty': qty,
+        }
+        if entry.get('contents') is not None:
+            row['contents'] = copy.deepcopy(entry.get('contents') or [])
+        if entry.get('is_container'):
+            row['is_container'] = True
+        rows.append(row)
+    return rows
+
+
 class Inventory:
     def _resolve_session(self, session=None):
         return session or getattr(self, 'session', None)

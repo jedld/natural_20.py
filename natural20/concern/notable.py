@@ -15,7 +15,7 @@ class Notable:
     def has_notes(self):
         return bool(self.properties.get("notes")) or bool(self._appearance_perception_entries())
 
-    def list_notes(self, entity=None, perception=None, entity_pov=None, highlight=False):
+    def list_notes(self, entity=None, perception=None, entity_pov=None, highlight=False, reveal_all=False):
         notes = list(self.properties.get("notes", [])) + self._appearance_perception_entries()
         result_notes = []
         new_note_source = {}
@@ -27,7 +27,18 @@ class Notable:
             if self.is_secret and note.get("secret"):
                 continue
 
-            note_json = {"note": note.get("note"), "image": note.get("image")}
+            note_json = {
+                "note": note.get("note"),
+                "image": note.get("image"),
+            }
+            if note.get("perception_dc") is not None:
+                note_json["perception_dc"] = note.get("perception_dc")
+            if note.get("investigation_dc") is not None:
+                note_json["investigation_dc"] = note.get("investigation_dc")
+            if note.get("religion_dc") is not None:
+                note_json["religion_dc"] = note.get("religion_dc")
+            if note.get("arcana_dc") is not None:
+                note_json["arcana_dc"] = note.get("arcana_dc")
 
             # Handle skill-based notes (investigation, medicine)
             # Check if any required skill checks fail
@@ -68,7 +79,7 @@ class Notable:
                         skill_check_failed = True
 
             # Skip note if any skill check failed
-            if skill_check_failed:
+            if skill_check_failed and not reveal_all:
                 continue
 
             # Handle perception-based notes
@@ -115,9 +126,12 @@ class Notable:
                     if perception >= perception_dc:
                         new_note_source[entity] = perception
 
-                # Skip if perception check fails
-                # Skip if perception check fails (unless admin)
-                if (not effective_perception or effective_perception < perception_dc) and not (entity and entity.is_admin):
+                # Skip if perception check fails (unless admin or edit-mode reveal)
+                if (
+                    (not effective_perception or effective_perception < perception_dc)
+                    and not (entity and entity.is_admin)
+                    and not reveal_all
+                ):
                     continue
 
                 # Process note content based on language

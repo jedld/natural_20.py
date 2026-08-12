@@ -13,6 +13,7 @@ from natural20.concern.event_loader import EventLoader
 from natural20.concern.container import Container
 from natural20.concern.annotatable import Annotatable
 from natural20.utils.contextual_sound import build_contextual_sound
+from natural20.concern.inventory import yaml_inventory_source_item, serialize_inventory_for_yaml
 import uuid
 import pdb
 
@@ -67,9 +68,12 @@ class Object(Entity, Container, EventLoader, Annotatable):
 
         self.targettable = properties.get("targettable", self.attributes.get("hp") is not None)
         if properties.get('inventory'):
-            self.inventory = {
-                inventory['type']: {'qty': inventory['qty']} for inventory in properties['inventory']
-            }
+            self.inventory = {}
+            for inventory in properties.get('inventory') or []:
+                source = yaml_inventory_source_item(inventory)
+                if source is None:
+                    continue
+                self.add_item(source['type'], source['qty'], source_item=source)
 
         if properties.get('buttons'):
             for button in properties['buttons']:
@@ -497,14 +501,7 @@ class Object(Entity, Container, EventLoader, Annotatable):
             self.activated = False
 
     def to_dict(self):
-        _inventory = None
-        if self.inventory:
-            _inventory = [
-                {
-                    'type': k,
-                    'qty': v['qty']
-                } for k, v in self.inventory.items()
-            ]
+        _inventory = serialize_inventory_for_yaml(self.inventory)
         return {
             'session': self.session,
             'entity_uid': self.entity_uid,

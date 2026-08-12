@@ -1,5 +1,6 @@
 from natural20.item_library.object import Object
 from natural20.utils.key_utils import entity_has_key
+from natural20.concern.inventory import yaml_inventory_source_item, serialize_inventory_for_yaml
 
 import pdb
 
@@ -20,8 +21,11 @@ class Chest(Object):
 
         inventory = self.properties.get('inventory', [])
         self.inventory = {}
-        for item in inventory:
-            self.add_item(item['type'], item['qty'])
+        for item in inventory or []:
+            source = yaml_inventory_source_item(item)
+            if source is None:
+                continue
+            self.add_item(source['type'], source['qty'], source_item=source)
 
     def facing(self):
         # face away from a wall if possible
@@ -291,7 +295,7 @@ class Chest(Object):
         hash.update({
             'state': self.state,
             'locked': self.is_locked,
-            'inventory': [{'type': item, 'qty': qty} for item, qty in self.inventory.items()]
+            'inventory': serialize_inventory_for_yaml(self.inventory) or [],
         })
         return hash
     
@@ -302,5 +306,10 @@ class Chest(Object):
         chest.entity_uid = data['entity_uid']
         chest.state = data['state']
         chest.is_locked = data['locked']
-        chest.inventory = {item['type']: item['qty'] for item in data['inventory']}
+        chest.inventory = {}
+        for item in data.get('inventory') or []:
+            source = yaml_inventory_source_item(item)
+            if source is None:
+                continue
+            chest.add_item(source['type'], source['qty'], source_item=source)
         return chest

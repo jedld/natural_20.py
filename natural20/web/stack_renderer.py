@@ -102,7 +102,7 @@ def _resolve_layer_background_asset(map_obj, map_name: str | None = None) -> str
     return filename
 
 
-def build_stack_render_layers(session, battle_map, battle, *, padding=None, entity_pov=None) -> Optional[dict[str, Any]]:
+def build_stack_render_layers(session, battle_map, battle, *, padding=None, entity_pov=None, reveal_all_notes=False) -> Optional[dict[str, Any]]:
     """Build tile layers for a composited stack view, or None if not in a stack."""
     stack = stack_for_map(session, battle_map)
     if stack is None:
@@ -133,7 +133,7 @@ def build_stack_render_layers(session, battle_map, battle, *, padding=None, enti
         base_pov = None
         base_peek_config = None
         mask_under_overlay = None
-    base_renderer = JsonRenderer(base_floor.map, battle, padding=padding)
+    base_renderer = JsonRenderer(base_floor.map, battle, padding=padding, reveal_all_notes=reveal_all_notes)
     base_tiles = base_renderer.render(entity_pov=base_pov if base_pov else None, stack_peek_config=base_peek_config)
     if mask_under_overlay is not None:
         _mask_base_tiles_under_overlay(stack, mask_under_overlay, base_tiles)
@@ -159,7 +159,7 @@ def build_stack_render_layers(session, battle_map, battle, *, padding=None, enti
         overlay_pov = entity_pov if active_floor and floor.map_name == battle_map.name else None
         # Overlay is composited on the base canvas — skip map padding so border
         # cells are not rendered as opaque fog over the town below.
-        renderer = JsonRenderer(floor.map, battle, padding=None)
+        renderer = JsonRenderer(floor.map, battle, padding=None, reveal_all_notes=reveal_all_notes)
         tile_grid = renderer.render(entity_pov=overlay_pov)
         _annotate_stack_tiles(stack, floor, tile_grid, viewer_map=battle_map, entity_pov=overlay_pov, cache=render_cache)
         layers.append({
@@ -182,6 +182,7 @@ def build_stack_render_layers(session, battle_map, battle, *, padding=None, enti
                 _pov_on_map(entity_pov, battle_map),
                 battle_map,
                 cache=render_cache,
+                reveal_all_notes=reveal_all_notes,
             )
 
     payload = {
@@ -396,12 +397,12 @@ def _viewer_can_peek_through(
     )
 
 
-def build_base_peek_underlay(stack, base_floor, overlay_floor, battle, padding, entity_pov, viewer_map, *, cache=None):
+def build_base_peek_underlay(stack, base_floor, overlay_floor, battle, padding, entity_pov, viewer_map, *, cache=None, reveal_all_notes=False):
     """Overlay-sized grid: base-map tiles visible through windows and open map edges."""
     ax, ay = overlay_floor.anchor
     ow, oh = overlay_floor.map.size
 
-    renderer = JsonRenderer(base_floor.map, battle, padding=padding)
+    renderer = JsonRenderer(base_floor.map, battle, padding=padding, reveal_all_notes=reveal_all_notes)
     full_base = renderer.render(entity_pov=entity_pov)
     base_by_pos = {
         (t['x'], t['y']): t

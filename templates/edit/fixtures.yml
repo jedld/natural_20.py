@@ -1,0 +1,55 @@
+# Edit-mode property schemas for map fixtures that are not object catalog entries,
+# plus reusable field groups merged into object edit_ui blocks.
+#
+# Campaign override: <campaign>/edit/fixtures.yml (merged over templates).
+# Object-type forms live under items/objects.yml → edit_ui (see docs/CAMPAIGN_BUILDING.md).
+
+mixins:
+  notes:
+    id: notes
+    label: Notes
+    fields:
+      - key: notes
+        label: Discoverable notes
+        type: note_list
+        help: >
+          Each entry can require Perception, Investigation, Religion, or Arcana.
+          Images are filenames under static/assets/objects/.
+      - key: image_offset_px
+        label: Note indicator offset
+        type: offset_px
+        help: >
+          Pixel offset for the info-sign button (top, left).
+          Drag the indicator on the map to adjust.
+  inventory:
+    id: inventory
+    label: Container contents
+    fields:
+      - key: inventory
+        label: Items in container
+        type: inventory_list
+        choices_from: campaign.items
+        help: >
+          Search the item catalog and set quantities. Empty containers use an
+          empty list. Changes save to the map YAML inventory field.
+
+fixtures:
+  spawn_point:
+    label: Player spawn
+    scope:
+      - player_spawn_points
+    groups:
+      - id: placement
+        label: Placement
+        fields:
+          - key: name
+            label: Name
+            type: string
+          - key: position
+            label: Position
+            type: point
+            relative_to: current_map
+            required: true
+          - key: group
+            label: Team group
+            type: string

@@ -24,10 +24,11 @@ from natural20.web.terrain_tooltip import build_terrain_tooltip
 from natural20.utils.magical_aura import magical_auras_for_tile, viewer_has_detect_magic
 
 class JsonRenderer:
-    def __init__(self, map: Map, battle: Battle=None, padding=None, logger=None):
+    def __init__(self, map: Map, battle: Battle=None, padding=None, logger=None, reveal_all_notes=False):
         self.map = map
         self.battle = battle
         self.padding = padding
+        self.reveal_all_notes = bool(reveal_all_notes)
         if logger is None:
             self.logger = logging.getLogger(__name__)
         else:
@@ -432,7 +433,12 @@ class JsonRenderer:
                                     # Same/adjacent fixtures stay mouse-overable in
                                     # darkness so loot/open UI is not lost when the
                                     # POV lacks darkvision.
-                                    if not any(
+                                    keep_for_notes = (
+                                        self.reveal_all_notes
+                                        and hasattr(object_entity, 'has_notes')
+                                        and object_entity.has_notes()
+                                    )
+                                    if not keep_for_notes and not any(
                                         self.map.can_interact_by_proximity(entity_p, object_entity)
                                         for entity_p in entity_pov
                                         if entity_p
@@ -564,7 +570,10 @@ class JsonRenderer:
                                 'left': True,
                             }
     
-                            object_info['notes'], _ = object_entity.list_notes(entity_pov=entity_pov)
+                            object_info['notes'], _ = object_entity.list_notes(
+                                entity_pov=entity_pov,
+                                reveal_all=self.reveal_all_notes,
+                            )
                             if object_entity.properties.get('image_offset_px'):
                                 object_info['image_offset_px'] = object_entity.properties.get('image_offset_px')
                             else:

@@ -541,3 +541,52 @@ def load_campaign_resource_path(
         resource,
         merge_templates=merge_templates,
     )
+
+
+def load_edit_fixtures(campaign_root: str | Path) -> dict[str, Any]:
+    """Load ``edit/fixtures.yml`` (mixins + non-object fixture schemas).
+
+    Precedence: campaign local → imported campaigns (earlier wins) → templates.
+    """
+    campaign = Path(campaign_root).resolve()
+    template_path = templates_root() / "edit" / "fixtures.yml"
+    campaign_path = campaign / "edit" / "fixtures.yml"
+    import_paths = [
+        root / "edit" / "fixtures.yml" for root in campaign_import_roots(campaign)
+    ]
+
+    template_data: dict[str, Any] | None = None
+    if template_path.is_file():
+        template_data = load_yaml(template_path, campaign_root=campaign)
+        if not isinstance(template_data, dict):
+            template_data = {}
+
+    if campaign_path.is_file():
+        campaign_data = load_yaml(campaign_path, campaign_root=campaign)
+        if not isinstance(campaign_data, dict):
+            return campaign_data if campaign_data is not None else {}
+        merged: dict[str, Any] = copy.deepcopy(template_data or {})
+        imported_dicts: list[dict[str, Any]] = []
+        for import_path, import_root in zip(import_paths, campaign_import_roots(campaign)):
+            if not import_path.is_file():
+                continue
+            import_data = load_yaml(import_path, campaign_root=import_root)
+            if isinstance(import_data, dict):
+                imported_dicts.append(import_data)
+        for import_data in reversed(imported_dicts):
+            merged = deep_merge(merged, import_data)
+        return deep_merge(merged, campaign_data)
+
+    merged: dict[str, Any] = {}
+    if template_data is not None:
+        merged = copy.deepcopy(template_data)
+    imported_dicts: list[dict[str, Any]] = []
+    for import_path, import_root in zip(import_paths, campaign_import_roots(campaign)):
+        if not import_path.is_file():
+            continue
+        import_data = load_yaml(import_path, campaign_root=import_root)
+        if isinstance(import_data, dict):
+            imported_dicts.append(import_data)
+    for import_data in reversed(imported_dicts):
+        merged = deep_merge(merged, import_data)
+    return merged

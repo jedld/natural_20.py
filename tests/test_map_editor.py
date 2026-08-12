@@ -517,6 +517,57 @@ def test_place_teleporter_on_wall_preserves_terrain(tmp_path: Path):
     assert saved["legend"]["T"]["target_position"] == [1, 0]
 
 
+def test_place_note_uses_unique_token_and_entity_notes(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [4, 4],
+            "base": ["....", "....", "....", "...."],
+            "entities": [],
+        },
+        "legend": {},
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+        def load_object(self, object_type):
+            return {
+                "note": {
+                    "name": "Note",
+                    "placeable": True,
+                    "token": ["N"],
+                },
+            }[object_type]
+
+    session = _Session()
+    first = place_map_terrain(session, "hub", object_type="note", x=1, y=1)
+    second = place_map_terrain(session, "hub", object_type="note", x=2, y=2)
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    assert first["token"] != second["token"]
+    assert len(saved["map"]["entities"]) == 2
+    for entry in saved["map"]["entities"]:
+        assert entry["layer"] == "object"
+        assert entry["notes"][0]["note"] == ""
+        assert entry["image_offset_px"] == [0, 0]
+        assert entry["hide_map_token"] is True
+    assert saved["legend"][first["token"]]["type"] == "note"
+    assert saved["legend"][second["token"]]["type"] == "note"
+    overlay = build_edit_overlay(saved)
+    inline_notes = [item for item in overlay["items"] if item.get("source") == "inline_note"]
+    assert len(inline_notes) == 2
+    assert all(item["label"] == "Note (empty)" for item in inline_notes)
+
+
 def test_build_edit_overlay_includes_chest_note_trigger_and_inline_notes():
     map_data = {
         "map": {
@@ -550,6 +601,8 @@ def test_build_edit_overlay_includes_chest_note_trigger_and_inline_notes():
     inline_notes = [item for item in overlay["items"] if item.get("source") == "inline_note"]
     assert len(inline_notes) == 1
     assert "footprints" in inline_notes[0]["label"].lower()
+    assert inline_notes[0]["parent_object_type"] == "note"
+    assert inline_notes[0]["parent_id"]
 
 
 def test_build_edit_overlay_prefers_layer_placements_over_grid_scan():
