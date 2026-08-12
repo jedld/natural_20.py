@@ -67,7 +67,7 @@ def save_map_document(path: Path | str, data: dict[str, Any]) -> None:
 
 
 def _legend_for(data: dict[str, Any]) -> dict[str, Any]:
-    return data.get("legend") or {}
+    return data.setdefault("legend", {})
 
 
 def _map_block(data: dict[str, Any]) -> dict[str, Any]:
@@ -244,6 +244,7 @@ def _overlay_item_from_layer_placement(
     *,
     index: int,
     legend: dict[str, Any],
+    session: Any | None = None,
 ) -> dict[str, Any]:
     token = str(entry.get("token") or "")
     pos = entry.get("pos") or [0, 0]
@@ -274,7 +275,7 @@ def _overlay_item_from_layer_placement(
         "object_type": str(type_name) if type_name else None,
         "editable": True,
     }
-    _attach_fixture_edges(item, leg, type_name)
+    _attach_fixture_edges(item, leg, type_name, session=session)
     return item
 
 
@@ -407,10 +408,15 @@ _DOOR_SUFFIX_TO_INDEX = {
     "left": 3,
 }
 _CORNER_DOOR_PRESETS = {
+    # Door replaces one arm of the matching stone_wall_* corner:
+    # tl [top+left]  → door on top, keep left wall
+    # tr [top+right] → door on top, keep right wall
+    # bl [bottom+left] → door on bottom, keep left wall
+    # br [bottom+right] → door on bottom, keep right wall
     "corner_door_tl": {"door_pos": 0, "border": [0, 0, 0, 1]},
-    "corner_door_tr": {"door_pos": 3, "border": [1, 0, 0, 0]},
-    "corner_door_bl": {"door_pos": 1, "border": [1, 0, 0, 0]},
-    "corner_door_br": {"door_pos": 3, "border": [0, 0, 1, 0]},
+    "corner_door_tr": {"door_pos": 0, "border": [0, 1, 0, 0]},
+    "corner_door_bl": {"door_pos": 2, "border": [0, 0, 0, 1]},
+    "corner_door_br": {"door_pos": 2, "border": [0, 1, 0, 0]},
 }
 
 
@@ -517,8 +523,36 @@ def _resolve_door_edges(type_name: str | None, leg: dict[str, Any]) -> dict[str,
     return {side: True for side in _WALL_SIDES}
 
 
-def _attach_fixture_edges(entry: dict[str, Any], leg: dict[str, Any], type_name: str | None) -> None:
-    resolved_leg = _fixture_leg_for_edges(leg, type_name)
+def _merge_leg_with_object_catalog(
+    session: Any | None,
+    leg: dict[str, Any],
+    type_name: str | None,
+) -> dict[str, Any]:
+    """Merge map legend with items/objects.yml so edit edges use border/door_pos."""
+    merged = dict(leg or {})
+    if type_name:
+        merged.setdefault("type", type_name)
+    if session is None or not type_name:
+        return merged
+    try:
+        catalog = session.load_object(str(type_name))
+    except Exception:
+        catalog = None
+    if isinstance(catalog, dict) and catalog:
+        return {**catalog, **merged}
+    return merged
+
+
+def _attach_fixture_edges(
+    entry: dict[str, Any],
+    leg: dict[str, Any],
+    type_name: str | None,
+    session: Any | None = None,
+) -> None:
+    resolved_leg = _fixture_leg_for_edges(
+        _merge_leg_with_object_catalog(session, leg, type_name),
+        type_name,
+    )
     border = _resolve_wall_border_list(type_name, resolved_leg)
     if border and any(border):
         entry["wall_edges"] = _border_list_to_edges(border)
@@ -648,7 +682,7 @@ def enrich_edit_overlay_with_runtime_uids(battle_map, overlay: dict[str, Any]) -
     return overlay
 
 
-def build_edit_overlay(map_properties: dict[str, Any]) -> dict[str, Any]:
+def build_edit_overlay(map_properties: dict[str, Any], session: Any | None = None) -> dict[str, Any]:
     """Return editable placements and terrain markers for the client overlay."""
     legend = _legend_for(map_properties)
     map_block = map_properties.get("map") or {}
@@ -688,7 +722,7 @@ def build_edit_overlay(map_properties: dict[str, Any]) -> dict[str, Any]:
             "index": index,
             "object_type": str(type_name) if type_name else None,
         }
-        _attach_fixture_edges(item, merged, type_name)
+        _attach_fixture_edges(item, merged, type_name, session=session)
         items.append(item)
         _append_inline_note_items(
             items,
@@ -729,7 +763,7 @@ def build_edit_overlay(map_properties: dict[str, Any]) -> dict[str, Any]:
     for index, entry in enumerate(map_block.get("layer_placements") or []):
         if not isinstance(entry, dict):
             continue
-        placement_item = _overlay_item_from_layer_placement(entry, index=index, legend=legend)
+        placement_item = _overlay_item_from_layer_placement(entry, index=index, legend=legend, session=session)
         placement_leg = {
             **dict(legend.get(str(entry.get("token") or "")) or {}),
             **{k: v for k, v in entry.items() if k not in {"id", "token", "pos", "layer"}},
@@ -775,7 +809,7 @@ def build_edit_overlay(map_properties: dict[str, Any]) -> dict[str, Any]:
                 "source": "meta",
                 "object_type": str(type_name) if type_name else None,
             }
-            _attach_fixture_edges(item, leg, type_name)
+            _attach_fixture_edges(item, leg, type_name, session=session)
             items.append(item)
             _append_inline_note_items(
                 items,
@@ -833,7 +867,7 @@ def build_edit_overlay(map_properties: dict[str, Any]) -> dict[str, Any]:
                     "category": category,
                     "object_type": str(type_name) if type_name else None,
                 }
-                _attach_fixture_edges(terrain_item, leg, type_name)
+                _attach_fixture_edges(terrain_item, leg, type_name, session=session)
                 terrain.append(terrain_item)
                 _append_inline_note_items(
                     items,
@@ -1316,6 +1350,11 @@ def _ensure_legend_token(data: dict[str, Any], session, object_type: str) -> str
         "name": obj.get("name", object_type.replace("_", " ").title()),
         "type": object_type,
     }
+    # Persist door/wall edge metadata so edit-mode markers match the object
+    # definition even when map_editor presets are incomplete.
+    for key in ("door_pos", "border", "window"):
+        if key in obj and obj.get(key) is not None:
+            legend[token][key] = copy.deepcopy(obj[key])
     return token
 
 
@@ -1661,6 +1700,130 @@ def apply_terrain_placement_to_live_map(
     _resync_terrain_tile(battle_map, int(placement["x"]), int(placement["y"]))
     if hasattr(battle_map, "_compute_lights"):
         battle_map._compute_lights()
+
+
+def place_npc_in_map(
+    session,
+    map_name: str,
+    *,
+    npc_type: str,
+    x: int,
+    y: int,
+    overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Place an NPC entity into the campaign map YAML (edit mode persistence).
+
+    Adds a legend entry for the NPC sub_type and an entity placement row.
+    Returns the placement result dict.
+    """
+    path = resolve_map_yaml_path(session, map_name)
+    data = copy.deepcopy(load_map_document(path))
+    map_block = _map_block(data)
+    legend = _legend_for(data)
+
+    # Determine or allocate a legend token for this NPC sub_type
+    token = None
+    for existing_token, entry in legend.items():
+        if isinstance(entry, dict):
+            if entry.get("type") == "npc" and entry.get("sub_type") == str(npc_type):
+                token = existing_token
+                break
+            if entry.get("sub_type") == str(npc_type):
+                token = existing_token
+                break
+
+    if token is None:
+        token = _allocate_legend_token(legend, "")
+        legend[token] = {
+            "name": str(npc_type).replace("_", " ").title(),
+            "type": "npc",
+            "sub_type": str(npc_type),
+        }
+    else:
+        legend_entry = legend[token]
+        if not legend_entry.get("name"):
+            legend_entry["name"] = str(npc_type).replace("_", " ").title()
+
+    # Add entity placement
+    entities = map_block.setdefault("entities", [])
+    entity_entry: dict[str, Any] = {
+        "token": str(token),
+        "pos": [int(x), int(y)],
+    }
+    if overrides:
+        entity_entry["overrides"] = overrides
+    entities.append(entity_entry)
+
+    save_map_document(path, data)
+    uid = _entry_uid(str(token), entity_entry, legend) or f"entities:{len(entities) - 1}"
+    return {
+        "id": uid,
+        "placement_kind": "entity",
+        "token": str(token),
+        "x": int(x),
+        "y": int(y),
+        "npc_type": str(npc_type),
+    }
+
+
+def place_player_in_map(
+    session,
+    map_name: str,
+    *,
+    entity_uid: str,
+    x: int,
+    y: int,
+) -> dict[str, Any]:
+    """Place or move a Player Character in the campaign map YAML (edit mode persistence).
+
+    Updates the ``player`` list in the map YAML with the new position.
+    If the PC is already placed, its position is updated.
+    Returns the placement result dict.
+    """
+    path = resolve_map_yaml_path(session, map_name)
+    data = copy.deepcopy(load_map_document(path))
+
+    player_list = data.get("player")
+    if not isinstance(player_list, list):
+        player_list = data.setdefault("player", [])
+
+    entity_uid = str(entity_uid)
+    updated = False
+
+    for entry in player_list:
+        if not isinstance(entry, dict):
+            continue
+        overrides = entry.get("overrides") or {}
+        if isinstance(overrides, dict) and str(overrides.get("entity_uid")) == entity_uid:
+            entry["position"] = [int(x), int(y)]
+            updated = True
+            break
+
+    if not updated:
+        for entry in player_list:
+            if not isinstance(entry, dict):
+                continue
+            sheet = entry.get("sheet", "")
+            if entity_uid in str(sheet):
+                entry["position"] = [int(x), int(y)]
+                updated = True
+                break
+
+    if not updated:
+        new_entry: dict[str, Any] = {
+            "position": [int(x), int(y)],
+            "overrides": {"entity_uid": entity_uid},
+        }
+        player_list.append(new_entry)
+
+    save_map_document(path, data)
+    return {
+        "id": f"player:{entity_uid}",
+        "placement_kind": "player",
+        "entity_uid": entity_uid,
+        "x": int(x),
+        "y": int(y),
+    }
 
 
 def apply_terrain_removal_to_live_map(

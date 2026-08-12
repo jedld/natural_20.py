@@ -17,6 +17,9 @@ TEMPLATE_MERGE_RESOURCES = frozenset(
     {"weapons", "equipment", "magic_items", "objects", "spells", "equipment_packs"}
 )
 
+# Expansion pack root directory name under a campaign.
+EXPANSION_PACKS_DIR = "expansion_packs"
+
 
 def _iter_campaign_import_entries(raw: Any) -> list[str]:
     """Normalize game.yml import entries into a list of path-like strings."""
@@ -97,6 +100,65 @@ def campaign_import_roots(campaign_root: str | Path) -> list[Path]:
 
     _visit(campaign, {campaign})
     return ordered
+
+
+def expansion_pack_roots(campaign_root: str | Path) -> list[Path]:
+    """Return expansion-pack subdirectories from the campaign's ``index.json``.
+
+    Reads the campaign ``index.json`` and collects ``expansion_packs.<name>``
+    entries (where *name* is any top-level key under ``expansion_packs``).
+    Each value must be a path string (relative to the expansion_packs directory
+    or a bare directory name under it).  The resolved path is
+    ``<campaign>/expansion_packs/<name>/``.
+
+    Example index.json snippet::
+
+        {
+          "expansion_packs": {
+            "monsters_of_the_multiverse": "monsters_of_the_multiverse"
+          }
+        }
+
+    This yields ``campaign/expansion_packs/monsters_of_the_multiverse/``.
+
+    Files in expansion packs follow the same category structure as bundled
+    templates (e.g. ``races/tortle.yml``).  Expansion-pack files are checked
+    **after** the local campaign but **before** bundled templates, giving a
+    campaign author a clean override path without duplicating SRD content.
+    """
+    campaign = Path(campaign_root).resolve()
+    index_path = campaign / "index.json"
+    if not index_path.is_file():
+        return []
+
+    try:
+        import json
+        with index_path.open("r", encoding="utf-8") as fh:
+            index_data = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    if not isinstance(index_data, dict):
+        return []
+
+    packs = index_data.get("expansion_packs")
+    if not isinstance(packs, dict):
+        return []
+
+    result: list[Path] = []
+    for pack_name, pack_value in packs.items():
+        if isinstance(pack_value, str):
+            pack_path = (campaign / EXPANSION_PACKS_DIR / pack_value).resolve()
+        elif isinstance(pack_value, dict):
+            # Support explicit "path" key: {"path": "custom_path"}
+            pack_path = (campaign / EXPANSION_PACKS_DIR / pack_value.get("path", pack_name)).resolve()
+        else:
+            continue
+
+        if pack_path.is_dir():
+            result.append(pack_path)
+
+    return result
 
 
 def templates_root() -> Path:
@@ -202,6 +264,20 @@ def resolve_yaml_reference(
             if campaign_name and inner:
                 campaign = Path(campaign_root).resolve()
                 candidates.append((campaign.parent / campaign_name / inner).resolve())
+    elif ref_path.startswith("@expansion/") or ref_path.startswith("@expansions/"):
+        # Support @expansion/<name>/<category>/<resource> references.
+        if campaign_root is not None:
+            if ref_path.startswith("@expansion/"):
+                rem = ref_path[len("@expansion/") :]
+            else:
+                rem = ref_path[len("@expansions/") :]
+            # rem could be "monsters_of_the_multiverse/races/tortle"
+            pack_name, _, remainder = rem.partition("/")
+            if pack_name and remainder:
+                campaign = Path(campaign_root).resolve()
+                candidates.append(
+                    (campaign / EXPANSION_PACKS_DIR / pack_name / remainder).resolve()
+                )
 
     path_obj = Path(ref_path)
     if path_obj.is_absolute():
@@ -214,6 +290,9 @@ def resolve_yaml_reference(
         candidates.append((campaign / ref_path).resolve())
         for import_root in campaign_import_roots(campaign):
             candidates.append((import_root / ref_path).resolve())
+        # Also check expansion pack roots.
+        for expansion_root in expansion_pack_roots(campaign):
+            candidates.append((expansion_root / ref_path).resolve())
 
     seen: set[Path] = set()
     for candidate in candidates:
@@ -312,8 +391,16 @@ def load_campaign_yaml(
     resource: str,
     *,
     merge_templates: bool = True,
+    _check_expansion: bool = True,
 ) -> Any:
-    """Load ``<campaign>/<category>/<resource>.yml`` with template fallback."""
+    """Load ``<campaign>/<category>/<resource>.yml`` with template fallback.
+
+    Precedence (highest → lowest):
+    1. Campaign local files
+    2. Imported campaign files
+    3. Expansion pack files (from ``index.json`` ``expansion_packs``)
+    4. Bundled templates
+    """
     campaign = Path(campaign_root).resolve()
     campaign_path = campaign / category / f"{resource}.yml"
     template_path = templates_root() / category / f"{resource}.yml"
@@ -382,14 +469,33 @@ def load_campaign_yaml(
                 imported_dicts.append(import_data)
         for import_data in reversed(imported_dicts):
             merged = deep_merge(merged, import_data)
+
+        # Check expansion packs (between imports and templates).
+        if _check_expansion:
+            expansion_roots = expansion_pack_roots(campaign)
+            for expansion_root in expansion_roots:
+                expansion_file = expansion_root / category / f"{resource}.yml"
+                if expansion_file.is_file():
+                    expansion_data = load_yaml(expansion_file, campaign_root=expansion_root)
+                    if isinstance(expansion_data, dict):
+                        merged = deep_merge(merged, expansion_data)
+
         if merged:
             return merged
 
-    # Non-item resources: imported campaigns are a fallback between local and templates.
+    # Non-item resources: check imported campaigns first.
     for import_path, import_root in zip(import_paths, import_roots):
         if not import_path.is_file():
             continue
         return load_yaml(import_path, campaign_root=import_root)
+
+    # Then check expansion packs.
+    if _check_expansion:
+        expansion_roots = expansion_pack_roots(campaign)
+        for expansion_root in expansion_roots:
+            expansion_file = expansion_root / category / f"{resource}.yml"
+            if expansion_file.is_file():
+                return load_yaml(expansion_file, campaign_root=expansion_root)
 
     if template_data is not None:
         return template_data
@@ -421,6 +527,11 @@ def load_campaign_resource_path(
             import_path = import_root / relative
             if import_path.is_file():
                 return load_yaml(import_path, campaign_root=import_root)
+        # Check expansion packs.
+        for expansion_root in expansion_pack_roots(campaign):
+            expansion_file = expansion_root / relative
+            if expansion_file.is_file():
+                return load_yaml(expansion_file, campaign_root=expansion_root)
         if template_path.is_file():
             return load_yaml(template_path, campaign_root=campaign)
         raise FileNotFoundError(f"YAML resource not found: {campaign_path}")

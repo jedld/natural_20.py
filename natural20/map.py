@@ -806,10 +806,78 @@ class Map(SerializableObject):
         admin_flag = getattr(entity, 'is_admin', False)
         for obj in available_objects:
             if hasattr(obj,'available_interactions') and obj.available_interactions(entity, battle, admin=admin_flag):
-                if isinstance(obj, DoorObject) or self.can_see(entity, obj):
+                # Doors and anything in touch range (same/adjacent tile) remain
+                # interactable in darkness; concealed/secret fixtures still need
+                # can_see / perception before they can be touched blindly.
+                if (
+                    isinstance(obj, DoorObject)
+                    or self.can_see(entity, obj)
+                    or self.can_interact_by_proximity(entity, obj)
+                ):
                     objects.append(obj)
 
         return objects
+
+    def _requires_sight_to_interact(self, target) -> bool:
+        """Concealed/secret targets must be detected before touch interaction."""
+        if target is None:
+            return True
+        concealed_fn = getattr(target, 'concealed', None)
+        if callable(concealed_fn) and concealed_fn():
+            return True
+        secret_fn = getattr(target, 'secret', None)
+        if callable(secret_fn) and secret_fn():
+            return True
+        return False
+
+    def _in_interact_proximity(self, entity, target) -> bool:
+        """True when *entity* occupies the same or an adjacent melee square as *target*."""
+        if entity is None or target is None:
+            return False
+        try:
+            target_squares = {tuple(s) for s in self.entity_squares(target)}
+        except Exception:
+            try:
+                pos = self.position_of(target)
+                target_squares = {(int(pos[0]), int(pos[1]))}
+            except Exception:
+                return False
+        if not target_squares:
+            return False
+        try:
+            reach = {tuple(s) for s in self.entity_squares(entity)}
+            for square in entity.melee_squares(self):
+                reach.add(tuple(square))
+        except Exception:
+            return False
+        return bool(reach & target_squares)
+
+    def can_interact_by_proximity(self, entity, target) -> bool:
+        """Allow touch interactions (loot/open/etc.) without needing line of sight.
+
+        Characters can feel containers and corpses they are standing on or next
+        to even in total darkness. Living creatures and concealed/secret objects
+        still require vision.
+        """
+        if not self._in_interact_proximity(entity, target):
+            return False
+        if self._requires_sight_to_interact(target):
+            return False
+
+        if isinstance(target, Object):
+            return True
+
+        # Dead/unconscious lootable creatures can be looted by touch.
+        try:
+            from natural20.concern.lootable import Lootable
+        except Exception:
+            Lootable = ()
+        if isinstance(target, Lootable):
+            dead_fn = getattr(target, 'dead', None)
+            unconscious_fn = getattr(target, 'unconscious', None)
+            if (callable(dead_fn) and dead_fn()) or (callable(unconscious_fn) and unconscious_fn()):
+                return True
+        return False
 
     def place_object(self, object_info, pos_x, pos_y, object_meta=None):
         # print(f"placing object {object_info} at {pos_x}, {pos_y}")

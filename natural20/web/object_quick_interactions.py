@@ -97,6 +97,11 @@ def _in_interact_range(pov_entity, target, battle, map_obj) -> bool:
     if not map_obj or not pov_entity or target is None:
         return False
     try:
+        if map_obj.can_interact_by_proximity(pov_entity, target):
+            return True
+    except Exception:
+        pass
+    try:
         if target in map_obj.objects_near(pov_entity, battle):
             return True
     except Exception:
@@ -622,8 +627,9 @@ def quick_interact_actions_for(object_entity, pov_entity, battle=None, admin: bo
         return []
 
     map_obj = getattr(object_entity, 'map', None)
-    if not admin and map_obj is not None and _shares_tile_with_pov(map_obj, object_entity, pov_entity):
-        return []
+    # Same-tile is a valid interact range (stand on a chest/corpse and loot it).
+    # Previously this early-returned [], which hid mouse-over actions in darkness
+    # when the character was already on the object.
 
     actions: List[Dict[str, Any]] = []
     skip_generic: Set[str] = set()

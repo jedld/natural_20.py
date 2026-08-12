@@ -431,19 +431,21 @@ corner_door_tr:
   hp_die: 4d8
   interactable: true
   item_class: DoorObjectWall
+  spawner_category: door_walls
   max_hp: 18
   name: Corner Door Top Right
   hide_map_token: true
-  door_pos: 3
+  door_pos: 0
   border:
+    - 0
     - 1
     - 0
     - 0
-    - 0
   token:
-    - ╓
+    - ╗
   token_open:
     - ─
+  token_editor_image: corner_door_tr_door_top.png
 corner_door_bl:
   color: magenta
   damage_threshold: 5
@@ -451,19 +453,21 @@ corner_door_bl:
   hp_die: 4d8
   interactable: true
   item_class: DoorObjectWall
+  spawner_category: door_walls
   max_hp: 18
   name: Corner Door Bottom Left
   hide_map_token: true
-  door_pos: 1
+  door_pos: 2
   border:
+    - 0
+    - 0
+    - 0
     - 1
-    - 0
-    - 0
-    - 0
   token:
-    - ╖
+    - ╚
   token_open:
     - ─
+  token_editor_image: corner_door_bl_door_bottom.png
 corner_door_br:
   color: magenta
   damage_threshold: 5
@@ -471,19 +475,21 @@ corner_door_br:
   hp_die: 4d8
   interactable: true
   item_class: DoorObjectWall
+  spawner_category: door_walls
   max_hp: 18
   name: Corner Door Bottom Right
   hide_map_token: true
-  door_pos: 3
+  door_pos: 2
   border:
-    - 0
     - 0
     - 1
     - 0
+    - 0
   token:
-    - ╙
+    - ╝
   token_open:
     - ─
+  token_editor_image: corner_door_br_door_bottom.png
 chasm:
   color: blue
   passable: true

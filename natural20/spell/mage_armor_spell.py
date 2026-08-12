@@ -46,6 +46,10 @@ class MageArmorSpell(Spell):
         if isinstance(target, list):
             target = battle_map.entity_at(*target)
 
+        if target is None:
+            self.errors.append('no_target')
+            return
+
         if target.wearing_armor():
             self.errors.append('wearing_armor')
 

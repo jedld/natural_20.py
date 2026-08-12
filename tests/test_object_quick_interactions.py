@@ -39,11 +39,16 @@ class TestObjectQuickInteractions(unittest.TestCase):
         self.assertFalse(open_action['disabled'])
         self.assertFalse(open_action['needs_approach'])
 
-    def test_no_quick_interact_on_pov_entity_tile(self):
+    def test_quick_interact_when_standing_on_object(self):
+        """Standing on a chest still exposes open/loot mouse-over actions."""
         door_x, door_y = self.battle_map.position_of(self.door)
-        self.battle_map.move_to(self.entity, door_x, door_y, self.battle)
-        actions = quick_interact_actions_for(self.door, self.entity, self.battle)
-        self.assertEqual(actions, [])
+        # Doors are wall fixtures; use the chest which is placeable to stand on.
+        chest_x, chest_y = self.battle_map.position_of(self.chest)
+        self.battle_map.move_to(self.entity, chest_x, chest_y, self.battle)
+        actions = quick_interact_actions_for(self.chest, self.entity, self.battle)
+        self.assertIn('open', [a['action'] for a in actions])
+        open_action = next(a for a in actions if a['action'] == 'open')
+        self.assertFalse(open_action['needs_approach'])
 
     def test_door_open_when_far_sets_needs_approach(self):
         self.battle_map.move_to(self.entity, 6, 6, self.battle)

@@ -1845,6 +1845,9 @@ class Entity(EntityStateEvaluator, Notable):
         if not battle:
             return True
 
+        if getattr(self, '_in_shell', False):
+            return False
+
         if self.has_effect('slow') or 'slowed' in getattr(self, 'statuses', []):
             return False
 
@@ -2865,9 +2868,20 @@ class Entity(EntityStateEvaluator, Notable):
         if frightened_check and self.class_feature('fearless'):
             advantages.append('fearless')
 
+        if getattr(self, '_in_shell', False):
+            if save_type in ('strength', 'constitution'):
+                advantages.append('shell_defense')
+            elif save_type == 'dexterity':
+                disadvantages.append('shell_defense')
+
         if self.has_effect('save_advantage_modifier'):
             save_adv, save_dis = self.eval_effect(
-                'save_advantage_modifier', {'value': [[], []]},
+                'save_advantage_modifier', {
+                    'value': [[], []],
+                    'ability': save_type,
+                    'save_type': save_type,
+                    'battle': battle,
+                },
             )
             advantages.extend(save_adv or [])
             disadvantages.extend(save_dis or [])

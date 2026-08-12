@@ -429,7 +429,15 @@ class JsonRenderer:
                                         and not object_entity.concealed() and not object_entity.secret():
                                     visible_to_pov = True
                                 elif not visible_to_pov:
-                                    continue
+                                    # Same/adjacent fixtures stay mouse-overable in
+                                    # darkness so loot/open UI is not lost when the
+                                    # POV lacks darkvision.
+                                    if not any(
+                                        self.map.can_interact_by_proximity(entity_p, object_entity)
+                                        for entity_p in entity_pov
+                                        if entity_p
+                                    ):
+                                        continue
                             object_info = {
                                 "id" : object_entity.entity_uid,
                                 "name" : object_entity.name,
@@ -619,6 +627,14 @@ class JsonRenderer:
                     if entity:
                         if entity_pov and len(entity_pov) > 0:
                             visible_to_pov = any([cached_can_see(entity_p, entity, allow_dark_vision=True) for entity_p in entity_pov])
+                            if not visible_to_pov:
+                                # Keep adjacent/same-tile lootable corpses available
+                                # for mouse-over even when darkness blocks vision.
+                                visible_to_pov = any(
+                                    self.map.can_interact_by_proximity(entity_p, entity)
+                                    for entity_p in entity_pov
+                                    if entity_p
+                                )
                             if not visible_to_pov or hidden_door_tile:
                                 shared_attributes['terrain_tooltip'] = build_terrain_tooltip(
                                     shared_attributes, self.map, self.battle,

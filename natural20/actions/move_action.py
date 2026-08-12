@@ -65,7 +65,9 @@ class MoveAction(Action):
 
     @staticmethod
     def can(entity, battle):
-        return battle is None or entity.available_movement(battle) > 0
+        # Out of combat, available_movement falls back to speed(); a 0-speed
+        # state (shell defense, restrained, etc.) must still block movement.
+        return entity.available_movement(battle) > 0
 
     def build_map(self):
         def set_path(path_and_jump_index):
@@ -108,10 +110,14 @@ class MoveAction(Action):
         additional_effects = []
 
         if self.unlimited_movement and battle is None:
-            # Exploration mode: allow paths longer than the entity's speed.
-            # Cap at the map size so we still bound the loop.
-            mx, my = map.size
-            movement_budget = (mx + my) * 4
+            # Exploration mode: allow paths longer than the entity's speed,
+            # but never when speed is currently 0 (shell, restrained, etc.).
+            if self.source.speed() <= 0:
+                movement_budget = 0
+            else:
+                # Cap at the map size so we still bound the loop.
+                mx, my = map.size
+                movement_budget = (mx + my) * 4
         elif self.as_dash:
             movement_budget = (self.source.speed // 5)
         else:
@@ -134,7 +140,8 @@ class MoveAction(Action):
         actual_moves = self.check_movement_acrobatics(actual_moves, movement.acrobatics_check_locations, battle)
 
         if self.source.unconscious():
-            battle.entity_state_for(self.source)['movement'] = 0
+            if battle is not None:
+                battle.entity_state_for(self.source)['movement'] = 0
             return self
 
         # cutoff = False
