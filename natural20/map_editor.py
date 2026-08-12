@@ -350,6 +350,17 @@ def _note_preview(text: str, limit: int = 42) -> str:
     return f"{collapsed[: limit - 1]}…"
 
 
+def _attach_note_offset(item: dict[str, Any], leg: dict[str, Any] | None) -> None:
+    if not isinstance(leg, dict):
+        return
+    offset = leg.get("image_offset_px")
+    if isinstance(offset, (list, tuple)) and len(offset) >= 2:
+        try:
+            item["image_offset_px"] = [int(offset[0]), int(offset[1])]
+        except (TypeError, ValueError):
+            pass
+
+
 def _append_inline_note_items(
     items: list[dict[str, Any]],
     *,
@@ -358,24 +369,37 @@ def _append_inline_note_items(
     token: str,
     leg: dict[str, Any],
     parent_id: str,
+    parent_kind: str = "object",
+    parent_source: str | None = None,
+    parent_index: int | None = None,
+    parent_object_type: str | None = None,
+    parent_layer: str | None = None,
 ) -> None:
+    offset = leg.get("image_offset_px") if isinstance(leg, dict) else None
     for idx, entry in enumerate(_legend_note_entries(leg)):
         text = _note_text(entry)
-        if not text:
-            continue
-        items.append(
-            {
-                "id": f"inline-note:{parent_id}:{idx}",
-                "kind": "meta",
-                "token": str(token),
-                "x": int(x),
-                "y": int(y),
-                "label": f"Note: {_note_preview(text)}",
-                "category": "note",
-                "source": "inline_note",
-                "object_type": "note",
-            }
-        )
+        item = {
+            "id": f"inline-note:{parent_id}:{idx}",
+            "kind": parent_kind,
+            "token": str(token),
+            "x": int(x),
+            "y": int(y),
+            "label": f"Note: {_note_preview(text)}" if text else "Note (empty)",
+            "category": "note",
+            "source": "inline_note",
+            "object_type": str(parent_object_type or "note"),
+            "parent_id": str(parent_id),
+            "parent_kind": parent_kind,
+            "parent_source": parent_source,
+            "parent_index": parent_index,
+            "parent_object_type": str(parent_object_type or "note"),
+            "note_index": idx,
+        }
+        if parent_layer:
+            item["layer"] = parent_layer
+        if isinstance(offset, (list, tuple)) and len(offset) >= 2:
+            item["image_offset_px"] = [int(offset[0]), int(offset[1])]
+        items.append(item)
 
 
 _WALL_SIDES = ("top", "right", "bottom", "left")
@@ -666,7 +690,9 @@ def enrich_edit_overlay_with_runtime_uids(battle_map, overlay: dict[str, Any]) -
         entities_by_pos.setdefault(key, []).append(entity)
 
     for item in overlay.get("items") or []:
-        if item.get("source") != "entities" or item.get("kind") != "entity":
+        if item.get("source") != "entities":
+            continue
+        if item.get("kind") not in {"entity", "object"}:
             continue
         try:
             pos_key = (int(item["x"]), int(item["y"]))
@@ -723,6 +749,7 @@ def build_edit_overlay(map_properties: dict[str, Any], session: Any | None = Non
             "object_type": str(type_name) if type_name else None,
         }
         _attach_fixture_edges(item, merged, type_name, session=session)
+        _attach_note_offset(item, merged)
         items.append(item)
         _append_inline_note_items(
             items,
@@ -731,6 +758,11 @@ def build_edit_overlay(map_properties: dict[str, Any], session: Any | None = Non
             token=str(token),
             leg=merged,
             parent_id=str(uid),
+            parent_kind=kind,
+            parent_source="entities",
+            parent_index=index,
+            parent_object_type=str(type_name) if type_name else None,
+            parent_layer=str(layer) if layer else None,
         )
 
     for index, raw in enumerate(map_properties.get("player_spawn_points") or []):
@@ -768,6 +800,7 @@ def build_edit_overlay(map_properties: dict[str, Any], session: Any | None = Non
             **dict(legend.get(str(entry.get("token") or "")) or {}),
             **{k: v for k, v in entry.items() if k not in {"id", "token", "pos", "layer"}},
         }
+        _attach_note_offset(placement_item, placement_leg)
         if placement_item.get("kind") == "terrain":
             terrain.append(placement_item)
         else:
@@ -779,6 +812,11 @@ def build_edit_overlay(map_properties: dict[str, Any], session: Any | None = Non
             token=str(entry.get("token") or ""),
             leg=placement_leg,
             parent_id=str(placement_item["id"]),
+            parent_kind=str(placement_item.get("kind") or "terrain"),
+            parent_source="layer_placements",
+            parent_index=index,
+            parent_object_type=placement_item.get("object_type"),
+            parent_layer=placement_item.get("layer"),
         )
 
     meta_rows = map_block.get("meta") or []
@@ -810,6 +848,7 @@ def build_edit_overlay(map_properties: dict[str, Any], session: Any | None = Non
                 "object_type": str(type_name) if type_name else None,
             }
             _attach_fixture_edges(item, leg, type_name, session=session)
+            _attach_note_offset(item, leg)
             items.append(item)
             _append_inline_note_items(
                 items,
@@ -818,6 +857,9 @@ def build_edit_overlay(map_properties: dict[str, Any], session: Any | None = Non
                 token=str(ch),
                 leg=leg,
                 parent_id=str(uid),
+                parent_kind=kind,
+                parent_source="meta",
+                parent_object_type=str(type_name) if type_name else None,
             )
 
     for layer_name in ("base", "base_1", "base_2"):
@@ -868,6 +910,7 @@ def build_edit_overlay(map_properties: dict[str, Any], session: Any | None = Non
                     "object_type": str(type_name) if type_name else None,
                 }
                 _attach_fixture_edges(terrain_item, leg, type_name, session=session)
+                _attach_note_offset(terrain_item, leg)
                 terrain.append(terrain_item)
                 _append_inline_note_items(
                     items,
@@ -876,6 +919,10 @@ def build_edit_overlay(map_properties: dict[str, Any], session: Any | None = Non
                     token=str(ch),
                     leg=leg,
                     parent_id=terrain_id,
+                    parent_kind="terrain",
+                    parent_source="legend",
+                    parent_object_type=str(type_name) if type_name else None,
+                    parent_layer=layer_name,
                 )
 
     return {"items": items, "terrain": terrain, "annotations": _annotations_for_overlay(map_properties)}
@@ -1335,6 +1382,37 @@ def _allocate_legend_token(legend: dict[str, Any], preferred: str) -> str:
     raise ValueError("No free legend tokens available for terrain")
 
 
+def _allocate_instance_legend_token(legend: dict[str, Any], prefix: str) -> str:
+    base = str(prefix or "n") or "n"
+    if base not in legend:
+        return base
+    n = 2
+    while True:
+        candidate = f"{base}{n}"
+        if candidate not in legend:
+            return candidate
+        n += 1
+
+
+def _ensure_instance_legend_token(data: dict[str, Any], session, object_type: str) -> str:
+    """Allocate a unique legend token so instance fields (notes, teleporter dest) do not collide."""
+    legend = data.setdefault("legend", {})
+    preferred = _terrain_token_char(session, object_type)
+    token = _allocate_instance_legend_token(legend, preferred)
+    try:
+        obj = session.load_object(object_type)
+    except Exception:
+        obj = {}
+    legend[token] = {
+        "name": obj.get("name", object_type.replace("_", " ").title()),
+        "type": object_type,
+    }
+    for key in ("door_pos", "border", "window"):
+        if key in obj and obj.get(key) is not None:
+            legend[token][key] = copy.deepcopy(obj[key])
+    return token
+
+
 def _ensure_legend_token(data: dict[str, Any], session, object_type: str) -> str:
     legend = data.setdefault("legend", {})
     for token, entry in legend.items():
@@ -1380,6 +1458,13 @@ def _default_legend_props(
             "target_map": map_name,
             "target_position": [int(x), int(y)],
         }
+    if object_type == "note":
+        return {
+            "label": "Note",
+            "hide_map_token": True,
+            "image_offset_px": [0, 0],
+            "notes": [{"note": "", "perception_dc": 0}],
+        }
     return {}
 
 
@@ -1411,6 +1496,7 @@ def _place_object_layer_fixture(
     token: str,
     x: int,
     y: int,
+    extra_fields: dict[str, Any] | None = None,
 ) -> None:
     """Place an interactable object without overwriting terrain in the ASCII grid."""
     entities = map_block.setdefault("entities", [])
@@ -1423,7 +1509,13 @@ def _place_object_layer_fixture(
             and list(entry.get("pos") or []) == [int(x), int(y)]
         )
     ]
-    entities.append({"token": str(token), "pos": [int(x), int(y)], "layer": "object"})
+    entry: dict[str, Any] = {"token": str(token), "pos": [int(x), int(y)], "layer": "object"}
+    if extra_fields:
+        for key, value in extra_fields.items():
+            if key in {"id", "layer", "token", "pos", "type"}:
+                continue
+            entry[key] = copy.deepcopy(value)
+    entities.append(entry)
 
 
 def _target_terrain_layer(map_block: dict[str, Any], x: int, y: int) -> tuple[str, list[str]]:
@@ -1481,7 +1573,10 @@ def place_map_layer_item(
     if resolved_type and _placement_mode_for_type(str(resolved_type)) == "object":
         if not object_type:
             object_type = str(resolved_type)
-        token = _ensure_legend_token(data, session, str(object_type))
+        if str(object_type) == "note":
+            token = _ensure_instance_legend_token(data, session, str(object_type))
+        else:
+            token = _ensure_legend_token(data, session, str(object_type))
         _apply_legend_defaults(
             data.setdefault("legend", {}),
             str(token),
@@ -1491,13 +1586,26 @@ def place_map_layer_item(
             int(x),
             int(y),
         )
+        entity_extras = dict(extra_fields or {})
+        if str(object_type) == "note":
+            defaults = _default_legend_props(session, str(object_type), map_name, int(x), int(y))
+            for key, value in defaults.items():
+                entity_extras.setdefault(key, copy.deepcopy(value))
         if extra_fields:
             legend_entry = data["legend"][str(token)]
             for key, value in extra_fields.items():
                 if key in {"id", "layer", "token", "pos", "type"}:
                     continue
+                if str(object_type) == "note":
+                    continue
                 legend_entry[key] = value
-        _place_object_layer_fixture(map_block, token=str(token), x=int(x), y=int(y))
+        _place_object_layer_fixture(
+            map_block,
+            token=str(token),
+            x=int(x),
+            y=int(y),
+            extra_fields=entity_extras or None,
+        )
         save_map_document(path, data)
         return {
             "id": _entry_uid(str(token), {"token": token, "pos": [int(x), int(y)]}, _legend_for(data))

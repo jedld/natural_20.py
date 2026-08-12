@@ -7,6 +7,7 @@ barrel:
   interactable: true
   max_hp: 18
   name: Barrel
+  inventory: []
   token:
     - o
 bottomless_pit:
@@ -50,6 +51,7 @@ chest:
   token_image: wood_chest
   passable: true
   placeable: false
+  inventory: []
   buttons:
     - name: Open Chest
       action: open
@@ -71,8 +73,26 @@ note:
   placeable: true
   opaque: false
   wall: false
+  hide_map_token: true
+  spawner_category: interactive
   token:
-    - N  
+    - N
+  edit_ui:
+    label: Note
+    scope:
+      - legend
+      - entity
+    groups:
+      - id: display
+        label: Display
+        fields:
+          - key: label
+            label: Label
+            type: string
+          - key: hide_map_token
+            label: Hide map token
+            type: boolean
+            default: true
 campfire:
   color: yellow
   default_ac: 17

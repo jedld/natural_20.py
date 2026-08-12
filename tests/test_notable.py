@@ -27,6 +27,10 @@ class TestNotableNotes(unittest.TestCase):
         visible, _ = obj.list_notes(entity_pov=[pc])
         self.assertEqual(len(visible), 1)
 
+        revealed, _ = obj.list_notes(entity_pov=[pc], reveal_all=True)
+        self.assertEqual(len(revealed), 2)
+        self.assertEqual(revealed[1]["investigation_dc"], 10)
+
         obj.check_results[pc] = {'investigation_check': 12}
         visible, _ = obj.list_notes(entity_pov=[pc])
         self.assertEqual(len(visible), 2)
