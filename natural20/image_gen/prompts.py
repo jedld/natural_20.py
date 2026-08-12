@@ -728,3 +728,116 @@ def action_icon_prompt(
         "ability button icon, square composition, no text",
         max_words=CLIP_MAX_WORDS,
     )
+
+
+# ---------------------------------------------------------------------------
+# Character class / race background prompts
+# ---------------------------------------------------------------------------
+
+CLASS_RACE_BACKGROUND_NEGATIVE = (
+    "text, title text, watermark, logo, UI overlay, readable text, "
+    "character portrait, face, person, humanoid, creature, monster, "
+    "full body, multiple characters, busy action scene, combat, "
+    "bright cheerful daylight, cartoon sticker sheet, speech bubble"
+)
+
+
+def class_background_prompt(
+    *,
+    character_class: str,
+    theme: str = "",
+    profile: CampaignPromptProfile | None = None,
+) -> str:
+    """Generate a background prompt for a character class selection.
+
+    Produces a moody, atmospheric backdrop suitable for the character builder
+    class selection panel and character sheet.
+    """
+    resolved = _resolve_profile(profile)
+    class_bit = character_class.replace("_", " ")
+    # Use scene_backdrop for the class visual hint
+    hint = _CLASS_BACKGROUND_HINTS.get(character_class, "")
+    scene_desc = resolved.scene_backdrop("laboratory") if hint else resolved.scene_backdrop("dungeon")
+    mood_bit = clip_word_limit(theme, 10) if theme else ""
+    return fit_clip_prompt(
+        f"Epic fantasy background for D&D {class_bit}",
+        hint or f"Themed atmosphere for {class_bit} class",
+        scene_desc,
+        f"Mood: {mood_bit}" if mood_bit else "",
+        "No readable text, no characters, no UI, painterly 16:9, cinematic lighting",
+        max_words=70,
+    )
+
+
+def race_background_prompt(
+    *,
+    race: str,
+    theme: str = "",
+    profile: CampaignPromptProfile | None = None,
+) -> str:
+    """Generate a background prompt for a character race selection.
+
+    Produces a moody, atmospheric backdrop suitable for the character builder
+    race selection panel.
+    """
+    resolved = _resolve_profile(profile)
+    race_bit = race.replace("_", " ")
+    mood_bit = clip_word_limit(theme, 10) if theme else ""
+    return fit_clip_prompt(
+        f"Epic fantasy background for D&D {race_bit} race",
+        f"Themed atmosphere representing {race_bit} heritage",
+        resolved.scene_backdrop("dungeon"),
+        f"Mood: {mood_bit}" if mood_bit else "",
+        "No readable text, no characters, no UI, painterly 16:9, cinematic lighting",
+        max_words=70,
+    )
+
+
+def class_race_background_prompt(
+    *,
+    character_class: str,
+    race: str,
+    theme: str = "",
+    profile: CampaignPromptProfile | None = None,
+) -> str:
+    """Generate a background prompt for a specific class + race combination.
+
+    Produces a moody, atmospheric backdrop that blends both the class and race
+    themes.  Used for the character sheet overlay when both are selected.
+    """
+    resolved = _resolve_profile(profile)
+    class_bit = character_class.replace("_", " ")
+    race_bit = race.replace("_", " ")
+    hint = _CLASS_BACKGROUND_HINTS.get(character_class, "")
+    scene_desc = resolved.scene_backdrop("laboratory") if hint else resolved.scene_backdrop("dungeon")
+    mood_bit = clip_word_limit(theme, 10) if theme else ""
+    return fit_clip_prompt(
+        f"Epic fantasy background combining {race_bit} and {class_bit}",
+        f"Atmospheric backdrop for a {race_bit} {class_bit}" + (f" — {hint}" if hint else ""),
+        scene_desc,
+        f"Mood: {mood_bit}" if mood_bit else "",
+        "No readable text, no characters, no UI, painterly 16:9, cinematic lighting",
+        max_words=70,
+    )
+
+
+# Visual hints for specific classes (used in action icons, not backgrounds)
+_CLASS_BACKGROUND_HINTS: dict[str, str] = {
+    "fighter": "battle-worn armor stands, sword embedded in stone, war tent with tactical maps",
+    "barbarian": "rugged wilderness campfire, fur banners, tribal totem poles at dusk",
+    "bard": "ornate lute resting on velvet, moonlit balcony, enchanted theater stage",
+    "cleric": "sunlit cathedral interior, golden holy symbol, stained glass light rays",
+    "druid": "ancient grove with glowing mushrooms, druidic stone circle, misty forest",
+    "monk": "serene mountain temple, meditation platform, flowing water courtyard",
+    "paladin": "shining knight in radiant armor, holy sword glowing, fortress gate at dawn",
+    "ranger": "woodland archer's blind, bow leaning against mossy oak, forest trail at dawn",
+    "rogue": "shadowy alley with moonlight, lockpicks on velvet, rooftop cityscape at night",
+    "sorcerer": "crackling arcane energy, storm clouds swirling, wizard's crystal orb",
+    "warlock": "eldritch portal opening in darkness, pact sigil glowing, starry void",
+    "wizard": "ancient library with floating tomes, arcane circle on stone floor, crystal staff",
+}
+
+
+def class_background_visual_hint(character_class: str) -> str:
+    """Return a short visual hint for a specific class background."""
+    return _CLASS_BACKGROUND_HINTS.get(character_class, "")

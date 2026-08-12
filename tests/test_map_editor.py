@@ -11,6 +11,8 @@ from natural20.map_editor import (
     build_edit_overlay,
     move_map_item,
     place_map_terrain,
+    place_npc_in_map,
+    place_player_in_map,
     remove_map_item,
     save_map_document,
 )
@@ -787,6 +789,84 @@ def test_build_edit_overlay_includes_wall_and_door_edges():
     }
 
 
+def test_build_edit_overlay_corner_door_tr_edges():
+    """Top-right corner door: door on top edge, solid wall on right."""
+    map_data = {
+        "map": {
+            "size": [4, 4],
+            "base": [
+                "....",
+                ".╗..",
+                "....",
+                "....",
+            ],
+        },
+        "legend": {
+            "╗": {
+                "name": "Corner Door Top Right",
+                "type": "corner_door_tr",
+            },
+        },
+    }
+    overlay = build_edit_overlay(map_data)
+    door_tile = next(item for item in overlay["terrain"] if item["token"] == "╗")
+    assert door_tile["wall_edges"] == {
+        "top": False,
+        "right": True,
+        "bottom": False,
+        "left": False,
+    }
+    assert door_tile["door_edges"] == {
+        "top": True,
+        "right": False,
+        "bottom": False,
+        "left": False,
+    }
+
+
+def test_build_edit_overlay_merges_object_catalog_for_fixture_edges():
+    """Legend-only types (e.g. bottom_storage_room) get border/door_pos from objects.yml."""
+    from natural20.session import Session
+
+    session = Session(root_path="user_levels/death_house")
+    map_data = {
+        "map": {
+            "size": [4, 4],
+            "base": [
+                "....",
+                ".*..",
+                "....",
+                "....",
+            ],
+        },
+        "legend": {
+            "*": {
+                "name": "bottom storage room",
+                "type": "bottom_storage_room",
+            },
+        },
+    }
+    overlay_without = build_edit_overlay(map_data)
+    tile_without = next(item for item in overlay_without["terrain"] if item["token"] == "*")
+    assert "wall_edges" not in tile_without
+    assert "door_edges" not in tile_without
+
+    overlay_with = build_edit_overlay(map_data, session=session)
+    tile_with = next(item for item in overlay_with["terrain"] if item["token"] == "*")
+    assert tile_with["wall_edges"] == {
+        "top": True,
+        "right": True,
+        "bottom": False,
+        "left": True,
+    }
+    assert tile_with["door_edges"] == {
+        "top": False,
+        "right": False,
+        "bottom": True,
+        "left": False,
+    }
+
+
 def test_build_edit_overlay_includes_hash_wall_edges():
     map_data = {
         "map": {
@@ -940,3 +1020,235 @@ def test_resync_terrain_tile_replaces_directional_wall(tmp_path: Path):
     walls = [obj for obj in battle_map.objects_at(1, 1) if isinstance(obj, StoneWallDirectional)]
     assert len(walls) == 1
     assert walls[0].wall_direction == "stone_wall_tr"
+
+
+def test_place_npc_in_map_creates_legend_and_entity(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [5, 5],
+            "base": ["#####", "#...#", "#...#", "#...#", "#####"],
+        },
+        "legend": {},
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+    result = place_npc_in_map(_Session(), "hub", npc_type="goblin", x=2, y=2)
+    assert result["npc_type"] == "goblin"
+    assert result["x"] == 2
+    assert result["y"] == 2
+    assert result["placement_kind"] == "entity"
+
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    # Legend should have an entry for goblin
+    goblin_token = result["token"]
+    assert goblin_token in saved["legend"]
+    assert saved["legend"][goblin_token]["type"] == "npc"
+    assert saved["legend"][goblin_token]["sub_type"] == "goblin"
+    # Entity placement should exist
+    entities = saved["map"]["entities"]
+    assert any(e["token"] == goblin_token and e["pos"] == [2, 2] for e in entities)
+
+
+def test_place_npc_in_map_reuses_existing_legend_entry(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [5, 5],
+            "base": ["#####", "#...#", "#...#", "#...#", "#####"],
+            "entities": [{"token": "G", "pos": [1, 1]}],
+        },
+        "legend": {
+            "G": {"name": "Goblin", "type": "npc", "sub_type": "goblin"},
+        },
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+    result = place_npc_in_map(_Session(), "hub", npc_type="goblin", x=3, y=3)
+    assert result["token"] == "G"
+
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    entities = saved["map"]["entities"]
+    assert any(e["token"] == "G" and e["pos"] == [3, 3] for e in entities)
+    assert len(entities) == 2
+
+
+def test_place_npc_in_map_preserves_overrides(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [5, 5],
+            "base": ["#####", "#...#", "#...#", "#...#", "#####"],
+        },
+        "legend": {},
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+    place_npc_in_map(
+        _Session(), "hub", npc_type="goblin", x=2, y=2,
+        overrides={"entity_uid": "my_goblin"}
+    )
+
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    entities = saved["map"]["entities"]
+    placed_entry = [e for e in entities if e["pos"] == [2, 2]][0]
+    assert placed_entry.get("overrides", {}).get("entity_uid") == "my_goblin"
+
+
+def test_place_player_in_map_updates_existing_position(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [5, 5],
+            "base": ["#####", "#...#", "#...#", "#...#", "#####"],
+        },
+        "player": [
+            {"position": [1, 1], "overrides": {"entity_uid": "hero_1"}},
+        ],
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+    result = place_player_in_map(_Session(), "hub", entity_uid="hero_1", x=3, y=3)
+    assert result["entity_uid"] == "hero_1"
+    assert result["placement_kind"] == "player"
+
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    player_list = saved["player"]
+    assert len(player_list) == 1
+    assert player_list[0]["position"] == [3, 3]
+
+
+def test_place_player_in_map_adds_new_entry(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [5, 5],
+            "base": ["#####", "#...#", "#...#", "#...#", "#####"],
+        },
+        "player": [],
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+    result = place_player_in_map(_Session(), "hub", entity_uid="hero_2", x=4, y=4)
+    assert result["entity_uid"] == "hero_2"
+
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    player_list = saved["player"]
+    assert len(player_list) == 1
+    assert player_list[0]["position"] == [4, 4]
+    assert player_list[0]["overrides"]["entity_uid"] == "hero_2"
+
+
+def test_place_player_in_map_matches_by_sheet(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [5, 5],
+            "base": ["#####", "#...#", "#...#", "#...#", "#####"],
+        },
+        "player": [
+            {"position": [1, 1], "sheet": "characters/hero_3.yml"},
+        ],
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+    place_player_in_map(_Session(), "hub", entity_uid="characters/hero_3.yml", x=3, y=3)
+
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    assert saved["player"][0]["position"] == [3, 3]
+
+
+def test_place_player_in_map_creates_player_list(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [5, 5],
+            "base": ["#####", "#...#", "#...#", "#...#", "#####"],
+        },
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+    result = place_player_in_map(_Session(), "hub", entity_uid="hero_new", x=2, y=2)
+    assert result["entity_uid"] == "hero_new"
+
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    assert "player" in saved
+    assert len(saved["player"]) == 1
+    assert saved["player"][0]["position"] == [2, 2]

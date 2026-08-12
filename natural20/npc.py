@@ -419,7 +419,8 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         return True
 
     def melee_distance(self):
-        melee_attacks = [a["range"] for a in self.properties["actions"] if a["type"] == "melee_attack"]
+        actions = self.properties.get("actions", [])
+        melee_attacks = [a["range"] for a in actions if a.get("type") == "melee_attack"]
         return max(melee_attacks) if melee_attacks else None
     
     def class_feature(self, feature):

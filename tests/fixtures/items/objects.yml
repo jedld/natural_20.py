@@ -438,7 +438,7 @@ corner_door_tr:
   interactable: true
   item_class: DoorObjectWall
   max_hp: 18
-  name: Corner Door Top Left
+  name: Corner Door Top Right
   door_pos: 0
   border:
     - 0

@@ -596,6 +596,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       return self.properties.get('subrace')
   
   def speed(self):
+    if getattr(self, '_in_shell', False):
+      return 0
     if _wild_shape.is_wild_shaped(self):
       beast = self._wild_shape_state.get('beast_props', {})
       beast_speed = beast.get('speed')
@@ -712,6 +714,14 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         return self._player_character_attack_actions(session, battle, opportunity_attack=True)
       else:
         return []
+
+    # MotM Shell Defense: while withdrawn, the only action is a bonus action to emerge.
+    if getattr(self, '_in_shell', False):
+      if interact_only:
+        return []
+      if EmergenceAction.can(self, battle):
+        return [EmergenceAction(session, self, 'shell_emerge')]
+      return []
 
     action_list = []
     if map is None and battle is not None:

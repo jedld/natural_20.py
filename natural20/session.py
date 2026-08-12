@@ -4,6 +4,7 @@ from pathlib import Path
 from collections import deque
 from natural20.yaml_loader import (
     campaign_import_roots,
+    expansion_pack_roots,
     load_campaign_resource_path,
     load_campaign_yaml,
     load_yaml,
@@ -286,6 +287,11 @@ class Session:
     def _category_roots(self, category, include_templates=False):
         roots = [Path(self.root_path).resolve()]
         roots.extend(campaign_import_roots(self.root_path))
+        # Expansion packs are added as separate roots so their category
+        # subdirectories (e.g. races/, npcs/) appear after campaign-local
+        # files but before templates.
+        for expansion_root in expansion_pack_roots(self.root_path):
+            roots.append(expansion_root)
         if include_templates:
             roots.append(templates_root())
 
