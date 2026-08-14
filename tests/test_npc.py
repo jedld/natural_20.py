@@ -121,9 +121,10 @@ class TestNpc(unittest.TestCase):
         'Look',
         'move to [1, 1]',
         'Shove',
+        'Push',
         'Help',
         'Pickpocket'])
-        self.assertEqual(len(action), 13)
+        self.assertEqual(len(action), 14)
 
     def test_multiattack_continues_after_first_attack(self):
         battle = Battle(self.session, self.map)
@@ -211,7 +212,7 @@ class TestNpc(unittest.TestCase):
         npc.reset_turn(battle)
         battle.set_current_turn(npc)
         available_actions = [str(action) for action in npc.available_actions(session, battle, map=battle_map)]
-        assert len(available_actions) == 19, len(available_actions)
+        assert len(available_actions) == 20, len(available_actions)
 
         self.assertListEqual(available_actions, ["Dash",
                                                  "Disengage",
@@ -227,6 +228,7 @@ class TestNpc(unittest.TestCase):
                                                  "move to [3, 2]",
                                                  "move to [3, 3]",
                                                  "Shove",
+                                                 "Push",
                                                  "Help",
                                                  "Interact(Screech,give)",
                                                  "Interact(ground,pickup_drop)",
@@ -267,9 +269,9 @@ class TestNpc(unittest.TestCase):
 
         self.assertTrue(npc.darkvision(60))
 
-        self.assertEqual(len(npc.available_actions(session, None, map=battle_map)), 8)
+        self.assertEqual(len(npc.available_actions(session, None, map=battle_map)), 9)
         available_actions = [action.name() for action in npc.available_actions(session, None, map=battle_map)]
-        self.assertEqual(available_actions, ['attack', 'attack', 'hide', 'look', 'move', 'shove', 'help', 'pickpocket'])
+        self.assertEqual(available_actions, ['attack', 'attack', 'hide', 'look', 'move', 'shove', 'push', 'help', 'pickpocket'])
         battle.set_current_turn(npc)
         first_attack = [a for a in npc.available_actions(session, battle, map=battle_map) if a.name() == 'attack'][0]
         first_attack.target = fighter

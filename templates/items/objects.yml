@@ -8,6 +8,8 @@ barrel:
   max_hp: 18
   name: Barrel
   inventory: []
+  max_item_size: medium
+  capacity_lbs: 300
   token:
     - o
 bottomless_pit:
@@ -52,6 +54,8 @@ chest:
   passable: true
   placeable: false
   inventory: []
+  max_item_size: medium
+  capacity_lbs: 300
   buttons:
     - name: Open Chest
       action: open

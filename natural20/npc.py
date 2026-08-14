@@ -24,7 +24,7 @@ from natural20.actions.spell_action import SpellAction
 from natural20.actions.witch_bolt_sustain_action import WitchBoltSustainAction
 from natural20.actions.speak_action import SpeakAction
 from natural20.utils.action_builder import autobuild
-from natural20.actions.shove_action import ShoveAction
+from natural20.actions.shove_action import ShoveAction, PushAction
 from natural20.actions.pickpocket_action import PickpocketAction
 from natural20.utils.multiattack import Multiattack
 from natural20.utils.npc_random_name_generator import generate_goblinoid_name, generate_ogre_name
@@ -382,6 +382,7 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
                     elif action_class == ShoveAction:
                         if not self.familiar():
                             actions.append(ShoveAction(session, self, "shove"))
+                            actions.append(PushAction(session, self, "push"))
                     elif action_class == LookAction:
                         actions.append(LookAction(session, self, "look"))
                     elif action_class == SpeakAction:
@@ -497,6 +498,11 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         elif result['action'] == 'loot':
             self.transfer(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
             return True
+        elif result['action'] == 'carry':
+            from natural20.utils.portable_creature import apply_carry_interaction
+            return apply_carry_interaction(
+                result.get('source') or entity, self, battle=result.get('battle'), session=session,
+            )
         else:
             raise NotImplementedError(f"unknown action {result['action']}")
 

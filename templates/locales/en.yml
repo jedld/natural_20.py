@@ -231,10 +231,10 @@ en:
     great_weapon_fighting_roll: 'Great Weapon Fighting (reroll): %{prev_roll} -> %{roll}'
     hide: '%{name} attempts to hide. Stealth roll = %{roll} = %{roll_value}'
     hit_die: '%{source} rolls hit die %{roll} = %{value}'
-    knock_prone_failure: '%{source_roll} < %{target_roll}. %{source} tried but failed to knock %{target} prone'
-    knock_prone_success: '%{source_roll} >= %{target_roll}. %{source} knocks %{target} prone'
-    shove_failure: '%{source_roll} < %{target_roll}. ${source} tried but failed to shove %{target} 5ft away'
-    shove_success: '%{source_roll} >= %{target_roll}. ${source} shoves %{target} 5ft away'
+    knock_prone_failure: '%{source_roll} <= %{target_roll}. %{source} tried but failed to knock %{target} prone'
+    knock_prone_success: '%{source_roll} > %{target_roll}. %{source} knocks %{target} prone'
+    shove_failure: '%{source_roll} <= %{target_roll}. %{source} tried but failed to shove %{target} 5ft away'
+    shove_success: '%{source_roll} > %{target_roll}. %{source} shoves %{target} 5ft away'
     something: (something)
     spell_buff: '%{source} casts %{spell} on %{target}.'
     status:

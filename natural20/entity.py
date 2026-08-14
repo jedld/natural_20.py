@@ -771,6 +771,8 @@ class Entity(EntityStateEvaluator, Notable):
             else:
                 modifiers = getattr(self, f"{skill}_mod")()
 
+            modifiers = int(modifiers) + self.d20_test_modifier()
+
             description = opts.get('description', f"dice roll for {skill}")
 
             if self.poisoned():
@@ -783,8 +785,17 @@ class Entity(EntityStateEvaluator, Notable):
             self.help_actions.clear()
 
             if self.has_effect('ability_check_advantage_modifier'):
+                ability = None
+                for ab, skills in self.SKILL_AND_ABILITY_MAP.items():
+                    if skill in skills:
+                        ability = ab
+                        break
                 check_adv, check_dis = self.eval_effect(
-                    'ability_check_advantage_modifier', {'value': [[], []]},
+                    'ability_check_advantage_modifier', {
+                        'value': [[], []],
+                        'skill': skill,
+                        'ability': ability,
+                    },
                 )
                 advantage_modifiers.extend(check_adv or [])
                 disavantage_modifiers.extend(check_dis or [])
@@ -1993,21 +2004,63 @@ class Entity(EntityStateEvaluator, Notable):
     def vulnerable_to(self, damage_type):
         return damage_type in self.damage_vulnerabilities
 
+    def exhaustion_level(self) -> int:
+        """Current Exhaustion levels (0–6). Separate from damage-type tags."""
+        level = getattr(self, "_exhaustion_level", None)
+        if level is None and isinstance(getattr(self, "properties", None), dict):
+            level = self.properties.get("exhaustion_level", 0)
+        try:
+            return max(0, min(6, int(level or 0)))
+        except (TypeError, ValueError):
+            return 0
+
+    def set_exhaustion_level(self, level: int) -> None:
+        self._exhaustion_level = max(0, min(6, int(level)))
+
+    def d20_test_modifier(self) -> int:
+        """Campaign-ruleset modifier applied to attacks, checks, saves, initiative."""
+        session = getattr(self, "session", None)
+        ruleset = getattr(session, "ruleset", None) if session is not None else None
+        if ruleset is None:
+            return 0
+        return int(ruleset.d20_test_exhaustion_penalty(self.exhaustion_level()))
+
+    def surprised(self) -> bool:
+        return bool(getattr(self, "_surprised", False) or (
+            isinstance(getattr(self, "properties", None), dict)
+            and self.properties.get("surprised")
+        ))
+
+    def set_surprised(self, value: bool = True) -> None:
+        self._surprised = bool(value)
+
     def initiative_bonus(self):
         bonus = self.dex_mod()
         if self.class_feature('rakish_audacity'):
             bonus += self.cha_mod()
         if self.class_feature('alert'):
-            bonus += 5
+            session = getattr(self, "session", None)
+            ruleset = getattr(session, "ruleset", None) if session is not None else None
+            if ruleset is not None and ruleset.alert_feat_model() == "proficiency_bonus_and_swap":
+                bonus += self.proficiency_bonus()
+            else:
+                bonus += 5
+        bonus += self.d20_test_modifier()
         return bonus
 
     def initiative(self, battle=None):
+        advantage = False
+        disadvantage = False
         if self.invisible():
             advantage = True
-        else:
-            advantage = False
+        session = getattr(self, "session", None)
+        ruleset = getattr(session, "ruleset", None) if session is not None else None
+        if self.surprised() and ruleset is not None:
+            if ruleset.surprise_model() == "initiative_disadvantage":
+                disadvantage = True
         roll = DieRoll.roll_with_lucky(self, f"1d20+{self.initiative_bonus()}", description="initiative",
                                        advantage=advantage,
+                                       disadvantage=disadvantage,
                                        battle=battle)
         value = float(roll.result()) + self.ability_scores.get('dex') / 100.0
         if battle:
@@ -2455,6 +2508,10 @@ class Entity(EntityStateEvaluator, Notable):
         if self.has_effect('speed_override'):
             c_speed = self.eval_effect('speed_override', { "stacked": True, "value" : c_speed})
 
+        slow_ft = int(getattr(self, "_mastery_slow_ft", 0) or 0)
+        if slow_ft:
+            c_speed = max(0, int(c_speed) - slow_ft)
+
         return c_speed
     
     def swim_speed(self):
@@ -2717,10 +2774,23 @@ class Entity(EntityStateEvaluator, Notable):
         if magic_bonus:
             modifier += magic_bonus
 
+        modifier += self.d20_test_modifier()
         return modifier
 
 
     def attack_ability_mod(self, weapon):
+        override = getattr(self, '_spellcasting_attack_ability_override', None)
+        if override:
+            short = {
+                'strength': 'str', 'dexterity': 'dex', 'constitution': 'con',
+                'intelligence': 'int', 'wisdom': 'wis', 'charisma': 'cha',
+                'str': 'str', 'dex': 'dex', 'con': 'con',
+                'int': 'int', 'wis': 'wis', 'cha': 'cha',
+            }.get(str(override).lower())
+            if short:
+                return getattr(self, f'{short}_mod')()
+            return self.ability_mod(override) or 0
+
         modifier = 0
 
         if weapon['type'] == 'melee_attack':
@@ -2842,6 +2912,7 @@ class Entity(EntityStateEvaluator, Notable):
             raise ValueError(f"invalid ability {save_type}")
 
         modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
+        modifier += self.d20_test_modifier()
         op = '+' if modifier >= 0 else ''
 
         advantages = []
@@ -3684,8 +3755,13 @@ class Entity(EntityStateEvaluator, Notable):
     # Returns items in the "backpack" of the entity
     # @return [List]
     def inventory_items(self, session):
+        from natural20.utils.portable_creature import is_portable_creature_entry, portable_creature_item_row
+
         items = []
         for k, v in (self.inventory or {}).items():
+            if is_portable_creature_entry(v, k):
+                items.append(portable_creature_item_row(v, k))
+                continue
             try:
                 item = session.load_thing(k)
             except AssertionError:
@@ -3715,7 +3791,8 @@ class Entity(EntityStateEvaluator, Notable):
                     'qty': v['qty'],
                     'image': item.get('image', k),
                     'equipped': False,
-                    'weight': item.get('weight', None)
+                    'weight': v.get('weight', item.get('weight', None)),
+                    'size': v.get('size') or item.get('size'),
                 })
         return items
     
@@ -3819,6 +3896,112 @@ class Entity(EntityStateEvaluator, Notable):
     # @return [float] carrying capacity in lbs
     def carry_capacity(self):
         return self.ability_scores.get('str', 1) * 15.0
+
+    def _is_ground_tile(self):
+        return type(self).__name__ == 'Ground'
+
+    def stored_max_item_size(self):
+        """Largest size this entity's own inventory will accept, or None for no size cap."""
+        from natural20.utils.item_size import normalize_size
+
+        props = getattr(self, 'properties', None) or {}
+        raw = props.get('max_item_size', props.get('capacity_size'))
+        if raw:
+            return normalize_size(raw, default='small')
+        if self._is_ground_tile():
+            return None
+        if self.object() and getattr(self, 'inventory', None) is not None:
+            return 'medium'
+        return None
+
+    def stored_weight_capacity_lbs(self):
+        props = getattr(self, 'properties', None) or {}
+        raw = props.get('capacity_lbs', props.get('capacity_weight_lbs'))
+        if raw is None:
+            return None
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return None
+
+    def can_accept_item(self, item_name, qty=1, source_item=None, session=None):
+        """Whether this inventory (character or map container) can take an item."""
+        from natural20.utils.item_size import resolve_item_size, size_allows
+
+        session = session or getattr(self, 'session', None)
+        try:
+            amount = max(1, int(qty))
+        except (TypeError, ValueError):
+            amount = 1
+
+        definition = {}
+        if session is not None:
+            try:
+                definition = session.load_thing(item_name) or {}
+            except Exception:
+                definition = {}
+
+        item_size = resolve_item_size(item_name, session, source_item, definition)
+        max_size = self.stored_max_item_size()
+        if max_size and not size_allows(item_size, max_size):
+            label = self.label() if callable(getattr(self, 'label', None)) else getattr(self, 'name', 'container')
+            return False, f'{label} cannot hold {item_size} items (max {max_size})'
+
+        added_weight = 0.0
+        if isinstance(source_item, dict) and source_item.get('weight') is not None:
+            try:
+                added_weight = float(source_item.get('weight') or 0) * amount
+            except (TypeError, ValueError):
+                added_weight = 0.0
+        elif definition:
+            try:
+                added_weight = float(definition.get('weight') or 0) * amount
+            except (TypeError, ValueError):
+                added_weight = 0.0
+
+        object_capacity = self.stored_weight_capacity_lbs()
+        if object_capacity is not None:
+            current = 0.0
+            weight_fn = getattr(self, 'inventory_weight', None)
+            if callable(weight_fn):
+                try:
+                    current = float(weight_fn(session) or 0)
+                except Exception:
+                    current = 0.0
+            if current + added_weight > object_capacity + 1e-6:
+                remaining = max(0.0, object_capacity - current)
+                return False, (
+                    f'Not enough room in {self.label() if callable(getattr(self, "label", None)) else self} '
+                    f'({remaining:.1f} lb remaining of {object_capacity:.0f} lb capacity)'
+                )
+
+        if self._is_ground_tile() or self.object():
+            return True, None
+
+        if hasattr(self, 'carry_capacity'):
+            current = 0.0
+            if hasattr(self, 'carry_weight_status'):
+                try:
+                    current = float((self.carry_weight_status(session) or {}).get('weight_lbs') or 0)
+                except Exception:
+                    current = 0.0
+            else:
+                try:
+                    current = float(self.inventory_weight(session) or 0)
+                except Exception:
+                    current = 0.0
+            try:
+                capacity = float(self.carry_capacity())
+            except Exception:
+                capacity = None
+            if capacity is not None and current + added_weight > capacity + 1e-6:
+                remaining = max(0.0, capacity - current)
+                return False, (
+                    f'Exceeds carrying capacity '
+                    f'({remaining:.1f} lb remaining of {capacity:.0f} lb)'
+                )
+
+        return True, None
 
     def to_dict(self):
         return {

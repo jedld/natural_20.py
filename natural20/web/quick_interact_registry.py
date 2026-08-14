@@ -17,6 +17,7 @@ _GLYPH_ICON_BY_ACTION: Dict[str, str] = {
     'lock': 'lock',
     'loot': 'briefcase',
     'give': 'share',
+    'carry': 'move',
     'pickup_drop': 'retweet',
     'take': 'hand-up',
     'buzz': 'bell',
@@ -111,6 +112,8 @@ def resolve_action_label(object_entity, action: str, details: Dict[str, Any] | N
         object_label = object_label()
     if action == 'loot' and object_label:
         return f'Loot {object_label}'
+    if action == 'carry' and object_label:
+        return f'Carry {object_label}'
     return humanize_action_key(action)
 
 

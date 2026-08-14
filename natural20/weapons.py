@@ -184,6 +184,15 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
     elif source.grappled() and  not source.grappled_by(target):
         disadvantage.append('grappling')
 
+    try:
+        from natural20.weapon_mastery import consume_sap_disadvantage, consume_vex_advantage
+        if consume_sap_disadvantage(target):
+            disadvantage.append('weapon_mastery_sap')
+        if consume_vex_advantage(source, target):
+            advantage.append('weapon_mastery_vex')
+    except Exception:
+        pass
+
     if source.prone():
         disadvantage.append('prone')
     if source.squeezed():

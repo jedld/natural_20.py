@@ -851,6 +851,63 @@ hunters_mark:
   spell_list_classes:
     - Ranger
   spell_class: Natural20::HuntersMark
+hex:
+  label: Hex
+  casting_time: 1:bonus_action
+  components:
+    - verbal
+    - somatic
+    - material
+  materials:
+    - the petrified eye of a newt
+  damage_type: necrotic
+  description: |
+    You place a curse on a creature that you can see within range. Until the spell ends, you deal an
+    extra 1d6 Necrotic damage to the target whenever you hit it with an attack roll. Also, choose one
+    ability when you cast the spell. The target has Disadvantage on ability checks made with the
+    chosen ability. If the target drops to 0 Hit Points before this spell ends, you can take a Bonus
+    Action on a later turn to curse a new creature. Using a Higher-Level Spell Slot. Your
+    Concentration can last longer with a spell slot of level 2 (up to 4 hours), 3–4 (up to 8 hours),
+    or 5+ (24 hours).
+  duration: 1h
+  duration_seconds: 3600
+  level: 1
+  upcast: true
+  name: Hex
+  range: 90
+  school: enchantment
+  concentration: true
+  type: buff
+  spell_list_classes:
+    - Warlock
+  spell_list_group: arcane
+  spell_class: Natural20::Hex
+searing_smite:
+  label: Searing Smite
+  casting_time: 1:bonus
+  components:
+    - verbal
+  damage_type: fire
+  description: |
+    Bonus Action, which you take immediately after hitting a target with a Melee weapon or an
+    Unarmed Strike. As you hit the target, it takes an extra 1d6 Fire damage from the attack. At the
+    start of each of its turns until the spell ends, the target takes 1d6 Fire damage and then makes
+    a Constitution saving throw. On a failed save, the spell continues. On a successful save, the
+    spell ends. Using a Higher-Level Spell Slot. All the damage increases by 1d6 for each spell slot
+    level above 1.
+  duration: 1m
+  duration_seconds: 60
+  level: 1
+  upcast: true
+  name: Searing Smite
+  range: self
+  school: evocation
+  concentration: false
+  type: buff
+  spell_list_classes:
+    - Paladin
+  spell_list_group: divine
+  spell_class: Natural20::SearingSmite
 false_life:
   label: False Life
   casting_time: 1:action

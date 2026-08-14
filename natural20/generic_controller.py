@@ -526,10 +526,13 @@ class GenericController(Controller):
 
             base_score = 0.8
             if isinstance(action, ShoveAction):
-                if target.prone():
-                    base_score -= 0.5
-                elif has_melee_pressure(target):
-                    base_score += 0.35
+                if getattr(action, 'knock_prone', False):
+                    if target.prone():
+                        base_score -= 0.5
+                    elif has_melee_pressure(target):
+                        base_score += 0.35
+                else:
+                    base_score += 0.25
             elif isinstance(action, GrappleAction):
                 if target.grappled():
                     base_score -= 0.4

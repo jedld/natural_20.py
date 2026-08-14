@@ -108,6 +108,55 @@ class TestContainerCapacity(unittest.TestCase):
         self.assertEqual(status['weight_lbs'], 15.0)
         self.assertEqual(status['container_contents_weight_lbs'], 10.0)
 
+    def test_backpack_rejects_medium_item(self):
+        self.inv.inventory['medium_crate'] = {
+            'type': 'medium_crate',
+            'qty': 1,
+            'size': 'medium',
+            'weight': 5,
+            'is_creature': True,
+        }
+        ok, reason = self.inv.stow_item('backpack', 'medium_crate', 1, self.session)
+        self.assertFalse(ok)
+        self.assertIn('cannot hold medium', reason)
+
+    def test_backpack_accepts_tiny_item(self):
+        ok, reason = self.inv.stow_item('backpack', 'torch', 1, self.session)
+        self.assertTrue(ok, reason)
+
+    def test_bag_of_holding_accepts_medium_rejects_huge(self):
+        self.inv.inventory = {
+            'bag_of_holding': {
+                'type': 'bag_of_holding',
+                'qty': 1,
+                'contents': [],
+                'is_container': True,
+            },
+            'body': {
+                'type': 'body',
+                'qty': 1,
+                'size': 'medium',
+                'weight': 180,
+                'is_creature': True,
+            },
+            'dragon': {
+                'type': 'dragon',
+                'qty': 1,
+                'size': 'huge',
+                'weight': 100,
+                'is_creature': True,
+            },
+        }
+        ok, reason = self.inv.stow_item('bag_of_holding', 'body', 1, self.session)
+        self.assertTrue(ok, reason)
+        ok, reason = self.inv.stow_item('bag_of_holding', 'dragon', 1, self.session)
+        self.assertFalse(ok)
+        self.assertIn('cannot hold huge', reason)
+
+    def test_container_status_includes_max_item_size(self):
+        status = self.inv.container_status('backpack', self.session)
+        self.assertEqual(status['max_item_size'], 'small')
+
 
 if __name__ == '__main__':
     unittest.main()

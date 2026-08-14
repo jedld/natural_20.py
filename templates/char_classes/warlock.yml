@@ -28,6 +28,7 @@ spell_list:
     - expeditious_retreat
     - find_familiar
     - hellish_rebuke
+    - hex
     - magic_missile
     - thunderwave
   level_2:

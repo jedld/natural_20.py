@@ -1,0 +1,109 @@
+# SRD 5.2 / 2024 spell overlays (merged onto templates/items/spells.yml).
+# Attribution: System Reference Document 5.2 (CC BY 4.0) — see ATTRIBUTION.md.
+#
+# Only overlay spells that already have engine implementations (or metadata-only
+# updates). New SRD 5.2 spells without Python classes belong in a follow-up PR.
+---
+counterspell:
+  label: Counterspell
+  casting_time: 1:reaction
+  components: [somatic]
+  description: >-
+    You attempt to interrupt a creature in the process of casting a spell.
+    The creature makes a Constitution saving throw. On a failed save, the spell
+    dissipates with no effect, and the Action, Bonus Action, or Reaction used to
+    cast it is wasted. If that spell was cast with a spell slot, the slot isn't expended.
+  duration: instant
+  level: 3
+  name: Counterspell
+  range: 60
+  school: abjuration
+  type: reaction
+  spell_list_classes: [Wizard, Sorcerer, Warlock]
+  spell_list_group: arcane
+  spell_class: Natural20::Counterspell
+
+divine_smite:
+  label: Divine Smite
+  casting_time: 1:bonus
+  components: [verbal]
+  damage_type: radiant
+  description: >-
+    Bonus Action, which you take immediately after hitting a creature with a Melee
+    weapon or an Unarmed Strike. The target takes an extra 2d8 Radiant damage from
+    the attack. The damage increases by 1d8 if the target is a Fiend or an Undead.
+    Using a Higher-Level Spell Slot. The damage increases by 1d8 for each spell slot
+    level above 1st.
+  duration: instant
+  level: 1
+  upcast: true
+  name: Divine Smite
+  range: self
+  school: evocation
+  type: buff
+  spell_list_classes:
+    - Paladin
+  spell_list_group: divine
+  spell_class: Natural20::DivineSmite
+
+true_strike:
+  label: True Strike
+  casting_time: 1:action
+  components: [somatic, material]
+  materials:
+    - a weapon with which you have proficiency and that is worth 1+ CP
+  concentration: false
+  description: >-
+    Guided by a flash of magical insight, you make one attack with the weapon used
+    in the spell's casting. You use your spellcasting ability for the attack and
+    damage rolls instead of Strength or Dexterity. If the attack deals damage, it
+    can be Radiant damage or the weapon's normal damage type (your choice).
+    Cantrip Upgrade. Whether you deal Radiant damage or the weapon's normal damage
+    type, the attack deals extra Radiant damage when you reach levels 5 (1d6),
+    11 (2d6), and 17 (3d6).
+  duration: instant
+  level: 0
+  name: True Strike
+  range: self
+  school: divination
+  type: melee_attack
+  spell_list_classes:
+    - Bard
+    - Sorcerer
+    - Warlock
+    - Wizard
+  spell_list_group: arcane
+  spell_class: Natural20::TrueStrike
+
+hex:
+  spell_list_group: arcane
+  description: >-
+    You place a curse on a creature that you can see within range. Until the spell ends,
+    you deal an extra 1d6 Necrotic damage to the target whenever you hit it with an attack
+    roll. Also, choose one ability when you cast the spell. The target has Disadvantage on
+    ability checks made with the chosen ability. If the target drops to 0 Hit Points before
+    this spell ends, you can take a Bonus Action on a later turn to curse a new creature.
+    Using a Higher-Level Spell Slot. Your Concentration can last longer with a spell slot
+    of level 2 (up to 4 hours), 3–4 (up to 8 hours), or 5+ (24 hours).
+
+searing_smite:
+  casting_time: 1:bonus
+  concentration: false
+  spell_list_group: divine
+  description: >-
+    Bonus Action, which you take immediately after hitting a target with a Melee weapon or
+    an Unarmed Strike. As you hit the target, it takes an extra 1d6 Fire damage from the
+    attack. At the start of each of its turns until the spell ends, the target takes 1d6
+    Fire damage and then makes a Constitution saving throw. On a failed save, the spell
+    continues. On a successful save, the spell ends. Using a Higher-Level Spell Slot. All
+    the damage increases by 1d6 for each spell slot level above 1.
+
+chromatic_orb:
+  spell_list_group: arcane
+  description: >-
+    You hurl an orb of energy at a creature within range. You choose acid, cold,
+    fire, lightning, poison, or thunder for the type of orb you create, then make
+    a ranged spell attack. On a hit, the target takes 3d8 damage of the chosen
+    type. If you roll the same number on two or more of the d8s, the orb leaps to
+    a different creature of your choice within 10 feet of the target (once per cast).
+    At Higher Levels. The damage increases by 1d8 for each slot level above 1st.

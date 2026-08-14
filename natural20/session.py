@@ -62,7 +62,21 @@ class Session:
             self.game_properties = load_yaml(game_file, campaign_root=self.root_path)
         else:
             raise Exception(f'Missing game {game_file} file')
+        self._init_ruleset()
         self._load_all_maps(self.game_properties)
+
+    def _init_ruleset(self):
+        """Load campaign-scoped ruleset from ``game.yml`` (default ``5e-2014``)."""
+        from natural20.ruleset.factory import get_ruleset
+
+        ruleset_id = None
+        overrides = None
+        if isinstance(self.game_properties, dict):
+            ruleset_id = self.game_properties.get('ruleset')
+            raw_overrides = self.game_properties.get('ruleset_overrides')
+            if isinstance(raw_overrides, dict):
+                overrides = raw_overrides
+        self.ruleset = get_ruleset(ruleset_id, overrides=overrides)
 
     def register_conversation_handler(self, type, handler):
         print(f'Registering conversation handler {type} {handler}')
@@ -190,6 +204,23 @@ class Session:
             except Exception:
                 pass
 
+        try:
+            from natural20.utils.portable_creature import rehydrate_carried_creatures_in
+            seen = set()
+            for m in to_scan:
+                for ent in list(getattr(m, 'entities', {}).keys()):
+                    if id(ent) in seen:
+                        continue
+                    seen.add(id(ent))
+                    rehydrate_carried_creatures_in(self, ent)
+                for obj in list(getattr(m, 'interactable_objects', {}).keys()):
+                    if id(obj) in seen:
+                        continue
+                    seen.add(id(obj))
+                    rehydrate_carried_creatures_in(self, obj)
+        except Exception:
+            pass
+
     def _load_all_maps(self, game_file):
         self.maps = {}
 
@@ -293,6 +324,13 @@ class Session:
         for expansion_root in expansion_pack_roots(self.root_path):
             roots.append(expansion_root)
         if include_templates:
+            from natural20.yaml_loader import ruleset_overlay_root
+
+            overlay = ruleset_overlay_root(
+                getattr(getattr(self, "ruleset", None), "name", None)
+            )
+            if overlay is not None:
+                roots.append(overlay)
             roots.append(templates_root())
 
         folders = []
@@ -425,14 +463,14 @@ class Session:
         races = {}
         for path in self._iter_category_files('races', include_templates=True):
             race_name = path.stem
-            races[race_name] = load_yaml(path, campaign_root=str(path.parent.parent))
+            races[race_name] = load_yaml(path, campaign_root=self.root_path)
         return races
 
     def load_classes(self):
         classes = {}
         for path in self._iter_category_files('char_classes', include_templates=True):
             class_name = path.stem
-            classes[class_name] = load_yaml(path, campaign_root=str(path.parent.parent))
+            classes[class_name] = load_yaml(path, campaign_root=self.root_path)
         return classes
 
     def load_spell(self, spell):
@@ -548,7 +586,7 @@ class Session:
             background_name = path.stem
             backgrounds[background_name] = load_yaml(
                 path,
-                campaign_root=str(path.parent.parent),
+                campaign_root=self.root_path,
             )
         return backgrounds
 

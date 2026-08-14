@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from natural20.action import AsyncReactionHandler
 from natural20.actions.divine_smite_action import DivineSmiteAction
 from natural20.actions.lay_on_hands_action import LayOnHandsAction
+from natural20.spell.searing_smite_spell import SearingSmiteEffect
 
 if TYPE_CHECKING:
     from natural20.player_character import PlayerCharacter
@@ -63,6 +64,14 @@ class DivineSmiteEffect:
         if not self._is_valid_melee_hit(entity, hit_result):
             return []
 
+        ruleset = getattr(getattr(entity, 'session', None), 'ruleset', None)
+        smite_is_spell = bool(ruleset and ruleset.paladin_smite_is_spell())
+
+        # 2024: Divine Smite is a bonus-action spell after the hit.
+        if smite_is_spell:
+            if battle and entity.total_bonus_actions(battle) <= 0:
+                return []
+
         # Divine Smite (PHB 2014) costs no action — it is triggered after a
         # successful melee weapon attack and only spends a spell slot.
         available_slots = self._available_slot_levels(entity)
@@ -71,7 +80,10 @@ class DivineSmiteEffect:
 
         spell_details = entity.session.load_spell('divine_smite')
         valid_actions = [
-            self._build_action(entity, target, slot_level, spell_details, hit_result)
+            self._build_action(
+                entity, target, slot_level, spell_details, hit_result,
+                as_bonus_action=smite_is_spell,
+            )
             for slot_level in available_slots
         ]
 
@@ -142,13 +154,25 @@ class DivineSmiteEffect:
         if not weapon_meta:
             return False
 
-        return weapon_meta.get('type') == 'melee_attack'
+        if weapon_meta.get('type') != 'melee_attack':
+            return False
 
-    def _build_action(self, entity, target, slot_level, spell_details, hit_result):
+        # 2024: unarmed strikes also qualify for Divine Smite.
+        ruleset = getattr(getattr(entity, 'session', None), 'ruleset', None)
+        if ruleset and ruleset.paladin_smite_is_spell():
+            return True
+
+        props = weapon_meta.get('properties') or []
+        if 'unarmed' in props:
+            # 2014 Divine Smite requires a melee *weapon* attack (not unarmed).
+            return False
+        return True
+
+    def _build_action(self, entity, target, slot_level, spell_details, hit_result,
+                      as_bonus_action: bool = False):
         action = DivineSmiteAction(entity.session, entity, target, slot_level, spell_details, hit_result)
-        # Divine Smite has no action cost; flagging it as a bonus action
-        # would incorrectly consume the paladin's bonus action.
-        action.as_bonus_action = False
+        # 2014: no action cost. 2024: bonus action spell after the hit.
+        action.as_bonus_action = bool(as_bonus_action)
         return action
 
 class Paladin():
@@ -164,6 +188,8 @@ class Paladin():
         self.lay_on_hands_count = self.lay_on_hands_max_pool
         divine_smite = DivineSmiteEffect(self)
         self.register_event_hook('on_attack_hit', divine_smite, 'on_attack_hit')
+        searing_smite = SearingSmiteEffect(self)
+        self.register_event_hook('on_attack_hit', searing_smite, 'on_attack_hit')
 
     def special_actions_for_paladin(self, session, battle):
         actions = []

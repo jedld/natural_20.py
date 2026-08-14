@@ -92,7 +92,13 @@ def requires_squeeze(entity: Entity, pos_x, pos_y, map, battle=None):
     return not map.passable(entity, pos_x, pos_y, battle, False) and map.passable(entity, pos_x, pos_y, battle, True)
 
 
-def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_budget, fixed_movement=False, test_placement=True, manual_jump=None, phb_2024_rules=False):
+def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_budget, fixed_movement=False, test_placement=True, manual_jump=None, phb_2024_rules=None):
+    if phb_2024_rules is None:
+        session = getattr(entity, "session", None)
+        ruleset = getattr(session, "ruleset", None) if session is not None else None
+        phb_2024_rules = bool(
+            ruleset.phb_2024_grapple_move_cost() if ruleset is not None else False
+        )
     actual_moves = []
     provisional_moves = []
     jump_budget = int(entity.standing_jump_distance() / map.feet_per_grid)

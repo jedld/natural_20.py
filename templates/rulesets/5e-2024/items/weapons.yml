@@ -1,0 +1,113 @@
+# SRD 5.2 weapon mastery overlays (merged onto templates/items/weapons.yml).
+# Mastery values from System Reference Document 5.2 (CC BY 4.0).
+---
+battleaxe:
+  weapon_mastery:
+    - topple
+dagger:
+  weapon_mastery:
+    - nick
+quarterstaff:
+  weapon_mastery:
+    - topple
+sling:
+  weapon_mastery:
+    - slow
+dart:
+  weapon_mastery:
+    - vex
+club:
+  weapon_mastery:
+    - slow
+greatclub:
+  weapon_mastery:
+    - push
+handaxe:
+  weapon_mastery:
+    - vex
+javelin:
+  weapon_mastery:
+    - slow
+light_hammer:
+  weapon_mastery:
+    - nick
+mace:
+  weapon_mastery:
+    - sap
+sickle:
+  weapon_mastery:
+    - nick
+spear:
+  weapon_mastery:
+    - sap
+light_crossbow:
+  weapon_mastery:
+    - slow
+shortbow:
+  weapon_mastery:
+    - vex
+flail:
+  weapon_mastery:
+    - sap
+glaive:
+  weapon_mastery:
+    - graze
+greataxe:
+  weapon_mastery:
+    - cleave
+greatsword:
+  weapon_mastery:
+    - graze
+halberd:
+  weapon_mastery:
+    - cleave
+lance:
+  weapon_mastery:
+    - topple
+longsword:
+  weapon_mastery:
+    - sap
+maul:
+  weapon_mastery:
+    - topple
+morningstar:
+  weapon_mastery:
+    - sap
+pike:
+  weapon_mastery:
+    - push
+rapier:
+  weapon_mastery:
+    - vex
+scimitar:
+  weapon_mastery:
+    - nick
+shortsword:
+  weapon_mastery:
+    - vex
+trident:
+  damage: 1d8
+  damage_2: 1d10
+  weapon_mastery:
+    - topple
+warhammer:
+  weapon_mastery:
+    - push
+war_pick:
+  weapon_mastery:
+    - sap
+whip:
+  weapon_mastery:
+    - slow
+blowgun:
+  weapon_mastery:
+    - vex
+hand_crossbow:
+  weapon_mastery:
+    - vex
+heavy_crossbow:
+  weapon_mastery:
+    - push
+longbow:
+  weapon_mastery:
+    - slow

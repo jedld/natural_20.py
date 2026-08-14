@@ -307,6 +307,8 @@ class TestSpellAction(unittest.TestCase):
         self.npc.reset_turn(self.battle)
 
         class _FailRoll:
+            def result(self):
+                return 0
             def __lt__(self, other): return True
             def prob(self, _dc): return 1.0
         original_save = self.npc.save_throw
