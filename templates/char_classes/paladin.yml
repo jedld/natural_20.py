@@ -33,6 +33,7 @@ spell_list:
     - heroism
     - protection_from_evil_and_good
     - purify_food_and_drink
+    - searing_smite
     - shield_of_faith
   level_2:
     - aid

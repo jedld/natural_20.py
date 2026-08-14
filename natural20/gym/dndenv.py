@@ -107,6 +107,7 @@ ACTION_TYPE_MAP = {
     "disengage_bonus": 11,
     "spell": 12,
     "shove": 13,
+    "push": 13,
     "help": 14,
     "hide": 15,
     "use_item": 16,

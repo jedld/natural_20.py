@@ -203,5 +203,28 @@ class HoldPersonSpell(Spell):
             return val
         except Exception:
           pass
+      elif isinstance(getter, str) and getter:
+        return getter
+
+    # Fall back to class YAML spellcasting_ability for the caster's classes.
+    class_props = getattr(entity, 'class_properties', None) or {}
+    for klass, props in class_props.items():
+      if isinstance(props, dict) and props.get('spellcasting_ability'):
+        return props['spellcasting_ability']
+
+    classes = {}
+    if hasattr(entity, 'c_class') and callable(entity.c_class):
+      try:
+        classes = entity.c_class() or {}
+      except Exception:
+        classes = {}
+    if not classes:
+      classes = (getattr(entity, 'properties', None) or {}).get('classes') or {}
+    session = getattr(entity, 'session', None)
+    if session is not None:
+      for klass in classes:
+        class_info = session.load_class(str(klass).lower())
+        if class_info and class_info.get('spellcasting_ability'):
+          return class_info['spellcasting_ability']
 
     return 'wisdom'

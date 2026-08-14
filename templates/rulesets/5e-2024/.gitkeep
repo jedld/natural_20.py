@@ -1,0 +1,6 @@
+# Ruleset overlay root for SRD 5.2 / 2024 content.
+# Place category mirrors here (char_classes/, races/, backgrounds/, feats/, items/).
+# Resolution order when campaign game.yml has `ruleset: 5e-2024`:
+#   campaign → imports → expansion packs → this overlay → templates/
+#
+# This directory may start nearly empty; missing files fall back to 2014 templates.

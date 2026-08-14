@@ -20,6 +20,7 @@ _QUICK_ACTION_ICONS = {
     'unlock': 'log-in',
     'lock': 'lock',
     'loot': 'briefcase',
+    'carry': 'move',
 }
 
 _QUICK_ACTION_IMAGE_SLUGS = {
@@ -28,6 +29,7 @@ _QUICK_ACTION_IMAGE_SLUGS = {
     'unlock': 'interact_unlock',
     'lock': 'interact_lock',
     'loot': 'interact_loot',
+    'carry': 'interact_pickup_drop',
 }
 
 _CHEST_ACTION_IMAGE_SLUGS = {
@@ -66,6 +68,7 @@ _QUICK_ACTION_LABELS = {
     'unlock': 'Unlock',
     'lock': 'Lock',
     'loot': 'Loot',
+    'carry': 'Carry',
 }
 
 # Door/chest state actions are rendered by specialized builders; everything else is generic.
@@ -81,6 +84,10 @@ def _target_label(target) -> str:
 
 def _loot_action_label(target) -> str:
     return f"Loot {_target_label(target)}"
+
+
+def _carry_action_label(target) -> str:
+    return f"Carry {_target_label(target)}"
 
 
 def _shares_tile_with_pov(map_obj, target, pov_entity) -> bool:
@@ -119,6 +126,57 @@ def _in_interact_range(pov_entity, target, battle, map_obj) -> bool:
     return False
 
 
+def _entity_interaction_entry(
+    action,
+    target,
+    pov_entity,
+    battle,
+    map_obj,
+    *,
+    admin: bool = False,
+    label: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    interactions = target.available_interactions(pov_entity, battle, admin=admin) or {}
+    if action not in interactions:
+        return None
+
+    details = interactions.get(action) or {}
+    resolved_label = label or _QUICK_ACTION_LABELS.get(action) or action
+    icon = _QUICK_ACTION_ICONS.get(action, 'wrench')
+    image = _QUICK_ACTION_IMAGE_SLUGS.get(action, f'interact_{action}')
+    in_range = admin or _in_interact_range(pov_entity, target, battle, map_obj)
+
+    if not in_range:
+        return {
+            'action': action,
+            'label': resolved_label,
+            'icon': icon,
+            'image': image,
+            'disabled': False,
+            'needs_approach': True,
+        }
+
+    if details.get('disabled'):
+        return {
+            'action': action,
+            'label': resolved_label,
+            'icon': icon,
+            'image': image,
+            'disabled': True,
+            'needs_approach': False,
+            'disabled_text': details.get('disabled_text'),
+        }
+
+    return {
+        'action': action,
+        'label': resolved_label,
+        'icon': icon,
+        'image': image,
+        'disabled': False,
+        'needs_approach': False,
+    }
+
+
 def _loot_action_entry(
     target,
     pov_entity,
@@ -127,43 +185,15 @@ def _loot_action_entry(
     *,
     admin: bool = False,
 ) -> Optional[Dict[str, Any]]:
-    interactions = target.available_interactions(pov_entity, battle, admin=admin) or {}
-    if 'loot' not in interactions:
-        return None
-
-    label = _loot_action_label(target)
-    details = interactions.get('loot') or {}
-    in_range = admin or _in_interact_range(pov_entity, target, battle, map_obj)
-
-    if not in_range:
-        return {
-            'action': 'loot',
-            'label': label,
-            'icon': _QUICK_ACTION_ICONS['loot'],
-            'image': _QUICK_ACTION_IMAGE_SLUGS['loot'],
-            'disabled': False,
-            'needs_approach': True,
-        }
-
-    if details.get('disabled'):
-        return {
-            'action': 'loot',
-            'label': label,
-            'icon': _QUICK_ACTION_ICONS['loot'],
-            'image': _QUICK_ACTION_IMAGE_SLUGS['loot'],
-            'disabled': True,
-            'needs_approach': False,
-            'disabled_text': details.get('disabled_text'),
-        }
-
-    return {
-        'action': 'loot',
-        'label': label,
-        'icon': _QUICK_ACTION_ICONS['loot'],
-        'image': _QUICK_ACTION_IMAGE_SLUGS['loot'],
-        'disabled': False,
-        'needs_approach': False,
-    }
+    return _entity_interaction_entry(
+        'loot',
+        target,
+        pov_entity,
+        battle,
+        map_obj,
+        admin=admin,
+        label=_loot_action_label(target),
+    )
 
 
 def _action_image_slug(action: str, *, chest: bool = False) -> str:
@@ -605,7 +635,7 @@ def entity_quick_interact_actions_for(
     map_obj=None,
     admin: bool = False,
 ) -> List[Dict[str, Any]]:
-    """Return loot quick-action metadata for dead/unconscious lootable entities."""
+    """Return loot/carry quick-action metadata for dead/unconscious lootable entities."""
     if entity is None or pov_entity is None:
         return []
     if getattr(entity, 'entity_uid', None) == getattr(pov_entity, 'entity_uid', None):
@@ -617,8 +647,23 @@ def entity_quick_interact_actions_for(
     if not admin and map_obj is not None and not _entity_on_map(map_obj, pov_entity):
         return []
 
-    entry = _loot_action_entry(entity, pov_entity, battle, map_obj, admin=admin)
-    return [entry] if entry else []
+    actions: List[Dict[str, Any]] = []
+    loot = _loot_action_entry(entity, pov_entity, battle, map_obj, admin=admin)
+    if loot:
+        actions.append(loot)
+    if entity.dead():
+        carry = _entity_interaction_entry(
+            'carry',
+            entity,
+            pov_entity,
+            battle,
+            map_obj,
+            admin=admin,
+            label=_carry_action_label(entity),
+        )
+        if carry:
+            actions.append(carry)
+    return actions
 
 
 def quick_interact_actions_for(object_entity, pov_entity, battle=None, admin: bool = False) -> List[Dict[str, Any]]:

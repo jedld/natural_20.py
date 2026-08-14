@@ -17,6 +17,7 @@ available_skills:
   - investigation
   - medicine
   - religion
+spellcasting_ability: intelligence
 spell_list:
   cantrip:
     - acid_splash

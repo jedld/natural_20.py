@@ -427,7 +427,8 @@ class CounterspellSpell(UtilityWizardSpell):
         return DieRoll.roll(f"1d20{sign}{bonus}", battle=battle, entity=entity,
                             description=f"dice_roll.spells.{self.properties.get('id', self.name)}")
 
-    def resolve(self, entity, battle, spell_action, battle_map):
+    def _resolve_2014(self, entity, battle, spell_action):
+        """2014: auto-succeed at/above slot level; else INT check DC 10 + spell level."""
         target_spell_level = int((getattr(spell_action, 'opts', {}) or {}).get('target_spell_level', 3) or 3)
         cast_level = int(getattr(spell_action, 'at_level', self.properties.get('level', 3)) or 3)
         dc = 10 + target_spell_level
@@ -446,7 +447,54 @@ class CounterspellSpell(UtilityWizardSpell):
             'success': success,
             'cast_level': cast_level,
             'target_spell_level': target_spell_level,
+            'resolution': 'auto_at_or_above',
         }]
+
+    def _resolve_2024_con_save(self, entity, battle, spell_action):
+        """2024 / SRD 5.2: target caster makes a CON save vs your spell save DC."""
+        target = spell_action.target
+        target_spell_level = int((getattr(spell_action, 'opts', {}) or {}).get('target_spell_level', 3) or 3)
+        cast_level = int(getattr(spell_action, 'at_level', self.properties.get('level', 3)) or 3)
+        try:
+            dc = _spell_dc(entity, spell_action)
+        except Exception:
+            dc = entity.spell_save_dc('intelligence')
+        save_roll = None
+        success = False
+        if target is not None and hasattr(target, 'save_throw'):
+            save_roll = target.save_throw('constitution', battle=battle, opts={'is_magical': True})
+            # Failed CON save → spell interrupted (counterspell succeeds)
+            success = save_roll.result() < dc
+        return [{
+            'type': 'abjuration_check',
+            'source': entity,
+            'target': target,
+            'spell': self.properties,
+            'roll': save_roll,
+            'dc': dc,
+            'success': success,
+            'cast_level': cast_level,
+            'target_spell_level': target_spell_level,
+            'resolution': 'caster_con_save',
+            'save_type': 'constitution',
+        }]
+
+    def resolve(self, entity, battle, spell_action, battle_map):
+        # Only Counterspell itself uses the 2024 CON-save path; subclasses
+        # (Dispel Magic, etc.) keep the 2014 abjuration-check resolution.
+        session = getattr(entity, 'session', None) or getattr(self, 'session', None)
+        ruleset = getattr(session, 'ruleset', None) if session is not None else None
+        is_counterspell = (
+            type(self) is CounterspellSpell
+            or (self.properties or {}).get('id') == 'counterspell'
+        )
+        if (
+            is_counterspell
+            and ruleset is not None
+            and ruleset.counterspell_resolution() == 'caster_con_save'
+        ):
+            return self._resolve_2024_con_save(entity, battle, spell_action)
+        return self._resolve_2014(entity, battle, spell_action)
 
     @staticmethod
     def apply(battle, item, session=None):
@@ -455,19 +503,41 @@ class CounterspellSpell(UtilityWizardSpell):
         if battle and session is None:
             session = battle.session
         if session:
-            session.event_manager.received_event({
-                'event': 'ability_check',
-                'ability': 'intelligence',
-                'roll': item.get('roll'),
-                'dc': item.get('dc'),
-                'success': item.get('success'),
-                'source': item.get('source'),
-                'target': item.get('target'),
-            })
+            if item.get('resolution') == 'caster_con_save':
+                session.event_manager.received_event({
+                    'event': 'save_success' if not item.get('success') else 'save_fail',
+                    'source': item.get('target'),
+                    'save_type': item.get('save_type', 'constitution'),
+                    'roll': item.get('roll'),
+                    'dc': item.get('dc'),
+                })
+                session.event_manager.received_event({
+                    'event': 'counterspell',
+                    'resolution': 'caster_con_save',
+                    'success': item.get('success'),
+                    'source': item.get('source'),
+                    'target': item.get('target'),
+                    'dc': item.get('dc'),
+                    'roll': item.get('roll'),
+                })
+            else:
+                session.event_manager.received_event({
+                    'event': 'ability_check',
+                    'ability': 'intelligence',
+                    'roll': item.get('roll'),
+                    'dc': item.get('dc'),
+                    'success': item.get('success'),
+                    'source': item.get('source'),
+                    'target': item.get('target'),
+                })
 
 
 class DispelMagicSpell(CounterspellSpell):
     TARGET_TYPES = ['enemies', 'allies']
+
+    def resolve(self, entity, battle, spell_action, battle_map):
+        # Dispel Magic is not Counterspell — keep 2014-style check regardless of ruleset.
+        return self._resolve_2014(entity, battle, spell_action)
 
 
 class BanishmentSpell(CounterspellSpell):

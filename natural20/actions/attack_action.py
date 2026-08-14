@@ -214,6 +214,58 @@ class AttackAction(Action):
             session.event_manager.received_event({'event': 'save_fail', 'source': item['source'], 'save_type': item['save_type'], 'roll': item['roll'], 'dc': item['dc']})
         elif item['type'] == 'prone':
             item['source'].prone()
+        elif item['type'] == 'weapon_mastery_push':
+            target = item.get('target')
+            source = item.get('source')
+            if target is not None and source is not None and battle is not None:
+                battle_map = battle.map_for(source)
+                if battle_map is not None:
+                    src_pos = battle_map.entity_or_object_pos(source)
+                    if src_pos is not None:
+                        target.push_from(
+                            battle_map, *src_pos, distance=item.get('distance', 10)
+                        )
+            session.event_manager.received_event({
+                'event': 'weapon_mastery',
+                'mastery': 'push',
+                'source': item.get('source'),
+                'target': target,
+            })
+        elif item['type'] == 'weapon_mastery_topple':
+            target = item.get('target')
+            if target is not None and hasattr(target, 'prone'):
+                target.prone()
+            session.event_manager.received_event({
+                'event': 'weapon_mastery',
+                'mastery': 'topple',
+                'source': item.get('source'),
+                'target': target,
+            })
+        elif item['type'] == 'weapon_mastery_graze':
+            target = item.get('target')
+            source = item.get('source')
+            dmg = int(item.get('damage') or 0)
+            if target is not None and dmg > 0:
+                target.take_damage(
+                    dmg,
+                    battle=battle,
+                    damage_type=item.get('damage_type'),
+                    session=session,
+                )
+            session.event_manager.received_event({
+                'event': 'weapon_mastery',
+                'mastery': 'graze',
+                'source': source,
+                'target': target,
+                'damage': dmg,
+            })
+        elif item['type'] in ('weapon_mastery_sap', 'weapon_mastery_vex', 'weapon_mastery_slow'):
+            session.event_manager.received_event({
+                'event': 'weapon_mastery',
+                'mastery': item['type'].replace('weapon_mastery_', ''),
+                'source': item.get('source'),
+                'target': item.get('target'),
+            })
         elif item['type'] == 'effect':
             if item['effect'] == 'life_drain':
                 effect = LifeDrainEffect(battle, item['source'], item['context']['damage'].result())
@@ -671,6 +723,14 @@ class AttackAction(Action):
 
             self.result.append(self.hit_result)
 
+            try:
+                from natural20.weapon_mastery import resolve_mastery_on_hit
+                self.result.extend(
+                    resolve_mastery_on_hit(self, battle, target, weapon, True, damage)
+                )
+            except Exception:
+                pass
+
             if maneuver == 'disarming_attack' and target is not None:
                 dc = self.source.maneuver_save_dc()
                 save_roll = target.save_throw('strength', battle=battle)
@@ -789,6 +849,14 @@ class AttackAction(Action):
             })
             if maneuver:
                 self.result[-1]['maneuver'] = maneuver
+
+            try:
+                from natural20.weapon_mastery import resolve_mastery_on_hit
+                self.result.extend(
+                    resolve_mastery_on_hit(self, battle, target, weapon, False, None)
+                )
+            except Exception:
+                pass
 
         return self
 

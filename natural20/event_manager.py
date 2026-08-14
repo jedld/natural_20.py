@@ -211,11 +211,21 @@ class EventManager:
                 self.output_logger.log(f"{self.show_name(event)} received damage that caused a death saving throw failure.")
 
         def shove(event):
-            rolls_description = f"Contested role for shove: {event['source_roll']} vs {event['target_roll']}"
-            if event.get('success'):
-                self.output_logger.log(f"{self.show_name(event)} shoves {self.show_target_name(event)} and succeeds. {rolls_description}. {self.show_target_name(event)} is now at {event['shove_loc']}")
+            if event.get('save_dc') is not None:
+                rolls_description = f"Shove save: {event['target_roll']} vs DC {event['save_dc']}"
             else:
-                self.output_logger.log(f"{self.show_name(event)} shoves {self.show_target_name(event)} and fails. {rolls_description}")
+                rolls_description = f"Contested check for shove: {event['source_roll']} vs {event['target_roll']}"
+            target_name = self.show_target_name(event)
+            if event.get('success'):
+                if event.get('knock_prone'):
+                    outcome = f"{target_name} is knocked prone"
+                elif event.get('shove_loc'):
+                    outcome = f"{target_name} is now at {event['shove_loc']}"
+                else:
+                    outcome = f"{target_name} could not be pushed"
+                self.output_logger.log(f"{self.show_name(event)} shoves {target_name} and succeeds. {rolls_description}. {outcome}")
+            else:
+                self.output_logger.log(f"{self.show_name(event)} shoves {target_name} and fails. {rolls_description}")
 
         def spell_damage(event):
             if event.get('spell_save', None):

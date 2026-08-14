@@ -1,0 +1,7 @@
+# SRD 5.2 Soldier background — ability bonuses + origin feat (Alert).
+---
+inherit: "@templates/backgrounds/soldier.yml"
+attribute_bonus:
+  str: 2
+  con: 1
+origin_feat: alert

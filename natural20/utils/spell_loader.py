@@ -82,6 +82,8 @@ def _build_spell_class_registry():
     from natural20.spell.vicious_mockery_spell import ViciousMockerySpell
     from natural20.spell.divine_favor_spell import DivineFavorSpell
     from natural20.spell.hunters_mark_spell import HuntersMarkSpell
+    from natural20.spell.hex_spell import HexSpell
+    from natural20.spell.searing_smite_spell import SearingSmiteSpell
     from natural20.spell.false_life_spell import FalseLifeSpell
     from natural20.spell.chromatic_orb_spell import ChromaticOrbSpell
     from natural20.spell.color_spray_spell import ColorSpraySpell
@@ -180,6 +182,8 @@ def _build_spell_class_registry():
         'ViciousMockerySpell': ViciousMockerySpell,
         'DivineFavorSpell': DivineFavorSpell,
         'HuntersMarkSpell': HuntersMarkSpell,
+        'HexSpell': HexSpell,
+        'SearingSmiteSpell': SearingSmiteSpell,
         'FalseLifeSpell': FalseLifeSpell,
         'ChromaticOrbSpell': ChromaticOrbSpell,
         'ColorSpraySpell': ColorSpraySpell,

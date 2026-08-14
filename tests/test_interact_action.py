@@ -249,6 +249,7 @@ class TestInteractAction(unittest.TestCase):
             'Help',
             'Grapple',
             'Shove',
+            'Push',
             'UseItem: healing_potion',
             'Interact(Shor Valu,give)',
             'Interact(front_door,investigation_check)',

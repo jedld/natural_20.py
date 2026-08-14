@@ -170,10 +170,15 @@ class TestObjectQuickInteractions(unittest.TestCase):
         actions = entity_quick_interact_actions_for(
             dead_goblin, self.entity, self.battle, map_obj=self.battle_map,
         )
-        self.assertEqual(len(actions), 1)
-        self.assertEqual(actions[0]['action'], 'loot')
-        self.assertIn(dead_goblin.label(), actions[0]['label'])
-        self.assertFalse(actions[0]['needs_approach'])
+        names = [a['action'] for a in actions]
+        self.assertIn('loot', names)
+        self.assertIn('carry', names)
+        loot = next(a for a in actions if a['action'] == 'loot')
+        self.assertIn(dead_goblin.label(), loot['label'])
+        self.assertFalse(loot['needs_approach'])
+        carry = next(a for a in actions if a['action'] == 'carry')
+        self.assertIn(dead_goblin.label(), carry['label'])
+        self.assertFalse(carry['needs_approach'])
 
     def test_dead_npc_loot_needs_approach_when_far(self):
         dead_goblin = next(
@@ -183,8 +188,8 @@ class TestObjectQuickInteractions(unittest.TestCase):
         actions = entity_quick_interact_actions_for(
             dead_goblin, self.entity, self.battle, map_obj=self.battle_map,
         )
-        self.assertEqual(len(actions), 1)
-        self.assertTrue(actions[0]['needs_approach'])
+        self.assertGreaterEqual(len(actions), 1)
+        self.assertTrue(all(a['needs_approach'] for a in actions))
 
     def test_living_npc_has_no_loot_quick_action(self):
         living = next(

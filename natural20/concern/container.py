@@ -52,8 +52,17 @@ class Container:
                     if qty > src.inventory[item]['qty']:
                         qty = src.inventory[item]['qty']
 
+                    source_entry = src.inventory.get(item)
+                    if not self._transfer_destination_accepts(dst, item, qty, source_entry, src, battle):
+                        continue
+
                     removed_item = src.deduct_item(item, qty)
-                    dst.add_item(item, qty, source_item=removed_item)
+                    if not removed_item:
+                        continue
+                    if self._place_creature_on_ground(dst, removed_item, battle, src):
+                        print(f"placed creature {item} onto the ground")
+                    else:
+                        dst.add_item(item, qty, source_item=removed_item)
                     print(f"triggering {item} -> {dst.label()} {qty} times")
                     # Track items taken from container for steal detection
                     if direction == 'from':
@@ -84,3 +93,69 @@ class Container:
                     source._steal_detections.extend(detections)
             except Exception:
                 pass
+
+    def _transfer_destination_accepts(self, dst, item_name, qty, source_entry, src, battle):
+        from natural20.utils.portable_creature import is_portable_creature_entry, find_drop_position, restore_portable_creature
+
+        if type(dst).__name__ == 'Ground' and is_portable_creature_entry(source_entry, item_name):
+            session = getattr(dst, 'session', None) or getattr(src, 'session', None)
+            map_obj = getattr(dst, 'map', None)
+            if map_obj is None and session is not None:
+                map_obj = session.map_for(dst) or session.map_for(src)
+            creature = restore_portable_creature(session, source_entry)
+            origin = None
+            if map_obj is not None:
+                try:
+                    origin = map_obj.position_of(dst)
+                except Exception:
+                    origin = map_obj.position_of(src)
+            if creature is None or find_drop_position(map_obj, creature, origin) is None:
+                self._transfer_reject(src, dst, 'No space to place the body')
+                return False
+            return True
+
+        accept = getattr(dst, 'can_accept_item', None)
+        if not callable(accept):
+            return True
+        ok, reason = accept(item_name, qty, source_item=source_entry)
+        if not ok:
+            self._transfer_reject(src, dst, reason)
+            return False
+        return True
+
+    def _place_creature_on_ground(self, dst, removed_item, battle, src):
+        from natural20.utils.portable_creature import is_portable_creature_entry, place_creature_from_item
+
+        if type(dst).__name__ != 'Ground' or not is_portable_creature_entry(removed_item):
+            return False
+        session = getattr(dst, 'session', None) or getattr(src, 'session', None)
+        map_obj = getattr(dst, 'map', None)
+        if map_obj is None and session is not None:
+            map_obj = session.map_for(dst) or session.map_for(src)
+        origin = None
+        if map_obj is not None:
+            try:
+                origin = map_obj.position_of(dst)
+            except Exception:
+                try:
+                    origin = map_obj.position_of(src)
+                except Exception:
+                    origin = None
+        creature, reason = place_creature_from_item(session, removed_item, map_obj, origin, battle=battle)
+        if creature is None:
+            self._transfer_reject(src, dst, reason or 'Could not place the body')
+            if hasattr(src, 'add_item'):
+                src.add_item(removed_item.get('type'), removed_item.get('qty', 1), source_item=removed_item)
+            return True
+        return True
+
+    def _transfer_reject(self, src, dst, reason):
+        session = getattr(src, 'session', None) or getattr(dst, 'session', None)
+        if session is None or not getattr(session, 'event_manager', None):
+            return
+        session.event_manager.received_event({
+            'event': 'message',
+            'source': src,
+            'target': dst,
+            'message': reason,
+        })

@@ -73,12 +73,18 @@ class DivineSmiteAction(Action):
             casting_class='paladin'
         )
 
+        if self.as_bonus_action and battle is not None:
+            state = battle.entity_state_for(self.source)
+            if state is not None and state.get('bonus_action', 0) > 0:
+                state['bonus_action'] -= 1
+
         session.event_manager.received_event({
             'event': 'divine_smite_cast',
             'source': self.source,
             'target': self.target,
             'slot_level': self.slot_level,
-            'spell': self.spell_details
+            'spell': self.spell_details,
+            'as_bonus_action': bool(self.as_bonus_action),
         })
 
         self.result = [{
@@ -97,13 +103,15 @@ class DivineSmiteAction(Action):
 
         return self
 
-    # Maximum smite dice per RAW: 5d8 from a 4th+ level slot, +1d8 vs
-    # undead or fiend (capping at 6d8 total).
+    # Maximum smite dice per RAW 2014: 5d8 from a 4th+ level slot, +1d8 vs
+    # undead or fiend (capping at 6d8 total). 2024 removes the base 5d8 cap.
     _MAX_BASE_DICE = 5
 
     def _damage_dice_count(self) -> int:
         base_dice = 2 + max(0, self.slot_level - 1)
-        base_dice = min(base_dice, self._MAX_BASE_DICE)
+        ruleset = getattr(getattr(self.source, 'session', None), 'ruleset', None)
+        if not (ruleset and ruleset.paladin_smite_is_spell()):
+            base_dice = min(base_dice, self._MAX_BASE_DICE)
         if self._is_fiend_or_undead(self.target):
             base_dice += 1
         return base_dice

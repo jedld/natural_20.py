@@ -189,6 +189,56 @@ def templates_root() -> Path:
     return checkout
 
 
+def campaign_ruleset_id(campaign_root: str | Path | None) -> str:
+    """Read ``ruleset:`` from campaign ``game.yml`` (default ``5e-2014``)."""
+    if campaign_root is None:
+        return "5e-2014"
+    campaign = Path(campaign_root).resolve()
+    game_file = campaign / "game.yml"
+    if not game_file.is_file():
+        return "5e-2014"
+    try:
+        with game_file.open("r", encoding="utf-8") as stream:
+            game_data = yaml.safe_load(stream) or {}
+    except OSError:
+        return "5e-2014"
+    if not isinstance(game_data, dict):
+        return "5e-2014"
+    raw = game_data.get("ruleset")
+    if not raw:
+        return "5e-2014"
+    from natural20.ruleset.factory import normalize_ruleset_id
+
+    return normalize_ruleset_id(str(raw))
+
+
+def ruleset_overlay_root(ruleset_id: str | None) -> Path | None:
+    """Return ``templates/rulesets/<id>/`` when it exists and is not the 2014 base."""
+    from natural20.ruleset.factory import normalize_ruleset_id
+
+    rid = normalize_ruleset_id(ruleset_id)
+    if rid == "5e-2014":
+        return None
+    root = templates_root() / "rulesets" / rid
+    return root if root.is_dir() else None
+
+
+def _load_ruleset_overlay_yaml(
+    campaign: Path,
+    category: str,
+    resource: str,
+) -> dict[str, Any] | None:
+    """Load ruleset overlay YAML for *category*/*resource* if present."""
+    overlay_root = ruleset_overlay_root(campaign_ruleset_id(campaign))
+    if overlay_root is None:
+        return None
+    path = overlay_root / category / f"{resource}.yml"
+    if not path.is_file():
+        return None
+    data = load_yaml(path, campaign_root=campaign)
+    return data if isinstance(data, dict) else None
+
+
 def deep_merge(base: Any, overlay: Any) -> Any:
     """Recursively merge *overlay* onto *base* (overlay wins on conflicts)."""
     if not isinstance(base, dict) or not isinstance(overlay, dict):
@@ -385,6 +435,22 @@ def load_yaml(
     return merged
 
 
+def _merge_template_with_ruleset_overlay(
+    campaign: Path,
+    category: str,
+    resource: str,
+    template_data: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Lowest layers: bundled templates, then campaign ruleset overlay."""
+    merged: dict[str, Any] = {}
+    if template_data is not None:
+        merged = deep_merge(merged, template_data)
+    overlay = _load_ruleset_overlay_yaml(campaign, category, resource)
+    if overlay is not None:
+        merged = deep_merge(merged, overlay)
+    return merged
+
+
 def load_campaign_yaml(
     campaign_root: str | Path,
     category: str,
@@ -399,7 +465,9 @@ def load_campaign_yaml(
     1. Campaign local files
     2. Imported campaign files
     3. Expansion pack files (from ``index.json`` ``expansion_packs``)
-    4. Bundled templates
+    4. Ruleset overlay (``templates/rulesets/<ruleset>/`` when campaign
+       ``game.yml`` sets ``ruleset:`` other than ``5e-2014``)
+    5. Bundled templates
     """
     campaign = Path(campaign_root).resolve()
     campaign_path = campaign / category / f"{resource}.yml"
@@ -426,8 +494,10 @@ def load_campaign_yaml(
             and resource in TEMPLATE_MERGE_RESOURCES
             and not explicit_inherit
         )
-        if should_merge and template_data is not None:
-            merged: dict[str, Any] = copy.deepcopy(template_data)
+        if should_merge:
+            merged = _merge_template_with_ruleset_overlay(
+                campaign, category, resource, template_data
+            )
             imported_dicts: list[dict[str, Any]] = []
             for import_path, import_root in zip(import_paths, import_roots):
                 if not import_path.is_file():
@@ -438,28 +508,23 @@ def load_campaign_yaml(
             # Earlier imports have higher precedence than later imports.
             for import_data in reversed(imported_dicts):
                 merged = deep_merge(merged, import_data)
-            return deep_merge(merged, campaign_data)
-        if should_merge:
-            merged: dict[str, Any] = {}
-            if template_data is not None:
-                merged = deep_merge(merged, template_data)
-            imported_dicts: list[dict[str, Any]] = []
-            for import_path, import_root in zip(import_paths, import_roots):
-                if not import_path.is_file():
-                    continue
-                import_data = load_yaml(import_path, campaign_root=import_root)
-                if isinstance(import_data, dict):
-                    imported_dicts.append(import_data)
-            for import_data in reversed(imported_dicts):
-                merged = deep_merge(merged, import_data)
+            if _check_expansion:
+                for expansion_root in expansion_pack_roots(campaign):
+                    expansion_file = expansion_root / category / f"{resource}.yml"
+                    if expansion_file.is_file():
+                        expansion_data = load_yaml(
+                            expansion_file, campaign_root=expansion_root
+                        )
+                        if isinstance(expansion_data, dict):
+                            merged = deep_merge(merged, expansion_data)
             return deep_merge(merged, campaign_data)
         return campaign_data
 
-    # No local file: for item catalogues, merge template + imported campaigns.
+    # No local file: for item catalogues, merge template + overlay + imports.
     if merge_templates and category == "items" and resource in TEMPLATE_MERGE_RESOURCES:
-        merged: dict[str, Any] = {}
-        if template_data is not None:
-            merged = deep_merge(merged, template_data)
+        merged = _merge_template_with_ruleset_overlay(
+            campaign, category, resource, template_data
+        )
         imported_dicts: list[dict[str, Any]] = []
         for import_path, import_root in zip(import_paths, import_roots):
             if not import_path.is_file():
@@ -470,7 +535,7 @@ def load_campaign_yaml(
         for import_data in reversed(imported_dicts):
             merged = deep_merge(merged, import_data)
 
-        # Check expansion packs (between imports and templates).
+        # Check expansion packs (between imports and templates/overlay).
         if _check_expansion:
             expansion_roots = expansion_pack_roots(campaign)
             for expansion_root in expansion_roots:
@@ -496,6 +561,11 @@ def load_campaign_yaml(
             expansion_file = expansion_root / category / f"{resource}.yml"
             if expansion_file.is_file():
                 return load_yaml(expansion_file, campaign_root=expansion_root)
+
+    # Ruleset overlay before base templates (first-found for non-merge resources).
+    overlay = _load_ruleset_overlay_yaml(campaign, category, resource)
+    if overlay is not None:
+        return overlay
 
     if template_data is not None:
         return template_data
@@ -532,6 +602,11 @@ def load_campaign_resource_path(
             expansion_file = expansion_root / relative
             if expansion_file.is_file():
                 return load_yaml(expansion_file, campaign_root=expansion_root)
+        overlay_root = ruleset_overlay_root(campaign_ruleset_id(campaign))
+        if overlay_root is not None:
+            overlay_path = overlay_root / relative
+            if overlay_path.is_file():
+                return load_yaml(overlay_path, campaign_root=campaign)
         if template_path.is_file():
             return load_yaml(template_path, campaign_root=campaign)
         raise FileNotFoundError(f"YAML resource not found: {campaign_path}")

@@ -37,7 +37,7 @@ from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.stand_action import StandAction
 from natural20.actions.prone_action import ProneAction
-from natural20.actions.shove_action import ShoveAction
+from natural20.actions.shove_action import ShoveAction, PushAction
 from natural20.actions.shell_defense_action import ShellDefenseAction, EmergenceAction
 from natural20.actions.help_action import HelpAction
 from natural20.actions.use_item_action import UseItemAction
@@ -868,8 +868,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action = DisengageBonusAction(session, self, 'disengage_bonus')
           action_list.append(action)
         elif action_type == ShoveAction:
-          action = ShoveAction(session, self, 'shove')
-          action_list.append(action)
+          action_list.append(ShoveAction(session, self, 'shove'))
+          action_list.append(PushAction(session, self, 'push'))
         elif action_type == GrappleAction:
           action = GrappleAction(session, self, 'grapple')
           action_list.append(action)
@@ -1072,6 +1072,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     elif result['action'] == 'loot':
       self.transfer(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
       return True
+    elif result['action'] == 'carry':
+      from natural20.utils.portable_creature import apply_carry_interaction
+      return apply_carry_interaction(
+        result.get('source') or entity, self, battle=result.get('battle'), session=session,
+      )
     else:
       raise NotImplementedError(f"unknown action {result['action']}")
 

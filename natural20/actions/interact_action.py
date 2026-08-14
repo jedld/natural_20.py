@@ -7,6 +7,7 @@ _DEFAULT_INTERACT_BUTTONS = {
     'give': {'label': 'Give', 'image': 'interact_give'},
     'pickup_drop': {'label': 'Transfer', 'image': 'interact_pickup_drop'},
     'loot': {'label': 'Loot', 'image': 'interact_loot'},
+    'carry': {'label': 'Carry', 'image': 'interact_pickup_drop'},
     'take': {'label': 'Take', 'image': 'interact_pickup_drop'},
     'buzz': {'label': 'Ring for Room Service', 'image': 'interact_use'},
 }

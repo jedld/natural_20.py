@@ -1,5 +1,30 @@
 import copy
 
+# Extra fields copied on inventory snapshots / YAML rows (containers, corpses, etc.).
+INVENTORY_METADATA_KEYS = (
+    'room_label',
+    'room_landmark',
+    'notify_npc',
+    'source_entity_uid',
+    'is_creature',
+    'entity_uid',
+    'creature_kind',
+    'size',
+    'weight',
+    'label',
+    'payload',
+    'image',
+)
+
+
+def _copy_inventory_metadata(source, dest):
+    if not isinstance(source, dict) or dest is None:
+        return dest
+    for key in INVENTORY_METADATA_KEYS:
+        if source.get(key) is not None and dest.get(key) is None:
+            dest[key] = copy.deepcopy(source.get(key))
+    return dest
+
 
 def snapshot_inventory_entry(entry, amount=None):
     """Build a detached inventory stack snapshot for transfers."""
@@ -34,10 +59,7 @@ def snapshot_inventory_entry(entry, amount=None):
         if entry.get('is_container'):
             snapshot['is_container'] = True
 
-    for key in ('room_label', 'room_landmark', 'notify_npc', 'source_entity_uid'):
-        if entry.get(key) is not None:
-            snapshot[key] = copy.deepcopy(entry.get(key))
-
+    _copy_inventory_metadata(entry, snapshot)
     return snapshot
 
 
@@ -57,9 +79,7 @@ def merge_inventory_entry(existing_entry, received_entry, amount=1):
         existing_entry['contents'] = copy.deepcopy(received_contents)
     if received_entry.get('is_container'):
         existing_entry['is_container'] = True
-    for key in ('room_label', 'room_landmark', 'notify_npc', 'source_entity_uid'):
-        if received_entry.get(key) is not None and existing_entry.get(key) is None:
-            existing_entry[key] = copy.deepcopy(received_entry.get(key))
+    _copy_inventory_metadata(received_entry, existing_entry)
     return existing_entry
 
 
@@ -84,9 +104,7 @@ def yaml_inventory_source_item(entry: dict) -> dict | None:
     elif entry.get('is_container'):
         source['contents'] = []
         source['is_container'] = True
-    for key in ('room_label', 'room_landmark', 'notify_npc', 'source_entity_uid'):
-        if entry.get(key) is not None:
-            source[key] = copy.deepcopy(entry.get(key))
+    _copy_inventory_metadata(entry, source)
     return source
 
 
@@ -112,6 +130,7 @@ def serialize_inventory_for_yaml(inventory: dict | None) -> list[dict] | None:
             row['contents'] = copy.deepcopy(entry.get('contents') or [])
         if entry.get('is_container'):
             row['is_container'] = True
+        _copy_inventory_metadata(entry, row)
         rows.append(row)
     return rows
 
@@ -129,17 +148,27 @@ class Inventory:
         except Exception:
             return {}
 
-    def _item_weight_lbs(self, item_name, session=None, qty=1):
-        definition = self._item_definition(item_name, session)
-        try:
-            weight = float(definition.get('weight') or 0)
-        except (TypeError, ValueError):
-            weight = 0.0
+    def _item_weight_lbs(self, item_name, session=None, qty=1, entry=None):
+        if isinstance(entry, dict) and entry.get('weight') is not None:
+            try:
+                weight = float(entry.get('weight') or 0)
+            except (TypeError, ValueError):
+                weight = 0.0
+        else:
+            definition = self._item_definition(item_name, session)
+            try:
+                weight = float(definition.get('weight') or 0)
+            except (TypeError, ValueError):
+                weight = 0.0
         try:
             amount = max(0, int(qty))
         except (TypeError, ValueError):
             amount = 1
         return weight * amount
+
+    def _content_weight_lbs(self, content, session=None):
+        content_type = (content or {}).get('type') or (content or {}).get('item')
+        return self._item_weight_lbs(content_type, session, (content or {}).get('qty', 1), entry=content)
 
     def load_inventory(self):
         self.inventory = {}
@@ -213,6 +242,13 @@ class Inventory:
         except (TypeError, ValueError):
             return None
 
+    def container_max_item_size(self, item_name, session=None):
+        """Largest size category this container will accept (e.g. small)."""
+        from natural20.utils.item_size import default_container_max_item_size
+
+        definition = self._item_definition(item_name, session)
+        return default_container_max_item_size(definition)
+
     def container_extradimensional(self, item_name, session=None):
         """True when container contents should not add to the carrier's encumbrance."""
         definition = self._item_definition(item_name, session)
@@ -236,9 +272,9 @@ class Inventory:
         total = 0.0
         for content in self.get_container_contents(item_name):
             content_type = content.get('type') or content.get('item')
-            if not content_type:
+            if not content_type and not content.get('is_creature'):
                 continue
-            total += self._item_weight_lbs(content_type, session, content.get('qty', 1))
+            total += self._content_weight_lbs(content, session)
         return total
 
     def container_status(self, item_name, session=None):
@@ -254,9 +290,11 @@ class Inventory:
             enriched.append({
                 'type': content_type,
                 'qty': content.get('qty', 1),
-                'label': definition.get('label') or definition.get('name') or content_type,
-                'weight': definition.get('weight'),
-                'weight_total': self._item_weight_lbs(content_type, session, content.get('qty', 1)),
+                'label': content.get('label') or definition.get('label') or definition.get('name') or content_type,
+                'weight': content.get('weight', definition.get('weight')),
+                'weight_total': self._content_weight_lbs(content, session),
+                'size': content.get('size') or definition.get('size'),
+                'is_creature': bool(content.get('is_creature')),
             })
         return {
             'container': item_name,
@@ -267,13 +305,18 @@ class Inventory:
             'weight_used_lbs': round(weight_used, 2),
             'capacity_lbs': capacity_lbs,
             'capacity_cu_ft': capacity_cu_ft,
+            'max_item_size': self.container_max_item_size(item_name, session),
             'weight_remaining_lbs': None if capacity_lbs is None else round(max(0.0, capacity_lbs - weight_used), 2),
             'extradimensional': self.container_extradimensional(item_name, session),
             'counts_toward_carry_weight': self.container_counts_toward_carry_weight(item_name, session),
         }
 
-    def can_fit_in_container(self, item_name, content_item, content_qty=1, session=None):
+    def can_fit_in_container(self, item_name, content_item, content_qty=1, session=None, source_item=None):
+        from natural20.utils.item_size import resolve_item_size, size_allows
+        from natural20.utils.portable_creature import is_portable_creature_entry
+
         session = self._resolve_session(session)
+        source_item = source_item or (self.inventory or {}).get(content_item)
         if not self.is_container(item_name, session):
             if item_name not in (self.inventory or {}):
                 return False, 'Item is not a container'
@@ -290,14 +333,23 @@ class Inventory:
         except (TypeError, ValueError):
             qty = 1
 
+        definition = self._item_definition(content_item, session) if session is not None else {}
+        is_creature = is_portable_creature_entry(source_item, content_item)
+        if session is not None and not definition and not is_creature:
+            return False, f'Unknown item: {content_item}'
+
+        item_size = resolve_item_size(content_item, session, source_item, definition)
+        max_size = self.container_max_item_size(item_name, session)
+        if max_size and not size_allows(item_size, max_size):
+            return False, (
+                f'{item_name} cannot hold {item_size} items '
+                f'(max {max_size})'
+            )
+
         if session is None:
             return True, None
 
-        definition = self._item_definition(content_item, session)
-        if not definition:
-            return False, f'Unknown item: {content_item}'
-
-        added_weight = self._item_weight_lbs(content_item, session, qty)
+        added_weight = self._item_weight_lbs(content_item, session, qty, entry=source_item)
         capacity_lbs = self.container_capacity_lbs(item_name, session)
         if capacity_lbs is not None:
             projected = self.contents_weight(item_name, session) + added_weight
@@ -309,7 +361,7 @@ class Inventory:
                 )
 
         capacity_cu_ft = self.container_capacity_cu_ft(item_name, session)
-        item_bulk = definition.get('bulk_cu_ft', definition.get('volume_cu_ft'))
+        item_bulk = (definition or {}).get('bulk_cu_ft', (definition or {}).get('volume_cu_ft'))
         if capacity_cu_ft is not None and item_bulk is not None:
             try:
                 added_volume = float(item_bulk) * qty
@@ -331,13 +383,18 @@ class Inventory:
 
         return True, None
 
-    def add_to_container(self, item_name, content_item, content_qty=1, session=None):
-        ok, _reason = self.add_to_container_checked(item_name, content_item, content_qty, session=session)
+    def add_to_container(self, item_name, content_item, content_qty=1, session=None, source_item=None):
+        ok, _reason = self.add_to_container_checked(
+            item_name, content_item, content_qty, session=session, source_item=source_item,
+        )
         return ok
 
-    def add_to_container_checked(self, item_name, content_item, content_qty=1, session=None):
+    def add_to_container_checked(self, item_name, content_item, content_qty=1, session=None, source_item=None):
         session = self._resolve_session(session)
-        can_fit, reason = self.can_fit_in_container(item_name, content_item, content_qty, session=session)
+        source_item = source_item or (self.inventory or {}).get(content_item)
+        can_fit, reason = self.can_fit_in_container(
+            item_name, content_item, content_qty, session=session, source_item=source_item,
+        )
         if not can_fit:
             return False, reason
 
@@ -353,14 +410,21 @@ class Inventory:
         except (TypeError, ValueError):
             qty = 1
 
-        contents = self.inventory[item_name].get('contents', [])
-        for content in contents:
-            if (content.get('type') or content.get('item')) == content_item:
-                content['qty'] = content.get('qty', 0) + qty
-                self.inventory[item_name]['contents'] = contents
-                return True, None
+        from natural20.utils.portable_creature import is_portable_creature_entry
 
-        contents.append({'type': content_item, 'qty': qty})
+        contents = self.inventory[item_name].get('contents', [])
+        unique = is_portable_creature_entry(source_item, content_item)
+        if not unique:
+            for content in contents:
+                if (content.get('type') or content.get('item')) == content_item:
+                    content['qty'] = content.get('qty', 0) + qty
+                    self.inventory[item_name]['contents'] = contents
+                    return True, None
+
+        row = {'type': content_item, 'qty': qty}
+        if isinstance(source_item, dict):
+            _copy_inventory_metadata(source_item, row)
+        contents.append(row)
         self.inventory[item_name]['contents'] = contents
         return True, None
 
@@ -373,13 +437,14 @@ class Inventory:
 
         for index, content in enumerate(contents):
             if (content.get('type') or content.get('item')) == content_item:
+                removed = snapshot_inventory_entry(content, qty)
                 current_qty = content.get('qty', 0)
                 if current_qty <= qty:
                     contents.pop(index)
                 else:
                     content['qty'] = current_qty - qty
                 self.inventory[item_name]['contents'] = contents
-                return True
+                return removed
         return False
 
     def stowable_inventory_items(self, container_name, session=None):
@@ -406,9 +471,10 @@ class Inventory:
             definition = self._item_definition(item_name, session)
             stowable.append({
                 'name': item_name,
-                'label': definition.get('label') or definition.get('name') or item_name,
+                'label': item_data.get('label') or definition.get('label') or definition.get('name') or item_name,
                 'qty': qty,
-                'weight': definition.get('weight'),
+                'weight': item_data.get('weight', definition.get('weight')),
+                'size': item_data.get('size') or definition.get('size'),
             })
         return stowable
 
@@ -423,7 +489,10 @@ class Inventory:
         if not inventory_entry or int(inventory_entry.get('qty', 0) or 0) < amount:
             return False, 'Not enough of that item in your inventory'
 
-        ok, reason = self.add_to_container_checked(container_name, item_name, amount, session=session)
+        source = snapshot_inventory_entry(inventory_entry, amount)
+        ok, reason = self.add_to_container_checked(
+            container_name, item_name, amount, session=session, source_item=source,
+        )
         if not ok:
             return False, reason
 
@@ -437,10 +506,11 @@ class Inventory:
         except (TypeError, ValueError):
             amount = 1
 
-        if not self.remove_from_container(container_name, item_name, amount):
+        removed = self.remove_from_container(container_name, item_name, amount)
+        if not removed:
             return False, 'Item not found in container'
 
-        self.add_item(item_name, amount)
+        self.add_item(item_name, amount, source_item=removed if isinstance(removed, dict) else None)
         return True, None
 
     def carry_weight_status(self, session=None):
