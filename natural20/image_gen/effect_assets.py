@@ -45,6 +45,7 @@ _EFFECT_FALLBACK_SPELL_SLUGS: dict[str, str] = {
     "bardic_inspiration": "guidance",
     "absorb_elements": "absorb_elements",
     "divine_smite": "divine_smite",
+    "tiny_hut": "leomunds_tiny_hut",
 }
 
 # Slugs still required when class discovery cannot instantiate the effect.

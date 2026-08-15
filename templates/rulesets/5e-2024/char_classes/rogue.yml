@@ -1,0 +1,7 @@
+# SRD 5.2 Rogue overlay — Weapon Mastery at level 1.
+---
+inherit: "@templates/char_classes/rogue.yml"
+class_features:
+  - sneak_attack
+  - weapon_mastery
+weapon_mastery_known: 2

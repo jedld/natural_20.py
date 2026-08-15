@@ -20,6 +20,8 @@ dagger_plus_one:
   magic_bonus: 1
   magical: true
   name: Dagger +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - simple
   properties:
@@ -43,6 +45,8 @@ quarterstaff_plus_one:
   magic_bonus: 1
   magical: true
   name: Quarterstaff +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - simple
   properties:
@@ -60,6 +64,8 @@ light_hammer_plus_one:
   magic_bonus: 1
   magical: true
   name: Light Hammer +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - simple
   properties:
@@ -81,6 +87,8 @@ handaxe_plus_one:
   magic_bonus: 1
   magical: true
   name: Handaxe +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - simple
   properties:
@@ -102,6 +110,8 @@ javelin_plus_one:
   magic_bonus: 1
   magical: true
   name: Javelin +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - simple
   properties:
@@ -123,6 +133,8 @@ light_crossbow_plus_one:
   magic_bonus: 1
   magical: true
   name: Light Crossbow +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - simple
   properties:
@@ -145,6 +157,8 @@ sling_plus_one:
   magic_bonus: 1
   magical: true
   name: Sling +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - simple
   properties:
@@ -168,6 +182,8 @@ battleaxe_plus_one:
   magic_bonus: 1
   magical: true
   name: Battleaxe +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -185,6 +201,8 @@ greataxe_plus_one:
   magic_bonus: 1
   magical: true
   name: Greataxe +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -204,6 +222,8 @@ longsword_plus_one:
   magic_bonus: 1
   magical: true
   name: Longsword +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -221,6 +241,8 @@ greatsword_plus_one:
   magic_bonus: 1
   magical: true
   name: Greatsword +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -240,6 +262,8 @@ longbow_plus_one:
   magic_bonus: 1
   magical: true
   name: Longbow +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -262,6 +286,8 @@ heavy_crossbow_plus_one:
   magic_bonus: 1
   magical: true
   name: Heavy Crossbow +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -285,6 +311,8 @@ hand_crossbow_plus_one:
   magic_bonus: 1
   magical: true
   name: Hand Crossbow +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -307,6 +335,8 @@ warhammer_plus_one:
   magic_bonus: 1
   magical: true
   name: Warhammer +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -324,6 +354,8 @@ mace_plus_one:
   magic_bonus: 1
   magical: true
   name: Mace +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties: []
@@ -340,6 +372,8 @@ trident_plus_one:
   magic_bonus: 1
   magical: true
   name: Trident +1
+  flavor_text: Faint runes glimmer along the metal, and the weapon sits lighter in the hand than it should.
+  description: You have a +1 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -365,6 +399,8 @@ longsword_plus_two:
   magic_bonus: 2
   magical: true
   name: Longsword +2
+  flavor_text: The weapon hums with stored power; sparks of pale light crawl the edge when it is drawn.
+  description: You have a +2 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -382,6 +418,8 @@ greataxe_plus_two:
   magic_bonus: 2
   magical: true
   name: Greataxe +2
+  flavor_text: The weapon hums with stored power; sparks of pale light crawl the edge when it is drawn.
+  description: You have a +2 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -401,6 +439,8 @@ battleaxe_plus_two:
   magic_bonus: 2
   magical: true
   name: Battleaxe +2
+  flavor_text: The weapon hums with stored power; sparks of pale light crawl the edge when it is drawn.
+  description: You have a +2 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -419,6 +459,8 @@ longbow_plus_two:
   magic_bonus: 2
   magical: true
   name: Longbow +2
+  flavor_text: The weapon hums with stored power; sparks of pale light crawl the edge when it is drawn.
+  description: You have a +2 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -441,6 +483,8 @@ hand_crossbow_plus_two:
   magic_bonus: 2
   magical: true
   name: Hand Crossbow +2
+  flavor_text: The weapon hums with stored power; sparks of pale light crawl the edge when it is drawn.
+  description: You have a +2 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -462,6 +506,8 @@ dagger_plus_two:
   magic_bonus: 2
   magical: true
   name: Dagger +2
+  flavor_text: The weapon hums with stored power; sparks of pale light crawl the edge when it is drawn.
+  description: You have a +2 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - simple
   properties:
@@ -488,6 +534,8 @@ longsword_plus_three:
   magic_bonus: 3
   magical: true
   name: Longsword +3
+  flavor_text: This weapon is unmistakably enchanted — the air around it tastes of ozone and old magic.
+  description: You have a +3 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -505,6 +553,8 @@ greataxe_plus_three:
   magic_bonus: 3
   magical: true
   name: Greataxe +3
+  flavor_text: This weapon is unmistakably enchanted — the air around it tastes of ozone and old magic.
+  description: You have a +3 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -524,6 +574,8 @@ battleaxe_plus_three:
   magic_bonus: 3
   magical: true
   name: Battleaxe +3
+  flavor_text: This weapon is unmistakably enchanted — the air around it tastes of ozone and old magic.
+  description: You have a +3 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -542,6 +594,8 @@ longbow_plus_three:
   magic_bonus: 3
   magical: true
   name: Longbow +3
+  flavor_text: This weapon is unmistakably enchanted — the air around it tastes of ozone and old magic.
+  description: You have a +3 bonus to attack and damage rolls made with this magic weapon.
   proficiency_type:
     - martial
   properties:
@@ -565,6 +619,8 @@ studded_leather_plus_one:
   magic_bonus: 1
   magical: true
   name: Studded Leather Armor +1
+  flavor_text: "The armor's joints move more freely than mundane work, as if the metal were willing."
+  description: You have a +1 bonus to AC while wearing this armor. Requires attunement.
   subtype: light
   type: armor
   weight: 13
@@ -576,6 +632,8 @@ scale_mail_plus_one:
   magic_bonus: 1
   magical: true
   name: Scale Mail +1
+  flavor_text: "The armor's joints move more freely than mundane work, as if the metal were willing."
+  description: You have a +1 bonus to AC while wearing this armor. Requires attunement.
   subtype: medium
   metallic: true
   type: armor
@@ -589,6 +647,8 @@ breastplate_plus_one:
   magic_bonus: 1
   magical: true
   name: Breastplate +1
+  flavor_text: "The armor's joints move more freely than mundane work, as if the metal were willing."
+  description: You have a +1 bonus to AC while wearing this armor. Requires attunement.
   subtype: medium
   metallic: true
   type: armor
@@ -602,6 +662,8 @@ chain_mail_plus_one:
   magic_bonus: 1
   magical: true
   name: Chain Mail +1
+  flavor_text: "The armor's joints move more freely than mundane work, as if the metal were willing."
+  description: You have a +1 bonus to AC while wearing this armor. Requires attunement.
   subtype: heavy
   metallic: true
   type: armor
@@ -615,6 +677,8 @@ plate_plus_one:
   magic_bonus: 1
   magical: true
   name: Plate Armor +1
+  flavor_text: "The armor's joints move more freely than mundane work, as if the metal were willing."
+  description: You have a +1 bonus to AC while wearing this armor. Requires attunement.
   subtype: heavy
   metallic: true
   type: armor
@@ -628,6 +692,8 @@ half_plate_plus_one:
   magic_bonus: 1
   magical: true
   name: Half Plate +1
+  flavor_text: "The armor's joints move more freely than mundane work, as if the metal were willing."
+  description: You have a +1 bonus to AC while wearing this armor. Requires attunement.
   subtype: medium
   metallic: true
   type: armor
@@ -641,6 +707,8 @@ chain_shirt_plus_one:
   magical: true
   mod_cap: 2
   name: Chain Shirt +1
+  flavor_text: "The armor's joints move more freely than mundane work, as if the metal were willing."
+  description: You have a +1 bonus to AC while wearing this armor. Requires attunement.
   metallic: true
   subtype: medium
   type: armor
@@ -653,6 +721,8 @@ splint_plus_one:
   magic_bonus: 1
   magical: true
   name: Splint Armor +1
+  flavor_text: "The armor's joints move more freely than mundane work, as if the metal were willing."
+  description: You have a +1 bonus to AC while wearing this armor. Requires attunement.
   subtype: heavy
   metallic: true
   type: armor
@@ -666,6 +736,8 @@ studded_leather_plus_two:
   magic_bonus: 2
   magical: true
   name: Studded Leather Armor +2
+  flavor_text: Protective glyphs are inlaid along the plates, cool to the touch.
+  description: You have a +2 bonus to AC while wearing this armor. Requires attunement.
   subtype: light
   type: armor
   weight: 13
@@ -678,6 +750,8 @@ breastplate_plus_two:
   magic_bonus: 2
   magical: true
   name: Breastplate +2
+  flavor_text: Protective glyphs are inlaid along the plates, cool to the touch.
+  description: You have a +2 bonus to AC while wearing this armor. Requires attunement.
   subtype: medium
   metallic: true
   type: armor
@@ -691,6 +765,8 @@ plate_plus_two:
   magic_bonus: 2
   magical: true
   name: Plate Armor +2
+  flavor_text: Protective glyphs are inlaid along the plates, cool to the touch.
+  description: You have a +2 bonus to AC while wearing this armor. Requires attunement.
   subtype: heavy
   metallic: true
   type: armor
@@ -704,6 +780,8 @@ chain_mail_plus_two:
   magic_bonus: 2
   magical: true
   name: Chain Mail +2
+  flavor_text: Protective glyphs are inlaid along the plates, cool to the touch.
+  description: You have a +2 bonus to AC while wearing this armor. Requires attunement.
   subtype: heavy
   metallic: true
   type: armor
@@ -718,6 +796,8 @@ plate_plus_three:
   magic_bonus: 3
   magical: true
   name: Plate Armor +3
+  flavor_text: This armor sheds a barely visible sheen, turning blows that ought to land.
+  description: You have a +3 bonus to AC while wearing this armor. Requires attunement.
   subtype: heavy
   metallic: true
   type: armor
@@ -733,6 +813,8 @@ shield_plus_one:
   magic_bonus: 1
   magical: true
   name: Shield +1
+  flavor_text: "The shield's boss is inlaid with a warding rune that warms when danger is near."
+  description: You have a +1 bonus to AC while wielding this shield. Requires attunement.
   type: shield
   metallic: true
   weight: 6
@@ -744,6 +826,8 @@ shield_plus_two:
   magic_bonus: 2
   magical: true
   name: Shield +2
+  flavor_text: Blows seem to glance aside as if the shield were larger than its rim.
+  description: You have a +2 bonus to AC while wielding this shield. Requires attunement.
   type: shield
   metallic: true
   weight: 6
@@ -755,6 +839,8 @@ shield_plus_three:
   magic_bonus: 3
   magical: true
   name: Shield +3
+  flavor_text: This shield rings like a bell when struck, and the note hangs in the air.
+  description: You have a +3 bonus to AC while wielding this shield. Requires attunement.
   type: shield
   metallic: true
   weight: 6
@@ -768,6 +854,9 @@ amulet_of_health:
   magical: true
   magic_bonus: 0
   name: Amulet of Health
+  flavor_text: A heavy amulet on a thick chain; wearing it steadies the breath and the blood.
+  description: >-
+    Your Constitution score is 19 while you wear this amulet. It has no effect on you if your Constitution is already 19 or higher. Requires attunement.
   type: accessory
   equippable: true
   weight: 1
@@ -780,6 +869,8 @@ ring_of_protection:
   magical: true
   magic_bonus: 1
   name: Ring of Protection
+  flavor_text: A plain band that seems to turn just before a blow would land.
+  description: You gain a +1 bonus to AC and saving throws while wearing this ring. Requires attunement.
   type: accessory
   equippable: true
   weight: 0.1
@@ -792,6 +883,9 @@ headband_of_intellect:
   magical: true
   magic_bonus: 0
   name: Headband of Intellect
+  flavor_text: A slim circlet that settles on the brow and clears the fog from thought.
+  description: >-
+    Your Intelligence score is 19 while you wear this headband. It has no effect on you if your Intelligence is already 19 or higher. Requires attunement.
   type: accessory
   equippable: true
   weight: 0.5
@@ -804,6 +898,9 @@ cloak_of_protection:
   magical: true
   magic_bonus: 1
   name: Cloak of Protection
+  flavor_text: A well-made cloak whose hem never quite catches on thorn or blade.
+  description: >-
+    You gain a +1 bonus to AC and saving throws while you wear this cloak. Requires attunement.
   type: accessory
   equippable: true
   weight: 1
@@ -816,6 +913,9 @@ gloves_of_thievery:
   magical: true
   magic_bonus: 0
   name: Gloves of Thievery
+  flavor_text: Supple gloves that seem to find the edge of a lock as if they had eyes.
+  description: >-
+    These gloves are invisible while worn. While wearing them, you gain a bonus to Dexterity (Sleight of Hand) checks and to checks made to pick locks. Requires attunement. (SRD 5.2)
   type: accessory
   equippable: true
   weight: 0.5
@@ -828,6 +928,9 @@ boots_of_striding_and_springing:
   magical: true
   magic_bonus: 0
   name: Boots of Striding and Springing
+  flavor_text: These boots ignore the weight of armor and drink bad footing like dry earth drinks rain.
+  description: >-
+    While you wear these boots, your walking speed becomes 30 feet, unless your walking speed is higher, and your speed isn't reduced if you are encumbered or wearing heavy armor. With a 10-foot running start, you can long jump up to 30 feet and high jump up to 15 feet. Requires attunement.
   type: accessory
   equippable: true
   weight: 4
@@ -839,6 +942,9 @@ instrument_of_illusions:
   magical: true
   magic_bonus: 0
   name: Instrument of Illusions
+  flavor_text: Notes from this instrument shimmer in the air like heat above a road.
+  description: >-
+    While you play this instrument, you can weave minor visual illusions into the performance. Requires attunement.
   type: instrument
   equippable: false
   weight: 3
@@ -855,6 +961,9 @@ flame_tongue_longsword:
   magic_bonus: 2
   magical: true
   name: Flame Tongue
+  flavor_text: Command the blade, and fire runs its length like oil catching light.
+  description: >-
+    You can use a bonus action to speak this magic sword's command word, causing flames to erupt from the blade. These flames shed bright light in a 40-foot radius and dim light for an additional 40 feet. While the sword is ablaze, it deals an extra 2d6 fire damage to any target it hits. Requires attunement.
   proficiency_type:
     - martial
   properties:
@@ -872,6 +981,9 @@ frost_brand_longsword:
   magic_bonus: 2
   magical: true
   name: Frost Brand
+  flavor_text: Frost feathers the fuller; the steel drinks heat from the air around it.
+  description: >-
+    When you hit with an attack using this magic sword, the target takes an extra 1d6 cold damage. In addition, while you hold the sword, you have resistance to fire damage. In freezing temperatures, the blade sheds bright light in a 10-foot radius and dim light for an additional 10 feet. Requires attunement.
   proficiency_type:
     - martial
   properties:
@@ -890,6 +1002,9 @@ sun_blade:
   magic_bonus: 2
   magical: true
   name: Sunblade
+  flavor_text: The hilt is real; the blade is a bar of daylight that appears when it is grasped.
+  description: >-
+    This item appears to be a longsword hilt. While grasping it, you can use a bonus action to cause a blade of pure radiance to spring into existence. The blade emits bright light in a 15-foot radius and dim light for an additional 15 feet. It deals radiant damage and has the finesse property. Requires attunement.
   proficiency_type:
     - martial
   properties:
@@ -922,6 +1037,9 @@ dragon_scale_mail:
   magic_bonus: 1
   magical: true
   name: Dragon Scale Mail
+  flavor_text: Armor of overlapping dragon scales, still faintly warm, still faintly proud.
+  description: >-
+    Dragon scale mail is made of the scales of one kind of dragon. While wearing it, you gain a +1 bonus to AC, you have advantage on saving throws against the Frightful Presence and breath weapons of dragons, and you have resistance to one damage type determined by the dragon kind. Requires attunement.
   subtype: heavy
   metallic: true
   type: armor
@@ -936,6 +1054,9 @@ cloak_of_displacement:
   magic_bonus: 0
   magical: true
   name: Cloak of Displacement
+  flavor_text: The cloak throws your image a step to the side, a shimmering lie that blades chase.
+  description: >-
+    While you wear this cloak, it projects an illusion that makes you appear to be standing in a place near your actual location, causing attack rolls against you to have disadvantage. If you take damage, the property ceases to function until the start of your next turn. Requires attunement.
   type: armor
   subtype: light
   weight: 1
@@ -946,6 +1067,7 @@ bag_of_holding:
   cost: 0
   magical: true
   name: Bag of Holding
+  flavor_text: The mouth of the bag is a dark circle. Reach in, and the bottom is never where it should be.
   type: container
   equippable: true
   weight: 15
@@ -960,6 +1082,7 @@ bag_of_beans:
   cost: 0
   magical: true
   name: Bag of Beans
+  flavor_text: A handful of ordinary-looking beans that are anything but ordinary once they meet earth.
   type: accessory
   equippable: false
   weight: 0.5
@@ -968,6 +1091,9 @@ necklace_of_fireballs:
   cost: 0
   magical: true
   name: Necklace of Fireballs
+  flavor_text: A golden chain hung with beads like trapped embers, each one a bottled fireball.
+  description: >-
+    This necklace has 1d6 + 3 beads hanging from it. You can use an action to detach a bead and throw it up to 60 feet. When it reaches the end of its trajectory, the bead detonates as a 3rd-level fireball.
   type: accessory
   equippable: true
   usable: true
@@ -986,6 +1112,9 @@ wand_of_magic_missiles:
   cost: 0
   magical: true
   name: Wand of Magic Missiles
+  flavor_text: A slender wand that kicks in the hand when it looses darts of force.
+  description: >-
+    This wand has 7 charges. While holding it, you can use an action to expend 1 or more of its charges to cast magic missile from it. For 1 charge, you cast the 1st-level version; you increase the spell slot by one for each additional charge. The wand regains 1d6 + 1 expended charges daily at dawn.
   type: accessory
   equippable: true
   usable: true
@@ -1012,6 +1141,9 @@ staff_of_defense:
   cost: 0
   magical: true
   name: Staff of Defense
+  flavor_text: A plain wooden staff that grows warm when a spell of warding is near.
+  description: >-
+    This staff can be wielded as a magic quarterstaff. While holding it, you can expend charges to cast mage armor (1 charge) or shield (2 charges). Requires attunement.
   type: accessory
   equippable: true
   usable: true

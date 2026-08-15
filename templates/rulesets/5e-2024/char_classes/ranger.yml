@@ -1,0 +1,6 @@
+# SRD 5.2 Ranger overlay — Weapon Mastery at level 1.
+---
+inherit: "@templates/char_classes/ranger.yml"
+class_features:
+  - weapon_mastery
+weapon_mastery_known: 2

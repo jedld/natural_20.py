@@ -566,6 +566,12 @@ class EventManager:
             'bardic_inspiration_used': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} uses Bardic Inspiration ({event.get('die', '1d6')}) and adds {event.get('bonus')} (rolled {event.get('roll')})."
             ),
+            'inspiration_granted': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} gains {event.get('label', 'Inspiration')}."
+            ),
+            'inspiration_used': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} spends {event.get('label', 'Inspiration')}."
+            ),
             'look': look,
             'message': lambda event: self.output_logger.log(f"{self.show_name(event)}: {event['message']}"),
             'narration': self._handle_narration_event,
@@ -661,10 +667,51 @@ class EventManager:
             'ready_action_error': lambda event: self.output_logger.log(
                 f"{self.show_name(event)}'s readied action errored: {event.get('error', 'unknown')}"
             ),
+            'weapon_mastery': self._handle_weapon_mastery,
         }
 
         for event, handler in event_handlers.items():
             self.register_event_listener(event, handler)
+
+    def _handle_weapon_mastery(self, event):
+        mastery = str(event.get("mastery") or "").lower()
+        labels = {
+            "push": "Push",
+            "topple": "Topple",
+            "sap": "Sap",
+            "vex": "Vex",
+            "slow": "Slow",
+            "graze": "Graze",
+            "cleave": "Cleave",
+            "nick": "Nick",
+        }
+        label = labels.get(mastery, mastery.title() or "Weapon Mastery")
+        source = self.show_name(event)
+        target = self.show_target_name(event) if event.get("target") is not None else "the target"
+        if mastery == "push":
+            dest = event.get("destination")
+            extra = f" to {dest}" if dest else ""
+            self.output_logger.log(f"{source} uses Weapon Mastery ({label}) and pushes {target}{extra}.")
+        elif mastery == "topple":
+            self.output_logger.log(f"{source} uses Weapon Mastery ({label}): {target} is knocked prone.")
+        elif mastery == "sap":
+            self.output_logger.log(
+                f"{source} uses Weapon Mastery ({label}): {target} has disadvantage on its next attack."
+            )
+        elif mastery == "vex":
+            self.output_logger.log(
+                f"{source} uses Weapon Mastery ({label}): advantage on their next attack against {target}."
+            )
+        elif mastery == "slow":
+            self.output_logger.log(
+                f"{source} uses Weapon Mastery ({label}): {target}'s speed is reduced by 10 feet."
+            )
+        elif mastery == "graze":
+            dmg = event.get("damage")
+            dmg_bit = f" for {dmg} damage" if dmg else ""
+            self.output_logger.log(f"{source} uses Weapon Mastery ({label}) and grazes {target}{dmg_bit}.")
+        else:
+            self.output_logger.log(f"{source} uses Weapon Mastery ({label}) on {target}.")
 
     def show_name(self, event):
         return self.decorate_name(event['source'])

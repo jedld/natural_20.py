@@ -22,6 +22,9 @@ class UseItemAction(Action):
         # source's reaction (e.g. "ready a healing potion if my ally goes
         # down").
         self.as_reaction = False
+        # When set, a consumable is deducted from this container instead of
+        # top-level inventory (sheet "use from backpack" convenience).
+        self.inventory_container = None
 
 
     def __str__(self):
@@ -39,6 +42,7 @@ class UseItemAction(Action):
         action.at_level = self.at_level
         action.spell_action = self.spell_action
         action.as_reaction = self.as_reaction
+        action.inventory_container = getattr(self, 'inventory_container', None)
         return action
     
     @staticmethod
@@ -83,6 +87,50 @@ class UseItemAction(Action):
             ],
             "next": next_fn
         }
+
+    @staticmethod
+    def build_self_use(session, source, item_name, target=None, container_name=None):
+        """Build a UseItemAction that auto-targets ``target`` (default: self).
+
+        Used by the character-sheet inventory. Items that need map targeting
+        (scrolls, cones, etc.) raise ``ValueError``.
+        """
+        action = UseItemAction(session, source, 'use_item')
+        action.inventory_container = container_name or None
+        step = action.build_next(item_name)
+        resolved_target = target or source
+
+        def _finish(step_obj):
+            if isinstance(step_obj, UseItemAction):
+                if getattr(step_obj, 'target', None) is None:
+                    step_obj.target = resolved_target
+                step_obj.inventory_container = action.inventory_container
+                return step_obj
+            if isinstance(step_obj, dict) and isinstance(step_obj.get('action'), UseItemAction):
+                inner = step_obj['action']
+                if getattr(inner, 'target', None) is None:
+                    inner.target = resolved_target
+                inner.inventory_container = action.inventory_container
+                return inner
+            raise ValueError('This item needs to be used from the action bar.')
+
+        if isinstance(step, UseItemAction):
+            return _finish(step)
+        if not isinstance(step, dict):
+            raise ValueError('This item needs to be used from the action bar.')
+
+        params = step.get('param') or []
+        if not params:
+            return _finish(step)
+        param = params[0] if isinstance(params[0], dict) else {}
+        param_type = param.get('type')
+        next_fn = step.get('next')
+        if param_type == 'select_target' and callable(next_fn):
+            target_types = [str(entry).strip().lower() for entry in (param.get('target_types') or [])]
+            if 'self' not in target_types and 'allies' not in target_types:
+                raise ValueError('This item needs a target from the action bar.')
+            return _finish(next_fn(resolved_target))
+        raise ValueError('This item needs to be used from the action bar.')
 
     def build_next(self, item):
         item_details = dict(self.session.load_equipment(item) or {})
@@ -130,6 +178,7 @@ class UseItemAction(Action):
             "type": "use_item",
             "item": self.target_item,
             "as_reaction": bool(getattr(self, 'as_reaction', False)),
+            "inventory_container": getattr(self, 'inventory_container', None),
         }
         item_result = self.target_item.resolve(self.source, battle, self, map)
 
@@ -155,7 +204,11 @@ class UseItemAction(Action):
                 session.event_manager.received_event({"event": "use_item", "source": item["source"], "item": item["item"], "target": item["target"]})
             item["item"].use(item["target"], item)
             if item["item"].consumable():
-                item["source"].deduct_item(item["item"].name, 1)
+                item["source"].deduct_item(
+                    item["item"].name,
+                    1,
+                    container_name=item.get("inventory_container"),
+                )
             if battle:
                 if item.get("as_reaction"):
                     # Readied use_item: the action was prepared on the

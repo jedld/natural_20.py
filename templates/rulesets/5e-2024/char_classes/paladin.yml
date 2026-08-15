@@ -1,0 +1,8 @@
+# SRD 5.2 Paladin overlay — Weapon Mastery at level 1.
+---
+inherit: "@templates/char_classes/paladin.yml"
+class_features:
+  - divine_sense
+  - lay_on_hands
+  - weapon_mastery
+weapon_mastery_known: 2

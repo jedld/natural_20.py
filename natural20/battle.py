@@ -717,8 +717,14 @@ class Battle():
             effect.start_of_turn(entity)
 
     def end_turn(self):
-        self.current_turn().resolve_trigger('end_of_turn', {'battle': self})
-        self.trigger_event('end_of_turn', self,  { "target" : self.current_turn()})
+        current = self.current_turn()
+        try:
+            from natural20.weapon_mastery import expire_mastery_end_of_turn
+            expire_mastery_end_of_turn(current, self)
+        except Exception:
+            pass
+        current.resolve_trigger('end_of_turn', {'battle': self})
+        self.trigger_event('end_of_turn', self,  { "target" : current})
 
         # reset legendary actions
         self.eval_legendary_action()

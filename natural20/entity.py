@@ -74,6 +74,7 @@ class Entity(EntityStateEvaluator, Notable):
         self.damage_vulnerabilities = []
         self.damage_resistances = []
         self.damage_immunities = []
+        self.inspiration = False
         self.pocket_dimension = []
         self.equipped_effects = {}
         self.help_actions = {}
@@ -105,8 +106,100 @@ class Entity(EntityStateEvaluator, Notable):
     def backstory(self):
         return self.properties.get('backstory', '')
 
+    _SHEET_HIDDEN_CONDITIONS = frozenset({'squeezed'})
+
     def immune_to_condition(self, condition):
         return condition in self.condition_immunities
+
+    def has_inspiration(self) -> bool:
+        """True when the creature has Inspiration (2014) or Heroic Inspiration (2024)."""
+        props = getattr(self, 'properties', None)
+        if isinstance(props, dict):
+            if props.get('inspiration') or props.get('heroic_inspiration'):
+                return True
+            if 'inspiration' in props:
+                return False
+        return bool(getattr(self, 'inspiration', False))
+
+    def set_inspiration(self, value: bool) -> bool:
+        """Grant or clear the Inspiration / Heroic Inspiration token."""
+        flag = bool(value)
+        had = self.has_inspiration()
+        self.inspiration = flag
+        props = getattr(self, 'properties', None)
+        if isinstance(props, dict):
+            props['inspiration'] = flag
+            if 'heroic_inspiration' in props:
+                props['heroic_inspiration'] = flag
+        if flag != had:
+            event_manager = getattr(self, 'event_manager', None)
+            if event_manager is not None:
+                try:
+                    event_manager.received_event({
+                        'source': self,
+                        'event': 'inspiration_granted' if flag else 'inspiration_used',
+                        'label': self.inspiration_label(),
+                    })
+                except Exception:
+                    pass
+        return flag
+
+    def grant_inspiration(self) -> bool:
+        return self.set_inspiration(True)
+
+    def consume_inspiration(self) -> bool:
+        if not self.has_inspiration():
+            return False
+        self.set_inspiration(False)
+        return True
+
+    def inspiration_label(self) -> str:
+        """Sheet label: Heroic Inspiration on 2024, Inspiration on 2014."""
+        session = getattr(self, 'session', None)
+        ruleset = getattr(session, 'ruleset', None) if session is not None else None
+        enabled = getattr(ruleset, 'heroic_inspiration_enabled', None)
+        if callable(enabled) and enabled():
+            return 'Heroic Inspiration'
+        return 'Inspiration'
+
+    def sheet_defenses(self) -> dict:
+        """Resistances, immunities, vulnerabilities, and condition immunities for the sheet."""
+        resistances = []
+        try:
+            resistances = list(self.effective_resistances() or [])
+        except Exception:
+            resistances = list(
+                getattr(self, 'resistances', None)
+                or getattr(self, 'damage_resistances', None)
+                or []
+            )
+        immunities = []
+        try:
+            immunities = list(self.effective_immunities() or [])
+        except Exception:
+            immunities = list(getattr(self, 'damage_immunities', None) or [])
+        return {
+            'resistances': [str(item) for item in resistances if item],
+            'immunities': [str(item) for item in immunities if item],
+            'vulnerabilities': [
+                str(item) for item in (getattr(self, 'damage_vulnerabilities', None) or []) if item
+            ],
+            'condition_immunities': [
+                str(item) for item in (getattr(self, 'condition_immunities', None) or []) if item
+            ],
+        }
+
+    def sheet_conditions(self) -> list:
+        """Active conditions shown on the character sheet (hides internal map flags)."""
+        labels = []
+        seen = set()
+        for status in getattr(self, 'statuses', None) or []:
+            key = str(status or '').strip().lower()
+            if not key or key in self._SHEET_HIDDEN_CONDITIONS or key in seen:
+                continue
+            seen.add(key)
+            labels.append(key.replace('_', ' ').title())
+        return labels
 
     def needs_to_breathe(self):
         attrs = []
@@ -2270,6 +2363,12 @@ class Entity(EntityStateEvaluator, Notable):
             v.helping_with.remove(self)
         self.help_actions.clear()
 
+        try:
+            from natural20.weapon_mastery import expire_mastery_start_of_turn
+            expire_mastery_start_of_turn(self, battle)
+        except Exception:
+            pass
+
         battle.dismiss_distract(self)
 
         if 'dodge' in entity_state['statuses']:
@@ -2508,11 +2607,8 @@ class Entity(EntityStateEvaluator, Notable):
         if self.has_effect('speed_override'):
             c_speed = self.eval_effect('speed_override', { "stacked": True, "value" : c_speed})
 
-        slow_ft = int(getattr(self, "_mastery_slow_ft", 0) or 0)
-        if slow_ft:
-            c_speed = max(0, int(c_speed) - slow_ft)
-
-        return c_speed
+        from natural20.weapon_mastery import apply_speed_reduction
+        return apply_speed_reduction(self, c_speed)
     
     def swim_speed(self):
         return self.properties.get('speed_swim', 0)
@@ -2759,9 +2855,22 @@ class Entity(EntityStateEvaluator, Notable):
         if self.inventory is None:
             return 0
 
-        if inventory_type not in self.inventory:
-            return 0
-        return self.inventory[inventory_type]['qty']
+        total = 0
+        if inventory_type in self.inventory:
+            try:
+                total += int(self.inventory[inventory_type].get('qty', 0) or 0)
+            except (TypeError, ValueError):
+                pass
+        if hasattr(self, 'iter_nested_inventory'):
+            for _container, content in self.iter_nested_inventory():
+                content_type = content.get('type') or content.get('item')
+                if content_type != inventory_type:
+                    continue
+                try:
+                    total += int(content.get('qty', 0) or 0)
+                except (TypeError, ValueError):
+                    continue
+        return total
     
     def attack_roll_mod(self, weapon):
         modifier = self.attack_ability_mod(weapon)
@@ -3035,7 +3144,72 @@ class Entity(EntityStateEvaluator, Notable):
 
     def skills(self):
         return self.properties.get('skills', [])
-    
+
+    ARMOR_PROFICIENCY_KEYS = frozenset({
+        'light_armor', 'medium_armor', 'heavy_armor', 'shields', 'shield',
+    })
+    _ARMOR_PROFICIENCY_ORDER = (
+        'light_armor', 'medium_armor', 'heavy_armor', 'shields', 'shield',
+    )
+
+    def _proficiency_list(self, *values):
+        items = []
+        seen = set()
+        for value in values:
+            if not value:
+                continue
+            if isinstance(value, str):
+                value = [value]
+            for raw in value:
+                key = str(raw or '').strip()
+                if not key:
+                    continue
+                lowered = key.lower()
+                if lowered in seen:
+                    continue
+                seen.add(lowered)
+                items.append(key)
+        return items
+
+    def weapon_proficiencies(self):
+        return self._proficiency_list(self.properties.get('weapon_proficiencies'))
+
+    def tool_proficiencies(self):
+        return self._proficiency_list(
+            self.properties.get('tool_proficiencies'),
+            self.properties.get('tools'),
+        )
+
+    def other_proficiencies(self):
+        """Split armor / weapon / tool proficiencies for character sheet display."""
+        armor = []
+        weapons = []
+        seen_armor = set()
+        for raw in self.weapon_proficiencies() or []:
+            key = str(raw or '').strip()
+            if not key:
+                continue
+            lowered = key.lower()
+            if lowered in self.ARMOR_PROFICIENCY_KEYS or lowered.endswith('_armor'):
+                if lowered not in seen_armor:
+                    seen_armor.add(lowered)
+                    armor.append(key)
+            else:
+                weapons.append(key)
+        ordered_armor = []
+        for canonical in self._ARMOR_PROFICIENCY_ORDER:
+            for item in armor:
+                if item.lower() == canonical:
+                    ordered_armor.append(item)
+        for item in armor:
+            if item.lower() not in set(self._ARMOR_PROFICIENCY_ORDER):
+                ordered_armor.append(item)
+        return {
+            'armor': ordered_armor,
+            'weapons': weapons,
+            'tools': self.tool_proficiencies(),
+        }
+
     def proficient(self, prof):
         return (prof in self.properties.get('skills', []) or
                 prof in self.properties.get('tools', []) or
@@ -3058,10 +3232,17 @@ class Entity(EntityStateEvaluator, Notable):
         return False
 
     def _to_item(self, k, item):
+        disadvantage = item.get('disadvantage') or []
+        if isinstance(disadvantage, str):
+            disadvantage = [disadvantage]
+        stealth_disadvantage = bool(item.get('stealth_disadvantage')) or (
+            'stealth' in [str(entry).lower() for entry in disadvantage]
+        )
         return {
             'name': k,
             'ac' : item.get('ac', None),
             'description': item.get('description', None),
+            'flavor': item.get('flavor_text') or item.get('flavor') or item.get('lore'),
             'bonus_ac' : item.get('bonus_ac', None),
             'damage' : item.get('damage', None),
             'damage_2' : item.get('damage_2', None),
@@ -3070,6 +3251,7 @@ class Entity(EntityStateEvaluator, Notable):
             'range_max' : item.get('range_max', None),
             'label': item.get('label', str(item.get('name')).capitalize()),
             'image': item.get('image', k),
+            'icon': item.get('icon') or f"/assets/items/{item.get('image', k)}.png",
             'type': item.get('type'),
             'subtype': item.get('subtype'),
             'light': item.get('properties') and 'light' in item.get('properties', []),
@@ -3081,39 +3263,80 @@ class Entity(EntityStateEvaluator, Notable):
             'effect': item.get('effect', []),
             'qty': 1,
             'equipped': True,
-            'weight': item.get('weight')
+            'weight': item.get('weight'),
+            'cost': item.get('cost'),
+            'rarity': item.get('rarity'),
+            'magical': bool(item.get('magical') or (item.get('magic_bonus') or 0)),
+            'magic_bonus': item.get('magic_bonus') or 0,
+            'requires_attunement': bool(item.get('requires_attunement')),
+            'stealth_disadvantage': stealth_disadvantage,
+            'thrown': item.get('thrown'),
+            'ammo': item.get('ammo'),
+            'hp_regained': item.get('hp_regained'),
+            'weapon_mastery': item.get('weapon_mastery') or item.get('mastery'),
+            'usable': bool(item.get('usable')),
+            'consumable': bool(item.get('consumable')),
+            'equippable': bool(item.get('equippable')),
         }
+
+    def item_card(self, item_name, container_name=None):
+        """Return a display dict for the character-sheet item card modal."""
+        from natural20.utils.item_card import build_item_card
+        return build_item_card(self, item_name, container_name=container_name)
     # Removes Item from inventory
     # @param ammo_type [str]
     # @param amount [int]
     # @return [dict]
-    def deduct_item(self, ammo_type, amount=1):
+    def deduct_item(self, ammo_type, amount=1, container_name=None):
         from natural20.concern.inventory import snapshot_inventory_entry
 
-        if ammo_type not in self.inventory:
-            return None
+        if container_name:
+            if not hasattr(self, 'remove_from_container'):
+                return None
+            removed = self.remove_from_container(container_name, ammo_type, amount)
+            return removed or None
 
-        entry = self.inventory[ammo_type]
-        removed = snapshot_inventory_entry(entry, amount)
-        if not removed:
-            return None
+        if ammo_type in (self.inventory or {}):
+            entry = self.inventory[ammo_type]
+            removed = snapshot_inventory_entry(entry, amount)
+            if not removed:
+                return None
 
-        try:
-            qty = int(entry.get('qty', 0) or 0)
-        except (TypeError, ValueError):
-            qty = 0
-        try:
-            remove_qty = int(removed.get('qty', 0) or 0)
-        except (TypeError, ValueError):
-            remove_qty = 0
+            try:
+                qty = int(entry.get('qty', 0) or 0)
+            except (TypeError, ValueError):
+                qty = 0
+            try:
+                remove_qty = int(removed.get('qty', 0) or 0)
+            except (TypeError, ValueError):
+                remove_qty = 0
 
-        if remove_qty <= 0 or (qty > 0 and remove_qty > qty):
-            return None
+            if remove_qty <= 0 or (qty > 0 and remove_qty > qty):
+                return None
 
-        entry['qty'] = qty - remove_qty
-        if entry['qty'] <= 0:
-            self.inventory.pop(ammo_type, None)
-        return removed
+            entry['qty'] = qty - remove_qty
+            if entry['qty'] <= 0:
+                self.inventory.pop(ammo_type, None)
+            return removed
+
+        if hasattr(self, 'iter_nested_inventory') and hasattr(self, 'remove_from_container'):
+            try:
+                need = max(1, int(amount))
+            except (TypeError, ValueError):
+                need = 1
+            for nested_container, content in self.iter_nested_inventory():
+                content_type = content.get('type') or content.get('item')
+                if content_type != ammo_type:
+                    continue
+                try:
+                    nested_qty = int(content.get('qty', 0) or 0)
+                except (TypeError, ValueError):
+                    nested_qty = 0
+                if nested_qty < need:
+                    continue
+                removed = self.remove_from_container(nested_container, ammo_type, need)
+                return removed or None
+        return None
     
     # Removes an item from the inventory
     # @param ammo_type [Symbol,String]
@@ -3660,33 +3883,66 @@ class Entity(EntityStateEvaluator, Notable):
         self.event_handlers[event_name] = callback
 
     def usable_items(self):
-        usable = []
+        usable_by_name = {}
 
-        for k, v in (self.inventory or {}).items():
-            item_details = self.session.load_equipment(k)
-
+        def add_usable(item_name, qty, inventory_entry=None, container=None, container_label=None):
+            item_details = self.session.load_equipment(item_name)
             if not item_details or not item_details.get('usable', False):
-                continue
-
-            inventory_entry = (self.inventory or {}).get(k) or {}
+                return
+            try:
+                qty = int(qty or 0)
+            except (TypeError, ValueError):
+                qty = 0
+            if item_details.get('consumable') and qty <= 0:
+                return
+            if qty <= 0:
+                return
+            existing = usable_by_name.get(item_name)
+            if existing:
+                existing['qty'] = int(existing.get('qty', 0) or 0) + qty
+                if not container or (
+                    existing.get('container') and existing.get('container') != container
+                ):
+                    existing.pop('container', None)
+                    existing.pop('container_label', None)
+                return
             item_props = dict(item_details)
-            item_props['name'] = str(k)
+            item_props['name'] = str(item_name)
+            inventory_entry = inventory_entry or {}
             for meta_key in ('room_label', 'room_landmark', 'notify_npc', 'source_entity_uid'):
                 if inventory_entry.get(meta_key) is not None:
                     item_props[meta_key] = inventory_entry.get(meta_key)
-
-            if item_props.get('consumable') and v['qty'] == 0:
-                continue
-
-            usable.append({
-                'name': str(k),
-                'label': item_props.get('label', str(k)),
-                'image': item_props.get('image', k),
+            entry = {
+                'name': str(item_name),
+                'label': item_props.get('label', str(item_name)),
+                'image': item_props.get('image', item_name),
                 'item': item_props,
-                'qty': v['qty'],
+                'qty': qty,
                 'consumable': item_props.get('consumable', item_details.get('consumable')),
-            })
-        return usable
+            }
+            if container:
+                entry['container'] = container
+                entry['container_label'] = container_label
+            usable_by_name[item_name] = entry
+
+        for k, v in (self.inventory or {}).items():
+            add_usable(k, v.get('qty', 0), inventory_entry=v)
+            if not hasattr(self, 'is_container') or not self.is_container(k, self.session):
+                continue
+            container_def = self.session.load_thing(k) or {}
+            container_label = v.get('label') or container_def.get('label') or container_def.get('name') or k
+            for content in v.get('contents') or []:
+                content_type = content.get('type') or content.get('item')
+                if not content_type or content.get('is_creature'):
+                    continue
+                add_usable(
+                    content_type,
+                    content.get('qty', 1),
+                    inventory_entry=content,
+                    container=k,
+                    container_label=container_label,
+                )
+        return list(usable_by_name.values())
 
     def other_items(self):
         other = []
@@ -3707,8 +3963,27 @@ class Entity(EntityStateEvaluator, Notable):
             })
         return other
 
+    def _carried_gear_row(self, item_name, item, qty, *, nested=False, container=None, container_label=None):
+        from natural20.utils.merchant import parse_item_cost
+
+        entry = self._to_item(item_name, item)
+        entry['qty'] = qty
+        entry['equipped'] = False
+        entry['nested'] = nested
+        entry['container'] = container
+        entry['container_label'] = container_label
+        cost = item.get('cost')
+        if cost in (None, ''):
+            entry['cost_gp'] = None
+        else:
+            try:
+                entry['cost_gp'] = parse_item_cost(cost)
+            except (TypeError, ValueError):
+                entry['cost_gp'] = None
+        return entry
+
     def carried_gear_items(self):
-        """Unequipped inventory entries for the equipment tab."""
+        """Unequipped inventory entries for the equipment tab, including container contents."""
         equipped_names = {item['name'] for item in self.equipped_items()}
         gear = []
         for k, v in (self.inventory or {}).items():
@@ -3723,10 +3998,37 @@ class Entity(EntityStateEvaluator, Notable):
             item = self.session.load_thing(k)
             if not item:
                 continue
-            entry = self._to_item(k, item)
-            entry['qty'] = qty
+            entry = self._carried_gear_row(k, item, qty)
             gear.append(entry)
-        gear.sort(key=lambda row: (row.get('label') or row.get('name') or '').lower())
+            if not hasattr(self, 'is_container') or not self.is_container(k, self.session):
+                continue
+            container_label = entry.get('label') or k
+            for content in v.get('contents') or []:
+                content_type = content.get('type') or content.get('item')
+                if not content_type or content.get('is_creature'):
+                    continue
+                try:
+                    nested_qty = int(content.get('qty', 0) or 0)
+                except (TypeError, ValueError):
+                    nested_qty = 0
+                if nested_qty <= 0:
+                    continue
+                nested_item = self.session.load_thing(content_type)
+                if not nested_item:
+                    continue
+                gear.append(self._carried_gear_row(
+                    content_type,
+                    nested_item,
+                    nested_qty,
+                    nested=True,
+                    container=k,
+                    container_label=container_label,
+                ))
+        gear.sort(key=lambda row: (
+            1 if row.get('nested') else 0,
+            (row.get('container_label') or '').lower(),
+            (row.get('label') or row.get('name') or '').lower(),
+        ))
         return gear
 
     def read_item(self, item_name):
@@ -3746,11 +4048,13 @@ class Entity(EntityStateEvaluator, Notable):
         return len(self.properties['prepared_spells']) > 0
 
     def has_item(self, item_name):
-        if self.inventory and item_name in self.inventory:
+        if self.item_count(item_name) > 0:
             return True
-        if item_name in self.equipped_items():
-            return True
-        return False
+        try:
+            equipped_names = {item.get('name') for item in (self.equipped_items() or [])}
+        except Exception:
+            equipped_names = set()
+        return item_name in equipped_names
 
     # Returns items in the "backpack" of the entity
     # @return [List]
@@ -4004,6 +4308,7 @@ class Entity(EntityStateEvaluator, Notable):
         return True, None
 
     def to_dict(self):
+        from natural20.weapon_mastery import mastery_state_to_dict
         return {
             'name': self.name,
             'properties': self.properties,
@@ -4022,6 +4327,7 @@ class Entity(EntityStateEvaluator, Notable):
             'help_actions': self.help_actions,
             'helping_with': list(self.helping_with),
             'resources': {name: pool.to_dict() for name, pool in (getattr(self, 'resources', None) or {}).items()},
+            **mastery_state_to_dict(self),
         }
 
     def long_rest(self, battle=None, battle_map=None, force=False, require_rations=False):
@@ -4093,6 +4399,11 @@ class Entity(EntityStateEvaluator, Notable):
 
         self.restore_resources('long_rest')
         self.resolve_trigger('long_rest')
+        try:
+            from natural20.weapon_mastery import clear_mastery_state
+            clear_mastery_state(self)
+        except Exception:
+            pass
         self.event_manager.received_event({'source': self, 'event': 'long_rest'})
 
     def t(self, key, **kwargs):

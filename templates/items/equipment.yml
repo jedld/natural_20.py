@@ -2,22 +2,26 @@
 arcane_focus:
   cost: 10
   name: Arcane Focus
+  flavor_text: A crafted token — crystal, orb, rod, staff, or wand — through which a spellcaster channels power.
   type: arcane_focus
   weight: 1
 arrows:
   cost: 0.05
   name: Arrows
+  flavor_text: Goose-fletched shafts with iron heads, bundled for a quiver.
   type: ammunition
   weight: 0.05
 bolts:
   cost: 0.05
   name: Crossbow Bolts
+  flavor_text: "Short, heavy quarrels made for a crossbow's groove."
   type: ammunition
   weight: 0.05
 chain_mail:
   ac: 16
   cost: 75
   name: Chain Mail
+  flavor_text: A full hauberk of riveted rings that hangs to the knees and rings with every step.
   subtype: heavy
   type: armor
   metallic: true
@@ -26,6 +30,7 @@ ring_mail:
   ac: 14
   cost: 30
   name: Ring Mail
+  flavor_text: Heavy leather sewn with thick metal rings — crude, loud, and hard to cut.
   subtype: heavy
   type: armor
   weight: 40
@@ -33,6 +38,7 @@ splint:
   ac: 17
   cost: 200
   name: Splint Armor
+  flavor_text: "Vertical metal strips riveted to chain and leather, a poor knight's plate."
   subtype: heavy
   type: armor
   metallic: true
@@ -41,6 +47,7 @@ plate:
   ac: 18
   cost: 1500
   name: Plate Armor
+  flavor_text: Interlocking steel plates from gorget to greave, the pinnacle of mundane armor.
   subtype: heavy
   metallic: true
   type: armor
@@ -50,6 +57,7 @@ chain_shirt:
   cost: 50
   mod_cap: 2
   name: Chain Shirt
+  flavor_text: A shirt of interlocking rings worn under a cloak, quieter than a full hauberk.
   metallic: true
   subtype: medium
   type: armor
@@ -58,6 +66,7 @@ scale_mail:
   ac: 14
   cost: 50
   name: Scale Mail
+  flavor_text: Overlapping metal scales sewn to a leather coat, like the hide of a great fish.
   subtype: medium
   metallic: true
   type: armor
@@ -65,6 +74,9 @@ scale_mail:
 spellbook:
   cost: 50
   name: Spellbook
+  flavor_text: A locked grimoire of thick vellum, its margins crowded with sigils and notes.
+  description: >-
+    Essential for wizards, a spellbook is a leather-bound tome with 100 blank vellum pages suitable for recording spells.
   type: spellbook
   weight: 3
 scroll_of_magic_missile:
@@ -72,6 +84,7 @@ scroll_of_magic_missile:
   level: 1
   cost: 25
   name: Scroll of Magic Missile
+  flavor_text: Ink still faintly luminous on a roll of treated parchment.
   type: scroll
   item_class: SpellScroll
   usable: true
@@ -82,6 +95,7 @@ scroll_of_protection_from_poison:
   level: 1
   cost: 25
   name: Scroll of Protection from Poison
+  flavor_text: A tightly wound prayer-scroll sealed with green wax.
   type: scroll
   item_class: SpellScroll
   usable: true
@@ -92,6 +106,7 @@ scroll_of_bless:
   level: 1
   cost: 25
   name: Scroll of Bless
+  flavor_text: "Sacred script spirals across the vellum in a priest's careful hand."
   type: scroll
   item_class: SpellScroll
   usable: true
@@ -102,6 +117,7 @@ scroll_of_spiritual_weapon:
   level: 1
   cost: 25
   name: Scroll of Spiritual Weapon
+  flavor_text: The diagram of a hovering weapon is inked beside the incantation.
   type: scroll
   item_class: SpellScroll
   usable: true
@@ -110,27 +126,34 @@ scroll_of_spiritual_weapon:
 holy_water:
   cost: 10
   name: Holy Water
+  flavor_text: Clear water blessed in a temple font, stoppered in a fragile flask.
+  description: >-
+    As an action, you can splash the contents of this flask onto a creature within 5 feet of you or throw it up to 20 feet. A fiend or undead takes 2d6 radiant damage on a hit.
   type: holy_water
   weight: 1
 holy_symbol:
   cost: 10
   name: Holy Symbol
+  flavor_text: A consecrated emblem of faith, worn or held when prayers become spells.
   type: holy_symbol
   weight: 1
 ink:
   cost: 10
   name: Ink
+  flavor_text: A small bottle of lampblack ink, enough for a long letter or a short spell.
   type: ink
   weight: 0.05
 ink_pen:
   cost: 0.02
   name: Ink Pen
+  flavor_text: A trimmed quill or simple metal nib.
   type: ink_pen
   weight: 0.02
 breastplate:
   ac: 14
   cost: 400
   name: Breastplate
+  flavor_text: A fitted metal chest-piece that leaves the limbs free to move.
   subtype: medium
   metallic: true
   type: armor
@@ -139,6 +162,7 @@ half_plate:
   ac: 15
   cost: 750
   name: Half Plate
+  flavor_text: Partial plate over vital areas, a compromise between safety and speed.
   subtype: medium
   metallic: true
   type: armor
@@ -146,37 +170,46 @@ half_plate:
 component_pouch:
   cost: 25
   name: Component Pouch
+  flavor_text: A watertight leather pouch of tiny pockets for spell components.
+  description: >-
+    A component pouch is a small, watertight leather belt pouch that has compartments to hold all the material components and other special items you need to cast your spells, except for those components that have a specific cost.
   type: other
   weight: 2
 copper_piece:
   cost: 0.01
   name: Copper Piece (cp)
+  flavor_text: A dull coin of copper, the smallest unit of common trade.
   type: currency
   weight: 0.02
 crystal:
   cost: 10
   name: Crystal
+  flavor_text: A faceted crystal that catches torchlight in its heart — an arcane focus.
   type: arcane_focus
   weight: 1
 electronum:
   cost: 0.5
   name: Electronum (ep)
+  flavor_text: A pale gold-silver coin of electrum.
   type: currency
   weight: 0.02
 gold_piece:
   cost: 1
   name: Gold Piece (gp)
+  flavor_text: A stamped gold coin, the standard of mercenary pay.
   type: currency
   weight: 0.02
 healers_kit:
   description:  As an action, you can expend one use of the kit to stabilize a creature that has 0 hit points, without needing to make a Wisdom (Medicine) check.
   cost: 5
   name: Healer's Kit
+  flavor_text: Bandages, salves, and splints packed for the moment someone stops breathing.
   type: tool
   weight: 3
 rations:
   cost: 0.5
   name: Rations (1 day)
+  flavor_text: Dried meat, hardtack, and fruit leather — unlovely, but it keeps.
   description: Dry foods suitable for extended travel. Consumed during a long rest to restore the body.
   type: provisions
   consumable: true
@@ -186,10 +219,14 @@ healing_potion:
   hp_regained: 2d4+2
   item_class: HealingPotion
   name: Potion of Healing
+  flavor_text: A red liquid that sparkles when shaken, smelling faintly of honey and iron.
+  description: >-
+    A character who drinks the magical red fluid in this vial regains 2d4 + 2 hit points. Drinking or administering the potion takes an action.
   type: potion
   usable: true
 tavern_room_buzzer:
   name: Room Service Buzzer
+  flavor_text: A brass pull-cord that rings a distant bell when tugged.
   label: Room Service Buzzer
   description: A brass bell pull wired with a whisper cantrip — rings Pip at the bar.
   type: gear
@@ -202,12 +239,14 @@ leather_armor:
   ac: 11
   cost: 10
   name: Leather
+  flavor_text: Boiled and oiled hide, cut for someone who would rather not be heard.
   subtype: light
   type: armor
   weight: 10
 orb:
   cost: 20
   name: Orb
+  flavor_text: "A smooth crystal sphere, cool to the touch, used to gather a spell's shape."
   type: arcane_focus
   weight: 3
 padded:
@@ -216,17 +255,20 @@ padded:
   disadvantage:
     - stealth
   name: Padded Armor
+  flavor_text: Quilted layers of cloth and batting — cheap protection that rustles with every step.
   subtype: light
   type: armor
   weight: 8
 parchment:
   cost: 0.1
   name: Parchment
+  flavor_text: A scraped sheet of animal skin, ready for ink.
   type: parchment
   weight: 0.02
 letter_from_a_dead_friend:
   cost: 0.05
   name: letter_from_a_dead_friend
+  flavor_text: A folded letter, the seal broken, the ink brown with age.
   label: Letter from a Dead Friend
   type: letter
   content: |
@@ -238,60 +280,75 @@ letter_from_a_dead_friend:
 platinum:
   cost: 10
   name: platinum (pp)
+  flavor_text: A rare, bright coin worth a purse of gold.
   type: currency
   weight: 0.02
 rod:
   cost: 10
   name: Rod
+  flavor_text: A short metal or bone rod, balanced as an arcane focus.
   type: arcane_focus
   weight: 2
 ruby_gem:
   cost: 5000
   name: Ruby Gemstone
+  flavor_text: A deep-red stone that drinks the light.
   type: gemstone
   weight: 1
 shield:
   bonus_ac: 2
   name: Shield
+  flavor_text: A sturdy barrier of wood and iron, bossed at the center.
   type: shield
   metallic: true
   weight: 6
 silver_piece:
   cost: 0.1
   name: Silver Piece (sp)
+  flavor_text: A common silver coin, ten to a gold.
   type: currency
   weight: 0.02
 staff:
   cost: 5
   name: Staff
+  flavor_text: A length of carved wood shod in metal, serving as both walking stick and focus.
   type: arcane_focus
   weight: 4
 studded_leather:
   ac: 12
   cost: 45
   name: Studded Leather
+  flavor_text: Tough leather reinforced with close-set rivets.
   subtype: light
   type: armor
   weight: 13
 thieves_tools:
   cost: 25
   name: Thieves Tools
+  flavor_text: Picks, files, a small mirror, and a set of narrow pliers in a roll of leather.
+  description: >-
+    This set of tools includes a small file, a set of lock picks, a small mirror mounted on a metal handle, a set of narrow-bladed scissors, and a pair of pliers. Proficiency with these tools lets you add your proficiency bonus to any ability checks you make to disarm traps or open locks.
   type: tool
   weight: 1
 wand:
   cost: 10
   name: Wand
+  flavor_text: A slender wand of wood or bone, tapered to a point.
   type: arcane_focus
   weight: 1
 wooden_door_key:
   cost: 0.05
   name: Wooden Door Key
+  flavor_text: A simple iron key with a wooden fob.
   type: tool
   weight: 0.05
 # Equipment pack items
 backpack:
   cost: 2
   name: Backpack
+  flavor_text: "A leather pack with straps and buckles, the adventurer's second spine."
+  description: >-
+    A backpack can hold one cubic foot / 30 pounds of gear. You can also strap items, such as a bedroll or a coil of rope, to the outside of a backpack.
   type: container
   weight: 5
   capacity_lbs: 30
@@ -300,337 +357,412 @@ backpack:
 bedroll:
   cost: 0.1
   name: Bedroll
+  flavor_text: A blanket and pad rolled tight, smelling of campfire smoke.
   type: bedding
   weight: 7
 clothes_common:
   cost: 5
   name: Clothes, Common
+  flavor_text: Plain homespun — shirt, breeches, and a worn cloak.
   type: clothing
   weight: 3
 clothes_traveler:
   cost: 2
   name: Clothes, Traveler's
+  flavor_text: Sturdy boots, a weather cloak, and clothes meant to take a road.
   type: clothing
   weight: 4
 torch:
   cost: 0.05
   name: Torch
+  flavor_text: A tarred brand that pops and spatters as it burns.
+  description: >-
+    A torch burns for 1 hour, providing bright light in a 20-foot radius and dim light for an additional 20 feet. If you make a melee attack with a burning torch and hit, it deals 1 fire damage.
   type: light_source
   weight: 1
 rope:
   cost: 1
   name: Rope (50 ft)
+  flavor_text: Fifty feet of hempen rope, rough on the hands and reliable on a cliff.
+  description: Hempen rope has 2 hit points and can be burst with a DC 17 Strength check.
   type: climbing
   weight: 10
 pitons:
   cost: 0.05
   name: Piton
+  flavor_text: Iron spikes for hammering into rock or ice.
   type: climbing
   weight: 0.1
 crowbar:
   cost: 2
   name: Crowbar
+  flavor_text: A bent iron bar that turns stubborn lids and locked doors into problems of leverage.
+  description: >-
+    Using a crowbar grants advantage to Strength checks where the crowbar's leverage can be applied.
   type: tool
   weight: 5
 tinderbox:
   cost: 0.5
   name: Tinderbox
+  flavor_text: Flint, fire steel, and a scrap of char-cloth in a small tin.
+  description: >-
+    This small container holds flint, fire steel, and tinder (usually dry cloth soaked in light oil) used to kindle a fire. Using it to light a torch — or anything else with abundant, exposed fuel — takes an action. Lighting any other fire takes 1 minute.
   type: tool
   weight: 1
 waterskin:
   cost: 0.2
   name: Waterskin
+  flavor_text: "A stoppered skin that sloshes with a day's water."
+  description: A waterskin can hold 4 pints of liquid.
   type: container
   weight: 5
   max_item_size: tiny
 soap:
   cost: 0.02
   name: Soap
+  flavor_text: A cake of harsh lye soap.
   type: toiletry
   weight: 0.1
 hammer:
   cost: 1
   name: Hammer
+  flavor_text: "A carpenter's hammer, honest and heavy."
   type: tool
   weight: 3
 tongs:
   cost: 0.5
   name: Tongs
+  flavor_text: Iron tongs blackened by the forge.
   type: tool
   weight: 2
 bellows:
   cost: 10
   name: Bellows
+  flavor_text: Leather lungs for waking a fire to white heat.
   type: tool
   weight: 10
 anvil:
   cost: 30
   name: Anvil
+  flavor_text: A squat iron anvil, scarred by a thousand hammer-blows.
   type: tool
   weight: 50
 whetstone:
   cost: 0.05
   name: Whetstone
+  flavor_text: A grooved stone dark with oil, for putting an edge back on steel.
   type: tool
   weight: 1
 incense:
   cost: 1
   name: Incense
+  flavor_text: A stick or cone of resinous incense, sweet when lit.
   type: religious
   weight: 0.1
 scale:
   cost: 0.5
   name: Scale
+  flavor_text: A small hanging scale for weighing coin or spice.
   type: tool
   weight: 0.5
 charcoal:
   cost: 0.02
   name: Charcoal
+  flavor_text: Sticks of willow charcoal for sketching or the forge.
   type: tool
   weight: 0.1
 chisels:
   cost: 0.5
   name: Chisels
+  flavor_text: A set of wood and stone chisels in a canvas wrap.
   type: tool
   weight: 1
 awls:
   cost: 0.5
   name: Awls
+  flavor_text: Sharp awls for punching leather and starting holes.
   type: tool
   weight: 1
 knives:
   cost: 0.5
   name: Knives
+  flavor_text: A bundle of small working knives.
   type: tool
   weight: 1
 needles:
   cost: 0.5
   name: Needles
+  flavor_text: Sewing needles of different sizes, wrapped in cloth.
   type: tool
   weight: 0.1
 thread:
   cost: 0.5
   name: Thread
+  flavor_text: A spool of strong linen thread.
   type: tool
   weight: 0.1
 scissors:
   cost: 0.5
   name: Scissors
+  flavor_text: Iron shears with a tight bite.
   type: tool
   weight: 0.5
 tweezers:
   cost: 0.5
   name: Tweezers
+  flavor_text: Fine tweezers for splinters, gems, or clockwork.
   type: tool
   weight: 0.1
 paper:
   cost: 0.2
   name: Sheet of Paper
+  flavor_text: A sheet of rag paper, cheaper than parchment and quicker to ruin.
   type: writing
   weight: 0.02
 book:
   cost: 25
   name: Book
+  flavor_text: A bound book of blank or printed pages.
   type: writing
   weight: 2
 pot:
   cost: 2
   name: Pot
+  flavor_text: A blackened cookpot with a bail handle.
   type: cooking
   weight: 5
 pan:
   cost: 2
   name: Pan
+  flavor_text: A shallow iron skillet.
   type: cooking
   weight: 3
 knife:
   cost: 0.5
   name: Knife
+  flavor_text: A kitchen knife with a worn wooden handle.
   type: cooking
   weight: 1
 cutting_board:
   cost: 1
   name: Cutting Board
+  flavor_text: A scored wooden board that smells of onion and old meals.
   type: cooking
   weight: 3
 salt:
   cost: 0.05
   name: Salt
+  flavor_text: A twist of coarse salt.
   type: cooking
   weight: 0.1
 pepper:
   cost: 0.1
   name: Pepper
+  flavor_text: A pinch of ground pepper in a paper cone.
   type: cooking
   weight: 0.1
 wig:
   cost: 5
   name: Wig
+  flavor_text: A theatrical wig of horsehair and wire.
   type: disguise
   weight: 0.5
 makeup:
   cost: 5
   name: Makeup
+  flavor_text: Pots of greasepaint and powder.
   type: disguise
   weight: 0.1
 costume_pieces:
   cost: 10
   name: Costume Pieces
+  flavor_text: Odds of costume — a false nose, a cape clasp, a cardboard crown.
   type: disguise
   weight: 5
 props:
   cost: 5
   name: Props
+  flavor_text: Stage props of painted wood and cheap gilt.
   type: disguise
   weight: 3
 herb_pouch:
   cost: 2
   name: Herb Pouch
+  flavor_text: A small pouch of dried herbs, fragrant even when tied shut.
   type: tool
   weight: 1
 wooden_bowl:
   cost: 1
   name: Wooden Bowl
+  flavor_text: A turned wooden bowl, darkened by use.
   type: tool
   weight: 2
 animal_claw:
   cost: 0.5
   name: Animal Claw
+  flavor_text: A cleaned claw, drilled for a cord.
   type: tool
   weight: 0.1
 dice:
   cost: 1
   name: Dice Set
+  flavor_text: Carved bone dice, the pips stained dark.
   type: gaming
   weight: 0.1
 cards:
   cost: 1
   name: Playing Cards
+  flavor_text: A worn deck of playing cards, the edges soft from many hands.
   type: gaming
   weight: 0.1
 board:
   cost: 5
   name: Game Board
+  flavor_text: A folding game board, squares faded from travel.
   type: gaming
   weight: 2
 pieces:
   cost: 2
   name: Game Pieces
+  flavor_text: A pouch of carved game pieces.
   type: gaming
   weight: 1
 blowpipe:
   cost: 2
   name: Blowpipe
+  flavor_text: "A jeweler's blowpipe for a small flame."
   type: tool
   weight: 1
 crucible:
   cost: 10
   name: Crucible
+  flavor_text: A small clay crucible stained by old melts.
   type: tool
   weight: 5
 loupe:
   cost: 5
   name: Loupe
+  flavor_text: "A jeweler's loupe on a short cord."
   type: tool
   weight: 0.1
 vials:
   cost: 1
   name: Vial
+  flavor_text: Empty glass vials stoppered with cork.
   type: tool
   weight: 0.5
 drying_rack:
   cost: 2
   name: Drying Rack
+  flavor_text: A collapsible rack for herbs or washed cloth.
   type: tool
   weight: 5
 mortar_pestle:
   cost: 2
   name: Mortar and Pestle
+  flavor_text: A stone mortar and pestle, dusted with old powders.
   type: tool
   weight: 3
 scales:
   cost: 5
   name: Scales
+  flavor_text: "A merchant's balance with a set of nested weights."
   type: tool
   weight: 2
 compass:
   cost: 5
   name: Compass
+  flavor_text: A brass compass whose needle trembles toward north.
   type: navigation
   weight: 0.5
 sea_charts:
   cost: 10
   name: Sea Charts
+  flavor_text: Rolled charts marked with coasts, reefs, and rumored isles.
   type: navigation
   weight: 2
 astrolabe:
   cost: 15
   name: Astrolabe
+  flavor_text: A brass astrolabe etched with degrees of the sky.
   type: navigation
   weight: 2
 dividers:
   cost: 5
   name: Dividers
+  flavor_text: "Navigator's dividers for walking distances on a chart."
   type: navigation
   weight: 1
 wheel:
   cost: 10
   name: Potter's Wheel
+  flavor_text: "A heavy potter's wheel, kicked into a slow spin."
   type: tool
   weight: 20
 kiln:
   cost: 25
   name: Kiln
+  flavor_text: A small kiln of firebrick, still smelling of old firings.
   type: tool
   weight: 50
 clay:
   cost: 1
   name: Clay
+  flavor_text: "A damp lump of potter's clay wrapped in cloth."
   type: tool
   weight: 5
 plumb_bob:
   cost: 1
   name: Plumb Bob
+  flavor_text: A pointed lead weight on a chalked line.
   type: tool
   weight: 0.5
 square:
   cost: 1
   name: Square
+  flavor_text: "A carpenter's square, true along both arms."
   type: tool
   weight: 1
 chisel_set:
   cost: 2
   name: Chisel Set
+  flavor_text: "A mason's set of chisels, edges carefully oiled."
   type: tool
   weight: 2
 costume:
   cost: 10
   name: Costume
+  flavor_text: A full costume on a hanger, a second identity in cloth.
   type: disguise
   weight: 5
 whetstone_oil:
   cost: 0.1
   name: Whetstone Oil
+  flavor_text: A vial of thin oil for the whetstone.
   type: tool
   weight: 0.1
 whetstone_water:
   cost: 0.05
   name: Whetstone Water
+  flavor_text: A cup of water kept for the stone.
   type: tool
   weight: 0.1
 torch_mount:
   cost: 0.5
   name: Torch Mount
+  flavor_text: An iron bracket for holding a torch to a wall or post.
   type: tool
   weight: 1
 lute:
   cost: 10
   name: Lute
+  flavor_text: A pear-shaped lute with a belly of thin wood and a voice that carries.
   type: instrument
   weight: 3
 mawsse:
   cost: 0
   name: Mawsse
+  flavor_text: A curious little trinket, easily palmed and easily forgotten.
   type: trinket
   weight: 0
 potion_of_healing_greater:
@@ -638,6 +770,9 @@ potion_of_healing_greater:
   hp_regained: 4d4+4
   item_class: HealingPotion
   name: Potion of Healing (Greater)
+  flavor_text: A deeper crimson than a common healing draught, thick as syrup.
+  description: >-
+    A character who drinks this potion regains 4d4 + 4 hit points. Drinking or administering the potion takes an action.
   type: potion
   usable: true
 potion_of_invisibility:
@@ -646,6 +781,9 @@ potion_of_invisibility:
   duration_seconds: 3600
   item_class: PotionEffectItem
   name: Potion of Invisibility
+  flavor_text: The vial looks empty until you tilt it and the air inside bends the light.
+  description: >-
+    This potion's container looks empty but feels as though it holds liquid. When you drink it, you become invisible for 1 hour. Anything you wear or carry is invisible with you. The effect ends early if you attack or cast a spell.
   type: potion
   usable: true
 potion_of_fire_breath:
@@ -654,6 +792,7 @@ potion_of_fire_breath:
   duration_seconds: 3600
   item_class: PotionEffectItem
   name: Potion of Fire Breath
+  flavor_text: The liquid glows like banked coals and smells of smoke and spice.
   type: potion
   usable: true
 potion_of_vitality:
@@ -662,6 +801,9 @@ potion_of_vitality:
   duration_seconds: 86400
   item_class: PotionEffectItem
   name: Potion of Vitality
+  flavor_text: A golden cordial that warms the chest like a second sunrise.
+  description: >-
+    When you drink this potion, it removes any exhaustion you are suffering and cures any disease or poison affecting you. For the next 24 hours, you regain the maximum number of hit points for any Hit Die you spend.
   type: potion
   usable: true
 spell_scroll_2nd_level:
@@ -669,6 +811,7 @@ spell_scroll_2nd_level:
   level: 2
   cost: 250
   name: Spell Scroll (2nd Level)
+  flavor_text: A spell scroll whose ink still hums faintly under the fingertips.
   type: scroll
   item_class: SpellScroll
   usable: true
@@ -677,40 +820,54 @@ spell_scroll_2nd_level:
 vestments:
   cost: 1
   name: Vestments
+  flavor_text: Ceremonial robes cut for temple and graveside alike.
   type: clothing
   weight: 4
 little_bag_of_sand:
   cost: 0
   name: Little Bag of Sand
+  flavor_text: A pinch of fine sand in a cloth twist — a spell component, or an hourglass in miniature.
   type: component
   weight: 0
 small_knife:
   cost: 1
   name: Small Knife
+  flavor_text: A small working knife, useful for quills, food, and cord.
   type: tool
   weight: 1
 manacles:
   cost: 2
   name: Manacles
+  flavor_text: Iron cuffs and a short chain, the lock pitted but sound.
+  description: >-
+    These metal restraints can bind a Small or Medium creature. Escaping the manacles requires a successful DC 20 Dexterity check. Breaking them requires a successful DC 20 Strength check.
   type: tool
   weight: 6
 climbers_kit:
   cost: 25
   name: Climber's Kit
+  flavor_text: "Pitons, boot-spikes, a harness, and a climber's hammer in one bundle."
+  description: >-
+    A climber's kit includes special pitons, boot tips, gloves, and a harness. You can use the kit as an action to anchor yourself; when you do, you can't fall more than 25 feet from the point where you anchored yourself, and you can't climb more than 25 feet away from that point without undoing the anchor.
   type: tool
   weight: 12
 diamond:
   cost: 300
   name: Diamond
+  flavor_text: A clear stone that throws sharp sparks of light.
   type: gemstone
 mess_kit:
   cost: 2
   name: Mess Kit
+  flavor_text: A nested tin cup, plate, and utensils, blackened from campfires.
+  description: >-
+    This tin box contains a cup and simple cutlery. The box clamps together, and one side can be used as a cooking pan and the other as a plate or shallow bowl.
   type: tool
   weight: 2
 bag_of_devouring:
   cost: 25000
   name: Bag of Devouring
+  flavor_text: This sack looks like a bag of holding, but the darkness inside seems to breathe.
   type: wand
   rarity: legendary
   weight: 15
@@ -719,6 +876,7 @@ bag_of_devouring:
 celestial_shield_of_the_hidden_lord:
   cost: 15000
   name: Celestial Shield of the Hidden Lord
+  flavor_text: A burnished shield whose rim is etched with celestial script.
   type: shield
   rarity: rare
   weight: 6
@@ -733,6 +891,7 @@ celestial_shield_of_the_hidden_lord:
 ale_mug:
   cost: 0.04
   name: Mug of Ale
+  flavor_text: A dented tankard that still smells of hops.
   type: provisions
   subtype: drink
   consumable: true
@@ -740,6 +899,7 @@ ale_mug:
 bread_loaf:
   cost: 0.02
   name: Loaf of Bread
+  flavor_text: A round loaf with a hard crust and a soft, cheap crumb.
   type: provisions
   subtype: food
   consumable: true
@@ -747,6 +907,7 @@ bread_loaf:
 cheese_wedge:
   cost: 0.1
   name: Cheese Wedge
+  flavor_text: A wedge of pale cheese, edged with rind.
   type: provisions
   subtype: food
   consumable: true
@@ -754,16 +915,19 @@ cheese_wedge:
 tavern_stew:
   cost: 0.2
   name: Bowl of Tavern Stew
+  flavor_text: A wooden bowl of thick stew, still steaming.
   type: provisions
   subtype: food
   consumable: true
   weight: 1
 tavern_safe_key:
   name: Tavern Safe Key
+  flavor_text: A heavy iron key whose bit is cut for a strongbox.
   type: key
   weight: 0
 tavern_skeleton_key:
   name: Tavern Skeleton Key
+  flavor_text: A master key, worn bright at the wards.
   type: key
   weight: 0
   description: Master key on Mara's ring — opens every lock in the Prancing Flagon.
@@ -776,26 +940,84 @@ tavern_skeleton_key:
     - tavern_safe_key
 tavern_room_key_1:
   name: Standard Room 1 Key
+  flavor_text: A brass room key, numbered by a careful innkeeper.
   type: key
   weight: 0
   description: Brass key for Prancing Flagon guest room 1 (upstairs, east wing).
 tavern_room_key_2:
   name: Standard Room 2 Key
+  flavor_text: A brass room key, numbered by a careful innkeeper.
   type: key
   weight: 0
   description: Brass key for Prancing Flagon guest room 2 (upstairs, east wing).
 tavern_room_key_3:
   name: Standard Room 3 Key
+  flavor_text: A brass room key, numbered by a careful innkeeper.
   type: key
   weight: 0
   description: Brass key for Prancing Flagon guest room 3 (upstairs, east wing).
 tavern_room_key_4:
   name: Standard Room 4 Key
+  flavor_text: A brass room key, numbered by a careful innkeeper.
   type: key
   weight: 0
   description: Brass key for Prancing Flagon guest room 4 (upstairs, west wing).
 tavern_suite_key:
   name: Tavern Suite Key
+  flavor_text: An iron key for a better room than most travelers see.
   type: key
   weight: 0
   description: Iron key for the Prancing Flagon suite (upstairs, west wing).
+
+# --- Common SRD / 5e adventuring gear (used by campaigns including Death House) ---
+candle:
+  cost: 0.01
+  name: Candle
+  flavor_text: A tallow candle that weeps as it burns.
+  description: >-
+    For 1 hour, a candle sheds bright light in a 5-foot radius and dim light for an additional 5 feet.
+  type: light_source
+  weight: 0
+  light:
+    bright: 5
+    dim: 5
+oil_flask:
+  cost: 0.1
+  name: Flask of Oil
+  flavor_text: A clay flask of lamp oil, stoppered with waxed cloth.
+  description: >-
+    Oil usually comes in a clay flask that holds 1 pint. As an action, you can splash the oil onto a creature within 5 feet or throw it up to 20 feet. If lit, the target takes 5 fire damage at the start of its turn for 2 rounds.
+  type: gear
+  weight: 1
+wooden_stake:
+  cost: 0.05
+  name: Wooden Stake
+  flavor_text: A sharpened length of ash, meant for more than a tent line.
+  description: A sharpened wooden stake. Harmless to most creatures; vampire-hunters carry several.
+  type: gear
+  weight: 1
+steel_mirror:
+  cost: 5
+  name: Steel Mirror
+  flavor_text: A polished steel plate that serves as a mirror in a pinch.
+  description: A polished steel mirror, useful for looking around corners or flashing a signal.
+  type: gear
+  weight: 0.5
+bullseye_lantern:
+  cost: 10
+  name: Bullseye Lantern
+  flavor_text: A hooded lantern that throws a long, narrow cone of light.
+  description: >-
+    A bullseye lantern casts bright light in a 60-foot cone and dim light for an additional 60 feet. Once lit, it burns for 6 hours on a flask (1 pint) of oil.
+  type: light_source
+  weight: 2
+  light:
+    bright: 60
+    dim: 60
+playing_cards:
+  cost: 0.5
+  name: Playing Card Set
+  flavor_text: A deck of painted playing cards in a leather sleeve.
+  description: A set of illustrated playing cards.
+  type: game
+  weight: 0

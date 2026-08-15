@@ -1,6 +1,7 @@
-# SRD 5.2 Fighter overlay — Weapon Mastery at level 1.
+# SRD 5.2 Fighter overlay — Weapon Mastery at level 1 (3 known; 4 at 4th).
 ---
 inherit: "@templates/char_classes/fighter.yml"
 class_features:
   - second_wind
   - weapon_mastery
+weapon_mastery_known: 3

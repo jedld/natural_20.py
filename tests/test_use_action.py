@@ -25,20 +25,14 @@ class TestUseItemAction(unittest.TestCase):
         self.action = action['next']('healing_potion')['next'](self.entity)
 
     def test_heal_thyself(self):
-        self.assertEqual(self.action.usable_items(), 
-                         [{'consumable': True,
-                            'image': 'healing_potion',
-                            'item': {'consumable': True,
-                                     'equippable': False,
-                                        'hp_regained': '2d4+2',
-                                        'item_class': 'HealingPotion',
-                                        'name': 'healing_potion',
-                                        'label': 'Potion of Healing',
-                                        'type': 'potion',
-                                        'usable': True},
-                            'label': 'Potion of Healing',
-                            'name': 'healing_potion',
-                            'qty': 1}])
+        usable = self.action.usable_items()
+        self.assertEqual(len(usable), 1)
+        self.assertEqual(usable[0]['name'], 'healing_potion')
+        self.assertEqual(usable[0]['label'], 'Potion of Healing')
+        self.assertEqual(usable[0]['qty'], 1)
+        self.assertTrue(usable[0]['consumable'])
+        self.assertEqual(usable[0]['item']['item_class'], 'HealingPotion')
+        self.assertNotIn('container', usable[0])
         self.assertEqual(self.entity.item_count("healing_potion"), 1)
         self.action.resolve(self.session)
         self.entity.take_damage(53, session=self.session)
@@ -46,6 +40,26 @@ class TestUseItemAction(unittest.TestCase):
         UseItemAction.apply(self.battle, self.action.result[0])
         self.assertEqual(self.entity.hp(), 22)
         self.assertEqual(self.entity.item_count("healing_potion"), 0)
+
+    def test_use_item_inside_container(self):
+        self.entity.add_item('backpack', 1)
+        ok, reason = self.entity.stow_item('backpack', 'healing_potion', 1, self.session)
+        self.assertTrue(ok, reason)
+        self.assertEqual(self.entity.item_count('healing_potion'), 1)
+        self.assertNotIn('healing_potion', self.entity.inventory)
+        usable = self.entity.usable_items()
+        self.assertEqual(usable[0]['name'], 'healing_potion')
+        self.assertEqual(usable[0]['container'], 'backpack')
+
+        self.entity.take_damage(53, session=self.session)
+        action = UseItemAction.build_self_use(
+            self.session, self.entity, 'healing_potion', container_name='backpack'
+        )
+        action.resolve(self.session)
+        UseItemAction.apply(self.battle, action.result[0])
+        self.assertGreater(self.entity.hp(), 14)
+        self.assertEqual(self.entity.item_count('healing_potion'), 0)
+        self.assertEqual(self.entity.get_container_contents('backpack'), [])
 
     def test_spell_scroll(self):
         self.entity = PlayerCharacter.load(self.session, "high_elf_mage.yml")

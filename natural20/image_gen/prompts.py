@@ -305,6 +305,21 @@ _SPELL_VISUAL_HINTS: dict[str, str] = {
     "grease": (
         "spilled oil puddle with slick shine, slippery grease splash"
     ),
+    "hex": (
+        "cursed purple-green hex sigil over a shadowed figure, warlock curse mark"
+    ),
+    "searing_smite": (
+        "burning sword strike with white-hot flames along the blade, paladin smite"
+    ),
+    "tiny_hut": (
+        "hemispherical shimmering dome of force, Leomund shelter bubble"
+    ),
+    "leomunds_tiny_hut": (
+        "hemispherical shimmering dome of force, Leomund shelter bubble"
+    ),
+    "wrath_of_the_storm": (
+        "cleric storm wrath symbol, blue-white lightning bolt through a storm cloud"
+    ),
 }
 
 _FIRE_SPELL_SLUGS = frozenset(
@@ -318,6 +333,7 @@ _FIRE_SPELL_SLUGS = frozenset(
         "scorching_ray",
         "wall_of_fire",
         "witch_bolt",
+        "searing_smite",
     }
 )
 
@@ -365,6 +381,9 @@ _ACTION_VISUAL_HINTS: dict[str, str] = {
     ),
     "interact_loot": (
         "open treasure chest with upward arrow, take items symbol"
+    ),
+    "interact_take": (
+        "open palm taking a small object, pick up item UI symbol, loot take"
     ),
     "interact_open": (
         "wooden door panel swinging open with curved arrow, door open UI symbol, "
@@ -485,6 +504,21 @@ _ITEM_VISUAL_HINTS: dict[str, str] = {
     "candle": "lit wax candle",
     "spellbook": "closed leather spellbook",
     "holy_water": "glass flask of holy water",
+    "oil_flask": "clay flask of lamp oil with waxed cork stopper",
+    "wooden_stake": (
+        "sharpened stake carved from pale brown ash wood, pointed timber, "
+        "no metal blade, vampire hunter wooden stake"
+    ),
+    "steel_mirror": "small polished steel hand mirror plate",
+    "bullseye_lantern": "hooded brass bullseye lantern throwing a cone of light",
+    "playing_cards": "deck of painted playing cards in a leather sleeve",
+    "tavern_skeleton_key": "worn iron master skeleton key with ornate clover bow",
+    "tavern_room_key_1": "simple brass inn key with round wooden fob",
+    "tavern_room_key_2": "brass inn key with square wooden fob",
+    "tavern_room_key_3": "brass inn key with triangular wooden fob",
+    "tavern_room_key_4": "brass inn key with oval wooden fob",
+    "tavern_suite_key": "heavy ornate iron inn suite key with gold inlay",
+    "tavern_safe_key": "heavy iron strongbox key",
 }
 
 
@@ -631,11 +665,30 @@ def spell_visual_hint(slug: str, label: str = "") -> str:
     )
 
 
+_STORM_SPELL_SLUGS = frozenset(
+    {
+        "wrath_of_the_storm",
+        "call_lightning",
+        "lightning_bolt",
+        "chain_lightning",
+        "thunderwave",
+        "shocking_grasp",
+        "lightning_lure",
+    }
+)
+
+
 def spell_icon_negative(*, slug: str = "", spell_meta: dict | None = None) -> str:
     meta = spell_meta or {}
     damage = str(meta.get("damage_type") or "").lower()
-    if damage == "fire" or (slug or "").strip().lower() in _FIRE_SPELL_SLUGS:
+    key = (slug or "").strip().lower()
+    if damage == "fire" or key in _FIRE_SPELL_SLUGS:
         return ICON_NEGATIVE
+    if damage in {"lightning", "thunder"} or key in _STORM_SPELL_SLUGS:
+        return (
+            f"{ICON_NEGATIVE}, flame, fire, torch, candle, brazier, lantern, "
+            "bonfire, campfire"
+        )
     return (
         f"{ICON_NEGATIVE}, flame, fire, torch, candle, brazier, lantern, "
         "bonfire, campfire, lightning bolt, storm cloud"
@@ -677,8 +730,9 @@ def effect_icon_prompt(
     theme: str = "",
 ) -> str:
     del description, theme
+    visual = spell_visual_hint(name, label)
     school_bit = school.replace("_", " ").strip()
-    subject = f"Status effect buff icon: {label or name}"
+    subject = f"Status effect buff icon: {visual}"
     if school_bit:
         subject = f"{subject}, {school_bit} school"
     style = clip_word_limit(icon_style or DEFAULT_ICON_STYLE, 20)

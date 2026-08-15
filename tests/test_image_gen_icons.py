@@ -84,7 +84,8 @@ def test_item_and_spell_icon_prompts_include_style():
     assert "flat style icons" in effect
     assert "flat style icons" in action
     assert "Fire Bolt" in spell
-    assert "Detect Magic" in effect
+    assert "Status effect buff icon" in effect
+    assert "eye" in effect.lower() or "Detect Magic" in effect
     assert "streak of fire" not in spell
     assert "sound wave" in spell_icon_prompt(
         name="message",

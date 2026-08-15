@@ -1,0 +1,8 @@
+# SRD 5.2 Barbarian overlay — Weapon Mastery at level 1.
+---
+inherit: "@templates/char_classes/barbarian.yml"
+class_features:
+  - rage
+  - unarmored_defense_barbarian
+  - weapon_mastery
+weapon_mastery_known: 2

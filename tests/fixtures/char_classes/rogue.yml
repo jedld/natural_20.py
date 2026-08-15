@@ -74,3 +74,5 @@ weapon_proficiencies:
   - hand_crossbow
   - rapier
   - shortsword
+tool_proficiencies:
+  - thieves_tools

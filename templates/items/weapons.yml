@@ -9,6 +9,7 @@ battleaxe:
     noise_target: 5
   modifiers: null
   name: Battleaxe
+  flavor_text: A broad, bearded blade meant to bite through shield and helm in a single swing.
   proficiency_type:
     - martial
   properties:
@@ -26,6 +27,7 @@ dagger:
     noise_target: 5
   modifiers: null
   name: Dagger
+  flavor_text: A short, double-edged blade small enough to hide in a sleeve or boot.
   proficiency_type:
     - simple
   properties:
@@ -49,6 +51,7 @@ quarterstaff:
     noise_target: 5
   modifiers: null
   name: Quarterstaff
+  flavor_text: A balanced length of hardwood, worn smooth where countless hands have gripped it.
   proficiency_type:
     - simple
   properties:
@@ -67,6 +70,7 @@ sling:
     noise_target: 5
   modifiers: null
   name: Sling
+  flavor_text: A simple leather cup and cords — humble, until a stone finds its mark.
   proficiency_type:
     - simple
   properties:
@@ -87,6 +91,7 @@ dart:
     noise_target: 5
   modifiers: null
   name: Dart
+  flavor_text: A fletched throwing spike, light enough to carry by the handful.
   proficiency_type:
     - simple
   properties:
@@ -108,6 +113,7 @@ greatclub:
     noise_target: 5
   modifiers: null
   name: Greatclub
+  flavor_text: A massive length of knotted wood, more tree than weapon.
   proficiency_type:
     - simple
   properties:
@@ -125,6 +131,7 @@ greataxe:
     noise_target: 5
   modifiers: null
   name: Greataxe
+  flavor_text: A two-handed axe whose wide crescent blade is built to fell more than timber.
   proficiency_type:
     - martial
   properties:
@@ -144,6 +151,7 @@ hand_crossbow:
     noise_target: 5
   modifiers: null
   name: Hand Crossbow
+  flavor_text: A compact crossbow that cocks against the forearm and hides beneath a cloak.
   proficiency_type:
     - martial
   properties:
@@ -165,6 +173,7 @@ handaxe:
     noise_target: 5
   modifiers: null
   name: Handaxe
+  flavor_text: "A one-handed woodsman's axe, equally at home in camp or close combat."
   proficiency_type:
     - simple
   properties:
@@ -186,6 +195,7 @@ javelin:
     noise_target: 5
   modifiers: null
   name: Javelin
+  flavor_text: A slender throwing spear with a leaf-shaped head and a long, hungry reach.
   proficiency_type:
     - simple
   properties:
@@ -207,6 +217,7 @@ hand_crossbow:
     noise_target: 5
   modifiers: null
   name: Hand Crossbow
+  flavor_text: A compact crossbow that cocks against the forearm and hides beneath a cloak.
   proficiency_type:
     - martial
   properties:
@@ -229,6 +240,7 @@ heavy_crossbow:
     noise_target: 5
   modifiers: null
   name: Heavy Crossbow
+  flavor_text: A steel-bowed siege piece, slow to span and brutal when it speaks.
   proficiency_type:
     - martial
   properties:
@@ -252,6 +264,7 @@ light_crossbow:
     noise_target: 5
   modifiers: null
   name: Light Crossbow
+  flavor_text: A sturdy crossbow a recruit can learn in an afternoon.
   proficiency_type:
     - simple
   properties:
@@ -273,6 +286,7 @@ light_hammer:
     noise_target: 5
   modifiers: null
   name: Light Hammer
+  flavor_text: A compact hammer with a short haft, easy to throw or to finish a nail.
   proficiency_type:
     - simple
   properties:
@@ -295,6 +309,7 @@ longbow:
     noise_target: 5
   modifiers: null
   name: Longbow
+  flavor_text: A tall yew bow that wants a strong arm and an open field.
   proficiency_type:
     - martial
   properties:
@@ -316,8 +331,7 @@ longsword:
     noise_target: 5
   modifiers: null
   name: Longsword
-  weapon_mastery:
-    - sap
+  flavor_text: A straight, double-edged sword — the familiar companion of soldiers and knights.
   proficiency_type:
     - martial
   properties:
@@ -335,6 +349,7 @@ rapier:
     noise_target: 5
   modifiers: null
   name: Rapier
+  flavor_text: "A slender thrusting blade built for speed, precision, and a duelist's footwork."
   proficiency_type:
     - martial
   properties:
@@ -352,6 +367,7 @@ scimitar:
     noise_target: 5
   modifiers: null
   name: Scimitar
+  flavor_text: A curved slashing sword that sings when it cuts.
   proficiency_type:
     - martial
   properties:
@@ -370,6 +386,7 @@ shortsword:
     noise_target: 5
   modifiers: null
   name: Scimitar
+  flavor_text: A close-work blade, shorter than a longsword and quicker in a press.
   proficiency_type:
     - martial
   properties:
@@ -389,6 +406,7 @@ shortbow:
     noise_target: 5
   modifiers: null
   name: Shortbow
+  flavor_text: A compact bow suited to woods, rooftops, and tight corridors.
   proficiency_type:
     - martial
   properties:
@@ -409,6 +427,7 @@ spear:
     noise_target: 5
   modifiers: null
   name: Spear
+  flavor_text: A simple shaft and point — among the oldest, and still among the most honest, weapons.
   proficiency_type:
     - simple
   properties:
@@ -433,6 +452,7 @@ torch:
     noise_source: 5
     noise_target: 5
   name: Torch
+  flavor_text: A tarred brand that pops and spatters as it burns.
   proficiency_type:
     - martial
   range: 5
@@ -448,6 +468,7 @@ unarmed_attack:
     noise_target: 5
   modifiers: null
   name: Unarmed Attack
+  flavor_text: A fist, a knee, an elbow — whatever the body can bring to bear.
   range: 5
   subtype: weapon
   type: melee_attack
@@ -467,6 +488,9 @@ vicious_rapier:
     noise_target: 5
   modifiers: null
   name: Vicious Rapier
+  flavor_text: This rapier thirsts; when it bites true, the wound seems to tear wider than the steel.
+  description: >-
+    When you roll a 20 on your attack roll with this magic weapon, the target takes an extra 2d6 damage of the weapon's type.
   proficiency_type:
     - martial
   properties:
@@ -486,6 +510,7 @@ warhammer:
     noise_target: 5
   modifiers: null
   name: Warhammer
+  flavor_text: A martial hammer with a crushing face and a pick opposite, made to dent plate.
   proficiency_type:
     - martial
   properties:
@@ -502,6 +527,7 @@ mace:
     noise_target: 5
   modifiers: null
   name: Mace
+  flavor_text: A flanged metal head on a short haft, built to ignore the comfort of armor.
   proficiency_type:
     - simple
   properties: []
@@ -518,6 +544,7 @@ morningstar:
     noise_target: 5
   modifiers: null
   name: Morningstar
+  flavor_text: A spiked head bristling like a cruel star, made to punch through mail.
   proficiency_type:
     - martial
   properties:
@@ -535,6 +562,7 @@ trident:
     noise_target: 5
   modifiers: null
   name: Trident
+  flavor_text: "Three barbed tines on a sailor's shaft, equally useful for fish or foe."
   proficiency_type:
     - simple
   properties:
