@@ -108,6 +108,14 @@ healing_potion:
   label: Potion of Healing
   type: potion
   usable: true
+backpack:
+  cost: 2
+  name: Backpack
+  type: container
+  weight: 5
+  capacity_lbs: 30
+  capacity_cu_ft: 1
+  max_item_size: small
 leather_armor:
   ac: 11
   cost: 10

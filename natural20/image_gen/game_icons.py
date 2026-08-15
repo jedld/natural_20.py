@@ -27,6 +27,13 @@ from natural20.image_gen.effect_assets import (
     discover_runtime_effect_refs,
     materialize_effect_icon,
 )
+from natural20.image_gen.item_asset_paths import (
+    bundled_item_dir,
+    item_icon_exists_at_scope,
+    item_icon_output_dir,
+    item_icon_scope,
+    template_item_ids,
+)
 from natural20.image_gen.spell_scroll_icons import (
     is_spell_scroll_item,
     render_spell_scroll_icon,
@@ -51,7 +58,7 @@ def webapp_static_root() -> Path:
 
 
 def bundled_item_path(image_name: str, ext: str = ".png") -> Path | None:
-    path = _WEBAPP_STATIC / "assets" / "items" / f"{image_name}{ext}"
+    path = bundled_item_dir() / f"{image_name}{ext}"
     return path if path.is_file() else None
 
 
@@ -64,6 +71,7 @@ class IconAssetRef:
     output_path: Path
     meta: dict[str, Any] = field(default_factory=dict)
     source: str = ""
+    scope: str = ""
 
 
 @dataclass
@@ -85,14 +93,29 @@ def _repo_root() -> Path:
     return _REPO_ROOT
 
 
-def item_icon_exists(image_name: str, *, campaign_root: Path | None = None) -> bool:
+def item_icon_exists(
+    image_name: str,
+    *,
+    campaign_root: Path | None = None,
+    item_id: str | None = None,
+    write_to: str = "auto",
+) -> bool:
+    """True when the icon exists in the directory that should own it.
+
+    Campaign-only items look only under the defining campaign's
+    ``assets/items/`` — a stray bundled PNG does not count. Template items
+    look at bundled static (and ``write_to=campaign`` override dirs).
+    """
+    if campaign_root is not None or item_id:
+        return item_icon_exists_at_scope(
+            image_name,
+            item_id=item_id,
+            campaign_root=campaign_root,
+            write_to=write_to,
+        )
     for ext in (".png", ".webp"):
         if bundled_item_path(image_name, ext) is not None:
             return True
-        if campaign_root is not None:
-            path = campaign_root / "assets" / "items" / f"{image_name}{ext}"
-            if path.is_file():
-                return True
     return False
 
 
@@ -110,7 +133,7 @@ def default_item_output_dir(*, campaign_root: Path | None, write_to: str) -> Pat
         if campaign_root is None:
             raise ValueError("write_to=campaign requires a campaign root")
         return campaign_root / "assets" / "items"
-    return webapp_static_root() / "assets" / "items"
+    return bundled_item_dir()
 
 
 def default_spell_output_dir() -> Path:
@@ -301,6 +324,7 @@ def discover_item_refs(
     item_output_dir: Path | None = None,
     include_objects: bool = False,
     include_packs: bool = False,
+    write_to: str = "auto",
 ) -> list[IconAssetRef]:
     catalogs: list[tuple[str, dict[str, Any] | None]] = [
         ("weapons", session.load_weapons()),
@@ -311,11 +335,9 @@ def discover_item_refs(
         catalogs.append(("equipment_packs", session.load_yaml_file("items", "equipment_packs")))
     if include_objects:
         catalogs.append(("objects", session.load_yaml_file("items", "objects")))
-    out_dir = item_output_dir or default_item_output_dir(
-        campaign_root=campaign_root, write_to="bundled"
-    )
     refs: list[IconAssetRef] = []
     seen: set[str] = set()
+    template_ids = template_item_ids()
     for source, catalog in catalogs:
         if not isinstance(catalog, dict):
             continue
@@ -334,6 +356,20 @@ def discover_item_refs(
                 or meta.get("item_class")
                 or key
             )
+            scope = item_icon_scope(
+                str(key),
+                campaign_root=campaign_root,
+                template_ids=template_ids,
+            )
+            if item_output_dir is not None:
+                out_dir = item_output_dir
+            else:
+                out_dir = item_icon_output_dir(
+                    str(key),
+                    campaign_root=campaign_root,
+                    write_to=write_to,
+                    template_ids=template_ids,
+                )
             refs.append(
                 IconAssetRef(
                     kind="item",
@@ -343,6 +379,7 @@ def discover_item_refs(
                     output_path=out_dir / f"{image_name}.png",
                     meta=meta,
                     source=source,
+                    scope=scope,
                 )
             )
     return refs
@@ -449,6 +486,7 @@ def scan_missing_icons(
     force: bool = False,
     include_objects: bool = False,
     include_packs: bool = False,
+    write_to: str = "auto",
 ) -> list[IconAssetRef]:
     only_set = {x.lower() for x in only} if only else None
     missing: list[IconAssetRef] = []
@@ -459,10 +497,13 @@ def scan_missing_icons(
             item_output_dir=item_output_dir,
             include_objects=include_objects,
             include_packs=include_packs,
+            write_to=write_to,
         ):
             if only_set and ref.key.lower() not in only_set and ref.image_name.lower() not in only_set:
                 continue
-            if not force and item_icon_exists(ref.image_name, campaign_root=campaign_root):
+            if not force and (
+                ref.output_path.is_file() or ref.output_path.with_suffix(".webp").is_file()
+            ):
                 continue
             missing.append(ref)
     if spells:
@@ -681,7 +722,7 @@ def generate_game_icons(
                 else:
                     generated = generator(
                         prompt=prompt,
-                        size="512x512",
+                        size="1024x1024",
                         quality=quality,
                         negative_prompt=_negative_for_ref(ref),
                         output_format="png",
@@ -730,7 +771,7 @@ def run_icon_generation(
     spells: bool = True,
     actions: bool = True,
     effects: bool = True,
-    write_to: str = "bundled",
+    write_to: str = "auto",
     only: Iterable[str] | None = None,
     item_output_dir: Path | None = None,
     spell_output_dir: Path | None = None,
@@ -741,8 +782,6 @@ def run_icon_generation(
     root_path = Path(root).resolve()
     session = build_session(root_path)
     campaign_root = root_path if (root_path / "game.yml").is_file() or (root_path / "index.json").is_file() else None
-    if item_output_dir is None:
-        item_output_dir = default_item_output_dir(campaign_root=campaign_root, write_to=write_to)
     if spell_output_dir is None:
         spell_output_dir = default_spell_output_dir()
     if action_output_dir is None:
@@ -768,6 +807,7 @@ def run_icon_generation(
         force=bool(kwargs.get("force")),
         include_objects=include_objects,
         include_packs=include_packs,
+        write_to=write_to,
     )
     return generate_game_icons(
         session=session,

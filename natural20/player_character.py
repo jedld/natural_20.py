@@ -197,6 +197,19 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       for r in sub.get('resistances', []) or []:
         if r not in self.resistances:
           self.resistances.append(r)
+    self.damage_immunities = list(
+      self.properties.get('damage_immunities', self.properties.get('immunities', [])) or []
+    )
+    self.damage_vulnerabilities = list(
+      self.properties.get('damage_vulnerabilities', self.properties.get('vulnerabilities', [])) or []
+    )
+    self.condition_immunities = list(self.properties.get('condition_immunities', []) or [])
+    for r in self.race_properties.get('condition_immunities', []) or []:
+      if r not in self.condition_immunities:
+        self.condition_immunities.append(r)
+    self.inspiration = bool(
+      self.properties.get('inspiration') or self.properties.get('heroic_inspiration')
+    )
     
     # Draconic ancestry support (Dragonborn race feature)
     # Only load ancestry for Dragonborn (other races have subraces too)
@@ -616,7 +629,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     if self.has_effect('speed_override'):
       effective_speed = self.eval_effect('speed_override', { "stacked": True, "value" : effective_speed})
 
-    return effective_speed
+    from natural20.weapon_mastery import apply_speed_reduction
+    return apply_speed_reduction(self, effective_speed)
 
   def climb_speed(self):
     return self.race_properties.get('climb_speed')
@@ -1225,17 +1239,40 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     return any(prof in proficiency_type for prof in all_weapon_proficiencies)
 
   def weapon_proficiencies(self):
-    all_weapon_proficiencies = []
+    class_profs = []
     for p in self.class_properties.values():
       if 'weapon_proficiencies' in p:
-        all_weapon_proficiencies += p['weapon_proficiencies']
-    all_weapon_proficiencies += self.properties.get('weapon_proficiencies', [])
-    all_weapon_proficiencies += self.race_properties.get('weapon_proficiencies', [])
-
+        class_profs += p['weapon_proficiencies']
+    race_profs = list(self.race_properties.get('weapon_proficiencies', []) or [])
     subrace = self.subrace()
     if subrace:
-      all_weapon_proficiencies += self.race_properties.get('subrace', {}).get(subrace, {}).get('weapon_proficiencies', [])
-    return all_weapon_proficiencies
+      race_profs += list(
+        (self.race_properties.get('subrace', {}) or {}).get(subrace, {}).get('weapon_proficiencies', []) or []
+      )
+    return self._proficiency_list(
+      class_profs,
+      self.properties.get('weapon_proficiencies'),
+      race_profs,
+    )
+
+  def tool_proficiencies(self):
+    class_tools = []
+    for p in self.class_properties.values():
+      class_tools += list(p.get('tool_proficiencies') or [])
+    race_tools = list(self.race_properties.get('tool_proficiencies') or [])
+    choice = int(self.race_properties.get('tool_proficiencies_choice') or 0)
+    subrace = self.subrace()
+    if subrace:
+      sub = (self.race_properties.get('subrace', {}) or {}).get(subrace, {}) or {}
+      race_tools += list(sub.get('tool_proficiencies') or [])
+      choice = int(sub.get('tool_proficiencies_choice') or choice or 0)
+    granted_race_tools = [] if choice else race_tools
+    return self._proficiency_list(
+      class_tools,
+      self.properties.get('tool_proficiencies'),
+      self.properties.get('tools'),
+      granted_race_tools,
+    )
 
 
   def _proficiency_bonus_table(self):
@@ -1695,6 +1732,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       'journal': copy.deepcopy(getattr(self, 'journal', []) or []),
       '_in_shell': getattr(self, '_in_shell', False),
     }
+    from natural20.weapon_mastery import mastery_state_to_dict
+    base_dict.update(mastery_state_to_dict(self))
     return base_dict
 
   def from_dict(data):
@@ -1741,4 +1780,6 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     player_character.seed_initial_journal_from_properties()
     # Tortle shell state
     player_character._in_shell = data.get('_in_shell', False)
+    from natural20.weapon_mastery import mastery_state_from_dict
+    mastery_state_from_dict(player_character, data)
     return player_character

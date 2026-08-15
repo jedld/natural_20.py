@@ -612,6 +612,8 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         base_dict["group"] = self.group
         base_dict["_current_hit_die"] = dict(self._current_hit_die)
         base_dict["_max_hit_die"] = dict(self._max_hit_die)
+        from natural20.weapon_mastery import mastery_state_to_dict
+        base_dict.update(mastery_state_to_dict(self))
         return base_dict
     
     def interactable(self):
@@ -635,4 +637,6 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
             npc._current_hit_die = {int(k): v for k, v in data["_current_hit_die"].items()}
         if "_max_hit_die" in data:
             npc._max_hit_die = dict(data["_max_hit_die"])
+        from natural20.weapon_mastery import mastery_state_from_dict
+        mastery_state_from_dict(npc, data)
         return npc

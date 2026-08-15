@@ -268,6 +268,15 @@ class Inventory:
             return []
         return list(item_data.get('contents', []))
 
+    def iter_nested_inventory(self):
+        """Yield ``(container_name, content_entry)`` for items stored in containers."""
+        for container_name, entry in (self.inventory or {}).items():
+            if not isinstance(entry, dict):
+                continue
+            for content in entry.get('contents') or []:
+                if isinstance(content, dict):
+                    yield container_name, content
+
     def contents_weight(self, item_name, session=None):
         total = 0.0
         for content in self.get_container_contents(item_name):
@@ -287,14 +296,30 @@ class Inventory:
         for content in contents:
             content_type = content.get('type') or content.get('item')
             definition = self._item_definition(content_type, session)
+            can_equip = False
+            if hasattr(self, 'check_equip') and content_type and not content.get('is_creature'):
+                try:
+                    can_equip = self.check_equip(content_type) == 'ok'
+                except Exception:
+                    can_equip = False
             enriched.append({
                 'type': content_type,
+                'name': content_type,
                 'qty': content.get('qty', 1),
                 'label': content.get('label') or definition.get('label') or definition.get('name') or content_type,
                 'weight': content.get('weight', definition.get('weight')),
                 'weight_total': self._content_weight_lbs(content, session),
                 'size': content.get('size') or definition.get('size'),
                 'is_creature': bool(content.get('is_creature')),
+                'usable': bool(definition.get('usable')),
+                'consumable': bool(definition.get('consumable')),
+                'equippable': can_equip,
+                'item_type': definition.get('type'),
+                'image': definition.get('image', content_type),
+                'icon': definition.get('icon') or (
+                    f"/assets/items/{definition.get('image', content_type)}.png"
+                    if content_type else None
+                ),
             })
         return {
             'container': item_name,

@@ -125,9 +125,15 @@ class AttackAction(Action):
                 and 'unarmed' in (weapon.get('properties') or [])
             ):
                 weapon_name = "Cat's Claws"
-            return self.t(i18n_token, name=str(self.action_type), weapon_name=weapon_name,
+            label = self.t(i18n_token, name=str(self.action_type), weapon_name=weapon_name,
                      mod=f"+{attack_mod}" if attack_mod >= 0 else attack_mod,
                      dmg=damage_modifier(self.source, weapon, second_hand=self.second_hand()))
+            from natural20.weapon_mastery import active_masteries, MASTERY_LABELS
+            masteries = active_masteries(self.source, weapon)
+            if masteries:
+                names = ", ".join(MASTERY_LABELS.get(m, m.title()) for m in masteries)
+                label = f"{label} [{names}]"
+            return label
 
     def weapon_icon(self):
         """Asset slug for the action button image. Returns None to fall
@@ -148,6 +154,23 @@ class AttackAction(Action):
         ):
             return 'cats_claws'
         return None
+
+    def weapon_mastery_badge(self):
+        """Short mastery label for the action-bar overlay, or None."""
+        if self.npc_action or not self.using:
+            weapon = self.npc_action
+        else:
+            try:
+                weapon = self.session.load_weapon(self.using)
+            except Exception:
+                weapon = None
+        if not weapon:
+            return None
+        from natural20.weapon_mastery import active_masteries, MASTERY_LABELS
+        masteries = active_masteries(self.source, weapon)
+        if not masteries:
+            return None
+        return MASTERY_LABELS.get(masteries[0], masteries[0].title())
 
     def ranged_attack(self):
         weapon = self.get_attack_info(self.opts)
@@ -213,28 +236,40 @@ class AttackAction(Action):
         elif item['type'] == 'save_fail':
             session.event_manager.received_event({'event': 'save_fail', 'source': item['source'], 'save_type': item['save_type'], 'roll': item['roll'], 'dc': item['dc']})
         elif item['type'] == 'prone':
-            item['source'].prone()
+            item['source'].do_prone()
         elif item['type'] == 'weapon_mastery_push':
             target = item.get('target')
             source = item.get('source')
+            dest = None
             if target is not None and source is not None and battle is not None:
                 battle_map = battle.map_for(source)
                 if battle_map is not None:
                     src_pos = battle_map.entity_or_object_pos(source)
                     if src_pos is not None:
-                        target.push_from(
+                        dest = target.push_from(
                             battle_map, *src_pos, distance=item.get('distance', 10)
                         )
+                        if dest:
+                            occupied = battle_map.entity_at(*dest)
+                            if occupied is None or occupied is target:
+                                still_on_map = False
+                                try:
+                                    still_on_map = battle_map.entity_or_object_pos(target) is not None
+                                except Exception:
+                                    still_on_map = False
+                                if still_on_map:
+                                    battle_map.move_to(target, *dest, battle)
             session.event_manager.received_event({
                 'event': 'weapon_mastery',
                 'mastery': 'push',
                 'source': item.get('source'),
                 'target': target,
+                'destination': dest,
             })
         elif item['type'] == 'weapon_mastery_topple':
             target = item.get('target')
-            if target is not None and hasattr(target, 'prone'):
-                target.prone()
+            if target is not None and hasattr(target, 'do_prone'):
+                target.do_prone()
             session.event_manager.received_event({
                 'event': 'weapon_mastery',
                 'mastery': 'topple',
