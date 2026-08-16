@@ -1,0 +1,46 @@
+---
+kind: Zombie
+description: >
+  A rotting corpse animated by necromancy. Zombies lurch toward the living
+  without fear, hunger, or speech.
+size: medium
+race:
+  - undead
+alignment: true_neutral
+default_ac: 8
+max_hp: 22
+hp_die: 3d8+9
+speed: 20
+passive_perception: 8
+darkvision: 60
+token:
+  - z
+color: olive
+ability:
+  str: 13
+  dex: 6
+  con: 16
+  int: 3
+  wis: 6
+  cha: 5
+saving_throw_proficiencies:
+  - wisdom
+languages: []
+cr: 0.25
+xp: 50
+proficiency_bonus: 2
+damage_immunities:
+  - poison
+condition_immunities:
+  - poisoned
+attributes:
+  - undead_fortitude
+actions:
+  - name: Slam
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 3
+    damage: 4
+    damage_die: 1d6+1
+    damage_type: bludgeoning

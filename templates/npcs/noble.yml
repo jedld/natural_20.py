@@ -1,0 +1,47 @@
+---
+kind: Noble
+description: >
+  A well-dressed aristocrat more at home in a salon than a melee. Nobles
+  typically travel with guards and fight only as a last resort.
+size: medium
+race:
+  - humanoid
+  - human
+alignment: true_neutral
+default_ac: 15
+max_hp: 9
+hp_die: 2d8
+speed: 30
+passive_perception: 12
+token:
+  - n
+color: gold
+ability:
+  str: 11
+  dex: 12
+  con: 11
+  int: 12
+  wis: 14
+  cha: 16
+skills:
+  deception: 5
+  insight: 4
+  persuasion: 5
+languages:
+  - common
+cr: 0.125
+xp: 25
+proficiency_bonus: 2
+equipped:
+  - breastplate
+  - rapier
+actions:
+  - name: rapier
+    type: melee_attack
+    if: equipped:rapier
+    range: 5
+    targets: 1
+    attack: 3
+    damage: 5
+    damage_die: 1d8+1
+    damage_type: piercing

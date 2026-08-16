@@ -1,0 +1,74 @@
+---
+kind: Vampire Spawn
+description: >
+  A newly risen vampire bound to its maker. Spawn hunt for blood, climb like
+  spiders, and burn in sunlight.
+size: medium
+race:
+  - undead
+alignment: true_neutral
+default_ac: 15
+max_hp: 82
+hp_die: 11d8+33
+speed: 30
+passive_perception: 13
+darkvision: 60
+token:
+  - v
+color: crimson
+ability:
+  str: 16
+  dex: 16
+  con: 16
+  int: 11
+  wis: 10
+  cha: 12
+saving_throw_proficiencies:
+  - dexterity
+  - wisdom
+skills:
+  perception: 3
+  stealth: 6
+languages:
+  - common
+cr: 5
+xp: 1800
+proficiency_bonus: 3
+resistances:
+  - necrotic
+  - bludgeoning
+  - piercing
+  - slashing
+attributes:
+  - spider_climb
+  - sunlight_sensitivity
+  - multiattack
+multiattack:
+  - claws,bite
+equipped: []
+actions:
+  - name: claws
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 6
+    damage: 8
+    damage_die: 2d4+3
+    damage_type: slashing
+    multiattack_group: 1
+  - name: bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 6
+    damage: 6
+    damage_die: 1d6+3
+    damage_type: piercing
+    multiattack_group: 1
+    on_hit:
+      - description: >
+          Plus 7 (2d6) necrotic damage. The target's hit point maximum is
+          reduced by the necrotic damage, and the spawn regains that many
+          hit points.
+        flavor_fail: specter.life_drain
+        fail: effect:life_drain

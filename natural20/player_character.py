@@ -39,7 +39,7 @@ from natural20.actions.stand_action import StandAction
 from natural20.actions.prone_action import ProneAction
 from natural20.actions.shove_action import ShoveAction, PushAction
 from natural20.actions.shell_defense_action import ShellDefenseAction, EmergenceAction
-from natural20.actions.help_action import HelpAction
+from natural20.actions.help_action import HelpAction, HelpBonusAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.ground_interact_action import GroundInteractAction
 from natural20.actions.spell_action import SpellAction
@@ -108,6 +108,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     StandAction,
     TwoWeaponAttackAction,
     HelpAction,
+    HelpBonusAction,
     GroundInteractAction,
     GrappleAction,
     DropGrappleAction,
@@ -832,6 +833,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action_list.append(action)
         elif action_type == HelpAction:
           action_list.append(HelpAction(session, self, 'help'))
+        elif action_type == HelpBonusAction:
+          action_list.append(HelpBonusAction(session, self, 'help_bonus'))
         elif action_type == FindFamiliarAction:
           action_list.append(FindFamiliarAction(session, self, 'dismiss_familiar'))
         elif action_type == SummonFamiliarAction:

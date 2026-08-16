@@ -75,6 +75,7 @@ spell_list:
     - aganazzars_scorcher
     - enlarge_reduce
     - hold_person
+    - invisibility
     - melfs_acid_arrow
     - misty_step
     - mirror_image
@@ -90,6 +91,9 @@ spell_list:
     - protection_from_energy
     - slow
     - stinking_cloud
+  level_4:
+    - blight
+    - greater_invisibility
 progression:
   level_1:
     class_features:

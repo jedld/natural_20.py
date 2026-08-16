@@ -1,6 +1,6 @@
 ---
 name: natural20-campaign-builder
-description: "Build, scaffold, adapt, repair, or expand a playable Natural20 D&D campaign from a user description, adventure outline, source book, PDF, notes, or existing module. Use when asked to create a campaign, one-shot, adventure, dungeon, encounter series, maps, NPC cast, pregenerated party, or source-book conversion for Natural20. Covers tavern/shop container stock, till safes, NPC-only object annotations, and LLM staff item-exchange tags. Interviews the user for tone, scope, party, safety, automation, and assets; maps the design to supported engine features; writes campaign files; and validates loading, references, and playability."
+description: "Build, scaffold, adapt, repair, or expand a playable Natural20 D&D campaign from a user description, adventure outline, source book, PDF, notes, or existing module. Use when asked to create a campaign, one-shot, adventure, dungeon, encounter series, maps, NPC cast, pregenerated party, or source-book conversion for Natural20. Covers tavern/shop container stock, till safes, NPC-only object annotations, and LLM staff item-exchange tags. Interviews the user for tone, scope, party, safety, automation, and assets; maps the design to supported engine features; writes campaign files; and validates loading, references, and playability. If battlemap art is already provided (including multi-floor published pages), prefer natural20-import-battlemap — one image may yield several map keys; do not invent ASCII or hand-crop floors as the first step."
 argument-hint: "Describe the campaign or provide the source, party level/size, tone, and desired scope"
 user-invocable: true
 disable-model-invocation: false
@@ -14,13 +14,14 @@ Create a working campaign, not merely prose or a speculative plan. Unless the us
 
 1. Read [docs/CAMPAIGN_BUILDING.md](../../../docs/CAMPAIGN_BUILDING.md) before authoring files. It is the primary format guide.
 2. Read [engine capabilities](./references/engine-capabilities.md) and [campaign quality](./references/campaign-quality.md).
-3. Inspect relevant implementation and examples before relying on a field:
+3. If the brief includes battlemap art or `references/**/map-*`, also read `.cursor/skills/n20-import-battlemap/SKILL.md` before writing any `maps/*.yml`.
+4. Inspect relevant implementation and examples before relying on a field:
    - [natural20/session.py](../../../natural20/session.py), [natural20/map.py](../../../natural20/map.py), [natural20/npc.py](../../../natural20/npc.py)
    - [templates](../../../templates), [tests/fixtures](../../../tests/fixtures)
    - [user_levels/wild_sheep_chase](../../../user_levels/wild_sheep_chase) for a feature-rich adaptation
    - [NPC containers & staff annotations](./references/npc-containers-and-annotations.md) for tavern bar stock, till safes, and LLM item tags
    - [docs/CONVERSATION_RAG.md](../../../docs/CONVERSATION_RAG.md) for full conversation directive reference
-4. Treat repository code and currently loading examples as more authoritative than remembered schema. Never invent YAML fields, action types, conditions, spells, item keys, or event semantics.
+5. Treat repository code and currently loading examples as more authoritative than remembered schema. Never invent YAML fields, action types, conditions, spells, item keys, or event semantics.
 
 ## Workflow
 
@@ -37,6 +38,8 @@ Ask about these unresolved dimensions:
 - **Structure**: linear, branching, sandbox; desired maps, important locations, endings, and failure states.
 - **Automation**: manual, heuristic AI, or LLM NPCs; whether unsupported mechanics may have explicit DM-run fallbacks.
 - **Presentation**: existing or placeholder map art, portraits, music, and login requirements.
+
+**Map source:** if the user already provided a battlemap image, a scan, a VTT underlay, `assets/maps/*`, or `references/**/map-*`, **follow** `.cursor/skills/n20-import-battlemap/SKILL.md` (also `.github/skills/natural20-import-battlemap`) **before writing map YAML**. Do not invent ASCII from the whole picture, do not run the procedural dungeon generator, and do not hand-crop a multi-floor page as the first step — `--split-panels` (default) turns one published sheet into several campaign maps. See **Import published maps** under Scaffold.
 
 Do not repeatedly interview the user. If they delegate choices, choose coherent defaults: four players, level 3, mixed play, medium difficulty, a 3–4 hour one-shot, one hub plus two encounter maps, optional LLM dialogue with deterministic fallbacks, and placeholder-free grid maps.
 
@@ -106,6 +109,22 @@ Rules while writing:
 - When the local **Image Gen MCP** is available (`http://127.0.0.1:8020/mcp` by default), offer to generate circular NPC tokens and the login/title background:
   `python scripts/generate_campaign_assets.py --campaign user_levels/<slug>`
   See [docs/CAMPAIGN_ASSET_GENERATOR.md](../../../docs/CAMPAIGN_ASSET_GENERATOR.md). Tokens use the same circular stamp as character creation.
+- For **maps**, choose a source before writing YAML:
+  - **Existing battlemap art** (user-provided image, `assets/maps/*`, `references/**/map-*`, scanned floorplan, VTT underlay) → **follow** `.cursor/skills/n20-import-battlemap/SKILL.md` (section **Campaign conversion**). Run `python scripts/import_battlemap.py` with `--split-panels` left on; do not invent ASCII; do not run `generate_dungeon.py`; do not hand-crop multi-floor pages first. One image may produce several `maps/*.yml` keys — register all of them and wire stairs. Write drafts outside hand-authored `maps/*.yml` unless the user asks to overwrite.
+  - **No source art** → hand-authored YAML or `.github/skills/natural20-dungeon-generator`.
+
+#### Import published maps
+
+When the brief includes adventure maps (especially `references/chapter_*/map-*`):
+
+1. Glob every `map-*.{jpg,png,jpeg,webp}` and `assets/maps/*`. Import **each** file; do not skip a sheet because it “looks like several maps.”
+2. Leave `--split-panels` on. Inspect `workdir/panels.json` and `workdir/panels/*.png`. `panel_count > 1` → one campaign map key **per crop** (ground vs basement, each house floor, dungeon). Front-view art is dropped automatically.
+3. Omit `--width`/`--height` on a multi-floor page (they apply per crop and will be wrong). Prefer auto-detect or `--tile-size` measured on a crop. A vision provider labels floors; heuristic slugs are `left`/`right` or `panel_1`…`n` — rename from the chapter (`ground_floor`, `attic`, `dungeon`).
+4. Copy **crops**, not the original page, to `assets/maps/<id>.png`. Set `background_image`. Register every floor in `game.yml` `maps:` and `index.json` `other_maps`. Wire `teleporter` stairs (`target_map` + `target_position`); use importer `needs_wiring` until both ends exist.
+5. Pass `--adventure` with the matching chapter markdown. Over-split → `--no-split-panels` or re-import a saved crop. Under-split → crop those floors to files and import each with `--no-split-panels`; still do not invent ASCII.
+
+Full flags and checklist: `.cursor/skills/n20-import-battlemap/SKILL.md`. Docs: [docs/BATTLEMAP_IMPORTER.md](../../../docs/BATTLEMAP_IMPORTER.md).
+
 - For **ambient townsfolk / hub NPCs** (bartenders, merchants, guards with dialog), follow `.github/skills/natural20-npc-generator/SKILL.md`.
 - For **tavern/shop stock, payment safes, and staff-only object markings**, follow [NPC containers & staff annotations](./references/npc-containers-and-annotations.md) (summary below).
 

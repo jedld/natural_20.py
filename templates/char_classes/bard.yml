@@ -123,6 +123,8 @@ spell_list:
     - dispel_magic
     - tongues
     - stinking_cloud
+  level_4:
+    - greater_invisibility
 proficiency_bonuses:
 - 2
 - 2

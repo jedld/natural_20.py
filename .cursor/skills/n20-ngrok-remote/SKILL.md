@@ -95,7 +95,7 @@ Expected client console after hard refresh: no Socket.IO 400s; `[TTSPlayer] Init
 
 ```bash
 ./webapp/start_ngrok.sh ../user_levels/death_house
-./webapp/start_ngrok.sh --edit ../user_levels/wild_sheep_chase   # map editor
+./webapp/start_ngrok.sh --edit ../user_levels/wild_sheep_chase   # DM sessions start in map editor after login
 ```
 
 Default campaign if omitted: `../templates`.

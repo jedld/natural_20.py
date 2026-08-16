@@ -149,6 +149,14 @@ class DieRolls(Rollable):
     def nat_1(self):
         return any(roll.nat_1() for roll in self.rolls)
 
+    def natural_d20(self):
+        for roll in self.rolls:
+            if hasattr(roll, 'natural_d20'):
+                value = roll.natural_d20()
+                if value is not None:
+                    return value
+        return None
+
     def reroll(self, lucky=False):
         new_rolls = copy.deepcopy(self.rolls)
         new_die_rolls = DieRolls(rolls=new_rolls)
@@ -334,6 +342,20 @@ class DieRoll(Rollable):
             return any(min(roll) == 1 for roll in self.rolls if isinstance(roll, (tuple, list)))
         else:
             return 1 in self.rolls
+
+    def natural_d20(self):
+        """Return the selected d20 face (advantage = max, disadvantage = min)."""
+        if self.die_sides != 20 or not self.rolls:
+            return None
+        roll = self.rolls[0]
+        if isinstance(roll, (tuple, list)):
+            if self.disadvantage:
+                return min(roll)
+            return max(roll)
+        try:
+            return int(roll)
+        except (TypeError, ValueError):
+            return None
 
     def rolled_a_1(self):
         if self.advantage or self.disadvantage:

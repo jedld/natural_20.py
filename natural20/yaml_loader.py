@@ -76,8 +76,12 @@ def campaign_import_roots(campaign_root: str | Path) -> list[Path]:
         game_file = root / "game.yml"
         if not game_file.is_file():
             return
-        with game_file.open("r", encoding="utf-8") as stream:
-            game_data = yaml.safe_load(stream) or {}
+        try:
+            with game_file.open("r", encoding="utf-8") as stream:
+                game_data = yaml.safe_load(stream) or {}
+        except yaml.YAMLError:
+            # Malformed game.yml — skip import resolution for this root.
+            return
         if not isinstance(game_data, dict):
             return
 
@@ -145,18 +149,29 @@ def expansion_pack_roots(campaign_root: str | Path) -> list[Path]:
     if not isinstance(packs, dict):
         return []
 
+    repo_packs = templates_root().parent / EXPANSION_PACKS_DIR
     result: list[Path] = []
+    seen: set[Path] = set()
     for pack_name, pack_value in packs.items():
         if isinstance(pack_value, str):
-            pack_path = (campaign / EXPANSION_PACKS_DIR / pack_value).resolve()
+            pack_id = pack_value
         elif isinstance(pack_value, dict):
-            # Support explicit "path" key: {"path": "custom_path"}
-            pack_path = (campaign / EXPANSION_PACKS_DIR / pack_value.get("path", pack_name)).resolve()
+            pack_id = pack_value.get("path", pack_name)
         else:
             continue
-
-        if pack_path.is_dir():
+        if not pack_id:
+            continue
+        candidates = [
+            (campaign / EXPANSION_PACKS_DIR / pack_id).resolve(),
+            (campaign.parent / EXPANSION_PACKS_DIR / pack_id).resolve(),
+            (repo_packs / pack_id).resolve(),
+        ]
+        for pack_path in candidates:
+            if pack_path in seen or not pack_path.is_dir():
+                continue
+            seen.add(pack_path)
             result.append(pack_path)
+            break
 
     return result
 

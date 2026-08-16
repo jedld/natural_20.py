@@ -591,11 +591,13 @@ def discover_voice_candidates(
             npc_type = str(npc.get("kind") or npc.get("_file_stem") or "npc")
             key = f"type_{_slug(npc_type)}"
             label = str(npc.get("label") or npc.get("kind") or npc_type).replace("_", " ").title()
+            yaml_uid = npc.get("entity_uid") or npc.get("uid")
             candidates[key] = NpcVoiceCandidate(
                 key=key,
                 label=label,
                 npc_type=npc_type,
                 source=str(npc.get("_source") or f"npcs/{npc_type}.yml"),
+                entity_uid=str(yaml_uid).strip() if yaml_uid else None,
                 data=npc,
             )
 
@@ -613,6 +615,7 @@ def discover_voice_candidates(
             or c.npc_type.lower() in wanted
             or c.label.lower() in wanted
             or c.key.lower() in wanted
+            or (c.entity_uid and str(c.entity_uid).lower() in wanted)
         ]
     return ordered
 

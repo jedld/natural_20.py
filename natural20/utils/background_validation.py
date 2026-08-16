@@ -169,6 +169,66 @@ def apply_background_proficiencies(
         pc['languages'] = list(dict.fromkeys(pc['languages']))
 
 
+def _pack_item_qty(value: Any) -> int:
+    try:
+        qty = int(value)
+    except (TypeError, ValueError):
+        return 1
+    return qty if qty > 0 else 1
+
+
+def iter_equipment_pack_items(items: Any) -> list[tuple[str, int]]:
+    """Return ``(item_id, qty)`` pairs from mapping or list pack contents.
+
+    Campaign packs may use a mapping::
+
+        items:
+          wooden_stake: 3
+          torch: 3
+
+    Bundled SRD packs use a list of single-key dicts::
+
+        items:
+          - wooden_stake: 3
+          - torch: 3
+    """
+    rows: list[tuple[str, int]] = []
+    if not items:
+        return rows
+    if isinstance(items, Mapping):
+        for item_id, qty in items.items():
+            name = str(item_id or '').strip()
+            if name:
+                rows.append((name, _pack_item_qty(qty)))
+        return rows
+    if isinstance(items, (list, tuple)):
+        for entry in items:
+            if isinstance(entry, Mapping):
+                if 'item' in entry:
+                    name = str(entry.get('item') or '').strip()
+                    if name:
+                        rows.append((name, _pack_item_qty(entry.get('qty', 1))))
+                    continue
+                for item_id, qty in entry.items():
+                    name = str(item_id or '').strip()
+                    if name:
+                        rows.append((name, _pack_item_qty(qty)))
+            elif entry:
+                rows.append((str(entry).strip(), 1))
+    return rows
+
+
+def apply_equipment_pack_items(
+    pc: MutableMapping[str, Any],
+    pack: Mapping[str, Any] | None,
+) -> None:
+    """Append an equipment pack's items onto a PC inventory list."""
+    if not pack:
+        return
+    for item_id, qty in iter_equipment_pack_items(pack.get('items')):
+        pc.setdefault('inventory', []).append({'item': item_id, 'qty': qty})
+
+
 def apply_background_starting_equipment(
     pc: MutableMapping[str, Any],
     background_def: Mapping[str, Any],

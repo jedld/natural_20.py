@@ -71,6 +71,12 @@ class TestNpcSpellcaster(unittest.TestCase):
 
         self.assertEqual(wizard.spell_attack_modifier('wizard'), 5)
 
+    def test_npc_cleric_spell_casting_modifier_uses_wisdom(self):
+        wizard = self.session.npc('test_wizard')
+        wizard.properties['spell_ability'] = 'wisdom'
+
+        self.assertEqual(wizard.cleric_spell_casting_modifier(), 1)
+
     def test_generic_controller_includes_npc_spells_in_moves(self):
         battle, wizard, fighter = self._start_battle()
         controller = GenericController(self.session)

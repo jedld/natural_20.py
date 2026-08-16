@@ -1,0 +1,55 @@
+---
+kind: Swarm of Rats
+description: >
+  A chittering carpet of rats that boils over floors and bodies. The swarm
+  can occupy another creature's space and vice versa.
+size: medium
+race:
+  - beast
+alignment: unaligned
+default_ac: 10
+max_hp: 24
+hp_die: 7d8-7
+speed: 30
+passive_perception: 10
+darkvision: 30
+token:
+  - R
+color: gray
+ability:
+  str: 9
+  dex: 11
+  con: 9
+  int: 2
+  wis: 10
+  cha: 3
+languages: []
+cr: 0.25
+xp: 50
+proficiency_bonus: 2
+attributes:
+  - swarm
+  - keen_smell
+resistances:
+  - bludgeoning
+  - piercing
+  - slashing
+condition_immunities:
+  - charmed
+  - frightened
+  - grappled
+  - paralyzed
+  - petrified
+  - prone
+  - restrained
+  - stunned
+actions:
+  - name: Bites
+    type: melee_attack
+    range: 0
+    targets: 1
+    attack: 2
+    damage: 7
+    damage_die: 2d6
+    damage_die_half_hp: 1d6
+    damage_type: piercing

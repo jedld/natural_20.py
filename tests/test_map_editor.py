@@ -920,6 +920,61 @@ def test_build_edit_overlay_merges_object_catalog_for_fixture_edges():
     }
 
 
+def test_build_edit_overlay_skips_object_catalog_for_npcs():
+    """NPC legend types are not objects.yml entries; do not probe the catalog."""
+    class _Session:
+        root_path = None
+        load_calls = 0
+
+        def load_object(self, object_type):
+            self.load_calls += 1
+            raise AssertionError(f"unexpected catalog lookup for {object_type}")
+
+    map_data = {
+        "map": {
+            "size": [3, 3],
+            "base": ["...", "...", "..."],
+            "entities": [
+                {"token": "A", "pos": [0, 0]},
+                {"token": "B", "pos": [1, 1]},
+                {"token": "C", "pos": [2, 2]},
+            ],
+        },
+        "legend": {
+            "A": {"name": "Alice", "type": "npc", "overrides": {"backstory": "x" * 200}},
+            "B": {"name": "Bob", "type": "npc"},
+            "C": {"name": "Cara", "type": "npc"},
+        },
+    }
+    session = _Session()
+    overlay = build_edit_overlay(map_data, session=session)
+    assert session.load_calls == 0
+    labels = {item["label"] for item in overlay["items"] if item.get("source") == "entities"}
+    assert labels == {"Alice", "Bob", "Cara"}
+
+
+def test_load_object_does_not_reload_yaml_on_missing_name():
+    from natural20.session import Session
+
+    session = Session(root_path="tests/fixtures")
+    session.objects.clear()
+    session._objects_catalog_loaded = False
+    loads = {"n": 0}
+    original = session.load_yaml_file
+
+    def counted(category, resource):
+        loads["n"] += 1
+        return original(category, resource)
+
+    session.load_yaml_file = counted
+    for _ in range(3):
+        try:
+            session.load_object("definitely_not_an_object")
+        except AssertionError:
+            pass
+    assert loads["n"] == 1
+
+
 def test_build_edit_overlay_includes_hash_wall_edges():
     map_data = {
         "map": {
@@ -1305,3 +1360,92 @@ def test_place_player_in_map_creates_player_list(tmp_path: Path):
     assert "player" in saved
     assert len(saved["player"]) == 1
     assert saved["player"][0]["position"] == [2, 2]
+
+
+def test_place_npc_in_map_moves_unique_on_same_map(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [5, 5],
+            "base": ["#####", "#...#", "#...#", "#...#", "#####"],
+        },
+        "legend": {},
+    }
+    map_path = maps_dir / "hub.yml"
+    _write_map(map_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+    first = place_npc_in_map(
+        _Session(), "hub", npc_type="goblin", x=1, y=1,
+        overrides={"entity_uid": "named_scout"},
+    )
+    second = place_npc_in_map(
+        _Session(), "hub", npc_type="goblin", x=3, y=3,
+        overrides={"entity_uid": "named_scout"},
+    )
+    assert second["moved"] is True
+    assert second["entity_uid"] == "named_scout"
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    entities = saved["map"]["entities"]
+    matching = [e for e in entities if (e.get("overrides") or {}).get("entity_uid") == "named_scout"]
+    assert len(matching) == 1
+    assert matching[0]["pos"] == [3, 3]
+    assert first["token"] == second["token"]
+
+
+def test_place_npc_in_map_moves_unique_across_map_set(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n  cellar: maps/cellar\n",
+        encoding="utf-8",
+    )
+    map_data = {
+        "map": {
+            "size": [5, 5],
+            "base": ["#####", "#...#", "#...#", "#...#", "#####"],
+        },
+        "legend": {},
+    }
+    hub_path = maps_dir / "hub.yml"
+    cellar_path = maps_dir / "cellar.yml"
+    _write_map(hub_path, map_data)
+    _write_map(cellar_path, map_data)
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub", "cellar": "maps/cellar"}}
+
+    place_npc_in_map(
+        _Session(), "hub", npc_type="goblin", x=1, y=1,
+        overrides={"entity_uid": "named_scout"},
+    )
+    result = place_npc_in_map(
+        _Session(), "cellar", npc_type="goblin", x=2, y=2,
+        overrides={"entity_uid": "named_scout"},
+    )
+    assert result["moved"] is True
+    assert result["from_map"] == "hub"
+    hub = yaml.safe_load(hub_path.read_text(encoding="utf-8"))
+    cellar = yaml.safe_load(cellar_path.read_text(encoding="utf-8"))
+    hub_uids = [
+        (e.get("overrides") or {}).get("entity_uid")
+        for e in (hub.get("map") or {}).get("entities") or []
+    ]
+    cellar_uids = [
+        (e.get("overrides") or {}).get("entity_uid")
+        for e in (cellar.get("map") or {}).get("entities") or []
+    ]
+    assert "named_scout" not in hub_uids
+    assert "named_scout" in cellar_uids
+

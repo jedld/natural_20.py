@@ -8,6 +8,8 @@ from natural20.event_manager import EventManager
 from natural20.utils.background_validation import (
     apply_background_proficiencies,
     apply_background_starting_equipment,
+    apply_equipment_pack_items,
+    iter_equipment_pack_items,
     validate_background_language_selections,
     validate_background_skill_selections,
 )
@@ -16,13 +18,6 @@ from natural20.utils.character_profile import (
     randomize_profile,
     roll_background_table,
 )
-
-
-def _death_house_restrictions(session):
-    """Mirror campaign whitelist from death_house/game.yml for engine tests."""
-    cfg = (session.game_properties or {}).get('character_builder') or {}
-    allowed = {str(x).strip().lower() for x in (cfg.get('allowed_backgrounds') or []) if str(x).strip()}
-    return allowed
 
 
 class TestHauntedOneBackground(unittest.TestCase):
@@ -46,21 +41,36 @@ class TestHauntedOneBackground(unittest.TestCase):
         self.assertEqual(bg['exotic_language_min'], 1)
         self.assertEqual(bg['default_equipment_pack'], 'monster_hunters_pack')
 
-    def test_campaign_whitelist_allows_only_haunted_one(self):
-        allowed = _death_house_restrictions(self.session)
+    def test_builder_exposes_srd_and_haunted_one_backgrounds(self):
+        cfg = (self.session.game_properties or {}).get('character_builder') or {}
+        self.assertFalse(cfg.get('allowed_backgrounds'))
         backgrounds = self.session.load_backgrounds()
-        filtered = {
-            name: data for name, data in backgrounds.items()
-            if not allowed or name in allowed
-        }
-        self.assertEqual(set(filtered.keys()), {'haunted_one'})
         self.assertIn('haunted_one', backgrounds)
-        self.assertIn('acolyte', backgrounds)
+        for slug in (
+            'acolyte', 'charlatan', 'criminal', 'entertainer',
+            'folk_hero', 'guild_artisan', 'hermit', 'noble',
+            'outlander', 'sage', 'sailor', 'soldier',
+        ):
+            self.assertIn(slug, backgrounds)
 
     def test_monster_hunters_pack_merges_from_campaign(self):
         packs = self.session.load_equipment_packs()
         self.assertIn('monster_hunters_pack', packs)
-        self.assertIn('wooden_stake', packs['monster_hunters_pack']['items'])
+        items = dict(iter_equipment_pack_items(packs['monster_hunters_pack']['items']))
+        self.assertEqual(items.get('wooden_stake'), 3)
+        self.assertEqual(items.get('chest'), 1)
+        pc = {'inventory': []}
+        apply_equipment_pack_items(pc, packs['monster_hunters_pack'])
+        self.assertTrue(any(row.get('item') == 'wooden_stake' and row.get('qty') == 3 for row in pc['inventory']))
+
+    def test_iter_equipment_pack_items_accepts_mapping_and_list(self):
+        mapping = {'wooden_stake': 3, 'torch': 3}
+        listed = [{'wooden_stake': 3}, {'torch': 3}]
+        self.assertEqual(dict(iter_equipment_pack_items(mapping)), mapping)
+        self.assertEqual(dict(iter_equipment_pack_items(listed)), mapping)
+        explorer = self.session.load_equipment_packs().get('explorer_pack') or {}
+        explorer_items = dict(iter_equipment_pack_items(explorer.get('items')))
+        self.assertIn('backpack', explorer_items)
 
     def test_skill_and_language_validation(self):
         bg = self.session.load_backgrounds()['haunted_one']

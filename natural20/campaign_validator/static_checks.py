@@ -9,6 +9,7 @@ from typing import Any
 from natural20.campaign_validator.catalog import CampaignCatalog
 from natural20.campaign_validator.report import ValidationReport
 from natural20.campaign_validator.yaml_checks import load_yaml_file
+from natural20.map_set import ROOT_MAP_SET_ID, map_set_membership
 
 BUILTIN_MAP_TOKENS = {"#", ".", "_", "-", "|", "?"}
 BUILTIN_LEGEND_TYPES = {
@@ -92,6 +93,9 @@ def validate_static_structure(
 
     object_types = set(catalog.objects)
     validate_groups(game, report)
+    membership = map_set_membership(game, registry.keys())
+    validate_map_sets(game, registry, membership, report)
+    validate_floor_stack_sets(game, map_data, membership, report)
     if index is not None:
         validate_index(campaign, index, game, registry, report)
     for name, properties in map_data.items():
@@ -105,6 +109,7 @@ def validate_static_structure(
             object_types,
             catalog,
             report,
+            membership=membership,
         )
 
 
@@ -255,6 +260,151 @@ def grid_dimensions(
     return inferred
 
 
+def validate_map_sets(
+    game: dict[str, Any],
+    registry: dict[str, Path],
+    membership: dict[str, str],
+    report: ValidationReport,
+) -> None:
+    cfg = game.get("map_sets") or {}
+    if not cfg:
+        return
+    if not isinstance(cfg, dict):
+        report.error("game.yml 'map_sets' must be a mapping", path="game.yml")
+        return
+
+    seen: dict[str, str] = {}
+    for set_id, set_cfg in cfg.items():
+        if not isinstance(set_id, str) or not set_id:
+            report.error("game.yml map set keys must be non-empty strings", path="game.yml")
+            continue
+        maps_list: list[Any] = []
+        if isinstance(set_cfg, dict):
+            maps_list = set_cfg.get("maps") or []
+        elif isinstance(set_cfg, list):
+            maps_list = set_cfg
+        else:
+            report.error(f"game.yml map_sets.{set_id} must be a mapping or list", path="game.yml")
+            continue
+        if not isinstance(maps_list, list):
+            report.error(f"game.yml map_sets.{set_id}.maps must be an array", path="game.yml")
+            continue
+        for name in maps_list:
+            if not isinstance(name, str) or not name:
+                report.error(f"game.yml map_sets.{set_id} contains an invalid map id", path="game.yml")
+                continue
+            if name not in registry:
+                report.error(
+                    f"game.yml map_sets.{set_id} references unknown map '{name}'",
+                    path="game.yml",
+                    code="unknown_map_set_member",
+                    context={"map": name, "map_set": set_id},
+                )
+            if name in seen and seen[name] != set_id:
+                report.error(
+                    f"map '{name}' is listed in map sets {seen[name]!r} and {set_id!r}",
+                    path="game.yml",
+                    code="duplicate_map_set_member",
+                    context={"map": name, "map_sets": [seen[name], set_id]},
+                )
+            else:
+                seen[name] = set_id
+
+    stacks_cfg = game.get("map_stacks") or {}
+    if isinstance(stacks_cfg, dict):
+        for stack_id, stack_cfg in stacks_cfg.items():
+            if not isinstance(stack_cfg, dict):
+                continue
+            names = []
+            base = stack_cfg.get("base")
+            if isinstance(base, str) and base:
+                names.append(base)
+            for floor_cfg in stack_cfg.get("floors") or []:
+                if isinstance(floor_cfg, dict) and floor_cfg.get("map"):
+                    names.append(str(floor_cfg.get("map")))
+            set_ids = {membership.get(name, ROOT_MAP_SET_ID) for name in names if name}
+            if len(set_ids) > 1:
+                report.error(
+                    f"map_stacks.{stack_id} spans multiple map sets: {sorted(set_ids)}",
+                    path="game.yml",
+                    code="cross_map_set",
+                    context={"stack": stack_id, "map_sets": sorted(set_ids)},
+                )
+
+
+def validate_floor_stack_sets(
+    game: dict[str, Any],
+    map_data: dict[str, dict[str, Any]],
+    membership: dict[str, str],
+    report: ValidationReport,
+) -> None:
+    stacks_cfg = game.get("map_stacks") or {}
+    if not isinstance(stacks_cfg, dict):
+        return
+    for map_name, properties in map_data.items():
+        if not isinstance(properties, dict):
+            continue
+        floor = properties.get("floor")
+        if not isinstance(floor, dict):
+            continue
+        stack_id = floor.get("stack")
+        if not isinstance(stack_id, str) or not stack_id:
+            continue
+        stack_cfg = stacks_cfg.get(stack_id)
+        if not isinstance(stack_cfg, dict):
+            continue
+        names: list[str] = []
+        base = stack_cfg.get("base")
+        if isinstance(base, str) and base:
+            names.append(base)
+        for floor_cfg in stack_cfg.get("floors") or []:
+            if isinstance(floor_cfg, dict) and floor_cfg.get("map"):
+                names.append(str(floor_cfg.get("map")))
+        stack_sets = {membership.get(name, ROOT_MAP_SET_ID) for name in names if name}
+        map_set = membership.get(map_name, ROOT_MAP_SET_ID)
+        if stack_sets and map_set not in stack_sets:
+            report.error(
+                f"map '{map_name}' floor.stack '{stack_id}' belongs to map set(s) "
+                f"{sorted(stack_sets)} but this map is in {map_set!r}",
+                code="cross_map_set",
+                context={"map": map_name, "stack": stack_id, "map_set": map_set},
+            )
+
+
+def _report_cross_set_target(
+    map_name: str,
+    target_map: Any,
+    membership: dict[str, str],
+    registry: dict[str, Path],
+    report: ValidationReport,
+    *,
+    context: str,
+) -> None:
+    if not target_map:
+        return
+    if target_map not in registry:
+        return
+    source_set = membership.get(map_name, ROOT_MAP_SET_ID)
+    dest_set = membership.get(str(target_map), ROOT_MAP_SET_ID)
+    if source_set != dest_set:
+        report.error(
+            f"{context} targets map '{target_map}' in map set {dest_set!r} "
+            f"(source map '{map_name}' is in {source_set!r})",
+            code="cross_map_set",
+            context={"map": map_name, "target_map": target_map, "source_set": source_set, "target_set": dest_set},
+        )
+
+
+def _walk_map_references(node: Any, visitor) -> None:
+    if isinstance(node, dict):
+        visitor(node)
+        for value in node.values():
+            _walk_map_references(value, visitor)
+    elif isinstance(node, list):
+        for item in node:
+            _walk_map_references(item, visitor)
+
+
 def validate_position(
     value: Any, dimensions: tuple[int, int], context: str, report: ValidationReport
 ) -> None:
@@ -281,6 +431,7 @@ def validate_map(
     object_types: set[str],
     catalog: CampaignCatalog,
     report: ValidationReport,
+    membership: dict[str, str] | None = None,
 ) -> None:
     dimensions = map_dimensions.get(map_name)
     if dimensions is None:
@@ -359,6 +510,15 @@ def validate_map(
                     f"map '{map_name}' token {token!r} target_position",
                     report,
                 )
+            if membership:
+                _report_cross_set_target(
+                    map_name,
+                    target_map,
+                    membership,
+                    registry,
+                    report,
+                    context=f"map '{map_name}' token {token!r}",
+                )
 
     for index, entry in enumerate(map_data.get("entities", [])):
         if not isinstance(entry, dict):
@@ -411,6 +571,22 @@ def validate_map(
     background = properties.get("background_image")
     if background:
         check_asset(campaign, background, f"map '{map_name}' background", report)
+
+    if membership:
+        def _visit_refs(node: dict[str, Any]) -> None:
+            for key in ("target_map", "source_map", "map"):
+                value = node.get(key)
+                if isinstance(value, str) and value:
+                    _report_cross_set_target(
+                        map_name,
+                        value,
+                        membership,
+                        registry,
+                        report,
+                        context=f"map '{map_name}' {key}",
+                    )
+
+        _walk_map_references(properties, _visit_refs)
 
 
 def validate_groups(game: dict[str, Any], report: ValidationReport) -> None:

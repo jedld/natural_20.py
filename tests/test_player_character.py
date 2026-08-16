@@ -202,24 +202,23 @@ class TestPlayerCharacter(unittest.TestCase):
 
     def test_fighter_usable_items(self):
         self.player = self.load_fighter_character()
-        expected_items = [{
-            'image': 'healing_potion',
-            'item': {
-                'consumable': True,
-                'equippable': False,
-                'hp_regained': '2d4+2',
-                'item_class': 'HealingPotion',
-                'label': 'Potion of Healing',
-                'name': 'healing_potion',
-                'type': 'potion',
-                'usable': True
-            },
-            'label': 'Potion of Healing',
-            'name': 'healing_potion',
-            'consumable': True,
-            'qty': 1
-        }]
-        self.assertEqual(self.player.usable_items(), expected_items)
+        items = self.player.usable_items()
+        self.assertEqual(len(items), 1)
+        item = items[0]
+        self.assertEqual(item['name'], 'healing_potion')
+        self.assertEqual(item['label'], 'Potion of Healing')
+        self.assertEqual(item['image'], 'healing_potion')
+        self.assertEqual(item['qty'], 1)
+        self.assertTrue(item['consumable'])
+        item_details = item['item']
+        self.assertTrue(item_details['consumable'])
+        self.assertFalse(item_details['equippable'])
+        self.assertEqual(item_details['hp_regained'], '2d4+2')
+        self.assertEqual(item_details['item_class'], 'HealingPotion')
+        self.assertEqual(item_details['label'], 'Potion of Healing')
+        self.assertEqual(item_details['name'], 'healing_potion')
+        self.assertEqual(item_details['type'], 'potion')
+        self.assertTrue(item_details['usable'])
 
     def test_fighter_inventory_weight(self):
         self.player = self.load_fighter_character()

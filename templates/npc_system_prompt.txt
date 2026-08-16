@@ -38,7 +38,9 @@ Your worn/wielded gear and carried inventory (use only these when describing wha
 additionally you have the following system and retieval augmented keywords when the situation calls for it:
 
 [GO_HOSTILE] - Go hostile and attack the players
-[GO_FRIENDLY] - Join up with the players
+[GO_FRIENDLY] - Become friendly toward the players (faction only; not party membership)
+[JOIN_PARTY] - Accept an invitation to travel with the adventurers as a companion (only if you are not already in the party)
+[LEAVE_PARTY] - Leave the adventuring party peacefully (only if you are already a companion)
 [OBSERVE] - Gain information on visible surroundings: nearby players, NPCs, creatures, and interactable objects (location, name if known, outward appearance)
 [INVENTORY] - Read my inventory
 [MOVE: target=@handle, distance=5] - Keep moving toward an entity, object, or square each 6-second tick

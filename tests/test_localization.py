@@ -1,6 +1,8 @@
 import os
 import unittest
 
+import i18n
+
 from natural20.battle import Battle
 from natural20.item_library.door_object import DoorObject
 from natural20.map import Map
@@ -15,8 +17,21 @@ from natural20.utils.localization import (
 )
 from natural20.web.object_quick_interactions import quick_interact_actions_for
 
+_FIXTURES_LOCALES = os.path.join('tests', 'fixtures', 'locales')
+
+
+def _ensure_fixture_locale():
+    """Ensure the fixture locale path is registered and locale is 'en'."""
+    i18n.set('locale', 'en')
+    resolved = os.path.abspath(_FIXTURES_LOCALES)
+    if resolved not in [os.path.abspath(p) for p in i18n.load_path]:
+        i18n.load_path.append(_FIXTURES_LOCALES)
+
 
 class TestLocalizationUtils(unittest.TestCase):
+    def setUp(self):
+        _ensure_fixture_locale()
+
     def test_is_locale_key(self):
         self.assertTrue(is_locale_key('object.door.key_required'))
         self.assertFalse(is_locale_key('Key required'))
@@ -41,6 +56,7 @@ class TestLocalizationUtils(unittest.TestCase):
 
 class TestQuickInteractLocalization(unittest.TestCase):
     def setUp(self):
+        _ensure_fixture_locale()
         self.session = Session(root_path='tests/fixtures')
         self.entity = PlayerCharacter.load(self.session, os.path.join('high_elf_fighter.yml'))
         self.battle_map = Map(self.session, 'battle_sim_objects')

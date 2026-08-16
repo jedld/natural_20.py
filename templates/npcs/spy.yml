@@ -1,0 +1,70 @@
+---
+kind: Spy
+description: >
+  A practiced observer who lives by eavesdropping, disguise, and a short
+  blade. Spies prefer to vanish rather than stand and fight.
+size: medium
+race:
+  - humanoid
+  - human
+alignment: true_neutral
+default_ac: 12
+max_hp: 27
+hp_die: 6d8
+speed: 30
+passive_perception: 16
+token:
+  - s
+color: olive
+ability:
+  str: 10
+  dex: 15
+  con: 10
+  int: 12
+  wis: 14
+  cha: 16
+skills:
+  deception: 5
+  insight: 4
+  investigation: 5
+  perception: 6
+  persuasion: 5
+  stealth: 4
+languages:
+  - common
+cr: 1
+xp: 200
+proficiency_bonus: 2
+attributes:
+  - multiattack
+multiattack:
+  - shortsword,hand_crossbow
+equipped:
+  - shortsword
+  - hand_crossbow
+default_inventory:
+  - type: bolts
+    qty: 20
+actions:
+  - name: shortsword
+    type: melee_attack
+    if: equipped:shortsword
+    range: 5
+    targets: 1
+    attack: 4
+    damage: 5
+    damage_die: 1d6+2
+    damage_type: piercing
+    multiattack_group: 1
+  - name: hand_crossbow
+    type: ranged_attack
+    if: equipped:hand_crossbow
+    range: 30
+    range_max: 120
+    targets: 1
+    attack: 4
+    damage: 5
+    damage_die: 1d6+2
+    damage_type: piercing
+    ammo: bolts
+    multiattack_group: 1

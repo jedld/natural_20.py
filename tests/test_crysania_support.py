@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -8,6 +9,9 @@ from beyond_importer import _load_known_items, _load_known_spells  # noqa: E402
 from natural20.event_manager import EventManager  # noqa: E402
 from natural20.player_character import PlayerCharacter  # noqa: E402
 from natural20.session import Session  # noqa: E402
+
+_CRYSANIA_CHAR = ROOT / "user_levels" / "death_house" / "characters" / "crysania_ddb_14154385.yml"
+_crysania_available = _CRYSANIA_CHAR.is_file()
 
 
 def make_session():
@@ -33,6 +37,7 @@ def test_crysania_import_catalog_covers_dropped_spells_and_items():
         assert item in known_items
 
 
+@pytest.mark.skipif(not _crysania_available, reason="crysania_ddb_14154385.yml not in death_house campaign")
 def test_crysania_loads_abjuration_features_and_resources():
     character = PlayerCharacter.load(make_session(), 'characters/crysania_ddb_14154385.yml')
 
@@ -45,6 +50,7 @@ def test_crysania_loads_abjuration_features_and_resources():
     assert character.get_resource('arcane_ward').max_value == 35
 
 
+@pytest.mark.skipif(not _crysania_available, reason="crysania_ddb_14154385.yml not in death_house campaign")
 def test_arcane_ward_recharges_and_absorbs_damage_before_hp():
     character = PlayerCharacter.load(make_session(), 'characters/crysania_ddb_14154385.yml')
     character.create_or_recharge_arcane_ward(3)
@@ -58,6 +64,7 @@ def test_arcane_ward_recharges_and_absorbs_damage_before_hp():
     assert character.resource_value('arcane_ward') == 23
 
 
+@pytest.mark.skipif(not _crysania_available, reason="crysania_ddb_14154385.yml not in death_house campaign")
 def test_charged_magic_items_initialize_resource_pools_and_are_usable():
     character = PlayerCharacter.load(make_session(), 'characters/crysania_ddb_14154385.yml')
 

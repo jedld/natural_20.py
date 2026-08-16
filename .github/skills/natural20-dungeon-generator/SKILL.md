@@ -1,6 +1,6 @@
 ---
 name: natural20-dungeon-generator
-description: "Generate procedural Natural20 dungeon maps with LLM-tunable knobs, mission objectives, traversability checks, and aesthetics scoring. Use when asked to create a dungeon, cave, sewer, crypt, or procedurally place quest NPCs/objectives on a map."
+description: "Generate procedural Natural20 dungeon maps with LLM-tunable knobs, mission objectives, traversability checks, and aesthetics scoring. Use when asked to create a dungeon, cave, sewer, or crypt **without** existing battlemap art, or to procedurally place quest NPCs/objectives on a generated map. If the user already provided a battlemap image, scan, VTT underlay, or a published multi-floor sheet, use natural20-import-battlemap instead (do not generate a substitute layout)."
 argument-hint: "theme, mission, objectives, size, algorithm"
 user-invocable: true
 ---
@@ -8,6 +8,12 @@ user-invocable: true
 # Natural20 Procedural Dungeon Generator
 
 Create playable map YAML (not just ASCII sketches) using `natural20.dungeon_gen`.
+
+**If a battlemap image already exists**, do not generate a layout. Follow
+[natural20-import-battlemap](../natural20-import-battlemap/SKILL.md)
+(`.cursor/skills/n20-import-battlemap/SKILL.md`), including `--split-panels` for
+pages that contain several floors. Do not invent ASCII and do not hand-crop the
+sheet as a substitute for the importer.
 
 ## Load Context
 

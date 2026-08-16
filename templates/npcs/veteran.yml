@@ -1,0 +1,86 @@
+---
+kind: Veteran
+description: >
+  A battle-hardened soldier who has seen enough war to keep a cool head and
+  a sharp blade. Veterans fight in formation and do not break easily.
+size: medium
+race:
+  - humanoid
+  - human
+alignment: true_neutral
+default_ac: 17
+max_hp: 58
+hp_die: 9d8+18
+speed: 30
+passive_perception: 12
+token:
+  - V
+color: steel
+ability:
+  str: 16
+  dex: 13
+  con: 14
+  int: 10
+  wis: 11
+  cha: 10
+skills:
+  athletics: 5
+  perception: 2
+languages:
+  - common
+cr: 3
+xp: 700
+proficiency_bonus: 2
+attributes:
+  - multiattack
+multiattack:
+  - longsword,longsword2
+equipped:
+  - splint
+  - longsword
+  - shortsword
+  - longbow
+default_inventory:
+  - type: arrows
+    qty: 20
+actions:
+  - name: longsword
+    type: melee_attack
+    if: equipped:longsword
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 7
+    damage_die: 1d8+3
+    damage_type: slashing
+    multiattack_group: 1
+  - name: longsword2
+    type: melee_attack
+    if: equipped:longsword
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 7
+    damage_die: 1d8+3
+    damage_type: slashing
+    multiattack_group: 1
+  - name: shortsword
+    type: melee_attack
+    if: equipped:shortsword
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 6
+    damage_die: 1d6+3
+    damage_type: piercing
+  - name: longbow
+    type: ranged_attack
+    if: equipped:longbow
+    range: 150
+    range_max: 600
+    targets: 1
+    attack: 3
+    damage: 6
+    damage_die: 1d8+1
+    damage_type: piercing
+    ammo: arrows

@@ -1188,6 +1188,41 @@ fireball:
     - Wizard
     - Sorcerer
   spell_class: Natural20::Fireball
+blight:
+  label: Blight
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  damage_type: necrotic
+  description: |
+    Necromantic energy washes over a creature of your choice that you can see
+    within range, draining moisture and vitality from it. The target must make
+    a Constitution saving throw. The target takes 8d8 necrotic damage on a
+    failed save, or half as much damage on a successful one. This spell has no
+    effect on undead or constructs.
+
+    If you target a plant creature or a magical plant, it makes the saving throw
+    with disadvantage, and the spell deals maximum damage to it.
+
+    If you target a nonmagical plant that isn't a creature, such as a tree or
+    shrub, it doesn't make a saving throw; it simply withers and dies.
+
+    At Higher Levels. When you cast this spell using a spell slot of 5th level
+    or higher, the damage increases by 1d8 for each slot level above 4th.
+  duration: instant
+  level: 4
+  upcast: true
+  name: Blight
+  range: 30
+  school: necromancy
+  type: damage
+  spell_list_classes:
+    - Druid
+    - Sorcerer
+    - Warlock
+    - Wizard
+  spell_class: Natural20::BlightSpell
 counterspell:
   label: Counterspell
   casting_time: 1:reaction
@@ -2375,16 +2410,57 @@ illusory_script:
 invisibility:
   label: Invisibility
   casting_time: 1:action
-  components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  components:
+    - verbal
+    - somatic
+    - material
+  material: an eyelash encased in gum arabic
+  description: |
+    A creature you touch becomes invisible until the spell ends. Anything the
+    target is wearing or carrying is invisible as long as it is on the target's
+    person. The spell ends for a target that attacks or casts a spell.
+
+    At Higher Levels. When you cast this spell using a spell slot of 3rd level
+    or higher, you can target one additional creature for each slot level above
+    2nd.
+  duration: 1m
+  duration_seconds: 60
   level: 2
+  upcast: true
   name: Invisibility
-  range: 30
-  school: abjuration
-  type: utility
-  spell_list_classes: []
-  spell_class: Natural20::Invisibility
+  range: 5
+  school: illusion
+  concentration: true
+  type: buff
+  spell_list_classes:
+    - Bard
+    - Sorcerer
+    - Warlock
+    - Wizard
+  spell_class: Natural20::InvisibilitySpell
+greater_invisibility:
+  label: Greater Invisibility
+  casting_time: 1:action
+  components:
+    - verbal
+    - somatic
+  description: |
+    You or a creature you touch becomes invisible until the spell ends. Anything
+    the target is wearing or carrying is invisible as long as it is on the
+    target's person.
+  duration: 1m
+  duration_seconds: 60
+  level: 4
+  name: Greater Invisibility
+  range: 5
+  school: illusion
+  concentration: true
+  type: buff
+  spell_list_classes:
+    - Bard
+    - Sorcerer
+    - Wizard
+  spell_class: Natural20::GreaterInvisibilitySpell
 jump:
   label: Jump
   casting_time: 1:action

@@ -15,6 +15,7 @@ from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
 from natural20.map import Map
 from natural20.map_stack import MapStackRegistry
+from natural20.map_set import ROOT_MAP_SET_ID, MapSetRegistry
 from natural20.entity_registry import EntityRegistry
 import i18n
 from copy import deepcopy
@@ -95,10 +96,48 @@ class Session:
     def map_for(self, entity):
         return self.map_for_entity(entity)
 
-    def map_for_entity(self, entity):
-        for _, map_obj in self.maps.items():
+    def map_set_for(self, map_name):
+        registry = getattr(self, 'map_sets', None)
+        if registry is None:
+            return ROOT_MAP_SET_ID
+        return registry.set_for_map(map_name)
+
+    def maps_in_set(self, set_id=None):
+        set_id = set_id or getattr(self, 'active_map_set', None) or ROOT_MAP_SET_ID
+        registry = getattr(self, 'map_sets', None)
+        if registry is None:
+            return list((self.maps or {}).keys())
+        return registry.maps_in_set(set_id)
+
+    def same_map_set(self, a, b):
+        registry = getattr(self, 'map_sets', None)
+        if registry is None:
+            return True
+        return registry.same_map_set(a, b)
+
+    def _maps_for_lookup(self, map_set=None):
+        maps = getattr(self, 'maps', None) or {}
+        if not maps:
+            return []
+        preferred = map_set if map_set is not None else getattr(self, 'active_map_set', None)
+        if not preferred:
+            return list(maps.values())
+        in_set = []
+        rest = []
+        for name, map_obj in maps.items():
+            if self.map_set_for(name) == preferred:
+                in_set.append(map_obj)
+            else:
+                rest.append(map_obj)
+        return in_set + rest
+
+    def map_for_entity(self, entity, map_set=None):
+        search = self._maps_for_lookup(map_set)
+        if map_set is not None or getattr(self, 'active_map_set', None):
+            preferred = map_set if map_set is not None else self.active_map_set
+            search = [m for m in search if self.map_set_for(getattr(m, 'name', None)) == preferred]
+        for map_obj in search:
             if isinstance(entity, str):
-                # Resolve by UID on the map (fallback to session registry)
                 _entity = map_obj.entity_by_uid(entity) or self.entity_registry.get(entity)
             else:
                 _entity = entity
@@ -109,6 +148,17 @@ class Session:
             if _entity in map_obj.interactable_objects.keys():
                 return map_obj
         return None
+
+    def maps_for_entity(self, entity):
+        found = []
+        for map_obj in (self.maps or {}).values():
+            if isinstance(entity, str):
+                _entity = map_obj.entity_by_uid(entity) or self.entity_registry.get(entity)
+            else:
+                _entity = entity
+            if _entity in getattr(map_obj, 'entities', {}) or _entity in getattr(map_obj, 'interactable_objects', {}):
+                found.append(map_obj)
+        return found
 
     def stack_for_map(self, map_name):
         if not hasattr(self, 'map_stacks'):
@@ -226,7 +276,10 @@ class Session:
 
         if 'maps' not in game_file:
             self.maps['index'] = Map(self, game_file.get('starting_map'), name = 'index')
+            self.map_sets = MapSetRegistry.from_game_config(game_file, self.maps)
+            self._link_maps_within_sets()
             self.map_stacks = MapStackRegistry()
+            self.active_map_set = self._initial_active_map_set(game_file)
             return self.maps
 
         map_with_key = game_file.get('maps', {})
@@ -238,21 +291,52 @@ class Session:
                     f"Failed to load map {name!r} from {map_file!r}: {exc}"
                 ) from exc
 
-        # add links to the other maps
-        for _, map_obj in self.maps.items():
-            for name, linked_map in self.maps.items():
-                if map_obj!=linked_map:
-                    map_obj.add_linked_map(name, linked_map)
-
+        self.map_sets = MapSetRegistry.from_game_config(game_file, self.maps)
+        self._link_maps_within_sets()
         self.map_stacks = MapStackRegistry.from_game_config(game_file, self.maps)
+        self.active_map_set = self._initial_active_map_set(game_file)
 
         return self.maps
 
-    def register_map(self, name, map_or_map_file):
+    def _initial_active_map_set(self, game_file):
+        explicit = (game_file or {}).get('starting_map_set')
+        if explicit and self.map_sets.get(explicit):
+            return explicit
+        starting = (game_file or {}).get('starting_map') or ''
+        if starting:
+            key = os.path.splitext(os.path.basename(str(starting)))[0]
+            if key in (self.maps or {}):
+                return self.map_set_for(key)
+            for map_key, map_path in ((game_file or {}).get('maps') or {}).items():
+                if map_key in (self.maps or {}) and (
+                    str(map_path).endswith(key) or str(starting).endswith(f'{map_key}.yml')
+                ):
+                    return self.map_set_for(map_key)
+        if 'index' in (self.maps or {}):
+            return self.map_set_for('index')
+        if self.maps:
+            return self.map_set_for(next(iter(self.maps)))
+        return ROOT_MAP_SET_ID
+
+    def _link_maps_within_sets(self):
+        for map_obj in (self.maps or {}).values():
+            map_obj.linked_maps = {}
+            set_id = self.map_set_for(map_obj.name)
+            for name in self.maps_in_set(set_id):
+                linked = (self.maps or {}).get(name)
+                if linked is not None and linked is not map_obj:
+                    map_obj.add_linked_map(name, linked)
+
+    def register_map(self, name, map_or_map_file, map_set=None):
         if isinstance(map_or_map_file, str):
             self.maps[name] = Map(self, map_or_map_file, name=name)
         else:
             self.maps[name] = map_or_map_file
+        set_id = map_set or getattr(self, 'active_map_set', None) or ROOT_MAP_SET_ID
+        if getattr(self, 'map_sets', None) is None:
+            self.map_sets = MapSetRegistry.from_game_config(self.game_properties, self.maps)
+        self.map_sets.assign_map(name, set_id)
+        self._link_maps_within_sets()
         return self.maps[name]
 
     def groups(self):
@@ -590,13 +674,21 @@ class Session:
             )
         return backgrounds
 
+    def _ensure_objects_catalog(self):
+        """Load items/objects.yml once. Missing names must not retrigger YAML I/O."""
+        if getattr(self, "_objects_catalog_loaded", False):
+            return
+        objects = self.load_yaml_file('items', 'objects') or {}
+        if isinstance(objects, dict):
+            self.objects.update(objects)
+        self._objects_catalog_loaded = True
+
     def load_object(self, object_name):
-        if object_name not in self.objects or self.objects.get(object_name) is None:
-            objects = self.load_yaml_file('items', 'objects')
-            found = objects.get(object_name)
-            assert found, f'Object {object_name} not found'
-            self.objects[object_name] = found
-        return deepcopy(self.objects[object_name])
+        if object_name not in self.objects:
+            self._ensure_objects_catalog()
+        found = self.objects.get(object_name)
+        assert found, f'Object {object_name} not found'
+        return deepcopy(found)
 
     def get_object_prototype(self, object_name):
         """Return the shared, canonical object definition without deepcopy.
@@ -604,10 +696,10 @@ class Session:
         the prototype. Callers must treat the returned dict as read-only.
         """
         if object_name not in self.objects:
-            objects = self.load_yaml_file('items', 'objects')
-            self.objects.update(objects)
-        assert self.objects.get(object_name), f'Object {object_name} not found'
-        return self.objects[object_name]
+            self._ensure_objects_catalog()
+        found = self.objects.get(object_name)
+        assert found, f'Object {object_name} not found'
+        return found
 
     def t(self, token, options=None):
         if options is None:
@@ -627,7 +719,8 @@ class Session:
             'session_state': self.session_state,
             'event_log': list(self.event_log),
             'settings': self.settings,
-            'render_for_text': self.render_for_text
+            'render_for_text': self.render_for_text,
+            'active_map_set': getattr(self, 'active_map_set', ROOT_MAP_SET_ID),
         }
 
     def from_dict(data):
@@ -637,4 +730,7 @@ class Session:
         session.event_log = deque(data['event_log'])
         session.settings = data['settings']
         session.render_for_text = data['render_for_text']
+        active = data.get('active_map_set')
+        if active and getattr(session, 'map_sets', None) and session.map_sets.get(active):
+            session.active_map_set = active
         return session
