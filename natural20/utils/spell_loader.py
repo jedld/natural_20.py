@@ -101,6 +101,8 @@ def _build_spell_class_registry():
     from natural20.spell.mirror_image_spell import MirrorImageSpell
     from natural20.spell.protection_from_evil_and_good_spell import ProtectionFromEvilAndGoodSpell
     from natural20.spell.hold_person_spell import HoldPersonSpell
+    from natural20.spell.blight_spell import BlightSpell
+    from natural20.spell.invisibility_spell import InvisibilitySpell, GreaterInvisibilitySpell
     from natural20.spell.wall_of_fire_spell import WallOfFireSpell
     from natural20.spell.tongues_spell import TonguesSpell
     from natural20.spell.detect_magic_spell import DetectMagicSpell
@@ -201,6 +203,9 @@ def _build_spell_class_registry():
         'MirrorImageSpell': MirrorImageSpell,
         'ProtectionFromEvilAndGoodSpell': ProtectionFromEvilAndGoodSpell,
         'HoldPersonSpell': HoldPersonSpell,
+        'BlightSpell': BlightSpell,
+        'InvisibilitySpell': InvisibilitySpell,
+        'GreaterInvisibilitySpell': GreaterInvisibilitySpell,
         'WallOfFireSpell': WallOfFireSpell,
         'TonguesSpell': TonguesSpell,
         'AganazzarsScorcherSpell': AganazzarsScorcherSpell,

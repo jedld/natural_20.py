@@ -3,6 +3,7 @@ import pdb
 from natural20.map import Map
 from natural20.battle import Battle
 from natural20.item_library.door_object import DoorObject, DoorObjectWall
+from natural20.item_library.common import Ground
 from natural20.web.object_quick_interactions import (
     door_open_approach_anchors,
     door_quick_interact_anchor,
@@ -22,6 +23,19 @@ from natural20.spell.objects.tiny_hut import TinyHutDome
 import logging
 from natural20.web.terrain_tooltip import build_terrain_tooltip
 from natural20.utils.magical_aura import magical_auras_for_tile, viewer_has_detect_magic
+
+
+def _is_empty_terrain_object(obj):
+    """True for floor tiles with nothing to show (no loot, notes, or token)."""
+    if not isinstance(obj, Ground):
+        return False
+    inventory = getattr(obj, 'inventory', None) or {}
+    if inventory:
+        return False
+    has_notes = getattr(obj, 'has_notes', None)
+    if callable(has_notes) and has_notes():
+        return False
+    return True
 
 class JsonRenderer:
     def __init__(self, map: Map, battle: Battle=None, padding=None, logger=None, reveal_all_notes=False):
@@ -150,9 +164,24 @@ class JsonRenderer:
                 _opaque_cache[key] = v
             return v
 
-        # Monkey-patch Map.opaque so that line_of_sight() uses our cache.
+        _cover_cache: dict = {}
+        _map_cover_at = self.map.cover_at
+        def cached_cover_at(x, y, entity=False):
+            key = (x, y, bool(entity))
+            v = _cover_cache.get(key)
+            if v is None:
+                v = _map_cover_at(x, y, entity)
+                _cover_cache[key] = v
+            return v
+
+        # Monkey-patch Map.opaque / Map.light_at / Map.cover_at so line_of_sight
+        # and can_see_square reuse this render's caches.
         _original_opaque = self.map.opaque
+        _original_light_at = self.map.light_at
+        _original_cover_at = self.map.cover_at
         self.map.opaque = cached_opaque
+        self.map.light_at = light_at
+        self.map.cover_at = cached_cover_at
 
         # Per-render memoization for can_see_square (called per tile per POV entity).
         _can_see_square_cache: dict = {}
@@ -416,6 +445,8 @@ class JsonRenderer:
                     def render_objects(entity_pov=None, shared_attrs=None, objects=None, current_entity=None):
                         shared_attrs['objects'] = []
                         for object_entity in objects:
+                            if _is_empty_terrain_object(object_entity):
+                                continue
                             viewer_revealed_secret = False
                             if entity_pov and entity_pov != current_entity:
                                 viewer_revealed_secret = any([
@@ -637,13 +668,20 @@ class JsonRenderer:
                         if entity_pov and len(entity_pov) > 0:
                             visible_to_pov = any([cached_can_see(entity_p, entity, allow_dark_vision=True) for entity_p in entity_pov])
                             if not visible_to_pov:
+                                living_invisible = (
+                                    callable(getattr(entity, 'invisible', None))
+                                    and entity.invisible()
+                                    and not entity.dead()
+                                )
                                 # Keep adjacent/same-tile lootable corpses available
                                 # for mouse-over even when darkness blocks vision.
-                                visible_to_pov = any(
-                                    self.map.can_interact_by_proximity(entity_p, entity)
-                                    for entity_p in entity_pov
-                                    if entity_p
-                                )
+                                # Invisible living creatures stay hidden at melee range.
+                                if not living_invisible:
+                                    visible_to_pov = any(
+                                        self.map.can_interact_by_proximity(entity_p, entity)
+                                        for entity_p in entity_pov
+                                        if entity_p
+                                    )
                             if not visible_to_pov or hidden_door_tile:
                                 shared_attributes['terrain_tooltip'] = build_terrain_tooltip(
                                     shared_attributes, self.map, self.battle,
@@ -682,7 +720,7 @@ class JsonRenderer:
                                 'entity': entity.token_image(),
                                 'name': entity.label(),
                                 'label': entity.label(),
-                                'hiding' : entity.hidden(),
+                                'hiding' : entity.hidden() or entity.invisible(),
                                 'prone': entity.prone(),
                                 'dead': entity.dead(),
                                 'unconscious': entity.unconscious(),
@@ -746,5 +784,7 @@ class JsonRenderer:
                 result.append(result_row)
             return result
         finally:
-            # Restore original Map.opaque (monkey-patch cleanup).
+            # Restore original Map.opaque / Map.light_at / Map.cover_at.
             self.map.opaque = _original_opaque
+            self.map.light_at = _original_light_at
+            self.map.cover_at = _original_cover_at

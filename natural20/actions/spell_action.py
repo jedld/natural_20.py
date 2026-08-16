@@ -311,6 +311,12 @@ class SpellAction(Action):
             if not failed_only:
                 self.spell_action.consume(battle)
 
+        self.source.resolve_trigger('spell_cast', {
+            'spell': self.spell_action,
+            'action': self,
+            'battle': battle,
+        })
+
         return self
 
     def compute_advantage_info(self, battle, opts=None):
@@ -363,6 +369,23 @@ class SpellAction(Action):
         if item['type'] == 'spell_damage':
             if item['target'].passive():
                 item['target'].is_passive = False
+            try:
+                from natural20.sidekick import extra_spell_damage_bonus
+                bonus = extra_spell_damage_bonus(item.get('source'), item.get('spell'))
+                if bonus:
+                    dmg = item.get('damage')
+                    if dmg is not None and hasattr(dmg, '__add__'):
+                        from natural20.die_roll import DieRoll
+                        item['damage'] = dmg + DieRoll.roll(
+                            f"{bonus}",
+                            description='dice_roll.potent_cantrips',
+                            entity=item.get('source'),
+                            battle=battle,
+                        )
+                        if item.get('damage_roll') is not None:
+                            item['damage_roll'] = item['damage']
+            except Exception:
+                pass
             damage_event(item, battle)
         elif item['type'] == 'dismiss_effect':
             item['source'].dismiss_effect(item['effect'])

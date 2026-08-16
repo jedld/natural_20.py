@@ -1,6 +1,7 @@
 import uuid
 import os
 import random
+import re
 from natural20.yaml_loader import load_campaign_resource_path, load_yaml
 from natural20.die_roll import DieRoll
 from natural20.entity import Entity
@@ -11,7 +12,8 @@ from natural20.actions.disengage_action import DisengageAction, DisengageBonusAc
 from natural20.actions.stand_action import StandAction
 from natural20.actions.attack_action import AttackAction
 from natural20.actions.hide_action import HideAction, HideBonusAction
-from natural20.actions.help_action import HelpAction
+from natural20.actions.help_action import HelpAction, HelpBonusAction
+from natural20.actions.second_wind_action import SecondWindAction
 from natural20.actions.grapple_action import GrappleAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.use_item_action import UseItemAction
@@ -36,6 +38,53 @@ import pdb
 
 
 import copy
+
+
+_SPAWN_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
+
+def is_spawn_uuid(value) -> bool:
+    """True when ``value`` looks like a spawn-time UUID rather than an authored id."""
+    if value is None:
+        return True
+    text = str(value).strip()
+    return not text or bool(_SPAWN_UUID_RE.fullmatch(text))
+
+
+def authored_unique_entity_uid(properties, extra=None):
+    """Return a stable unique ``entity_uid`` from an NPC sheet, or ``None``.
+
+    Unique NPCs are those with an authored ``entity_uid`` (not a spawn-time UUID)
+    or ``unique: true`` plus a non-UUID ``entity_uid`` / ``uid``. Catalog ``uid``
+    alone does not make a sheet unique — generic monsters may have a catalog id.
+    """
+    props = dict(properties or {})
+    if extra:
+        props.update(extra)
+    if props.get("unique") is False:
+        return None
+    uid = props.get("entity_uid")
+    if uid and not is_spawn_uuid(uid):
+        return str(uid)
+    if props.get("unique") is True:
+        fallback = props.get("uid")
+        if fallback and not is_spawn_uuid(fallback):
+            return str(fallback)
+    return None
+
+
+def is_unique_npc_properties(properties, extra=None) -> bool:
+    """True when an NPC YAML sheet describes a unique (named) creature."""
+    props = dict(properties or {})
+    if extra:
+        props.update(extra)
+    if props.get("unique") is True:
+        return True
+    if props.get("unique") is False:
+        return False
+    return authored_unique_entity_uid(props) is not None
 
 
 def _normalize_damage_traits(value):
@@ -64,9 +113,9 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         AttackAction, DashAction, DashBonusAction, DisengageAction,
         DisengageBonusAction, HideAction, HideBonusAction,
         DodgeAction, LookAction, MoveAction,
-        StandAction, ShoveAction, HelpAction, UseItemAction, GroundInteractAction,
+        StandAction, ShoveAction, HelpAction, HelpBonusAction, UseItemAction, GroundInteractAction,
         SpellAction, InteractAction, SpeakAction, WitchBoltSustainAction,
-        PickpocketAction
+        PickpocketAction, SecondWindAction,
     ]
 
     def __init__(self, session, type, opt=None):
@@ -154,6 +203,9 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
                 self.buttons[button['action']] = button
 
         self.events = self.register_event_handlers(session, map, self.properties)
+
+    def is_unique(self) -> bool:
+        return is_unique_npc_properties(self.properties)
 
     @staticmethod
     def load(session, path, override=None):
@@ -284,8 +336,24 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         ability = ability_by_class.get(class_type.lower(), 'intelligence')
         return self.proficiency_bonus() + self.ability_mod(ability)
 
+    def cleric_spell_casting_modifier(self):
+        """Wisdom modifier for NPC heals (Cure Wounds, Healing Word)."""
+        ability = (
+            self.properties.get('spell_ability')
+            or self.properties.get('spellcasting_ability')
+            or 'wisdom'
+        )
+        if str(ability).lower() in ('wis', 'wisdom'):
+            return self.wis_mod()
+        return self.ability_mod(ability) or 0
+
     def level(self):
-        # return CR level I guess
+        sk = (self.properties or {}).get('sidekick_level')
+        if sk is not None:
+            try:
+                return int(sk)
+            except (TypeError, ValueError):
+                pass
         return self.properties.get("cr", 1)
 
 
@@ -316,6 +384,8 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         current_ac = self.properties["default_ac"]
         if self.has_effect('ac_bonus'):
             current_ac += self.eval_effect('ac_bonus')
+        if self.class_feature('improved_defense'):
+            current_ac += 1
         return current_ac
 
     def set_dialogue(self, dialogue, addressed_to=None):
@@ -369,6 +439,8 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
                         actions.append(StandAction(session, self, "stand"))
                     elif action_class == HelpAction:
                         actions.append(HelpAction(session, self, "help"))
+                    elif action_class == HelpBonusAction:
+                        actions.append(HelpBonusAction(session, self, "help_bonus"))
                     elif action_class == HideAction:
                         actions.append(HideAction(session, self, "hide"))
                     elif action_class == DisengageBonusAction:
@@ -400,6 +472,8 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
                                 actions.append(SpellAction(session, self, 'spell'))
                         else:
                             actions.append(SpellAction(session, self, 'spell'))
+                    elif action_class == SecondWindAction:
+                        actions.append(SecondWindAction(session, self, 'second_wind'))
                     elif action_class == InteractAction:
                         if map:
                             for objects in map.objects_near(self, battle):
@@ -424,8 +498,25 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         melee_attacks = [a["range"] for a in actions if a.get("type") == "melee_attack"]
         return max(melee_attacks) if melee_attacks else None
     
+    def second_wind_die(self):
+        level = 1
+        try:
+            level = int((self.properties or {}).get('sidekick_level') or 1)
+        except (TypeError, ValueError):
+            level = 1
+        return f"1d10+{level}"
+
+    def second_wind(self, amt):
+        count = int(getattr(self, 'second_wind_count', 0) or 0)
+        self.second_wind_count = max(0, count - 1)
+        self.heal(amt)
+
     def class_feature(self, feature):
-        return feature in self.properties.get("attributes", [])
+        if feature in self.properties.get("attributes", []):
+            return True
+        if feature in self.properties.get("class_features", []):
+            return True
+        return False
     
     def class_descriptor(self):
         return self.properties.get("kind")
@@ -593,6 +684,10 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
 
         # Initialize mimic-specific state (camouflage, adhesive).
         self.initialize_mimic()
+        if self.properties.get('second_wind_count') is not None:
+            self.second_wind_count = int(self.properties.get('second_wind_count') or 0)
+        if self.properties.get('indomitable_uses') is not None:
+            self.indomitable_uses = int(self.properties.get('indomitable_uses') or 0)
 
     def is_npc(self):
         return True

@@ -26,6 +26,9 @@ _WALL_HINTS = ("wall", "stone_wall", "barrier")
 _DOOR_HINTS = ("door",)
 _TELEPORTER_HINTS = ("teleporter",)
 _TERRAIN_OVERLAY_TYPES = frozenset({"water", "difficult_terrain", "briar", "ground"})
+# Legend types that are never objects.yml entries. Looking them up via
+# Session.load_object() reloads the whole catalog on every miss.
+_NON_OBJECT_CATALOG_TYPES = frozenset({"npc", "pc", "player", "spawn_point", "note"})
 _LAYER_GRID_KEYS = frozenset({"base", "base_1", "base_2", "meta"})
 _LAYER_GRID_ATTR = {
     "base": "base_map",
@@ -547,6 +550,32 @@ def _resolve_door_edges(type_name: str | None, leg: dict[str, Any]) -> dict[str,
     return {side: True for side in _WALL_SIDES}
 
 
+def _object_catalog_entry(session: Any | None, type_name: str | None) -> dict[str, Any] | None:
+    """Return objects.yml for ``type_name`` without deepcopy or miss-reloads."""
+    type_key = str(type_name or "")
+    if session is None or not type_key or type_key in _NON_OBJECT_CATALOG_TYPES:
+        return None
+    catalog = None
+    if getattr(session, "root_path", None):
+        try:
+            from natural20.edit_schema import load_objects_catalog
+
+            catalog = load_objects_catalog(session)
+        except Exception:
+            catalog = None
+    if isinstance(catalog, dict):
+        entry = catalog.get(type_key)
+        return entry if isinstance(entry, dict) else None
+    loader = getattr(session, "load_object", None)
+    if not callable(loader):
+        return None
+    try:
+        entry = loader(type_key)
+    except Exception:
+        return None
+    return entry if isinstance(entry, dict) else None
+
+
 def _merge_leg_with_object_catalog(
     session: Any | None,
     leg: dict[str, Any],
@@ -556,13 +585,8 @@ def _merge_leg_with_object_catalog(
     merged = dict(leg or {})
     if type_name:
         merged.setdefault("type", type_name)
-    if session is None or not type_name:
-        return merged
-    try:
-        catalog = session.load_object(str(type_name))
-    except Exception:
-        catalog = None
-    if isinstance(catalog, dict) and catalog:
+    catalog = _object_catalog_entry(session, type_name)
+    if catalog:
         return {**catalog, **merged}
     return merged
 
@@ -1810,6 +1834,86 @@ def apply_terrain_placement_to_live_map(
         battle_map._compute_lights()
 
 
+def _unique_uid_for_npc_type(session, npc_type: str, overrides: dict[str, Any] | None) -> str | None:
+    from natural20.map_set import unique_npc_uid_for_type
+
+    try:
+        return unique_npc_uid_for_type(session, npc_type, overrides)
+    except Exception:
+        return None
+
+
+def _find_unique_npc_entity_index(entities: list, legend: dict[str, Any], uid: str) -> int | None:
+    for index, entry in enumerate(entities):
+        if not isinstance(entry, dict):
+            continue
+        token = str(entry.get("token") or "")
+        if _entry_uid(token, entry, legend) == str(uid):
+            return index
+    return None
+
+
+def _find_unique_npc_list_index(npc_list: list, uid: str) -> int | None:
+    for index, entry in enumerate(npc_list):
+        if not isinstance(entry, dict):
+            continue
+        overrides = entry.get("overrides") if isinstance(entry.get("overrides"), dict) else {}
+        candidate = overrides.get("entity_uid") or entry.get("entity_uid")
+        if candidate and str(candidate) == str(uid):
+            return index
+    return None
+
+
+def _remove_unique_npc_from_map_yaml(session, map_name: str, uid: str) -> bool:
+    """Remove a unique NPC placement from ``map_name`` YAML. Returns True if removed."""
+    try:
+        path = resolve_map_yaml_path(session, map_name)
+    except Exception:
+        return False
+    if not path.exists():
+        return False
+    data = copy.deepcopy(load_map_document(path))
+    map_block = _map_block(data)
+    legend = _legend_for(data)
+    removed = False
+
+    entities = map_block.get("entities") or []
+    idx = _find_unique_npc_entity_index(entities, legend, uid)
+    if idx is not None:
+        entities.pop(idx)
+        map_block["entities"] = entities
+        removed = True
+
+    npc_list = data.get("npc")
+    if isinstance(npc_list, list):
+        npc_idx = _find_unique_npc_list_index(npc_list, uid)
+        if npc_idx is not None:
+            npc_list.pop(npc_idx)
+            removed = True
+
+    if removed:
+        save_map_document(path, data)
+    return removed
+
+
+def _maps_in_set_for(session, map_name: str) -> list[str]:
+    lookup = getattr(session, "maps_in_set", None)
+    set_for = getattr(session, "map_set_for", None)
+    if callable(lookup) and callable(set_for):
+        try:
+            return list(lookup(set_for(map_name)))
+        except Exception:
+            return [map_name]
+    maps = getattr(session, "maps", None) or {}
+    if maps:
+        return list(maps.keys())
+    props = getattr(session, "game_properties", None) or {}
+    configured = props.get("maps")
+    if isinstance(configured, dict):
+        return list(configured.keys())
+    return [map_name]
+
+
 def place_npc_in_map(
     session,
     map_name: str,
@@ -1822,8 +1926,69 @@ def place_npc_in_map(
     """Place an NPC entity into the campaign map YAML (edit mode persistence).
 
     Adds a legend entry for the NPC sub_type and an entity placement row.
+    Unique NPCs already present on this map (or elsewhere in the same map set)
+    are moved instead of duplicated.
     Returns the placement result dict.
     """
+    unique_uid = _unique_uid_for_npc_type(session, npc_type, overrides)
+    moved_from = None
+    if unique_uid:
+        merged_overrides = dict(overrides or {})
+        merged_overrides.setdefault("entity_uid", unique_uid)
+        overrides = merged_overrides
+
+        path = resolve_map_yaml_path(session, map_name)
+        data = copy.deepcopy(load_map_document(path))
+        map_block = _map_block(data)
+        legend = _legend_for(data)
+        entities = map_block.setdefault("entities", [])
+        existing_idx = _find_unique_npc_entity_index(entities, legend, unique_uid)
+        if existing_idx is not None:
+            entities[existing_idx]["pos"] = [int(x), int(y)]
+            if overrides:
+                existing_overrides = entities[existing_idx].get("overrides")
+                if isinstance(existing_overrides, dict):
+                    existing_overrides.update(overrides)
+                else:
+                    entities[existing_idx]["overrides"] = dict(overrides)
+            save_map_document(path, data)
+            token = str(entities[existing_idx].get("token") or "")
+            return {
+                "id": unique_uid,
+                "placement_kind": "entity",
+                "token": token,
+                "x": int(x),
+                "y": int(y),
+                "npc_type": str(npc_type),
+                "moved": True,
+                "from_map": map_name,
+                "entity_uid": unique_uid,
+            }
+
+        npc_list = data.get("npc") if isinstance(data.get("npc"), list) else []
+        npc_idx = _find_unique_npc_list_index(npc_list, unique_uid)
+        if npc_idx is not None:
+            npc_list[npc_idx]["position"] = [int(x), int(y)]
+            save_map_document(path, data)
+            return {
+                "id": unique_uid,
+                "placement_kind": "entity",
+                "token": str(npc_list[npc_idx].get("token") or ""),
+                "x": int(x),
+                "y": int(y),
+                "npc_type": str(npc_type),
+                "moved": True,
+                "from_map": map_name,
+                "entity_uid": unique_uid,
+            }
+
+        for other_name in _maps_in_set_for(session, map_name):
+            if str(other_name) == str(map_name):
+                continue
+            if _remove_unique_npc_from_map_yaml(session, str(other_name), unique_uid):
+                moved_from = str(other_name)
+                break
+
     path = resolve_map_yaml_path(session, map_name)
     data = copy.deepcopy(load_map_document(path))
     map_block = _map_block(data)
@@ -1864,7 +2029,7 @@ def place_npc_in_map(
 
     save_map_document(path, data)
     uid = _entry_uid(str(token), entity_entry, legend) or f"entities:{len(entities) - 1}"
-    return {
+    result = {
         "id": uid,
         "placement_kind": "entity",
         "token": str(token),
@@ -1872,6 +2037,11 @@ def place_npc_in_map(
         "y": int(y),
         "npc_type": str(npc_type),
     }
+    if unique_uid:
+        result["entity_uid"] = unique_uid
+        result["moved"] = bool(moved_from)
+        result["from_map"] = moved_from
+    return result
 
 
 def place_player_in_map(

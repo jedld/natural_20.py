@@ -1,6 +1,9 @@
 ---
 # Equipment Packs from 5th SRD
 # https://5thsrd.org/adventuring/equipment/equipment_packs/
+#
+# `items` may be a list of {item_id: qty} maps (this file) or a mapping of
+# item_id → qty (campaign packs). The character builder preview accepts both.
 
 academic_pack:
   name: "Academic's Pack"

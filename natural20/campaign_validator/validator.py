@@ -37,6 +37,15 @@ def validate_campaign(campaign: Path | str, options: ValidateOptions | None = No
     if not opts.skip_formatting:
         validate_yaml_files(campaign_path, report)
 
+    # If YAML syntax errors were found, skip catalog/reference checks that
+    # require successful parsing of campaign YAML files.
+    has_syntax_errors = any(
+        issue.code in ("yaml_syntax", "yaml_format_tabs") for issue in report.issues
+    )
+
+    if has_syntax_errors:
+        return report
+
     catalog = CampaignCatalog(campaign_path)
     validate_static_structure(campaign_path, catalog, report)
 

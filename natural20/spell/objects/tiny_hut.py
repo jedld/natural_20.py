@@ -59,7 +59,11 @@ def hut_cast_violation(battle_map, center: Tuple[int, int], radius_ft: int = HUT
 
 
 def iter_tiny_hut_domes(battle_map):
-    for obj in list(getattr(battle_map, 'interactable_objects', {}).keys()):
+    builder = getattr(battle_map, '_light_builder', None)
+    if builder is not None and hasattr(builder, 'tiny_hut_domes'):
+        yield from builder.tiny_hut_domes()
+        return
+    for obj in list(getattr(battle_map, 'interactable_objects', {}) or {}):
         if isinstance(obj, TinyHutDome):
             yield obj
 

@@ -33,11 +33,14 @@ spell_list:
     - thunderwave
   level_2:
     - darkness
+    - invisibility
     - misty_step
   level_3:
     - counterspell
     - dispel_magic
     - fly
+  level_4:
+    - blight
 class_features:
   - otherworldly_patron
   - pact_magic

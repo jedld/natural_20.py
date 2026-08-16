@@ -102,6 +102,8 @@ spell_list:
   level_3:
     - dispel_magic
     - protection_from_energy
+  level_4:
+    - blight
 proficiency_bonuses:
 - 2
 - 2

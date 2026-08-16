@@ -165,7 +165,11 @@ class Serialization:
             'battle': battle
         }
 
-        yaml_str = yaml.dump(state, Dumper=yaml.SafeDumper)
+        session._entity_serialize_seen = set()
+        try:
+            yaml_str = yaml.dump(state, Dumper=yaml.SafeDumper)
+        finally:
+            session._entity_serialize_seen = None
         if filename:
             with open(filename, 'w') as f:
                 f.write(yaml_str)

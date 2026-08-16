@@ -1,11 +1,26 @@
 """Non-hostile companions that follow the party across maps."""
 
 
-def companion_defs(game_properties):
+def companion_defs(game_properties, session=None):
     if not game_properties:
-        return []
-    raw = game_properties.get('companions') or []
-    return raw if isinstance(raw, list) else []
+        defs = []
+    else:
+        raw = game_properties.get('companions') or []
+        defs = list(raw) if isinstance(raw, list) else []
+    if session is None:
+        return defs
+    seen = {str(cfg.get('entity_uid') or '') for cfg in defs if cfg.get('entity_uid')}
+    try:
+        from natural20.sidekick import iter_in_party_sidekicks
+        for entity in iter_in_party_sidekicks(session):
+            uid = str(getattr(entity, 'entity_uid', '') or '')
+            if not uid or uid in seen:
+                continue
+            seen.add(uid)
+            defs.append({'entity_uid': uid})
+    except Exception:
+        pass
+    return defs
 
 
 def quest_allows_companion(session, companion_cfg):
@@ -31,7 +46,7 @@ def sync_companion_to_map(session, game_properties, companion_uid, target_map, a
         return None
 
     try:
-        current_map = session.map_for(companion)
+        current_map = session.map_for_entity(companion, map_set=session.map_set_for(getattr(target_map, 'name', None)))
     except Exception:
         current_map = None
 
@@ -81,7 +96,7 @@ def sync_companions_for_entity(session, game_properties, anchor_entity, target_m
     if anchor_pos is None:
         return
 
-    for cfg in companion_defs(game_properties):
+    for cfg in companion_defs(game_properties, session=session):
         if not quest_allows_companion(session, cfg):
             continue
         uid = cfg.get('entity_uid')

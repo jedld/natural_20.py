@@ -1,0 +1,39 @@
+---
+kind: Commoner
+description: >
+  An ordinary townsperson with no combat training. Commoners flee from danger
+  when they can and fight only if cornered.
+size: medium
+race:
+  - humanoid
+  - human
+alignment: true_neutral
+default_ac: 10
+max_hp: 4
+hp_die: 1d8
+speed: 30
+passive_perception: 10
+token:
+  - c
+color: brown
+ability:
+  str: 10
+  dex: 10
+  con: 10
+  int: 10
+  wis: 10
+  cha: 10
+languages:
+  - common
+cr: 0
+xp: 10
+proficiency_bonus: 2
+actions:
+  - name: Club
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 2
+    damage: 2
+    damage_die: 1d4
+    damage_type: bludgeoning

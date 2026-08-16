@@ -20,6 +20,7 @@ Supported map features include:
 - named and player-agnostic spawn points;
 - static lights, object lights, fog/effects, point-fire visuals, map-entry narration, and area narration;
 - multi-map links through teleporters and trap doors;
+- **imported battlemap art** via `scripts/import_battlemap.py` (`.cursor/skills/n20-import-battlemap`): tile-wise classify; `--split-panels` turns a published multi-floor page into several `game.yml` map keys (copy **crops** to `assets/maps/`, not the original sheet);
 - concealed/secret objects, passive discovery, notes, investigation checks, and interaction buttons;
 - **map Chest containers** with `inventory` (open bar stock, locked till safes) and **NPC-only `annotations`** on objects (see [npc-containers-and-annotations.md](./npc-containers-and-annotations.md)).
 

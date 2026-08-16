@@ -488,6 +488,21 @@ class Entity(EntityStateEvaluator, Notable):
     def class_feature(self, feature):
         return False
 
+    def makes_death_saves(self):
+        """True when 0 HP should knock this entity unconscious instead of killing it."""
+        if self.object():
+            return False
+        if not self.npc():
+            return True
+        session = getattr(self, 'session', None)
+        if session is None:
+            return False
+        try:
+            from natural20.sidekick import is_in_party_sidekick
+            return is_in_party_sidekick(session, self)
+        except Exception:
+            return False
+
     def class_and_level(self):
         return []
 
@@ -918,6 +933,8 @@ class Entity(EntityStateEvaluator, Notable):
                                          description="reliable_talent",
                                          entity=self,
                                          battle=battle)
+            from natural20.sidekick import consume_inspiring_help
+            roll = consume_inspiring_help(self, roll, battle=battle)
             if not hasattr(roll, 'metadata'):
                 roll.metadata = {}
             roll.metadata['skill'] = skill
@@ -1174,6 +1191,18 @@ class Entity(EntityStateEvaluator, Notable):
 
     def humanoid(self):
         return 'humanoid' in self.properties.get('race', [])
+
+    def construct(self):
+        race = self.properties.get('race', [])
+        if isinstance(race, str):
+            race = [race]
+        return 'construct' in [str(r).lower() for r in race]
+
+    def plant(self):
+        race = self.properties.get('race', [])
+        if isinstance(race, str):
+            race = [race]
+        return 'plant' in [str(r).lower() for r in race]
 
     def paralyzed(self):
         return 'paralyzed' in self.statuses
@@ -2146,6 +2175,8 @@ class Entity(EntityStateEvaluator, Notable):
         disadvantage = False
         if self.invisible():
             advantage = True
+        if self.class_feature('battle_readiness'):
+            advantage = True
         session = getattr(self, "session", None)
         ruleset = getattr(session, "ruleset", None) if session is not None else None
         if self.surprised() and ruleset is not None:
@@ -3054,6 +3085,17 @@ class Entity(EntityStateEvaluator, Notable):
             elif save_type == 'dexterity':
                 disadvantages.append('shell_defense')
 
+        extra_dis = opts.get('disadvantage') or opts.get('disadvantages')
+        if extra_dis:
+            if isinstance(extra_dis, str):
+                extra_dis = [extra_dis]
+            disadvantages.extend(extra_dis)
+        extra_adv = opts.get('advantage') or opts.get('advantages')
+        if extra_adv:
+            if isinstance(extra_adv, str):
+                extra_adv = [extra_adv]
+            advantages.extend(extra_adv)
+
         if self.has_effect('save_advantage_modifier'):
             save_adv, save_dis = self.eval_effect(
                 'save_advantage_modifier', {
@@ -3130,6 +3172,9 @@ class Entity(EntityStateEvaluator, Notable):
                 save_roll += DieRoll.roll(f"{sign}{iv}",
                                           description=f"save_modifier:{entry.get('source')}",
                                           entity=self, battle=battle)
+
+        from natural20.sidekick import consume_inspiring_help
+        save_roll = consume_inspiring_help(self, save_roll, battle=battle)
 
         hook_results = self.resolve_trigger(
             'save_resolved',
@@ -3657,17 +3702,21 @@ class Entity(EntityStateEvaluator, Notable):
             self.make_dead(battle=battle)
 
         elif self.hp() <= 0:
-            self.make_dead(battle=battle) if self.npc() or self.object() else self.make_unconscious()
+            if self.object() or (self.npc() and not self.makes_death_saves()):
+                self.make_dead(battle=battle)
+            else:
+                self.make_unconscious()
             # drop concentration spells
             if self.concentration:
-                self.dismiss_effect(self.concentration)
+                if not self.class_feature('focused_casting'):
+                    self.dismiss_effect(self.concentration)
             if (not self.npc()
                     and attacker is not None
                     and getattr(attacker, 'class_feature', lambda _f: False)('swarm_centipede_venom')):
                 self._apply_swarm_centipede_venom()
 
         elif self.hp() > 0:
-            if self.concentration:
+            if self.concentration and not self.class_feature('focused_casting'):
                 # make a concentration check
                 concentration_check = self.save_throw('constitution', battle)
                 # Concentration DC is based on damage actually taken.

@@ -327,6 +327,7 @@ def action_animator(action, battle=None):
 
 class Battle():
     def __init__(self, session: Session, maps: Map, standard_controller=None, animation_log_enabled=False):
+        passed_all_maps = isinstance(maps, dict)
         if isinstance(maps, list):
             self.maps = maps
         elif isinstance(maps, dict):
@@ -337,6 +338,15 @@ class Battle():
             self.maps = None
 
         self.session = session
+        if passed_all_maps and self.maps and session is not None:
+            active = getattr(session, 'active_map_set', None)
+            if active:
+                in_set = [
+                    m for m in self.maps
+                    if session.map_set_for(getattr(m, 'name', None)) == active
+                ]
+                if in_set:
+                    self.maps = in_set
         self._ensure_stack_maps()
 
         self.combat_order = []
@@ -392,13 +402,21 @@ class Battle():
         if not self.maps or len(self.maps) == 0:
             return None
 
+        maps = list(self.maps)
+        session = self.session
+        active = getattr(session, 'active_map_set', None) if session is not None else None
+        if active and session is not None:
+            in_set = [m for m in maps if session.map_set_for(getattr(m, 'name', None)) == active]
+            rest = [m for m in maps if m not in in_set]
+            maps = in_set + rest
+
         if isinstance(entity, str):
-            for map in self.maps:
+            for map in maps:
                 if map.entity_by_uid(entity):
                     return map
             return None
         else:
-            for map in self.maps:
+            for map in maps:
                 if entity in map.entities:
                     return map
                 if entity in map.objects:
@@ -436,7 +454,8 @@ class Battle():
             'fancy_footwork_targets': set(),
             'positions_entered': {},
             'controller': controller,
-            'help_with': {}
+            'help_with': {},
+            'extra_attacks_remaining': 0,
         }
 
         self.entities[entity] = state
@@ -710,6 +729,11 @@ class Battle():
         if self.readied_actions and entity is not None:
             self.clear_ready_action(entity)
         self.trigger_event('start_of_turn', self, { "target" : entity })
+        state = self.entity_state_for(entity)
+        if state is not None:
+            state['extra_attacks_remaining'] = 0
+        if hasattr(entity, '_coordinated_strike_uid'):
+            entity._coordinated_strike_uid = None
         
         # check for the stench feature
         effects_list = [StenchEffect(self, entity)]
@@ -777,25 +801,30 @@ class Battle():
                 groups.add(self.entities[entity]['group'])
         return groups
 
+    def _is_party_combatant(self, entity):
+        try:
+            if not entity.npc():
+                return True
+        except Exception:
+            return False
+        try:
+            from natural20.sidekick import is_in_party_sidekick
+            return is_in_party_sidekick(self.session, entity)
+        except Exception:
+            return False
+
     def has_player_combatants(self):
-        """Return True when at least one player character is in this battle."""
+        """Return True when at least one PC or in-party sidekick is in this battle."""
         for entity in self.combat_order:
-            try:
-                if not entity.npc():
-                    return True
-            except Exception:
-                pass
+            if self._is_party_combatant(entity):
+                return True
         return False
 
     def player_groups(self):
-        """Return the set of groups that contain player characters in this battle."""
+        """Return the set of groups that contain PCs or in-party sidekicks."""
         groups = set()
         for entity in self.combat_order:
-            try:
-                is_npc = bool(entity.npc())
-            except Exception:
-                is_npc = True
-            if not is_npc:
+            if self._is_party_combatant(entity):
                 groups.add(self.entities[entity]['group'])
         return groups
 

@@ -77,6 +77,13 @@ class AttackAction(Action):
         if entity.total_actions(battle) > 0:
             return True
 
+        from natural20.sidekick import extra_attacks_remaining
+        if extra_attacks_remaining(entity, battle) > 0:
+            npc_action = options.get('npc_action')
+            if npc_action and isinstance(npc_action, dict) and npc_action.get('multiattack_group'):
+                return False
+            return True
+
         npc_action = options.get('npc_action')
         if npc_action and entity.multiattack(battle, npc_action):
             entity_state = battle.entity_state_for(entity)
@@ -408,7 +415,27 @@ class AttackAction(Action):
             elif item.get('second_hand'):
                 battle.consume(item['source'], 'bonus_action')
             else:
-                battle.consume(item['source'], 'action')
+                state = battle.entity_state_for(item['source'])
+                extra_left = 0
+                if state:
+                    try:
+                        extra_left = int(state.get('extra_attacks_remaining') or 0)
+                    except (TypeError, ValueError):
+                        extra_left = 0
+                if extra_left > 0:
+                    state['extra_attacks_remaining'] = extra_left - 1
+                else:
+                    battle.consume(item['source'], 'action')
+                    using_multiattack = bool(
+                        item.get('npc_action')
+                        and isinstance(item.get('npc_action'), dict)
+                        and item['npc_action'].get('multiattack_group')
+                    )
+                    if not using_multiattack and state is not None:
+                        from natural20.sidekick import extra_attack_count
+                        count = extra_attack_count(item['source'])
+                        if count > 1:
+                            state['extra_attacks_remaining'] = count - 1
 
             item['source'].break_stealth()
 
@@ -554,6 +581,9 @@ class AttackAction(Action):
                             entity=self.source, battle=battle,
                         )
 
+                from natural20.sidekick import consume_inspiring_help
+                self.attack_roll = consume_inspiring_help(self.source, self.attack_roll, battle=battle)
+
             # print(f"{self.source.name} rolls a {attack_roll} to attack {target.name}")
             self.source.resolve_trigger('attack_resolved', {'target': target})
 
@@ -575,29 +605,34 @@ class AttackAction(Action):
     def _resolve_hit(self, battle, target, weapon, attack_roll, damage_roll, attack_name, ammo_type, adv_info):
         sneak_attack_roll = None
         hit = False
-        if attack_roll is not None:
-            if (
-                hasattr(self.source, 'can_sneak_attack')
-                and self.source.can_sneak_attack(
-                    battle,
-                    target,
-                    weapon,
-                    advantage=self.with_advantage(),
-                    disadvantage=self.with_disadvantage(),
-                )
-            ):
-                sneak_attack_roll = DieRoll.roll(self.source.sneak_attack_level(), crit=attack_roll.nat_20(),
-                                                    description='dice_roll.sneak_attack', entity=self.source, battle=battle)
-        else:
+        if attack_roll is None:
             hit = True
 
         crit = bool(attack_roll is not None and attack_roll.nat_20())
+        if not crit and attack_roll is not None and self.source.class_feature('improved_critical'):
+            nat = attack_roll.natural_d20() if hasattr(attack_roll, 'natural_d20') else None
+            if nat is not None and nat >= 19:
+                crit = True
         if (not crit and attack_roll is not None
                 and getattr(target, 'paralyzed', lambda: False)()
                 and weapon.get('type') == 'melee_attack' and battle is not None):
             attack_map = battle.map_for(self.source)
             if attack_map is not None and attack_map.distance(self.source, target) * attack_map.feet_per_grid <= 5:
                 crit = True
+
+        if (
+            attack_roll is not None
+            and hasattr(self.source, 'can_sneak_attack')
+            and self.source.can_sneak_attack(
+                battle,
+                target,
+                weapon,
+                advantage=self.with_advantage(),
+                disadvantage=self.with_disadvantage(),
+            )
+        ):
+            sneak_attack_roll = DieRoll.roll(self.source.sneak_attack_level(), crit=crit,
+                                                description='dice_roll.sneak_attack', entity=self.source, battle=battle)
 
         if damage_roll is not None:
             damage = DieRoll.roll(damage_roll, crit=crit, description='dice_roll.damage',
@@ -623,6 +658,19 @@ class AttackAction(Action):
                         damage.rolls[i] = r.result
 
             damage = self.check_weapon_bonuses(battle, weapon, damage, attack_roll)
+
+            target_uid = getattr(target, 'entity_uid', None)
+            if getattr(self.source, '_coordinated_strike_uid', None) and target_uid:
+                if self.source._coordinated_strike_uid == target_uid:
+                    extra = DieRoll.roll(
+                        '2d6',
+                        crit=crit,
+                        description='dice_roll.coordinated_strike',
+                        entity=self.source,
+                        battle=battle,
+                    )
+                    damage += extra
+                    self.source._coordinated_strike_uid = None
 
             # Phase 3 modifier registry: any effect that registered a
             # ``damage_roll`` modifier (e.g. Divine Favor, Hunter's Mark)
@@ -945,6 +993,11 @@ class AttackAction(Action):
                 if max_hp and current_hp is not None and current_hp <= max_hp // 2:
                     damage_roll = half_hp_die
             ammo_type = npc_action.get("ammo", None)
+            if self.source.class_feature('martial_role_attacker'):
+                try:
+                    attack_mod = int(attack_mod or 0) + 2
+                except (TypeError, ValueError):
+                    attack_mod = 2
         else:
             weapon = self.session.load_weapon(using)
             if not weapon:
@@ -980,20 +1033,28 @@ class AttackAction(Action):
             entity = map.entity_at(*pos)
             if entity == self.source or entity == target or not entity:
                 continue
+            if not getattr(entity, 'class_feature', None):
+                continue
 
-            if entity.class_feature('protection') and entity.shield_equipped() and entity.has_reaction(battle):
-                controller = battle.controller_for(entity)
-                if hasattr(controller, 'reaction') and not controller.reaction('feature_protection', target=target,
-                                                                                source=entity, attacker=self.source):
-                    continue
+            uses_protection = entity.class_feature('protection') and entity.shield_equipped()
+            uses_defender = entity.class_feature('martial_role_defender')
+            if not (uses_protection or uses_defender) or not entity.has_reaction(battle):
+                continue
+            if battle and hasattr(battle, 'can_see') and not battle.can_see(entity, self.source):
+                continue
 
-                battle.session.event_manager.received_event({
-                    "event" : 'feature_protection', "target" : target, "source": entity,
-                                                        "attacker": self.source})
-                _advantage, disadvantage = adv_info
-                disadvantage.append('protection')
-                self.advantage_mod = -1
-                battle.consume(entity, 'reaction')
+            controller = battle.controller_for(entity)
+            if hasattr(controller, 'reaction') and not controller.reaction('feature_protection', target=target,
+                                                                            source=entity, attacker=self.source):
+                continue
+
+            battle.session.event_manager.received_event({
+                "event" : 'feature_protection', "target" : target, "source": entity,
+                                                    "attacker": self.source})
+            _advantage, disadvantage = adv_info
+            disadvantage.append('protection')
+            self.advantage_mod = -1
+            battle.consume(entity, 'reaction')
 
     def check_weapon_bonuses(self, battle, weapon, damage_roll, attack_roll):
         if weapon.get('bonus') and weapon['bonus'].get('additional') and weapon['bonus']['additional'].get('restriction') == 'nat20_attack' and attack_roll.nat_20():

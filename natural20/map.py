@@ -8,6 +8,7 @@ from natural20.item_library.common import StoneWall, Ground, StoneWallDirectiona
 from natural20.item_library.door_object import DoorObject, DoorObjectWall
 from natural20.item_library.pit_trap import PitTrap
 from natural20.item_library.chest import Chest
+from natural20.item_library.crypt_coffin import CryptCoffin
 from natural20.item_library.fireplace import Fireplace
 from natural20.item_library.teleporter import Teleporter
 from natural20.item_library.chasm import Chasm
@@ -394,8 +395,15 @@ class Map(SerializableObject):
                         f"Failed to place map entity on map {self._map_label()!r} at {pos}: {context}. {exc}"
                     ) from exc
 
+    def invalidate_dynamic_lights(self):
+        """Drop cached entity/object lighting after spawn, move, or equip."""
+        builder = getattr(self, '_light_builder', None)
+        if builder is not None:
+            builder.invalidate_dynamic_cache()
+
     def _compute_lights(self):
         self._light_map = self._light_builder.build_map()
+        self.invalidate_dynamic_lights()
 
     def _setup_objects(self):
         for pos_x in range(self.size[0]):
@@ -475,6 +483,16 @@ class Map(SerializableObject):
                     if obj:
                         obj.after_setup()
 
+    def _registered_entity_from_meta(self, meta):
+        """Reuse a registry entity when YAML specifies a stable entity_uid."""
+        if not isinstance(meta, dict):
+            return None
+        overrides = meta.get('overrides') if isinstance(meta.get('overrides'), dict) else {}
+        uid = overrides.get('entity_uid') or meta.get('entity_uid')
+        if not uid:
+            return None
+        return self.session.entity_registry.get(uid)
+
     def _setup_npcs(self):
         players = self.properties.get('player') or []
         npcs = self.properties.get('npc') or []
@@ -487,8 +505,16 @@ class Map(SerializableObject):
         for player in players:
             column_index, row_index = player['position']
             overrides = player.get('overrides', {})
-            player = PlayerCharacter.load(self.session, player['sheet'], override=overrides)
-            self.add(player, column_index, row_index, group='a')
+            existing = self._registered_entity_from_meta(player) or self._registered_entity_from_meta(overrides)
+            if existing is not None:
+                self.add(existing, column_index, row_index, group='a')
+                continue
+            loaded = PlayerCharacter.load(self.session, player['sheet'], override=overrides)
+            existing = self.session.entity_registry.get(getattr(loaded, 'entity_uid', None))
+            if existing is not None and existing is not loaded:
+                self.add(existing, column_index, row_index, group='a')
+            else:
+                self.add(loaded, column_index, row_index, group='a')
 
         for npc in npcs:
             npc_meta = npc
@@ -496,9 +522,16 @@ class Map(SerializableObject):
             if not npc_meta['sub_type']:
                 raise Exception('npc type requires sub_type as well')
 
+            existing = self._registered_entity_from_meta(npc_meta)
+            if existing is not None:
+                self.add(existing, column_index, row_index, group=npc_meta.get('group', None))
+                continue
             entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta.get('name', None), "overrides" : npc_meta['overrides'], "rand_life" : True})
-
-            self.add(entity, column_index, row_index, group=npc_meta.get('group', None))
+            existing = self.session.entity_registry.get(getattr(entity, 'entity_uid', None))
+            if existing is not None and existing is not entity:
+                self.add(existing, column_index, row_index, group=npc_meta.get('group', None))
+            else:
+                self.add(entity, column_index, row_index, group=npc_meta.get('group', None))
 
         if self.meta_map:
             for column_index, meta_row in enumerate(self.meta_map):
@@ -513,6 +546,10 @@ class Map(SerializableObject):
             if not npc_meta.get('sub_type'):
                 raise Exception('npc type requires sub_type as well')
 
+            existing = self._registered_entity_from_meta(npc_meta)
+            if existing is not None:
+                self.add(existing, *position, group=npc_meta.get('group', None))
+                return
             entity = self.session.npc(
                 npc_meta['sub_type'],
                 {
@@ -521,8 +558,11 @@ class Map(SerializableObject):
                     "rand_life": True,
                 },
             )
-
-            self.add(entity, *position, group=npc_meta.get('group', None))
+            existing = self.session.entity_registry.get(getattr(entity, 'entity_uid', None))
+            if existing is not None and existing is not entity:
+                self.add(existing, *position, group=npc_meta.get('group', None))
+            else:
+                self.add(entity, *position, group=npc_meta.get('group', None))
         elif token_type == 'spawn_point':
             self.spawn_points[npc_meta.get('name')] = {
                 'location': position
@@ -615,6 +655,7 @@ class Map(SerializableObject):
         elif entity in self.interactable_objects:
             self.interactable_objects.pop(entity)
             self.objects[pos_x][pos_y].remove(entity)
+        self.invalidate_dynamic_lights()
         # Keep registry entry; entities may still be referenced by UID in logs/saves
         
 
@@ -685,6 +726,7 @@ class Map(SerializableObject):
                 )
             except Exception:
                 pass
+            self.invalidate_dynamic_lights()
             return True
         return False
 
@@ -781,6 +823,7 @@ class Map(SerializableObject):
         for ofs_x in range(source_token_size):
             for ofs_y in range(source_token_size):
                 self.tokens[pos_x + ofs_x][pos_y + ofs_y] = entity_data
+        self.invalidate_dynamic_lights()
 
     def object_at(self, pos_x, pos_y, reveal_concealed=False):
         objects_at_position = self.objects[pos_x][pos_y]
@@ -939,6 +982,7 @@ class Map(SerializableObject):
             self.session.entity_registry.pin(obj)
             self.objects[pos_x][pos_y].append(obj)
 
+        self.invalidate_dynamic_lights()
         return obj
 
     def is_heavily_obscured(self, entity, pos_override=None):
@@ -1761,6 +1805,25 @@ class Map(SerializableObject):
         if max_illumination == 0.0:
             has_line_of_sight = False
 
+        if (
+            has_line_of_sight
+            and callable(getattr(entity2, 'invisible', None))
+            and entity2.invisible()
+        ):
+            dist_ft = (sighting_distance or 0) * self.feet_per_grid
+            if entity.has_blindsight() and entity.blindsight(dist_ft):
+                return True
+            if entity.has_effect('see_invisibility'):
+                return True
+            truesight = (getattr(entity, 'properties', {}) or {}).get('truesight')
+            try:
+                truesight = int(truesight) if truesight else 0
+            except (TypeError, ValueError):
+                truesight = 0
+            if truesight and dist_ft <= truesight:
+                return True
+            return False
+
         return has_line_of_sight
 
     def entity_squares(self, entity, squeeze=False):
@@ -1893,6 +1956,10 @@ class Map(SerializableObject):
         squares = self.squares_in_path(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive)
         squares_results = []
         prev_square = [pos1_x, pos1_y]
+        try:
+            from natural20.spell.objects.tiny_hut import force_dome_blocks_outside_vision
+        except Exception:
+            force_dome_blocks_outside_vision = None
         for index, s in enumerate(squares):
             if log_path:
                 self.base_map[s[1]][s[0]] = 'H'
@@ -1911,25 +1978,28 @@ class Map(SerializableObject):
                 if self.opaque(*s, origin=prev_square) or self.opaque(*prev_square, origin=s):
                     return None
 
-                if self.cover_at(*s) == 'total':
+                cover = self.cover_at(*s)
+                if cover == 'total':
                     return None
 
-                if heavy_cover and self.cover_at(*s) == 'three_quarter':
+                if heavy_cover and cover == 'three_quarter':
                     return None
 
                 if creature_size_min and self.entity_at(*s) and self.entity_at(*s).size_identifier() >= creature_size_min:
                     return None
 
-                try:
-                    from natural20.spell.objects.tiny_hut import force_dome_blocks_outside_vision
-                    if force_dome_blocks_outside_vision(self, tuple(prev_square), tuple(s)):
-                        return None
-                except Exception:
-                    pass
+                if force_dome_blocks_outside_vision is not None:
+                    try:
+                        if force_dome_blocks_outside_vision(self, tuple(prev_square), tuple(s)):
+                            return None
+                    except Exception:
+                        pass
 
             prev_square = s
-
-            squares_results.append([self.cover_at(*s, entity), s])
+            if passability_mode or entity:
+                squares_results.append([self.cover_at(*s, entity), s])
+            else:
+                squares_results.append([cover, s])
         return squares_results
 
 
@@ -1986,16 +2056,19 @@ class Map(SerializableObject):
         return remove_duplicates(arrs)
 
     def cover_at(self, pos_x, pos_y, entity=False):
-        if self.object_at(pos_x, pos_y) and self.object_at(pos_x, pos_y).half_cover():
-            return 'half'
-        elif self.object_at(pos_x, pos_y) and self.object_at(pos_x, pos_y).three_quarter_cover():
-            return 'three_quarter'
-        elif self.object_at(pos_x, pos_y) and self.object_at(pos_x, pos_y).total_cover():
-            return 'total'
-        elif entity and self.entity_at(pos_x, pos_y):
-            return self.entity_at(pos_x, pos_y).size_identifier()
-        else:
-            return 'none'
+        obj = self.object_at(pos_x, pos_y)
+        if obj is not None:
+            if obj.half_cover():
+                return 'half'
+            if obj.three_quarter_cover():
+                return 'three_quarter'
+            if obj.total_cover():
+                return 'total'
+        if entity:
+            occupant = self.entity_at(pos_x, pos_y)
+            if occupant:
+                return occupant.size_identifier()
+        return 'none'
 
 
     def light_at(self, pos_x, pos_y):
@@ -2006,15 +2079,7 @@ class Map(SerializableObject):
         if self._light_builder.magical_darkness_at(pos_x, pos_y):
             return 0.0
 
-        try:
-            from natural20.spell.objects.tiny_hut import iter_tiny_hut_domes
-            interior_override = None
-            for dome in iter_tiny_hut_domes(self):
-                if dome.contains((pos_x, pos_y)):
-                    interior_override = dome.interior_light_value()
-                    break
-        except Exception:
-            interior_override = None
+        interior_override = self._light_builder.tiny_hut_interior(pos_x, pos_y)
 
         if self._light_map is not None:
             intensity = self._light_map[pos_x][pos_y] + self._light_builder.light_at(pos_x, pos_y)
@@ -2136,18 +2201,58 @@ class Map(SerializableObject):
 
         return result
 
+    def _serialize_entity_value(self, ent):
+        if ent is None:
+            return None
+        uid = str(getattr(ent, 'entity_uid', None) or self.session.uid_for(ent) or '')
+        seen = getattr(self.session, '_entity_serialize_seen', None)
+        if seen is not None and uid and uid in seen:
+            return {'_entity_uid': uid}
+        if seen is not None and uid:
+            seen.add(uid)
+        return ent
+
+    def _resolve_entity_stub(self, value):
+        if isinstance(value, dict) and value.get('_entity_uid'):
+            return self.session.entity_registry.get(value.get('_entity_uid'))
+        return value
+
     @staticmethod
     def from_dict(data):
         session = data['session']
         battle_map = Map(session, None, properties=data['properties'], skip_setup=True)
         # Pre-register entity instances from original mapping before wrapping
+        resolved_entities = {}
         try:
-            for ent in list(data['entities'].keys()):
-                session.register_entity(ent)
+            for ent, pos in list((data.get('entities') or {}).items()):
+                live = battle_map._resolve_entity_stub(ent) if not isinstance(ent, str) else session.entity_registry.get(ent)
+                if isinstance(ent, str):
+                    live = live or session.entity_registry.get(ent)
+                    if live is None:
+                        continue
+                    resolved_entities[live] = pos
+                    session.register_entity(live)
+                    continue
+                if live is None:
+                    live = ent
+                if isinstance(live, dict) and live.get('_entity_uid'):
+                    live = session.entity_registry.get(live.get('_entity_uid'))
+                if live is None:
+                    continue
+                session.register_entity(live)
+                resolved_entities[live] = pos
         except Exception:
-            pass
+            resolved_entities = data.get('entities') or {}
+        if not resolved_entities:
+            resolved_entities = data.get('entities') or {}
+            try:
+                for ent in list(resolved_entities.keys()):
+                    if not isinstance(ent, str) and not isinstance(ent, dict):
+                        session.register_entity(ent)
+            except Exception:
+                pass
         # Entities/interactables as UID-backed maps (accepting object-keyed dicts)
-        battle_map.entities = EntitiesUIDMap(session, data['entities'])
+        battle_map.entities = EntitiesUIDMap(session, resolved_entities)
         # Tokens grid reconstructed cell-by-cell
         battle_map.tokens = TokensGrid(session, battle_map.size[0], battle_map.size[1])
         battle_map.base_map = data['base_map']
@@ -2168,9 +2273,11 @@ class Map(SerializableObject):
                 except Exception:
                     token_cell = None
                 if token_cell:
-                    # Accept either {'entity': ent, 'token': t} or proxy-like
+                    raw_entity = token_cell.get('entity')
+                    if isinstance(raw_entity, dict) and raw_entity.get('_entity_uid'):
+                        raw_entity = session.entity_registry.get(raw_entity.get('_entity_uid'))
                     battle_map.tokens[row][column] = {
-                        'entity': token_cell.get('entity'),
+                        'entity': raw_entity,
                         'token': token_cell.get('token')
                     }
                 # objects
@@ -2246,10 +2353,18 @@ class Map(SerializableObject):
         except Exception:
             interactable_objects_uid = {}
 
+        serialized_entities = {}
+        for ent, pos in self.entities.items():
+            value = self._serialize_entity_value(ent)
+            if isinstance(value, dict) and value.get('_entity_uid'):
+                serialized_entities[value['_entity_uid']] = pos
+            else:
+                serialized_entities[ent] = pos
+
         # Backward-compatible shapes for objects and tokens
         objects_grid = [[list(self.objects[x][y]) for y in range(self.size[1])] for x in range(self.size[0])]
         tokens_grid = [[
-            ({'entity': self.tokens[x][y]['entity'], 'token': self.tokens[x][y]['token']} if self.tokens[x][y] else None)
+            ({'entity': self._serialize_entity_value(self.tokens[x][y]['entity']), 'token': self.tokens[x][y]['token']} if self.tokens[x][y] else None)
             for y in range(self.size[1])
         ] for x in range(self.size[0])]
 
@@ -2260,7 +2375,7 @@ class Map(SerializableObject):
             'legend': self.legend,
             'properties': self.properties,
             'session': self.session,
-            'entities': {ent: pos for ent, pos in self.entities.items()},
+            'entities': serialized_entities,
             'entities_uid': entities_uid,
             'interactable_objects': {obj: pos for obj, pos in self.interactable_objects.items()},
             'interactable_objects_uid': interactable_objects_uid,

@@ -1054,6 +1054,8 @@ class LlmMcpController(GenericController):
 			session = battle.session
 			if target_map_name and target_map_name != current_map.name:
 				target_map = session.maps.get(target_map_name)
+				if target_map is not None and session is not None and not session.same_map_set(current_map.name, target_map.name):
+					return {'error': f'target_map {target_map_name!r} is in another map set'}
 			elif allow_stack_descent:
 				stack = getattr(current_map, 'map_stack', None)
 				if stack is not None:

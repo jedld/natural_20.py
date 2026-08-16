@@ -129,6 +129,19 @@ class Teleporter(Object):
             return
 
         entity_placed = False
+        session = getattr(map, 'session', None) or getattr(self, 'session', None)
+        if self.target_map and session is not None and not session.same_map_set(getattr(map, 'name', None), self.target_map):
+            if getattr(session, 'event_manager', None):
+                session.event_manager.received_event({
+                    "event": 'console', "target": map, "source": entity,
+                    "message": (
+                        f"{entity.name} cannot use {self.label()} — "
+                        f"target_map '{self.target_map}' is in another map set"
+                    ),
+                })
+            self._deny_entry(entity, map)
+            return
+
         if self.target_map:
             target_map = map.linked_maps.get(self.target_map)
             if target_map is None:

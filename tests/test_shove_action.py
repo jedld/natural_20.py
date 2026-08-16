@@ -34,6 +34,7 @@ class TestShoveAction(unittest.TestCase):
         self.battle.add(self.shover, "a", position=(1, 1), token="S")
         self.battle.add(self.target, "b", position=(2, 1), token="T")
         self.battle.start()
+        self.battle.set_current_turn(self.shover)
         self.shover.reset_turn(self.battle)
         self.target.reset_turn(self.battle)
 
@@ -133,6 +134,7 @@ class TestShoveAction2024(unittest.TestCase):
         self.battle.add(self.shover, "a", position=(1, 1), token="S")
         self.battle.add(self.target, "b", position=(2, 1), token="T")
         self.battle.start()
+        self.battle.set_current_turn(self.shover)
         self.shover.reset_turn(self.battle)
 
     def test_failed_save_knocks_prone(self):

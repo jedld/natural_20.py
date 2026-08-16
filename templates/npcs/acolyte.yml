@@ -1,0 +1,54 @@
+---
+kind: Acolyte
+description: >
+  A temple attendant trained in simple prayers and a mace. Acolytes tend
+  shrines, bury the dead, and call on their faith when pressed.
+size: medium
+race:
+  - humanoid
+  - human
+alignment: any_alignment
+default_ac: 10
+max_hp: 9
+hp_die: 2d8
+speed: 30
+passive_perception: 12
+token:
+  - a
+color: gold
+ability:
+  str: 10
+  dex: 10
+  con: 10
+  int: 10
+  wis: 14
+  cha: 11
+skills:
+  medicine: 4
+  religion: 2
+  insight: 4
+languages:
+  - common
+cr: 0.25
+xp: 50
+proficiency_bonus: 2
+spell_ability: wisdom
+spell_slots:
+  '1': 3
+prepared_spells:
+  - sacred_flame
+  - bless
+  - cure_wounds
+equipped:
+  - mace
+  - holy_symbol
+actions:
+  - name: mace
+    type: melee_attack
+    if: equipped:mace
+    range: 5
+    targets: 1
+    attack: 2
+    damage: 3
+    damage_die: 1d6
+    damage_type: bludgeoning

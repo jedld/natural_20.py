@@ -308,6 +308,16 @@ _SPELL_VISUAL_HINTS: dict[str, str] = {
     "hex": (
         "cursed purple-green hex sigil over a shadowed figure, warlock curse mark"
     ),
+    "blight": (
+        "withered black plant and crumbling leaves, necrotic green-black energy, "
+        "desiccated vine"
+    ),
+    "invisibility": (
+        "fading translucent silhouette, shimmering empty outline, invisibility cloak"
+    ),
+    "greater_invisibility": (
+        "fully vanished figure outlined in faint silver sparkles, greater invisibility"
+    ),
     "searing_smite": (
         "burning sword strike with white-hot flames along the blade, paladin smite"
     ),

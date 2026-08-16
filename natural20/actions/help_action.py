@@ -6,12 +6,18 @@ class HelpAction(Action):
     def __init__(self, session, source, action_type, opts=None):
         super().__init__(session, source, action_type, opts)
         self.target = None
+        self.as_bonus_action = False
 
     @staticmethod
     def can(entity, battle):
         if battle:
             return entity.total_actions(battle) > 0
         return True
+
+    def _help_range(self):
+        if self.source and getattr(self.source, 'class_feature', None) and self.source.class_feature('coordinated_strike'):
+            return 30
+        return 5
 
     def build_map(self):
         def set_target(target):
@@ -24,7 +30,7 @@ class HelpAction(Action):
                     'type': 'select_target',
                     'target_types': ['allies', 'enemies'],
                     'exclude_self': True,
-                    'range': 5,
+                    'range': self._help_range(),
                     'num': 1
                 }
             ],
@@ -45,7 +51,8 @@ class HelpAction(Action):
             'source': self.source,
             'target': self.target,
             'type': 'help',
-            'battle': current_battle
+            'battle': current_battle,
+            'as_bonus_action': bool(self.as_bonus_action),
         }]
         return self
 
@@ -65,7 +72,10 @@ class HelpAction(Action):
             from natural20.spell.sleep_spell import SleepSpell
             if 'sleep' in getattr(target, 'statuses', []):
                 if battle:
-                    battle.consume(source, 'action')
+                    if item.get('as_bonus_action'):
+                        battle.consume(source, 'bonus_action')
+                    else:
+                        battle.consume(source, 'action')
                 if SleepSpell.wake_sleeping_target(
                     target, source=source, battle=battle, session=session,
                 ):
@@ -79,12 +89,20 @@ class HelpAction(Action):
             pass
 
         if battle:
-            battle.consume(source, 'action')
+            if item.get('as_bonus_action'):
+                battle.consume(source, 'bonus_action')
+            else:
+                battle.consume(source, 'action')
             event_type = 'help_distract' if battle.opposing(source, target) else 'help'
             if event_type == 'help_distract':
                 battle.do_distract(source, target)
+                if source.class_feature('coordinated_strike'):
+                    source._coordinated_strike_uid = getattr(target, 'entity_uid', None)
             else:
                 source.do_help(battle, target)
+                if source.class_feature('inspiring_help'):
+                    bonus = 2 if source.class_feature('inspiring_help_2') else 1
+                    target._inspiring_help_dice = bonus
         else:
             source.do_help(None, target)
 
@@ -93,3 +111,17 @@ class HelpAction(Action):
             'target': target,
             'event': event_type if battle else 'help'
         })
+
+
+class HelpBonusAction(HelpAction):
+    def __init__(self, session, source, action_type, opts=None):
+        super().__init__(session, source, action_type, opts)
+        self.as_bonus_action = True
+
+    @staticmethod
+    def can(entity, battle):
+        if not battle or entity.total_bonus_actions(battle) <= 0:
+            return False
+        if not getattr(entity, 'class_feature', None):
+            return False
+        return bool(entity.class_feature('helpful'))

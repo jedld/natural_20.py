@@ -27,7 +27,7 @@ See **`docs/WEBAPP_BLUEPRINTS.md`** for the full architecture guide (blueprint m
 | `character` | `blueprints/character.py` | `/character_builder/*`, journal CRUD |
 | `battle` | `blueprints/battle.py` | `/start`, `/action`, `/target`, `/actions`, combat log, turn order |
 | `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, `/available_objects`, inventory, `/rest`, audio |
-| `edit` | `blueprints/edit.py` | `/edit/*` — campaign map edit mode, drag-and-drop authoring, terrain/layer placement |
+| `edit` | `blueprints/edit.py` | `/edit/*` — campaign map edit mode (per-DM-session toggle), drag-and-drop authoring, terrain/layer placement |
 | `merchant` | `blueprints/merchant.py` | `/merchant` — NPC merchant trading with discount and session management |
 | SocketIO | `blueprints/socketio_handlers.py` | `connect`, `register`, `message`, `disconnect`, `request_effects` |
 | *(conversation)* | `helpers/conversation_wiring.py` + `conversation_service.py` | `/talk` (registered at bootstrap, not a blueprint) |
@@ -118,8 +118,8 @@ Important environment variables (used by code):
   - **NPC context budget** (`webapp/llm_context_budget.py`): monitors prompt size and compacts NPC history before `/talk` LLM calls. Resolution order: ``NPC_LLM_CONTEXT_SIZE`` / ``N20_NPC_CONTEXT_SIZE`` (admin override) → provider ``context_window`` → auto-detect from llama.cpp ``/props`` or Ollama ``/api/show`` (when ``N20_LLM_CONTEXT_AUTO_DETECT=1``) → provider default (32K llama.cpp, 8K Ollama). Tunables: ``N20_LLM_CONTEXT_SAFETY_MARGIN`` (reserved tokens, default 512), ``N20_LLM_CONTEXT_COMPACT_PCT`` (compact threshold, default 85), ``N20_NPC_CONTEXT_KEEP_RECENT_TURNS`` (default 6). DM override at runtime: ``POST /ai/set-context-window`` with ``{"context_window": 32768, "target": "npc"}``. Provider info: ``GET /ai/provider-info`` includes ``npc_provider.resolved_context_limit``.
   - When `NPC_LLM_ENABLED=0`, NPC conversations automatically fall back to the DM provider.
   - `N20_NPC_BACKGROUND_LLM` – ``1`` (default) or ``0``/``no``/``false`` to skip NPC LLM calls during out-of-combat environment ticks (`webapp/npc_environment_ticks.py`) and long-rest NPC simulation (`webapp/long_rest_npc_simulation.py`). Player-initiated `/talk` is unaffected. Per-feature override in `game.yml`: `npc_environment_ticks.llm_enabled` / `long_rest_npc_simulation.llm_enabled`, or global `npc_background_llm.enabled`.
-- N20_MCP_URL — optional MCP bridge URL used by `LlmMcpController._call_mcp_tool(prompt, n_actions)` (POST {prompt, n_actions} → {index}).
-- N20_MCP_DM_TOKEN — optional shared secret. When set, callers can hit the in-process MCP tool surface at `/mcp/*` by sending header `X-MCP-Token: <value>` instead of an authenticated DM session. The surface is implemented in `webapp/mcp/` as a Flask blueprint with three discovery endpoints (`GET /mcp/manifest`, `GET /mcp/tools/list`, `POST /mcp/tools/call`) and tools split across `tools_world` (inspection), `tools_dm` (mutations) and `tools_actions` (list/execute actions, movement, end_turn, start/end battle). Tools are wrapped in MCP-style envelopes (`{"isError": bool, "content": [...]}`).
+- N20_MCP_URL — optional MCP bridge URL used by `LlmMcpController._call_mcp_tool(prompt, n_actions)` (POST {prompt, n_actions} → {index}). Also used by `python -m webapp.mcp.stdio` as the Streamable HTTP target (default `http://127.0.0.1:5001/mcp`).
+- N20_MCP_DM_TOKEN — optional shared secret for DM-privileged MCP access. Callers may send `Authorization: Bearer <value>` or `X-MCP-Token: <value>` instead of a DM session cookie. External hosts (Cursor, Claude Code) use Streamable HTTP JSON-RPC at `POST /mcp` (spec 2026-07-28, with 2025-era `initialize` fallback). The in-app LLM still uses legacy REST (`GET /mcp/manifest`, `GET /mcp/tools/list`, `POST /mcp/tools/call`). Tools live in `webapp/mcp/tools_*.py`. See **`docs/MCP.md`**.
 
 MCP tool catalogue (keep this list in sync with `webapp/mcp/tools_*.py`). Design rule: prefer one `op`-discriminated tool over many specialised tools to keep the surface small for token-constrained LLMs.
   - `tools_world`: `world.list_maps`, `world.get_map`, `world.list_entities`, `world.get_entity`, `world.get_battle`, `world.list_npc_types`.
@@ -127,9 +127,9 @@ MCP tool catalogue (keep this list in sync with `webapp/mcp/tools_*.py`). Design
     - HP: `dm.set_hp`, `dm.heal`, `dm.damage`.
     - Status & properties: `dm.add_status`, `dm.remove_status`, `dm.set_property`.
     - Inventory: `dm.add_item`, `dm.remove_item`, `dm.equipment` (op=equip|unequip).
-    - Resources: `dm.set_resource` (resource_type=action|bonus_action|reaction|spell_slot|temp_hp|resource_pool; op=set|add|subtract; spell_slot also takes character_class+level; resource_pool also takes resource_name such as superiority_dice) — replaces `/update_action_resources`, `/update_spell_slots`, generic `/update_resource_pool`, and the temp_hp branch of `/update_hp`.
+    - Resources: `dm.set_resource` (resource_type=action|bonus_action|reaction|spell_slot|temp_hp|resource_pool|inspiration; op=set|add|subtract; spell_slot also takes character_class+level; resource_pool also takes resource_name such as superiority_dice; inspiration is a 0/1 Inspiration / Heroic Inspiration token) — replaces `/update_action_resources`, `/update_spell_slots`, generic `/update_resource_pool`, the temp_hp branch of `/update_hp`, and `/update_inspiration`.
     - Rewards/progression: `dm.award_xp` — mirrors `/award_xp` for manual/quest XP awards to one, many, or all PCs; `dm.grant_level_up` — mirrors `/grant_level_up` and `/grant_event_level_up` for DM-gated or event-gated campaign progression.
-    - Spawning / placement: `dm.spawn_npc`, `dm.spawn_object`, `dm.remove_entity`, `dm.teleport`.
+    - Spawning / placement: `dm.spawn_npc` (unique NPCs already on the same map set are moved, not duplicated), `dm.spawn_object`, `dm.remove_entity`, `dm.teleport`.
     - Battle admin: `dm.battle_admin` (op=add_combatant|remove_combatant|reorder|set_group|next_turn) — mirrors `/add`, `/remove_from_battle`, `/reorder_initiative`, `/update_group`, and the DM-side `/next_turn`. `add_combatant` rolls initiative and slots the entity right after the current turn.
     - Controller assignment: `dm.set_controller` (kind=manual|ai|llm) — mirrors `/update_controller` set; lazy-imports `WebController` / `GenericController` / `LlmMcpController` and registers handlers.
     - Rest: `dm.rest` (type=short|long, optional `force`, `arcane_picks`, `hit_die_picks`) — mirrors `/rest` including the inline pick controller.
@@ -138,7 +138,10 @@ MCP tool catalogue (keep this list in sync with `webapp/mcp/tools_*.py`). Design
     - Audio: `dm.sound` (op=list|play|volume|seek) — mirrors `/tracks`, `/sound`, `/volume`, `/seek`.
     - Time: `dm.advance_time` (op=add|set, `seconds`) — wraps `Session.increment_game_time` for narrative time skips.
     - Map landmarks: `dm.map_landmark` (op=list|upsert|delete, optional `map_name`, `annotation`, `annotation_id`) — YAML `map_annotations` for NPC navigation/LLM place context. See `docs/MAP_ANNOTATIONS.md`.
+    - DM notes: `dm.note` (op=list|upsert|delete|move, optional `map_name`, `note_id`, `x`, `y`, `text`, `title`) — play-time pins stored in `session.session_state['dm_notes']`. Invisible to PCs and NPCs. See `docs/DM_NOTES.md`.
     - User accounts: `dm.user_admin` (op=list|create|update|delete|assign_character|unassign_character; `username`, `password`, `roles`, `character_uid`, optional `spawn`) — mirrors `GET/POST /admin/users`; persists `logins` and `default_controllers` to campaign `index.json`.
+    - Map sets: `dm.map_set` (op=list|activate|create|assign_map|place_party) — party POV worlds; `create`/`assign_map` persist `game.yml`. See `docs/MAP_SETS.md`.
+    - Sidekicks: `dm.sidekick` (op=join|leave|assign_owner|list) — party NPC membership and player owners; mirrors `POST /admin/sidekick`. See `docs/CAMPAIGN_BUILDING.md`.
   - `tools_actions`: `actions.list_available`, `actions.execute` (for `InteractAction` with `target`, `entity_uid` optional — omit or `dungeon_master` for DM-direct door/object interaction), `actions.move`, `actions.end_turn`, `actions.start_battle`, `actions.end_battle`.
   - `tools_npc` (NPC spatial awareness):
     - `npc.get_location` — returns an NPC's current map position and the enclosing hierarchy of area annotations (most specific to broadest). Allows the NPC LLM to know its location context (e.g., behind_bar → taproom → tavern_ground_floor).
@@ -168,6 +171,7 @@ Files to check for implementation examples and extension points:
 - `docs/WEBAPP_BLUEPRINTS.md` — where to add routes, helper modules, parity tests after webapp changes.
 - `templates/` and `samples/` — example maps, characters, and level configs used by `Session` and the web UI.
 - `natural20/map.py` — targeting helpers: `squares_in_cone(...)` and `squares_in_adjacent_cube(...)` (cardinal, face-adjacent 3x3 cube used by Thunderwave).
+- `natural20/map_import/` — battlemap image → map YAML (tile-wise VLM). CLI: `python scripts/import_battlemap.py`. See `docs/BATTLEMAP_IMPORTER.md` and `.cursor/skills/n20-import-battlemap/SKILL.md`. **Prefer the importer whenever battlemap art already exists**; do not transcribe a whole battlemap by eyeballing it or run the procedural dungeon generator for those maps. Multi-floor pages (several plans on one image) are cropped automatically (`--split-panels`, default on).
 
 Extending spells and character classes:
 

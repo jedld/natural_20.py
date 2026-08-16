@@ -21,6 +21,15 @@ class GenericEventHandler:
             if not entity.eval_if(conditions, context={'entity': entity, 'opts': opts}):
                 return
 
+        campaign_event = self.properties.get('campaign_event')
+        if campaign_event:
+            payload = {
+                'event': campaign_event,
+                'source': entity,
+            }
+            payload.update(opts or {})
+            self.session.event_manager.received_event(payload)
+
         if self.properties.get('message'):
             message = self.session.t(self.properties['message'], options={ "name": entity.label(), "target": opts['target'].label() if opts.get('target') else None })
             source_entity = self.properties.get('message_source', entity)
@@ -93,6 +102,15 @@ class GenericEventHandler:
 
                 if target_entity is None:
                     print(f"Could not find entity {entity_uid}")
+                    return
+
+                source_name = getattr(source_map, 'name', None) if source_map is not None else None
+                target_name = getattr(target_map, 'name', None)
+                if source_name and target_name and not self.session.same_map_set(source_name, target_name):
+                    print(
+                        f"Refusing event teleport of {entity_uid} from {source_name} to {target_name}: "
+                        f"maps are in different map sets"
+                    )
                     return
 
                 if only_alive and target_entity.dead():

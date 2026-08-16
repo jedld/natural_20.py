@@ -1,0 +1,76 @@
+---
+kind: Gladiator
+description: >
+  A professional pit fighter: scarred, massive, and trained to entertain a
+  crowd while killing whoever stands in the sand.
+size: medium
+race:
+  - humanoid
+  - human
+alignment: true_neutral
+default_ac: 16
+max_hp: 112
+hp_die: 15d8+45
+speed: 30
+passive_perception: 11
+token:
+  - G
+color: crimson
+ability:
+  str: 18
+  dex: 15
+  con: 16
+  int: 10
+  wis: 12
+  cha: 15
+saving_throw_proficiencies:
+  - strength
+  - dexterity
+  - constitution
+skills:
+  athletics: 10
+  intimidation: 5
+languages:
+  - common
+cr: 5
+xp: 1800
+proficiency_bonus: 3
+attributes:
+  - multiattack
+multiattack:
+  - spear,spear2,spear3
+equipped:
+  - studded_leather
+  - shield
+  - spear
+actions:
+  - name: spear
+    type: melee_attack
+    if: equipped:spear
+    range: 5
+    targets: 1
+    attack: 7
+    damage: 11
+    damage_die: 2d6+4
+    damage_type: piercing
+    multiattack_group: 1
+  - name: spear2
+    type: melee_attack
+    if: equipped:spear
+    range: 5
+    targets: 1
+    attack: 7
+    damage: 11
+    damage_die: 2d6+4
+    damage_type: piercing
+    multiattack_group: 1
+  - name: spear3
+    type: melee_attack
+    if: equipped:spear
+    range: 5
+    targets: 1
+    attack: 7
+    damage: 11
+    damage_die: 2d6+4
+    damage_type: piercing
+    multiattack_group: 1

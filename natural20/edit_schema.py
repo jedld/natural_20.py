@@ -231,10 +231,18 @@ def object_type_has_editor(session, object_type: str) -> bool:
     return str(object_type) in editable_object_types(session)
 
 
-def _campaign_maps(session) -> list[dict[str, Any]]:
+def _campaign_maps(session, current_map: str | None = None) -> list[dict[str, Any]]:
     maps = (session.game_properties or {}).get("maps") or {}
     items: list[dict[str, Any]] = []
+    allowed = None
+    if current_map and hasattr(session, "maps_in_set"):
+        try:
+            allowed = set(session.maps_in_set(session.map_set_for(current_map)))
+        except Exception:
+            allowed = None
     for key in sorted(maps.keys()):
+        if allowed is not None and key not in allowed:
+            continue
         items.append({"value": key, "label": str(key)})
     return items
 
@@ -326,7 +334,7 @@ def _map_dimensions(session, map_name: str) -> list[int] | None:
 def _resolve_field_choices(session, field: dict[str, Any], *, current_map: str | None) -> None:
     choices_from = field.get("choices_from")
     if choices_from == "campaign.maps":
-        field["choices"] = _campaign_maps(session)
+        field["choices"] = _campaign_maps(session, current_map=current_map)
         return
     if choices_from == "campaign.items":
         # Full catalogs are large; the client loads suggestions via /edit/catalog/items.
