@@ -84,7 +84,7 @@ Use plain `./start.sh` when you only need the inference server.
 | `.env.example` | Port, model, GPU pinning |
 | `requirements.txt` | `vllm-omni` pin (isolated from main repo) |
 | `scripts/healthcheck.sh` | Verify `/v1/audio/voices` |
-| `scripts/register_campaign_voices.py` | Upload `assets/voice_samples/*.wav` |
+| `scripts/register_campaign_voices.py` | Upload `assets/voice_samples/*.{wav,mp3}` |
 | `docker-compose.yml` | Optional NVIDIA GPU container |
 
 ## Model choice
