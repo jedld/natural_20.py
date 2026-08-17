@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Register baked campaign voice samples with a vLLM-Omni TTS server.
 
-Uploads ``assets/voice_samples/<npc_uid>.wav`` (+ optional ``.ref.txt``) to
+Uploads ``assets/voice_samples/<npc_uid>.wav`` or ``.mp3`` (+ optional ``.ref.txt``) to
 ``POST /v1/audio/voices`` so the webapp can synthesize with ``voice=n20_<uid>``.
 
 Example:
@@ -75,13 +75,29 @@ def _list_voices(client: httpx.Client, base: str) -> set[str]:
     return names
 
 
-def _ref_text(wav_path: Path) -> str:
-    sidecar = wav_path.with_suffix(".ref.txt")
-    if sidecar.is_file():
-        text = sidecar.read_text(encoding="utf-8").strip()
-        if text:
-            return text
+def _ref_text(audio_path: Path) -> str:
+    for sidecar in (audio_path.with_suffix(".ref.txt"), Path(str(audio_path) + ".ref.txt")):
+        if sidecar.is_file():
+            text = sidecar.read_text(encoding="utf-8").strip()
+            if text:
+                return text
     return "A steady voice for dialogue. Warm, clear, and natural, just as I always speak."
+
+
+def _list_samples(samples_dir: Path) -> list[Path]:
+    by_stem: dict[str, list[Path]] = {}
+    for ext in (".wav", ".mp3"):
+        for path in samples_dir.glob(f"*{ext}"):
+            by_stem.setdefault(path.stem, []).append(path)
+    chosen: list[Path] = []
+    for stem in sorted(by_stem):
+        newest = max(by_stem[stem], key=lambda p: p.stat().st_mtime_ns)
+        chosen.append(newest)
+    return chosen
+
+
+def _audio_mime(path: Path) -> str:
+    return "audio/mpeg" if path.suffix.lower() == ".mp3" else "audio/wav"
 
 
 def main() -> int:
@@ -104,9 +120,9 @@ def main() -> int:
     prefix = _voice_prefix()
     consent = _consent()
 
-    wavs = sorted(samples_dir.glob("*.wav"))
+    wavs = _list_samples(samples_dir)
     if not wavs:
-        print(f"No WAV files in {samples_dir}")
+        print(f"No WAV/MP3 files in {samples_dir}")
         return 0
 
     uploaded = 0
@@ -142,7 +158,7 @@ def main() -> int:
                             "name": voice_name,
                             "ref_text": ref_text,
                         },
-                        files={"audio_sample": (wav_path.name, audio_file, "audio/wav")},
+                        files={"audio_sample": (wav_path.name, audio_file, _audio_mime(wav_path))},
                     )
                 response.raise_for_status()
                 print(f"[ok] {voice_name} <- {wav_path.name}")
