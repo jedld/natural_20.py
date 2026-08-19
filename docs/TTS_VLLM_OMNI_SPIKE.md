@@ -43,6 +43,8 @@ flowchart LR
 3. **Runtime**: webapp `create_voice()` stores `vllm_voice_name`; `generate_stream()` calls vLLM with `voice=n20_mara_bartender`, `stream=true`, `response_format=pcm`
 4. **Replay**: concatenate streamed PCM → WAV in `N20_TTS_CACHE_DIR` (same as today)
 
+**Accents:** the sidecar Base model clones the baked WAV/MP3 and **drops** YAML `voice.accent` / instruct at synthesis time. Bake English NPCs with **Qwen3 VoiceDesign** or **ElevenLabs Voice Design** (`--bake-provider elevenlabs`); CosyVoice 3 plus the bundled Chinese prompt WAVs produces unintelligible / Mandarin-like speech.
+
 ## Sidecar project layout
 
 Self-contained under `services/vllm-omni-tts/` (not imported by webapp):
@@ -247,12 +249,129 @@ vLLM-Omni Qwen3 outputs **24 kHz** PCM; in-process Qwen3 is often **12 Hz tokeni
 
 Campaign assets (`voice_samples/`, `voice_profiles/`) are **shared**; only the synthesis backend changes.
 
+## Automatic voice registration (runtime)
+
+When the webapp TTS provider is `qwen3_vllm`, the [`Qwen3VLLMProvider`](n20-webapp/webapp/tts/qwen3_vllm_provider.py)
+handles voice registration to the remote vLLM-Omni sidecar automatically:
+
+1. **Startup batch registration**: `register_campaign_voices_if_needed()` uploads all
+   `assets/voice_samples/*.{wav,mp3}` from the current campaign to the sidecar at app bootstrap.
+   Replaced clips (mtime/size vs `<uid>.profile.json`) are re-uploaded even if the voice name
+   already exists.
+
+2. **Lazy per-NPC registration**: When `create_voice()` is called for an NPC whose voice
+   is not yet on the remote server, `_ensure_registered()` performs broad discovery:
+   - Explicit `reference_audio` path from YAML
+   - Campaign `assets/voice_samples/<npc_uid>.wav` or `.mp3` (baked or dropped sample)
+   - Campaign `assets/voice_samples/type_<npc_type>.wav` or `.mp3` (type-level fallback)
+   - Bundled `templates/voice_samples/<npc_uid>.wav` or `.mp3`
+
+   If the YAML voice profile (prompt/accent/traits) or the sample file changed since the last
+   stamp, the sidecar clone is re-registered. VoiceDesign-baked WAVs are also regenerated.
+
+3. **Graceful fallback**: If no reference audio can be found, a warning is logged and the
+   voice name is added to the local `_server_voices` cache so we don't keep retrying.
+   The NPC conversation will still emit text — TTS simply won't produce audio for that NPC
+   until a voice sample is baked (`scripts/bake_npc_voices.py`) or manually registered
+   (`services/vllm-omni-tts/scripts/register_campaign_voices.py`).
+
+4. **Automatic sample rate resampling**: Reference WAV/MP3 files are automatically converted
+   to a WAV matching the Qwen3-TTS target sample rate (24 kHz default) before upload. This prevents
+   audio corruption when voice samples are recorded at 16 kHz (a common sample rate for
+   voice memos) or dropped as MP3. Resampled files are cached under `<cache_dir>/resampled/`
+   with the source mtime in the filename so replacing a clip invalidates the cache. Requires `scipy`
+   and `numpy` (already in `requirements.txt`); MP3 decode uses `ffmpeg` (or pydub). When
+   unavailable, the original file is uploaded with a logged warning.
+
+### Troubleshooting: "Voice 'n20_xxx' is not registered on vLLM-Omni"
+
+```
+[TTS] Voice 'n20_pia_bernal' is not registered on vLLM-Omni and no
+reference_audio is available to upload for NPC pia_bernal.
+```
+
+**Fix options (pick one):**
+
+1. **Bake the voice locally** (requires local Qwen3 model):
+   ```bash
+   N20_TTS_BAKE_VOICES=1 python scripts/generate_voice_profiles.py user_levels/wild_sheep_chase
+   ```
+
+2. **Upload manually** from an existing WAV:
+   ```bash
+   cp my_voice.wav user_levels/wild_sheep_chase/assets/voice_samples/pia_bernal.wav
+   cd services/vllm-omni-tts && ./scripts/register_campaign_voices.py ../../user_levels/wild_sheep_chase
+   ```
+
+3. **Reregister all campaign voices on restart**:
+   ```bash
+   VLLM_OMNI_TTS_REGISTER_ON_START=1 ./start_web.sh user_levels/wild_sheep_chase
+   ```
+
+### Troubleshooting: "Audio sounds corrupted or has weird background noise"
+
+If the voice is correct but the synthesized speech sounds garbled, muffled, or has
+strange background artifacts, the most likely cause is a **sample rate mismatch** between
+the reference WAV and the Qwen3-TTS model output:
+
+- Qwen3-TTS outputs at **24 kHz** by default.
+- Many voice recordings (phone memos, dictation apps) are **16 kHz** or **22.05 kHz**.
+- Uploading a 16 kHz reference to vLLM-Omni while the model synthesizes at 24 kHz causes
+ the cloned voice to sound corrupted.
+
+**Fix:** The webapp now automatically resamples reference WAVs to 24 kHz during voice
+registration (both at startup and at runtime). Ensure `scipy` and `numpy` are installed:
+
+```bash
+pip install scipy numpy
+```
+
+To verify the sample rate of a voice file:
+```bash
+ffprobe -v error -show_entries stream=sample_rate -of default=noprint_wrappers=1 path/to/voice.wav
+```
+
+If the issue persists after enabling resampling, restart the webapp to trigger a fresh
+voice registration with the resampled reference.
+
+### Troubleshooting: "requires 'ref_audio' for voice cloning"
+
+```
+Base task with built-in speaker 'n20_npc_lenka_ash' requires 'ref_audio' for voice cloning
+POST /v1/audio/speech 400 Bad Request
+```
+
+The sidecar is treating the NPC name as a **built-in speaker** instead of an uploaded
+ICL clone voice. That happens when the webapp sends `voice=n20_<uid>` without having
+uploaded `assets/voice_samples/<uid>.wav` (or without attaching `ref_audio` on the
+speech request). Death House NPCs often have YAML `provider: qwen3`; that tag now
+stays on the running `qwen3_vllm` sidecar instead of spinning a second in-process
+engine that never registers the clone sample.
+
+**Fix options:**
+
+1. Confirm the baked WAV exists: `user_levels/<campaign>/assets/voice_samples/<entity_uid>.wav`
+   (Lenka is `npc_lenka_ash.wav`, not `lenka_ash.wav`).
+2. Restart the webapp so startup registration uploads new samples
+   (`VLLM_OMNI_TTS_REGISTER_ON_START=1`).
+3. Upload immediately:
+   ```bash
+   python services/vllm-omni-tts/scripts/register_campaign_voices.py user_levels/death_house
+   ```
+4. If the WAV is missing, bake it first:
+   ```bash
+   N20_TTS_BAKE_VOICES=1 python scripts/bake_npc_voices.py user_levels/death_house
+   ```
+
+A successful clone request logs `Auto-set ref_audio for uploaded voice: n20_<uid> (icl=True)`.
+
 ## Risks and mitigations
 
 | Risk | Mitigation |
 |------|------------|
 | vLLM-Omni API drift | Pin version in sidecar `requirements.txt`; integration tests against `/v1/audio/voices` |
 | Server restart drops uploaded voices | Re-run `register_campaign_voices.py` on sidecar start (systemd `ExecStartPost`) |
+| Missing reference audio for new NPC | Auto-discovery searches 4 locations; graceful fallback logs warning without crashing |
 | 24 kHz vs 22.05 kHz client assumptions | Pass `sample_rate` on every stream chunk |
 | GPU memory with LLM + TTS on same box | Run sidecar on dedicated GPU (`CUDA_VISIBLE_DEVICES`) |
 | Network latency remote TTS | Prefer LAN; benchmark `jedld-strix.local:8091` RTT |

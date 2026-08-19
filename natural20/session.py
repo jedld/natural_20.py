@@ -65,6 +65,7 @@ class Session:
             raise Exception(f'Missing game {game_file} file')
         self._init_ruleset()
         self._load_all_maps(self.game_properties)
+        self._register_progression_listeners()
 
     def _init_ruleset(self):
         """Load campaign-scoped ruleset from ``game.yml`` (default ``5e-2014``)."""
@@ -78,6 +79,11 @@ class Session:
             if isinstance(raw_overrides, dict):
                 overrides = raw_overrides
         self.ruleset = get_ruleset(ruleset_id, overrides=overrides)
+
+    def _register_progression_listeners(self):
+        from natural20.progression import register_progression_event_listeners
+
+        register_progression_event_listeners(self)
 
     def register_conversation_handler(self, type, handler):
         print(f'Registering conversation handler {type} {handler}')
@@ -288,7 +294,7 @@ class Session:
                 self.maps[name] = Map(self, map_file, name=name)
             except Exception as exc:
                 raise RuntimeError(
-                    f"Failed to load map {name!r} from {map_file!r}: {exc}"
+                    f"Failed to load map {name!r} from {map_file!r}:\n{exc}"
                 ) from exc
 
         self.map_sets = MapSetRegistry.from_game_config(game_file, self.maps)
@@ -298,24 +304,45 @@ class Session:
 
         return self.maps
 
+    def default_map_key(self, map_location=None):
+        """Registry key for the campaign starting map (not the legacy ``index`` alias).
+
+        Prefers ``starting_map`` / ``map_location`` when that file is listed in
+        ``game.yml`` ``maps:``. ``index`` is only used when it is the starting
+        map, or when no starting map is configured (older campaigns).
+        """
+        maps = self.maps or {}
+        props = self.game_properties or {}
+        starting = map_location or props.get('starting_map') or ''
+        if starting:
+            key = os.path.splitext(os.path.basename(str(starting)))[0]
+            if key in maps:
+                return key
+            for map_key, map_path in (props.get('maps') or {}).items():
+                if map_key not in maps:
+                    continue
+                path = str(map_path)
+                if (
+                    path.endswith(key)
+                    or path.endswith(f'{key}.yml')
+                    or str(starting).endswith(f'{map_key}.yml')
+                    or path == str(starting)
+                    or path == str(starting).removesuffix('.yml')
+                ):
+                    return map_key
+        if 'index' in maps:
+            return 'index'
+        if maps:
+            return next(iter(maps))
+        return None
+
     def _initial_active_map_set(self, game_file):
         explicit = (game_file or {}).get('starting_map_set')
         if explicit and self.map_sets.get(explicit):
             return explicit
-        starting = (game_file or {}).get('starting_map') or ''
-        if starting:
-            key = os.path.splitext(os.path.basename(str(starting)))[0]
-            if key in (self.maps or {}):
-                return self.map_set_for(key)
-            for map_key, map_path in ((game_file or {}).get('maps') or {}).items():
-                if map_key in (self.maps or {}) and (
-                    str(map_path).endswith(key) or str(starting).endswith(f'{map_key}.yml')
-                ):
-                    return self.map_set_for(map_key)
-        if 'index' in (self.maps or {}):
-            return self.map_set_for('index')
-        if self.maps:
-            return self.map_set_for(next(iter(self.maps)))
+        start_key = self.default_map_key()
+        if start_key:
+            return self.map_set_for(start_key)
         return ROOT_MAP_SET_ID
 
     def _link_maps_within_sets(self):

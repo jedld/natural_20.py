@@ -4,6 +4,11 @@ Generate playable Natural20 map YAML using industry-standard procedural techniqu
 with **LLM-controllable knobs**, mission objective placement, and quality gates for
 **traversability** and **aesthetics**.
 
+Use this when there is **no source battlemap**. If the user already provided map
+art, a scan, a VTT underlay, or a published sheet with several floors, import it
+instead ([BATTLEMAP_IMPORTER.md](BATTLEMAP_IMPORTER.md), skill
+`.cursor/skills/n20-import-battlemap`; `--split-panels` is on by default).
+
 ## Techniques (research-backed)
 
 | Algorithm | Inspiration | Best for |

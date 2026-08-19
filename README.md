@@ -512,7 +512,9 @@ Response:
 
 ### MCP Tool Surface
 
-When `N20_MCP_DM_TOKEN` is set, callers can hit the in-process MCP tool surface at `/mcp/*` with header `X-MCP-Token: <value>`.
+When `N20_MCP_DM_TOKEN` is set, Cursor, Claude Code, and other MCP hosts can manage the running webapp at `POST /mcp` (Streamable HTTP JSON-RPC) with `Authorization: Bearer <value>` or `X-MCP-Token: <value>`. See **[docs/MCP.md](docs/MCP.md)** for client config (HTTP and stdio).
+
+Legacy REST (`GET /mcp/manifest`, `GET /mcp/tools/list`, `POST /mcp/tools/call`) remains for the in-app LLM bridge.
 
 **Tool Catalogue:**
 
@@ -630,6 +632,7 @@ Tuple containing:
 | [docs/CAMPAIGN_ASSET_GENERATOR.md](docs/CAMPAIGN_ASSET_GENERATOR.md) | AI asset generation |
 | [docs/CONVERSATION_RAG.md](docs/CONVERSATION_RAG.md) | NPC RAG conversation system |
 | [docs/DUNGEON_GENERATOR.md](docs/DUNGEON_GENERATOR.md) | Dungeon generation |
+| [docs/BATTLEMAP_IMPORTER.md](docs/BATTLEMAP_IMPORTER.md) | **Prefer** when battlemap art already exists: image → map YAML (tile-wise VLM) |
 | [docs/MAP_ANNOTATIONS.md](docs/MAP_ANNOTATIONS.md) | Map landmarks and annotations |
 | [docs/MAP_IMAGE_GENERATOR.md](docs/MAP_IMAGE_GENERATOR.md) | Map image generation |
 | [docs/MERCHANT_TRADING.md](docs/MERCHANT_TRADING.md) | Merchant trading system |

@@ -6,6 +6,7 @@ from natural20.entity import Entity
 from natural20.utils.movement import requires_squeeze
 from natural20.item_library.common import StoneWall, Ground, StoneWallDirectional
 from natural20.item_library.door_object import DoorObject, DoorObjectWall
+from natural20.item_library.window_object import WindowObjectWall
 from natural20.item_library.pit_trap import PitTrap
 from natural20.item_library.chest import Chest
 from natural20.item_library.crypt_coffin import CryptCoffin
@@ -65,10 +66,20 @@ class Map(SerializableObject):
         manual_map_size = self.properties.get('map', {}).get('size', None)
 
         if manual_map_size:
-            self.size = manual_map_size
+            self.size = self._coerce_map_size(manual_map_size)
         else:
+            if not isinstance(base, list) or not base:
+                raise ValueError(
+                    f"Map {self._map_label()!r} is missing map.base ASCII rows, "
+                    "and map.size is not set so dimensions cannot be inferred."
+                )
+            if not isinstance(base[0], str) or not base[0]:
+                raise ValueError(
+                    f"Map {self._map_label()!r} map.base row 0 must be a non-empty string "
+                    "to infer map size."
+                )
             self.size = [len(base[0]), len(base)]
-        # print(f"map size: {self.size}")
+        self._validate_ascii_layers()
         self.feet_per_grid = self.properties.get('grid_size', 5)
         self.base_map = []
         self.base_map_1 = []
@@ -293,6 +304,163 @@ class Map(SerializableObject):
             return str(self.map_file_path)
         return 'unknown'
 
+    def _map_source_suffix(self) -> str:
+        if getattr(self, 'map_file_path', None):
+            return f" ({self.map_file_path})"
+        return ''
+
+    def _coerce_map_size(self, raw) -> list:
+        if (
+            not isinstance(raw, (list, tuple))
+            or len(raw) != 2
+        ):
+            raise ValueError(
+                f"Map {self._map_label()!r}{self._map_source_suffix()} "
+                f"map.size must be [positive_width, positive_height], got {raw!r}."
+            )
+        try:
+            width, height = int(raw[0]), int(raw[1])
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Map {self._map_label()!r}{self._map_source_suffix()} "
+                f"map.size must be [positive_width, positive_height], got {raw!r}."
+            ) from exc
+        if width <= 0 or height <= 0:
+            raise ValueError(
+                f"Map {self._map_label()!r}{self._map_source_suffix()} "
+                f"map.size must be [positive_width, positive_height], got {raw!r}."
+            )
+        return [width, height]
+
+    def _validate_ascii_layers(self) -> None:
+        """Fail fast with a diagnostic when ASCII rows do not match map.size."""
+        map_block = self.properties.get('map') or {}
+        if not isinstance(map_block, dict):
+            raise ValueError(
+                f"Map {self._map_label()!r}{self._map_source_suffix()} "
+                "requires a 'map' mapping with ASCII layers."
+            )
+        width, height = self.size[0], self.size[1]
+        issues = []
+        base_rows = map_block.get('base') or []
+        # Explicit map.size with no ASCII is allowed (empty ground). When rows
+        # are present they must match [width, height] exactly.
+        if base_rows:
+            issues.extend(
+                self._ascii_layer_issues('base', base_rows, width, height, require_exact=True)
+            )
+        for layer in ('base_1', 'base_2', 'meta'):
+            rows = map_block.get(layer)
+            if not rows:
+                continue
+            issues.extend(
+                self._ascii_layer_issues(layer, rows, width, height, require_exact=False)
+            )
+        if not issues:
+            return
+        hint = (
+            "map.size is [width, height]: width = characters per ASCII row, "
+            "height = number of rows. Trim/pad the ASCII, or update map.size to match."
+        )
+        raise ValueError(
+            f"Map {self._map_label()!r}{self._map_source_suffix()} ASCII grid does not match "
+            f"declared size [{width}, {height}]:\n  "
+            + "\n  ".join(issues)
+            + f"\n{hint}"
+        )
+
+    def _ascii_layer_issues(
+        self,
+        layer_name: str,
+        rows,
+        width: int,
+        height: int,
+        *,
+        require_exact: bool,
+    ) -> list:
+        issues = []
+        if not isinstance(rows, list):
+            issues.append(
+                f"map.{layer_name} must be a list of strings, got {type(rows).__name__}"
+            )
+            return issues
+
+        n_rows = len(rows)
+        if require_exact:
+            if n_rows == 0:
+                issues.append(
+                    f"map.{layer_name} has no rows; expected {height} "
+                    f"(map.size height / y)"
+                )
+            elif n_rows != height:
+                issues.append(
+                    f"map.{layer_name} has {n_rows} rows, expected {height} "
+                    f"(map.size height / y)"
+                )
+        elif n_rows > height:
+            issues.append(
+                f"map.{layer_name} has {n_rows} rows, which exceeds map.size height {height}"
+            )
+
+        string_rows = [(y, row) for y, row in enumerate(rows) if isinstance(row, str)]
+        non_strings = [y for y, row in enumerate(rows) if not isinstance(row, str)]
+        for y in non_strings:
+            issues.append(
+                f"map.{layer_name} row {y} is {type(rows[y]).__name__}, expected a string"
+            )
+
+        widths = [len(row) for _, row in string_rows]
+        unique_widths = set(widths)
+        if (
+            string_rows
+            and len(unique_widths) == 1
+            and next(iter(unique_widths)) != width
+            and (require_exact or next(iter(unique_widths)) > width)
+        ):
+            actual_w = next(iter(unique_widths))
+            first_row = string_rows[0][1]
+            preview = first_row if len(first_row) <= 64 else first_row[:61] + '...'
+            issues.append(
+                f"map.{layer_name} is {actual_w} characters wide × {len(string_rows)} rows, "
+                f"but map.size is [{width}, {height}] (width × height). "
+                f"Each ASCII row must be {width} characters."
+            )
+            issues.append(f"first row ({len(first_row)} chars): {preview!r}")
+            delta = actual_w - width
+            if delta == 1:
+                issues.append("hint: each row has 1 extra character (often a trailing '.')")
+            elif delta == -1:
+                issues.append("hint: each row is 1 character short")
+            return issues
+
+        width_issues = []
+        for y, row in string_rows:
+            row_w = len(row)
+            too_wide = row_w > width
+            mismatch = require_exact and row_w != width
+            if not (too_wide or mismatch):
+                continue
+            preview = row if len(row) <= 64 else row[:61] + '...'
+            if require_exact:
+                width_issues.append(
+                    f"map.{layer_name} row {y} is {row_w} characters wide, "
+                    f"expected {width} (map.size width / x). Preview: {preview!r}"
+                )
+            else:
+                width_issues.append(
+                    f"map.{layer_name} row {y} is {row_w} characters wide, "
+                    f"which exceeds map.size width {width}. Preview: {preview!r}"
+                )
+        max_show = 8
+        if len(width_issues) > max_show:
+            issues.extend(width_issues[:max_show])
+            issues.append(
+                f"... and {len(width_issues) - max_show} more map.{layer_name} row-width issues"
+            )
+        else:
+            issues.extend(width_issues)
+        return issues
+
     def _placement_bounds_error(
         self,
         pos_x: int,
@@ -461,14 +629,20 @@ class Map(SerializableObject):
             self.interactable_objects[obj] = [pos_x, pos_y]
             self.place_object(obj, pos_x, pos_y)
         else:
+            loaded_from_grid = object_meta is None
             if object_meta is None:
-                object_meta = self.legend.get(token)
+                object_meta = deepcopy(self.legend.get(token))
             if object_meta is None:
                 raise ValueError(
                     f"unknown object token {token!r} on map {self._map_label()!r} at ({pos_x}, {pos_y})"
                 )
             if object_meta.get('type') == 'mask':
                 return True
+            if loaded_from_grid:
+                from natural20.map_editor import layer_placement_property_overrides
+                extras = layer_placement_property_overrides(self.properties, token, pos_x, pos_y)
+                if extras:
+                    object_meta.update(extras)
             object_info = self.session.load_object(object_meta['type'])
             self.place_object(object_info, pos_x, pos_y, deepcopy(object_meta))
         return False
@@ -492,6 +666,25 @@ class Map(SerializableObject):
         if not uid:
             return None
         return self.session.entity_registry.get(uid)
+
+    @staticmethod
+    def _npc_spawn_overrides(npc_meta):
+        """Merge legend-level ``events`` into NPC overrides for EventLoader.
+
+        YAML may put ``events`` on the legend token (same as objects) or
+        inside ``overrides``. Both are passed through to the NPC sheet.
+        """
+        if not isinstance(npc_meta, dict):
+            return {}
+        overrides = dict(npc_meta.get('overrides') or {})
+        legend_events = npc_meta.get('events')
+        if legend_events:
+            existing = overrides.get('events')
+            if existing:
+                overrides['events'] = list(legend_events) + list(existing)
+            else:
+                overrides['events'] = legend_events
+        return overrides
 
     def _setup_npcs(self):
         players = self.properties.get('player') or []
@@ -526,7 +719,7 @@ class Map(SerializableObject):
             if existing is not None:
                 self.add(existing, column_index, row_index, group=npc_meta.get('group', None))
                 continue
-            entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta.get('name', None), "overrides" : npc_meta['overrides'], "rand_life" : True})
+            entity = self.session.npc(npc_meta['sub_type'], { "name" : npc_meta.get('name', None), "overrides" : self._npc_spawn_overrides(npc_meta), "rand_life" : True})
             existing = self.session.entity_registry.get(getattr(entity, 'entity_uid', None))
             if existing is not None and existing is not entity:
                 self.add(existing, column_index, row_index, group=npc_meta.get('group', None))
@@ -554,7 +747,7 @@ class Map(SerializableObject):
                 npc_meta['sub_type'],
                 {
                     "name": npc_meta.get('name'),
-                    "overrides": npc_meta.get('overrides', {}),
+                    "overrides": self._npc_spawn_overrides(npc_meta),
                     "rand_life": True,
                 },
             )
@@ -714,6 +907,11 @@ class Map(SerializableObject):
                             obj.on_enter(entity, self, battle, from_pos=(cur_x, cur_y), to_pos=(pos_x, pos_y))
                         except TypeError:
                             obj.on_enter(entity, self, battle)
+            try:
+                from natural20.item_library.teleporter import party_travel_after_step
+                party_travel_after_step(entity, self, pos_x, pos_y)
+            except Exception:
+                pass
             # Stack transitions (edge descent, shafts, windows)
             try:
                 from natural20.map_stack_movement import resolve_stack_move_after_step
@@ -1067,28 +1265,35 @@ class Map(SerializableObject):
         if attack_range is None:
             attack_range = 5
 
-        targets = [k for k, pos in self.entities.items() if not k.dead() and k.hp() is not None and self.distance(k, entity) * self.feet_per_grid <= attack_range and (filter is None or k.eval_if(filter))]
+        targets = [k for k, pos in self.entities.items() if not k.dead() and k.hp() is not None and self.distance(k, entity) * self.feet_per_grid <= attack_range and (filter is None or k.eval_if(filter)) and not self.has_total_cover_between(entity, k)]
 
         if include_objects:
             targets += [obj for obj, _position in self.interactable_objects.items() if not obj.dead() and ('ignore_los' in target_types or self.can_see(entity, obj, active_perception=active_perception)) and self.distance(obj, entity) * self.feet_per_grid <= attack_range and (filter is None or obj.eval_if(filter))]
 
         return targets
 
-    def difficult_terrain(self, entity, pos_x, pos_y, battle=None):
+    def difficult_terrain(self, entity, pos_x, pos_y, battle=None, from_pos=None):
         """
         Check if the position contains difficult terrain for the entity.
 
         Returns True if:
         - There's another entity in the way
         - There are objects with movement cost > 1 (unless entity can swim through them)
+        - The step crosses an open window configured as difficult terrain
         """
         # Helper function to check if objects at a position cause difficult terrain
-        def is_difficult_due_to_objects(x, y, entity=None):
+        def is_difficult_due_to_objects(x, y, entity=None, origin=None):
             objects_at_pos = self.objects_at(x, y)
             if not objects_at_pos:
                 return False
 
-            costs = [obj.movement_cost() for obj in objects_at_pos]
+            costs = []
+            for obj in objects_at_pos:
+                cost_from = getattr(obj, 'movement_cost_from', None)
+                if callable(cost_from) and origin is not None:
+                    costs.append(cost_from(origin, (x, y)))
+                else:
+                    costs.append(obj.movement_cost())
             max_movement_cost = max(costs) if costs else 1
 
             # If movement cost is normal, it's not difficult terrain
@@ -1105,7 +1310,7 @@ class Map(SerializableObject):
 
         # If no entity provided, just check the single position
         if entity is None:
-            return is_difficult_due_to_objects(pos_x, pos_y)
+            return is_difficult_due_to_objects(pos_x, pos_y, origin=from_pos)
 
         # Check all squares the entity would occupy
         for pos in self.entity_squares_at_pos(entity, pos_x, pos_y):
@@ -1120,7 +1325,9 @@ class Map(SerializableObject):
                 return True
 
             # Check terrain objects
-            if is_difficult_due_to_objects(r_x, r_y, entity):
+            if is_difficult_due_to_objects(r_x, r_y, entity, origin=from_pos):
+                return True
+            if from_pos is not None and is_difficult_due_to_objects(from_pos[0], from_pos[1], entity, origin=pos):
                 return True
 
         return False
@@ -1763,7 +1970,8 @@ class Map(SerializableObject):
                     continue
                 line_of_sight_info = self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, distance=distance, \
                                                         inclusive=True, heavy_cover=heavy_cover,
-                                                        creature_size_min=creature_size_min)
+                                                        creature_size_min=creature_size_min,
+                                                        occupant=entity2)
                 if line_of_sight_info is None:
                     # print(f"no line of sight from {pos1_x},{pos1_y} to {pos2_x},{pos2_y} {distance}")
                     continue
@@ -1854,7 +2062,13 @@ class Map(SerializableObject):
                  incorporeal=False):
         def all_passable_objects(relative_x, relative_y, origin):
             for object in self.objects_at(relative_x, relative_y, reveal_concealed=True):
-                if not object.passable(origin) and not incorporeal:
+                if incorporeal:
+                    continue
+                checker = getattr(object, 'passable_for', None)
+                if callable(checker):
+                    if not checker(entity, origin):
+                        return False
+                elif not object.passable(origin):
                     return False
             return True
 
@@ -1952,7 +2166,7 @@ class Map(SerializableObject):
     def line_of_sight(self, pos1_x, pos1_y, pos2_x, pos2_y, distance=None, \
                       inclusive=False, heavy_cover=False, entity=False, log_path=False,\
                       passability_mode=False,\
-                        creature_size_min=None):
+                        creature_size_min=None, occupant=None):
         squares = self.squares_in_path(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive)
         squares_results = []
         prev_square = [pos1_x, pos1_y]
@@ -1978,8 +2192,8 @@ class Map(SerializableObject):
                 if self.opaque(*s, origin=prev_square) or self.opaque(*prev_square, origin=s):
                     return None
 
-                cover = self.cover_at(*s)
-                if cover == 'total':
+                cover = self.cover_at(*s, origin=prev_square, occupant=occupant)
+                if cover == 'total' and self._cover_blocks_vision(*s, origin=prev_square, occupant=occupant):
                     return None
 
                 if heavy_cover and cover == 'three_quarter':
@@ -1995,11 +2209,11 @@ class Map(SerializableObject):
                     except Exception:
                         pass
 
-            prev_square = s
             if passability_mode or entity:
-                squares_results.append([self.cover_at(*s, entity), s])
+                squares_results.append([self.cover_at(*s, entity=True, origin=prev_square, occupant=occupant), s])
             else:
                 squares_results.append([cover, s])
+            prev_square = s
         return squares_results
 
 
@@ -2014,7 +2228,7 @@ class Map(SerializableObject):
                 return [False, False]
             if self.opaque(*s, prev) or self.opaque(*prev, s):
                 return [False, False]
-            if self.cover_at(*s) == 'total':
+            if self.cover_at(*s, origin=prev, occupant=None) == 'total' and self._cover_blocks_vision(*s, origin=prev):
                 return [False, False]
             prev = s
 
@@ -2055,20 +2269,85 @@ class Map(SerializableObject):
 
         return remove_duplicates(arrs)
 
-    def cover_at(self, pos_x, pos_y, entity=False):
+    def cover_at(self, pos_x, pos_y, entity=False, origin=None, occupant=None):
+        rank = {'none': 0, 'half': 1, 'three_quarter': 2, 'total': 3}
+        best = 'none'
+
+        def consider_level(level):
+            nonlocal best
+            if rank.get(level, 0) > rank.get(best, 0):
+                best = level
+
+        to_pos = (pos_x, pos_y)
+        from_pos = tuple(origin) if origin is not None else None
+        objects = list(self.objects_at(pos_x, pos_y, reveal_concealed=True))
+        if from_pos is not None:
+            objects.extend(self.objects_at(from_pos[0], from_pos[1], reveal_concealed=True))
+        for obj in objects:
+            across = getattr(obj, 'cover_across', None)
+            if not callable(across):
+                continue
+            try:
+                consider_level(across(from_pos, to_pos, occupant) or 'none')
+            except TypeError:
+                consider_level(across(from_pos, to_pos) or 'none')
+
         obj = self.object_at(pos_x, pos_y)
-        if obj is not None:
+        if obj is not None and not callable(getattr(obj, 'cover_across', None)):
             if obj.half_cover():
-                return 'half'
+                consider_level('half')
             if obj.three_quarter_cover():
-                return 'three_quarter'
+                consider_level('three_quarter')
             if obj.total_cover():
-                return 'total'
+                consider_level('total')
+
+        if best != 'none':
+            return best
         if entity:
-            occupant = self.entity_at(pos_x, pos_y)
-            if occupant:
-                return occupant.size_identifier()
+            occupant_here = self.entity_at(pos_x, pos_y)
+            if occupant_here:
+                return occupant_here.size_identifier()
         return 'none'
+
+    def _cover_blocks_vision(self, pos_x, pos_y, origin=None, occupant=None):
+        to_pos = (pos_x, pos_y)
+        from_pos = tuple(origin) if origin is not None else None
+
+        def consider(obj, allow_legacy_total):
+            blocks = getattr(obj, 'cover_blocks_vision_across', None)
+            if callable(blocks):
+                try:
+                    return bool(blocks(from_pos, to_pos, occupant))
+                except TypeError:
+                    return bool(blocks(from_pos, to_pos))
+            return allow_legacy_total and bool(obj.total_cover())
+
+        for obj in self.objects_at(pos_x, pos_y, reveal_concealed=True):
+            if consider(obj, allow_legacy_total=True):
+                return True
+        if from_pos is not None:
+            for obj in self.objects_at(from_pos[0], from_pos[1], reveal_concealed=True):
+                if consider(obj, allow_legacy_total=False):
+                    return True
+        return False
+
+    def has_total_cover_between(self, source, target, entity_1_pos=None, entity_2_pos=None):
+        """True when a 5e total-cover obstacle (e.g. closed glass) sits between source and target."""
+        source_squares = self.entity_squares_at_pos(source, *entity_1_pos) if entity_1_pos else self.entity_squares(source)
+        target_squares = self.entity_squares_at_pos(target, *entity_2_pos) if entity_2_pos else self.entity_squares(target)
+        for source_pos in source_squares:
+            for target_pos in target_squares:
+                path = self.squares_in_path(*source_pos, *target_pos, inclusive=True)
+                prev = source_pos
+                clear = True
+                for square in path:
+                    if self.cover_at(*square, origin=prev, occupant=target) == 'total':
+                        clear = False
+                        break
+                    prev = square
+                if clear:
+                    return False
+        return True
 
 
     def light_at(self, pos_x, pos_y):

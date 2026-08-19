@@ -41,6 +41,7 @@ _EDITOR_ITEM_CLASSES = frozenset({
     'StoneWall',
     'StoneWallDirectional',
     'DoorObjectWall',
+    'WindowObjectWall',
 })
 
 
@@ -89,7 +90,7 @@ def resolve_wall_border(object_key, object_data):
 
 def resolve_door_location(object_key, object_data):
     item_class = object_data.get('item_class', '')
-    if item_class != 'DoorObjectWall':
+    if item_class not in ('DoorObjectWall', 'WindowObjectWall'):
         return None
     return _door_pos_to_location(object_data.get('door_pos'))
 def create_wall_door_tile(
@@ -98,7 +99,8 @@ def create_wall_door_tile(
     door_location=None,
     door_width=20,
     wall_thickness=10,
-    output_path="tile.png"
+    output_path="tile.png",
+    opening_kind='door',
 ):
     """
     Generate a square PNG tile with walls and doors.
@@ -110,6 +112,7 @@ def create_wall_door_tile(
         door_width (int): Width of the door opening in pixels
         wall_thickness (int): Thickness of walls in pixels
         output_path (str): Path to save the generated PNG
+        opening_kind (str): 'door' (wood panel) or 'window' (glass pane)
     """
     if walls is None:
         walls = []
@@ -137,6 +140,153 @@ def create_wall_door_tile(
     door_highlight = '#A0522D'  # Lighter brown
     door_shadow = '#654321'  # Darker brown
     door_frame = '#2F2F2F'  # Dark frame
+    glass_fill = '#7EC8E3'
+    glass_highlight = '#C9ECF8'
+    mullion = '#3D3D3D'
+    
+    # Draw walls
+    wall_coords = {
+        'top': [(0, 0), (size, wall_thickness)],
+        'bottom': [(0, size - wall_thickness), (size, size)],
+        'left': [(0, 0), (wall_thickness, size)],
+        'right': [(size - wall_thickness, 0), (size, size)]
+    }
+    
+    for wall in walls:
+        if wall in wall_coords:
+            x1, y1 = wall_coords[wall][0]
+            x2, y2 = wall_coords[wall][1]
+            
+            # Draw main wall
+            draw.rectangle([x1, y1, x2, y2], fill=wall_color)
+            
+            # Add 3D effect to walls
+            if wall == 'top':
+                # Highlight on top edge
+                draw.line([(x1, y1), (x2, y1)], fill=wall_highlight, width=2)
+                # Shadow on bottom edge
+                draw.line([(x1, y2-1), (x2, y2-1)], fill=wall_shadow, width=1)
+            elif wall == 'bottom':
+                # Highlight on top edge
+                draw.line([(x1, y1), (x2, y1)], fill=wall_highlight, width=1)
+                # Shadow on bottom edge
+                draw.line([(x1, y2-1), (x2, y2-1)], fill=wall_shadow, width=2)
+            elif wall == 'left':
+                # Highlight on left edge
+                draw.line([(x1, y1), (x1, y2)], fill=wall_highlight, width=2)
+                # Shadow on right edge
+                draw.line([(x2-1, y1), (x2-1, y2)], fill=wall_shadow, width=1)
+            elif wall == 'right':
+                # Highlight on left edge
+                draw.line([(x1, y1), (x1, y2)], fill=wall_highlight, width=1)
+                # Shadow on right edge
+                draw.line([(x2-1, y1), (x2-1, y2)], fill=wall_shadow, width=2)
+
+    def _draw_window(x1, y1, x2, y2, horizontal):
+        draw.rectangle([x1, y1, x2, y2], fill=door_frame)
+        inset = 2
+        gx1, gy1, gx2, gy2 = x1 + inset, y1 + inset, x2 - inset, y2 - inset
+        draw.rectangle([gx1, gy1, gx2, gy2], fill=glass_fill)
+        # Cross mullion
+        mid_x = (gx1 + gx2) // 2
+        mid_y = (gy1 + gy2) // 2
+        draw.line([(mid_x, gy1), (mid_x, gy2)], fill=mullion, width=1)
+        draw.line([(gx1, mid_y), (gx2, mid_y)], fill=mullion, width=1)
+        draw.rectangle([gx1, gy1, gx2, gy2], outline=glass_highlight)
+    
+    # Draw door if specified
+    if door_location and door_location in walls:
+        door_start = (size - door_width) // 2
+        door_end = door_start + door_width
+        is_window = opening_kind == 'window'
+        
+        if door_location == 'top':
+            if is_window:
+                _draw_window(door_start, 0, door_end, wall_thickness, True)
+            else:
+                # Clear wall area for door
+                draw.rectangle([door_start, 0, door_end, wall_thickness], fill=door_frame)
+                # Draw door
+                draw.rectangle([door_start + 2, 2, door_end - 2, wall_thickness - 2], fill=door_color)
+                # Door panels (bigger)
+                panel_width = (door_width - 10) // 2  # Increased spacing
+                if panel_width > 2:  # Only draw panels if there's enough space
+                    draw.rectangle([door_start + 4, 3, door_start + 4 + panel_width, wall_thickness - 3], 
+                                 fill=door_highlight, outline=door_shadow)
+                    draw.rectangle([door_end - 4 - panel_width, 3, door_end - 4, wall_thickness - 3], 
+                                 fill=door_highlight, outline=door_shadow)
+                # Door handle (bigger)
+                handle_size = max(2, wall_thickness // 4)
+                handle_x = door_start + door_width - 8
+                draw.ellipse([handle_x, wall_thickness//2 - handle_size, handle_x + handle_size*2, wall_thickness//2 + handle_size], 
+                            fill='#FFD700')
+            
+        elif door_location == 'bottom':
+            if is_window:
+                _draw_window(door_start, size - wall_thickness, door_end, size, True)
+            else:
+                # Clear wall area for door
+                draw.rectangle([door_start, size - wall_thickness, door_end, size], fill=door_frame)
+                # Draw door
+                draw.rectangle([door_start + 2, size - wall_thickness + 2, door_end - 2, size - 2], fill=door_color)
+                # Door panels (bigger)
+                panel_width = (door_width - 10) // 2  # Increased spacing
+                if panel_width > 2:  # Only draw panels if there's enough space
+                    draw.rectangle([door_start + 4, size - wall_thickness + 3, door_start + 4 + panel_width, size - 3], 
+                                 fill=door_highlight, outline=door_shadow)
+                    draw.rectangle([door_end - 4 - panel_width, size - wall_thickness + 3, door_end - 4, size - 3], 
+                                 fill=door_highlight, outline=door_shadow)
+                # Door handle (bigger)
+                handle_size = max(2, wall_thickness // 4)
+                handle_x = door_start + door_width - 8
+                draw.ellipse([handle_x, size - wall_thickness//2 - handle_size, handle_x + handle_size*2, size - wall_thickness//2 + handle_size], 
+                            fill='#FFD700')
+            
+        elif door_location == 'left':
+            if is_window:
+                _draw_window(0, door_start, wall_thickness, door_end, False)
+            else:
+                # Clear wall area for door
+                draw.rectangle([0, door_start, wall_thickness, door_end], fill=door_frame)
+                # Draw door
+                draw.rectangle([2, door_start + 2, wall_thickness - 2, door_end - 2], fill=door_color)
+                # Door panels (bigger)
+                panel_height = (door_width - 10) // 2  # Increased spacing
+                if panel_height > 2:  # Only draw panels if there's enough space
+                    draw.rectangle([3, door_start + 4, wall_thickness - 3, door_start + 4 + panel_height], 
+                                 fill=door_highlight, outline=door_shadow)
+                    draw.rectangle([3, door_end - 4 - panel_height, wall_thickness - 3, door_end - 4], 
+                                 fill=door_highlight, outline=door_shadow)
+                # Door handle (bigger)
+                handle_size = max(2, wall_thickness // 4)
+                handle_y = door_start + door_width - 8
+                draw.ellipse([wall_thickness//2 - handle_size, handle_y, wall_thickness//2 + handle_size, handle_y + handle_size*2], 
+                            fill='#FFD700')
+            
+        elif door_location == 'right':
+            if is_window:
+                _draw_window(size - wall_thickness, door_start, size, door_end, False)
+            else:
+                # Clear wall area for door
+                draw.rectangle([size - wall_thickness, door_start, size, door_end], fill=door_frame)
+                # Draw door
+                draw.rectangle([size - wall_thickness + 2, door_start + 2, size - 2, door_end - 2], fill=door_color)
+                # Door panels (bigger)
+                panel_height = (door_width - 10) // 2  # Increased spacing
+                if panel_height > 2:  # Only draw panels if there's enough space
+                    draw.rectangle([size - wall_thickness + 3, door_start + 4, size - 3, door_start + 4 + panel_height], 
+                                 fill=door_highlight, outline=door_shadow)
+                    draw.rectangle([size - wall_thickness + 3, door_end - 4 - panel_height, size - 3, door_end - 4], 
+                                 fill=door_highlight, outline=door_shadow)
+                # Door handle (bigger)
+                handle_size = max(2, wall_thickness // 4)
+                handle_y = door_start + door_width - 8
+                draw.ellipse([size - wall_thickness//2 - handle_size, handle_y, size - wall_thickness//2 + handle_size, handle_y + handle_size*2], 
+                            fill='#FFD700')
+    
+    # Save the image
+    img.save(output_path)
+    print(f"Generated tile saved as: {output_path}")
     
     # Draw walls
     wall_coords = {
@@ -311,7 +461,7 @@ def generate_from_objects_yaml(
         door_location = resolve_door_location(object_key, object_data)
 
         # Doors need a wall segment on the same side.
-        if item_class == 'DoorObjectWall' and door_location and door_location not in walls:
+        if item_class in ('DoorObjectWall', 'WindowObjectWall') and door_location and door_location not in walls:
             walls.append(door_location)
 
         output_filename = f"{object_key}.png"
@@ -332,10 +482,11 @@ def generate_from_objects_yaml(
             create_wall_door_tile(
                 size=size,
                 walls=walls,
-                door_location=door_location if item_class == 'DoorObjectWall' else None,
+                door_location=door_location if item_class in ('DoorObjectWall', 'WindowObjectWall') else None,
                 door_width=door_width,
                 wall_thickness=wall_thickness,
                 output_path=str(output_path),
+                opening_kind='window' if item_class == 'WindowObjectWall' else 'door',
             )
 
             object_name = object_data.get('name', object_key)

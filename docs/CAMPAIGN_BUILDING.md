@@ -20,6 +20,7 @@ for the Natural20 D&D simulation engine.
    - [NPC Templates](#npc-templates)
    - [NPC Overrides in Maps](#npc-overrides-in-maps)
    - [NPC Dialog & Conversation](#npc-dialog--conversation)
+   - [Sidekick NPCs](#sidekick-npcs)
 6. [Player Characters](#player-characters)
 7. [Objects](#objects)
    - [Built-in Object Types](#built-in-object-types)
@@ -36,6 +37,7 @@ for the Natural20 D&D simulation engine.
 12. [Multi-Map Campaigns](#multi-map-campaigns)
 13. [Complete Example](#complete-example)
 14. [Procedural Dungeons](#procedural-dungeons)
+15. [Battlemap import](#battlemap-import-image--yaml)
 
 ---
 
@@ -61,6 +63,7 @@ my_campaign/
 ├── spell_token_map.csv       # Spell → token-image mapping (optional)
 ├── weapon_token_map.csv      # Weapon → token-image mapping (optional)
 ├── assets/                   # Images, sounds, backgrounds
+│   ├── items/                # Campaign-only item icons (not in templates/)
 │   ├── sounds/
 │   ├── characters/           # Character portrait PNGs
 │   └── ...
@@ -78,6 +81,7 @@ my_campaign/
 ├── maps/                     # Map YAML files
 │   ├── entrance.yml
 │   └── dungeon.yml
+├── map_graph.yml             # Optional Map Connections tile positions
 ├── npcs/                     # NPC template YAML files
 │   ├── goblin.yml
 │   └── custom_boss.yml
@@ -244,10 +248,26 @@ players: 4                       # Expected number of players
 starting_map: maps/entrance.yml
 
 # Named maps for multi-map campaigns (used by teleporters)
+# Use the file stem as the key (`entrance`, not a display title). Older
+# campaigns used `index` for the starting map; if you keep that key, make
+# sure it points at `starting_map`. Do not reuse `index` for a later map
+# unless `starting_map` already names a different key (the engine will
+# follow `starting_map`).
 maps:
   entrance: maps/entrance
   dungeon_1: maps/dungeon_level_1
   dungeon_2: maps/dungeon_level_2
+
+# Optional map sets (party POV worlds). Omit for a single implicit `root` set.
+# See docs/MAP_SETS.md. Teleporters may only target maps in the same set.
+# map_sets:
+#   root:
+#     label: Dungeon
+#     maps: [entrance, dungeon_1, dungeon_2]
+#   overland:
+#     label: World Map
+#     maps: [world_map]
+
 
 # Directory containing player character sheets
 player_profiles: characters
@@ -281,11 +301,12 @@ groups:
 
 # Optional progression mode. Defaults to XP thresholds.
 progression:
-  mode: xp                       # xp | dm | event
+  mode: xp                       # xp | dm | event | milestone
   events:
     first_boss_defeated:
       label: First Boss Defeated
-      levels: 1
+      levels: 1                  # or target_level: 3
+      auto: true                 # grant when campaign_event first_boss_defeated fires
 
 # Optional day/night cycle (derived from monotonic game_time in seconds)
 time_of_day:
@@ -427,7 +448,7 @@ dimensions.
 | `character_selection_background` | string | Image for character selection |
 | `autosave` | bool | Enable automatic save |
 | `selectable_characters` | array | Characters players can pick at login |
-| `suppress_dialog_descriptions` | bool or `"player_characters"` | Hide entity descriptions in the JRPG talk panel and character sheet for non-DM players (mystery / spoiler-safe) |
+| `suppress_dialog_descriptions` | bool or `"player_characters"` | Hide entity descriptions in the JRPG talk panel and the NPC public card / PC character sheet for non-DM players (mystery / spoiler-safe) |
 | `highlight_doors` | bool | Highlight visible door fixtures on the map with an amber overlay (player-facing UI) |
 | `soundtracks` | array | Background music tracks |
 | `logins` | array | User accounts (`role`: `"player"` or `"dm"`) |
@@ -557,6 +578,9 @@ The `map` object contains the grid layers and configuration:
 map:
   illumination: 0.5              # Base light level (0.0–1.0)
   size: [26, 14]                 # Explicit dimensions [width, height]
+                                 # width = characters per ASCII row, height = number of rows.
+                                 # Must match map.base. A mismatch fails map load with a
+                                 # diagnostic (which layer/row, expected vs actual).
                                  # (auto-detected from base layer if omitted)
 
   # Ground layer — defines walls and floor. Required.
@@ -892,6 +916,11 @@ proficiency_bonus: 2
 cr: 0.25                            # Challenge rating
 xp: 50                              # Experience points
 
+# Unique named NPCs (optional)
+# entity_uid: npc_ireena            # Stable id — not a spawn-time UUID
+# unique: true                      # Optional explicit flag; Unique badge in the NPC Spawner
+# Dropping a unique NPC that already exists on the same map set moves that token.
+
 # Ability scores
 ability:
   str: 8
@@ -954,6 +983,22 @@ equipped:
 default_inventory:
   - type: arrows
     qty: 20
+```
+
+Spellcasters add `spell_ability` (or `spellcasting_ability`), `spell_slots`,
+and `prepared_spells`. The NPC stat block then shows the Monster Manual line
+`Its spellcasting ability is Wisdom (spell save DC 13, +5 to hit with spell attacks)`
+using 8 + proficiency bonus + ability modifier. Optional `spell_save_dc` and
+`spell_attack_bonus` override the computed values.
+
+```yaml
+spell_ability: wisdom
+spell_slots:
+  '1': 2
+prepared_spells:
+  - sacred_flame
+  - cure_wounds
+  - healing_word
 ```
 
 `xp` is used by encounter reward tools and defaults to the D&D 5e 2014
@@ -1087,6 +1132,7 @@ legend:
 | `converstation_keywords` | array | Keywords that trigger game state changes |
 | `statuses` | array | Initial status conditions (`hidden`, etc.) |
 | `hidden_stealth` | int | Stealth roll value if spawned hidden |
+| `events` | list | YAML event hooks (`died`, `activate`, …). Same schema as object `events`. |
 | `merchant` | object | Shop config: `wares`, `buyback_rate`, `llm_pricing`. Opens the merchant trade UI on talk. See `docs/MERCHANT_TRADING.md`. |
 
 ### NPC Dialog & Conversation
@@ -1106,8 +1152,9 @@ conversation system supports:
    a `backstory`. The NPC uses the backstory as its system prompt and responds
    dynamically via the configured LLM provider.
 
-3. **Keyword triggers** — When the LLM mentions specific keywords in its
-   response, game state changes can be triggered:
+3. **Keyword triggers** — When the LLM mentions specific keywords in spoken
+   dialogue **or** `[ASIDE: ...]` stage direction, game state changes can be
+   triggered:
    ```yaml
    converstation_keywords:
      - keyword: "secret_passage"
@@ -1128,6 +1175,40 @@ Your alignment is: {alignment}
 
 ---
 
+## Sidekick NPCs
+
+Sidekicks stay NPCs (stat block, conversation LLM). What changes is **party membership** and **who drives movement/actions**. Runtime records live in `session.session_state['sidekicks']` (save/load). Mid-game joins do not rewrite `index.json`.
+
+```yaml
+# game.yml
+character_selection:
+  sidekick_slots: 1       # 0 = one hero pick; 1 = one PC and one sidekick
+sidekicks:
+  - entity_uid: npc_squire
+    selectable: true          # appears on login character select
+    spawn_with_party: true
+    owners: []                # claimed at login
+    sidekick_class: sidekick_warrior   # optional; requires expansion pack
+    role: attacker
+  - entity_uid: npc_guide
+    selectable: false
+    owners: [gomerin]         # second character for that user
+    require_session:          # same pattern as companions
+      quest_accepted: true
+```
+
+- **Login pick:** `selectable: true` entries appear in a **Sidekicks** section, separate from player characters. With `character_selection.sidekick_slots: 0` (default), the player still picks a single hero from either section. Set `sidekick_slots: 1` (Death House) so each player chooses one PC **and** one sidekick.
+- **Second character:** YAML `owners: [username]` joins them after login; they appear as extra POV tokens.
+- **Mid-game:** player **Invite to party** (talking distance), NPC tags `[JOIN_PARTY]` / `[LEAVE_PARTY]`, or DM `dm.sidekick` / `POST /admin/sidekick`. A join refreshes the owner's POV picker and shows a toast (`{name} joined the party.`).
+- **Control:** owning players move and take actions (`WebController`). Conversation stays on the NPC LLM — players never speak *as* the sidekick.
+- **Stat block:** sidekicks keep the NPC creature sheet (not a PC character sheet). Any player can open the full 5e stat block for a player-controlled NPC (sidekick, familiar, or assigned controller). Other NPCs show only portrait, name, and description (description follows `suppress_dialog_descriptions`).
+- **Death saves:** in-party sidekicks fall unconscious at 0 HP instead of dying immediately.
+- **Travel:** in-party sidekicks follow the party like companions (teleporter / map-set / `place_party`).
+
+Tasha’s Expert / Spellcaster / Warrior tables are **not** in core. Opt in with the `tashas_sidekicks` expansion pack (see [EXPANSION_PACKS.md](EXPANSION_PACKS.md)). Starting level is the average PC level; CR ≤ 1/2 is pack policy (DM `force` can override).
+
+---
+
 ## Player Characters
 
 Player character sheets live in `characters/` and define a full D&D 5e
@@ -1142,6 +1223,17 @@ optional `tags`, and optional `seed_id` for de-duplication across save/load.
 Entries are seeded once per `seed_id` and start **unread** so players get a
 notification. NPC YAML supports the same `journal` list; hooks are copied to a
 PC's journal the first time that PC talks to the NPC.
+
+After any battle that lasts at least one combat round, the NPC LLM writes a
+first-person recap into each PC's journal (`kind: combat`) and a memory item
+for each conversation-aware NPC (`dialog: true`) on the battle map. Recaps
+include world time, map / landmark annotations when available, deaths, and
+conversation beats from the fight. Disable per campaign with:
+
+```yaml
+battle_combat_recap:
+  enabled: false
+```
 
 ```yaml
 journal:
@@ -1298,7 +1390,8 @@ These are defined in the default `items/objects.yml`:
 | `tree` | Object | Half cover, allows hiding |
 | `water` | Object | Swimmable, difficult terrain (movement cost 2) |
 | `wooden_door` | DoorObject | Openable/lockable door |
-| `corner_door_*` | DoorObjectWall | Directional wall-embedded doors |
+| `door_top` / `door_*` / `corner_door_*` | DoorObjectWall | Directional wall-embedded doors |
+| `window_top` / `window_*` / `corner_window_*` | WindowObjectWall | Wall-embedded windows (glass or shutters; see below) |
 
 ### Doors
 
@@ -1322,6 +1415,71 @@ adjacent walls. Tokens change appearance based on state:
 |---|---|---|
 | Closed | `=` | `║` |
 | Open | `-` | `:` |
+
+### Windows
+
+Wall windows are **DoorWall combos** (`WindowObjectWall`) with an opening on one edge. They share the door-wall placement UI (top/bottom/left/right plus corner variants) and appear in the object spawner under **Windows**.
+
+```yaml
+legend:
+  "▭":
+    name: parlor_window
+    type: window_top          # window_top/bottom/left/right or corner_window_*
+    state: closed
+    cover_pane: glass         # glass (see-through, total cover) or opaque (shutters)
+    inside_cover: half        # half (+2 AC) or three_quarter (+5 AC) when open
+    window_size: medium       # small | medium | large — prone/"crouching" Medium creatures have total cover
+    max_pass_size: any        # any | tiny | small | medium | large | huge | gargantuan — largest creature that can climb through
+    barred: false             # barred from the inside; cannot be opened from outside
+    difficult_terrain: true   # climbing through an open window costs extra movement (default)
+    window_material: wood     # wood | stone | glass | iron (frame / shutter)
+    wall_material: stone      # surrounding wall; may differ from the window
+```
+
+In **edit mode**, click the window fixture label to edit these fields (open/closed, glass vs shutter, cover, opening size, pass size, bars, difficult terrain, and materials). Painted windows store per-cell overrides on `map.layer_placements` so two `window_top` tiles can differ. Tile mouseover shows the pass-size limit (for example, “Fits Small or smaller”).
+
+Rules of thumb (PHB cover):
+
+- **Closed glass** — creatures can see through, but attacks cannot target through the pane (total cover). Break or open the window first.
+- **Closed opaque shutter** — blocks vision and attacks, matching `window_material`.
+- **Open** — creatures on the **inside** of the opening have half or three-quarters cover (sill / frame). A prone (crouching) creature of typical size has total cover behind the wall under the sill; Tiny creatures may have total cover even while standing, depending on `window_size`.
+- **Barred** — a bar on the inside prevents opening from the outside. Inside creatures can unbar or open (opening clears the bar).
+- **Movement** — stepping through an open window is difficult terrain unless `difficult_terrain: false`. `max_pass_size` is a hard cap on who can cross the opening (for example `small` blocks Medium and larger). Walking along the interior cell without crossing the pane is unaffected. Default `any` means no extra size gate.
+
+The existing `window` object type (peek/fall-through to a lower map-stack floor) is unrelated; use `window_top` and friends for wall openings.
+
+### 3D models (VTT `/3d`)
+
+Campaigns can pick a 3D mesh per object type without changing the 2D map. See **`docs/VTT_3D.md`** and skill `.cursor/skills/n20-vtt3d-models/SKILL.md`.
+
+Wall look is separate from object meshes. Set a campaign default in `vtt3d.yml` (`walls.style`: `dungeon`, `cave`, `mansion`, `gothic`, `wood`, or `office`). A map may override with top-level `vtt3d.walls`, or inherit from `render.palette` (`interior` → mansion, `dungeon` → stone, `cave` / `cavern` → organic limestone with stalactites/stalagmites, `office` / `modern` → office drywall). Optional `albedo` points at a repeating texture under campaign `assets/`.
+
+```yaml
+# user_levels/<campaign>/vtt3d.yml
+walls:
+  style: mansion   # dungeon | cave | mansion | gothic | wood | office; maps may override
+models:
+  portcullis_b:
+    kind: portcullis
+  dungeon_secret_door1:
+    kind: secret_door
+```
+
+Or on a legend entry / object YAML:
+
+```yaml
+legend:
+  "~":
+    type: portcullis_b
+    vtt3d:
+      kind: portcullis
+```
+
+Built-in door kinds: `door` (oak), `secret_door` (stone slab), `portcullis` (iron grate), `wall`, `skip`. Floor hatches: `trap_door` / `secret_trapdoor` (wooden hatch; open = hole + lid), `pit_trap` (cracked cover until sprung, then a spiked pit). Types whose name contains `portcullis`, `trapdoor` / `trap_door`, or `pit_trap`, or that are secret doors, infer automatically. Concealed secret hatches and unperceived pits are omitted from the 3D object list until discovered.
+
+Place **stairs** from the terrain palette (`type: stairs`). They are invisible and fully passable on the 2D map. In 3D they become a run of medium-creature steps (about 7.5 in risers) along `squares` from the base to the top. A filled 2-wide strip is meshed as **double stairs**. A 2×2 block, compact L/U (two flights in a small well), or circulating ring is a **circular spiral**: pie-wedge treads around a round newel, so the flights meet without a corner gap. `open_well` (boolean) drops the newel and leaves a hollow shaft; `wall_attached` (boolean) extends treads to the well and adds a square enclosure. Campaigns can default those flags in `vtt3d.yml` under `models.stairs`. `height` is feet of rise (default 8, matching wall height). **To go down**, set `height` to a negative value (for example `-8`) and pick squares from this floor toward the lower end; the first square stays at this floor and later squares step downward, punching the battlemap floor after the base. `style` uses the same materials as walls and doors (`dungeon`, `mansion`, `gothic`, `wood`, `office`, or empty to match the map). `solid` (default true) fills the volume under the treads so the staircase is not see-through. Edit the object and use **Pick squares on map** to click the ordered path (clicks go through walls and other fixtures on those squares).
+
+**Chasms** (`type: chasm`) are open pits in 3D: the floor tile is omitted and a stone shaft sinks below the tabletop (deeper when `fall_distance` is set). Concealed chasms stay hidden until perceived. `bottomless_pit` uses the same mesh.
 
 ### Chests
 
@@ -1402,8 +1560,10 @@ they teleport the entity.
 
 ### Teleporters
 
-Teleporters link maps together. When an entity enters the teleporter's
-square, they're moved to the target position (and optionally a different map).
+Teleporters link maps together **within the same map set**. When an entity enters the teleporter's
+square, they're moved to the target position (and optionally a different map in that set).
+Cross-set travel uses a **party-travel teleporter** (`party_travel: true`) or the DM tools
+Activate Map Set / Place Party — see [Map Sets](MAP_SETS.md).
 
 ```yaml
 legend:
@@ -1414,6 +1574,19 @@ legend:
     target_position: [3, 7]          # Destination [x, y]
     notes:
       - note: "Stairs leading down"
+
+  # Cross-set exit: confirm, then transport the whole party.
+  # Cancel keeps the party on this map; Interact / tile hover retries
+  # while still standing on the pad.
+  TX:
+    name: Leave town
+    type: teleporter
+    party_travel: true
+    target_map: forest_clearing
+    prompt_title: Leave town?
+    prompt: |
+      The entire party will be transported to the forest clearing.
+      Continue?
 
   # Teleporter with event trigger (e.g., reveal something on the target map)
   T2:
@@ -1446,6 +1619,22 @@ legend:
 
 `requires_session` is checked in `Teleporter.on_enter` against `session.session_state`.
 Use `all_of` for every flag required, or `any_of` + `min_count`. `bypass_any` opens on a single flag (e.g. written invitation). `inventory_proofs` adds +1 toward `min_count` per carried item type. Legacy `visibility_flag: some_flag` is treated as `all_of: [some_flag]`.
+
+To open a door only after a boss dies, put a `died` event on that NPC (see [Triggers & Events](#triggers--events)) with `set_session`, then list the same flag here:
+
+```yaml
+# On the boss (map legend overrides or NPC YAML)
+events:
+  - event: died
+    set_session:
+      dungeon_cleared: true
+
+# On the exit teleporter
+requires_session:
+  all_of: [dungeon_cleared]
+deny_title: Sealed
+deny_message: The door will not open.
+```
 
 ### Switches
 
@@ -1540,6 +1729,9 @@ dagger:
   range: 5
   cost: 2
   weight: 10
+  flavor_text: A small blade, easily concealed.   # optional italic quote on the item card
+  description: >-                                 # optional rules/body text on the item card
+    A simple weapon favored by rogues and travelers.
   thrown:
     range: 30
     range_max: 120
@@ -1547,6 +1739,95 @@ dagger:
     noise_source: 5
     noise_target: 5
 ```
+
+The character sheet **Basic Info** tab uses a D&D 5e-style layout for **player characters**: a header
+(portrait, name, class/level, race, background, alignment, languages, XP) and
+three columns (ability scores / saves / skills / other proficiencies / inspiration;
+combat stats, defenses, conditions, and resources; description and features). The
+Other Proficiencies panel lists armor, weapons, and tools from class, race, and
+background. Defenses always lists resistances, immunities, vulnerabilities, and
+condition immunities (or “None”). Conditions lists live `entity.statuses` (internal
+flags such as `squeezed` are omitted). Inspiration is a pip next to proficiency
+bonus: **Inspiration** on `5e-2014`, **Heroic Inspiration** on `5e-2024`. The DM
+can click the pip (or MCP `dm.set_resource` with `resource_type=inspiration`) to
+grant or spend the token. Markup lives in
+`n20-webapp/webapp/templates/_basic_info_sheet.html` with styles in
+`n20-webapp/webapp/static/sheet.css`. Objects without ability scores get a
+simpler portrait + AC/HP fallback. DM HP inputs, rest buttons, and resource
+controls keep the same element IDs as before.
+
+**NPCs** use a monster-style 5e stat block instead of the PC sheet
+(`_npc_stat_block.html`): size/type/alignment, AC, HP, speed, ability scores,
+saves/skills/senses, challenge, traits, and actions. Spellcasters include a
+Spellcasting trait with ability, **spell save DC** (8 + proficiency + ability
+mod), spell attack bonus, and spells grouped by level — the same parenthetical
+as a Monster Manual block (`spell save DC 13, +5 to hit with spell attacks`).
+YAML `spell_ability` / `spellcasting_ability` selects the ability; optional
+`spell_save_dc` / `spell_attack_bonus` override the computed numbers. DMs always see the full
+block. Players see the complete block for NPCs they (or the party) control —
+sidekicks, familiars, and NPCs with assigned player controllers. For every other
+NPC, players get a public card (`_npc_public_card.html`) with portrait, name, and
+description only (description still respects `suppress_dialog_descriptions`).
+Equipment and rest controls on an NPC sheet stay limited to the DM and that
+NPC’s controllers. Access logic lives in
+`n20-webapp/webapp/blueprints/helpers/npc_stat_block.py`.
+
+Clicking a weapon or item on the character sheet Equipment tab opens a parchment
+item card (icon, rarity, flavor, description, and stats). Container cards also
+list stowed contents so players can inspect, use, or equip those items without
+taking them out first. Optional YAML keys that appear on the card:
+
+| Key | Shown as |
+|---|---|
+| `flavor_text` / `flavor` / `lore` | Italic quote under the title |
+| `description` | Body text |
+| `rarity` | Common / Uncommon / Rare / Very Rare / Legendary |
+| `magical`, `magic_bonus` | Magical badge |
+| `requires_attunement` | Attunement note |
+| `weapon_mastery` | Mastery chips when the 2024 ruleset is enabled |
+| `content` | Letter body |
+
+Bundled SRD weapons, armor, adventuring gear, and SRD magic items under
+`templates/items/` already include `flavor_text` (original short lines for
+mundane gear; SRD 5.1 / 5.2 wording for magic-item **descriptions**, CC BY 4.0).
+Campaign-unique or non-SRD items belong in `user_levels/<campaign>/items/` or an
+expansion pack — do not copy adventure-module boxed text into `templates/`.
+
+**Item icons follow the same ownership.** If an item id exists only in the
+campaign (or an imported campaign / expansion pack) and not in
+`templates/items/`, its PNG must live at `<owner>/assets/items/<id>.png`. Do
+not put campaign-only art in `n20-webapp/webapp/static/assets/items/`. Generic
+SRD icons stay in bundled static. The VTT serves `/assets/items/<file>` from
+the campaign folder first (then imports, expansion packs, then bundled). Set
+`image: <template_slug>` on a campaign alias when it should reuse SRD art
+(for example Death House `bulleyes_lantern` → `bullseye_lantern`).
+
+### Equipment packs (`items/equipment_packs.yml`)
+
+Starting kits shown in the character builder. Campaign files merge with
+`templates/items/equipment_packs.yml`. Each pack has `name`, `cost`, and
+`items` in either of these forms:
+
+```yaml
+# Mapping (used by campaign packs such as Monster Hunter's Pack)
+monster_hunters_pack:
+  name: "Monster Hunter's Pack"
+  cost: 33
+  items:
+    wooden_stake: 3
+    torch: 3
+
+# List of single-key dicts (bundled SRD packs)
+explorer_pack:
+  name: "Explorer's Pack"
+  cost: 10
+  items:
+    - bedroll: 1
+    - backpack: 1
+```
+
+The builder preview and chargen apply both shapes. A background may set
+`default_equipment_pack: monster_hunters_pack` to pre-select a pack.
 
 ### Equipment (`items/equipment.yml`)
 
@@ -1574,6 +1855,42 @@ inventory:
   - type: arcane_focus
     qty: 1
 ```
+
+### Containers and size limits
+
+Mundane and magical containers declare how much they can hold. Weight and
+volume are optional; **`max_item_size`** is the largest creature/item size
+the container will accept (`tiny` < `small` < `medium` < `large` < `huge` <
+`gargantuan`).
+
+The character sheet Equipment tab lists items stored in carried containers
+with an “in Backpack” grouping badge. Players can search and sort that list,
+and can inspect, use, or equip nested items without taking them out first.
+
+```yaml
+backpack:
+  type: container
+  weight: 5
+  capacity_lbs: 30
+  capacity_cu_ft: 1
+  max_item_size: small          # rejects medium or larger
+
+bag_of_holding:
+  type: container
+  extradimensional: true
+  capacity_lbs: 500
+  capacity_cu_ft: 64
+  max_item_size: large          # contents do not add to carry weight
+```
+
+Defaults when `max_item_size` is omitted: **small** for normal packs, **large**
+for extradimensional bags, **medium** for map objects such as chests and barrels.
+
+Items default to **tiny** (weapons/armor **small**) unless YAML sets `size`.
+Dead NPCs and player characters can be picked up (`carry`) and stored like
+objects: they use the creature's size and a size-based body weight plus gear.
+Carrying requires remaining Strength × 15 lb capacity. Dropping a body onto
+the ground places the creature back on the map.
 
 ---
 
@@ -1612,6 +1929,24 @@ events:
 | `on_enter` | Entity enters the square |
 | `start_of_turn` | At the start of an entity's turn |
 | `investigation_check_success` | Successful ability check |
+| `died` | Creature is killed (`Entity.make_dead`). Use on NPC YAML or map `overrides`. |
+
+`update_state` with `target: session` writes keys into `session.session_state` (the same flags `requires_session` reads). Prefer the dedicated `set_session` key — it runs before `campaign_event` so listeners see the new flags:
+
+```yaml
+# On an NPC (map legend overrides, or the NPC sheet)
+events:
+  - event: died
+    set_session:
+      dungeon_cleared: true          # dict, or a bare string / list of names
+    campaign_event: dungeon_cleared  # optional: notify campaign listeners
+```
+
+If `game.yml` uses `progression.mode: milestone` (or `event`) and lists that same key under `progression.events`, the engine grants the configured level-ups to all PCs the first time the event fires. See [DND_5E_2014_PROGRESSION.md](DND_5E_2014_PROGRESSION.md).
+
+`set_session` / session `update_state` accept `{flag: true}`, a flag name string, or a list of names.
+
+Campaign `game.yml` can also set the same flags when a fight ends (`battle_end_hooks`: `map`, `require_groups_defeated`, `session_flags`, `once_session_key`). Use that as a backup when the boss is the last enemy in its group.
 
 #### Condition Syntax
 
@@ -1628,6 +1963,8 @@ The `if` field supports simple condition checks:
 
 Objects can have discoverable notes with perception or investigation DCs:
 
+**Edit mode:** Drag a **Note** from the object spawner onto a tile to create one. Click the info-sign or fixture label to edit text, Perception/Investigation/Religion/Arcana DCs, linked images (`static/assets/objects/<filename>`), and the info-sign offset. Drag the info-sign on the map to nudge that offset. Edit mode shows every note, including those that would normally be hidden behind a DC.
+
 ```yaml
 notes:
   - note: "You notice strange markings on the wall"
@@ -1643,6 +1980,10 @@ notes:
     image: pit_trap_image          # Image to display
 ```
 
+Place a dedicated note object (`type: note`) when the clue is not attached to another fixture. `image_offset_px: [top, left]` positions the info-sign on the tile (drag in edit mode). `hide_map_token: true` hides the `N` sprite when the art is already in the background.
+
+Play-time **DM notes** (hamburger → DM Notes, or Alt+click a square) are a separate overlay: only the dungeon master can see them, they are not written to map YAML, and NPCs never learn them. See [DM_NOTES.md](DM_NOTES.md).
+
 **NPC-only annotations** (separate from `notes`) are invisible to player characters but visible to NPCs in conversation `[OBSERVE]` / `[ANNOTATIONS]` when perception passes:
 
 ```yaml
@@ -1654,6 +1995,100 @@ annotations:
 Allowed NPCs see annotations when the object is in line of sight (`[OBSERVE]`, Look, `[ANNOTATIONS]`). Use `perception_dc` on **`notes`**, not annotations, when PCs must roll to discover something.
 
 Use `notes` for clues PCs should discover; use `annotations` for staff knowledge (till codes, key locations, house procedures).
+
+### Edit-mode property schemas (`edit_ui`)
+
+Edit mode uses declarative YAML schemas to drive the fixture property editor. Schemas are **editor-only metadata** — they are not read at runtime during play.
+
+**Where schemas live**
+
+| Location | Use for |
+|---|---|
+| `items/objects.yml` → `edit_ui:` | Per object-type forms (teleporter, note, chest, …). Merged with bundled templates; campaigns override fields here. |
+| `edit/fixtures.yml` → `fixtures:` | Map constructs that are not object catalog entries (e.g. `spawn_point` → `player_spawn_points`). |
+| `edit/fixtures.yml` → `mixins.notes` | Reusable notes group auto-appended to every object `edit_ui` unless it already defines `notes` / `image_offset_px`. |
+
+Bundled defaults: `templates/items/objects.yml`, `templates/edit/fixtures.yml`. Campaign files at the same relative paths override templates (imports follow normal campaign merge order).
+
+**Example — object type (`teleporter` in `items/objects.yml`)**
+
+```yaml
+teleporter:
+  item_class: Teleporter
+  token: [T]
+  edit_ui:
+    label: Teleporter
+    scope: [legend, entity]
+    groups:
+      - id: destination
+        label: Destination
+        fields:
+          - key: target_map
+            label: Target map
+            type: map_ref
+            choices_from: campaign.maps
+            required: true
+          - key: target_position
+            label: Arrival square
+            type: point
+            relative_to: target_map
+            required: true
+```
+
+**Example — map fixture (`spawn_point` in `edit/fixtures.yml`)**
+
+```yaml
+fixtures:
+  spawn_point:
+    label: Player spawn
+    scope: [player_spawn_points]
+    groups:
+      - id: placement
+        fields:
+          - key: name
+            type: string
+          - key: position
+            type: point
+            relative_to: current_map
+            required: true
+```
+
+**Supported field types**
+
+| `type` | Purpose |
+|---|---|
+| `string`, `text` | Short or multiline text |
+| `boolean` | Checkbox |
+| `integer` | Whole number |
+| `color` | Hex color picker |
+| `point` | `[x, y]` tile coordinate; use `relative_to: current_map` or `target_map` |
+| `point_list` | Ordered `[[x, y], …]` squares (e.g. stair base → top); pick on the map in edit mode, including tiles that already have walls or other objects |
+| `offset_px` | `[top, left]` pixel offset |
+| `map_ref` | Campaign map name; use `choices_from: campaign.maps` |
+| `enum` | Fixed choices via `choices:` list (`select` is accepted as an alias) |
+| `note_list` | Repeatable discoverable notes (text, DCs, image filename) |
+| `inventory_list` | Container contents (`[{type, qty}, …]`); autocomplete via `choices_from: campaign.items` |
+
+**Conditional fields:** `visible_when: { field_key: value }` hides a field until another value matches.
+
+Container types (`chest`, `fireplace`, `barrel`, tavern containers, or any object with `inventory:` / `item_class: Chest|Fireplace`) automatically get an **Items in container** group with autocomplete search against equipment, weapons, and magic items (`GET /edit/catalog/items?q=`). Changes persist to the map YAML `inventory` field.
+
+Nested loot is supported via `contents` on container item rows (for example a pouch inside a chest):
+
+```yaml
+inventory:
+  - type: human_skin_pouch
+    qty: 1
+    contents:
+      - type: gold_piece
+        qty: 11
+      - type: silver_piece
+        qty: 60
+```
+
+The pouch item itself should be `type: container` in `items/equipment.yml`. Taking the pouch from the chest preserves its nested coins.
+
+The Python module `natural20/edit_schema.py` resolves dynamic choices (map list, tile bounds, item catalog), validates submissions server-side, and merges notes/inventory mixins — campaigns define **what** is editable, not validation logic.
 
 ---
 
@@ -1698,6 +2133,11 @@ legend:
 
 ## Multi-Map Campaigns
 
+See also [Map Sets](MAP_SETS.md) for partitioning maps into party POV worlds
+(random encounters, overland travel). Teleporters may only target maps in the
+same set; campaigns with no `map_sets:` key treat every map as the implicit
+`root` set.
+
 ### Defining Maps
 
 Register all maps in `game.yml`:
@@ -1737,6 +2177,21 @@ legend:
 
 When a player entity steps on a teleporter with a `target_map`, the web UI
 automatically switches their view to the new map.
+
+### Map Connections layout
+
+Edit mode **Map Connections** (`GET /edit/map_graph`) shows every campaign map
+and its teleporter links. Dragging tiles saves their positions to campaign
+`map_graph.yml` so a page reload keeps the arrangement:
+
+```yaml
+positions:
+  tavern: {x: 80, y: 80}
+  road: {x: 360, y: 120}
+```
+
+Maps without a saved position are auto-placed. **Reset Layout** recomputes a
+force layout and overwrites the file.
 
 ### Map-Specific Narrations
 
@@ -2004,8 +2459,9 @@ directory.
 
 ## Procedural Dungeons
 
-For generated layouts (BSP, room graphs, cellular caves) with mission objective
-placement and quality gates, see **[DUNGEON_GENERATOR.md](DUNGEON_GENERATOR.md)**.
+For generated layouts (BSP, room graphs, cellular caves) **when there is no
+source battlemap**, see **[DUNGEON_GENERATOR.md](DUNGEON_GENERATOR.md)**. If the
+user already provided map art, use battlemap import instead.
 
 ```bash
 python scripts/generate_dungeon.py --theme sewer --seed 42 \
@@ -2013,6 +2469,30 @@ python scripts/generate_dungeon.py --theme sewer --seed 42 \
   -o maps/generated.yml --render assets/maps/generated.png
 ```
 LLM/tool schema: `python scripts/generate_dungeon.py --print-schema`
+
+---
+
+## Battlemap import (image → YAML)
+
+**Prefer this whenever battlemap art already exists** (user-provided image,
+`assets/maps/`, scanned floorplan, VTT underlay). Do not invent ASCII from a
+whole-image glance and do not run the procedural dungeon generator for those
+maps. Agent skill: `.cursor/skills/n20-import-battlemap/SKILL.md`
+(also `.github/skills/natural20-import-battlemap`). Full flags:
+**[BATTLEMAP_IMPORTER.md](BATTLEMAP_IMPORTER.md)**.
+
+```bash
+python scripts/import_battlemap.py assets/maps/tavern_22x17.png \
+  --provider ollama --model llava \
+  --adventure notes/tavern.md \
+  --workdir /tmp/tavern_import \
+  -o maps/tavern.yml
+```
+
+Do not ask an LLM to layout the whole image in one shot — the importer slices
+tiles and keeps an identification log for consistency checks. Pages with several
+floors (church + basement, Death House sheet) are split first (`--split-panels`);
+use `--no-split-panels` when the file is already a single map.
 
 ---
 

@@ -1,10 +1,13 @@
+from natural20.concern.generic_event_handler import GenericEventHandler
 from natural20.event_manager import EventManager
 from natural20.player_character import PlayerCharacter
 from natural20.progression import (
     adjusted_encounter_xp,
+    award_configured_progression_event,
     encounter_difficulty,
     level_for_xp,
     normalize_progression_settings,
+    register_progression_event_listeners,
     split_xp,
     xp_for_cr,
 )
@@ -103,3 +106,71 @@ def test_progression_settings_normalize_event_list():
     })
     assert settings['mode'] == 'event'
     assert settings['events']['first_boss']['levels'] == 1
+    assert settings['triggers']['first_boss'] == 'first_boss'
+
+
+def test_milestone_mode_is_event_gated_alias():
+    settings = normalize_progression_settings({'mode': 'milestone'})
+    assert settings['mode'] == 'milestone'
+
+
+def test_milestone_event_auto_grants_party_once():
+    session = make_session()
+    session.game_properties['progression'] = {
+        'mode': 'milestone',
+        'events': {
+            'secret_stairs_revealed': {
+                'target_level': 2,
+                'label': 'Secret stairs',
+            }
+        },
+    }
+    register_progression_event_listeners(session)
+    pc = PlayerCharacter.load(session, 'high_elf_mage.yml')
+    battle_map = next(iter(session.maps.values()))
+    battle_map.place((0, 0), pc)
+
+    payloads = award_configured_progression_event(session, 'secret_stairs_revealed')
+    assert len(payloads) == 1
+    assert pc.pending_level_ups() == 1
+    assert pc.eligible_level() == 2
+
+    again = award_configured_progression_event(session, 'secret_stairs_revealed')
+    assert again == []
+    assert pc.pending_level_ups() == 1
+
+    session.event_manager.received_event({'event': 'secret_stairs_revealed'})
+    assert pc.pending_level_ups() == 1
+
+
+def test_campaign_event_yaml_hook_grants_milestone():
+    session = make_session()
+    session.game_properties['progression'] = {
+        'mode': 'milestone',
+        'events': {
+            'death_house_escaped': {'target_level': 2, 'label': 'Escaped the house'}
+        },
+    }
+    register_progression_event_listeners(session)
+    pc = PlayerCharacter.load(session, 'high_elf_mage.yml')
+    next(iter(session.maps.values())).place((0, 0), pc)
+
+    GenericEventHandler(session, None, {'campaign_event': 'death_house_escaped'}).handle(pc)
+    assert pc.pending_level_ups() == 1
+    assert session.session_state['milestone_events']['death_house_escaped'] is True
+
+
+def test_event_grant_skips_when_already_at_target_level():
+    session = make_session()
+    session.game_properties['progression'] = {
+        'mode': 'event',
+        'events': {
+            'escaped_house': {'target_level': 2, 'label': 'Escaped'}
+        },
+    }
+    pc = PlayerCharacter.load(session, 'high_elf_mage.yml')
+    pc.grant_event_level_up('escaped_house')
+    pc.apply_level_up()
+    assert pc.level() == 2
+    assert pc.grant_event_level_up('escaped_house') == []
+    assert pc.pending_level_ups() == 0

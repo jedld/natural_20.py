@@ -98,11 +98,13 @@ Use `kind: area` with `bounds` for guest rooms, taproom, hallways, etc. so staff
 
 When an NPC with `known_places` is pathing toward one of those landmarks (`[MOVE: target=<id>]`), movement uses **door-aware pathfinding** — they route up to closed doors instead of treating them as impassable walls. If a closed or locked door blocks the route, the NPC LLM receives a movement tick with door state and available interactions (`open`, `unlock`, `lockpick`) so it can `[INTERACT: ...]` and then resume navigation on the next tick.
 
+Campaign code can also send an NPC to a landmark with `schedule_npc_move_to(..., on_arrival_event='some_event')`. When the walk completes (or is abandoned as stuck), `EventManager` receives that event so listeners can despawn, trigger narration, and so on.
+
 ## Authoring UI (edit mode)
 
-Run the webapp with `N20_EDIT_MODE=1` or `./start_web.sh --edit <campaign>`.
+Log in as a DM and choose **Enter Edit Mode** in the hamburger menu (or **Exit edit mode** on the banner). `--edit` / `N20_EDIT_MODE=1` only pre-enables edit mode after a DM login; it does not skip login or affect player sessions.
 
-A **Landmarks** panel appears at the bottom-left of the map:
+A **Landmarks** panel appears in the bottom-left chrome stack, **above** the map zoom controls (so it never covers +/−/Reset). Collapse it to a compact chip when you need more map.
 
 - **+ Point** — click a tile, then fill in id/label/description in the modal
 - **+ Rectangle** — click opposite corners, then save in the modal
@@ -118,12 +120,13 @@ Landmarks persist to the map YAML via `POST /edit/annotations` (create/update), 
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/edit/annotations` | List landmarks on current map |
-| `POST` | `/edit/annotations` | Create/update (`{annotation: {...}}`) |
-| `POST` | `/edit/annotations/move` | Reposition (`{id, x, y}` — translates geometry) |
-| `DELETE` | `/edit/annotations/<id>` | Remove landmark |
+| `GET`/`POST` | `/edit/session` | DM-only: read or set per-session edit mode (`{"enabled": true}` / `false`) |
+| `GET` | `/edit/annotations` | List landmarks on current map (`?map_name=` optional) |
+| `POST` | `/edit/annotations` | Create/update (`{annotation: {...}, map_name?}`) |
+| `POST` | `/edit/annotations/move` | Reposition (`{id, x, y, map_name?}` — translates geometry) |
+| `DELETE` | `/edit/annotations/<id>` | Remove landmark (`?map_name=` optional) |
 
-Requires DM role (edit mode not required for these routes).
+Requires DM role (edit mode not required for these routes). Unknown map names return **404** JSON instead of a 500.
 
 ## MCP
 
@@ -138,3 +141,4 @@ Requires DM role (edit mode not required for these routes).
 - **`area_narrations`** — player-facing DM text on enter (once per PC)
 - **Object `annotations`** — NPC-only staff notes on containers/objects
 - **`map_annotations`** — map-level landmarks for navigation and place awareness
+- **DM notes** — play-time pins only the DM can see; they are **not** landmarks and never enter NPC/PC prompts. See [DM_NOTES.md](DM_NOTES.md).

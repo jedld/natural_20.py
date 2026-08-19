@@ -9,7 +9,7 @@ import pytest
 import yaml
 
 from natural20.campaign_validator import ValidateOptions, validate_campaign
-from natural20.item_library.teleporter import Teleporter
+from natural20.item_library.teleporter import Teleporter, resolve_party_travel_prompt
 from natural20.map_set import (
     ROOT_MAP_SET_ID,
     MapSetRegistry,
@@ -90,6 +90,19 @@ def test_implicit_root_set_contains_all_maps():
     assert session.active_map_set == ROOT_MAP_SET_ID
     assert "index" in session.maps_in_set(ROOT_MAP_SET_ID)
     assert session.same_map_set("index", "index")
+    assert session.default_map_key() == "index"
+
+
+def test_default_map_key_prefers_starting_map_over_index_alias(tmp_path: Path):
+    _write_campaign(tmp_path)
+    game_path = tmp_path / "game.yml"
+    game = yaml.safe_load(game_path.read_text(encoding="utf-8"))
+    game["maps"]["index"] = "maps/woods"
+    game_path.write_text(yaml.safe_dump(game, sort_keys=False), encoding="utf-8")
+    session = Session(root_path=str(tmp_path))
+    assert session.default_map_key() == "town"
+    assert "index" in session.maps
+    assert session.maps["index"].map_file_path == "maps/woods"
 
 
 def test_map_sets_from_game_yml(tmp_path: Path):
@@ -433,3 +446,219 @@ def test_active_map_set_roundtrips_in_session_dict(tmp_path: Path):
     assert blob["active_map_set"] == "wilds"
     restored = Session.from_dict(blob)
     assert restored.active_map_set == "wilds"
+
+
+def test_party_travel_teleporter_emits_prompt_and_does_not_move(tmp_path: Path):
+    _write_campaign(
+        tmp_path,
+        map_sets={
+            "root": {"label": "Town", "maps": ["town"]},
+            "wilds": {"label": "Wilds", "maps": ["woods"]},
+        },
+    )
+    session = Session(root_path=str(tmp_path))
+    pc = PlayerCharacter.load(session, "characters/high_elf_fighter")
+    town = session.maps["town"]
+    town.add(pc, 0, 0, group="a")
+    events = []
+    session.event_manager.register_event_listener("party_travel_prompt", events.append)
+    tp = Teleporter(session, town, {
+        "name": "gate",
+        "party_travel": True,
+        "target_map": "woods",
+        "prompt": "The entire party will be transported to the woods. Continue?",
+        "prompt_title": "Leave town?",
+    })
+    tp.on_enter(pc, town)
+    assert pc in town.entities
+    assert pc not in session.maps["woods"].entities
+    assert events
+    assert events[0]["target_map"] == "woods"
+    assert events[0]["title"] == "Leave town?"
+    assert "entire party" in events[0]["message"]
+    pending = (session.session_state.get("_party_travel") or {}).get("pending") or {}
+    assert pending[str(pc.entity_uid)] == "woods"
+
+
+def test_party_travel_teleporter_ignores_non_pcs(tmp_path: Path):
+    _write_campaign(
+        tmp_path,
+        map_sets={
+            "root": {"label": "Town", "maps": ["town"]},
+            "wilds": {"label": "Wilds", "maps": ["woods"]},
+        },
+    )
+    session = Session(root_path=str(tmp_path))
+    npc = session.npc("goblin", {"name": "Townie", "overrides": {"entity_uid": "townie"}})
+    town = session.maps["town"]
+    town.add(npc, 0, 0, group="c")
+    events = []
+    session.event_manager.register_event_listener("party_travel_prompt", events.append)
+    tp = Teleporter(session, town, {
+        "name": "gate",
+        "party_travel": True,
+        "target_map": "woods",
+    })
+    tp.on_enter(npc, town)
+    assert events == []
+    assert npc in town.entities
+
+
+def test_party_travel_interact_retries_after_decline(tmp_path: Path):
+    _write_campaign(
+        tmp_path,
+        map_sets={
+            "root": {"label": "Town", "maps": ["town"]},
+            "wilds": {"label": "Wilds", "maps": ["woods"]},
+        },
+    )
+    session = Session(root_path=str(tmp_path))
+    pc = PlayerCharacter.load(session, "characters/high_elf_fighter")
+    town = session.maps["town"]
+    town.add(pc, 0, 0, group="a")
+    tp = Teleporter(session, town, {
+        "name": "gate",
+        "party_travel": True,
+        "target_map": "woods",
+    })
+    town.place_object(tp, 0, 0)
+    events = []
+    session.event_manager.register_event_listener("party_travel_prompt", events.append)
+
+    tp.on_enter(pc, town)
+    assert events
+    resolve_party_travel_prompt(session, pc, declined=True, target_map="woods")
+    events.clear()
+
+    tp.on_enter(pc, town)
+    assert events == []
+    declined = (session.session_state.get("_party_travel") or {}).get("declined") or {}
+    assert declined[str(pc.entity_uid)] == "woods"
+
+    interactions = tp.available_interactions(pc)
+    assert "party_travel" in interactions
+    assert "Travel with party" in interactions["party_travel"]["prompt"]
+
+    result = tp.resolve(pc, "party_travel", None)
+    assert result == {"action": "party_travel"}
+    tp.use(pc, {**result, "map": town}, session)
+    assert events
+    assert events[0]["target_map"] == "woods"
+    declined = (session.session_state.get("_party_travel") or {}).get("declined") or {}
+    assert str(pc.entity_uid) not in declined
+
+
+def test_party_travel_interact_requires_standing_on_pad(tmp_path: Path):
+    _write_campaign(
+        tmp_path,
+        map_sets={
+            "root": {"label": "Town", "maps": ["town"]},
+            "wilds": {"label": "Wilds", "maps": ["woods"]},
+        },
+    )
+    session = Session(root_path=str(tmp_path))
+    pc = PlayerCharacter.load(session, "characters/high_elf_fighter")
+    town = session.maps["town"]
+    town.add(pc, 1, 1, group="a")
+    tp = Teleporter(session, town, {
+        "name": "gate",
+        "party_travel": True,
+        "target_map": "woods",
+    })
+    town.place_object(tp, 0, 0)
+    assert "party_travel" not in tp.available_interactions(pc)
+
+
+def test_place_party_only_if_absent(tmp_path: Path):
+    _write_campaign(
+        tmp_path,
+        map_sets={
+            "root": {"label": "Town", "maps": ["town"]},
+            "wilds": {"label": "Wilds", "maps": ["woods"]},
+        },
+    )
+    session = Session(root_path=str(tmp_path))
+    pc = PlayerCharacter.load(session, "characters/high_elf_fighter")
+    session.maps["town"].add(pc, 1, 1, group="a")
+    place_entity_instance(session, pc, session.maps["woods"], 3, 3, group="a")
+    placed = place_party_on_map(
+        session, "woods", players=[pc], include_companions=False, include_sidekicks=False, only_if_absent=True,
+    )
+    assert placed[0]["already_present"] is True
+    assert list(session.maps["woods"].position_of(pc)) == [3, 3]
+
+
+def test_place_party_overflow_uses_nearest_free_square(tmp_path: Path):
+    woods = """
+name: woods
+map:
+  illumination: 1.0
+  base:
+    - "...."
+    - "...."
+    - "...."
+    - "...."
+legend: {}
+player: []
+npc: []
+player_spawn_points:
+  - position: [0, 0]
+    group: a
+    name: pc_spawn_1
+"""
+    _write_campaign(
+        tmp_path,
+        map_sets={
+            "root": {"label": "Town", "maps": ["town"]},
+            "wilds": {"label": "Wilds", "maps": ["woods"]},
+        },
+        extra_woods=woods,
+    )
+    session = Session(root_path=str(tmp_path))
+    first = session.npc("goblin", {"name": "One", "overrides": {"entity_uid": "one"}})
+    second = session.npc("goblin", {"name": "Two", "overrides": {"entity_uid": "two"}})
+    session.maps["town"].add(first, 0, 0, group="a")
+    session.maps["town"].add(second, 1, 0, group="a")
+    placed = place_party_on_map(
+        session,
+        "woods",
+        players=[first, second],
+        include_companions=False,
+        include_sidekicks=False,
+    )
+    positions = {tuple(item["position"]) for item in placed}
+    assert (0, 0) in positions
+    assert len(positions) == 2
+    assert (0, 0) not in {tuple(item["position"]) for item in placed if item["entity_uid"] == "two"}
+
+
+def test_validator_allows_party_travel_cross_set(tmp_path: Path):
+    town = """
+name: town
+map:
+  illumination: 1.0
+  base:
+    - "T..."
+    - "...."
+    - "...."
+    - "...."
+legend:
+  T:
+    type: teleporter
+    name: Gate
+    party_travel: true
+    target_map: woods
+player: []
+npc: []
+"""
+    _write_campaign(
+        tmp_path,
+        map_sets={
+            "root": {"label": "Town", "maps": ["town"]},
+            "wilds": {"label": "Wilds", "maps": ["woods"]},
+        },
+        extra_town=town,
+    )
+    report = validate_campaign(tmp_path, ValidateOptions(static_only=True, skip_formatting=True))
+    codes = [issue.code for issue in report.issues]
+    assert "cross_map_set" not in codes

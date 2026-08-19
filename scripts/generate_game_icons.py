@@ -17,7 +17,6 @@ from natural20.image_gen.game_icons import (
     build_session,
     run_icon_generation,
     scan_missing_icons,
-    default_item_output_dir,
     default_spell_output_dir,
     default_action_output_dir,
     default_effect_output_dir,
@@ -86,9 +85,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--write-to",
-        choices=("bundled", "campaign"),
-        default="bundled",
-        help="Where to write new item icons (spells always go to webapp/static/spells)",
+        choices=("auto", "bundled", "campaign"),
+        default="auto",
+        help=(
+            "Where to write new item icons (default: auto). "
+            "auto=campaign-only items → campaign/assets/items, SRD items → bundled; "
+            "campaign-only items never write to bundled static. "
+            "Spells always go to webapp/static/spells."
+        ),
     )
     parser.add_argument(
         "--item-output",
@@ -241,8 +245,6 @@ def main(argv: list[str] | None = None) -> int:
     campaign_root = root if (root / "game.yml").is_file() or (root / "index.json").is_file() else None
     item_output = Path(args.item_output).resolve() if args.item_output else None
     spell_output = Path(args.spell_output).resolve() if args.spell_output else None
-    if item_output is None:
-        item_output = default_item_output_dir(campaign_root=campaign_root, write_to=args.write_to)
     if spell_output is None:
         spell_output = default_spell_output_dir()
     action_output = Path(args.action_output).resolve() if args.action_output else default_action_output_dir()
@@ -264,6 +266,7 @@ def main(argv: list[str] | None = None) -> int:
         force=args.force,
         include_objects=args.item_objects,
         include_packs=args.item_packs,
+        write_to=args.write_to,
     )
 
     if args.scan_only:
@@ -275,6 +278,7 @@ def main(argv: list[str] | None = None) -> int:
                 "image": ref.image_name,
                 "output": str(ref.output_path),
                 "source": ref.source,
+                "scope": ref.scope,
             }
             for ref in missing
         ]

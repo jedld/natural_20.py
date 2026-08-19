@@ -25,6 +25,7 @@ class AttackAction(Action):
         self.attack_roll = None
         self.as_bonus_action = False
         self.hit_result = None
+        self.knock_unconscious = False
 
     def second_hand(self):
         return False
@@ -41,7 +42,8 @@ class AttackAction(Action):
             ),
             'as_reaction': self.as_reaction,
             'thrown': self.thrown,
-            'second_hand': self.second_hand()
+            'second_hand': self.second_hand(),
+            'knock_unconscious': bool(self.knock_unconscious),
         }
 
     @staticmethod
@@ -52,6 +54,7 @@ class AttackAction(Action):
         action.npc_action = hash['npc_action']
         action.as_reaction = hash['as_reaction']
         action.thrown = hash['thrown']
+        action.knock_unconscious = bool(hash.get('knock_unconscious'))
         return action
 
     @staticmethod
@@ -98,6 +101,7 @@ class AttackAction(Action):
         action.npc_action = self.npc_action
         action.as_reaction = self.as_reaction
         action.thrown = self.thrown
+        action.knock_unconscious = bool(self.knock_unconscious)
         action.advantage_mod = self.advantage_mod
         action.attack_roll = self.attack_roll
         return action
@@ -182,6 +186,19 @@ class AttackAction(Action):
     def ranged_attack(self):
         weapon = self.get_attack_info(self.opts)
         return weapon['type'] == 'ranged_attack' or self.thrown
+
+    def can_knock_unconscious(self):
+        """True for melee attacks eligible for the 5e knockout rule.
+
+        Ranged and thrown attacks cannot knock a creature out. The flag may
+        still be set by the UI; resolve() ignores it unless this is True.
+        """
+        if self.thrown:
+            return False
+        try:
+            return not self.ranged_attack()
+        except Exception:
+            return False
 
     def unarmed(self):
         weapon = self.get_attack_info(self.opts)
@@ -786,7 +803,8 @@ class AttackAction(Action):
                     'second_hand': self.second_hand(),
                     'npc_action': self.npc_action,
                     'multiattack_clear': False,
-                    'multiattack_hits': True
+                    'multiattack_hits': True,
+                    'knock_unconscious': bool(self.knock_unconscious) and self.can_knock_unconscious(),
                 }
                 if maneuver:
                     self.hit_result['maneuver'] = maneuver
@@ -1118,6 +1136,8 @@ class LinkedAttackAction(AttackAction):
         linked_attack.as_reaction = self.as_reaction
         linked_attack.using = self.using
         linked_attack.target = self.target
+        linked_attack.thrown = self.thrown
+        linked_attack.knock_unconscious = bool(self.knock_unconscious)
         linked_attack.attack_roll = self.attack_roll
         linked_attack.result = self.result
         return linked_attack

@@ -51,6 +51,58 @@ class TestMap(unittest.TestCase):
         self.assertIn('(5, 1)', message)
         self.assertIn('map.entities', message)
 
+    def test_ascii_wider_than_declared_size_reports_layer_and_row(self):
+        session = Session(root_path='tests/fixtures')
+        try:
+            Map(
+                session,
+                None,
+                name='gates_size_mismatch',
+                properties={
+                    'name': 'Gates Size Mismatch',
+                    'map': {
+                        'size': [20, 20],
+                        'base': ['.' * 21] * 20,
+                    },
+                },
+            )
+        except ValueError as exc:
+            message = str(exc)
+        else:
+            self.fail('expected ValueError for ASCII wider than map.size')
+
+        self.assertIn('gates_size_mismatch', message)
+        self.assertIn('map.base', message)
+        self.assertIn('21 characters wide', message)
+        self.assertIn('[20, 20]', message)
+        self.assertIn('width', message)
+        self.assertIn("1 extra character", message)
+
+    def test_ascii_ragged_rows_name_the_offending_row(self):
+        session = Session(root_path='tests/fixtures')
+        try:
+            Map(
+                session,
+                None,
+                name='ragged_base',
+                properties={
+                    'name': 'Ragged Base',
+                    'map': {
+                        'size': [4, 3],
+                        'base': ['....', '.....', '....'],
+                    },
+                },
+            )
+        except ValueError as exc:
+            message = str(exc)
+        else:
+            self.fail('expected ValueError for ragged ASCII rows')
+
+        self.assertIn('ragged_base', message)
+        self.assertIn('row 1', message)
+        self.assertIn('5 characters wide', message)
+        self.assertIn('expected 4', message)
+
     def test_controller(self):
         session = Session(root_path='tests/fixtures')
         session.render_for_text = False

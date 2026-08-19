@@ -58,11 +58,10 @@ from natural20.utils.movement import compute_actual_moves
 from natural20.concern.lootable import Lootable
 from natural20.concern.inventory import Inventory
 from natural20.progression import (
-  PROGRESSION_MODE_DM,
-  PROGRESSION_MODE_EVENT,
   PROGRESSION_MODE_XP,
   XP_THRESHOLDS_BY_LEVEL,
   hit_die_average,
+  is_event_gated_mode,
   level_for_xp,
   normalize_progression_settings,
   proficiency_bonus_for_level,
@@ -449,14 +448,20 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
   def grant_event_level_up(self, event, reason=None):
       settings = self.progression_settings()
       event_settings = (settings.get('events') or {}).get(event)
-      if self.progression_mode() != PROGRESSION_MODE_EVENT:
-        raise ValueError('Campaign progression mode is not event-gated')
+      if not is_event_gated_mode(self.progression_mode()):
+        raise ValueError('Campaign progression mode is not milestone/event-gated')
       if event_settings is None:
         raise ValueError(f'Level-up event is not configured: {event}')
       levels = int(event_settings.get('levels', 1) or 1) if isinstance(event_settings, dict) else 1
       target_level = event_settings.get('target_level') if isinstance(event_settings, dict) else None
+      pending = len([
+        grant for grant in self.properties.get('level_up_grants', []) or []
+        if not grant.get('consumed')
+      ])
       if target_level is not None:
-        levels = max(0, int(target_level) - self.level())
+        levels = max(0, int(target_level) - self.level() - pending)
+      if levels <= 0:
+        return []
       return self.grant_level_up(
         source='event',
         event=event,

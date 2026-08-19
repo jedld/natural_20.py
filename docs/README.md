@@ -7,10 +7,16 @@ This directory contains the core documentation for the Natural20 D&D simulation 
 | Document | Purpose |
 |----------|---------|
 | [AGENTS.md](../AGENTS.md) | AI agent orientation, MCP catalogue, battle/spell conventions (primary reference) |
+| [DM_NOTES.md](DM_NOTES.md) | Play-time DM-only map pins (invisible to PCs and NPCs) |
+| [NOTEBOOK.md](NOTEBOOK.md) | Player/campaign notes, journals, files (SQLite; not tied to a PC) |
 | [.cursor/skills/n20-add-spell](../.cursor/skills/n20-add-spell/SKILL.md) | End-to-end checklist for adding a spell (engine + VTT visuals) |
+| [.cursor/skills/n20-import-battlemap](../.cursor/skills/n20-import-battlemap/SKILL.md) | **Prefer** when battlemap art already exists: image → map YAML (tile-wise VLM; multi-floor pages split automatically) |
+| [.cursor/skills/n20-add-sidekick](../.cursor/skills/n20-add-sidekick/SKILL.md) | Campaign sidekick NPCs, join tags, Tasha pack opt-in |
 | [CHANGELOG](CHANGELOG_llm_support_merge.md) | Merge changelog from `llm_support` → `master` (210 commits) |
 | [WEBAPP_BLUEPRINTS.md](WEBAPP_BLUEPRINTS.md) | Flask blueprint architecture, helper modules, parity workflow |
+| [VTT_3D.md](VTT_3D.md) | Three.js sibling VTT at `/3d` (JSON `/map_state`, extruded tabletop, campaign `vtt3d.yml`) |
 | [CAMPAIGN_BUILDING.md](CAMPAIGN_BUILDING.md) | Complete campaign creation guide (maps, NPCs, characters, items) |
+| [BATTLEMAP_IMPORTER.md](BATTLEMAP_IMPORTER.md) | Battlemap image → map YAML (tile-wise VLM) |
 | [CONVERSATION_RAG.md](CONVERSATION_RAG.md) | NPC conversation RAG pipeline architecture |
 | [ADVENTURE_WILD_SHEEP_CHASE.md](ADVENTURE_WILD_SHEEP_CHASE.md) | Wild Sheep Chase adventure documentation |
 
@@ -18,11 +24,16 @@ This directory contains the core documentation for the Natural20 D&D simulation 
 
 ### Web Application
 - **WEBAPP_BLUEPRINTS.md** — Blueprint map, helper modules, parity harness, wiring checklist
+- **VTT_3D.md** — Three.js VTT at `/3d`, `GET /map_state`, camera/controls
+- **MCP.md** — Streamable HTTP MCP for Cursor/Claude (DM tools on a running instance)
+- **DM_NOTES.md** — Play-time DM-only map pins (not landmarks)
+- **NOTEBOOK.md** — Player/campaign notes and journals (SQLite, folders, sharing)
 - **CONVERSATION_RAG.md** — Entity RAG handler, NPC conversation flow, context management
 
 ### Game Engine
 - **AGENTS.md** — Core patterns, battle loop, LLM controller, spell/class extension points
 - **CAMPAIGN_BUILDING.md** — YAML-driven resource creation, map editing, entity design
+- **BATTLEMAP_IMPORTER.md** — Tile-wise VLM import from battlemap images
 
 ## Developer Workflows
 
@@ -50,15 +61,15 @@ pytest tests/webapp/test_*_parity.py
 ```
 
 ### MCP Tool Surface
-```bash
-# Tool discovery
-GET /mcp/manifest
-GET /mcp/tools/list
 
-# Tool execution (with token auth)
-POST /mcp/tools/call
-Header: X-MCP-Token: <N20_MCP_DM_TOKEN>
+External hosts (Cursor, Claude Code) use Streamable HTTP JSON-RPC:
+
 ```
+POST /mcp
+Authorization: Bearer <N20_MCP_DM_TOKEN>
+```
+
+Legacy REST (in-app LLM) is unchanged: `GET /mcp/manifest`, `GET /mcp/tools/list`, `POST /mcp/tools/call`. Full setup: [MCP.md](MCP.md).
 
 ## Key Directories
 
@@ -71,6 +82,7 @@ Header: X-MCP-Token: <N20_MCP_DM_TOKEN>
 | `webapp/` | Flask web application, blueprints, templates, static assets |
 | `webapp/mcp/` | MCP tool surface implementation |
 | `templates/` | YAML-driven resources (maps, characters, NPCs, spells, items) |
+| `expansion_packs/` | Opt-in third-party packs (e.g. Tasha’s sidekicks); not SRD |
 | `user_levels/` | Campaign folders (Wild Sheep Chase, PVP, etc.) |
 | `tests/` | Test suite (pytest + Jest) |
 | `scripts/` | Utility scripts (baseline generation, importers, asset tools) |

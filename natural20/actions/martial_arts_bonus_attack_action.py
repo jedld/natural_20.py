@@ -69,6 +69,7 @@ class MartialArtsBonusAttackAction(AttackAction):
         action.using = self.using
         action.target = self.target
         action.as_bonus_action = True
+        action.knock_unconscious = bool(self.knock_unconscious)
         action.advantage_mod = self.advantage_mod
         action.attack_roll = self.attack_roll
         return action

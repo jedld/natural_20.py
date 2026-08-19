@@ -92,6 +92,22 @@ def sanitize_spoken_text_for_tts(text):
     return ' '.join(working.split())
 
 
+_NON_SPEECH_TTS_PATTERN = re.compile(r'^[\s\.\,\!\?\:\;\-\—\–\…\'\"`~]+$')
+
+
+def is_tts_worthy_text(text) -> bool:
+    """Return False when there is nothing meaningful for TTS to speak aloud."""
+    cleaned = sanitize_spoken_text_for_tts(text)
+    if not cleaned:
+        return False
+    if _NON_SPEECH_TTS_PATTERN.fullmatch(cleaned):
+        return False
+    # Require at least one letter or digit (handles "...", "—", "?!", etc.).
+    if not re.search(r'[\w]', cleaned, flags=re.UNICODE):
+        return False
+    return True
+
+
 def passive_perception_for(entity):
     if entity is None:
         return 10

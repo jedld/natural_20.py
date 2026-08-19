@@ -8,7 +8,9 @@ from natural20.concern.lootable import Lootable
 from natural20.item_library.chest import Chest
 from natural20.item_library.door_object import DoorObject, DoorObjectWall
 from natural20.item_library.object import Object
+from natural20.item_library.teleporter import Teleporter
 from natural20.web.quick_interact_registry import (
+    action_icon_exists,
     glyph_icon_for_action,
     resolve_action_image_slug,
     resolve_action_label,
@@ -19,6 +21,8 @@ _QUICK_ACTION_ICONS = {
     'close': 'remove',
     'unlock': 'log-in',
     'lock': 'lock',
+    'bar': 'lock',
+    'unbar': 'log-in',
     'loot': 'briefcase',
     'carry': 'move',
 }
@@ -28,6 +32,8 @@ _QUICK_ACTION_IMAGE_SLUGS = {
     'close': 'interact_close',
     'unlock': 'interact_unlock',
     'lock': 'interact_lock',
+    'bar': 'interact_lock',
+    'unbar': 'interact_unlock',
     'loot': 'interact_loot',
     'carry': 'interact_pickup_drop',
 }
@@ -67,12 +73,14 @@ _QUICK_ACTION_LABELS = {
     'close': 'Close',
     'unlock': 'Unlock',
     'lock': 'Lock',
+    'bar': 'Bar',
+    'unbar': 'Unbar',
     'loot': 'Loot',
     'carry': 'Carry',
 }
 
 # Door/chest state actions are rendered by specialized builders; everything else is generic.
-_STRUCTURED_OBJECT_ACTIONS: Set[str] = {'open', 'close', 'unlock', 'lock', 'loot'}
+_STRUCTURED_OBJECT_ACTIONS: Set[str] = {'open', 'close', 'unlock', 'lock', 'bar', 'unbar', 'loot'}
 
 
 def _target_label(target) -> str:
@@ -143,7 +151,7 @@ def _entity_interaction_entry(
     details = interactions.get(action) or {}
     resolved_label = label or _QUICK_ACTION_LABELS.get(action) or action
     icon = _QUICK_ACTION_ICONS.get(action, 'wrench')
-    image = _QUICK_ACTION_IMAGE_SLUGS.get(action, f'interact_{action}')
+    image = _action_image_slug(action)
     in_range = admin or _in_interact_range(pov_entity, target, battle, map_obj)
 
     if not in_range:
@@ -196,9 +204,12 @@ def _loot_action_entry(
     )
 
 
-def _action_image_slug(action: str, *, chest: bool = False) -> str:
+def _action_image_slug(action: str, *, chest: bool = False) -> str | None:
     mapping = _CHEST_ACTION_IMAGE_SLUGS if chest else _QUICK_ACTION_IMAGE_SLUGS
-    return mapping[action]
+    slug = mapping.get(action) or f'interact_{action}'
+    if slug and action_icon_exists(slug):
+        return slug
+    return None
 
 
 def _door_facing_name(door) -> str | None:
@@ -454,7 +465,8 @@ def object_quick_interact_anchor(object_entity, pov_entity=None) -> str | None:
     except (ValueError, KeyError, TypeError):
         return 'top'
     if (px, py) == (ox, oy):
-        return 'top'
+        # Sit beside the token so POV perception (top/bottom) stays readable.
+        return 'right'
     return _anchor_toward_point(ox, oy, px, py)
 
 
@@ -544,6 +556,15 @@ def _door_quick_actions(door, pov_entity, battle=None, admin: bool = False) -> L
         if entry:
             actions.append(entry)
 
+    if 'unbar' in interactions:
+        entry = _action_entry('unbar', interactions)
+        if entry:
+            actions.append(entry)
+    elif 'bar' in interactions:
+        entry = _action_entry('bar', interactions)
+        if entry:
+            actions.append(entry)
+
     return actions
 
 
@@ -576,6 +597,75 @@ def _chest_quick_actions(chest: Chest, pov_entity, battle=None, admin: bool = Fa
             actions.append(entry)
 
     return actions
+
+
+def _party_travel_action_label(teleporter) -> str:
+    session = getattr(teleporter, 'session', None)
+    if session is None:
+        session = getattr(getattr(teleporter, 'map', None), 'session', None)
+    label_fn = getattr(teleporter, 'party_travel_interact_label', None)
+    if callable(label_fn):
+        return str(label_fn(session))
+    dest_fn = getattr(teleporter, 'destination_label', None)
+    dest = dest_fn() if callable(dest_fn) else ''
+    if dest:
+        return f"Travel with party → {dest}"
+    return 'Travel with party'
+
+
+def _party_travel_quick_actions(
+    teleporter,
+    pov_entity,
+    battle=None,
+    admin: bool = False,
+) -> List[Dict[str, Any]]:
+    """Hover Travel button for party map-set pads, including approach from adjacent tiles."""
+    if teleporter is None or pov_entity is None:
+        return []
+    is_party = getattr(teleporter, 'is_party_travel', None)
+    if not callable(is_party) or not is_party():
+        return []
+    map_obj = getattr(teleporter, 'map', None)
+    if not admin and map_obj is not None and not _entity_on_map(map_obj, pov_entity):
+        return []
+
+    interactions = teleporter.available_interactions(pov_entity, battle, admin=admin) or {}
+    details = interactions.get('party_travel')
+    on_pad = admin or _shares_tile_with_pov(map_obj, teleporter, pov_entity)
+    label = _party_travel_action_label(teleporter)
+    image = resolve_action_image_slug(teleporter, 'party_travel')
+    icon = glyph_icon_for_action('party_travel')
+    show_label = image is None
+
+    if details is None:
+        if on_pad:
+            return []
+        return [{
+            'action': 'party_travel',
+            'label': label,
+            'icon': icon,
+            'image': image,
+            'show_label': show_label,
+            'disabled': False,
+            'needs_approach': True,
+        }]
+
+    entry = _generic_interaction_entry(
+        'party_travel',
+        details,
+        teleporter,
+        pov_entity,
+        battle,
+        map_obj,
+        admin=admin,
+    )
+    if not entry:
+        return []
+    if not on_pad and not admin:
+        entry['needs_approach'] = True
+        entry['disabled'] = False
+        entry.pop('disabled_text', None)
+    return [entry]
 
 
 def _object_loot_quick_actions(obj: Object, pov_entity, battle=None, admin: bool = False) -> List[Dict[str, Any]]:
@@ -685,6 +775,12 @@ def quick_interact_actions_for(object_entity, pov_entity, battle=None, admin: bo
     elif isinstance(object_entity, Chest):
         actions = _chest_quick_actions(object_entity, pov_entity, battle, admin=admin)
         skip_generic = set(_STRUCTURED_OBJECT_ACTIONS)
+    elif isinstance(object_entity, Teleporter) and object_entity.is_party_travel():
+        actions = _party_travel_quick_actions(object_entity, pov_entity, battle, admin=admin)
+        skip_generic = {'party_travel', 'loot'}
+        loot_actions = _object_loot_quick_actions(object_entity, pov_entity, battle, admin=admin)
+        if loot_actions:
+            actions = actions + loot_actions
     elif isinstance(object_entity, Object):
         actions = _object_loot_quick_actions(object_entity, pov_entity, battle, admin=admin)
         skip_generic = {'loot'}

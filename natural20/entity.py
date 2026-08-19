@@ -1346,11 +1346,11 @@ class Entity(EntityStateEvaluator, Notable):
             for effect in self.casted_effects:
                 self.dismiss_effect(effect['effect'])
 
-            # Fire YAML-registered 'died' event hooks (e.g. spawn, message).
+            # Fire YAML-registered 'died' event hooks (e.g. spawn, set_session).
             try:
                 self.resolve_trigger('died', { 'battle': battle })
             except Exception:
-                pass
+                logger.exception('died event hook failed for %s', getattr(self, 'name', self))
 
             self.after_death()
 
@@ -1533,6 +1533,12 @@ class Entity(EntityStateEvaluator, Notable):
             # dismiss all effects
             for effect in self.casted_effects:
                 self.dismiss_effect(effect['effect'])
+
+    def _apply_knock_unconscious(self):
+        """5e knockout: 0 HP, unconscious, and stable instead of dying."""
+        self.attributes['hp'] = 0
+        self.make_unconscious()
+        self.make_stable()
 
 
     def lockpick(self, battle=None):
@@ -3666,6 +3672,12 @@ class Entity(EntityStateEvaluator, Notable):
 
         self.attributes["hp"] -= total_damage
         instant_death = False
+        already_down = bool(self.unconscious() or self.dead())
+        knock_out = (
+            not already_down
+            and not self.object()
+            and bool(item and item.get('knock_unconscious'))
+        )
 
         # Half-Orc Relentless Endurance: when reduced to 0 HP but not killed
         # outright, drop to 1 HP instead. Once per long rest.
@@ -3698,11 +3710,19 @@ class Entity(EntityStateEvaluator, Notable):
                                                     'fails': self.death_fails, 'complete': complete})
 
         if self.hp() < 0 and abs(self.hp()) >= self.properties['max_hp']:
-            instant_death = True
-            self.make_dead(battle=battle)
+            if knock_out:
+                instant_death = False
+                self._apply_knock_unconscious()
+            else:
+                instant_death = True
+                self.make_dead(battle=battle)
 
         elif self.hp() <= 0:
-            if self.object() or (self.npc() and not self.makes_death_saves()):
+            if already_down:
+                pass
+            elif knock_out:
+                self._apply_knock_unconscious()
+            elif self.object() or (self.npc() and not self.makes_death_saves()):
                 self.make_dead(battle=battle)
             else:
                 self.make_unconscious()

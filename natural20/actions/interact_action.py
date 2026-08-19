@@ -10,6 +10,7 @@ _DEFAULT_INTERACT_BUTTONS = {
     'carry': {'label': 'Carry', 'image': 'interact_pickup_drop'},
     'take': {'label': 'Take', 'image': 'interact_pickup_drop'},
     'buzz': {'label': 'Ring for Room Service', 'image': 'interact_use'},
+    'party_travel': {'label': 'Travel with Party'},
 }
 
 
@@ -35,8 +36,10 @@ class InteractAction(Action):
     def label(self):
         if self.disabled:
             return f"{self.source} cannot {self.action_type} with [{self.target}] because of [{self.disabled_reason}]"
-        else:
-            return f"{self.object_action_name()} {self.target}"
+        prompt = self.object_action_prompt() or self.button_label()
+        if prompt:
+            return prompt
+        return f"{self.object_action_name()} {self.target}"
     
     def object_action_name(self):
         if isinstance(self.object_action, str):

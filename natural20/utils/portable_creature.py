@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Mapping, Sequence
+from datetime import date, datetime
 from typing import Any, Optional
+from uuid import UUID
 
 from natural20.utils.item_size import creature_body_weight_lbs, normalize_size
 
 CREATURE_ITEM_PREFIX = 'creature:'
+_SKIP = object()
+_PRIMITIVES = (str, int, float, bool, bytes, type(None))
 
 
 def creature_inventory_key(entity) -> str:
@@ -85,19 +90,85 @@ def _creature_size(entity) -> str:
     return normalize_size(props.get('size'), default='medium')
 
 
-def _strip_session(value):
-    if isinstance(value, dict):
-        return {k: _strip_session(v) for k, v in value.items() if k != 'session'}
-    if isinstance(value, list):
-        return [_strip_session(v) for v in value]
-    return value
+def _yaml_safe_copy(value, memo=None):
+    """Copy JSON/YAML-safe data; skip live objects (Session, locks, entities)."""
+    if isinstance(value, _PRIMITIVES):
+        return value
+    if isinstance(value, (date, datetime, UUID)):
+        return str(value) if isinstance(value, UUID) else value
+
+    if memo is None:
+        memo = {}
+    obj_id = id(value)
+    if obj_id in memo:
+        return memo[obj_id]
+
+    if isinstance(value, Mapping):
+        out = {}
+        memo[obj_id] = out
+        try:
+            items = list(value.items())
+        except Exception:
+            return _SKIP
+        for key, item in items:
+            if key == 'session' or not isinstance(key, (str, int, float, bool)):
+                continue
+            copied = _yaml_safe_copy(item, memo)
+            if copied is _SKIP:
+                continue
+            out[key] = copied
+        return out
+
+    if isinstance(value, (list, tuple, set, frozenset)):
+        out = []
+        memo[obj_id] = out
+        for item in value:
+            copied = _yaml_safe_copy(item, memo)
+            if copied is not _SKIP:
+                out.append(copied)
+        return out
+
+    if isinstance(value, Sequence):
+        out = []
+        memo[obj_id] = out
+        try:
+            for item in value:
+                copied = _yaml_safe_copy(item, memo)
+                if copied is not _SKIP:
+                    out.append(copied)
+        except Exception:
+            return _SKIP
+        return out
+
+    uid = getattr(value, 'entity_uid', None)
+    if isinstance(uid, str) and uid:
+        return uid
+    return _SKIP
+
+
+def _creature_item_stub(entity) -> dict:
+    """Capacity-check shape for ``can_accept_item`` — no ``to_dict`` / deepcopy."""
+    return {
+        'type': creature_inventory_key(entity),
+        'qty': 1,
+        'is_creature': True,
+        'entity_uid': getattr(entity, 'entity_uid', None),
+        'size': _creature_size(entity),
+        'weight': round(creature_carry_weight_lbs(entity, getattr(entity, 'session', None)), 2),
+        'label': _creature_label(entity),
+    }
 
 
 def serialize_portable_creature(entity) -> dict:
     """YAML-safe snapshot stored on an inventory entry."""
     kind = _creature_kind(entity)
     raw = entity.to_dict() if hasattr(entity, 'to_dict') else {}
-    payload = _strip_session(copy.deepcopy(raw) if isinstance(raw, dict) else {})
+    try:
+        payload = _yaml_safe_copy(raw) if isinstance(raw, Mapping) else {}
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
     payload.pop('session', None)
     if kind == 'npc':
         payload.setdefault('npc_type', getattr(entity, 'npc_type', None))
@@ -106,18 +177,11 @@ def serialize_portable_creature(entity) -> dict:
         payload.setdefault('type', 'pc')
     payload['entity_uid'] = getattr(entity, 'entity_uid', payload.get('entity_uid'))
     payload['name'] = getattr(entity, 'name', payload.get('name'))
-    return {
-        'type': creature_inventory_key(entity),
-        'qty': 1,
-        'is_creature': True,
-        'entity_uid': getattr(entity, 'entity_uid', None),
-        'creature_kind': kind,
-        'size': _creature_size(entity),
-        'weight': round(creature_carry_weight_lbs(entity, getattr(entity, 'session', None)), 2),
-        'label': _creature_label(entity),
-        'image': 'interact_pickup_drop',
-        'payload': payload,
-    }
+    snapshot = _creature_item_stub(entity)
+    snapshot['creature_kind'] = kind
+    snapshot['image'] = 'interact_pickup_drop'
+    snapshot['payload'] = payload
+    return snapshot
 
 
 def restore_portable_creature(session, entry: dict):
@@ -211,7 +275,7 @@ def can_pickup_creature(carrier, creature, battle=None, map_obj=None, session=No
     if resolved_map is None:
         return False, 'Creature is not on the map'
     accept = getattr(carrier, 'can_accept_item', None)
-    snapshot = serialize_portable_creature(creature)
+    snapshot = _creature_item_stub(creature)
     if callable(accept):
         ok, reason = accept(snapshot['type'], 1, source_item=snapshot, session=session)
         if not ok:

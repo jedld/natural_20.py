@@ -205,14 +205,18 @@ python scripts/generate_game_icons.py --root templates --scan-only | head
 python scripts/generate_game_icons.py --root templates --dry-run --limit 3 \
   --icon-style "flat style icons, bold silhouette, dark vignette"
 
-# Generate missing bundled icons
+# Generate missing bundled icons (SRD / template items)
 python scripts/generate_game_icons.py --root templates --icon-style "flat style icons"
 
 # Action icons only (webapp/static/actions)
 python scripts/generate_game_icons.py --root templates --no-items --no-spells \
   --icon-style "flat style icons"
 
-# Campaign session root (uses game.yml asset_theme in prompts); write items to campaign/assets/items
+# Campaign session: campaign-only items write to <campaign>/assets/items
+# (SRD items still go to bundled static). `--write-to auto` is the default.
+python scripts/generate_game_icons.py --campaign user_levels/death_house
+
+# Force template-item icons into the campaign folder (optional overrides)
 python scripts/generate_game_icons.py --campaign user_levels/wild_sheep_chase \
   --write-to campaign --only healing_potion
 ```
@@ -222,7 +226,7 @@ python scripts/generate_game_icons.py --campaign user_levels/wild_sheep_chase \
 | `--icon-style` | Style phrase for every prompt (default: flat style fantasy game icon…) |
 | `--items` / `--spells` / `--actions` | Toggle which catalogs to scan (all on by default) |
 | `--scan-only` | JSON list of missing icons, no MCP |
-| `--write-to bundled\|campaign` | Item output directory (spells → `webapp/static/spells`, actions → `webapp/static/actions`) |
+| `--write-to auto\|bundled\|campaign` | Item output directory. **auto** (default): campaign-only YAML items → `<campaign>/assets/items`, SRD items → bundled static. Campaign-only items never write to bundled. Spells → `webapp/static/spells`, actions → `webapp/static/actions` |
 | `--optimize` / `--no-optimize` | PNG compress after save (default: on) |
 | `--webp` | Also emit `.webp` siblings (UI still uses `.png` unless templates are updated) |
 | `--only ID` | Limit to one item/spell/action slug (repeatable) |

@@ -215,6 +215,7 @@ class WildShapeAttackAction(AttackAction):
         action.npc_action = self.npc_action
         action.as_reaction = self.as_reaction
         action.thrown = self.thrown
+        action.knock_unconscious = bool(self.knock_unconscious)
         action.advantage_mod = self.advantage_mod
         action.attack_roll = self.attack_roll
         return action

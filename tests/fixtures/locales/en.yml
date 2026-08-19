@@ -291,6 +291,11 @@ en:
       lock: clink. door is now locked
       locked: Door is locked
       unlock: Ka-chink! door is now unlocked
+    window:
+      barred: Window is barred from the inside
+      bar: The bar drops into place
+      unbar: The bar slides free
+      window_blocked: Window is blocked
     equip_problem:
       armor_equipped: You already have an armor on (please unequip armor)
       hands_full: Hand Slots are full (please unequip a weapon/shield)

@@ -6,6 +6,7 @@ from natural20.item_library.object import Object
 from natural20.item_library.common import Ground, StoneWall, StoneWallDirectional
 from natural20.item_library.fireplace import Fireplace
 from natural20.item_library.door_object import DoorObjectWall, DoorObject
+from natural20.item_library.window_object import WindowObjectWall
 from natural20.item_library.chest import Chest
 from natural20.item_library.teleporter import Teleporter
 from natural20.item_library.trap_door import TrapDoor
@@ -81,6 +82,7 @@ CLASS_TAG_MAPPING = {
     StoneWallDirectional: '!stone_wall_directional',
     Fireplace: '!fireplace',
     DoorObjectWall: '!door_object_wall',
+    WindowObjectWall: '!window_object_wall',
     DoorObject: '!door_object',
     Chest: '!chest',
     Switch: '!switch',

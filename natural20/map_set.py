@@ -401,6 +401,50 @@ def iter_player_characters(session) -> list:
     return players
 
 
+def _spawn_positions(target_map) -> list[tuple[int, int]]:
+    slots = getattr(target_map, 'player_spawn_points', None) or []
+    positions = []
+    for slot in slots:
+        if isinstance(slot, (list, tuple)) and len(slot) >= 2:
+            positions.append((int(slot[0]), int(slot[1])))
+            continue
+        if isinstance(slot, dict):
+            pos = slot.get('position') or slot.get('pos')
+            if isinstance(pos, (list, tuple)) and len(pos) >= 2:
+                positions.append((int(pos[0]), int(pos[1])))
+    return positions
+
+
+def _nearest_placeable_to_spawns(target_map, entity, anchors: list[tuple[int, int]]) -> tuple[int, int]:
+    """BFS from spawn/anchor squares to the nearest placeable cell."""
+    from collections import deque
+
+    width, height = _map_size_xy(target_map)
+    seeds = [ (int(x), int(y)) for x, y in (anchors or []) if 0 <= int(x) < width and 0 <= int(y) < height ]
+    if not seeds:
+        seeds = [(0, 0)]
+    visited: set[tuple[int, int]] = set()
+    queue: deque[tuple[int, int]] = deque(seeds)
+    for seed in seeds:
+        visited.add(seed)
+    while queue:
+        x, y = queue.popleft()
+        try:
+            if target_map.placeable(entity, x, y, squeeze=False):
+                return x, y
+        except Exception:
+            pass
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)):
+            nx, ny = x + dx, y + dy
+            if nx < 0 or ny < 0 or nx >= width or ny >= height:
+                continue
+            if (nx, ny) in visited:
+                continue
+            visited.add((nx, ny))
+            queue.append((nx, ny))
+    return seeds[0]
+
+
 def _next_placeable(target_map, entity, x: int, y: int) -> tuple[int, int]:
     try:
         if target_map.placeable(entity, int(x), int(y), squeeze=False):
@@ -412,46 +456,72 @@ def _next_placeable(target_map, entity, x: int, y: int) -> tuple[int, int]:
         try:
             found = finder(entity, int(x), int(y))
             if found:
-                return int(found[0]), int(found[1])
+                fx, fy = int(found[0]), int(found[1])
+                try:
+                    if target_map.placeable(entity, fx, fy, squeeze=False):
+                        return fx, fy
+                except Exception:
+                    pass
         except Exception:
             pass
-    size = getattr(target_map, 'size', [1, 1]) or [1, 1]
-    for oy in range(int(size[1])):
-        for ox in range(int(size[0])):
-            try:
-                if target_map.placeable(entity, ox, oy, squeeze=False):
-                    return ox, oy
-            except Exception:
-                continue
-    return int(x), int(y)
+    return _nearest_placeable_to_spawns(target_map, entity, [(int(x), int(y))])
 
 
 def place_party_on_map(session, map_name: str, x: Optional[int] = None, y: Optional[int] = None,
-                       players: Optional[list] = None, include_companions: bool = True) -> list[dict[str, Any]]:
-    """Create/update PC (and companion) instances on ``map_name``.
+                       players: Optional[list] = None, include_companions: bool = True,
+                       include_sidekicks: bool = True, only_if_absent: bool = False) -> list[dict[str, Any]]:
+    """Create/update PC (and companion/sidekick) instances on ``map_name``.
 
     Does not activate the map set. Returns a list of placement dicts.
+    When ``only_if_absent`` is True, entities that already have a token on the
+    destination map set are left where they are.
     """
     target_map = (getattr(session, 'maps', {}) or {}).get(map_name)
     if target_map is None:
         raise ValueError(f'Unknown map: {map_name}')
 
     party = list(players) if players is not None else iter_party_members(session)
+    if include_sidekicks and players is not None:
+        seen = {str(getattr(ent, 'entity_uid', '') or '') for ent in party}
+        try:
+            from natural20.sidekick import iter_in_party_sidekicks
+            for extra in iter_in_party_sidekicks(session):
+                uid = str(getattr(extra, 'entity_uid', '') or '')
+                if uid and uid not in seen:
+                    seen.add(uid)
+                    party.append(extra)
+        except Exception:
+            pass
+
     placed: list[dict[str, Any]] = []
+    dest_set = session.map_set_for(map_name) if hasattr(session, 'map_set_for') else None
+    spawn_anchors = _spawn_positions(target_map)
     origin_x, origin_y = x, y
     if origin_x is None or origin_y is None:
-        slots = getattr(target_map, 'player_spawn_points', None) or []
-        if slots:
-            origin_x, origin_y = slots[0].get('position') or slots[0].get('pos') or [0, 0]
-            if isinstance(slots[0], (list, tuple)):
-                origin_x, origin_y = slots[0][0], slots[0][1]
+        if spawn_anchors:
+            origin_x, origin_y = spawn_anchors[0]
         else:
             origin_x, origin_y = 0, 0
 
     for index, entity in enumerate(party):
+        uid = str(getattr(entity, 'entity_uid', '') or '')
+        if only_if_absent and dest_set is not None:
+            existing_map = session.map_for_entity(entity, map_set=dest_set)
+            if existing_map is not None:
+                try:
+                    pos = existing_map.position_of(entity)
+                except Exception:
+                    pos = None
+                placed.append({
+                    'entity_uid': uid,
+                    'map': getattr(existing_map, 'name', map_name),
+                    'position': list(pos) if pos is not None else None,
+                    'already_present': True,
+                })
+                continue
+
         slot = None
         allocate = getattr(target_map, 'allocate_player_spawn_point', None)
-        uid = str(getattr(entity, 'entity_uid', '') or '')
         if allocate and (x is None or y is None):
             try:
                 slot = allocate(uid)
@@ -460,13 +530,23 @@ def place_party_on_map(session, map_name: str, x: Optional[int] = None, y: Optio
         if slot:
             pos = slot.get('position') or slot.get('pos') or [origin_x, origin_y]
             px, py = int(pos[0]), int(pos[1])
+            try:
+                if not target_map.placeable(entity, px, py, squeeze=False):
+                    px, py = _nearest_placeable_to_spawns(target_map, entity, spawn_anchors or [(px, py)])
+            except Exception:
+                px, py = _nearest_placeable_to_spawns(target_map, entity, spawn_anchors or [(px, py)])
         else:
-            px, py = _next_placeable(target_map, entity, int(origin_x) + index, int(origin_y))
+            anchors = spawn_anchors or [(int(origin_x), int(origin_y))]
+            if x is not None and y is not None:
+                anchors = [(int(origin_x) + index, int(origin_y))] + list(anchors)
+            px, py = _nearest_placeable_to_spawns(target_map, entity, anchors)
+
         place_entity_instance(session, entity, target_map, px, py, group=getattr(entity, 'group', None) or 'a')
         placed.append({
             'entity_uid': uid,
             'map': map_name,
             'position': [px, py],
+            'already_present': False,
         })
         if include_companions:
             try:
@@ -512,8 +592,17 @@ def assignment_blockers(session, map_name: str, new_set_id: str) -> list[str]:
     def _target_of(obj) -> Optional[str]:
         return getattr(obj, 'target_map', None) or None
 
+    def _is_party_link(obj) -> bool:
+        try:
+            from natural20.item_library.teleporter import is_party_travel_object
+            return is_party_travel_object(obj)
+        except Exception:
+            return False
+
     battle_map = maps[map_name]
     for obj in list(getattr(battle_map, 'interactable_objects', {}).keys()):
+        if _is_party_link(obj):
+            continue
         target = _target_of(obj)
         if not target:
             continue
@@ -530,6 +619,8 @@ def assignment_blockers(session, map_name: str, new_set_id: str) -> list[str]:
         if session.map_set_for(other_name) != current_set:
             continue
         for obj in list(getattr(other_map, 'interactable_objects', {}).keys()):
+            if _is_party_link(obj):
+                continue
             if _target_of(obj) == map_name:
                 errors.append(
                     f"Map '{other_name}' has a {type(obj).__name__} targeting '{map_name}' "

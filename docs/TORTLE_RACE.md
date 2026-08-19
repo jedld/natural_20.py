@@ -27,10 +27,11 @@ Tortle is a player race from *Monsters of the Multiverse* (SRD-compatible). This
 
 ### Shell Defense Mechanics
 
-- **Enter Shell** (action): `_in_shell = True`, `_prone = True`, movement = 0, +4 AC bonus
-- **Exit Shell** (bonus action): `_in_shell = False`, `_prone = False`, movement restored
-- While in shell: advantage on STR/CON saves, disadvantage on DEX saves, no reactions
+- **Enter Shell** (action): available in and out of combat; sets `_in_shell`, applies prone via `do_prone()`, movement = 0, +4 AC bonus, registers a `shell_defense` map effect
+- **Exit Shell** (bonus action): clears shell state and prone, restores movement
+- While in shell: advantage on STR/CON saves, disadvantage on DEX saves, no reactions, action bar limited to Emerge only
 - AC during shell: 21 (17 base + 4 shell) + shield bonus
+- Web wiring: `ShellDefenseAction` / `EmergenceAction` are registered in `webapp/blueprints/helpers/action_utils.py`
 
 ## YAML Schema
 

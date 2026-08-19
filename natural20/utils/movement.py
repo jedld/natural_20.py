@@ -135,7 +135,7 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
         if fixed_movement:
             movement_budget -= 1
         else:
-            if incorporeal_movement or (map.difficult_terrain(entity, *m, battle) and not entity.is_flying() and (not manual_jump or len(manual_jump)==0 or index not in manual_jump)):
+            if incorporeal_movement or (map.difficult_terrain(entity, *m, battle, from_pos=current_moves[index - 1]) and not entity.is_flying() and (not manual_jump or len(manual_jump)==0 or index not in manual_jump)):
                 movement_budget -= 2
             else:
                 movement_budget -= 1

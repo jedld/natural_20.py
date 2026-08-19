@@ -514,6 +514,331 @@ corner_door_br:
   token_open:
     - ─
   token_editor_image: corner_door_br_door_bottom.png
+window_top:
+  description: A wall window on the north edge. Opens like a door; glass or shutters; can be barred from inside.
+  color: cyan
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: WindowObjectWall
+  spawner_category: window_walls
+  max_hp: 18
+  name: Window Top
+  hide_map_token: true
+  door_pos: 0
+  cover_pane: glass
+  inside_cover: half
+  window_size: medium
+  difficult_terrain: true
+  window_material: wood
+  wall_material: stone
+  barred: false
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
+  token:
+    - ▭
+  token_open:
+    - ─
+  edit_ui: &window_edit_ui
+    label: Window
+    scope:
+      - legend
+      - entity
+    groups:
+      - id: window
+        label: Window
+        fields:
+          - key: name
+            label: Name
+            type: string
+            help: Optional label for this window in edit mode and on the map.
+          - key: state
+            label: State
+            type: enum
+            default: closed
+            choices:
+              - { value: closed, label: Closed }
+              - { value: opened, label: Open }
+          - key: cover_pane
+            label: Cover
+            type: enum
+            default: glass
+            help: Glass blocks attacks (total cover) but not vision. Opaque shutters match the window material and block both.
+            choices:
+              - { value: glass, label: Glass (see-through, total cover) }
+              - { value: opaque, label: Opaque shutter }
+          - key: inside_cover
+            label: Inside cover (open)
+            type: enum
+            default: half
+            help: Cover for creatures on the interior side of an open window (PHB half +2 AC / three-quarters +5 AC).
+            choices:
+              - { value: half, label: Half cover (+2 AC) }
+              - { value: three_quarter, label: Three-quarters cover (+5 AC) }
+          - key: window_size
+            label: Opening size
+            type: enum
+            default: medium
+            help: Smaller openings grant total cover to Tiny (and Small, for slits) creatures. Prone/"crouching" creatures of typical size have total cover behind the sill.
+            choices:
+              - { value: small, label: Small (slit / high sill) }
+              - { value: medium, label: Medium }
+              - { value: large, label: Large (low sill) }
+          - key: max_pass_size
+            label: Largest creature that can pass
+            type: enum
+            default: any
+            help: Creatures larger than this cannot climb through the opening, even when the window is open. Shown on tile mouseover. Independent of opening size (cover).
+            choices:
+              - { value: any, label: Any size }
+              - { value: tiny, label: Tiny }
+              - { value: small, label: Small (Medium and larger cannot pass) }
+              - { value: medium, label: Medium }
+              - { value: large, label: Large }
+              - { value: huge, label: Huge }
+              - { value: gargantuan, label: Gargantuan }
+          - key: barred
+            label: Barred from inside
+            type: boolean
+            default: false
+          - key: difficult_terrain
+            label: Climbing through is difficult terrain
+            type: boolean
+            default: true
+          - key: window_material
+            label: Window material
+            type: enum
+            default: wood
+            help: Frame, shutter, and breakable pane. Stone or iron is harder to smash than wood or glass.
+            choices:
+              - { value: wood, label: Wood }
+              - { value: stone, label: Stone }
+              - { value: glass, label: Glass }
+              - { value: iron, label: Iron }
+          - key: wall_material
+            label: Wall material
+            type: enum
+            default: stone
+            help: Material of the surrounding wall (may differ from the window). Used in 3D.
+            choices:
+              - { value: stone, label: Stone }
+              - { value: wood, label: Wood }
+              - { value: plaster, label: Plaster }
+              - { value: iron, label: Iron }
+window_bottom:
+  description: A wall window on the south edge. Opens like a door; glass or shutters; can be barred from inside.
+  color: cyan
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: WindowObjectWall
+  spawner_category: window_walls
+  max_hp: 18
+  name: Window Bottom
+  hide_map_token: true
+  door_pos: 2
+  cover_pane: glass
+  inside_cover: half
+  window_size: medium
+  difficult_terrain: true
+  window_material: wood
+  wall_material: stone
+  barred: false
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
+  token:
+    - ▭
+  token_open:
+    - ─
+  edit_ui: *window_edit_ui
+window_right:
+  description: A wall window on the east edge. Opens like a door; glass or shutters; can be barred from inside.
+  color: cyan
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: WindowObjectWall
+  spawner_category: window_walls
+  max_hp: 18
+  name: Window Right
+  hide_map_token: true
+  door_pos: 1
+  cover_pane: glass
+  inside_cover: half
+  window_size: medium
+  difficult_terrain: true
+  window_material: wood
+  wall_material: stone
+  barred: false
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
+  token:
+    - ▯
+  token_open:
+    - │
+  edit_ui: *window_edit_ui
+window_left:
+  description: A wall window on the west edge. Opens like a door; glass or shutters; can be barred from inside.
+  color: cyan
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: WindowObjectWall
+  spawner_category: window_walls
+  max_hp: 18
+  name: Window Left
+  hide_map_token: true
+  door_pos: 3
+  cover_pane: glass
+  inside_cover: half
+  window_size: medium
+  difficult_terrain: true
+  window_material: wood
+  wall_material: stone
+  barred: false
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
+  token:
+    - ▯
+  token_open:
+    - │
+  edit_ui: *window_edit_ui
+corner_window_tl:
+  description: Corner window (north opening, west wall). Glass or shutters; can be barred from inside.
+  color: cyan
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: WindowObjectWall
+  spawner_category: window_walls
+  max_hp: 18
+  name: Corner Window Top Left
+  hide_map_token: true
+  door_pos: 0
+  cover_pane: glass
+  inside_cover: half
+  window_size: medium
+  difficult_terrain: true
+  window_material: wood
+  wall_material: stone
+  barred: false
+  border:
+    - 0
+    - 0
+    - 0
+    - 1
+  token:
+    - ⌞
+  token_open:
+    - │
+  edit_ui: *window_edit_ui
+corner_window_tr:
+  description: Corner window (north opening, east wall). Glass or shutters; can be barred from inside.
+  color: cyan
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: WindowObjectWall
+  spawner_category: window_walls
+  max_hp: 18
+  name: Corner Window Top Right
+  hide_map_token: true
+  door_pos: 0
+  cover_pane: glass
+  inside_cover: half
+  window_size: medium
+  difficult_terrain: true
+  window_material: wood
+  wall_material: stone
+  barred: false
+  border:
+    - 0
+    - 1
+    - 0
+    - 0
+  token:
+    - ⌝
+  token_open:
+    - │
+  edit_ui: *window_edit_ui
+corner_window_bl:
+  description: Corner window (south opening, west wall). Glass or shutters; can be barred from inside.
+  color: cyan
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: WindowObjectWall
+  spawner_category: window_walls
+  max_hp: 18
+  name: Corner Window Bottom Left
+  hide_map_token: true
+  door_pos: 2
+  cover_pane: glass
+  inside_cover: half
+  window_size: medium
+  difficult_terrain: true
+  window_material: wood
+  wall_material: stone
+  barred: false
+  border:
+    - 0
+    - 0
+    - 0
+    - 1
+  token:
+    - ⌞
+  token_open:
+    - ─
+  edit_ui: *window_edit_ui
+corner_window_br:
+  description: Corner window (south opening, east wall). Glass or shutters; can be barred from inside.
+  color: cyan
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: WindowObjectWall
+  spawner_category: window_walls
+  max_hp: 18
+  name: Corner Window Bottom Right
+  hide_map_token: true
+  door_pos: 2
+  cover_pane: glass
+  inside_cover: half
+  window_size: medium
+  difficult_terrain: true
+  window_material: wood
+  wall_material: stone
+  barred: false
+  border:
+    - 0
+    - 1
+    - 0
+    - 0
+  token:
+    - ⌝
+  token_open:
+    - ─
+  edit_ui: *window_edit_ui
 chasm:
   color: blue
   passable: true
@@ -552,7 +877,22 @@ teleporter:
             label: Arrival square
             type: point
             relative_to: target_map
-            required: true
+            required: false
+          - key: party_travel
+            label: Party map-set travel
+            type: boolean
+            default: false
+            help: When a player character steps on this pad, confirm then transport the whole party (PCs and sidekicks) to the target map set. Cancelling can be retried with Interact (or the tile hover button) while still standing on the pad.
+          - key: prompt_title
+            label: Prompt title
+            type: string
+            visible_when:
+              party_travel: true
+          - key: prompt
+            label: Prompt message
+            type: text
+            visible_when:
+              party_travel: true
       - id: display
         label: Display
         collapsible: true
@@ -693,3 +1033,83 @@ window:
   type: window
   token_image: wood_chest
   opaque: false
+
+stairs:
+  name: Stairs
+  description: >-
+    Cosmetic 3D stairs. Invisible and fully passable on the 2D map. Tokens in
+    3D follow the step height from the base square to the top.
+  color: gray
+  item_class: Object
+  passable: true
+  placeable: true
+  interactable: false
+  opaque: false
+  hide_map_token: true
+  spawner_category: terrain
+  token:
+    - s
+  edit_ui:
+    label: Stairs
+    scope:
+      - entity
+    groups:
+      - id: run
+        label: Stair run
+        fields:
+          - key: squares
+            label: Squares (base → top)
+            type: point_list
+            relative_to: current_map
+            required: true
+            help: >-
+              First square is the base. Click further squares in order toward
+              the top, then click the last square again (or Done / Enter).
+              A 2-square-wide strip becomes double stairs; a 2×2 block or
+              circling ring becomes a spiral. Height is in feet (default 8,
+              matching wall height). Use a negative height to go down.
+          - key: height
+            label: Height (feet)
+            type: integer
+            default: 8
+            help: >-
+              Positive rises from the first (base) square to the last.
+              Negative descends (for example -8 for an 8-foot drop). Pick
+              squares from this floor toward the other end.
+          - key: style
+            label: Material
+            type: enum
+            default: ""
+            choices:
+              - value: ""
+                label: Match map walls
+              - value: dungeon
+                label: Dungeon stone
+              - value: mansion
+                label: Manor plaster
+              - value: gothic
+                label: Gothic damask
+              - value: wood
+                label: Timber
+              - value: office
+                label: Office drywall
+          - key: solid
+            label: Solid underside
+            type: boolean
+            default: true
+            help: Fill the volume under the steps so you cannot see through the staircase.
+          - key: open_well
+            label: Open well
+            type: boolean
+            default: false
+            help: >-
+              Spiral only. Leave the center hollow (no newel post) so the
+              stairwell is an open shaft.
+          - key: wall_attached
+            label: Wall-attached
+            type: boolean
+            default: false
+            help: >-
+              Spiral only. Extend treads to the well walls and add a square
+              enclosure so the run hugs the stairwell.
+

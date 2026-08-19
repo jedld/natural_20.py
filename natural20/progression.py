@@ -125,11 +125,18 @@ ENCOUNTER_DIFFICULTY_THRESHOLDS = {
 PROGRESSION_MODE_XP = "xp"
 PROGRESSION_MODE_DM = "dm"
 PROGRESSION_MODE_EVENT = "event"
+PROGRESSION_MODE_MILESTONE = "milestone"
 PROGRESSION_MODES = {
     PROGRESSION_MODE_XP,
     PROGRESSION_MODE_DM,
     PROGRESSION_MODE_EVENT,
+    PROGRESSION_MODE_MILESTONE,
 }
+EVENT_GATED_MODES = {
+    PROGRESSION_MODE_EVENT,
+    PROGRESSION_MODE_MILESTONE,
+}
+MILESTONE_STATE_KEY = "milestone_events"
 
 DEFAULT_PROGRESSION_SETTINGS = {
     "mode": PROGRESSION_MODE_XP,
@@ -197,17 +204,22 @@ def normalize_progression_settings(settings: Mapping | None) -> dict:
     Supported `game.yml` forms:
 
     progression:
-      mode: xp      # default, D&D XP thresholds
-      mode: dm      # DM grants level-up permissions
-      mode: event   # named event grants level-up permissions
+      mode: xp         # default, D&D XP thresholds
+      mode: dm         # DM grants level-up permissions
+      mode: event      # named campaign events grant level-up permissions
+      mode: milestone  # alias of event (D&D milestone leveling)
       events:
         goblin_king_defeated:
           levels: 1
           label: Defeated the Goblin King
+          auto: true          # default; grant when campaign_event fires
+          grant_on:           # optional extra campaign_event names
+            - goblin_king_defeated
     """
     normalized = dict(DEFAULT_PROGRESSION_SETTINGS)
     if isinstance(settings, str):
-        normalized["mode"] = settings
+        mode = settings.strip().lower()
+        normalized["mode"] = mode if mode in PROGRESSION_MODES else PROGRESSION_MODE_XP
         return normalized
     if isinstance(settings, Mapping):
         normalized.update(settings)
@@ -216,8 +228,142 @@ def normalize_progression_settings(settings: Mapping | None) -> dict:
     events = normalized.get("events") or normalized.get("level_up_events") or {}
     if isinstance(events, Sequence) and not isinstance(events, (str, bytes, dict)):
         events = {str(event): {"levels": 1, "label": str(event)} for event in events}
-    normalized["events"] = events if isinstance(events, Mapping) else {}
+    if not isinstance(events, Mapping):
+        events = {}
+    cleaned = {}
+    triggers = {}
+    for raw_key, raw_cfg in events.items():
+        key = str(raw_key).strip()
+        if not key:
+            continue
+        cfg = dict(raw_cfg) if isinstance(raw_cfg, Mapping) else {"levels": 1, "label": str(raw_cfg)}
+        cfg.setdefault("auto", True)
+        grant_on = cfg.get("grant_on") or cfg.get("triggers") or [key]
+        if isinstance(grant_on, str):
+            grant_on = [grant_on]
+        cfg["grant_on"] = [str(name).strip() for name in grant_on if str(name).strip()]
+        if key not in cfg["grant_on"]:
+            cfg["grant_on"].insert(0, key)
+        cleaned[key] = cfg
+        for trigger in cfg["grant_on"]:
+            triggers.setdefault(trigger, key)
+    normalized["events"] = cleaned
+    normalized["triggers"] = triggers
     return normalized
+
+
+def is_event_gated_mode(mode: str | None) -> bool:
+    return str(mode or "").strip().lower() in EVENT_GATED_MODES
+
+
+def campaign_progression_settings(session) -> dict:
+    game_properties = getattr(session, "game_properties", None) or {}
+    return normalize_progression_settings(game_properties.get("progression"))
+
+
+def _milestone_state(session) -> dict:
+    state = getattr(session, "session_state", None)
+    if not isinstance(state, dict):
+        session.session_state = {}
+        state = session.session_state
+    bucket = state.setdefault(MILESTONE_STATE_KEY, {})
+    if not isinstance(bucket, dict):
+        bucket = {}
+        state[MILESTONE_STATE_KEY] = bucket
+    return bucket
+
+
+def award_configured_progression_event(session, event_name, *, reason=None, source_event=None) -> list[dict]:
+    """Grant configured milestone/event level-ups to all PCs. Idempotent per event."""
+    settings = campaign_progression_settings(session)
+    if not is_event_gated_mode(settings.get("mode")):
+        return []
+    event_key = (settings.get("triggers") or {}).get(str(event_name or "").strip())
+    if not event_key:
+        return []
+    event_cfg = (settings.get("events") or {}).get(event_key) or {}
+    if event_cfg.get("auto", True) is False:
+        return []
+    granted = _milestone_state(session)
+    if granted.get(event_key):
+        return []
+
+    from natural20.map_set import iter_player_characters
+    from natural20.player_character import PlayerCharacter
+
+    players = [entity for entity in iter_player_characters(session) if isinstance(entity, PlayerCharacter)]
+    if not players:
+        return []
+
+    payloads = []
+    for player in players:
+        existing = [
+            grant for grant in (player.properties.get("level_up_grants") or [])
+            if grant.get("event") == event_key
+        ]
+        if existing:
+            continue
+        grants = player.grant_event_level_up(
+            event_key,
+            reason=reason or event_cfg.get("label") or event_key,
+        )
+        if not grants:
+            continue
+        payload = {
+            "entity_uid": player.entity_uid,
+            "name": player.label(),
+            "event": event_key,
+            "grants": grants,
+            "eligible_level": player.eligible_level(),
+            "levels_available": player.pending_level_ups(),
+            "progress": player.xp_progress(),
+            "label": event_cfg.get("label") or event_key,
+        }
+        payloads.append(payload)
+        event_manager = getattr(session, "event_manager", None)
+        if event_manager is not None:
+            event_manager.received_event({
+                "event": "level_up_available",
+                "source": player,
+                "message": payload,
+            })
+
+    granted[event_key] = True
+    narration = event_cfg.get("narration")
+    event_manager = getattr(session, "event_manager", None)
+    if payloads and event_manager is not None and narration:
+        if isinstance(narration, str):
+            narration = {"text": narration}
+        event_manager.received_event({
+            "event": "narration",
+            "source": (source_event or {}).get("source") if isinstance(source_event, Mapping) else None,
+            "narration": {
+                "on_enter": {
+                    "title": narration.get("title") or event_cfg.get("label") or "Milestone",
+                    "text": narration.get("text") or "",
+                    "once": narration.get("once", True),
+                }
+            },
+        })
+    return payloads
+
+
+def register_progression_event_listeners(session) -> None:
+    """Listen for campaign_event names listed under progression.events."""
+    event_manager = getattr(session, "event_manager", None)
+    if event_manager is None:
+        return
+    settings = campaign_progression_settings(session)
+    if not is_event_gated_mode(settings.get("mode")):
+        return
+    for trigger, event_key in (settings.get("triggers") or {}).items():
+        def _handler(event, _event_key=event_key):
+            award_configured_progression_event(
+                session,
+                _event_key,
+                source_event=event,
+            )
+        event_manager.register_event_listener(trigger, _handler)
 
 
 def monster_xp(monster) -> int:

@@ -113,7 +113,7 @@ Examples:
 
 Effect:
 - Parsed by `parse_response_controls(...)` into `tts_emotion` / `tts_instruct` on the reply plan.
-- Passed into CosyVoice `inference_instruct2` (with the NPC accent) when generating audio.
+- Passed into CosyVoice as delivery notes (English: zero-shot prompt preamble; Chinese: Instruct2) with the NPC accent when generating audio.
 - Short tokens map to emotion styles; longer free-form text becomes acting notes.
 - If omitted, volume may imply a default (`whisper` → whisper, `shout` → shouting), then keyword heuristics on the spoken line.
 
@@ -305,6 +305,34 @@ Server behavior:
 - Calls `current_game.update_group(receiver, 'a')`.
 - Returns an empty response body.
 
+### `[JOIN_PARTY]`
+
+Purpose:
+- Convert a regular NPC into an in-party sidekick (player-controlled movement/actions; conversation stays on the NPC LLM).
+
+Supported forms:
+- `[JOIN_PARTY]`
+- `[JOIN_PARTY: owner=@handle]`
+
+Server behavior:
+- Owners default to the speaking player's username(s).
+- Calls `join_party` (group `a`, companion travel, WebController).
+- Emits `refresh_map` plus a `party_membership` Socket.IO event so clients refresh POV portraits, show a toast, and (if the JRPG dialog is open) add a system line and hide **Invite to party**.
+- Optional `require_session` on campaign-defined sidekicks still applies to YAML auto-join, not this tag (trust is LLM/DM judgment).
+
+Prompt: injected when join is contextually possible. After they have joined, identity / movement / goal prompts inject an **authoritative current-party block** (companions by name, “this is settled”, do not speak as if still deciding) so YAML backstory that still mentions joining does not override live membership. Tag guidance then forbids `[JOIN_PARTY]` and offers `[LEAVE_PARTY]` / `[GO_HOSTILE]`.
+
+### `[LEAVE_PARTY]`
+
+Purpose:
+- Drop an in-party sidekick back to a regular AI NPC (group `c`).
+
+Server behavior:
+- Unregisters player controllers and stops companion follow.
+- `[GO_HOSTILE]` also leaves the party as **hostile** (group `b`) if they were a sidekick.
+
+Prompt: injected when the NPC is already an in-party sidekick.
+
 ### Forced conversation mode
 
 Purpose:
@@ -428,6 +456,10 @@ Behavior:
 
 Time and environment integration:
 - Each scheduled goal turn advances in-game time by 6 seconds.
+- Out-of-combat **player movement** advances the acting PC's exploration
+  watermark by `(distance_ft / speed) * 6` seconds (one round = full speed).
+  Global `Session.game_time` follows the highest PC watermark delta via
+  `GameManagement.increment_game_time(...)`.
 - Execution reuses `current_game.commit_and_update(...)` for actions.
 - World updates continue to flow through the normal out-of-combat path, including `loop_environment()` and the standard `turn` socket event carrying updated `game_time`.
 
@@ -552,9 +584,9 @@ After the player confirms or cancels the transfer UI, the client posts to `/talk
 Entities may also define `conversation_keywords()` entries.
 
 Behavior:
-- `_process_rag_commands(...)` checks whether any configured keyword appears in the model response.
+- After a reply is delivered, `apply_conversation_keywords_from_plan(...)` matches configured keywords against the spoken line **and** `[ASIDE: ...]` narration (stage direction can trigger events).
 - Matching entries are passed to `GenericEventHandler(...)`.
-- The matched keyword text is then removed from the final spoken response.
+- `_process_rag_commands(...)` can also match keywords in the raw model response when that path is used.
 
 Use case:
 - Triggering scripted events or state changes from conversational output without exposing raw control text to players.
@@ -696,6 +728,28 @@ These endpoints exist in the same app but are not the NPC conversation-mode RAG 
 
 These are general LLM support endpoints, not the inline conversation command system used by NPC replies.
 
+## Post-battle combat recaps
+
+After `GameManagement.end_current_battle()` fires `on_battle_end`, `webapp/battle_combat_recap.py` asks the **NPC LLM** (`response_mode: conversation`) to summarize the fight from each point of view.
+
+Triggered when:
+
+- The battle had at least one combat round (engine `round >= 1`, a later initiative index, or a non-empty `battle_log`). Instant start/stop with no actions is skipped.
+- `game.yml` does not set `battle_combat_recap.enabled: false`.
+
+Who gets a recap:
+
+- Every **player character** on the battle map (combatants and witnesses). Stored as an unread journal entry (`kind: combat`, `source: battle_recap`) with world time and location in the text.
+- Every **conversation-aware NPC** (`dialog: true`) on the battle map. Stored as an `NpcMemoryStore` item (`source: battle_recap`, tags include `combat` and landmark labels).
+
+The prompt includes visible combat-log lines (from a `start_of_combat` watermark), conversation-buffer beats since combat started, roster status (dead / unconscious), and map annotation / time-of-day context. If the LLM is down, a deterministic heuristic recap is stored instead. Work runs on a background thread so ending combat stays responsive.
+
+Relevant code:
+
+- `webapp/battle_combat_recap.py`
+- `webapp/blueprints/helpers/effects.py` (`register_battle_end_hook_handlers`)
+- `tests/webapp/test_battle_combat_recap.py`
+
 ## Current Limitations
 
 - Conversation-mode RAG is tag-based and server-interpreted; it is not a general tool-calling framework.
@@ -707,7 +761,9 @@ These are general LLM support endpoints, not the inline conversation command sys
 
 - `webapp/entity_rag_handler.py`
 - `webapp/conversation_service.py`
+- `webapp/battle_combat_recap.py`
 - `webapp/blueprints/helpers/conversation_wiring.py`
 - `natural20/utils/conversation.py`
 - `tests/webapp/test_entity_rag_handler.py`
 - `tests/webapp/test_talk_route_recipients.py`
+- `tests/webapp/test_battle_combat_recap.py

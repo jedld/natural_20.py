@@ -14,6 +14,7 @@ from natural20.map_editor import (
     place_npc_in_map,
     place_player_in_map,
     remove_map_item,
+    resolve_map_yaml_path,
     save_map_document,
 )
 
@@ -566,6 +567,59 @@ def test_place_note_uses_unique_token_and_entity_notes(tmp_path: Path):
     inline_notes = [item for item in overlay["items"] if item.get("source") == "inline_note"]
     assert len(inline_notes) == 2
     assert all(item["label"] == "Note (empty)" for item in inline_notes)
+
+
+def test_place_stairs_stores_run_on_entity_not_shared_legend(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    (campaign / "game.yml").write_text(
+        "name: Demo\nmaps:\n  hub: maps/hub\n",
+        encoding="utf-8",
+    )
+    map_path = maps_dir / "hub.yml"
+    _write_map(
+        map_path,
+        {
+            "map": {
+                "size": [4, 4],
+                "base": ["....", "....", "....", "...."],
+                "entities": [],
+            },
+            "legend": {},
+        },
+    )
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"maps": {"hub": "maps/hub"}}
+
+        def load_object(self, object_type):
+            return {
+                "stairs": {
+                    "name": "Stairs",
+                    "placeable": True,
+                    "token": ["s"],
+                    "hide_map_token": True,
+                },
+            }[object_type]
+
+    session = _Session()
+    first = place_map_terrain(session, "hub", object_type="stairs", x=1, y=1)
+    second = place_map_terrain(session, "hub", object_type="stairs", x=2, y=2)
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    assert first["token"] != second["token"]
+    assert len(saved["map"]["entities"]) == 2
+    for entry in saved["map"]["entities"]:
+        assert entry["layer"] == "object"
+        assert entry["squares"] == [entry["pos"]]
+        assert entry["height"] == 8
+        assert entry["style"] == ""
+        assert entry["solid"] is True
+        assert entry["hide_map_token"] is True
+        assert "squares" not in saved["legend"][entry["token"]]
+    assert saved["legend"][first["token"]]["type"] == "stairs"
+    assert saved["legend"][second["token"]]["type"] == "stairs"
 
 
 def test_build_edit_overlay_includes_chest_note_trigger_and_inline_notes():
@@ -1448,4 +1502,45 @@ def test_place_npc_in_map_moves_unique_across_map_set(tmp_path: Path):
     ]
     assert "named_scout" not in hub_uids
     assert "named_scout" in cellar_uids
+
+
+def test_resolve_map_yaml_path_falls_back_to_live_map_file(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    hub = maps_dir / "hub.yml"
+    hub.write_text(
+        "name: Hub\nmap:\n  size: [3, 3]\n  base: ['###', '#.#', '###']\n",
+        encoding="utf-8",
+    )
+
+    class _Map:
+        map_file_path = "maps/hub"
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"starting_map": "maps/hub"}
+        maps = {"index": _Map()}
+
+    path = resolve_map_yaml_path(_Session(), "index")
+    assert path.resolve() == hub.resolve()
+
+
+def test_resolve_map_yaml_path_uses_starting_map_for_legacy_index(tmp_path: Path):
+    campaign = tmp_path / "demo"
+    maps_dir = campaign / "maps"
+    maps_dir.mkdir(parents=True)
+    tavern = maps_dir / "tavern.yml"
+    tavern.write_text(
+        "name: Tavern\nmap:\n  size: [3, 3]\n  base: ['###', '#.#', '###']\n",
+        encoding="utf-8",
+    )
+
+    class _Session:
+        root_path = str(campaign)
+        game_properties = {"starting_map": "maps/tavern", "maps": {"tavern": "maps/tavern"}}
+        maps = {}
+
+    path = resolve_map_yaml_path(_Session(), "index")
+    assert path.resolve() == tavern.resolve()
 

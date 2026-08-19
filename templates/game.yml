@@ -43,3 +43,6 @@ action_bar:
     - help
     - hide
   default_tab: common
+vtt3d:
+  walls:
+    style: cave

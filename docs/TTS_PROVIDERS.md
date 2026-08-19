@@ -22,14 +22,49 @@ voice:
   gender: male
   age: mature
   traits: [gravelly, low, warm]
-  accent: irish          # CosyVoice instruct
+  accent: irish          # british | irish | eastern european | romanian | ...
   language: en
   strategy: auto         # auto|clone|design|preset|instruct
-  provider: qwen3        # optional per-NPC backend override
+  provider: qwen3        # Qwen3 family tag; uses the running backend (qwen3 or qwen3_vllm)
   reference_audio: voices/mara.wav
 ```
 
-`traits` and demographics are merged into `VoiceProfile.design_prompt()` — the string used by **VoiceDesign** and instruct backends.
+`traits` and demographics are merged into `VoiceProfile.design_prompt()` — the string used by **VoiceDesign** and instruct backends. For Qwen3, `accent` is placed **first** in that instruct (VoiceDesign defaults toward General American otherwise). CosyVoice applies `accent` in the CosyVoice3 assistant preamble. English lines use **zero-shot** inference with the matching Chinese prompt-WAV transcript (not Instruct2) so the stock clip does not come out as Mandarin-like gibberish.
+
+Qwen3 **CustomVoice** English speakers (Ryan, Aiden) are American; there is no British preset. Qwen3 **VoiceDesign** accepts accent in the instruct string (official examples use `"British accent"`), but English dialect control is weaker than CosyVoice. Runtime `qwen3_vllm` **clones the baked WAV** and does not re-apply accent, so British / Eastern European coloring must be captured at bake time.
+
+**Hybrid bake:** CosyVoice 3 English from the bundled Chinese prompt WAVs is **not usable** (clips come out Mandarin-like or unintelligible). For English campaigns, bake with **Qwen3 VoiceDesign**, then keep runtime `TTS_PROVIDER=qwen3_vllm`. CosyVoice remains useful when you already have an **English** reference WAV (`voice.reference_audio`). Do **not** use Instruct2 for English against the stock CosyVoice Chinese clips.
+
+```bash
+N20_TTS_CLONE_ONLY=0 N20_TTS_PRELOAD_CLONE=0 N20_TTS_WARMUP=0 \
+  python scripts/bake_npc_voices.py user_levels/<campaign> \
+    --bake-provider cosyvoice --device cuda --force --only <entity_uid>
+python services/vllm-omni-tts/scripts/register_campaign_voices.py --force user_levels/<campaign>
+```
+
+Env equivalent: `N20_TTS_BAKE_PROVIDER=cosyvoice`. When that is set, in-process Qwen3 VoiceDesign auto-bake is skipped so the CosyVoice clip is not overwritten.
+
+**ElevenLabs Voice Design (bake only):** Cloud Voice Design can model a timbre from the YAML prompt and write `assets/voice_samples/<npc_uid>.mp3`. It is **not** a realtime `TTS_PROVIDER`. Table play stays on Qwen3 Base / `qwen3_vllm` cloning that MP3.
+
+```bash
+# webapp/.env
+ELEVENLABS_API_KEY=...
+N20_TTS_BAKE_PROVIDER=elevenlabs
+TTS_PROVIDER=qwen3_vllm
+
+python scripts/bake_npc_voices.py user_levels/<campaign> --bake-provider elevenlabs --force --only <entity_uid>
+python services/vllm-omni-tts/scripts/register_campaign_voices.py --force user_levels/<campaign>
+```
+
+Bake uses `POST /v1/text-to-voice/design` with `xi-api-key` (Voice Design previews only). Default model is `eleven_ttv_v3` (better accents than multilingual v2). Preview `text` is 100–1000 characters; `voice_description` is 20–1000 and leads with `Native English` plus a thick regional accent. `guidance_scale` defaults to `5` (raise it when accent accuracy matters; product docs recommend higher values for dialect). Optional: `ELEVENLABS_VOICE_DESIGN_MODEL`, `ELEVENLABS_GUIDANCE_SCALE`, `ELEVENLABS_VOICE_SEED`, `ELEVENLABS_SHOULD_ENHANCE=1`, `ELEVENLABS_API_URL=https://api.elevenlabs.io`. Previews are not saved to the ElevenLabs voice library (avoids custom-voice slot limits). ElevenLabs safety blocks child-voice prompts; those NPCs keep a hand-authored WAV instead.
+
+VoiceDesign-only re-bake (unique timbre, weaker English dialect):
+
+```bash
+N20_TTS_CLONE_ONLY=0 TTS_PROVIDER=qwen3 TTS_DEVICE=cuda \
+  QWEN3_TTS_MODEL=Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign \
+  python scripts/bake_npc_voices.py user_levels/<campaign> --bake-provider qwen3 --device cuda --force --only <entity_uid>
+```
 
 ### Does VoiceDesign help personalization?
 
@@ -44,7 +79,7 @@ voice:
 
 \*VoiceDesign applies the locked `design_prompt` on every utterance; delivery emotion still varies per line via instruct. For maximum lock-in, use `strategy: clone` with a reference WAV (record or generate a calibration line once).
 
-**Automatic voice baking (recommended for Qwen3 VoiceDesign):** On first speech, the server can generate a neutral calibration clip per NPC and save it under `assets/voice_samples/<npc_uid>.wav`, then switch to **Qwen3 Base clone** mode for all later lines (`N20_TTS_BAKE_VOICES=1`, default). Pre-bake an entire campaign:
+**Automatic voice baking (recommended for Qwen3 VoiceDesign):** On first speech, the server can generate a neutral calibration clip per NPC and save it under `assets/voice_samples/<npc_uid>.wav`, then switch to **Qwen3 Base clone** mode for all later lines (`N20_TTS_BAKE_VOICES=1`, default). Dropped `.mp3` clips in that folder are cloned without being overwritten. Pre-bake an entire campaign:
 
 ```bash
 cd webapp && python ../scripts/bake_npc_voices.py ../user_levels/wild_sheep_chase
@@ -101,7 +136,8 @@ Runtime TTS loads these via `build_voice_profile_from_entity()` (merged over inl
 | CosyVoice 3 | `cosyvoice` | Zero-shot clone + instruct control (current default) |
 | Qwen3-TTS | `qwen3` | Low-latency streaming, preset speakers, voice design |
 | OpenVoice | `openvoice` | Lightweight clone fallback |
-| Mocks | `mock_cosyvoice`, `mock_qwen3` | CI/dev without GPU weights |
+| ElevenLabs Voice Design | `elevenlabs` (bake only) | YAML prompt → campaign MP3; not for table TTS |
+| Mocks | `mock_cosyvoice`, `mock_qwen3`, `mock_elevenlabs` | CI/dev without GPU / API keys |
 
 ## Qwen3-TTS
 
@@ -211,6 +247,14 @@ Benchmark:
 cd webapp && python ../scripts/benchmark_qwen3_tts.py ../user_levels/wild_sheep_chase --provider qwen3_vllm
 ```
 
+If the sidecar returns `400` with `requires 'ref_audio' for voice cloning`, the NPC voice name was not uploaded as an ICL sample. Bake/register `assets/voice_samples/<entity_uid>.wav` (or `.mp3`) and restart the webapp. See `docs/TTS_VLLM_OMNI_SPIKE.md`.
+
+### Voice samples (WAV and MP3)
+
+Campaign clips live in `assets/voice_samples/<npc_uid>.wav` or `<npc_uid>.mp3`. Bakes still write WAV. A dropped MP3 is used as-is (converted to 24 kHz WAV only for the vLLM upload). Sidecar transcript: `<npc_uid>.ref.txt` or `<npc_uid>.wav.ref.txt`.
+
+When YAML `voice.prompt` / accent / traits change, or the sample file is replaced, Qwen3 (in-process clone and `qwen3_vllm`) re-bakes VoiceDesign clips when the sample was auto-generated, then re-uploads the clone to the sidecar. Hand-dropped MP3s are not overwritten; they are re-registered if the file changes. Stamp file: `assets/voice_samples/<npc_uid>.profile.json`.
+
 
 ## CosyVoice 3 (Fun-CosyVoice 3.0)
 
@@ -245,6 +289,6 @@ Released Dec 2025 (`Fun-CosyVoice3-0.5B-2512` on Hugging Face). Trained on ~1M h
 | **Fish Speech / OpenAudio** | Strong open clone; popular in gaming |
 | **GPT-SoVITS** | Few-shot clone; heavier fine-tune workflow |
 | **StyleTTS2 / F5-TTS** | Research-grade quality; less instruct control |
-| **ElevenLabs / OpenAI** | Cloud-only; not self-hosted |
+| **OpenAI TTS** | Cloud-only; not integrated |
 
 See also `docs/tts_voice_recommendations.md` for historical evaluation notes.

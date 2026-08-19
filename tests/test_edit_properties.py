@@ -251,3 +251,73 @@ def test_update_chest_inventory(tmp_path: Path):
         {"type": "healing_potion", "qty": 2},
         {"type": "arrows", "qty": 20},
     ]
+
+
+def test_window_layer_placement_properties_round_trip(tmp_path: Path):
+    session, map_path = _campaign(tmp_path)
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    saved["legend"]["▭"] = {
+        "name": "Window Top",
+        "type": "window_top",
+        "door_pos": 0,
+        "cover_pane": "glass",
+    }
+    saved["map"]["base"] = ["#####", "#.▭.#", "#...#", "#...#", "#####"]
+    saved["map"]["layer_placements"] = [
+        {
+            "id": "lp_base_window_top_2_1",
+            "layer": "base",
+            "token": "▭",
+            "pos": [2, 1],
+            "cover_pane": "opaque",
+            "barred": True,
+        }
+    ]
+    map_path.write_text(yaml.safe_dump(saved, sort_keys=False), encoding="utf-8")
+
+    resolved = resolve_property_binding(
+        session,
+        "hub",
+        item_id="lp_base_window_top_2_1",
+        kind="terrain",
+        token="▭",
+        source="layer_placements",
+        index=0,
+    )
+    assert resolved["object_type"] == "window_top"
+    assert resolved["binding"]["store"] == "layer_placement"
+    assert resolved["values"]["cover_pane"] == "opaque"
+    assert resolved["values"]["barred"] is True
+
+    update_property_binding(
+        session,
+        "hub",
+        object_type="window_top",
+        binding=resolved["binding"],
+        values={
+            "name": "Kitchen window",
+            "state": "closed",
+            "cover_pane": "glass",
+            "inside_cover": "three_quarter",
+            "window_size": "small",
+            "max_pass_size": "small",
+            "barred": True,
+            "difficult_terrain": False,
+            "window_material": "iron",
+            "wall_material": "stone",
+            "notes": [],
+            "image_offset_px": [0, 0],
+        },
+    )
+    saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
+    placement = saved["map"]["layer_placements"][0]
+    assert placement["cover_pane"] == "glass"
+    assert placement["inside_cover"] == "three_quarter"
+    assert placement["window_size"] == "small"
+    assert placement["max_pass_size"] == "small"
+    assert placement["barred"] is True
+    assert placement["difficult_terrain"] is False
+    assert placement["window_material"] == "iron"
+    assert placement["name"] == "Kitchen window"
+    assert saved["legend"]["▭"]["cover_pane"] == "glass"
+    assert "inside_cover" not in saved["legend"]["▭"]
