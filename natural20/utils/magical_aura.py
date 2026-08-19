@@ -297,6 +297,16 @@ def _object_blocks_detect_magic(obj, origin=None) -> bool:
         except Exception:
             return bool(props.get('opaque'))
 
+    if class_name == 'WindowObjectWall' or item_type.startswith('window_') or item_type.startswith('corner_window'):
+        try:
+            if obj.opened() or obj.dead():
+                return False
+            if getattr(obj, 'cover_pane', 'glass') == 'glass':
+                return False
+            return True
+        except Exception:
+            return bool(props.get('opaque'))
+
     if class_name in ('StoneWall', 'StoneWallDirectional') or props.get('wall'):
         try:
             return not obj.dead()
@@ -353,6 +363,16 @@ def _barrier_layers_at_square(battle_map, x: int, y: int, origin=None) -> list[t
             layers.append(('dirt', feet_per_grid))
         elif 'door' in item_type or class_name in ('DoorObject', 'DoorObjectWall'):
             layers.append(('wood', 2.0 / 12.0))
+        elif class_name == 'WindowObjectWall' or item_type.startswith('window_') or item_type.startswith('corner_window'):
+            material = str(getattr(obj, 'window_material', None) or props.get('window_material') or 'wood').lower()
+            if material == 'iron':
+                layers.append(('metal', 1.0 / 12.0))
+            elif material == 'stone':
+                layers.append(('stone', 0.25))
+            elif material == 'glass':
+                layers.append(('wood', 0.05))
+            else:
+                layers.append(('wood', 1.0 / 12.0))
         elif props.get('wall'):
             layers.append(('stone', 1.0))
         elif props.get('opaque'):

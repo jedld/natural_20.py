@@ -37,17 +37,51 @@ _LAYER_GRID_ATTR = {
 }
 
 
-def resolve_map_yaml_path(session, map_name: str) -> Path:
-    maps = (session.game_properties or {}).get("maps") or {}
-    rel = maps.get(map_name)
+def _existing_map_yaml_path(session, rel: str) -> Path | None:
+    rel = str(rel or "").strip()
     if not rel:
-        raise KeyError(f"Unknown map: {map_name}")
-    path = Path(session.root_path) / f"{rel}.yml"
-    if not path.is_file():
-        path = Path(session.root_path) / rel
-    if not path.is_file():
-        raise FileNotFoundError(f"Map YAML not found for {map_name}: {path}")
-    return path
+        return None
+    raw = Path(rel)
+    if raw.is_file():
+        return raw
+    root = Path(getattr(session, "root_path", None) or ".")
+    candidates = []
+    if rel.endswith(".yml"):
+        candidates.extend((root / rel, raw))
+    else:
+        candidates.extend((root / f"{rel}.yml", root / rel, Path(f"{rel}.yml")))
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
+
+
+def resolve_map_yaml_path(session, map_name: str) -> Path:
+    map_name = str(map_name or "").strip()
+    if not map_name:
+        raise KeyError("Unknown map: (empty)")
+
+    maps = (session.game_properties or {}).get("maps") or {}
+    configured = maps.get(map_name) if isinstance(maps, dict) else None
+    live = (getattr(session, "maps", None) or {}).get(map_name)
+    live_path = getattr(live, "map_file_path", None) if live is not None else None
+    starting = (session.game_properties or {}).get("starting_map") if map_name in ("index", "battle") else None
+
+    candidates: list[str] = []
+    for rel in (configured, live_path, starting, f"maps/{map_name}"):
+        if rel and str(rel) not in candidates:
+            candidates.append(str(rel))
+
+    last_missing = None
+    for rel in candidates:
+        path = _existing_map_yaml_path(session, rel)
+        if path is not None:
+            return path
+        last_missing = rel
+
+    if configured:
+        raise FileNotFoundError(f"Map YAML not found for {map_name}: {last_missing}")
+    raise KeyError(f"Unknown map: {map_name}")
 
 
 def load_map_document(path: Path | str) -> dict[str, Any]:
@@ -216,8 +250,15 @@ def _find_layer_placement(
     for entry in placements:
         if not isinstance(entry, dict):
             continue
-        if placement_id and str(entry.get("id") or "") == placement_id:
+        if placement_id and str(entry.get("id") or "") == str(placement_id):
             return entry
+        if placement_id and str(placement_id).startswith("layer_placements:"):
+            try:
+                idx = int(str(placement_id).split(":", 1)[1])
+            except (TypeError, ValueError, IndexError):
+                idx = None
+            if idx is not None and 0 <= idx < len(placements) and entry is placements[idx]:
+                return entry
         if layer is not None and x is not None and y is not None:
             pos = entry.get("pos") or []
             if (
@@ -228,6 +269,32 @@ def _find_layer_placement(
             ):
                 return entry
     return None
+
+
+def layer_placement_property_overrides(
+    map_properties: dict[str, Any] | None,
+    token: str | None,
+    x: int,
+    y: int,
+) -> dict[str, Any]:
+    """Per-cell legend overrides stored on ``map.layer_placements`` extra keys."""
+    extras: dict[str, Any] = {}
+    if not map_properties or not token:
+        return extras
+    map_block = map_properties.get("map") or {}
+    for entry in map_block.get("layer_placements") or []:
+        if not isinstance(entry, dict):
+            continue
+        if str(entry.get("token") or "") != str(token):
+            continue
+        pos = entry.get("pos") or []
+        if len(pos) < 2 or int(pos[0]) != int(x) or int(pos[1]) != int(y):
+            continue
+        for key, value in entry.items():
+            if key in _LAYER_PLACEMENT_STRUCTURAL_KEYS:
+                continue
+            extras[key] = copy.deepcopy(value)
+    return extras
 
 
 def _layer_placement_cells(map_block: dict[str, Any]) -> set[tuple[str, int, int]]:
@@ -295,10 +362,17 @@ def _entry_uid(token: str, entry: dict[str, Any], legend: dict[str, Any]) -> str
     return None
 
 
+def _is_window_wall_type(type_name: str | None) -> bool:
+    lowered = str(type_name or "").lower()
+    return lowered.startswith("window_") or lowered.startswith("corner_window")
+
+
 def _categorize_type(type_name: str | None) -> str:
     lowered = str(type_name or "").lower()
     if any(hint in lowered for hint in _TELEPORTER_HINTS):
         return "teleporter"
+    if _is_window_wall_type(lowered):
+        return "door"
     if any(hint in lowered for hint in _DOOR_HINTS):
         return "door"
     if any(hint in lowered for hint in _WALL_HINTS):
@@ -311,6 +385,8 @@ def _overlay_display_category(type_name: str | None) -> str:
     lowered = str(type_name or "").lower()
     if lowered == "note":
         return "note"
+    if _is_window_wall_type(lowered):
+        return "window"
     if "trigger" in lowered:
         return "trigger"
     if lowered in {"chest", "barrel"} or "container" in lowered:
@@ -405,6 +481,31 @@ def _append_inline_note_items(
         items.append(item)
 
 
+_OBJECT_LEGEND_KEYS = (
+    "door_pos",
+    "border",
+    "window",
+    "state",
+    "cover_pane",
+    "inside_cover",
+    "window_size",
+    "max_pass_size",
+    "barred",
+    "difficult_terrain",
+    "window_material",
+    "wall_material",
+)
+_LAYER_PLACEMENT_STRUCTURAL_KEYS = frozenset({"id", "layer", "token", "pos", "type"})
+
+
+def _copy_object_legend_keys(dest: dict[str, Any], obj: dict[str, Any] | None) -> None:
+    if not isinstance(obj, dict):
+        return
+    for key in _OBJECT_LEGEND_KEYS:
+        if key in obj and obj.get(key) is not None:
+            dest[key] = copy.deepcopy(obj[key])
+
+
 _WALL_SIDES = ("top", "right", "bottom", "left")
 _WALL_SUFFIX_ALIASES = {
     "lt": "tl",
@@ -434,6 +535,12 @@ _DOOR_SUFFIX_TO_INDEX = {
     "l": 3,
     "left": 3,
 }
+_CORNER_WINDOW_PRESETS = {
+    "corner_window_tl": {"door_pos": 0, "border": [0, 0, 0, 1]},
+    "corner_window_tr": {"door_pos": 0, "border": [0, 1, 0, 0]},
+    "corner_window_bl": {"door_pos": 2, "border": [0, 0, 0, 1]},
+    "corner_window_br": {"door_pos": 2, "border": [0, 1, 0, 0]},
+}
 _CORNER_DOOR_PRESETS = {
     # Door replaces one arm of the matching stone_wall_* corner:
     # tl [top+left]  → door on top, keep left wall
@@ -449,6 +556,13 @@ _CORNER_DOOR_PRESETS = {
 
 def _fixture_leg_for_edges(leg: dict[str, Any], type_name: str | None) -> dict[str, Any]:
     type_key = str(type_name or leg.get("type") or "")
+    window_preset = _CORNER_WINDOW_PRESETS.get(type_key)
+    if window_preset:
+        merged = dict(leg)
+        merged.setdefault("item_class", "WindowObjectWall")
+        merged.setdefault("door_pos", window_preset["door_pos"])
+        merged.setdefault("border", window_preset["border"])
+        return merged
     preset = _CORNER_DOOR_PRESETS.get(type_key)
     if not preset:
         return leg
@@ -522,7 +636,7 @@ def _door_pos_to_edges(door_pos: Any) -> dict[str, bool] | None:
 
 def _infer_door_pos_from_type(type_name: str | None) -> int | None:
     lowered = str(type_name or "").lower()
-    if "door" not in lowered:
+    if "door" not in lowered and not _is_window_wall_type(lowered):
         return None
     for suffix, index in _DOOR_SUFFIX_TO_INDEX.items():
         if lowered.endswith(f"_{suffix}"):
@@ -533,7 +647,7 @@ def _infer_door_pos_from_type(type_name: str | None) -> int | None:
 def _resolve_door_edges(type_name: str | None, leg: dict[str, Any]) -> dict[str, bool] | None:
     item_class = str(leg.get("item_class") or "")
     type_key = str(type_name or leg.get("type") or "")
-    is_door_wall = item_class == "DoorObjectWall"
+    is_door_wall = item_class in ("DoorObjectWall", "WindowObjectWall")
     is_door = is_door_wall or item_class == "DoorObject" or _categorize_type(type_key) == "door"
     if not is_door:
         return None
@@ -931,6 +1045,7 @@ def build_edit_overlay(map_properties: dict[str, Any], session: Any | None = Non
                     "y": int(y),
                     "label": str(label),
                     "category": category,
+                    "source": "legend",
                     "object_type": str(type_name) if type_name else None,
                 }
                 _attach_fixture_edges(terrain_item, leg, type_name, session=session)
@@ -1431,9 +1546,7 @@ def _ensure_instance_legend_token(data: dict[str, Any], session, object_type: st
         "name": obj.get("name", object_type.replace("_", " ").title()),
         "type": object_type,
     }
-    for key in ("door_pos", "border", "window"):
-        if key in obj and obj.get(key) is not None:
-            legend[token][key] = copy.deepcopy(obj[key])
+    _copy_object_legend_keys(legend[token], obj)
     return token
 
 
@@ -1452,11 +1565,9 @@ def _ensure_legend_token(data: dict[str, Any], session, object_type: str) -> str
         "name": obj.get("name", object_type.replace("_", " ").title()),
         "type": object_type,
     }
-    # Persist door/wall edge metadata so edit-mode markers match the object
-    # definition even when map_editor presets are incomplete.
-    for key in ("door_pos", "border", "window"):
-        if key in obj and obj.get(key) is not None:
-            legend[token][key] = copy.deepcopy(obj[key])
+    # Persist door/wall/window metadata so edit-mode markers and property
+    # forms match the object definition even when map presets are incomplete.
+    _copy_object_legend_keys(legend[token], obj)
     return token
 
 
@@ -1489,6 +1600,36 @@ def _default_legend_props(
             "image_offset_px": [0, 0],
             "notes": [{"note": "", "perception_dc": 0}],
         }
+    if object_type == "stairs":
+        props = {
+            "squares": [[int(x), int(y)]],
+            "height": 8,
+            "style": "",
+            "solid": True,
+            "open_well": False,
+            "wall_attached": False,
+            "hide_map_token": True,
+        }
+        try:
+            from natural20.web.vtt3d_catalog import load_vtt3d_catalog, lookup_catalog
+            spec = lookup_catalog({"type": "stairs"}, load_vtt3d_catalog(session)) or {}
+        except Exception:
+            spec = {}
+        if spec.get("open_well") is not None:
+            props["open_well"] = bool(spec["open_well"])
+        if spec.get("wall_attached") is not None:
+            props["wall_attached"] = bool(spec["wall_attached"])
+        return props
+    if _is_window_wall_type(object_type):
+        try:
+            obj = session.load_object(object_type) or {}
+        except Exception:
+            obj = {}
+        defaults: dict[str, Any] = {}
+        _copy_object_legend_keys(defaults, obj)
+        if obj.get("name"):
+            defaults.setdefault("name", obj.get("name"))
+        return defaults
     return {}
 
 
@@ -1597,21 +1738,29 @@ def place_map_layer_item(
     if resolved_type and _placement_mode_for_type(str(resolved_type)) == "object":
         if not object_type:
             object_type = str(resolved_type)
-        if str(object_type) == "note":
+        if str(object_type) in ("note", "stairs"):
             token = _ensure_instance_legend_token(data, session, str(object_type))
         else:
             token = _ensure_legend_token(data, session, str(object_type))
-        _apply_legend_defaults(
-            data.setdefault("legend", {}),
-            str(token),
-            session,
-            str(object_type),
-            map_name,
-            int(x),
-            int(y),
-        )
+        if str(object_type) != "stairs":
+            _apply_legend_defaults(
+                data.setdefault("legend", {}),
+                str(token),
+                session,
+                str(object_type),
+                map_name,
+                int(x),
+                int(y),
+            )
+        else:
+            legend = data.setdefault("legend", {})
+            entry = legend.setdefault(str(token), {})
+            if not entry.get("type"):
+                entry["type"] = object_type
+            if not entry.get("name"):
+                entry["name"] = "Stairs"
         entity_extras = dict(extra_fields or {})
-        if str(object_type) == "note":
+        if str(object_type) in ("note", "stairs"):
             defaults = _default_legend_props(session, str(object_type), map_name, int(x), int(y))
             for key, value in defaults.items():
                 entity_extras.setdefault(key, copy.deepcopy(value))
@@ -1620,7 +1769,7 @@ def place_map_layer_item(
             for key, value in extra_fields.items():
                 if key in {"id", "layer", "token", "pos", "type"}:
                     continue
-                if str(object_type) == "note":
+                if str(object_type) in ("note", "stairs"):
                     continue
                 legend_entry[key] = value
         _place_object_layer_fixture(
@@ -1762,8 +1911,9 @@ def _is_removable_map_fixture(obj) -> bool:
     """Return True for map-authored tiles (walls, doors, terrain overlays)."""
     from natural20.item_library.common import StoneWall, StoneWallDirectional
     from natural20.item_library.door_object import DoorObject, DoorObjectWall
+    from natural20.item_library.window_object import WindowObjectWall
 
-    if isinstance(obj, (StoneWall, StoneWallDirectional, DoorObject, DoorObjectWall)):
+    if isinstance(obj, (StoneWall, StoneWallDirectional, DoorObject, DoorObjectWall, WindowObjectWall)):
         return True
     return _terrain_object_type(obj) is not None
 

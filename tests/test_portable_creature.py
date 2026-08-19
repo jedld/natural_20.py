@@ -8,6 +8,7 @@ from natural20.player_character import PlayerCharacter
 from natural20.session import Session
 from natural20.utils.item_size import creature_body_weight_lbs, size_allows
 from natural20.utils.portable_creature import (
+    can_pickup_creature,
     creature_inventory_key,
     is_portable_creature_entry,
     pickup_creature,
@@ -124,6 +125,29 @@ class TestPortableCreature(unittest.TestCase):
         key = creature_inventory_key(cleric)
         self.assertIn(key, self.entity.inventory)
         self.assertEqual(self.entity.inventory[key]['size'], 'medium')
+
+    def test_serialize_skips_unpicklable_objects(self):
+        import threading
+
+        self.dead_goblin.properties['live_lock'] = threading.Lock()
+        snap = serialize_portable_creature(self.dead_goblin)
+        self.assertTrue(is_portable_creature_entry(snap))
+        props = snap['payload'].get('properties') or {}
+        self.assertNotIn('live_lock', props)
+        self.assertNotIn('session', snap['payload'])
+
+    def test_loot_interactions_tolerate_unpicklable_entity_graph(self):
+        import threading
+
+        self.dead_goblin.properties['live_lock'] = threading.Lock()
+        ok, reason = can_pickup_creature(
+            self.entity, self.dead_goblin, battle=self.battle, map_obj=self.battle_map,
+        )
+        self.assertTrue(ok, reason)
+        interactions = self.dead_goblin.available_interactions(self.entity, self.battle)
+        self.assertIn('loot', interactions)
+        self.assertIn('carry', interactions)
+        self.assertFalse(interactions['carry'].get('disabled'))
 
 
 if __name__ == '__main__':

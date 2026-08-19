@@ -112,17 +112,22 @@ Add entry to `user_levels/<campaign>/index.json` → `npcs` array:
 ### 3. Generate Voice Assets
 
 #### 3a. Prepare Reference Audio
-- Place reference audio in `user_levels/<campaign>/references/<name>/`
-- Convert to WAV (24kHz, mono, 16-bit):
+- Place reference audio in `user_levels/<campaign>/assets/voice_samples/` as
+  `<name>.wav` **or** `<name>.mp3` (24 kHz mono preferred; MP3 is converted on upload).
+- Or bake from YAML `voice.prompt` with ElevenLabs Voice Design (not used at the table):
   ```bash
-  ffmpeg -i ref.mp3 -ar 24000 -ac 1 voice_sample.wav
+  ELEVENLABS_API_KEY=... python scripts/bake_npc_voices.py user_levels/<campaign> \
+    --bake-provider elevenlabs --force --only <entity_uid>
   ```
+  Uses `POST /v1/text-to-voice/design` (`eleven_ttv_v3`, preview only — does not save into the ElevenLabs library). Writes `assets/voice_samples/<entity_uid>.mp3`. Keep `TTS_PROVIDER=qwen3_vllm`.
 
 #### 3b. Create Voice Samples Directory
 ```bash
 mkdir -p user_levels/<campaign>/assets/voice_samples/
+# WAV or MP3 — both are discovered at runtime
 cp voice_sample.wav user_levels/<campaign>/assets/voice_samples/<name>.wav
-echo "<reference text>" > user_levels/<campaign>/assets/voice_samples/<name>.wav.ref.txt
+# or: cp ref.mp3 user_levels/<campaign>/assets/voice_samples/<name>.mp3
+echo "<reference text>" > user_levels/<campaign>/assets/voice_samples/<name>.ref.txt
 ```
 
 #### 3c. Register Voice with vLLM Server
@@ -217,8 +222,8 @@ Add NPC introduction to `on_enter` narration in map YAML.
 
 - **UID format**: `npc_<name_snake_case>`
 - **Voice prefix**: `n20_<name>` for vLLM registration
-- **Voice sample location**: `assets/voice_samples/<name>.wav`
-- **Ref text sidecar**: `assets/voice_samples/<name>.wav.ref.txt`
+- **Voice sample location**: `assets/voice_samples/<name>.wav` or `<name>.mp3`
+- **Ref text sidecar**: `assets/voice_samples/<name>.ref.txt` (also `<name>.wav.ref.txt`)
 - **Token size**: 96x96 pixels, circular with gold border
 - **Portrait aspect**: Square crop centered on face
 

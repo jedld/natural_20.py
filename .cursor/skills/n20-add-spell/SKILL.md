@@ -31,8 +31,11 @@ Engine
 VTT (buff/debuff/concentration — skip for pure instant damage with no ongoing effect)
 - [ ] webapp/static/assets/effect/<slug>.png — tile/portrait icon
 - [ ] webapp/static/spell_effects.js — register('<slug>', cast animation)
+- [ ] n20-webapp/client-3d/src/fx/spellCatalog.js — 3D recipe (kind/color/duration; alias if the label has spaces)
 - [ ] webapp/static/status_effects.js — EFFECT_CLASS + CSS if persistent overlay while active
+- [ ] n20-webapp/client-3d/src/fx/statusAuras.js — 3D ring color if the status is persistent
 - [ ] npm run build:assets
+- [ ] cd n20-webapp/client-3d && npm test && npm run build
 
 Verify
 - [ ] pytest tests/test_<slug>_spell.py -q

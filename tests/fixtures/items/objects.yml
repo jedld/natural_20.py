@@ -719,3 +719,57 @@ hidden_chasm:
   attack_name: Fall
   token:
     - "_"
+window_top:
+  color: cyan
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: WindowObjectWall
+  max_hp: 18
+  name: Window Top
+  hide_map_token: true
+  door_pos: 0
+  cover_pane: glass
+  inside_cover: half
+  window_size: medium
+  difficult_terrain: true
+  window_material: wood
+  wall_material: stone
+  barred: false
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
+  token:
+    - ▭
+  token_open:
+    - ─
+window_bottom:
+  color: cyan
+  damage_threshold: 5
+  default_ac: 15
+  hp_die: 4d8
+  interactable: true
+  item_class: WindowObjectWall
+  max_hp: 18
+  name: Window Bottom
+  hide_map_token: true
+  door_pos: 2
+  cover_pane: glass
+  inside_cover: half
+  window_size: medium
+  difficult_terrain: true
+  window_material: wood
+  wall_material: stone
+  barred: false
+  border:
+    - 0
+    - 0
+    - 0
+    - 0
+  token:
+    - ▭
+  token_open:
+    - ─

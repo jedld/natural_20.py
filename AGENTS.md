@@ -23,12 +23,14 @@ See **`docs/WEBAPP_BLUEPRINTS.md`** for the full architecture guide (blueprint m
 | `assets` | `blueprints/assets.py` | `/assets/*`, `/create_map`, `/upload_map_background`, `/delete_map` |
 | `auth` | `blueprints/auth.py` | `/login`, `/logout`, `/character_selection`, `/select_character` |
 | `ai` | `blueprints/ai.py` | `/ai/*` |
-| `navigation` | `blueprints/navigation.py` | `/`, `/command`, `/path`, `/switch_map`, `/update` |
+| `navigation` | `blueprints/navigation.py` | `/`, `/command`, `/path`, `/switch_map`, `/update`, `/map_state` |
 | `character` | `blueprints/character.py` | `/character_builder/*`, journal CRUD |
+| `notebook` | `blueprints/notebook.py` | `/notebook/*` — player/campaign notes (SQLite; see `docs/NOTEBOOK.md`) |
 | `battle` | `blueprints/battle.py` | `/start`, `/action`, `/target`, `/actions`, combat log, turn order |
 | `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, `/available_objects`, inventory, `/rest`, audio |
 | `edit` | `blueprints/edit.py` | `/edit/*` — campaign map edit mode (per-DM-session toggle), drag-and-drop authoring, terrain/layer placement |
 | `merchant` | `blueprints/merchant.py` | `/merchant` — NPC merchant trading with discount and session management |
+| `client_3d` | `blueprints/client_3d.py` | `/3d` — Three.js tabletop VTT sibling (see `docs/VTT_3D.md`) |
 | SocketIO | `blueprints/socketio_handlers.py` | `connect`, `register`, `message`, `disconnect`, `request_effects` |
 | *(conversation)* | `helpers/conversation_wiring.py` + `conversation_service.py` | `/talk` (registered at bootstrap, not a blueprint) |
 
@@ -54,6 +56,7 @@ Core patterns and conventions (do not invent alternatives):
 - YAML inherit references also support cross-campaign forms `@campaign/<name>/...`, `@campaigns/<name>/...`, and `campaigns/<name>/...` (resolved relative to the current campaign parent directory).
 - Controllers implement `select_action(battle, entity, available_actions)` and `move_for(entity, battle)`. `GenericController` provides heuristics; `LlmMcpController` (in `natural20/llm_controller.py`) delegates to an LLM and falls back safely to heuristics.
 - Actions resolve via subclasses in `natural20/actions/`: each action builds intent with `build_map()`, gets auto-targeted by `natural20.utils.action_builder.autobuild`, and resolves through `Action.resolve` to enqueue battle events.
+- **Knocking a creature out (PHB/SRD):** melee attacks (not ranged or thrown) can drop a creature to 0 HP unconscious and stable instead of killing them. Killing is the default. The VTT action bar has a **Kill / Knock** toggle next to melee attacks; when Knock is on, `/action` opts include `knock_unconscious: true`. `AttackAction.can_knock_unconscious()` gates the flag; `Entity.take_damage` honors it (including massive damage on that blow). MCP `actions.execute` accepts the same opt.
 - Spells pair YAML definitions (`templates/items/spells.yml`) with Python classes in `natural20/spell/`; `SpellAction` loads the class through `natural20/utils/spell_loader.py`, applies resource costs via `Spell.consume`, and emits damage/miss events for the battle log.
   - AoE targeting primitives:
     - Cones: use `select_cone` in a spell's `build_map()` and preview squares via `Map.squares_in_cone(...)` (server returns `target_squares` from `/target`).
@@ -128,21 +131,23 @@ MCP tool catalogue (keep this list in sync with `webapp/mcp/tools_*.py`). Design
     - Status & properties: `dm.add_status`, `dm.remove_status`, `dm.set_property`.
     - Inventory: `dm.add_item`, `dm.remove_item`, `dm.equipment` (op=equip|unequip).
     - Resources: `dm.set_resource` (resource_type=action|bonus_action|reaction|spell_slot|temp_hp|resource_pool|inspiration; op=set|add|subtract; spell_slot also takes character_class+level; resource_pool also takes resource_name such as superiority_dice; inspiration is a 0/1 Inspiration / Heroic Inspiration token) — replaces `/update_action_resources`, `/update_spell_slots`, generic `/update_resource_pool`, the temp_hp branch of `/update_hp`, and `/update_inspiration`.
-    - Rewards/progression: `dm.award_xp` — mirrors `/award_xp` for manual/quest XP awards to one, many, or all PCs; `dm.grant_level_up` — mirrors `/grant_level_up` and `/grant_event_level_up` for DM-gated or event-gated campaign progression.
+    - Rewards/progression: `dm.award_xp` — mirrors `/award_xp` for manual/quest XP awards to one, many, or all PCs; `dm.grant_level_up` — mirrors `/grant_level_up` and `/grant_event_level_up` for DM-gated, event-gated, or milestone campaign progression (`game.yml` `progression.mode`).
     - Spawning / placement: `dm.spawn_npc` (unique NPCs already on the same map set are moved, not duplicated), `dm.spawn_object`, `dm.remove_entity`, `dm.teleport`.
     - Battle admin: `dm.battle_admin` (op=add_combatant|remove_combatant|reorder|set_group|next_turn) — mirrors `/add`, `/remove_from_battle`, `/reorder_initiative`, `/update_group`, and the DM-side `/next_turn`. `add_combatant` rolls initiative and slots the entity right after the current turn.
     - Controller assignment: `dm.set_controller` (kind=manual|ai|llm) — mirrors `/update_controller` set; lazy-imports `WebController` / `GenericController` / `LlmMcpController` and registers handlers.
     - Rest: `dm.rest` (type=short|long, optional `force`, `arcane_picks`, `hit_die_picks`) — mirrors `/rest` including the inline pick controller.
     - Persistence: `dm.save_load` (op=save|load|list) — mirrors `/admin/save`, `/admin/load`, `/admin/saves`; on load, refreshes the current battle map and re-emits `refresh_map`.
     - Effects: `dm.effect` (effect, action=start|stop|update, optional `config`, `scope`=global|map, optional `map_name`) — mirrors `/admin/effect`, persists into the module-level `active_effects` / `active_effects_map` caches.
+    - Illumination: `dm.illumination` (op=get|set|reset, `illumination` 0–1, optional `map_name`) — 3D global ambient override; YAML `map.illumination` is the default. Visual only (does not change fog or `Map.light_at`). Mirrors `POST /admin/illumination`.
     - Audio: `dm.sound` (op=list|play|volume|seek) — mirrors `/tracks`, `/sound`, `/volume`, `/seek`.
     - Time: `dm.advance_time` (op=add|set, `seconds`) — wraps `Session.increment_game_time` for narrative time skips.
     - Map landmarks: `dm.map_landmark` (op=list|upsert|delete, optional `map_name`, `annotation`, `annotation_id`) — YAML `map_annotations` for NPC navigation/LLM place context. See `docs/MAP_ANNOTATIONS.md`.
     - DM notes: `dm.note` (op=list|upsert|delete|move, optional `map_name`, `note_id`, `x`, `y`, `text`, `title`) — play-time pins stored in `session.session_state['dm_notes']`. Invisible to PCs and NPCs. See `docs/DM_NOTES.md`.
+    - Campaign/player notebook: `dm.notebook` (op=list|get|search|create|update|delete|mkdir|move|share; optional `scope` campaign|player, `owner`, `item_id`, `folder_id`, `title`, `content`, `query`, `usernames`) — login- and campaign-level notes/files in SQLite (`notebook.sqlite`), not tied to a PC or NPC. See `docs/NOTEBOOK.md`.
     - User accounts: `dm.user_admin` (op=list|create|update|delete|assign_character|unassign_character; `username`, `password`, `roles`, `character_uid`, optional `spawn`) — mirrors `GET/POST /admin/users`; persists `logins` and `default_controllers` to campaign `index.json`.
     - Map sets: `dm.map_set` (op=list|activate|create|assign_map|place_party) — party POV worlds; `create`/`assign_map` persist `game.yml`. See `docs/MAP_SETS.md`.
     - Sidekicks: `dm.sidekick` (op=join|leave|assign_owner|list) — party NPC membership and player owners; mirrors `POST /admin/sidekick`. See `docs/CAMPAIGN_BUILDING.md`.
-  - `tools_actions`: `actions.list_available`, `actions.execute` (for `InteractAction` with `target`, `entity_uid` optional — omit or `dungeon_master` for DM-direct door/object interaction), `actions.move`, `actions.end_turn`, `actions.start_battle`, `actions.end_battle`.
+  - `tools_actions`: `actions.list_available`, `actions.execute` (for `InteractAction` with `target`, `entity_uid` optional — omit or `dungeon_master` for DM-direct door/object interaction; melee knockout via `opts.knock_unconscious`), `actions.move`, `actions.end_turn`, `actions.start_battle`, `actions.end_battle`.
   - `tools_npc` (NPC spatial awareness):
     - `npc.get_location` — returns an NPC's current map position and the enclosing hierarchy of area annotations (most specific to broadest). Allows the NPC LLM to know its location context (e.g., behind_bar → taproom → tavern_ground_floor).
     - `npc.query_area` — queries a map annotation by id and returns its details plus child sub-areas contained within it. Use to understand spatial layout and discover nested places.
@@ -160,6 +165,7 @@ Battle loop touchpoints:
 - `Battle.while_active()` is the core turn runner: invokes `start_turn()` (death saves, effects, `start_of_turn` event), asks the active controller (`begin_turn`, `select_action`, `move_for`), then calls `next_turn()` which advances rounds, triggers `top_of_the_round`, and checks `battle_ends()`.
 - Actions flow through `Battle.execute_action` → `Action.resolve(...)` (maps, auto-targeting) → `Battle.commit(...)`, which applies `Action.apply` hooks, records animation payloads, and appends to `battle_log`.
 - `Battle.trigger_event(...)` hits registered battlefield handlers and `Map.activate_map_triggers`; `event_manager` broadcasts `start_of_turn`, `end_of_turn`, `movement`, `end_of_combat`, etc.
+- After a fight with at least one combat round, `webapp/battle_combat_recap.py` uses the NPC LLM to write a first-person recap (when/where, deaths, conversation beats) into each PC journal and each dialog NPC's memory store. Wired from `register_battle_end_hook_handlers`. Disable with `battle_combat_recap.enabled: false` in `game.yml`.
 - Entity state lives in `Battle.entities` (`EntitiesUIDMap`): tracks resources (`action`, `bonus_action`, `movement`), stealth, help, statuses; manipulate via `Battle.consume(...)`, `do_distract(...)`, `dismiss_help_for(...)`.
 - Legendary and opportunity windows: `eval_legendary_action()` loops non-active entities for `legendary_action_listener`, while `trigger_opportunity_attack()` resolves reactions before normal queueing.
 

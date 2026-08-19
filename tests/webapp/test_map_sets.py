@@ -46,6 +46,9 @@ class _FakeGame:
     def switch_map_for_user(self, username, map_name):
         self.switched.append((username, map_name))
 
+    def bump_render_epoch(self, username=None):
+        return 1
+
 
 @pytest.fixture
 def dual_set_session(tmp_path: Path):
@@ -135,6 +138,95 @@ def test_place_party_helper_keeps_other_set(dual_set_session):
     assert session.active_map_set == "root"
 
 
+def test_travel_party_to_map_places_missing_and_activates(dual_set_session):
+    from webapp.blueprints.helpers.map_sets import travel_party_to_map
+
+    session, _root = dual_set_session
+    pc = PlayerCharacter.load(session, "characters/high_elf_fighter")
+    session.maps["town"].add(pc, 1, 1, group="a")
+    game = _FakeGame(session, pc)
+
+    result = travel_party_to_map(game, "woods")
+
+    assert session.active_map_set == "wilds"
+    assert pc in session.maps["town"].entities
+    assert pc in session.maps["woods"].entities
+    assert result["map"] == "woods"
+    assert result["map_set"] == "wilds"
+    assert game.switched == [("alice", "woods")]
+    refresh = [payload for event, payload, _to in game.socketio.emits if payload.get("type") == "refresh_map"]
+    assert refresh
+
+
+def test_travel_party_only_if_absent_keeps_existing_token(dual_set_session):
+    from webapp.blueprints.helpers.map_sets import travel_party_to_map
+
+    session, _root = dual_set_session
+    pc = PlayerCharacter.load(session, "characters/high_elf_fighter")
+    session.maps["town"].add(pc, 1, 1, group="a")
+    place_entity_instance(session, pc, session.maps["woods"], 3, 3, group="a")
+    game = _FakeGame(session, pc)
+
+    travel_party_to_map(game, "woods")
+
+    assert list(session.maps["woods"].position_of(pc)) == [3, 3]
+
+
+def test_party_travel_prompt_yes_calls_travel(dual_set_session, monkeypatch):
+    from webapp.blueprints.helpers import party_travel as party_travel_mod
+
+    session, _root = dual_set_session
+    pc = PlayerCharacter.load(session, "characters/high_elf_fighter")
+    session.maps["town"].add(pc, 1, 1, group="a")
+    game = _FakeGame(session, pc)
+    captured = {}
+
+    def _prompt(message, callback=None, options=None, usernames=None, title=None):
+        captured["message"] = message
+        captured["title"] = title
+        captured["options"] = options
+        callback({"response": "Yes"})
+
+    game.prompt = _prompt
+    monkeypatch.setattr(party_travel_mod, "get_current_game", lambda: game)
+
+    party_travel_mod.handle_party_travel_prompt({
+        "source": pc,
+        "target_map": "woods",
+        "title": "Leave town?",
+        "message": "The entire party will be transported to woods. Continue?",
+    })
+
+    assert captured["title"] == "Leave town?"
+    assert captured["options"] == ["Yes", "No"]
+    assert session.active_map_set == "wilds"
+    assert pc in session.maps["woods"].entities
+    pending = (session.session_state.get("_party_travel") or {}).get("pending") or {}
+    assert str(pc.entity_uid) not in pending
+
+
+def test_party_travel_prompt_no_does_not_travel(dual_set_session, monkeypatch):
+    from webapp.blueprints.helpers import party_travel as party_travel_mod
+
+    session, _root = dual_set_session
+    pc = PlayerCharacter.load(session, "characters/high_elf_fighter")
+    session.maps["town"].add(pc, 1, 1, group="a")
+    game = _FakeGame(session, pc)
+    game.prompt = lambda message, callback=None, options=None, usernames=None, title=None: callback({"response": "No"})
+    monkeypatch.setattr(party_travel_mod, "get_current_game", lambda: game)
+
+    party_travel_mod.handle_party_travel_prompt({
+        "source": pc,
+        "target_map": "woods",
+        "message": "Leave?",
+    })
+
+    assert session.active_map_set == "root"
+    assert pc not in session.maps["woods"].entities
+    declined = (session.session_state.get("_party_travel") or {}).get("declined") or {}
+    assert declined[str(pc.entity_uid)] == "woods"
+
+
 def test_iter_dialog_npcs_skips_inactive_set(dual_set_session):
     from webapp.long_rest_npc_simulation import iter_dialog_npcs
 
@@ -173,6 +265,7 @@ def test_mcp_registry_includes_dm_map_set():
 
     names = {tool['name'] for tool in build_default_registry().list()}
     assert 'dm.map_set' in names
+    assert 'dm.notebook' in names
     world_list = next(t for t in build_default_registry().list() if t['name'] == 'world.list_maps')
     assert world_list['name'] == 'world.list_maps'
 
@@ -201,6 +294,9 @@ def test_dm_llm_registers_map_set_functions():
         list_map_sets=lambda: {'active': 'root'},
         manage_map_set=lambda *a, **k: {'success': True},
         get_time_of_day=lambda: {},
+        list_campaign_notes=lambda *a, **k: {},
+        get_campaign_note=lambda *a, **k: {},
+        search_campaign_notes=lambda *a, **k: {},
     )
     registry = SimpleNamespace(list=lambda: [{'name': 'dm.map_set', 'description': 'map sets'}], call=lambda *a, **k: {})
     register_game_context_functions(handler, provider, registry, SimpleNamespace(current_game=None))

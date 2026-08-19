@@ -4,9 +4,11 @@ import unittest
 from natural20.battle import Battle
 from natural20.item_library.chest import Chest
 from natural20.item_library.door_object import DoorObject
+from natural20.item_library.teleporter import Teleporter
 from natural20.map import Map
 from natural20.player_character import PlayerCharacter
 from natural20.session import Session
+from natural20.web.quick_interact_registry import action_icon_exists
 from natural20.web.object_quick_interactions import (
     entity_quick_interact_actions_for,
     pov_self_quick_interact_actions_for,
@@ -35,7 +37,10 @@ class TestObjectQuickInteractions(unittest.TestCase):
         self.assertIn('open', action_names)
         self.assertIn('lock', action_names)
         open_action = next(a for a in actions if a['action'] == 'open')
-        self.assertEqual(open_action['image'], 'interact_open')
+        if action_icon_exists('interact_open'):
+            self.assertEqual(open_action['image'], 'interact_open')
+        else:
+            self.assertFalse(open_action.get('image'))
         self.assertFalse(open_action['disabled'])
         self.assertFalse(open_action['needs_approach'])
 
@@ -60,7 +65,10 @@ class TestObjectQuickInteractions(unittest.TestCase):
         actions = quick_interact_actions_for(self.chest, self.entity, self.battle)
         self.assertEqual([a['action'] for a in actions], ['open', 'lock'])
         open_action = next(a for a in actions if a['action'] == 'open')
-        self.assertEqual(open_action['image'], 'open_chest')
+        if action_icon_exists('open_chest'):
+            self.assertEqual(open_action['image'], 'open_chest')
+        else:
+            self.assertFalse(open_action.get('image'))
         self.assertFalse(open_action['needs_approach'])
 
     def test_locked_door_shows_unlock(self):
@@ -158,7 +166,10 @@ class TestObjectQuickInteractions(unittest.TestCase):
         self.assertIn('loot', [a['action'] for a in actions])
         loot = next(a for a in actions if a['action'] == 'loot')
         self.assertIn('Loot', loot['label'])
-        self.assertEqual(loot['image'], 'interact_loot')
+        if action_icon_exists('interact_loot'):
+            self.assertEqual(loot['image'], 'interact_loot')
+        else:
+            self.assertFalse(loot.get('image'))
         self.assertFalse(loot['needs_approach'])
 
     def test_dead_npc_shows_loot_quick_action_when_adjacent(self):
@@ -248,6 +259,50 @@ class TestObjectQuickInteractions(unittest.TestCase):
         self.assertIn('pov_self_quick_interact', tile)
         self.assertEqual(tile['pov_self_quick_interact'][0]['action'], 'perception_check')
         self.assertIn('pov_self_quick_interact_anchor', tile)
+
+    def test_party_travel_pad_quick_interact_on_pad_and_adjacent(self):
+        tp = Teleporter(self.session, self.battle_map, {
+            'name': 'gate',
+            'party_travel': True,
+            'target_map': 'index',
+        })
+        px, py = self.battle_map.position_of(self.entity)
+        self.battle_map.place_object(tp, px, py)
+
+        on_pad = quick_interact_actions_for(tp, self.entity, battle=None)
+        self.assertEqual([a['action'] for a in on_pad], ['party_travel'])
+        self.assertFalse(on_pad[0]['needs_approach'])
+        self.assertFalse(on_pad[0]['disabled'])
+        self.assertIn('Travel with party', on_pad[0]['label'])
+
+        self.battle_map.move_to(self.entity, px, py + 1, self.battle)
+        adjacent = quick_interact_actions_for(tp, self.entity, battle=None)
+        self.assertEqual(adjacent[0]['action'], 'party_travel')
+        self.assertTrue(adjacent[0]['needs_approach'])
+
+    def test_map_renderer_exposes_party_travel_hover_while_standing_on_pad(self):
+        from natural20.web.json_renderer import JsonRenderer
+
+        tp = Teleporter(self.session, self.battle_map, {
+            'name': 'gate',
+            'party_travel': True,
+            'target_map': 'index',
+        })
+        px, py = self.battle_map.position_of(self.entity)
+        self.battle_map.place_object(tp, px, py)
+        renderer = JsonRenderer(self.battle_map, battle=None, padding=[0, 0])
+        result = renderer.render(entity_pov=[self.entity])
+        tile = next(
+            cell
+            for row in result
+            for cell in row
+            if cell.get('id') == self.entity.entity_uid
+        )
+        party_actions = []
+        for obj in tile.get('objects') or []:
+            if obj.get('teleporter_party_travel'):
+                party_actions.extend(obj.get('quick_interact') or [])
+        self.assertTrue(any(a.get('action') == 'party_travel' for a in party_actions))
 
     def test_map_objects_with_null_inventory_expose_no_usable_items(self):
         self.assertIsNone(self.door.inventory)

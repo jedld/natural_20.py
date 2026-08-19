@@ -334,7 +334,7 @@ def _run_single_test_in_subprocess(test_path, test_name, max_mem_mb=None):
 
 def main():
     parser = argparse.ArgumentParser(description='Run pytest with memory monitoring and auto-fix')
-    parser.add_argument('pytest_args', nargs='*', help='Arguments to pass to pytest')
+    parser.add_argument('pytest_args', nargs=argparse.REMAINDER, help='Arguments to pass to pytest (use -- before them)')
     parser.add_argument('--interval', type=float, default=0.5, help='Memory check interval (default: 0.5)')
     parser.add_argument('--no-monitor', action='store_true', help='Skip background memory monitoring')
     parser.add_argument('--output', type=str, default=None, help='Output file for pytest')
@@ -359,10 +359,24 @@ def main():
     parser.add_argument('--report-file', type=str, default=None,
                         help='Save test report with memory data to file')
 
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
+    # Merge anything argparse didn't recognize back into the pytest args
+    pytest_passthrough = list(unknown) + list(args.pytest_args or [])
+    # Drop the -- separator if the user used it
+    if pytest_passthrough and pytest_passthrough[0] == '--':
+        pytest_passthrough = pytest_passthrough[1:]
 
     # Build pytest command
     pytest_cmd = [sys.executable, '-m', 'pytest']
+
+    # Load the in-repo memory profiling plugin so --mem-profile & co. are recognized
+    _plugin_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pytest_memprof_plugin.py')
+    if os.path.exists(_plugin_path):
+        # -p expects a module name; make scripts/ importable from the repo root
+        _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        _existing = os.environ.get('PYTHONPATH', '')
+        os.environ['PYTHONPATH'] = _repo_root + os.pathsep + _existing if _existing else _repo_root
+        pytest_cmd.extend(['-p', 'scripts.pytest_memprof_plugin'])
 
     if args.no_header:
         pytest_cmd.append('--collect-only')  # Actually, let's handle this differently
@@ -378,10 +392,10 @@ def main():
         pytest_cmd.append('--tb=short')
 
     # Add remaining args
-    if not args.pytest_args:
-        pytest_cmd.append('.')
+    if pytest_passthrough:
+        pytest_cmd.extend(pytest_passthrough)
     else:
-        pytest_cmd.extend(args.pytest_args)
+        pytest_cmd.append('.')
 
     print(f"[INFO] Command: {' '.join(pytest_cmd)}")
     print(f"[INFO] Working directory: {os.getcwd()}")
@@ -408,7 +422,7 @@ def main():
         # Collect test names first
         print("[INFO] Collecting test list for isolated execution...")
         collect_cmd = [sys.executable, '-m', 'pytest', '--collect-only', '-q']
-        collect_cmd.extend(args.pytest_args if args.pytest_args else ['.'])
+        collect_cmd.extend(pytest_passthrough if pytest_passthrough else ['.'])
         collect_result = subprocess.run(collect_cmd, capture_output=True, text=True)
 
         test_list = []

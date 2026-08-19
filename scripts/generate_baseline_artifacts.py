@@ -28,15 +28,24 @@ def generate_artifacts():
     # so we need to change to the webapp directory before importing.
     # Script is at scripts/generate_baseline_artifacts.py, project root is parent.
     scripts_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(scripts_dir)
+    engine_root = os.path.dirname(scripts_dir)
+    # Post-repo-split layout: webapp lives in the n20-webapp submodule.
+    webapp_submodule = os.path.join(engine_root, 'n20-webapp')
+    project_root = webapp_submodule if os.path.isdir(webapp_submodule) else engine_root
     webapp_dir = os.path.join(project_root, 'webapp')
-    
+
     # Change to webapp dir since app.py uses relative path "../templates"
     original_dir = os.getcwd()
     os.chdir(webapp_dir)
     sys.path.insert(0, webapp_dir)
     sys.path.insert(0, project_root)
-    
+    sys.path.insert(0, engine_root)
+
+    # app.py loads the campaign config at import time; point TEMPLATE_DIR at
+    # the engine repo's bundled templates.
+    if not os.path.isdir(os.path.join(project_root, 'templates')):
+        os.environ.setdefault('TEMPLATE_DIR', os.path.join(engine_root, 'templates'))
+
     try:
         _generate_artifacts_inner(project_root)
     finally:

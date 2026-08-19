@@ -11,6 +11,8 @@ from webapp.blueprints.helpers.npc_stat_block import (
     format_challenge_rating,
     format_npc_action,
     format_size_type_alignment,
+    format_skill_entries,
+    format_skills_line,
     format_speed_line,
     is_player_controlled_npc,
 )
@@ -68,6 +70,20 @@ def test_format_challenge_rating_fractions():
     assert format_challenge_rating(0) == '0'
 
 
+def test_skill_entries_are_rollable():
+    goblin = _session().npc('goblin')
+    skills = format_skill_entries(goblin)
+    assert skills == [{'name': 'stealth', 'label': 'Stealth', 'mod': '+6'}]
+    assert format_skills_line(goblin) == 'Stealth +6'
+
+    wolf = _session().npc('wolf')
+    labels = [skill['label'] for skill in format_skill_entries(wolf)]
+    assert labels == ['Stealth', 'Perception']
+    html = _render_npc_block(wolf)
+    assert 'data-description="Perception Check"' in html
+    assert 'data-roll="1d20+5"' in html
+
+
 def test_goblin_stat_block_payload():
     goblin = _session().npc('goblin')
     block = build_npc_stat_block(goblin)
@@ -78,7 +94,7 @@ def test_goblin_stat_block_payload():
     assert 'neutral evil' in block['size_type_alignment']
     assert block['ac'] == 15
     assert block['speed'] == '30 ft.'
-    assert 'Stealth +6' in block['skills']
+    assert any(skill['label'] == 'Stealth' and skill['mod'] == '+6' for skill in block['skills'])
     assert 'darkvision 60 ft.' in block['senses']
     assert '1/4' in block['challenge']
     assert '50 XP' in block['challenge']
@@ -136,6 +152,9 @@ def test_npc_stat_block_template_looks_like_5e():
     assert 'class="dnd-sheet"' not in html
     assert 'Class &amp; Level' not in html
     assert 'id="current-hp-input"' in html
+    assert 'data-description="Stealth Check"' in html
+    assert 'data-roll="1d20+6"' in html
+    assert 'stat-block-skill auto-die-roll' in html
 
 
 def test_npc_public_card_hides_combat_stats():

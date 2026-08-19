@@ -380,6 +380,9 @@ torch:
     A torch burns for 1 hour, providing bright light in a 20-foot radius and dim light for an additional 20 feet. If you make a melee attack with a burning torch and hit, it deals 1 fire damage.
   type: light_source
   weight: 1
+  light:
+    bright: 20
+    dim: 20
 rope:
   cost: 1
   name: Rope (50 ft)

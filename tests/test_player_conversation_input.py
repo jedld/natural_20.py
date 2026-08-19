@@ -36,3 +36,13 @@ def test_sanitize_spoken_text_for_tts_strips_emphasis_markers():
     assert sanitize_spoken_text_for_tts('That is **very** important.') == 'That is very important.'
     assert sanitize_spoken_text_for_tts('A _little_ louder, please.') == 'A little louder, please.'
     assert sanitize_spoken_text_for_tts('Use the `scroll` now.') == 'Use the scroll now.'
+
+
+def test_is_tts_worthy_text_rejects_punctuation_only():
+    from natural20.utils.conversation import is_tts_worthy_text
+
+    assert is_tts_worthy_text('...') is False
+    assert is_tts_worthy_text('—') is False
+    assert is_tts_worthy_text('?!') is False
+    assert is_tts_worthy_text('   ') is False
+    assert is_tts_worthy_text('Hello there.') is True

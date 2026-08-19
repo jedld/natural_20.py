@@ -71,16 +71,16 @@ def _timed(label: str, fn):
 
 
 def _pick_npc_uid(campaign_root: Path, requested: str | None) -> tuple[str, str | None]:
-    from webapp.tts.voice_baking import voice_sample_path
-
     if requested:
         return requested.strip(), None
 
     samples_dir = campaign_root / "assets" / "voice_samples"
     if samples_dir.is_dir():
-        wavs = sorted(samples_dir.glob("*.wav"))
-        if wavs:
-            return wavs[0].stem, None
+        from webapp.tts.voice_baking import list_campaign_voice_samples
+
+        samples = list_campaign_voice_samples(samples_dir)
+        if samples:
+            return samples[0].stem, None
 
     from natural20.tts.campaign_voice_profiles import discover_voice_candidates
 
@@ -130,16 +130,19 @@ def main() -> int:
         return 1
 
     npc_uid, npc_type = _pick_npc_uid(campaign_root, args.npc)
-    from webapp.tts.voice_baking import voice_sample_path
+    from webapp.tts.voice_baking import discover_baked_sample, voice_sample_path
     from webapp.tts.manager import TTSManager
     from webapp.tts.npc_voice import build_voice_profile_from_entity
     from webapp.tts.synthesis_cache import line_cache_enabled, synthesis_cache_key
 
-    sample_path = voice_sample_path(str(campaign_root), npc_uid)
-    if not sample_path or not sample_path.is_file():
+    sample_path = discover_baked_sample(str(campaign_root), npc_uid)
+    if not sample_path:
+        sample_path = voice_sample_path(str(campaign_root), npc_uid)
+        sample_path = str(sample_path) if sample_path and sample_path.is_file() else None
+    if not sample_path:
         print(
-            f"No baked sample for {npc_uid}: {sample_path}\n"
-            "Run: cd webapp && python ../scripts/bake_npc_voices.py "
+            f"No baked sample for {npc_uid}\n"
+            "Run: python scripts/bake_npc_voices.py "
             f"{campaign_root}",
             file=sys.stderr,
         )

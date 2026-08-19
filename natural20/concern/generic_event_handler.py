@@ -1,5 +1,30 @@
 import pdb
 from natural20.die_roll import DieRoll
+
+
+def normalize_session_flags(raw):
+    """Coerce YAML ``set_session`` / session ``update_state`` values to a dict.
+
+    Accepted shapes:
+      - ``{flag: true}`` (or any dict of keys to values)
+      - ``flag_name`` (string → ``{flag_name: True}``)
+      - ``[flag_a, flag_b]`` or mixed list of strings and dicts
+    """
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return dict(raw)
+    if isinstance(raw, str):
+        name = raw.strip()
+        return {name: True} if name else {}
+    if isinstance(raw, (list, tuple)):
+        flags = {}
+        for item in raw:
+            flags.update(normalize_session_flags(item))
+        return flags
+    return {}
+
+
 class GenericEventHandler:
     def __init__(self, session, map, properties):
         self.properties = properties
@@ -11,6 +36,11 @@ class GenericEventHandler:
             return self.map
         return self.session.map_for(entity)
 
+    def _apply_session_flags(self, raw):
+        flags = normalize_session_flags(raw)
+        if flags and self.session is not None:
+            self.session.update_state(flags)
+
     def handle(self, entity, opts=None):
         if opts is None:
             opts = {}
@@ -21,13 +51,19 @@ class GenericEventHandler:
             if not entity.eval_if(conditions, context={'entity': entity, 'opts': opts}):
                 return
 
+        # Session flags first so campaign_event listeners can read them.
+        if 'set_session' in self.properties:
+            self._apply_session_flags(self.properties.get('set_session'))
+
         campaign_event = self.properties.get('campaign_event')
         if campaign_event:
+            extra = dict(opts or {})
+            extra.pop('source', None)
             payload = {
                 'event': campaign_event,
                 'source': entity,
             }
-            payload.update(opts or {})
+            payload.update(extra)
             self.session.event_manager.received_event(payload)
 
         if self.properties.get('message'):
@@ -186,6 +222,14 @@ class GenericEventHandler:
             update_state_properties = self.properties['update_state']
 
             def update_state(entity, update_state_properties):
+                target_request = update_state_properties.get('target')
+                if target_request is None:
+                    target_request = 'self'
+
+                if target_request == 'session':
+                    self._apply_session_flags(update_state_properties.get('state'))
+                    return
+
                 target_map_name = update_state_properties.get('map', None)
 
                 if target_map_name:
@@ -196,15 +240,8 @@ class GenericEventHandler:
                 if target_map is None:
                     raise Exception(f"Could not find map {target_map_name}")
 
-                target_request = update_state_properties.get('target')
-                if target_request is None:
-                    target_request = 'self'
-
                 targets = []
-                if target_request == 'session':
-                    self.session.update_state(update_state_properties['state'])
-                    return
-                elif target_request == 'self':
+                if target_request == 'self':
                     targets.append(entity)
                 elif target_request == 'target':
                     targets.append(opts['target'])

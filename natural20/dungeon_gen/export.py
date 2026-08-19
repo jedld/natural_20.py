@@ -115,6 +115,8 @@ def grid_to_map_properties(grid: DungeonGrid, knobs: GeneratorKnobs) -> dict[str
                 "mask": False,
             },
         }
+    if knobs.theme == "cave":
+        props["vtt3d"] = {"walls": {"style": "cave"}}
     return props
 
 

@@ -19,12 +19,13 @@ Supported modes:
 | `xp` | Default. XP thresholds determine when a character can level up. |
 | `dm` | XP may still be tracked, but only explicit DM grants create level-up opportunities. |
 | `event` | XP may still be tracked, but only configured named campaign events create level-up opportunities. |
+| `milestone` | Alias of `event`. Use this for D&D milestone leveling (goals, not monster XP). |
 
-For event-gated progression:
+For event-gated / milestone progression:
 
 ```yaml
 progression:
-  mode: event
+  mode: milestone
   events:
     rescued_prince:
       label: Rescued the Prince
@@ -32,10 +33,25 @@ progression:
     sealed_shadow_gate:
       label: Sealed the Shadow Gate
       target_level: 5
+    secret_stairs_revealed:
+      label: Found the hidden stairs
+      target_level: 2
+      auto: true                 # default; grant when this campaign_event fires
+      grant_on:                  # optional extra campaign_event names
+        - secret_stairs_revealed
+      narration:
+        title: A Hidden Way Down
+        text: The party may now advance to 2nd level.
 ```
 
 `levels` grants a number of level-ups. `target_level` grants enough level-ups
 to reach that total character level.
+
+When `auto` is true (the default), firing a matching `campaign_event` from map
+YAML (object `events`, NPC `died` hooks, teleporter `activate`, and so on)
+grants the milestone to every player character on loaded maps. Each event is
+granted once per save. DMs can still fire the same keys with
+`POST /grant_event_level_up` or MCP `dm.grant_level_up` (`event=`).
 
 ## Character XP
 

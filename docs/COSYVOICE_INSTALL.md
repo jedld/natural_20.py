@@ -143,8 +143,10 @@ Please! You have to be quiet!
 - `[EMOTION: …]` — short mood token (`fearful`, `angry`, `whisper`, …)
 - `[TTS: …]` / `[TTS_INSTRUCT: …]` — free-form CosyVoice acting notes
 
-CosyVoice3 uses `inference_instruct2` when an accent or TTS instruct is set so the stock Chinese
-reference clip does not force a Mandarin accent. Set `TTS_DEFAULT_ACCENT=none` to
+CosyVoice3 English uses `inference_zero_shot` (spoken English + matching Chinese
+prompt-WAV transcript, accent in the assistant preamble) so
+the bundled Chinese prompt WAV stays a speaker reference only. Instruct2 is reserved
+for Chinese dialect/style overlays. Set `TTS_DEFAULT_ACCENT=none` to
 keep model-native pronunciation for NPCs without an explicit `voice.accent`.
 
 Restart the Flask/gunicorn process after changing `.env`. On startup you should see

@@ -69,6 +69,8 @@ def test_theme_presets_and_schema() -> None:
     assert schema["properties"]["algorithm"]["enum"]
     result = generate_from_mission(theme="cave", mission="Find the lost shrine", seed=7, width=30, height=24)
     assert "shrine" in result.properties["description"].lower() or result.properties["description"]
+    cave_props = grid_to_map_properties(result.grid, result.knobs)
+    assert cave_props["vtt3d"]["walls"]["style"] == "cave"
 
 
 def test_yaml_export_loads_as_map_grid() -> None:

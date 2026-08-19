@@ -23,11 +23,12 @@ from webapp.blueprints.helpers.object_spawner_utils import (
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_EDITOR_OUTPUT = templates_editor_dir()
 
-_SKIP_CATEGORIES = frozenset({"walls", "door_walls"})
+_SKIP_CATEGORIES = frozenset({"walls", "door_walls", "window_walls"})
 _SKIP_ITEM_CLASSES = frozenset({
     "StoneWall",
     "StoneWallDirectional",
     "DoorObjectWall",
+    "WindowObjectWall",
 })
 
 _ITEM_CLASS_ICON_KIND: dict[str, str] = {

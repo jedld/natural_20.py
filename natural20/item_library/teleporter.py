@@ -2,12 +2,95 @@ from natural20.item_library.object import Object
 from typing import Optional
 from natural20.entity import Entity
 
+_PARTY_TRAVEL_STATE = '_party_travel'
+
+
+def is_party_travel_properties(props: Optional[dict]) -> bool:
+    """True when YAML/object properties describe a party map-set teleporter."""
+    if not isinstance(props, dict):
+        return False
+    if props.get('party_travel') or props.get('party'):
+        return True
+    type_name = str(props.get('type') or props.get('object_type') or '').strip().lower()
+    return type_name in {'party_teleporter', 'party_travel'}
+
+
+def is_party_travel_object(obj) -> bool:
+    if obj is None:
+        return False
+    if callable(getattr(obj, 'is_party_travel', None)):
+        try:
+            return bool(obj.is_party_travel())
+        except Exception:
+            pass
+    return is_party_travel_properties(getattr(obj, 'properties', None))
+
+
+def _party_travel_state(session) -> dict:
+    if session is None:
+        return {}
+    state = getattr(session, 'session_state', None)
+    if not isinstance(state, dict):
+        session.session_state = {}
+        state = session.session_state
+    bucket = state.get(_PARTY_TRAVEL_STATE)
+    if not isinstance(bucket, dict):
+        bucket = {'pending': {}, 'declined': {}}
+        state[_PARTY_TRAVEL_STATE] = bucket
+    bucket.setdefault('pending', {})
+    bucket.setdefault('declined', {})
+    return bucket
+
+
+def _entity_uid(entity) -> str:
+    return str(getattr(entity, 'entity_uid', '') or '')
+
+
+def party_travel_after_step(entity, battle_map, pos_x, pos_y) -> None:
+    """Clear a declined party-travel pad once the entity steps off it."""
+    session = getattr(battle_map, 'session', None)
+    uid = _entity_uid(entity)
+    if not uid or session is None:
+        return
+    bucket = _party_travel_state(session)
+    declined = bucket.setdefault('declined', {})
+    if uid not in declined:
+        return
+    still_on_pad = False
+    try:
+        for obj in battle_map.objects_at(pos_x, pos_y):
+            if is_party_travel_object(obj) and str(getattr(obj, 'target_map', '') or '') == declined.get(uid):
+                still_on_pad = True
+                break
+    except Exception:
+        still_on_pad = False
+    if not still_on_pad:
+        declined.pop(uid, None)
+
+
+def resolve_party_travel_prompt(session, entity, *, declined: bool = False, target_map: Optional[str] = None) -> None:
+    """Clear pending prompt state after the player answers."""
+    uid = _entity_uid(entity)
+    if not uid or session is None:
+        return
+    bucket = _party_travel_state(session)
+    pending = bucket.setdefault('pending', {})
+    remembered = pending.pop(uid, None)
+    dest = target_map or remembered
+    if declined and dest:
+        bucket.setdefault('declined', {})[uid] = dest
+    else:
+        bucket.setdefault('declined', {}).pop(uid, None)
+
 
 class Teleporter(Object):
     def __init__(self, session, map, properties):
         super().__init__(session, map, properties)
         self.target_map = properties.get('target_map', None)
         self.target_position = properties.get('target_position', [0, 0])
+
+    def is_party_travel(self) -> bool:
+        return is_party_travel_properties(getattr(self, 'properties', None))
 
     def _session_gate_allows(self, entity: Entity, map) -> bool:
         """Optional campaign gate via ``requires_session`` on the teleporter.
@@ -123,7 +206,161 @@ class Teleporter(Object):
                 'map_name': getattr(map, 'name', None),
             })
 
+    def _is_player_character(self, entity: Entity) -> bool:
+        try:
+            from natural20.player_character import PlayerCharacter
+            return isinstance(entity, PlayerCharacter)
+        except Exception:
+            return False
+
+    def _entity_on_pad(self, entity: Entity) -> bool:
+        battle_map = getattr(self, 'map', None)
+        if battle_map is None or entity is None:
+            return False
+        try:
+            return tuple(battle_map.position_of(entity)) == tuple(battle_map.position_of(self))
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return False
+
+    def _destination_display_name(self, session) -> str:
+        if not self.target_map:
+            return 'another map'
+        dest_map = session.maps.get(self.target_map) if session else None
+        if dest_map is not None:
+            name = getattr(dest_map, 'name', None)
+            if name:
+                return str(name)
+        return str(self.target_map).replace('_', ' ').title()
+
+    def party_travel_prompt_text(self, session) -> str:
+        props = getattr(self, 'properties', {}) or {}
+        custom = (props.get('prompt') or props.get('prompt_message') or '').strip()
+        if custom:
+            return custom
+        dest = self._destination_display_name(session)
+        return (
+            f"The entire party will be transported to {dest}. "
+            "Player characters and their sidekicks who are not already there "
+            "will appear at that map's spawn points. Continue?"
+        )
+
+    def party_travel_prompt_title(self, session) -> str:
+        props = getattr(self, 'properties', {}) or {}
+        custom = (props.get('prompt_title') or '').strip()
+        if custom:
+            return custom
+        dest = self._destination_display_name(session)
+        return f"Travel to {dest}?"
+
+    def party_travel_interact_label(self, session=None) -> str:
+        """Action-bar / mouseover label for retrying party travel from the pad."""
+        dest = self._destination_display_name(session or getattr(self, 'session', None))
+        return f"Travel with party → {dest}"
+
+    def available_interactions(self, entity, battle=None, admin=False):
+        interactions = super().available_interactions(entity, battle, admin=admin) or {}
+        if not self.is_party_travel():
+            return interactions
+        if not admin and not self._is_player_character(entity):
+            return interactions
+        if not admin and not self._entity_on_pad(entity):
+            return interactions
+
+        label = self.party_travel_interact_label(getattr(self, 'session', None))
+        interactions['party_travel'] = {
+            'prompt': label,
+            'label': label,
+        }
+        if not self._session_gate_allows(entity, getattr(self, 'map', None)):
+            props = getattr(self, 'properties', {}) or {}
+            interactions['party_travel']['disabled'] = True
+            interactions['party_travel']['disabled_text'] = (
+                props.get('deny_message') or 'object.teleporter.not_ready'
+            )
+        elif battle is not None and getattr(battle, 'started', False):
+            interactions['party_travel']['disabled'] = True
+            interactions['party_travel']['disabled_text'] = (
+                'Cannot travel with the party while a battle is in progress.'
+            )
+        return interactions
+
+    def resolve(self, entity, action, other_params, opts=None):
+        if action == 'party_travel':
+            return {'action': action}
+        return super().resolve(entity, action, other_params, opts)
+
+    def use(self, entity, result, session=None):
+        if result.get('action') == 'party_travel':
+            battle_map = result.get('map') or getattr(self, 'map', None)
+            self._handle_party_travel(
+                entity, battle_map, result.get('battle'), force=True,
+            )
+            return True
+        return super().use(entity, result, session)
+
+    def _handle_party_travel(self, entity: Entity, map, battle=None, *, force: bool = False) -> None:
+        if not self._is_player_character(entity):
+            return
+        if not self._session_gate_allows(entity, map):
+            self._deny_entry(entity, map)
+            return
+        if battle is not None and getattr(battle, 'started', False):
+            props = getattr(self, 'properties', {}) or {}
+            message = props.get('deny_message') or (
+                f"{entity.name} cannot use {self.label()} while a battle is in progress."
+            )
+            session = getattr(map, 'session', None) or getattr(self, 'session', None)
+            if session and getattr(session, 'event_manager', None):
+                session.event_manager.received_event({
+                    "event": 'console', "target": map, "source": entity, "message": message,
+                })
+            return
+
+        session = getattr(map, 'session', None) or getattr(self, 'session', None)
+        if not self.target_map or session is None:
+            return
+        if self.target_map not in (getattr(session, 'maps', {}) or {}):
+            if getattr(session, 'event_manager', None):
+                session.event_manager.received_event({
+                    "event": 'console', "target": map, "source": entity,
+                    "message": (
+                        f"{entity.name} stepped on {self.label()} but "
+                        f"target_map '{self.target_map}' is not registered."
+                    ),
+                })
+            return
+
+        uid = _entity_uid(entity)
+        bucket = _party_travel_state(session)
+        pending = bucket.setdefault('pending', {})
+        declined = bucket.setdefault('declined', {})
+        if force:
+            declined.pop(uid, None)
+        if pending.get(uid) == self.target_map:
+            return
+        if not force and declined.get(uid) == self.target_map:
+            return
+
+        if not getattr(session, 'event_manager', None):
+            return
+        pending[uid] = self.target_map
+        session.event_manager.received_event({
+            "event": 'party_travel_prompt',
+            "source": entity,
+            "target": self,
+            "map": map,
+            "map_name": getattr(map, 'name', None),
+            "target_map": self.target_map,
+            "target_map_set": session.map_set_for(self.target_map) if hasattr(session, 'map_set_for') else None,
+            "title": self.party_travel_prompt_title(session),
+            "message": self.party_travel_prompt_text(session),
+        })
+
     def on_enter(self, entity: Entity, map, battle=None):
+        if self.is_party_travel():
+            self._handle_party_travel(entity, map, battle)
+            return
+
         if not self._session_gate_allows(entity, map):
             self._deny_entry(entity, map)
             return
@@ -218,10 +455,12 @@ class Teleporter(Object):
     def is_visible_marker(self):
         """Whether this teleporter should be drawn with a tile-border marker
         on the web map. Configurable per-instance via the YAML key ``visible``
-        (alias: ``marker``). Defaults to False so existing maps are unchanged.
+        (alias: ``marker``). Party-travel pads default to visible.
         """
         props = getattr(self, 'properties', {}) or {}
-        return bool(props.get('visible') or props.get('marker'))
+        if 'visible' in props or 'marker' in props:
+            return bool(props.get('visible') or props.get('marker'))
+        return self.is_party_travel()
 
     def marker_color(self):
         """CSS color used for the visible-teleporter border. Configurable via

@@ -25,14 +25,16 @@ Do **not** add new HTTP routes to `app.py` unless they are bootstrap-only (healt
 | `assets` | `blueprints/assets.py` | `/assets/*`, `/create_map`, `/upload_map_background`, `/delete_map` | `assets.*` |
 | `auth` | `blueprints/auth.py` | `/login`, `/logout`, `/character_selection`, `/select_character` | `auth.*` |
 | `ai` | `blueprints/ai.py` | `/ai/*` | `ai.*` |
-| `navigation` | `blueprints/navigation.py` | `/`, `/command`, `/path`, `/switch_map`, `/update` | `navigation.*` |
-| `character` | `blueprints/character.py` | `/character_builder/*`, `/character_editor/*`, journal CRUD | `character.*` |
+| `navigation` | `blueprints/navigation.py` | `/`, `/command`, `/path`, `/switch_map`, `/update`, `/map_state`, `/party/invite` | `navigation.*` |
+| `character` | `blueprints/character.py` | `/character_builder/*`, `/character_editor/*`, journal CRUD, `/inventory/container/*`, `/inventory/use` | `character.*` |
+| `notebook` | `blueprints/notebook.py` | `/notebook`, `/notebook/items`, `/notebook/folders`, `/notebook/shared/<id>` — player/campaign notes (SQLite) | `notebook.*` |
 | `battle` | `blueprints/battle.py` | `/start`, `/action`, `/target`, `/actions`, `/actions/batch`, turn order, combat log | `battle.*` |
-| `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, inventory, `/rest`, audio, entity admin, `/update_resource_pool` | `dm.*` |
-| `edit` | `blueprints/edit.py` | `/edit/overlay`, `/edit/move`, `/edit/map_graph` (campaign YAML authoring; requires `N20_EDIT_MODE=1`) | `edit.*` |
+| `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, inventory, `/equipment`, `/item_card`, `/rest`, audio, entity admin, `/update_resource_pool`, `/update_inspiration`, `/admin/map_sets`, `/admin/map_set/*`, `/admin/sidekick`, `/dm/notes`, `/admin/illumination` | `dm.*` |
+| `edit` | `blueprints/edit.py` | `/edit/session`, `/edit/overlay`, `/edit/move`, `/edit/map_graph`, `/edit/map_graph/layout` (campaign YAML authoring; per-DM-session edit mode) | `edit.*` |
 | `merchant` | `blueprints/merchant.py` | `/merchant`, `/merchant/preview`, `/merchant/trade` | `merchant.*` |
+| `client_3d` | `blueprints/client_3d.py` | `/3d` — Three.js VTT sibling (see [VTT_3D.md](VTT_3D.md)) | `client_3d.*` |
 | *(none)* | `blueprints/socketio_handlers.py` | `connect`, `register`, `message`, `disconnect`, `request_effects` | N/A (SocketIO) |
-| `mcp` | `mcp/` package | `/mcp/manifest`, `/mcp/tools/list`, `/mcp/tools/call` | `mcp.*` |
+| `mcp` | `mcp/` package | `POST /mcp` (Streamable HTTP JSON-RPC), `/mcp/manifest`, `/mcp/tools/list`, `/mcp/tools/call` | `mcp.*` |
 
 Conversation routes (`/talk`, etc.) are registered by `conversation_service.register_conversation_routes` via `helpers/conversation_wiring.py`, not a blueprint.
 
@@ -85,13 +87,21 @@ This conforms with DnD 5e where movement is measured in feet (5 ft = 1 grid squa
 | `auth_utils.py` | `logged_in`, `roles_for_username`, `user_role` |
 | `template_globals.py` | Jinja globals/filters (`t`, `describe_terrain`, `process_action_hash`, …) |
 | `action_utils.py` | Action class resolution, battle action helpers |
-| `effects.py` | Effect caches, `register_effect_listeners()` (battle-end narration, control override) |
+| `effects.py` | Effect caches, `register_effect_listeners()` (battle-end narration, control override), `register_battle_end_hook_handlers()` (campaign hooks + combat recap) |
 | `special_effects.py` | Client effect payload filtering |
 | `journal_utils.py` | `_record_narration_for_pcs` (shared by effects and battle) |
 | `character_builder_utils.py` | Character builder/import helpers |
 | `character_builder_restrictions.py` | Campaign min/max level and class/spell/feat/ability blacklists |
+| `character_selection.py` | Login PC vs sidekick partition and `character_selection.sidekick_slots` |
 | `pvp.py` | PvP team config and battle autofill |
+| `map_sets.py` | Activate / create / assign / place-party / party-travel for campaign map sets (`docs/MAP_SETS.md`) |
+| `party_travel.py` | Confirmation prompt when a PC steps on a `party_travel` teleporter; Interact / tile hover retries after cancel |
+| `sidekick_control.py` | Join/leave party sidekicks and WebController owner registration |
+| `npc_stat_block.py` | 5e creature stat-block payload, NPC sheet access (`/info`) |
 | `llm_init.py` | LLM handler init, game-context function registration |
+| `object_spawner_utils.py` | Object catalog categories for the object spawner |
+| `npc_spawner_utils.py` | NPC catalog CR labels, unique flags, and live map-set presence |
+| `asset_utils.py` | Static URL helpers; `/assets/items` and `/assets/objects` resolve campaign (then imports / expansion packs) before bundled static |
 | `campaign_config.py` | Campaign path / index loading |
 | `cors_config.py` | CORS origins, SocketIO async mode |
 | `perf.py` | Request timing instrumentation |
@@ -107,14 +117,27 @@ Set in `user_levels/<campaign>/game.yml` (or `index.json`) under `character_buil
 character_builder:
   min_level: 1
   max_level: 3
+  # Optional allow-list. Omit or leave empty to offer every loaded
+  # background (campaign + templates). A non-empty list hides the rest.
+  # allowed_backgrounds: [haunted_one]
   blacklist:
     classes: [warlock, paladin]
     spells: [fireball, wish]
     feats: [sharpshooter]
     abilities: [action_surge]   # class features / subclasses by slug
+    backgrounds: []             # optional denylist (used when no allow-list)
 ```
 
-`game.yml` overrides `index.json` when both define the same keys. The builder UI and `/create_character` / `/update_character` enforce these limits server-side.
+`game.yml` overrides `index.json` when both define the same keys. The builder UI and `/create_character` / `/update_character` enforce these limits server-side. Death House omits `allowed_backgrounds` so Haunted One and the SRD template backgrounds are all selectable.
+
+Login character select can also require a companion. In `game.yml`:
+
+```yaml
+character_selection:
+  sidekick_slots: 1   # 0 = one hero; 1 = one PC and one sidekick
+```
+
+The UI splits **Player Characters** and **Sidekicks**. Death House sets `sidekick_slots: 1`.
 
 ## Adding or moving routes
 
@@ -162,7 +185,7 @@ When adding startup-side behavior, wire it from `app.py` in this order (approxim
 1. `register_globals(...)`
 2. `register_template_globals(app)`
 3. `register_effect_listeners(...)` — required for battle-end narration and control-override events
-4. LLM / conversation / PvP helpers
+4. LLM / conversation / PvP helpers, then `register_battle_end_hook_handlers(...)` (campaign `battle_end_hooks` plus post-combat journal/memory recaps)
 5. `register_perf_instrumentation()`
 6. Register blueprints
 7. `register_socketio_handlers(socketio)`
@@ -171,7 +194,17 @@ When adding startup-side behavior, wire it from `app.py` in this order (approxim
 
 ## Campaign edit mode
 
-Start with `./webapp/start_web.sh --edit <campaign_dir>` or `N20_EDIT_MODE=1`. This auto-logs in as the campaign DM, highlights doors/teleporters/walls/spawn points, and persists drag-and-drop moves directly to `maps/*.yml` via `natural20/map_editor.py` and `/edit/move`. The DM menu includes **Map Connections** (`GET /edit/map_graph`, opens in a new tab): a teleporter graph across all registered maps with click-to-switch for editing.
+Logged-in DMs can enter and leave campaign edit mode at any time from the VTT hamburger menu (**Enter Edit Mode** / **Exit Edit Mode**), including mid-game. Edit chrome (fixture overlays, landmarks panel, YAML spawners, Map Connections) is limited to **that DM's Flask session**; other players keep a normal play session.
+
+Bottom-of-map chrome is stacked in two docks so panels do not cover each other: `#map-chrome-left` (zoom controls, then landmarks above them in edit mode) and `#map-chrome-right` (minimized local chat above DM notes). The DM POV portrait dock is content-sized and centered between those columns.
+
+The hamburger (`#floating-menu`) uses the same dark chrome. DM entries are grouped as Combat, Table, Spawn, Authoring (edit mode, map pins, AI assistant), then Session (notes, journal, combat log, world time, log out). Icons are Glyphicons already used elsewhere in the VTT.
+
+`POST /edit/session` with `{ "enabled": true|false }` toggles `session['edit_mode']`. YAML mutations (`/edit/move`, place/remove, etc.) still write `maps/*.yml` via `natural20/map_editor.py` and reload the live map, so the world changes are shared — only the authoring UI is session-scoped.
+
+`GET /edit/overlay` is rebuilt from map YAML on each request. It must not call `Session.load_object()` for NPC/PC legend types: those names are missing from `items/objects.yml`, and a catalog miss used to reload the whole YAML file once per entity (about 1.5s on tavern). The client also coalesces overlay reloads so a tile refresh does not fire the endpoint twice.
+
+`--edit` / `N20_EDIT_MODE=1` is optional: it no longer auto-logs anyone in or grants DM to every user. After a real DM login, that session starts already in edit mode. The DM menu includes **Map Connections** (`GET /edit/map_graph`, opens in a new tab) while edit mode is on. Dragging map tiles persists their positions to campaign `map_graph.yml` via `POST /edit/map_graph/layout`; reload restores that layout.
 
 ## Related docs
 

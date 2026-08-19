@@ -22,6 +22,7 @@ _GLYPH_ICON_BY_ACTION: Dict[str, str] = {
     'take': 'hand-up',
     'buzz': 'bell',
     'use': 'play',
+    'party_travel': 'share-alt',
 }
 
 # Extra slugs beyond interact_action defaults (door/chest hover set).
@@ -85,8 +86,6 @@ def resolve_action_image_slug(object_entity, action: str) -> str | None:
     meta = button_metadata_for_action(object_entity, action)
     explicit = meta.get('image')
     if explicit and action_icon_exists(str(explicit)):
-        return str(explicit)
-    if explicit:
         return str(explicit)
 
     for candidate in (f'interact_{action}', action):

@@ -112,6 +112,23 @@ def test_teleporter_bypass_any_and_inventory_proof():
     assert tp._session_gate_allows(entity, source_map) is True
 
 
+def test_teleporter_party_travel_custom_prompt():
+    tp, session = _make_teleporter({
+        'party_travel': True,
+        'prompt': 'Custom warning for the party.',
+        'prompt_title': 'Hit the road?',
+        'target_map': 'woods',
+    })
+    dest = MagicMock()
+    dest.name = 'The Woods'
+    session.maps = {'woods': dest}
+    tp.target_map = 'woods'
+    assert tp.is_party_travel() is True
+    assert tp.party_travel_prompt_text(session) == 'Custom warning for the party.'
+    assert tp.party_travel_prompt_title(session) == 'Hit the road?'
+    assert tp.is_visible_marker() is True
+
+
 def test_teleporter_destination_label_uses_map_name():
     session = MagicMock()
     dest_map = MagicMock()

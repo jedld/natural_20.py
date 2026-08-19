@@ -120,6 +120,46 @@ def test_note_builtin_schema_includes_note_list(tmp_path: Path):
     assert "label" in field_keys
 
 
+def test_window_edit_ui_exposes_full_property_fields(tmp_path: Path):
+    session = _make_session(tmp_path)
+    expected = {
+        "name",
+        "state",
+        "cover_pane",
+        "inside_cover",
+        "window_size",
+        "max_pass_size",
+        "barred",
+        "difficult_terrain",
+        "window_material",
+        "wall_material",
+        "notes",
+    }
+    for type_name in (
+        "window_top",
+        "window_bottom",
+        "window_left",
+        "window_right",
+        "corner_window_tl",
+        "corner_window_tr",
+        "corner_window_bl",
+        "corner_window_br",
+    ):
+        assert object_type_has_editor(session, type_name)
+        schema = get_edit_ui_schema(session, type_name)
+        fields = {
+            field["key"]: field
+            for group in schema["groups"]
+            for field in group["fields"]
+        }
+        assert expected.issubset(fields)
+        for key in ("state", "cover_pane", "inside_cover", "window_size", "max_pass_size", "window_material", "wall_material"):
+            assert fields[key]["type"] == "enum"
+            assert fields[key].get("choices")
+        assert fields["barred"]["type"] == "boolean"
+        assert fields["difficult_terrain"]["type"] == "boolean"
+
+
 def test_teleporter_schema_merges_notes_group(tmp_path: Path):
     session = _make_session(tmp_path)
     schema = get_edit_ui_schema(session, "teleporter")
@@ -129,6 +169,8 @@ def test_teleporter_schema_merges_notes_group(tmp_path: Path):
         for field in group["fields"]
     ]
     assert "target_map" in field_keys
+    assert "party_travel" in field_keys
+    assert "prompt" in field_keys
     assert "notes" in field_keys
     assert "image_offset_px" in field_keys
 
@@ -284,3 +326,63 @@ def test_validate_inventory_rejects_unknown_item(tmp_path: Path):
         {"inventory": [{"type": "healing_potion", "qty": 2}, {"type": "healing_potion", "qty": 1}]},
     )
     assert normalized["inventory"] == [{"type": "healing_potion", "qty": 3}]
+
+
+def test_stairs_schema_uses_point_list_and_validates_path(tmp_path: Path):
+    from natural20.edit_schema import normalize_submitted_values
+
+    session = _make_session(tmp_path)
+    assert object_type_has_editor(session, "stairs")
+    schema = resolve_editor_schema(session, "stairs", current_map="hub")
+    field_by_key = {
+        field["key"]: field
+        for group in schema["groups"]
+        for field in group["fields"]
+    }
+    assert field_by_key["squares"]["type"] == "point_list"
+    assert field_by_key["squares"]["bounds"] == {"width": 6, "height": 4}
+    assert field_by_key["height"]["type"] == "integer"
+    assert field_by_key["height"]["default"] == 8
+    assert field_by_key["solid"]["type"] == "boolean"
+    assert field_by_key["solid"]["default"] is True
+    assert field_by_key["open_well"]["type"] == "boolean"
+    assert field_by_key["open_well"]["default"] is False
+    assert field_by_key["wall_attached"]["type"] == "boolean"
+    assert field_by_key["wall_attached"]["default"] is False
+
+    picked = pick_values_for_schema({}, schema)
+    assert picked["squares"] == []
+    assert picked["height"] == 8
+    assert picked["solid"] is True
+
+    errors = validate_field_values(
+        session,
+        schema,
+        {"squares": [], "height": 8},
+        current_map="hub",
+        object_type="stairs",
+    )
+    assert errors
+    errors = validate_field_values(
+        session,
+        schema,
+        {"squares": [[1, 1], [1, 2]], "height": -8, "style": "wood"},
+        current_map="hub",
+        object_type="stairs",
+    )
+    assert errors == []
+    errors = validate_field_values(
+        session,
+        schema,
+        {"squares": [[9, 0]], "height": 8},
+        current_map="hub",
+        object_type="stairs",
+    )
+    assert any("between 0 and 5" in err for err in errors)
+
+    normalized = normalize_submitted_values(
+        schema,
+        {"squares": [[1, 1], [1, 1], [1, 2]], "height": "-8", "style": "wood"},
+    )
+    assert normalized["squares"] == [[1, 1], [1, 2]]
+    assert normalized["height"] == -8

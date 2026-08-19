@@ -26,7 +26,7 @@ def main() -> int:
 
     ref_text = bake_sample_text()
     written = 0
-    for wav in sorted(samples_dir.glob("*.wav")):
+    for wav in sorted(list(samples_dir.glob("*.wav")) + list(samples_dir.glob("*.mp3"))):
         uid = wav.stem
         save_baked_ref_text(str(args.campaign_root.resolve()), uid, ref_text)
         written += 1

@@ -4,8 +4,7 @@ default_effect:
   effect: fog
   action: start
   config:
-    # Fog visual parameters (tweak as desired)
-    color: "#aab4c8"
+    color: '#aab4c8'
     density: 0.9
     speed: 0.2
     height: 0.0
@@ -14,96 +13,125 @@ default_effect:
     mask: true
     mask_feather: 18
     mask_layers:
-      - type: polygon
-        points: 
-          - [-1, -1]
-          - [6,  -1]
-          - [6, 1]
-          - [5, 1]
-          - [5, 4]
-          - [2, 4]
-          - [2, 5]
-          - [-1, 5]
+    - type: polygon
+      points:
+      - - -1
+        - -1
+      - - 6
+        - -1
+      - - 6
+        - 1
+      - - 5
+        - 1
+      - - 5
+        - 4
+      - - 2
+        - 4
+      - - 2
+        - 5
+      - - -1
+        - 5
 map:
   illumination: 0.0
   base:
-    - wwwwwww###
-    - ..wwwww..#
-    - ......##.#
-    - ......##..
-    - ......##..
-    - ...##.##.#
-    - '#####....#'
-    - '###......#'
-    - '##.......#'
-    - '#.........'
+  - wwwwwww###
+  - ..wwwww..#
+  - '......##.#'
+  - '......##..'
+  - '......##..'
+  - '...##.##.#'
+  - '#####....#'
+  - '###......#'
+  - '##.......#'
+  - '#.........'
   base_1:
-    - ..........
-    - .c.....=T.
-    - ..........
-    - ..........
-    - ..........
-    - .....=....
-    - ..........
-    - ..........
-    - .....f..o.
-    - ..........
+  - '..........'
+  - .c........
+  - '..........'
+  - '....T.....'
+  - '..........'
+  - '..........'
+  - '..........'
+  - '..........'
+  - '.....f..o.'
+  - '..........'
   base_2:
-    - ..........
-    - ..........
-    - ..........
-    - ....t.....
-    - ..........
-    - ..........
-    - ..........
-    - ..........
-    - ..........
-    - ..........
+  - '..........'
+  - '.......╒..'
+  - '..........'
+  - '....t.....'
+  - '..........'
+  - '.....a....'
+  - '..........'
+  - '..........'
+  - '..........'
+  - '..........'
   light:
-    - ..........
-    - .....A....
-    - ..........
-    - ..........
-    - ...A......
-    - ..........
-    - ..........
-    - ..........
-    - ..........
-    - ..........
+  - '..........'
+  - '.....A....'
+  - '..........'
+  - '..........'
+  - '...A......'
+  - '..........'
+  - '..........'
+  - '..........'
+  - '..........'
+  - '..........'
   meta:
-    - ..........
-    - ..........
-    - ...Q......
-    - .........g
-    - .........x
-    - ..........
-    - ..........
-    - ...g..g...
-    - .A....x...
-    - .g..hBh..g
+  - '..........'
+  - '..........'
+  - '...Q......'
+  - '.........g'
+  - '.........x'
+  - '..........'
+  - '..........'
+  - '...g..g...'
+  - .A....x...
+  - .g..hBh..g
+  layer_placements:
+  - id: lp_base_2_door_left_7_1
+    layer: base_2
+    token: ╒
+    pos:
+    - 7
+    - 1
+  - id: lp_base_2_door_top_5_5
+    layer: base_2
+    token: a
+    pos:
+    - 5
+    - 5
 lights:
   A:
     bright: 5
     dim: 5
-
-# Example per-tile fire emitters (rendered at tile centers)
 point_fires:
-  - pos: [5, 8]
-    plasma: true
-    shape: campfire
-    intensity: 0.95
-    color: "#ff7a2b"
-    speed: 0.1
-  - pos: [5, 1]
-    shape: candle
-    intensity: 0.35
-    speed: 0.1
-    offset_px: [30, 30]
-  - pos: [2, 4]
-    shape: candle
-    intensity: 0.35
-    speed: 0.1
-    offset_px: [30, 30]
+- pos:
+  - 5
+  - 8
+  plasma: true
+  shape: campfire
+  intensity: 0.95
+  color: '#ff7a2b'
+  speed: 0.1
+- pos:
+  - 5
+  - 1
+  shape: candle
+  intensity: 0.35
+  speed: 0.1
+  offset_px:
+  - 30
+  - 30
+- pos:
+  - 2
+  - 4
+  shape: candle
+  intensity: 0.35
+  speed: 0.1
+  offset_px:
+  - 30
+  - 30
 legend:
   f:
     name: fire
@@ -111,14 +139,18 @@ legend:
   T:
     name: pit trap
     type: pit_trap
-    image_offset_px: [30, 30]
+    image_offset_px:
+    - 30
+    - 30
   t:
     name: note
     type: note
-    image_offset_px: [30, 30]
+    image_offset_px:
+    - 30
+    - 30
     notes:
-      - note: You notice a peculiar absence of footprints in the dust on the floor.
-        perception_dc: 15
+    - note: You notice a peculiar absence of footprints in the dust on the floor.
+      perception_dc: 15
   h:
     name: _auto_
     type: npc
@@ -133,17 +165,25 @@ legend:
       entity_uid: gabba
       passive: true
       dialog: true
-      backstory: |
-        You are a goblin named Gabba. You are a bit mean and will tell people to stop touching things.
+      backstory: 'You are a goblin named Gabba. You are a bit mean and will tell people
+        to stop touching things.
+
         You know the following:
+
         - You are part of a goblin tribe that is led by a bugbear named Klarg.
-        - You are aware the the camp consists of a bugbear, 2 hobgoblins, wolves and several goblins.
+
+        - You are aware the the camp consists of a bugbear, 2 hobgoblins, wolves and
+        several goblins.
+
         - You are outside to watch the recently captured loot and stand guard.
+
         - You are instructed not to be hostile unless provoked or threatened.
+
+        '
       conversation_handler: llm
       conversation_buffer:
-        - message: "If you are here to die, you've come to the right place!"
-          target: all
+      - message: If you are here to die, you've come to the right place!
+        target: all
   g:
     name: _auto_
     type: npc
@@ -161,9 +201,9 @@ legend:
     overrides:
       entity_uid: klarg
       conversation_buffer:
-        - source: self
-          message: "Hello, I am Klarg."
-          target: all
+      - source: self
+        message: Hello, I am Klarg.
+        target: all
     group: b
   w:
     name: Pool of water
@@ -171,69 +211,106 @@ legend:
   o:
     name: barrel
     type: barrel
-  =:
+  '=':
     name: front_door
     type: wooden_door
     state: closed
     buttons:
-      - action: open
-        label: Open the door
+    - action: open
+      label: Open the door
   c:
     name: chest
     type: chest
     key: wooden_door_key
     notes:
-      - note: A mysterious chest
-      - note: This chest contains a healing potion and 20 arrows
-        investigation_dc: 10
+    - note: A mysterious chest
+    - note: This chest contains a healing potion and 20 arrows
+      investigation_dc: 10
     buttons:
-      - action: investigation_check
-        label: Investigate Chest (Investigation Check DC 14)
+    - action: investigation_check
+      label: Investigate Chest (Investigation Check DC 14)
     ability_checks:
       investigation:
-        prompt: "Inspect Chest?"
+        prompt: Inspect Chest?
         success: You verify that the chest is not trapped.
         dc: 10
     events:
-      - event: 'investigation_check_success'
-        message: 'Investigation: You find a healing potion and 20 arrows in the chest.'
+    - event: investigation_check_success
+      message: 'Investigation: You find a healing potion and 20 arrows in the chest.'
     inventory:
     - type: healing_potion
       qty: 1
     - type: arrows
       qty: 20
-# Character-agnostic spawn slots (filled when a player picks a PC at login).
+  ╒:
+    name: Door Left
+    type: door_left
+    door_pos: 3
+    border:
+    - 0
+    - 0
+    - 0
+    - 0
+  a:
+    name: Door Top
+    type: door_top
+    door_pos: 0
+    border:
+    - 0
+    - 0
+    - 0
+    - 0
 player_spawn_points:
-  - position: [0, 1]
-    group: a
-    name: pc_spawn_1
-  - position: [1, 1]
-    group: a
-    name: pc_spawn_2
-  - position: [0, 2]
-    group: a
-    name: pc_spawn_3
-  - position: [1, 2]
-    group: a
-    name: pc_spawn_4
-  - position: [0, 3]
-    group: a
-    name: pc_spawn_5
-  - position: [1, 3]
-    group: a
-    name: pc_spawn_6
-  - position: [0, 4]
-    group: a
-    name: pc_spawn_7
-  - position: [1, 4]
-    group: a
-    name: pc_spawn_8
-  - position: [0, 5]
-    group: a
-    name: pc_spawn_9
-  - position: [1, 5]
-    group: a
-    name: pc_spawn_10
+- position:
+  - 0
+  - 1
+  group: a
+  name: pc_spawn_1
+- position:
+  - 1
+  - 1
+  group: a
+  name: pc_spawn_2
+- position:
+  - 0
+  - 2
+  group: a
+  name: pc_spawn_3
+- position:
+  - 1
+  - 2
+  group: a
+  name: pc_spawn_4
+- position:
+  - 0
+  - 3
+  group: a
+  name: pc_spawn_5
+- position:
+  - 1
+  - 3
+  group: a
+  name: pc_spawn_6
+- position:
+  - 0
+  - 4
+  group: a
+  name: pc_spawn_7
+- position:
+  - 1
+  - 4
+  group: a
+  name: pc_spawn_8
+- position:
+  - 0
+  - 5
+  group: a
+  name: pc_spawn_9
+- position:
+  - 1
+  - 5
+  group: a
+  name: pc_spawn_10
 extensions:
   web:
     background_color: '#000000'

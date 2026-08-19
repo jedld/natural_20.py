@@ -22,7 +22,7 @@ def cover_calculation(map, source, target, entity_1_pos=None, entity_2_pos=None,
 
     for source_pos in source_squares:
         for target_pos in target_squares:
-            cover_characteristics = map.line_of_sight(*source_pos, *target_pos, inclusive=True, entity=naturally_stealthy)
+            cover_characteristics = map.line_of_sight(*source_pos, *target_pos, inclusive=True, entity=naturally_stealthy, occupant=target)
             if not cover_characteristics:
                 continue
 
@@ -37,7 +37,7 @@ def cover_calculation(map, source, target, entity_1_pos=None, entity_2_pos=None,
 
                 if cover_type == "none":
                     continue
-                if pos in source_melee_square:
+                if pos in source_melee_square and cover_type != "total":
                     continue
 
                 if cover_type == "half":

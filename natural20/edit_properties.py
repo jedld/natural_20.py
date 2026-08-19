@@ -14,12 +14,27 @@ from natural20.edit_schema import (
 )
 from natural20.map_editor import (
     _entry_uid,
+    _find_layer_placement,
     _legend_for,
     _map_block,
     load_map_document,
     resolve_map_yaml_path,
     save_map_document,
 )
+
+
+_LAYER_PLACEMENT_STRUCTURAL_KEYS = frozenset({"id", "layer", "token", "pos", "type"})
+
+
+def _placement_extras(entry: dict[str, Any] | None) -> dict[str, Any]:
+    extras: dict[str, Any] = {}
+    if not isinstance(entry, dict):
+        return extras
+    for key, value in entry.items():
+        if key in _LAYER_PLACEMENT_STRUCTURAL_KEYS:
+            continue
+        extras[key] = copy.deepcopy(value)
+    return extras
 
 
 def _merge_placement_props(legend_entry: dict[str, Any], entity_entry: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -109,34 +124,59 @@ def resolve_property_binding(
             "values": values,
         }
 
-    if not token:
-        raise KeyError("token is required for object property binding")
-
     legend = _legend_for(data)
-    legend_entry = copy.deepcopy(legend.get(token) or {})
-    object_type = legend_entry.get("type")
-    if not object_type:
-        raise KeyError(f"Legend token {token!r} has no object type")
-
     entity_entry: dict[str, Any] | None = None
     entity_index: int | None = None
     store = "legend"
+    placement_entry: dict[str, Any] | None = None
+    placement_id = None
 
-    if source == "entities" or kind in {"entity", "object"}:
+    if (
+        source == "layer_placements"
+        or str(item_id).startswith("lp_")
+        or str(item_id).startswith("layer_placements:")
+    ):
         map_block = _map_block(data)
-        entities = map_block.get("entities") or []
-        entity_index = _find_entity_index(
-            entities,
-            item_id=item_id,
-            index=index,
-            token=token,
-            legend=legend,
-        )
-        if entity_index is not None:
-            entry = entities[entity_index]
-            if isinstance(entry, dict):
-                entity_entry = copy.deepcopy(entry)
-                store = "entity"
+        placements = map_block.get("layer_placements") or []
+        placement_entry = _find_layer_placement(placements, placement_id=item_id)
+        if placement_entry is None and index is not None and 0 <= index < len(placements):
+            placement_entry = placements[index]
+        if placement_entry is None:
+            raise KeyError(f"Layer placement not found: {item_id}")
+        token = str(placement_entry.get("token") or token or "")
+        legend_entry = copy.deepcopy(legend.get(token) or {})
+        object_type = legend_entry.get("type")
+        if not object_type:
+            raise KeyError(f"Legend token {token!r} has no object type")
+        entity_entry = _placement_extras(placement_entry)
+        store = "layer_placement"
+        for i, entry in enumerate(placements):
+            if entry is placement_entry:
+                entity_index = i
+                break
+        placement_id = str(placement_entry.get("id") or item_id)
+    else:
+        if not token:
+            raise KeyError("token is required for object property binding")
+        legend_entry = copy.deepcopy(legend.get(token) or {})
+        object_type = legend_entry.get("type")
+        if not object_type:
+            raise KeyError(f"Legend token {token!r} has no object type")
+        if source == "entities" or kind in {"entity", "object"}:
+            map_block = _map_block(data)
+            entities = map_block.get("entities") or []
+            entity_index = _find_entity_index(
+                entities,
+                item_id=item_id,
+                index=index,
+                token=token,
+                legend=legend,
+            )
+            if entity_index is not None:
+                entry = entities[entity_index]
+                if isinstance(entry, dict):
+                    entity_entry = copy.deepcopy(entry)
+                    store = "entity"
 
     merged = _merge_placement_props(legend_entry, entity_entry)
     schema = get_edit_ui_schema(session, str(object_type))
@@ -147,9 +187,10 @@ def resolve_property_binding(
         "object_type": str(object_type),
         "binding": {
             "store": store,
-            "token": str(token),
+            "token": str(token) if token else None,
             "entity_index": entity_index,
             "layer": layer,
+            "placement_id": str(placement_entry.get("id") or item_id) if placement_entry else None,
         },
         "values": pick_values_for_schema(merged, schema),
     }
@@ -214,6 +255,20 @@ def update_property_binding(
             legend_entry[key] = copy.deepcopy(value)
         if "type" not in legend_entry:
             legend_entry["type"] = object_type
+    elif store == "layer_placement":
+        placements = map_block.setdefault("layer_placements", [])
+        placement_id = binding.get("placement_id")
+        placement = _find_layer_placement(placements, placement_id=placement_id) if placement_id else None
+        if placement is None:
+            entity_index = binding.get("entity_index")
+            if entity_index is not None and 0 <= entity_index < len(placements):
+                placement = placements[entity_index]
+        if placement is None:
+            raise KeyError("Layer placement binding missing")
+        for key, value in normalized.items():
+            if key in _LAYER_PLACEMENT_STRUCTURAL_KEYS:
+                continue
+            placement[key] = copy.deepcopy(value)
     else:
         raise ValueError(f"Unsupported property store: {store}")
 

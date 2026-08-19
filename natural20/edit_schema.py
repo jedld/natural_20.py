@@ -231,11 +231,11 @@ def object_type_has_editor(session, object_type: str) -> bool:
     return str(object_type) in editable_object_types(session)
 
 
-def _campaign_maps(session, current_map: str | None = None) -> list[dict[str, Any]]:
+def _campaign_maps(session, current_map: str | None = None, *, all_sets: bool = False) -> list[dict[str, Any]]:
     maps = (session.game_properties or {}).get("maps") or {}
     items: list[dict[str, Any]] = []
     allowed = None
-    if current_map and hasattr(session, "maps_in_set"):
+    if not all_sets and current_map and hasattr(session, "maps_in_set"):
         try:
             allowed = set(session.maps_in_set(session.map_set_for(current_map)))
         except Exception:
@@ -331,10 +331,15 @@ def _map_dimensions(session, map_name: str) -> list[int] | None:
     return None
 
 
-def _resolve_field_choices(session, field: dict[str, Any], *, current_map: str | None) -> None:
+def _resolve_field_choices(session, field: dict[str, Any], *, current_map: str | None, values: dict[str, Any] | None = None) -> None:
     choices_from = field.get("choices_from")
+    values = values or {}
     if choices_from == "campaign.maps":
-        field["choices"] = _campaign_maps(session, current_map=current_map)
+        all_sets = bool(field.get("all_map_sets") or values.get("party_travel") or values.get("party"))
+        field["choices"] = _campaign_maps(session, current_map=current_map, all_sets=all_sets)
+        return
+    if choices_from == "campaign.all_maps":
+        field["choices"] = _campaign_maps(session, current_map=current_map, all_sets=True)
         return
     if choices_from == "campaign.items":
         # Full catalogs are large; the client loads suggestions via /edit/catalog/items.
@@ -390,7 +395,7 @@ def resolve_editor_schema(
         for field in group.get("fields") or []:
             if field.get("relative_to") == "target_map" or field.get("bounds_map_field") == "target_map":
                 field["_context_target_map"] = target_map
-            _resolve_field_choices(session, field, current_map=current_map)
+            _resolve_field_choices(session, field, current_map=current_map, values=values)
             if target_map and field.get("key") in {"target_position"}:
                 dims = _map_dimensions(session, str(target_map))
                 if dims:
@@ -486,6 +491,8 @@ def pick_values_for_schema(merged: dict[str, Any], schema: dict[str, Any]) -> di
                 picked[key] = _coerce_note_list_value(value)
             elif field.get("type") == "inventory_list" or key == "inventory":
                 picked[key] = _coerce_inventory_list_value(value)
+            elif field.get("type") == "point_list":
+                picked[key] = _normalize_point_list(value)
             else:
                 picked[key] = value
         elif field.get("type") == "note_list" or key == "notes":
@@ -494,6 +501,8 @@ def pick_values_for_schema(merged: dict[str, Any], schema: dict[str, Any]) -> di
             picked[key] = []
         elif field.get("type") == "offset_px":
             picked[key] = [0, 0]
+        elif field.get("type") == "point_list":
+            picked[key] = []
         elif "default" in field:
             picked[key] = copy.deepcopy(field["default"])
     return picked
@@ -513,6 +522,37 @@ def _validate_point(value: Any, bounds: dict[str, Any] | None, label: str) -> st
             return f"{label} x must be between 0 and {width - 1}"
         if height and (y < 0 or y >= height):
             return f"{label} y must be between 0 and {height - 1}"
+    return None
+
+
+def _normalize_point_list(value: Any) -> list[list[int]]:
+    points: list[list[int]] = []
+    if not isinstance(value, (list, tuple)):
+        return points
+    seen: set[tuple[int, int]] = set()
+    for item in value:
+        if not isinstance(item, (list, tuple)) or len(item) < 2:
+            continue
+        try:
+            pt = [int(item[0]), int(item[1])]
+        except (TypeError, ValueError):
+            continue
+        key = (pt[0], pt[1])
+        if key in seen:
+            continue
+        seen.add(key)
+        points.append(pt)
+    return points
+
+
+def _validate_point_list(value: Any, bounds: dict[str, Any] | None, label: str) -> str | None:
+    points = _normalize_point_list(value)
+    if not points:
+        return f"{label} must include at least the base square"
+    for idx, pt in enumerate(points):
+        err = _validate_point(pt, bounds, f"{label} square {idx + 1}")
+        if err:
+            return err
     return None
 
 
@@ -551,6 +591,15 @@ def validate_field_values(
                     if dims:
                         bounds = {"width": dims[0], "height": dims[1]}
             err = _validate_point(value, bounds, label)
+            if err:
+                errors.append(err)
+        elif field_type == "point_list":
+            bounds = field.get("bounds")
+            if field.get("relative_to") == "current_map":
+                dims = _map_dimensions(session, current_map)
+                if dims:
+                    bounds = {"width": dims[0], "height": dims[1]}
+            err = _validate_point_list(value, bounds, label)
             if err:
                 errors.append(err)
         elif field_type == "map_ref":
@@ -722,10 +771,19 @@ def normalize_submitted_values(schema: dict[str, Any], values: dict[str, Any]) -
         field_type = field.get("type")
         if field_type in {"point", "offset_px"} and isinstance(value, (list, tuple)):
             normalized[key] = [int(value[0]), int(value[1])]
+        elif field_type == "point_list":
+            normalized[key] = _normalize_point_list(value)
         elif field_type == "boolean":
             normalized[key] = bool(value)
         elif field_type in {"integer"}:
-            normalized[key] = int(value)
+            try:
+                normalized[key] = int(value)
+            except (TypeError, ValueError):
+                default = field.get("default")
+                try:
+                    normalized[key] = int(default)
+                except (TypeError, ValueError):
+                    normalized[key] = 0
         elif field_type == "note_list":
             entries = value if isinstance(value, list) else []
             notes = []

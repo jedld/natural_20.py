@@ -22,6 +22,7 @@ def test_resolve_editor_icon_kind_uses_token_image():
 def test_should_skip_walls_and_door_walls():
     assert not should_generate_editor_icon("stone_wall", {"item_class": "StoneWall"})
     assert not should_generate_editor_icon("corner_door_tl", {"item_class": "DoorObjectWall"})
+    assert not should_generate_editor_icon("window_top", {"item_class": "WindowObjectWall"})
     assert should_generate_editor_icon("barrel", {"placeable": True})
 
 

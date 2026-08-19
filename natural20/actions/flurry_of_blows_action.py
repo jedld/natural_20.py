@@ -18,6 +18,10 @@ class FlurryOfBlowsAction(Action):
         super().__init__(session, source, action_type, opts)
         self.target = None
         self.second_target = None
+        self.knock_unconscious = False
+
+    def can_knock_unconscious(self):
+        return True
 
     def label(self):
         return 'Flurry of Blows (1 ki)'
@@ -45,6 +49,7 @@ class FlurryOfBlowsAction(Action):
             cloned = FlurryOfBlowsAction(self.session, self.source, self.action_type, self.opts)
             cloned.target = target
             cloned.second_target = target
+            cloned.knock_unconscious = bool(getattr(self, 'knock_unconscious', False))
             return cloned
 
         return {
@@ -84,6 +89,7 @@ class FlurryOfBlowsAction(Action):
             # AttackAction.consume_resource runs.
             attack.as_bonus_action = False
             attack.as_reaction = False
+            attack.knock_unconscious = bool(getattr(self, 'knock_unconscious', False))
             attack._free_attack = True  # flag respected below in apply
             attack.resolve(session, _map, {'battle': battle})
             for item in attack.result:

@@ -1,0 +1,50 @@
+# Python virtual environments and conda envs
+services/**/.venv/
+.conda/
+
+# JS dependencies
+node_modules/
+
+# Python caches and build artifacts
+__pycache__/
+*.egg-info/
+.pytest_cache/
+htmlcov/
+coverage/
+test_memory_profiles/
+
+# Runtime/session data
+flask_session/
+n20-webapp/webapp/flask_session/
+n20-webapp/webapp/saves/
+saves/
+**/campaign_logs.sqlite
+
+# Third-party vendored trees
+third_party/CosyVoice
+.local_packages/
+
+# ML samples, weights, and generated outputs
+samples/*.pt
+samples/output/
+samples/training_output_all/
+samples/training_output_figher_only/
+samples/model_weights_all/
+scripts/model_weights_std/
+scripts/runs/
+scripts/image_generators/*.png
+output_*/
+
+# Campaign binary assets (YAML/maps/NPCs remain indexed)
+user_levels/**/assets/
+expansion_packs/**/assets/
+
+# Logs and env secrets
+*.log
+n20-webapp/llm_logs/
+.env
+n20-webapp/webapp/.env
+
+# Minified bundles (source .js/.css are indexed instead)
+**/*.min.js
+**/*.min.css

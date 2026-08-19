@@ -241,8 +241,18 @@ def grid_dimensions(
         report.error(f"map '{map_name}' requires a non-empty string array at map.base")
         return None
     width = len(base[0])
-    if width == 0 or any(len(row) != width for row in base):
-        report.error(f"map '{map_name}' base rows must be non-empty and equal width")
+    ragged = [i for i, row in enumerate(base) if len(row) != width]
+    if width == 0 or ragged:
+        if not ragged:
+            report.error(f"map '{map_name}' base rows must be non-empty and equal width")
+        else:
+            sample = ragged[:8]
+            detail = ", ".join(f"row {i} is {len(base[i])} chars" for i in sample)
+            extra = f" (+{len(ragged) - 8} more)" if len(ragged) > 8 else ""
+            report.error(
+                f"map '{map_name}' base rows must be equal width "
+                f"(row 0 is {width} chars; {detail}{extra})"
+            )
         return None
     inferred = (width, len(base))
     size = map_data.get("size")
@@ -255,7 +265,11 @@ def grid_dimensions(
             report.error(f"map '{map_name}' map.size must be [positive_width, positive_height]")
             return inferred
         if tuple(size) != inferred:
-            report.error(f"map '{map_name}' map.size {size} does not match base grid {list(inferred)}")
+            report.error(
+                f"map '{map_name}' map.size {size} does not match base grid "
+                f"[{inferred[0]} wide × {inferred[1]} rows] "
+                f"(size is [width, height] = [characters per row, number of rows])"
+            )
         return size[0], size[1]
     return inferred
 
@@ -369,6 +383,18 @@ def validate_floor_stack_sets(
                 code="cross_map_set",
                 context={"map": map_name, "stack": stack_id, "map_set": map_set},
             )
+
+
+def _is_party_travel_entry(entry: Any) -> bool:
+    if not isinstance(entry, dict):
+        return False
+    try:
+        from natural20.item_library.teleporter import is_party_travel_properties
+        return is_party_travel_properties(entry)
+    except Exception:
+        return bool(entry.get("party_travel") or entry.get("party")) or str(
+            entry.get("type") or ""
+        ).strip().lower() in {"party_teleporter", "party_travel"}
 
 
 def _report_cross_set_target(
@@ -499,18 +525,26 @@ def validate_map(
                     context={"npc_type": subtype, "map": map_name, "suggestions": suggestions},
                     repairable=True,
                 )
-        if entry_type in {"teleporter", "trap_door"} or entry.get("target_map"):
+        if entry_type in {"teleporter", "trap_door", "party_teleporter"} or entry.get("target_map"):
             target_map = entry.get("target_map")
+            party_travel = _is_party_travel_entry(entry)
             if target_map not in registry:
                 report.error(f"map '{map_name}' token {token!r} targets unregistered map '{target_map}'")
-            elif target_map in map_dimensions:
+            elif target_map in map_dimensions and not party_travel:
                 validate_position(
                     entry.get("target_position"),
                     map_dimensions[target_map],
                     f"map '{map_name}' token {token!r} target_position",
                     report,
                 )
-            if membership:
+            elif target_map in map_dimensions and party_travel and entry.get("target_position") is not None:
+                validate_position(
+                    entry.get("target_position"),
+                    map_dimensions[target_map],
+                    f"map '{map_name}' token {token!r} target_position",
+                    report,
+                )
+            if membership and not party_travel:
                 _report_cross_set_target(
                     map_name,
                     target_map,
@@ -574,6 +608,8 @@ def validate_map(
 
     if membership:
         def _visit_refs(node: dict[str, Any]) -> None:
+            if _is_party_travel_entry(node):
+                return
             for key in ("target_map", "source_map", "map"):
                 value = node.get(key)
                 if isinstance(value, str) and value:

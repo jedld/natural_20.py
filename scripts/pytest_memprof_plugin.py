@@ -130,6 +130,11 @@ class _MemProfilerHook:
         self.auto_xfail = config.getoption("--mem-auto-xfail", False)
         self.baseline = {}
         self._failed_mem_tests = []
+        # Accumulated per-test report entries (compact, no snapshots).
+        # We write to these as tests finish so sessionfinish stays O(1)
+        # in memory regardless of suite size.
+        self._report_tests = {}
+        self._report_alerts = []
 
         if self.baseline_path and Path(self.baseline_path).exists():
             with open(self.baseline_path) as f:
@@ -145,8 +150,11 @@ class _MemProfilerHook:
             'filename': item.location[0],
             'basename': item.location[2] if len(item.location) > 2 else item.name,
             'start_time': time.time(),
-            'pre_snapshot': tracemalloc.take_snapshot(),
             'pre_rss_mb': _get_rss_mb(),
+            # NOTE: we intentionally do NOT keep a pre_snapshot here. Storing
+            # tracemalloc.Snapshot objects per test leaks memory on large suites
+            # (each snapshot holds thousands of allocation records). We compute
+            # the delta from RSS + a single post-test statistics pass instead.
         }
 
     def pytest_runtest_call(self, item):
@@ -154,22 +162,14 @@ class _MemProfilerHook:
         pass
 
     def pytest_runtest_teardown(self, item):
-        """Take post-test snapshot and compute delta."""
+        """Compute per-test memory delta from RSS (no snapshot retention)."""
         nid = item.nodeid
         data = _MEM_DATA.get(nid, {})
 
-        post_snapshot = tracemalloc.take_snapshot()
         post_rss = _get_rss_mb()
         duration = time.time() - data.get('start_time', 0)
 
-        # Compute top allocations
-        try:
-            stats = post_snapshot.statistics('lineno')
-            top_allocs = [str(s) for s in stats[:self.top_frames]]
-        except Exception:
-            top_allocs = []
-
-        # Compute per-test delta
+        # Compute per-test delta (RSS-based; cheap and leak-free)
         pre_rss = data.get('pre_rss_mb', 0)
         delta_mb = round(post_rss - pre_rss, 2)
 
@@ -181,15 +181,17 @@ class _MemProfilerHook:
             if baseline_delta > 0 and delta_mb > baseline_delta * 1.2:  # 20% regression
                 regression = round(delta_mb - baseline_delta, 2)
 
-        _MEM_DATA[nid].update({
-            'end_time': time.time(),
+        self._report_tests[nid] = {
             'duration_s': round(duration, 3),
-            'post_rss_mb': post_rss,
             'delta_mb': delta_mb,
-            'peak_snapshot': post_snapshot,
-            'top_allocations': top_allocs,
+            'pre_rss_mb': pre_rss,
+            'post_rss_mb': post_rss,
             'regression_mb': regression,
-        })
+        }
+        if abs(delta_mb) > self.threshold_mb:
+            self._report_alerts.append({'test': nid, 'delta_mb': delta_mb})
+        # Drop the per-test entry immediately to keep _MEM_DATA bounded.
+        _MEM_DATA.pop(nid, None)
 
         # Alert on threshold breach
         if abs(delta_mb) > self.threshold_mb:
@@ -239,44 +241,23 @@ class _MemProfilerHook:
                 print(f"  {test}: exit code {data['returncode']}", file=sys.stderr)
 
     def pytest_sessionfinish(self, session):
-        """Export memory profile summary."""
+        """Export memory profile summary (built incrementally to stay leak-free)."""
         if not tracemalloc.is_tracing():
             return
 
-        # Build summary
         summary = {
             'timestamp': time.time(),
             'threshold_mb': self.threshold_mb,
-            'tests': {},
-            'mem_alerts': [],
+            'tests': self._report_tests,
+            'mem_alerts': self._report_alerts,
             'auto_xfailed': self._failed_mem_tests,
         }
 
-        for nid, data in _MEM_DATA.items():
-            entry = {
-                'duration_s': data.get('duration_s'),
-                'delta_mb': data.get('delta_mb'),
-                'pre_rss_mb': data.get('pre_rss_mb'),
-                'post_rss_mb': data.get('post_rss_mb'),
-                'top_allocations': data.get('top_allocations', []),
-                'regression_mb': data.get('regression_mb'),
-            }
-            summary['tests'][nid] = entry
-
-            # Track alerts
-            if abs(data.get('delta_mb', 0)) > self.threshold_mb:
-                summary['mem_alerts'].append({
-                    'test': nid,
-                    'delta_mb': data.get('delta_mb'),
-                })
-
-        # Save report
         if self.mem_report_path:
             with open(self.mem_report_path, 'w') as f:
                 json.dump(summary, f, indent=2, default=str)
             print(f"\n[MEM-PROF] Report saved to: {self.mem_report_path}", file=sys.stderr)
 
-        # Print summary table
         self._print_summary_table(summary)
 
     def _print_summary_table(self, summary):

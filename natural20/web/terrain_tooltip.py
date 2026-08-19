@@ -25,6 +25,15 @@ def _thing_descriptions(thing, battle):
     if isinstance(thing, Object):
         if thing.dead():
             description.append("Destroyed")
+        extra = getattr(thing, 'terrain_tooltip_details', None)
+        if callable(extra):
+            try:
+                details = extra() or []
+            except Exception:
+                details = []
+            for line in details:
+                if line:
+                    description.append(str(line))
         return description
     if thing.prone():
         description.append("Prone")

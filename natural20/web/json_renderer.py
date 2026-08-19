@@ -3,6 +3,7 @@ import pdb
 from natural20.map import Map
 from natural20.battle import Battle
 from natural20.item_library.door_object import DoorObject, DoorObjectWall
+from natural20.item_library.window_object import WindowObjectWall
 from natural20.item_library.common import Ground
 from natural20.web.object_quick_interactions import (
     door_open_approach_anchors,
@@ -36,6 +37,101 @@ def _is_empty_terrain_object(obj):
     if callable(has_notes) and has_notes():
         return False
     return True
+
+
+def _call_flag(obj, name):
+    method = getattr(obj, name, None)
+    if callable(method):
+        try:
+            return bool(method())
+        except Exception:
+            return False
+    return bool(method)
+
+
+def _fixture_state(obj):
+    """Opened/locked/cover/facing fields used by the 3D VTT fixture meshes."""
+    props = getattr(obj, 'properties', None) or {}
+    facing = None
+    face_fn = getattr(obj, 'facing', None)
+    if callable(face_fn):
+        try:
+            resolved = face_fn()
+        except Exception:
+            resolved = None
+        facing = resolved or getattr(obj, 'front_direction', None)
+    if facing == 'auto':
+        facing = None
+    obj_type = getattr(obj, 'type', None) or props.get('type')
+    light = None
+    try:
+        lp = obj.light_properties() if hasattr(obj, 'light_properties') else None
+        if isinstance(lp, dict) and (lp.get('bright') or lp.get('dim')):
+            light = {'bright': lp.get('bright', 0), 'dim': lp.get('dim', 0)}
+    except Exception:
+        light = None
+    if light is None:
+        raw = props.get('light')
+        if isinstance(raw, dict) and (raw.get('bright') or raw.get('dim')):
+            light = {'bright': raw.get('bright', 0), 'dim': raw.get('dim', 0)}
+    lit = getattr(obj, 'lit', None)
+    if lit is None and callable(getattr(obj, 'is_lit', None)):
+        try:
+            lit = bool(obj.is_lit())
+        except Exception:
+            lit = None
+    if lit is None:
+        lit = bool(light)
+    activated = getattr(obj, 'activated', None)
+    disarmed = getattr(obj, 'disarmed', None)
+    vtt = props.get('vtt3d') if isinstance(props.get('vtt3d'), dict) else {}
+    squares = props.get('squares')
+    if not isinstance(squares, list):
+        squares = vtt.get('squares')
+    height = props.get('height')
+    if height is None:
+        height = vtt.get('height')
+    style = props.get('style') or vtt.get('style') or vtt.get('walls')
+    if 'solid' in props:
+        solid = bool(props.get('solid'))
+    elif 'solid' in vtt:
+        solid = bool(vtt.get('solid'))
+    else:
+        solid = None
+
+    def _opt_bool(key):
+        if key in props and props.get(key) is not None:
+            return bool(props.get(key))
+        if key in vtt and vtt.get(key) is not None:
+            return bool(vtt.get(key))
+        return None
+
+    open_well = _opt_bool('open_well')
+    wall_attached = _opt_bool('wall_attached')
+    fall_distance = props.get('fall_distance')
+    if fall_distance is None:
+        fall_distance = vtt.get('fall_distance')
+    return {
+        'type': obj_type,
+        'opened': _call_flag(obj, 'opened'),
+        'locked': _call_flag(obj, 'locked') or bool(getattr(obj, 'is_locked', False)),
+        'cover': props.get('cover'),
+        'facing': facing,
+        'hide_map_token': bool(props.get('hide_map_token')),
+        'light': light,
+        'lit': bool(lit),
+        'activated': bool(activated) if activated is not None else False,
+        'disarmed': bool(disarmed) if disarmed is not None else False,
+        'concealed': _call_flag(obj, 'concealed'),
+        'secret': _call_flag(obj, 'secret'),
+        'squares': squares,
+        'height': height,
+        'style': style,
+        'solid': solid,
+        'open_well': open_well,
+        'wall_attached': wall_attached,
+        'fall_distance': fall_distance,
+    }
 
 class JsonRenderer:
     def __init__(self, map: Map, battle: Battle=None, padding=None, logger=None, reveal_all_notes=False):
@@ -166,11 +262,16 @@ class JsonRenderer:
 
         _cover_cache: dict = {}
         _map_cover_at = self.map.cover_at
-        def cached_cover_at(x, y, entity=False):
-            key = (x, y, bool(entity))
+        def cached_cover_at(x, y, entity=False, origin=None, occupant=None):
+            if isinstance(origin, list):
+                origin_key = tuple(origin)
+            else:
+                origin_key = origin
+            occ_key = id(occupant) if occupant is not None else None
+            key = (x, y, bool(entity), origin_key, occ_key)
             v = _cover_cache.get(key)
             if v is None:
-                v = _map_cover_at(x, y, entity)
+                v = _map_cover_at(x, y, entity, origin=origin, occupant=occupant)
                 _cover_cache[key] = v
             return v
 
@@ -460,7 +561,18 @@ class JsonRenderer:
                                 if (isinstance(object_entity, DoorObject) or isinstance(object_entity, DoorObjectWall)) \
                                         and not object_entity.concealed() and not object_entity.secret():
                                     visible_to_pov = True
-                                elif not visible_to_pov:
+                                perceived_fn = getattr(object_entity, 'perceived_by_entity', None)
+                                if callable(perceived_fn) and not visible_to_pov:
+                                    try:
+                                        if any(
+                                            perceived_fn(entity_p)
+                                            for entity_p in entity_pov
+                                            if entity_p
+                                        ):
+                                            visible_to_pov = True
+                                    except Exception:
+                                        pass
+                                if not visible_to_pov:
                                     # Same/adjacent fixtures stay mouse-overable in
                                     # darkness so loot/open UI is not lost when the
                                     # POV lacks darkvision.
@@ -482,6 +594,8 @@ class JsonRenderer:
                                 "image" : object_entity.token_image(),
                                 "transforms" : object_entity.token_image_transform()
                             }
+                            object_info.update(_fixture_state(object_entity))
+
     
                             marker_edges = None
                             door_edges = getattr(object_entity, 'door_pos', None)
@@ -552,6 +666,11 @@ class JsonRenderer:
                             object_info['teleporter_destination'] = (
                                 object_entity.destination_label() if is_visible_teleporter else None
                             )
+                            object_info['teleporter_party_travel'] = bool(
+                                is_visible_teleporter
+                                and callable(getattr(object_entity, 'is_party_travel', None))
+                                and object_entity.is_party_travel()
+                            )
     
                             is_grease_surface = isinstance(object_entity, GreaseSurface) or bool(
                                 object_entity.properties.get('grease_surface')
@@ -588,7 +707,9 @@ class JsonRenderer:
                                 )
     
                             is_door_fixture = isinstance(object_entity, (DoorObject, DoorObjectWall))
+                            is_window_fixture = isinstance(object_entity, WindowObjectWall)
                             object_info['door_highlight'] = bool(is_door_fixture)
+                            object_info['window_highlight'] = bool(is_window_fixture)
                             object_info['door_highlight_opened'] = bool(
                                 is_door_fixture
                                 and hasattr(object_entity, 'opened')
