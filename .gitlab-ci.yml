@@ -6,31 +6,55 @@
 # See docs/GITLAB_CI.md.
 #
 # Jobs mirror .github/workflows/python-tests.yml and js-tests.yml.
+#
+# The n20-webapp and user_levels directories are git submodules pointing at
+# GitHub. GitLab CI does NOT fetch them (private on GitHub, no token), so the
+# pipeline clones the GitLab mirrors instead:
+#
+#   jedld/n20-webapp    -> n20-webapp
+#   jedld/n20-campaigns -> user_levels
+#
+# The clone URLs are read from project-level CI/CD variables (masked, protected
+# not required):
+#
+#   N20_WEBAPP_GIT_URL   e.g. https://oauth2:$GITLAB_TOKEN@zariel.local:8090/jedld/n20-webapp.git
+#   N20_CAMPAIGNS_GIT_URL e.g. https://oauth2:$GITLAB_TOKEN@zariel.local:8090/jedld/n20-campaigns.git
+#
+# A project-level access token (Settings -> Access Tokens, scope `read_repository`,
+# created for the `jedld` user) works for both mirrors. Do NOT hardcode tokens
+# in this file.
 
 stages:
   - test
 
 variables:
-  # Clone submodules in the job after rewriting GitHub SSH URLs (see .submodules).
+  # Disable GitLab's built-in submodule handling entirely; the .clone-mirrors
+  # before_script clones the GitLab mirrors directly.
   GIT_SUBMODULE_STRATEGY: none
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   PYTEST_TIMEOUT: "60"
 
-.submodules:
+.clone-mirrors:
   interruptible: true
   before_script:
     - |
-      if [ -n "${GITHUB_TOKEN:-}" ]; then
-        git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "git@github.com:"
+      set -e
+      echo "Cloning GitLab mirror: n20-webapp"
+      git clone --depth 1 "$N20_WEBAPP_GIT_URL" n20-webapp
+      echo "Cloning GitLab mirror: user_levels (n20-campaigns)"
+      git clone --depth 1 "$N20_CAMPAIGNS_GIT_URL" user_levels
+      # The n20-campaigns repo tracks some campaign assets with Git LFS
+      # (e.g. audio). Fetch the real files so tests and assets resolve.
+      if command -v git-lfs >/dev/null 2>&1; then
+        (cd user_levels && git lfs install --local && git lfs pull) || \
+          echo "WARNING: git-lfs pull failed; LFS-tracked files remain pointers"
       else
-        git config --global url."https://github.com/".insteadOf "git@github.com:"
+        echo "WARNING: git-lfs not found in image; LFS-tracked files remain pointers"
       fi
-    - git submodule sync --recursive
-    - git submodule update --init --recursive
 
 python:engine:
-  extends: .submodules
+  extends: .clone-mirrors
   stage: test
   image: python:3.11-bookworm
   timeout: 30m
@@ -47,7 +71,7 @@ python:engine:
     - pytest tests -q --ignore=tests/webapp --dist=worksteal -n 1
 
 python:webapp:
-  extends: .submodules
+  extends: .clone-mirrors
   stage: test
   image: python:3.11-bookworm
   timeout: 30m
@@ -64,7 +88,7 @@ python:webapp:
     - pytest n20-webapp/tests/webapp -q --dist=worksteal -n 1
 
 js:webapp:
-  extends: .submodules
+  extends: .clone-mirrors
   stage: test
   image: node:20-bookworm
   timeout: 15m
