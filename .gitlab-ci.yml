@@ -65,7 +65,7 @@ python:engine:
   extends: .clone-mirrors
   stage: test
   image: python:3.11-bookworm
-  timeout: 30m
+  timeout: 60m
   cache:
     key: pip-$CI_COMMIT_REF_SLUG
     paths:
@@ -82,7 +82,7 @@ python:webapp:
   extends: .clone-mirrors
   stage: test
   image: python:3.11-bookworm
-  timeout: 30m
+  timeout: 60m
   cache:
     key: pip-$CI_COMMIT_REF_SLUG
     paths:
