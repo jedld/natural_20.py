@@ -18,7 +18,7 @@ This directory contains the core documentation for the Natural20 D&D simulation 
 | [CAMPAIGN_BUILDING.md](CAMPAIGN_BUILDING.md) | Complete campaign creation guide (maps, NPCs, characters, items) |
 | [BATTLEMAP_IMPORTER.md](BATTLEMAP_IMPORTER.md) | Battlemap image → map YAML (tile-wise VLM) |
 | [CONVERSATION_RAG.md](CONVERSATION_RAG.md) | NPC conversation RAG pipeline architecture |
-| [ADVENTURE_WILD_SHEEP_CHASE.md](ADVENTURE_WILD_SHEEP_CHASE.md) | Wild Sheep Chase adventure documentation |
+| [GITLAB_CI.md](GITLAB_CI.md) | Self-hosted GitLab pipeline (replaces Auto DevOps; registry / submodule notes) |
 
 ## Architecture Documents
 
@@ -59,6 +59,8 @@ npm install && npx jest
 python scripts/generate_baseline_artifacts.py
 pytest tests/webapp/test_*_parity.py
 ```
+
+GitLab (self-hosted) runs the same suites via [`.gitlab-ci.yml`](../.gitlab-ci.yml). See [GITLAB_CI.md](GITLAB_CI.md).
 
 ### MCP Tool Surface
 

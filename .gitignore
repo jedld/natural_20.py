@@ -18,6 +18,7 @@ samples/model_weights_all/
 scripts/model_weights_std/**/*
 scripts/image_generators/*.png
 /*.yml
+!.gitlab-ci.yml
 tests/fixtures/tmp/
 scripts/runs
 save_*.yml

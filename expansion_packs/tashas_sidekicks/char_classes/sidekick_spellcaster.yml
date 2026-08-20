@@ -1,0 +1,164 @@
+---
+label: Spellcaster (Sidekick)
+max_cr: 0.5
+hit_die: 1d8
+class_features:
+  - spellcasting
+proficiency_bonuses:
+  - 2
+  - 2
+  - 2
+  - 2
+  - 3
+  - 3
+  - 3
+  - 3
+  - 4
+  - 4
+  - 4
+  - 4
+  - 5
+  - 5
+  - 5
+  - 5
+  - 6
+  - 6
+  - 6
+  - 6
+asi_levels:
+  - 4
+  - 8
+  - 12
+  - 16
+  - 18
+cantrips_known:
+  - 2
+  - 2
+  - 2
+  - 3
+  - 3
+  - 3
+  - 3
+  - 3
+  - 3
+  - 4
+  - 4
+  - 4
+  - 4
+  - 4
+  - 4
+  - 4
+  - 4
+  - 4
+  - 4
+  - 4
+spells_known:
+  - 1
+  - 2
+  - 3
+  - 3
+  - 4
+  - 4
+  - 5
+  - 5
+  - 6
+  - 6
+  - 7
+  - 7
+  - 8
+  - 8
+  - 9
+  - 9
+  - 10
+  - 10
+  - 11
+  - 11
+spell_slots:
+  - [2, 0, 0, 0, 0]
+  - [2, 0, 0, 0, 0]
+  - [3, 0, 0, 0, 0]
+  - [3, 0, 0, 0, 0]
+  - [4, 2, 0, 0, 0]
+  - [4, 2, 0, 0, 0]
+  - [4, 3, 0, 0, 0]
+  - [4, 3, 0, 0, 0]
+  - [4, 3, 2, 0, 0]
+  - [4, 3, 2, 0, 0]
+  - [4, 3, 3, 0, 0]
+  - [4, 3, 3, 0, 0]
+  - [4, 3, 3, 1, 0]
+  - [4, 3, 3, 1, 0]
+  - [4, 3, 3, 2, 0]
+  - [4, 3, 3, 2, 0]
+  - [4, 3, 3, 3, 1]
+  - [4, 3, 3, 3, 1]
+  - [4, 3, 3, 3, 2]
+  - [4, 3, 3, 3, 2]
+progression:
+  level_6:
+    class_features:
+      - potent_cantrips
+  level_14:
+    class_features:
+      - empowered_spells
+  level_20:
+    class_features:
+      - focused_casting
+roles:
+  mage:
+    spellcasting_ability: int
+    cantrips:
+      - firebolt
+      - mage_hand
+      - prestidigitation
+      - ray_of_frost
+    spells:
+      - magic_missile
+      - shield
+      - mage_armor
+      - misty_step
+      - scorching_ray
+      - invisibility
+      - fireball
+      - counterspell
+      - fly
+      - lightning_bolt
+      - banishment
+  healer:
+    spellcasting_ability: wis
+    cantrips:
+      - sacred_flame
+      - spare_the_dying
+      - guidance
+      - light
+    spells:
+      - cure_wounds
+      - bless
+      - healing_word
+      - shield_of_faith
+      - spiritual_weapon
+      - lesser_restoration
+      - prayer_of_healing
+      - hold_person
+      - silence
+      - invisibility
+      - fly
+  prodigy:
+    spellcasting_ability: cha
+    cantrips:
+      - vicious_mockery
+      - prestidigitation
+      - mage_hand
+      - light
+    spells:
+      - healing_word
+      - hideous_laughter
+      - faerie_fire
+      - shatter
+      - suggestion
+      - invisibility
+      - silence
+      - hold_person
+      - fly
+      - counterspell
+      - banishment

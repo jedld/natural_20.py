@@ -76,7 +76,7 @@ python:engine:
     - python -m pip install --upgrade pip
     - pip install -e .
     - pip install -r requirements.txt
-    - pytest tests -q --ignore=tests/webapp --dist=worksteal -n 1
+    - pytest tests -q --ignore=tests/webapp --dist=worksteal -n auto
 
 python:webapp:
   extends: .clone-mirrors
@@ -93,7 +93,7 @@ python:webapp:
     - python -m pip install --upgrade pip
     - pip install -e .
     - pip install -e "./n20-webapp[dev]"
-    - pytest n20-webapp/tests/webapp -q --dist=worksteal -n 1
+    - pytest n20-webapp/tests/webapp -q --dist=worksteal -n auto
 
 js:webapp:
   extends: .clone-mirrors

@@ -10,6 +10,12 @@ for _path in (_REPO_ROOT, _WEBAPP_SUBMODULE, os.path.join(_WEBAPP_SUBMODULE, "we
     if os.path.isdir(_path) and _path not in sys.path:
         sys.path.insert(0, _path)
 
+# Webapp tests import webapp.app at module import time, which loads the campaign
+# config from TEMPLATE_DIR (default: n20-webapp/templates). Point it at the engine
+# repo's templates/ when the local one is absent (post-repo-split layout).
+if not os.path.isfile(os.path.join(_WEBAPP_SUBMODULE, "templates", "index.json")):
+    os.environ.setdefault("TEMPLATE_DIR", os.path.join(_REPO_ROOT, "templates"))
+
 # Temporarily mark specific failing tests as xfail while we stabilize under pytest.
 # Remove entries as fixes land.
 _TEMP_XFAIL = {

@@ -561,7 +561,9 @@ pytest tests/webapp/test_*_parity.py
 
 ### CI
 
-GitHub Actions runs both JS and Python tests on pushes and PRs. JS tests include coverage reporting.
+GitHub Actions runs JS and Python tests on pushes and PRs (`python-tests.yml`, `js-tests.yml`). JS tests include coverage reporting.
+
+Self-hosted GitLab uses [`.gitlab-ci.yml`](.gitlab-ci.yml) (same jobs). That file replaces Auto DevOps, which fails when Container Registry is off (`invalid tag "/master:<sha>"`). See [docs/GITLAB_CI.md](docs/GITLAB_CI.md).
 
 ## Observation and Action Spaces
 

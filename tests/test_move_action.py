@@ -150,14 +150,17 @@ class TestMoveAction(unittest.TestCase):
         movement = compute_actual_moves(fighter, [[1, 6], [2, 6], [3, 6], [4, 6], [5, 6]], battle_map, battle, 6)
         self.assertEqual(movement.movement, [[1, 6], [2, 6], [3, 6], [4, 6], [5, 6]])
 
-        # Longer path shows budget and check/jump markers
+        # Longer path shows budget and check/jump markers.
+        # Path cost: [1,6]=start, [2,6]=1(jump over pit), [3,6]=2(water=difficult),
+        # [4,6]=1, [5,6]=1(jump over pit), [6,6]=1 → total 7 > budget 6.
+        # The fighter stops at [5,6]; [6,6] is unreachable within budget.
         movement = compute_actual_moves(fighter, [[1, 6], [2, 6], [3, 6], [4, 6], [5, 6], [6, 6], [7, 6]], battle_map, battle, 6)
         self.assertEqual(movement.impediment, 'movement_budget')
-        self.assertEqual(movement.movement, [[1, 6], [2, 6], [3, 6], [4, 6], [5, 6], [6, 6]])
+        self.assertEqual(movement.movement, [[1, 6], [2, 6], [3, 6], [4, 6], [5, 6]])
         self.assertEqual(movement.acrobatics_check_locations, [[3, 6]])
-        self.assertEqual(movement.jump_locations, [[2, 6], [5, 6]])
+        self.assertEqual(movement.jump_locations, [[2, 6]])
         self.assertEqual(movement.jump_start_locations, [[2, 6], [5, 6]])
-        self.assertEqual(movement.land_locations, [[3, 6], [6, 6]])
+        self.assertEqual(movement.land_locations, [[3, 6], [5, 6]])
 
     def test_manual_jumps(self):
         battle_map = Map(self.session, 'battle_sim_objects')
@@ -210,8 +213,10 @@ class TestMoveAction(unittest.TestCase):
         action = action_map
         battle.action(action)
         battle.commit(action)
-        # With the fixed seed, the acrobatics check succeeds and the fighter reaches [6,6]
-        self.assertEqual(battle_map.position_of(fighter), [6, 6])
+        # With the fixed seed, the acrobatics check succeeds and the fighter
+        # reaches [5,6] — the movement budget (6) is exhausted before [6,6]
+        # because water at [3,6] costs 2 (total path cost 7 > 6).
+        self.assertEqual(battle_map.position_of(fighter), [5, 6])
 
     def test_handles_prone_condition(self):
         battle_map = Map(self.session, 'battle_sim_objects')

@@ -1,0 +1,68 @@
+---
+label: Warrior (Sidekick)
+max_cr: 0.5
+hit_die: 1d10
+class_features: []
+proficiency_bonuses:
+  - 2
+  - 2
+  - 2
+  - 2
+  - 3
+  - 3
+  - 3
+  - 3
+  - 4
+  - 4
+  - 4
+  - 4
+  - 5
+  - 5
+  - 5
+  - 5
+  - 6
+  - 6
+  - 6
+  - 6
+asi_levels:
+  - 4
+  - 8
+  - 12
+  - 14
+  - 16
+  - 19
+progression:
+  level_2:
+    class_features:
+      - second_wind
+  level_3:
+    class_features:
+      - improved_critical
+  level_6:
+    class_features:
+      - extra_attack
+  level_7:
+    class_features:
+      - battle_readiness
+  level_10:
+    class_features:
+      - improved_defense
+  level_11:
+    class_features:
+      - indomitable
+  level_15:
+    class_features:
+      - extra_attack_2
+  level_18:
+    class_features:
+      - indomitable
+  level_20:
+    class_features:
+      - second_wind
+roles:
+  attacker:
+    features:
+      - martial_role_attacker
+  defender:
+    features:
+      - martial_role_defender

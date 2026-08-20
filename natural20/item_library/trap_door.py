@@ -126,6 +126,15 @@ class TrapDoor(DoorObject, Teleporter):
         trap_door.entity_uid = hash['entity_uid']
         trap_door.target_map = hash['target_map']
         trap_door.target_position = hash['target_position']
+        # Restore door state (resolved by after_setup in the original map)
+        if 'front_direction' in hash:
+            trap_door.front_direction = hash['front_direction']
+        if 'state' in hash:
+            trap_door.state = hash['state']
+        if 'locked' in hash:
+            trap_door.locked = hash['locked']
+        if 'lockable' in hash:
+            trap_door.lockable = hash['lockable']
         return trap_door
 
 

@@ -1,0 +1,63 @@
+---
+label: Expert (Sidekick)
+max_cr: 0.5
+hit_die: 1d8
+class_features:
+  - helpful
+proficiency_bonuses:
+  - 2
+  - 2
+  - 2
+  - 2
+  - 3
+  - 3
+  - 3
+  - 3
+  - 4
+  - 4
+  - 4
+  - 4
+  - 5
+  - 5
+  - 5
+  - 5
+  - 6
+  - 6
+  - 6
+  - 6
+asi_levels:
+  - 4
+  - 8
+  - 10
+  - 12
+  - 16
+  - 19
+progression:
+  level_2:
+    class_features:
+      - cunning_action
+  level_3:
+    class_features:
+      - expertise
+  level_6:
+    class_features:
+      - coordinated_strike
+  level_7:
+    class_features:
+      - evasion
+  level_11:
+    class_features:
+      - inspiring_help
+  level_14:
+    class_features:
+      - reliable_talent
+  level_15:
+    class_features:
+      - expertise
+  level_18:
+    class_features:
+      - sharp_mind
+  level_20:
+    class_features:
+      - inspiring_help_2
+roles: {}
