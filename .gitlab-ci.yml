@@ -1,0 +1,83 @@
+# Replaces GitLab Auto DevOps.
+#
+# Auto DevOps Build was failing with:
+#   invalid tag "/master:<sha>": invalid reference format
+# because CI_REGISTRY_IMAGE is empty when Container Registry is disabled.
+# See docs/GITLAB_CI.md.
+#
+# Jobs mirror .github/workflows/python-tests.yml and js-tests.yml.
+
+stages:
+  - test
+
+variables:
+  # Clone submodules in the job after rewriting GitHub SSH URLs (see .submodules).
+  GIT_SUBMODULE_STRATEGY: none
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PYTEST_TIMEOUT: "60"
+
+.submodules:
+  interruptible: true
+  before_script:
+    - |
+      if [ -n "${GITHUB_TOKEN:-}" ]; then
+        git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "git@github.com:"
+      else
+        git config --global url."https://github.com/".insteadOf "git@github.com:"
+      fi
+    - git submodule sync --recursive
+    - git submodule update --init --recursive
+
+python:engine:
+  extends: .submodules
+  stage: test
+  image: python:3.11-bookworm
+  timeout: 30m
+  cache:
+    key: pip-$CI_COMMIT_REF_SLUG
+    paths:
+      - .cache/pip
+  variables:
+    TEMPLATE_DIR: "$CI_PROJECT_DIR/templates"
+  script:
+    - python -m pip install --upgrade pip
+    - pip install -e .
+    - pip install -r requirements.txt
+    - pytest tests -q --ignore=tests/webapp --dist=worksteal -n 1
+
+python:webapp:
+  extends: .submodules
+  stage: test
+  image: python:3.11-bookworm
+  timeout: 30m
+  cache:
+    key: pip-$CI_COMMIT_REF_SLUG
+    paths:
+      - .cache/pip
+  variables:
+    TEMPLATE_DIR: "$CI_PROJECT_DIR/templates"
+  script:
+    - python -m pip install --upgrade pip
+    - pip install -e .
+    - pip install -e "./n20-webapp[dev]"
+    - pytest n20-webapp/tests/webapp -q --dist=worksteal -n 1
+
+js:webapp:
+  extends: .submodules
+  stage: test
+  image: node:20-bookworm
+  timeout: 15m
+  cache:
+    key: npm-$CI_COMMIT_REF_SLUG
+    paths:
+      - n20-webapp/node_modules
+  script:
+    - cd n20-webapp
+    - npm install --no-audit --no-fund
+    - NODE_OPTIONS="--max-old-space-size=4096" npx jest --coverage --forceExit
+  artifacts:
+    when: always
+    paths:
+      - n20-webapp/coverage
+    expire_in: 7 days
