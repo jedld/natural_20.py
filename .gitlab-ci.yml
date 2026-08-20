@@ -44,6 +44,10 @@ variables:
       # TLS certificate, so skip verification for the mirror clones (internal
       # network only).
       export GIT_SSL_NO_VERIFY=true
+      # git creates empty placeholder directories for the n20-webapp / user_levels
+      # submodule entries even with GIT_SUBMODULE_STRATEGY=none, so remove them
+      # before cloning the mirrors into the same paths.
+      rm -rf n20-webapp user_levels
       echo "Cloning GitLab mirror: n20-webapp"
       git clone --depth 1 "$N20_WEBAPP_GIT_URL" n20-webapp
       echo "Cloning GitLab mirror: user_levels (n20-campaigns)"
