@@ -395,35 +395,34 @@ class Rogue:
 
 ### Phase 2: Character & Combat Rules (High Priority)
 
-5. **Implement `Ruleset2024`** for core differences:
-   - HP calculation (fixed vs rolling)
-   - Reaction limits (1 vs 2)
-   - Movement freedom (action vs free)
-   - ASI/FASI levels
-   - Proficiency tables
-6. **Update `PlayerCharacter`** to use ruleset for HP, proficiencies
-7. **Update `Entity`** to use ruleset for reactions, movement
+> **Corrected:** Do **not** implement doubled reactions, free-vs-action movement,
+> FASI, or unified proficiency tables — those are not 2024 vs 2014 deltas.
+> See audited §2.4 and `docs/RULESETS.md`. Live plan:
+> `.cursor/plans/dual_2014_2024_rulesets_*.plan.md` (campaign-scoped).
+
+5. **Implement `Ruleset2024`** for audited hooks only (HP default, surprise,
+   exhaustion D20 penalty, weapon mastery gate, grapple/shove saves, etc.)
+6. **Weapons/items** — mastery pipeline (Push, Sap, …); TWF/Nick
+7. **Chargen** — background ASI vs species; origin feats; filtered pickers
 
 ### Phase 3: Class-Specific Changes (Medium Priority)
 
-8. **Update class mixins** for ruleset-specific features:
-   - Barbarian: Rage uses
-   - Bard: Bardic Inspiration die
-   - Rogue: Sneak Attack dice, Expertise levels
-   - Monk: Ki costs for Patient Defense/Step of the Wind
-9. **Create 2024 character class YAML templates**
+8. **Update class mixins** only where features diverge (Smite-as-spell,
+   Channel Divinity level, Focus Points label, Cunning Strike, Weapon Mastery
+   counts, Rage duration). Do **not** change Sneak Attack die or Bardic die at L1.
+9. **Create 2024 class YAML overlays** under `templates/rulesets/5e-2024/`
 
 ### Phase 4: Spell System (Medium Priority)
 
-10. **Implement unified spell list** for 2024
-11. **Implement unified spell slot table** for 2024
-12. **Update spell loading** to use ruleset-specific lists
+10. **Spell overlays** for SRD 5.2 reworks/additions (not a single unified slot table)
+11. **Counterspell** CON save resolution; Divine Smite as spell when gated
+12. Optional Arcane/Divine/Primal grouping metadata
 
 ### Phase 5: Species/Race & Conditions (Lower Priority)
 
-13. **Create 2024 species YAML templates** with FASI
-14. **Update species ability bonus logic**
-15. **Update condition effects** for renamed/merged conditions
+13. **Create 2024 species YAML overlays** (no species ASI; background ASI)
+14. **Update ability bonus source** via `ability_bonus_source()`
+15. **Exhaustion** 1–6 with −2/level on D20 Tests
 
 ### Phase 6: Testing & Polish (Ongoing)
 
@@ -585,7 +584,9 @@ Future work may include:
 ## 8. Open Questions — Resolved Decisions
 
 1. **Where do 2024 templates live?** — **Decision: same `templates/` directory, with a `ruleset:` field in each YAML.** Rationale: avoids a duplicated tree, matches how `templates/index.json` is consumed today, and the loader can fall back to the 2014 file when a 2024 variant is absent. A `templates_2024/` subtree may still be created *under* `templates/` purely as an organizational convenience for content authors.
-2. **Per-session vs global ruleset** — **Decision: per-session.** Stored on `Session.ruleset`; never read from a global.
+2. **Per-session vs global ruleset** — **Superseded: campaign-scoped.**
+   Source of truth is campaign `game.yml` `ruleset:`. `Session.ruleset` is a
+   read-through only; saves do not own a diverging edition. See `docs/RULESETS.md`.
 3. **Partial adoption / mix-and-match** — **Decision: support a `ruleset_overrides` dict on `Session`** (e.g. `{ 'spell_grouping': 'per_class' }`). The `Ruleset` base reads overrides via `self.ruleset.get(name)`-style accessors, with the underlying ruleset providing defaults.
 4. **Errata variant (`5e-2014-errata`)** — **Out of scope for v1.** Easy to add later as a `Ruleset2014` subclass once the v1 hooks are stable.
 5. **Web UI** — **Required:** session-create flow must let the DM choose the ruleset; character sheet shows the active ruleset; per-character HP strategy and ability-bonus source must reflect it.

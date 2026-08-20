@@ -165,8 +165,17 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
 
             if not jumped:
                 jump_start_locations.append(m)
+                # A single running square before the jump grants the long
+                # jump distance (5e: a long jump is up to your speed).
+                if running_distance > 1:
+                    jump_budget = int(entity.long_jump_distance() / map.feet_per_grid)
+                else:
+                    jump_budget = int(entity.standing_jump_distance() / map.feet_per_grid)
 
             jump_locations.append(m)
+            # Each jump square is one grid unit of distance. The budget was
+            # set at the start of this jump segment to the full jump distance
+            # in grid units, so consume 1 per square.
             jump_budget -= 1
             jump_distance += 1
 

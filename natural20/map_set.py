@@ -127,8 +127,13 @@ class MapSetRegistry:
     def same_map_set(self, a: Any, b: Any) -> bool:
         name_a = _map_name(a)
         name_b = _map_name(b)
+        if not name_a and not name_b:
+            return True
         if not name_a or not name_b:
-            return False
+            # One side is unnamed (e.g. a Map constructed from a file path
+            # without an explicit name). It cannot be proven to be in a
+            # different map set, so treat it as the root set.
+            return self.set_for_map(name_a or '') == self.set_for_map(name_b or '')
         return self.set_for_map(name_a) == self.set_for_map(name_b)
 
     def has_explicit_config(self) -> bool:

@@ -188,10 +188,10 @@ def test_load_campaign_prompt_profile_death_house(tmp_path: Path):
     if not campaign.is_dir():
         pytest.skip("death_house campaign missing")
     profile = load_campaign_prompt_profile(campaign)
-    assert "gothic horror" in profile.token_style.lower()
-    assert "Barovia" in profile.portrait_style
-    assert "Svalich" in profile.login_scene
-    assert "barovia" in profile.scene_backdrop("basement").lower()
+    assert "gothic tavern" in profile.token_style.lower()
+    assert "painterly" in profile.portrait_style.lower()
+    assert "gothic village" in profile.login_scene.lower()
+    assert "tavern" in profile.scene_backdrop("tavern").lower()
 
 
 def test_load_campaign_prompt_profile_defaults_without_file(tmp_path: Path):
