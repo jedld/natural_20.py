@@ -40,6 +40,10 @@ variables:
   before_script:
     - |
       set -e
+      # The runner container cannot verify the self-hosted GitLab's self-signed
+      # TLS certificate, so skip verification for the mirror clones (internal
+      # network only).
+      export GIT_SSL_NO_VERIFY=true
       echo "Cloning GitLab mirror: n20-webapp"
       git clone --depth 1 "$N20_WEBAPP_GIT_URL" n20-webapp
       echo "Cloning GitLab mirror: user_levels (n20-campaigns)"
