@@ -18,6 +18,15 @@
     "rule": "/"
   },
   {
+    "endpoint": "client_3d.index",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/3d"
+  },
+  {
     "endpoint": "static",
     "methods": [
       "GET",
@@ -119,6 +128,14 @@
       "POST"
     ],
     "rule": "/admin/effect"
+  },
+  {
+    "endpoint": "dm.admin_illumination",
+    "methods": [
+      "OPTIONS",
+      "POST"
+    ],
+    "rule": "/admin/illumination"
   },
   {
     "endpoint": "dm.admin_load",
@@ -1297,6 +1314,15 @@
       "POST"
     ],
     "rule": "/manual_roll"
+  },
+  {
+    "endpoint": "navigation.map_state",
+    "methods": [
+      "GET",
+      "HEAD",
+      "OPTIONS"
+    ],
+    "rule": "/map_state"
   },
   {
     "endpoint": "mark_note_read",

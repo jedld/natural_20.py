@@ -368,6 +368,10 @@
     "rule": "/character_selection"
   },
   {
+    "endpoint": "client_3d.index",
+    "rule": "/3d"
+  },
+  {
     "endpoint": "combat_log",
     "rule": "/api/combat-log"
   },
@@ -414,6 +418,10 @@
   {
     "endpoint": "dm.admin_effect",
     "rule": "/admin/effect"
+  },
+  {
+    "endpoint": "dm.admin_illumination",
+    "rule": "/admin/illumination"
   },
   {
     "endpoint": "dm.admin_load",
@@ -778,6 +786,10 @@
   {
     "endpoint": "navigation.jump_info",
     "rule": "/jump_info"
+  },
+  {
+    "endpoint": "navigation.map_state",
+    "rule": "/map_state"
   },
   {
     "endpoint": "navigation.mark_note_read",
