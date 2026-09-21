@@ -27,4 +27,7 @@ pytest-xdist
 mutagen
 openai
 python-dotenv
+# Optional: TypeSafe "Jev" System One decision-model provider (LLM_PROVIDER=jev).
+# Only needed if you use the JevProvider; the app degrades gracefully without it.
+typesafe-sdk
 # OpenVoice - see scripts/install_openvoice.sh for Python 3.13 compatible installation

@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import random
 import re
@@ -13,15 +14,18 @@ from natural20.actions.look_action import LookAction
 from natural20.map_renderer import MapRenderer
 from natural20.ai.path_compute import PathCompute
 
+logger = logging.getLogger(__name__)
+
 # Optional import of webapp LLM provider abstraction; keep controller decoupled if unavailable
 try:
 	# Using provider interface from web layer without importing the entire app
-	from webapp.llm_handler import OllamaProvider, OpenAIProvider, AnthropicProvider, LlamaCppProvider  # type: ignore
+	from webapp.llm_handler import OllamaProvider, OpenAIProvider, AnthropicProvider, LlamaCppProvider, JevProvider  # type: ignore
 except Exception:
 	OllamaProvider = None  # type: ignore
 	OpenAIProvider = None  # type: ignore
 	AnthropicProvider = None  # type: ignore
 	LlamaCppProvider = None  # type: ignore
+	JevProvider = None  # type: ignore
 
 
 class LlmMcpController(GenericController):
@@ -567,6 +571,33 @@ class LlmMcpController(GenericController):
 
 		# Check for unprocessed conversations in memory_buffer since last turn
 		self._process_unread_conversations(entity, ctx)
+
+	def move_for(self, entity, battle) -> Optional[Action]:
+		"""
+		Movement with JEV special handling: when the attached provider is a
+		JevProvider, the recursive planner decides the strategic intent first
+		(move -> entity / defensive square / hide / offensive square) and then
+		the concrete destination square. Any failure falls back to the generic
+		heuristic movement logic.
+		"""
+		prov = getattr(self, "llm_provider", None)
+		if prov is not None and JevProvider is not None and isinstance(prov, JevProvider) \
+				and getattr(prov, "is_available", False):
+			try:
+				from natural20.utils.jev_decision import jev_select_action
+				action = jev_select_action(prov, battle, entity)
+				if action is not None:
+					if getattr(action, "move_path", None):
+						from natural20.utils.movement import simplify_path
+						action.move_path = simplify_path(action.move_path)
+					if not action.move_path or len(action.move_path) < 2:
+						return None
+					return action
+			except Exception as _e:
+				import logging
+				logging.getLogger(__name__).debug(
+					"[LlmMcpController] jev move plan failed: %s", _e)
+		return super().move_for(entity, battle)
 
 	def _process_unread_conversations(self, entity, ctx: dict) -> None:
 		"""
@@ -1425,6 +1456,26 @@ class LlmMcpController(GenericController):
 		if len(available_actions) == 1:
 			return available_actions[0]
 
+		# Jev (TypeSafe "System One") recursive action-tree path: when the attached
+		# provider is a JevProvider, let the decision model walk the action builder's
+		# tree recursively (action type -> weapon/spell/... -> target) instead of
+		# picking a flat index. Any failure falls through to the flat path below.
+		prov = getattr(self, "llm_provider", None)
+		if prov is not None and JevProvider is not None and isinstance(prov, JevProvider) \
+				and getattr(prov, "is_available", False):
+			try:
+				from natural20.utils.jev_decision import jev_select_action
+				chosen = jev_select_action(prov, battle, entity, available_actions)
+				if chosen is not None:
+					chosen = self._maybe_enrich_action_targets(battle, entity, chosen)
+					if chosen is not None:
+						return chosen
+			except Exception as _e:
+				# Silent fallback; the flat index path below still applies.
+				import logging
+				logging.getLogger(__name__).debug(
+					"[LlmMcpController] jev recursive plan failed: %s", _e)
+
 		# Try LLM path first, then fallback to heuristic ranking
 		try:
 			idx = self._ask_llm_for_choice(battle, entity, available_actions)
@@ -1448,8 +1499,30 @@ class LlmMcpController(GenericController):
 		if mcp_idx is not None:
 			return mcp_idx
 
-		# If an LLMProvider backend exists (e.g., Ollama), use it first
 		prov = getattr(self, "llm_provider", None)
+
+		# Jev (TypeSafe "System One") native decision path: when the attached provider
+		# is a JevProvider, prefer its typed decide_action API (returns index +
+		# confidence + probabilities) over the string-parsing path below.
+		if prov is not None and JevProvider is not None and isinstance(prov, JevProvider) and getattr(prov, "is_available", False):
+			try:
+				options = [self._action_short_desc(a) for a in available_actions]
+				from natural20.concurrency import run_blocking
+				decision = run_blocking(prov.decide_action, prompt, options)  # type: ignore[attr-defined]
+				if decision is not None:
+					idx = decision.get("index")
+					if idx is not None and 0 <= int(idx) < len(available_actions):
+						logger.debug(
+							"[Jev] %s chose action %d (%s) confidence=%s",
+							getattr(entity, "name", repr(entity)), idx,
+							decision.get("choice"), decision.get("confidence"),
+						)
+						return int(idx)
+			except Exception:
+				# fall through to the generic provider path below
+				pass
+
+		# If an LLMProvider backend exists (e.g., Ollama), use it first
 		if prov is not None and hasattr(prov, "send_message"):
 			try:
 				instructions = (
