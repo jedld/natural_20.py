@@ -109,6 +109,36 @@ This conforms with DnD 5e where movement is measured in feet (5 ft = 1 grid squa
 
 Blueprints read shared state through `runtime_state` accessors, **not** by importing from `webapp.app`.
 
+### LLM providers
+
+Provider adapters live in `webapp/llm_handler.py` behind an `LLMProvider` ABC. `LLMHandler` owns a
+`providers` registry (`ollama`, `openai`, `anthropic`, `llama_cpp`, `mock`, and `jev`) and
+instantiates the configured one via `_instantiate_provider(name)`. Env wiring for the DM provider is in
+`configure_llm_handler_from_environment()` and for the NPC provider in
+`configure_npc_provider_from_environment()` (both in `blueprints/helpers/llm_init.py`).
+
+`JevProvider` (TypeSafe "System One") is a **decision** provider, not a prose generator:
+
+- Native API: `decide_action(state, options)` → `{index, choice, confidence, probabilities}` and
+  `decide_bool(state, question)` → `{noul, confidence}`, wrapping `TypeSafeClient.system_one` with
+  `Choice` / `Noul` questions.
+- `send_message()` intentionally returns a note (Jev cannot narrate); keep NPC `/talk` on a
+  generative provider (`ollama`/`openai`/`llama_cpp`).
+- **NPC battle AI (recursive action tree):** when the attached provider is a `JevProvider`,
+  `LlmMcpController.select_action` / `move_for` route through `JevActionPlanner` in
+  `natural20/utils/jev_decision.py`, which recommends the action *type* first (attack, spell,
+  move, help, dodge, ...) and then recursively formulates the full tree —
+  `attack -> weapon -> target`, `spell -> spell name (and level) -> target`, and special
+  movement handling `move -> entity (melee range) | defensive square | hide | offensive square`.
+  See `docs/JEV_NPC_BATTLE_AI.md`. Any planner failure falls back to the flat `decide_action`
+  index path (`_ask_llm_for_choice`) or the generic heuristic controller.
+- Requires `pip install typesafe-sdk`; degrades gracefully (provider reports unavailable) if the SDK
+  or `TYPESAFE_API_KEY` is missing. Env: `LLM_PROVIDER=jev`, `TYPESAFE_API_KEY`, `TYPESAFE_BASE_URL`
+  (default `https://api.typesafe.ai`), `TYPESAFE_MODEL` / `TYPESAFE_DEFAULT_MODEL` (default
+  `jev-latest`), `JEV_TIMEOUT` (default `8`).
+- Tests: `tests/webapp/test_jev_provider.py` (provider) and `tests/test_npc_battle_ai.py`
+  (recursive planner + controller wiring).
+
 ### Campaign character builder limits
 
 Set in `user_levels/<campaign>/game.yml` (or `index.json`) under `character_builder`:

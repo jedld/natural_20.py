@@ -93,9 +93,13 @@ Legacy REST (in-app LLM) is unchanged: `GET /mcp/manifest`, `GET /mcp/tools/list
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `LLM_PROVIDER` | LLM backend (ollama/openai/anthropic/mock) | `ollama` |
+| `LLM_PROVIDER` | LLM backend (ollama/openai/anthropic/llama_cpp/jev/mock) | `ollama` |
 | `OLLAMA_BASE_URL` | Ollama endpoint URL | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Ollama model name | — |
+| `TYPESAFE_API_KEY` | Jev (TypeSafe "System One") API key (provider `jev`) | — |
+| `TYPESAFE_BASE_URL` | Jev API endpoint | `https://api.typesafe.ai` |
+| `TYPESAFE_MODEL` / `TYPESAFE_DEFAULT_MODEL` | Jev model name | `jev-latest` |
+| `JEV_TIMEOUT` | Jev request timeout (seconds) | `8` |
 | `OPENAI_API_KEY` | OpenAI API key | — |
 | `ANTHROPIC_API_KEY` | Anthropic API key | — |
 | `N20_MCP_URL` | External MCP bridge URL | — |
