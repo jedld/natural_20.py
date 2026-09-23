@@ -3035,7 +3035,6 @@ class Entity(EntityStateEvaluator, Notable):
 
         for item in shields_and_armor:
             if not self.proficient_with_armor(item['name']):
-                print(f"not proficient with {item['name']}")
                 return False
 
         return True

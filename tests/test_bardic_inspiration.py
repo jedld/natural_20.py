@@ -99,6 +99,19 @@ class TestBardicInspiration(unittest.TestCase):
         self.bard.bard_level = 5
         self.assertEqual(self.bard.bardic_inspiration_die(), '1d8')
 
+    def test_bardic_inspiration_autobuild_for_ai_action_menu(self):
+        """AI controllers build the bard's action menu with auto_target=True,
+        which autobuilds BardicInspirationAction; the class needs a build()."""
+        from natural20.utils.action_builder import autobuild
+        built = autobuild(self.session, BardicInspirationAction, self.bard, self.battle)
+        self.assertTrue(any(isinstance(a, BardicInspirationAction) for a in built))
+        self.assertTrue(
+            all(isinstance(a, BardicInspirationAction) and a.target is not None for a in built)
+        )
+        # The full menu path used by the LLM/JEV/generic controllers must not raise.
+        moves = self.bard.available_actions(self.session, self.battle)
+        self.assertTrue(any(isinstance(a, BardicInspirationAction) for a in moves))
+
 
 if __name__ == '__main__':
     unittest.main()

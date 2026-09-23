@@ -134,6 +134,26 @@
       "overrides": {
         "entity_uid": "cleric_l5_84ecc045"
       }
+    },
+    {
+      "name": "wizard_l5_7f34bc4c",
+      "display_name": "Wizard L5 7f34bc4c",
+      "file": "characters/wizard_l5_7f34bc4c.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_7f34bc4c.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_7f34bc4c"
+      }
+    },
+    {
+      "name": "cleric_l5_73cb41e5",
+      "display_name": "Cleric L5 73cb41e5",
+      "file": "characters/cleric_l5_73cb41e5.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_73cb41e5.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_73cb41e5"
+      }
     }
   ],
   "logins": [

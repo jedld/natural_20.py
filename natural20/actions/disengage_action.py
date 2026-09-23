@@ -24,7 +24,7 @@ class DisengageAction(Action):
 
     @staticmethod
     def build(session, source):
-        action = DisengageAction(session, source, 'attack')
+        action = DisengageAction(session, source, 'disengage')
         return action.build_map()
 
     def resolve(self, session, map, opts=None):
@@ -56,3 +56,8 @@ class DisengageBonusAction(DisengageAction):
     @staticmethod
     def can(entity, battle):
         return battle and entity.any_class_feature(['cunning_action', 'nimble_escape']) and entity.total_bonus_actions(battle) > 0
+
+    @staticmethod
+    def build(session, source):
+        action = DisengageBonusAction(session, source, 'disengage_bonus')
+        return action.build_map()

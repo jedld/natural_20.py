@@ -1,35 +1,44 @@
 """
-Jev (TypeSafe "System One") recursive action-tree planner for NPC combat AI.
+Jev (TypeSafe "System One") action planner for NPC combat AI.
 
 Design
 ------
-Instead of asking the decision model to pick a single index out of a flat list
-of fully-built actions, the planner walks the action space *recursively*,
-mirroring how the action builder (``natural20.utils.action_builder``) expands
-an action's ``build_map()`` tree:
+The planner materializes the entity's whole action space into a flat list of
+*fully-specified, currently-executable* leaf actions and asks the decision
+model to pick one of them in a **single** ``decide_action`` call:
 
-    1. ACTION TYPE   attack | spell | move | help | dodge | hide | ...
-                     (one JEV ``Choice`` over the types available right now)
-    2. DECOMPOSITION recursively resolved with one JEV ``Choice`` per level:
-        - attack  -> weapon -> target
-        - spell   -> spell name (+ level) -> target / AoE anchor / ...
-        - help    -> ally target
-        - move    -> *special handling*, a strategic intent first:
-                       move -> entity (close to melee range of chosen foe)
-                       move -> defensive square (cover / away from foes)
-                       move -> hide (reachable hiding spot)
-                       move -> offensive square (improved attack position)
-                     then the concrete destination square.
-        - dodge / dash / hide / stand / look / second_wind / ...  -> leaf
-    3. MATERIALIZATION the chosen path is materialized into a fully
-       parameterized ``Action`` (via the ``build_map`` ``next`` callbacks /
-       ``autobuild`` with a ``match``), so the battle loop executes it exactly
-       like a player-built action.
+    - attack  -> one leaf per weapon x legal target
+    - spell   -> one leaf per castable spell x legal target / AoE anchor
+    - move    -> one leaf per strategic intent x destination square:
+                   engage (close to melee range of a foe)
+                   defensive (cover / away from foes)
+                   hide (reachable hiding spot)
+                   offensive (improved attack position)
+    - help / shove / grapple / interact / use_item -> one leaf per legal target
+    - dodge / dash / hide / stand / look / second_wind / ... -> single leaf
+    - pass    -> always the final top-level leaf ("pass (end turn)"); the
+                 model may end its turn instead of acting
 
-Every level is a single ``JevProvider.decide_action(state, options)`` call
-(compact option descriptions, <= 255 options). If *any* level fails (no
-client, SDK error, out-of-range answer, no legal options) the planner returns
-``None`` and the controller falls back to its heuristic ranking.
+Because every option is already a complete action, no follow-up round-trips
+are needed: decision levels with a single legal option (one weapon, one
+target, one square) are pruned implicitly, and actions that cannot be
+completed right now (weapon attacks with no weapon, no legal target, no
+usable item/object) are rejected before the question is built. When the whole
+tree collapses to a single leaf the model is not consulted at all.
+
+A ``pass (end turn)`` leaf (``EndTurnAction``) is appended as the final
+top-level option on every call: ending the turn is always a legal choice.
+Because of this, "single leaf" auto-selection only fires when nothing but
+pass survived the pruning (i.e. there is nothing to do this turn).
+
+``JevProvider.system_one`` answers a flat mapping of *independent* questions,
+so a dependent decision tree cannot be sent as-is; flattening to leaves is
+the one-call equivalent and keeps the model's answer unambiguously
+consistent.
+
+If no legal leaves exist, or the single call fails (no client, SDK error,
+out-of-range answer), the planner returns ``None`` and the controller falls
+back to its heuristic ranking.
 
 The module is deliberately provider-agnostic: it only requires an object with
 a ``decide_action(state, options) -> dict|None`` method (``JevProvider``
@@ -44,8 +53,10 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 # Jev's Choice question is capped at 255 criteria; stay safely below.
-MAX_JEV_OPTIONS = 24
-# Hard cap on the number of decide_action round-trips per turn.
+MAX_JEV_OPTIONS = 24   # per-type cap on leaf options
+MAX_JEV_LEAVES = 60    # total cap for the single flattened question
+MAX_JEV_POV_LOG = 10   # max witnessed battle-log lines rendered into the state
+# Kept for API compatibility; the flattened planner makes at most 1 call/turn.
 DEFAULT_MAX_DECISIONS = 8
 
 
@@ -70,6 +81,80 @@ def _hp_text(entity) -> str:
         return f"{entity.hp()}/{entity.max_hp()}"
     except Exception:
         return "?"
+
+
+def _ac_value(entity) -> Optional[int]:
+    """The entity's current effective AC, or None when unknown/zero.
+
+    ``armor_class()`` already folds in active ``ac_bonus`` effects (Haste +2,
+    Shield +5, ...) and class features, so this is the number an attack roll
+    is actually made against right now.
+    """
+    try:
+        ac = entity.armor_class()
+    except Exception:
+        return None
+    try:
+        ac = int(ac)
+    except (TypeError, ValueError):
+        return None
+    return ac if ac else None
+
+
+def _effect_name(effect) -> Optional[str]:
+    """Display name of a registered effect's spell (``Haste``), not its class."""
+    if effect is None:
+        return None
+    props = getattr(effect, 'properties', None)
+    if isinstance(props, dict):
+        n = props.get('name') or props.get('label')
+        if n:
+            return n
+    for attr in ('short_name', 'name'):
+        n = getattr(effect, attr, None)
+        if callable(n):
+            try:
+                n = n()
+            except Exception:
+                continue
+        if isinstance(n, str) and n:
+            return n
+    return None
+
+
+def _active_buffs(entity) -> List[str]:
+    """Names of the timed effects/buffs currently active on the entity.
+
+    Many buff spells (Shield, Mage Armor, Bless, Haste, ...) register their
+    mechanics on ``entity.effects`` without adding a status, so the model
+    only learns about them here. Descriptors are deduplicated by spell name
+    (Haste registers both ``speed_override`` and ``ac_bonus``) and carry
+    their remaining duration in seconds when bounded. Raw mechanism entries
+    with no named spell are skipped.
+    """
+    try:
+        now = entity.session.game_time
+    except Exception:
+        now = 0
+    seen = set()
+    out = []
+    for descriptors in (getattr(entity, 'effects', None) or {}).values():
+        for d in descriptors or []:
+            try:
+                exp = d.get('expiration')
+                if exp is not None and exp <= now:
+                    continue  # already expired
+                name = _effect_name(d.get('effect'))
+                if not name or name in seen:
+                    continue
+                seen.add(name)
+                if exp is not None:
+                    out.append(f"{name} {max(0, int(exp - now))}s")
+                else:
+                    out.append(name)
+            except Exception:
+                continue
+    return out
 
 
 def _dist_ft(battle, map_, a, b) -> Optional[int]:
@@ -168,7 +253,11 @@ def _class_can(action_class, entity, battle) -> bool:
 # --------------------------------------------------------------------------- #
 
 class JevActionPlanner:
-    """Recursively turn JEV decisions into a fully-parameterized Action.
+    """Turn one JEV decision into a fully-parameterized Action.
+
+    The action space is flattened to executable leaf actions (see the module
+    docstring) and a single ``decide_action`` call picks among them; a tree
+    with one legal leaf is auto-selected without any round-trip.
 
     Parameters
     ----------
@@ -183,11 +272,12 @@ class JevActionPlanner:
         self.provider = provider
         self.max_decisions = max_decisions
         self._decisions = 0
-        # Populated on the first descent of a turn, reused by deeper levels.
+        # Populated once per turn; reused by the leaf question.
         self._state = None
         self._battle = None
         self._entity = None
         self._map = None
+        self._session = None
 
     # -- decision budget ---------------------------------------------------- #
     def _decide(self, state: str, options: List[str]) -> Optional[int]:
@@ -197,7 +287,7 @@ class JevActionPlanner:
         if self._decisions >= self.max_decisions:
             logger.debug("[JevPlan] decision budget exhausted; stopping descent")
             return None
-        opts = options[:MAX_JEV_OPTIONS]
+        opts = options[:MAX_JEV_LEAVES]
         try:
             from natural20.concurrency import run_blocking
             res = run_blocking(self.provider.decide_action, state, opts)
@@ -217,6 +307,55 @@ class JevActionPlanner:
         return idx
 
     # -- state rendering ---------------------------------------------------- #
+    def _display_names(self, battle, entity) -> dict:
+        """id(entity) -> unambiguous display name.
+
+        When an entity's name collides with the acting entity's or another
+        listed entity's name (exact match or substring, e.g. ``Meringo`` vs
+        ``Meringo (fighter2)``), its map position is appended
+        (``Meringo@[7, 3]``) so state text and leaf descriptions stay
+        unambiguous.
+        """
+        m = battle.map_for(entity) if battle else None
+        others = []
+        try:
+            if battle is not None:
+                others += [e for e in battle.opponents_of(entity) if not e.dead()]
+                others += [a for a in battle.allies_of(entity)
+                           if a is not entity and not a.dead()]
+        except Exception:
+            pass
+        names = {id(entity): _name(entity)}
+        me = _name(entity).lower()
+        for o in others:
+            name = _name(o)
+            lo = name.lower()
+            collides = lo == me or lo in me or me in lo
+            if not collides:
+                for p in others:
+                    if p is o:
+                        continue
+                    po = _name(p).lower()
+                    if lo == po or lo in po or po in lo:
+                        collides = True
+                        break
+            if collides and m is not None:
+                try:
+                    pos = m.position_of(o)
+                    name = f"{name}@[{pos[0]}, {pos[1]}]"
+                except Exception:
+                    pass
+            names[id(o)] = name
+        return names
+
+    def _display_name(self, e) -> str:
+        if e is None:
+            return 'target'
+        names = getattr(self, '_names', None)
+        if names:
+            return names.get(id(e), _name(e))
+        return _name(e)
+
     def _render_state(self, battle, entity) -> str:
         """Compact, unstructured state text handed to every JEV question."""
         m = battle.map_for(entity)
@@ -224,14 +363,27 @@ class JevActionPlanner:
         lines = []
         try:
             pos = m.position_of(entity) if m else None
+            ac = _ac_value(entity)
+            ac_part = f"; AC {ac}" if ac is not None else ""
             lines.append(
-                f"Entity: {entity.name}; HP {_hp_text(entity)}; "
+                f"Entity: {entity.name}; HP {_hp_text(entity)}{ac_part}; "
                 f"pos {pos}; movement {entity.available_movement(battle)} ft; speed {entity.speed()} ft"
             )
             try:
+                # Merge the per-turn battle-state markers (dodge/disengage) with
+                # the entity's own standing conditions (poisoned, prone,
+                # grappled, hidden, unconscious, ...) - those live on
+                # ``entity.statuses`` and are what every condition check reads.
+                sts = set()
                 st = battle.entity_state_for(entity)
                 if st and st.get('statuses'):
-                    lines.append("statuses: " + ", ".join(sorted(st['statuses'])))
+                    sts.update(st['statuses'])
+                own = getattr(entity, 'statuses', None)
+                if own:
+                    sts.update(own)
+                sts.discard('dead')
+                if sts:
+                    lines.append("statuses: " + ", ".join(sorted(sts)))
             except Exception:
                 pass
             try:
@@ -239,12 +391,29 @@ class JevActionPlanner:
                     lines.append("concentrating")
             except Exception:
                 pass
+            try:
+                lines.append(
+                    "mods: str{:+d} dex{:+d} con{:+d} int{:+d} wis{:+d} cha{:+d}".format(
+                        entity.str_mod(), entity.dex_mod(), entity.con_mod(),
+                        entity.int_mod(), entity.wis_mod(), entity.cha_mod())
+                )
+            except Exception:
+                pass
 
             enemies = [e for e in battle.opponents_of(entity) if battle.can_see(entity, e) and not e.dead()]
             elines = []
             for e in enemies:
                 d = _dist_ft(battle, m, entity, e)
-                elines.append(f"{e.name} hp {_hp_text(e)} {d} ft" + (f" melee" if (d or 99) <= 5 else ""))
+                extra = ""
+                try:
+                    if e.incapacitated():
+                        extra = " (unconscious)"
+                except Exception:
+                    pass
+                ac = _ac_value(e)
+                ac_part = f" ac {ac}" if ac is not None else ""
+                elines.append(f"{self._display_name(e)} hp {_hp_text(e)}{ac_part} {d} ft"
+                              + (f" melee" if (d or 99) <= 5 else "") + extra)
             lines.append("visible enemies: " + (", ".join(elines) or "none"))
 
             allies = []
@@ -253,7 +422,11 @@ class JevActionPlanner:
                           if a is not entity and battle.can_see(entity, a) and not a.dead()]
             except Exception:
                 pass
-            alines = [f"{a.name} hp {_hp_text(a)}" for a in allies]
+            alines = []
+            for a in allies:
+                ac = _ac_value(a)
+                ac_part = f" ac {ac}" if ac is not None else ""
+                alines.append(f"{self._display_name(a)} hp {_hp_text(a)}{ac_part}")
             lines.append("allies: " + (", ".join(alines) or "none"))
 
             # spell slots, if any
@@ -268,78 +441,179 @@ class JevActionPlanner:
                     lines.append("spell slots: " + ", ".join(slots))
             except Exception:
                 pass
+
+            # usable inventory (the same items the action space can use)
+            try:
+                items = []
+                for it in entity.usable_items():
+                    label = it.get('label') or it.get('name')
+                    try:
+                        qty = int(it.get('qty', 1) or 1)
+                    except (TypeError, ValueError):
+                        qty = 1
+                    if not label:
+                        continue
+                    items.append(f"{label} x{qty}" if qty > 1 else str(label))
+                    if len(items) >= 6:
+                        break
+                if items:
+                    lines.append("items: " + ", ".join(items))
+            except Exception:
+                pass
+
+            # active timed buffs (spells that register effects without a status)
+            try:
+                buffs = _active_buffs(entity)
+                if buffs:
+                    lines.append("effects: " + ", ".join(buffs))
+            except Exception:
+                pass
+
+            # spent action/bonus action (normally 1/1 at the start of a turn)
+            try:
+                act = entity.total_actions(battle)
+                bon = entity.total_bonus_actions(battle)
+                if not act or not bon:
+                    lines.append(f"resources: action={act}, bonus={bon}")
+            except Exception:
+                pass
+
+            # POV: what the entity witnessed since its previous turn
+            try:
+                pov = self._pov_log(battle, entity)
+                if pov:
+                    lines.append("since last turn:")
+                    lines.extend(pov)
+            except Exception:
+                pass
+
             lines.append(
-                "Task: choose the single best option index for the NEXT decision level. "
-                "Prefer actions that win the fight and keep the entity alive."
+                "Task: choose the single best option index from the full list of "
+                "actions available this turn. Prefer actions that win the fight "
+                "and keep the entity alive."
             )
         except Exception as e:
             logger.debug("[JevPlan] state render failed: %s", e)
             lines.append("State unavailable.")
         return "\n".join(lines)
 
+    def _pov_log(self, battle, entity) -> List[str]:
+        """One-line POV summaries of the battle-log entries the entity
+        witnessed since the start of its previous turn.
+
+        The window is bounded by the ``last_turn_log_len`` mark ``Battle``
+        records in ``start_turn`` (on a first turn it falls back to the whole
+        log). Entries are filtered by POV (the entity acted, was targeted,
+        or can see the actor/target) and the most recent
+        ``MAX_JEV_POV_LOG`` are kept, oldest first.
+        """
+        start = 0
+        try:
+            st = battle.entity_state_for(entity)
+            if st is not None:
+                v = st.get('last_turn_log_len')
+                if isinstance(v, int):
+                    start = v
+        except Exception:
+            start = 0
+        log = list(getattr(battle, 'battle_log', None) or [])
+        start = max(0, min(start, len(log)))
+        names = getattr(self, '_names', None)
+        out = []
+        for action in log[start:]:
+            try:
+                if not _pov_witnessed(battle, entity, action):
+                    continue
+                line = _pov_line(action, names)
+                if line:
+                    out.append("- " + line)
+            except Exception:
+                continue
+        return out[-MAX_JEV_POV_LOG:]
+
     # -- top level ---------------------------------------------------------- #
     def select(self, battle, entity, available_actions: Optional[List] = None) -> Optional[Any]:
-        """Recursively build the action tree and return a parameterized Action."""
+        """Flatten the action space to executable leaves and let JEV pick one."""
         try:
             self._battle = battle
             self._entity = entity
             self._map = battle.map_for(entity)
             self._session = getattr(battle, 'session', None)
             self._decisions = 0
+            self._names = self._display_names(battle, entity)
             self._state = self._render_state(battle, entity)
 
-            groups = self._collect_groups(available_actions)
-            if not groups:
+            leaves = self._collect_leaves(available_actions)
+            if not leaves:
                 return None
 
-            type_options = []
-            for t, actions in groups.items():
-                type_options.append(self._type_desc(t, actions))
+            # The whole tree pruned down to a single option: no round-trip.
+            # Since pass is always offered, this is the "nothing to do but
+            # end the turn" case (the controller turns it into an end turn).
+            if len(leaves) == 1:
+                logger.debug("[JevPlan] %s single legal option; auto-selecting %r",
+                             getattr(entity, 'name', '?'), leaves[0][2])
+                return self._enrich(battle, entity, leaves[0][1])
 
-            tidx = self._decide(self._state, type_options)
-            if tidx is None:
+            descs = [d for _, _, d in leaves]
+            idx = self._decide(self._state, descs)
+            if idx is None:
                 return None
-            chosen_type = list(groups.keys())[tidx]
-            logger.debug("[JevPlan] %s chose action type '%s'",
-                         getattr(entity, 'name', '?'), chosen_type)
-
-            if chosen_type == 'move':
-                return self._plan_move()
-
-            action = self._plan_typed(chosen_type, groups[chosen_type])
-            if action is None:
-                return None
+            action = leaves[idx][1]
+            logger.debug("[JevPlan] %s chose %r", getattr(entity, 'name', '?'), descs[idx])
             return self._enrich(battle, entity, action)
         except Exception as e:
             logger.debug("[JevPlan] planner failed: %s", e)
             return None
 
-    # -- action-type grouping ------------------------------------------------ #
-    def _collect_groups(self, available_actions: Optional[List]) -> Dict[str, List]:
-        """Group candidate actions by top-level type.
+    # -- leaf collection ------------------------------------------------------ #
+    def _collect_leaves(self, available_actions: Optional[List]) -> List[Tuple[str, Any, str]]:
+        """Enumerate fully-specified, currently-executable leaf actions.
 
-        When ``available_actions`` is supplied (the battle loop's pre-built
-        list) we group it directly; otherwise we autobuild each valid action
-        class so the tree is fully materializable.
+        Returns ``[(type_key, action, description)]`` for one flat JEV
+        question. Infeasible actions (no weapon, no legal target, no usable
+        item/object) are rejected. When ``available_actions`` is supplied
+        (the battle loop's pre-built list) it is used directly as the
+        authoritative option set (an empty list leaves only the pass option);
+        otherwise each valid action class is autobuilt to its leaves and the
+        strategic movement leaves are included.
+
+        Every result carries a final ``pass (end turn)`` leaf
+        (``EndTurnAction``) so the model can always choose to end the turn
+        instead of acting.
         """
-        from natural20.generic_controller import GenericController
         from natural20.utils.action_builder import autobuild
 
-        groups: Dict[str, List] = {}
+        leaves: List[Tuple[str, Any, str]] = []
 
-        def add(action):
+        def add(action, desc: Optional[str] = None):
             if action is None or getattr(action, 'disabled', False):
                 return
+            if not self._is_executable(action):
+                return
             t = self._type_key(action)
-            groups.setdefault(t, []).append(action)
+            if desc is None:
+                desc = _leaf_desc(action, getattr(self, '_names', None))
+            leaves.append((t, action, desc))
 
-        if available_actions:
+        if available_actions is not None:
+            # Battle-loop path: the pre-built list is authoritative (an empty
+            # list means nothing is available this turn). Movement is handled
+            # separately by the loop's move_for, so raw move actions are
+            # skipped here.
             for a in available_actions:
+                if self._type_key(a) == 'move':
+                    continue
+                self._enrich(self._battle, self._entity, a)  # pre-target defaults
                 add(a)
-            return groups
+            return self._with_pass(self._cap_leaves(leaves))
 
-        session = getattr(self, '_session', None) or self._battle.session
-        self._session = session
+        # Full auto-build path (move_for / direct planning): movement gets the
+        # rich pathfinding treatment alongside the other action classes.
+        for action, desc in self._move_leaves():
+            add(action, desc)
+
+        session = self._session
         for klass in self._action_classes(session):
             try:
                 if not _class_can(klass, self._entity, self._battle):
@@ -353,12 +627,144 @@ class JevActionPlanner:
                 continue
             for a in built:
                 add(a)
-        return groups
+        return self._with_pass(self._cap_leaves(leaves))
+
+    def _with_pass(self, leaves: List[Tuple[str, Any, str]]) -> List[Tuple[str, Any, str]]:
+        """Always offer "pass (end turn)" as the final top-level option.
+
+        Ending the turn is a legal choice on every turn, so the pass leaf is
+        appended *after* capping and can never be squeezed out of the list.
+        """
+        if any(t == 'end_turn' for t, _, _ in leaves):
+            return leaves
+        from natural20.actions.end_turn_action import EndTurnAction
+        try:
+            action = EndTurnAction(self._session, self._entity, 'end_turn')
+        except Exception:
+            return leaves
+        return leaves + [('end_turn', action, 'pass (end turn)')]
+
+    def _cap_leaves(self, leaves: List[Tuple[str, Any, str]]) -> List[Tuple[str, Any, str]]:
+        """Rank and cap the flat option list for the single JEV question."""
+        def hp_key(a):
+            t = getattr(a, 'target', None)
+            try:
+                return (t.hp() or 0) if t is not None else 10 ** 6
+            except Exception:
+                return 10 ** 6
+
+        by_type: Dict[str, List[Tuple[str, Any, str]]] = {}
+        for leaf in leaves:
+            by_type.setdefault(leaf[0], []).append(leaf)
+
+        capped: List[Tuple[str, Any, str]] = []
+        for t in ('attack', 'spell', 'move'):
+            group = by_type.pop(t, [])
+            if t in ('attack', 'spell'):
+                # Finishers first: prefer the weakest legal target.
+                group.sort(key=lambda l: hp_key(l[1]))
+            capped.extend(group[:MAX_JEV_OPTIONS])
+        for group in by_type.values():
+            capped.extend(group[:MAX_JEV_OPTIONS])
+        return capped[:MAX_JEV_LEAVES]
+
+    # -- executability filtering ---------------------------------------------- #
+    def _is_executable(self, action) -> bool:
+        """False if the action cannot be completed in the current battle state.
+
+        Catches the common dead-ends before they reach the decision model:
+        weapon attacks with no weapon (unresolvable range), and actions whose
+        target tree has no legal target right now. Unknown action types
+        default to executable.
+        """
+        battle = self._battle
+        entity = self._entity
+        if battle is None or entity is None:
+            return True
+        try:
+            from natural20.actions.attack_action import AttackAction
+            from natural20.actions.spell_action import SpellAction
+            from natural20.actions.help_action import HelpAction
+            from natural20.actions.shove_action import ShoveAction
+            from natural20.actions.grapple_action import GrappleAction
+            from natural20.actions.interact_action import InteractAction
+        except ImportError:
+            return True
+
+        try:
+            if isinstance(action, AttackAction):
+                at = getattr(action, 'action_type', None)
+                if at in ('attack', 'two_weapon_attack'):
+                    # An attack needs a weapon (or npc_action spec) with a
+                    # resolvable range; otherwise valid_targets_for raises.
+                    if not (getattr(action, 'npc_action', None)
+                            or getattr(action, 'using', None)):
+                        return False
+                return bool(battle.valid_targets_for(entity, action))
+            if isinstance(action, HelpAction):
+                if getattr(action, 'target', None) is not None:
+                    return True
+                return bool(battle.valid_targets_for(entity, action))
+            if isinstance(action, (ShoveAction, GrappleAction)):
+                # validate() on these has a narrower signature, so
+                # valid_targets_for raises; trust an already-built target and
+                # otherwise check melee reach manually.
+                if getattr(action, 'target', None) is not None:
+                    return True
+                m = self._map
+                if m is None:
+                    return True
+                return any(
+                    (not e.dead()) and e.conscious()
+                    and battle.can_see(entity, e)
+                    and _dist_ft(battle, m, entity, e) <= 5
+                    for e in battle.opponents_of(entity)
+                )
+            if isinstance(action, SpellAction):
+                if getattr(action, 'target', None) is not None:
+                    return True
+                if battle.valid_targets_for(entity, action):
+                    return True
+                # No creature in range: still castable when the spell does
+                # not require a creature target (empty space, cone, self).
+                return not self._spell_requires_creature(action)
+            if isinstance(action, InteractAction):
+                if getattr(action, 'target', None) is not None:
+                    return True
+                m = self._map
+                if m is None:
+                    return True
+                return any(not o.dead() for o in m.interactable_objects)
+            return True
+        except Exception:
+            # valid_targets_for raises on unresolvable ranges etc -> dead end.
+            return False
+
+    def _spell_requires_creature(self, action) -> bool:
+        """True if the spell's parameter tree includes a creature target."""
+        sa = getattr(action, 'spell_action', None)
+        if sa is None:
+            return True
+        try:
+            node = sa.build_map(action)
+            for _ in range(8):
+                if not isinstance(node, dict):
+                    break
+                for p in node.get('param') or []:
+                    if p.get('type') == 'select_target':
+                        ttypes = [str(t).lower()
+                                  for t in (p.get('target_types') or ['enemies'])]
+                        if any(t in ('enemies', 'self', 'allies') for t in ttypes):
+                            return True
+                nxt = node.get('next')
+                node = nxt() if callable(nxt) else None
+            return False
+        except Exception:
+            return True
 
     def _action_classes(self, session):
         from natural20.actions.attack_action import AttackAction
         from natural20.actions.spell_action import SpellAction
-        from natural20.actions.move_action import MoveAction
         from natural20.actions.help_action import HelpAction
         from natural20.actions.dodge_action import DodgeAction
         from natural20.actions.hide_action import HideAction
@@ -371,8 +777,10 @@ class JevActionPlanner:
         from natural20.actions.interact_action import InteractAction
         from natural20.actions.shove_action import ShoveAction
         from natural20.actions.grapple_action import GrappleAction
+        # NOTE: MoveAction is deliberately absent: _move_leaves() replaces the
+        # builder's raw one-step move leaves with strategic destination leaves.
         return [
-            AttackAction, SpellAction, MoveAction, HelpAction, DodgeAction,
+            AttackAction, SpellAction, HelpAction, DodgeAction,
             HideAction, DashAction, DisengageAction, StandAction, LookAction,
             SecondWindAction, UseItemAction, InteractAction, ShoveAction,
             GrappleAction,
@@ -398,12 +806,19 @@ class JevActionPlanner:
             from natural20.actions.interact_action import InteractAction
             from natural20.actions.shove_action import ShoveAction
             from natural20.actions.grapple_action import GrappleAction
+            from natural20.actions.end_turn_action import EndTurnAction
+            if isinstance(action, EndTurnAction):
+                return 'end_turn'
             if isinstance(action, AttackAction):
                 return 'attack'
             if isinstance(action, SpellAction):
                 return 'spell'
-            if isinstance(action, (MoveAction, DashAction, DisengageAction)):
+            if isinstance(action, MoveAction):
                 return 'move'
+            if isinstance(action, DashAction):
+                return 'dash'
+            if isinstance(action, DisengageAction):
+                return 'disengage'
             if isinstance(action, HelpAction):
                 return 'help'
             if isinstance(action, DodgeAction):
@@ -431,36 +846,12 @@ class JevActionPlanner:
             pass
         return 'other'
 
-    @staticmethod
-    def _type_desc(t: str, actions: List) -> str:
-        if t == 'attack':
-            names = sorted({_weapon_name(a) for a in actions if _weapon_name(a)})
-            return f"attack (weapons: {', '.join(names) or '?'})"
-        if t == 'spell':
-            names = sorted({_spell_name(a) for a in actions if _spell_name(a)})
-            shown = names[:6]
-            more = f" +{len(names) - 6} more" if len(names) > 6 else ""
-            return f"cast a spell ({', '.join(shown) or '?'}{more})"
-        if t == 'move':
-            return "move (reposition: engage, defensive, hide, or offensive square)"
-        if t == 'help':
-            return "help an ally (grants ally advantage / helps its checks)"
-        if t == 'dodge':
-            return "dodge (disadvantage on attacks against you until next turn)"
-        if t == 'hide':
-            return "hide (make a DEX (Stealth) check to become unseen)"
-        if t == 'use_item':
-            return "use an item"
-        if t == 'interact':
-            return "interact with a nearby object"
-        return t.replace('_', ' ')
-
     # -- move: special strategic handling ----------------------------------- #
-    def _plan_move(self) -> Optional[Any]:
-        """move -> intent -> concrete destination square.
+    def _move_leaves(self):
+        """Yield ``(MoveAction, description)`` for every legal destination.
 
-        Intents (only those currently legal are offered):
-          0. entity       close to an enemy so we are in its melee range
+        Strategic intents (only those currently legal are offered):
+          0. engage       close to an enemy so we are in its melee range
           1. defensive    a safe square (cover, no OA, away from enemies)
           2. hide         a reachable hiding spot
           3. offensive    a square that improves our attack position
@@ -472,12 +863,12 @@ class JevActionPlanner:
         ent = self._entity
         battle = self._battle
         if m is None:
-            return None
+            return
 
         pos = m.position_of(ent)
         move_ft = ent.available_movement(battle)
         if move_ft <= 0:
-            return None
+            return
 
         pc = getattr(ent, 'npc', None)
         pc = pc() if callable(pc) else bool(pc)
@@ -616,7 +1007,7 @@ class JevActionPlanner:
             labels = []
             for cand, p in melee_uniq[:MAX_JEV_OPTIONS]:
                 near = [
-                    _name(e)
+                    self._display_name(e)
                     for e in enemies
                     if m.position_of(e) is not None
                     and abs(m.position_of(e)[0] - cand[0]) <= 1
@@ -645,152 +1036,28 @@ class JevActionPlanner:
                             'offensive', offensive[:MAX_JEV_OPTIONS], labels[:MAX_JEV_OPTIONS]))
 
         if not intents:
-            return None
+            return
 
-        idx = self._decide(self._state, [i[0] for i in intents])
-        if idx is None:
-            return None
-        _, kind, options, labels = intents[idx]
-        logger.debug("[JevPlan] move intent: %s (%d options)", kind, len(options))
-
-        oidx = self._decide(
-            self._state + "\nChosen movement intent: " + intents[idx][0],
-            labels)
-        if oidx is None:
-            return None
-        cand, path = options[oidx][0], options[oidx][1]
-
-        action = MoveAction(self._session, ent, 'move')
-        action.move_path = list(path)
-        return action
-
-    # -- typed planning (attack / spell / help / ...) ------------------------- #
-    def _plan_typed(self, type_key: str, built_actions: List) -> Optional[Any]:
-        """Materialize the chosen type into one concrete, parameterized action.
-
-        Strategy: rebuild the type's ``build_map`` tree and descend it level by
-        level with JEV decisions (weapon -> target, spell -> target/AoE, ...).
-        If the descent fails, fall back to choosing among the pre-built leaf
-        actions of the same type with one final JEV choice.
-        """
-        from natural20.utils.action_builder import autobuild
-
-        action_cls = self._class_for_type(type_key)
-        if action_cls is not None:
-            try:
-                root = action_cls.build(self._session, self._entity)
-                if isinstance(root, dict) and root.get('param'):
-                    leaf = self._descend(root)
-                    if leaf is not None:
-                        return leaf
-            except Exception as e:
-                logger.debug("[JevPlan] descent for %s failed: %s", type_key, e)
-
-        # Fallback: pick among the pre-built leaf actions of this type.
-        if built_actions:
-            if len(built_actions) == 1:
-                return built_actions[0]
-            descs = [_leaf_desc(a) for a in built_actions[:MAX_JEV_OPTIONS]]
-            idx = self._decide(self._state, descs)
-            if idx is not None:
-                return built_actions[idx]
-        return None
-
-    def _class_for_type(self, type_key: str):
-        from natural20.actions.attack_action import AttackAction
-        from natural20.actions.spell_action import SpellAction
-        from natural20.actions.move_action import MoveAction
-        from natural20.actions.help_action import HelpAction
-        from natural20.actions.dodge_action import DodgeAction
-        from natural20.actions.hide_action import HideAction
-        from natural20.actions.dash import DashAction
-        from natural20.actions.disengage_action import DisengageAction
-        from natural20.actions.stand_action import StandAction
-        from natural20.actions.look_action import LookAction
-        from natural20.actions.second_wind_action import SecondWindAction
-        from natural20.actions.use_item_action import UseItemAction
-        from natural20.actions.interact_action import InteractAction
-        from natural20.actions.shove_action import ShoveAction
-        from natural20.actions.grapple_action import GrappleAction
-        return {
-            'attack': AttackAction,
-            'spell': SpellAction,
-            'move': MoveAction,
-            'help': HelpAction,
-            'dodge': DodgeAction,
-            'hide': HideAction,
-            'dash': DashAction,
-            'disengage': DisengageAction,
-            'stand': StandAction,
-            'look': LookAction,
-            'second_wind': SecondWindAction,
-            'use_item': UseItemAction,
-            'interact': InteractAction,
-            'shove': ShoveAction,
-            'grapple': GrappleAction,
-        }.get(type_key)
-
-    # -- recursive descent over build_map dicts ------------------------------ #
-    def _descend(self, node) -> Optional[Any]:
-        """Recursively resolve a ``build_map`` node with one JEV choice per level."""
-        from natural20.action import Action
-        from natural20.utils.action_builder import build_params
-
-        if isinstance(node, Action):
-            return node
-        if not isinstance(node, dict):
-            return None
-        if node is None:
-            return None
-
-        params = node.get('param') or []
-        next_fn = node.get('next')
-        if not params:
-            # leaf dict without params: call next() with no args if possible
-            try:
-                return next_fn() if callable(next_fn) else node.get('action')
-            except Exception:
-                return node.get('action')
-
-        # Build all legal options for every param slot in this level.
-        try:
-            options = build_params(self._session, self._entity, self._battle, node,
-                                   map=self._map, auto_target=False)
-        except Exception as e:
-            logger.debug("[JevPlan] build_params failed: %s", e)
-            return None
-        if options is None:
-            return None
-        for opt in options:
-            if not opt:
-                return None
-
-        # Describe each param's options and ask JEV to pick one per slot.
-        chosen = []
-        level_desc = []
-        for param, opt_list in zip(params, options):
-            descs = [_param_opt_desc(param, o) for o in opt_list[:MAX_JEV_OPTIONS]]
-            idx = self._decide(self._state + "\nDecision level: " + _param_desc(param), descs)
-            if idx is None:
-                return None
-            chosen.append(opt_list[idx])
-            level_desc.append(f"{_param_desc(param)} -> {descs[idx]}")
-
-        try:
-            child = next_fn(*chosen)
-        except Exception as e:
-            logger.debug("[JevPlan] next() failed: %s", e)
-            return None
-
-        if isinstance(child, dict):
-            return self._descend(child)
-        return child
+        # Per-option labels for melee ('engage ...') and hide ('hide at ...')
+        # already carry the intent keyword; defensive/offensive need it added.
+        intent_prefix = {'defensive': 'defensive ', 'offensive': 'offensive '}
+        for _intent_label, kind, options, labels in intents:
+            logger.debug("[JevPlan] move intent: %s (%d options)", kind, len(options))
+            prefix = intent_prefix.get(kind, '')
+            for opt, label in zip(options, labels):
+                path = opt[1]
+                action = MoveAction(self._session, ent, 'move')
+                action.move_path = list(path)
+                yield action, f"move: {prefix}{label}"
 
     # -- final enrichment ------------------------------------------------------ #
     def _enrich(self, battle, entity, action) -> Any:
-        """Last-ditch defaults if the descent left a required param unset."""
+        """Last-ditch defaults if a required param is still unset."""
         from natural20.actions.attack_action import AttackAction
         from natural20.actions.spell_action import SpellAction
+        from natural20.actions.help_action import HelpAction
+        from natural20.actions.shove_action import ShoveAction
+        from natural20.actions.grapple_action import GrappleAction
         try:
             if isinstance(action, AttackAction) and getattr(action, 'target', None) is None:
                 targets = battle.valid_targets_for(entity, action, target_types=['enemies'])
@@ -801,6 +1068,23 @@ class JevActionPlanner:
                 if sa is not None and getattr(sa, 'target', None) is None and \
                         getattr(action, 'target', None) is None:
                     targets = battle.valid_targets_for(entity, action, target_types=['enemies'])
+                    if targets:
+                        action.target = sorted(targets, key=lambda t: (t.hp() or 0))[0]
+            if getattr(action, 'target', None) is None:
+                if isinstance(action, HelpAction):
+                    # allies first, then any legal target within reach
+                    try:
+                        targets = battle.valid_targets_for(entity, action,
+                                                           target_types=['allies', 'enemies'])
+                    except Exception:
+                        targets = []
+                    if not targets:
+                        targets = battle.valid_targets_for(entity, action)
+                    if targets:
+                        action.target = sorted(targets, key=lambda t: (t.hp() or 0))[0]
+                elif isinstance(action, (ShoveAction, GrappleAction)):
+                    targets = battle.valid_targets_for(entity, action,
+                                                       target_types=['enemies'], range=5)
                     if targets:
                         action.target = sorted(targets, key=lambda t: (t.hp() or 0))[0]
         except Exception:
@@ -827,14 +1111,21 @@ def _weapon_name(action) -> Optional[str]:
 
 
 def _spell_name(action) -> Optional[str]:
+    """Display name of the spell (``Burning Hands``), not its YAML slug."""
     try:
         sp = getattr(action, 'spell', None) or (getattr(action, 'opts', None) or {}).get('spell')
         if isinstance(sp, dict):
-            return sp.get('name') or sp.get('slug')
+            return sp.get('name') or sp.get('label') or sp.get('slug')
         if isinstance(sp, str):
             return sp
         sa = getattr(action, 'spell_action', None)
         if sa is not None:
+            # The spell instance carries the YAML props; ``properties['name']``
+            # is the display name (``short_name`` is derived from the slug).
+            props = getattr(sa, 'properties', None)
+            if isinstance(props, dict):
+                if props.get('name') or props.get('label'):
+                    return props.get('name') or props.get('label')
             n = getattr(sa, 'short_name', None)
             if callable(n):
                 return n()
@@ -850,92 +1141,212 @@ def _spell_name(action) -> Optional[str]:
         return None
 
 
-def _param_desc(param: Dict[str, Any]) -> str:
-    ptype = param.get('type', '?')
-    if ptype == 'select_target':
-        kinds = param.get('target_types', ['enemies'])
-        return f"target ({'/'.join(kinds)})"
-    if ptype == 'select_spell':
-        return "spell (name and level)"
-    if ptype == 'select_weapon':
-        return "weapon"
-    if ptype == 'select_item':
-        return "item"
-    if ptype == 'select_object':
-        return "object"
-    if ptype == 'movement':
-        return "destination square (one step)"
-    if ptype in ('select_cone', 'select_cube', 'select_radius',
-                 'select_square', 'select_line', 'select_empty_space'):
-        return f"AoE anchor ({ptype.replace('select_', '')})"
-    if ptype == 'select_choice':
-        return "choice"
-    return ptype
+def _target_name(t, names=None) -> str:
+    """Target name with current HP, e.g. ``Gomerin (11/11)``.
 
-
-def _param_opt_desc(param: Dict[str, Any], opt: Any) -> str:
-    """One-line description of a single parameter option (JEV criterion)."""
-    ptype = param.get('type', '?')
+    ``names`` (id -> disambiguated display name, see
+    ``JevActionPlanner._display_names``) is used when present so targets
+    with colliding names stay identifiable.
+    """
+    if t is None:
+        return 'target'
     try:
-        if ptype == 'select_target':
-            nm = _name(opt)
-            try:
-                d = opt.hp()
-                mx = opt.max_hp()
-                hp = f" {d}/{mx}"
-            except Exception:
-                hp = ""
-            return f"{nm}{hp}"
-        if ptype == 'select_spell':
-            name, lvl = opt if isinstance(opt, (list, tuple)) else (opt, 0)
-            lvl_txt = 'cantrip' if not lvl else f'level {lvl}'
-            return f"{name} ({lvl_txt})"
-        if ptype == 'select_weapon':
-            if isinstance(opt, dict):
-                return opt.get('name', str(opt))
-            return str(opt)
-        if ptype == 'select_item':
-            return str(opt)
-        if ptype in ('movement', 'select_empty_space', 'select_cone',
-                     'select_cube', 'select_radius', 'select_square', 'select_line'):
-            if isinstance(opt, (list, tuple)) and len(opt) >= 2:
-                return f"square ({opt[0]},{opt[1]})"
-            return str(opt)
-        if ptype == 'select_object':
-            return _name(opt)
-        if ptype == 'select_choice':
-            return str(opt[0]) if isinstance(opt, (list, tuple)) and opt else str(opt)
-        if ptype == 'interact':
-            return str(opt[0]) if isinstance(opt, (list, tuple)) and opt else str(opt)
+        base = (names.get(id(t)) if names else None) or _name(t)
+        d = t.hp()
+        mx = t.max_hp()
+        if d is not None and mx is not None:
+            return f"{base} ({d}/{mx})"
     except Exception:
         pass
-    return str(opt)[:60]
+    return _name(t)
 
 
-def _leaf_desc(action) -> str:
-    """One-line description of a fully-built leaf action (fallback choice)."""
+def _pov_result_suffix(action) -> str:
+    """Compact outcome of a committed action, e.g. ``hit, 7 dmg`` or ``miss``."""
+    parts = []
+    msg = None
+    for item in (getattr(action, 'result', None) or []):
+        if not isinstance(item, dict):
+            continue
+        t = item.get('type')
+        if t == 'hit':
+            parts.append('hit')
+        elif t == 'critical':
+            parts.append('critical')
+        elif t == 'damage':
+            parts.append(f"{item.get('damage', 0)} dmg")
+        elif t == 'miss':
+            parts.append('miss')
+        elif t == 'message' and msg is None:
+            m = (item.get('message') or '').strip()
+            if m:
+                msg = m
+    if parts:
+        return ', '.join(parts)
+    return (msg or '')[:40]
+
+
+def _pov_targets(action):
+    """The action's target(s) as a list (single targets are wrapped)."""
+    t = getattr(action, 'target', None)
+    if t is None:
+        return []
+    if isinstance(t, (list, tuple)):
+        return [x for x in t if x is not None]
+    return [t]
+
+
+def _pov_witnessed(battle, entity, action) -> bool:
+    """POV: did ``entity`` witness this committed battle-log entry?
+
+    Yes if the entity itself acted, was targeted, or can see the actor or a
+    target (something happening to a creature in sight is witnessed even
+    when the cause is hidden).
+    """
+    src = getattr(action, 'source', None)
+    if src is entity:
+        return True
+    for t in _pov_targets(action):
+        if t is entity:
+            return True
+        if t is not None and hasattr(t, 'entity_uid'):
+            try:
+                if battle.can_see(entity, t):
+                    return True
+            except Exception:
+                pass
+    if src is not None and src is not entity:
+        try:
+            return battle.can_see(entity, src)
+        except Exception:
+            return False
+    return False
+
+
+def _pov_line(action, names=None) -> Optional[str]:
+    """One-line POV rendering of a committed battle-log entry.
+
+    Returns ``None`` for entries that carry no POV information (plain
+    end-of-turn entries) so they are skipped.
+    """
+    try:
+        from natural20.actions.attack_action import AttackAction
+        from natural20.actions.spell_action import SpellAction
+        from natural20.actions.move_action import MoveAction
+        from natural20.actions.dodge_action import DodgeAction
+        from natural20.actions.dash import DashAction
+        from natural20.actions.disengage_action import DisengageAction
+        from natural20.actions.help_action import HelpAction
+        from natural20.actions.hide_action import HideAction
+        from natural20.actions.stand_action import StandAction
+        from natural20.actions.look_action import LookAction
+        from natural20.actions.second_wind_action import SecondWindAction
+        from natural20.actions.use_item_action import UseItemAction
+        from natural20.actions.interact_action import InteractAction
+        from natural20.actions.shove_action import ShoveAction
+        from natural20.actions.grapple_action import GrappleAction
+        from natural20.actions.end_turn_action import EndTurnAction
+
+        src = getattr(action, 'source', None)
+        if src is None or isinstance(action, EndTurnAction):
+            return None
+        actor = (names.get(id(src)) if names else None) or _name(src)
+        if isinstance(action, AttackAction):
+            line = f"{actor} attacked {_target_name(action.target, names)}"
+        elif isinstance(action, SpellAction):
+            s = _spell_name(action) or 'a spell'
+            ts = [t for t in _pov_targets(action)
+                  if hasattr(t, 'name') and not isinstance(t, (list, tuple))]
+            line = f"{actor} cast {s}"
+            if ts:
+                line += " on " + ", ".join(_target_name(t, names) for t in ts[:2])
+        elif isinstance(action, MoveAction):
+            line = f"{actor} moved"
+        elif isinstance(action, DashAction):
+            line = f"{actor} dashed"
+        elif isinstance(action, DisengageAction):
+            line = f"{actor} disengaged"
+        elif isinstance(action, DodgeAction):
+            line = f"{actor} dodged"
+        elif isinstance(action, HelpAction):
+            line = f"{actor} helped {_target_name(action.target, names)}"
+        elif isinstance(action, HideAction):
+            line = f"{actor} hid"
+        elif isinstance(action, StandAction):
+            line = f"{actor} stood ready"
+        elif isinstance(action, LookAction):
+            line = f"{actor} looked around"
+        elif isinstance(action, SecondWindAction):
+            line = f"{actor} used second wind"
+        elif isinstance(action, UseItemAction):
+            ti = getattr(action, 'target_item', None)
+            iname = (getattr(ti, 'name', None) or 'an item') if ti is not None else 'an item'
+            t = getattr(action, 'target', None)
+            line = f"{actor} used {iname}"
+            if t is not None and t is not src and hasattr(t, 'name'):
+                line += f" on {_target_name(t, names)}"
+        elif isinstance(action, InteractAction):
+            t = getattr(action, 'target', None)
+            line = f"{actor} interacted with {(_name(t) if t is not None else 'something')}"
+        elif isinstance(action, ShoveAction):
+            line = f"{actor} shoved {_target_name(action.target, names)}"
+        elif isinstance(action, GrappleAction):
+            line = f"{actor} grappled {_target_name(action.target, names)}"
+        else:
+            at = str(getattr(action, 'action_type', 'acted') or 'acted').replace('_', ' ')
+            line = f"{actor} {at}"
+        suffix = _pov_result_suffix(action)
+        if suffix:
+            line += f", {suffix}"
+        return line
+    except Exception:
+        return None
+
+
+def _leaf_desc(action, names=None) -> str:
+    """One-line description of a fully-built leaf action (JEV criterion)."""
     from natural20.actions.attack_action import AttackAction
     from natural20.actions.spell_action import SpellAction
     from natural20.actions.move_action import MoveAction
+    from natural20.actions.dodge_action import DodgeAction
+    from natural20.actions.dash import DashAction
+    from natural20.actions.disengage_action import DisengageAction
+    from natural20.actions.end_turn_action import EndTurnAction
     try:
+        # Class-based names: some builders set a misleading action_type
+        # (e.g. DodgeAction/DashAction carry action_type='attack').
+        if isinstance(action, EndTurnAction):
+            return 'pass (end turn)'
+        for cls, name in ((DodgeAction, 'dodge'), (DashAction, 'dash'),
+                          (DisengageAction, 'disengage')):
+            if isinstance(action, cls):
+                return name
         if isinstance(action, AttackAction):
             w = _weapon_name(action) or 'weapon'
             t = getattr(action, 'target', None)
-            return f"attack {_name(t) if t else 'target'} with {w}"
+            return f"attack {_target_name(t, names)} with {w}"
         if isinstance(action, SpellAction):
             s = _spell_name(action) or 'spell'
             t = getattr(action, 'target', None)
-            tn = _name(t) if t else 'target'
+            tn = _target_name(t, names)
             lvl = getattr(action, 'at_level', None) or getattr(action, 'level', None)
-            lvl_txt = f" L{lvl}" if lvl else ""
+            lvl_txt = '' if lvl else ' (cantrip)'
+            lvl_txt = f' (level {lvl})' if lvl else lvl_txt
             return f"cast {s}{lvl_txt} on {tn}"
         if isinstance(action, MoveAction):
             p = getattr(action, 'move_path', None)
             end = p[-1] if p else None
             return f"move to {tuple(end) if end else '?'}"
+        ti = getattr(action, 'target_item', None)
+        if ti is not None:
+            iname = getattr(ti, 'name', None) or 'item'
+            t = getattr(action, 'target', None)
+            if t is not None and t is not getattr(action, 'source', None):
+                return f"use {iname} on {_target_name(t, names)}"
+            return f"use {iname}"
         t = getattr(action, 'target', None)
         if t is not None:
-            return f"{action.action_type} {_name(t)}"
+            return f"{action.action_type} {_target_name(t, names)}"
         return str(getattr(action, 'action_type', 'action')).replace('_', ' ')
     except Exception:
         return str(getattr(action, 'action_type', 'action'))
@@ -948,10 +1359,12 @@ def _leaf_desc(action) -> str:
 def jev_select_action(provider, battle, entity,
                       available_actions: Optional[List] = None,
                       max_decisions: int = DEFAULT_MAX_DECISIONS) -> Optional[Any]:
-    """Recursively plan an action with the JEV decision model.
+    """Plan an action with the JEV decision model (one flattened call).
 
-    Returns a fully-parameterized ``Action`` or ``None`` (caller should then
-    fall back to heuristic selection).
+    The action space is flattened to executable leaf actions; single-leaf
+    trees are auto-selected without consulting the model. Returns a
+    fully-parameterized ``Action`` or ``None`` (caller should then fall back
+    to heuristic selection).
     """
     if provider is None or not getattr(provider, 'is_available', False):
         return None

@@ -574,11 +574,15 @@ class LlmMcpController(GenericController):
 
 	def move_for(self, entity, battle) -> Optional[Action]:
 		"""
-		Movement with JEV special handling: when the attached provider is a
-		JevProvider, the recursive planner decides the strategic intent first
-		(move -> entity / defensive square / hide / offensive square) and then
-		the concrete destination square. Any failure falls back to the generic
-		heuristic movement logic.
+		Next action with JEV special handling: when the attached provider is
+		a JevProvider, the planner flattens every legal option (engage /
+		defensive / hide / offensive destination squares, attacks, spells,
+		... and the always-present ``pass (end turn)`` leaf) into a single
+		decision; a single-legal-option tree is auto-selected with no
+		round-trip. The chosen action is returned as-is for the turn loop to
+		commit (movement leaves get their path simplified first); a chosen
+		``pass (end turn)`` ends the turn by returning ``None``; any failure
+		falls back to the generic heuristic action logic.
 		"""
 		prov = getattr(self, "llm_provider", None)
 		if prov is not None and JevProvider is not None and isinstance(prov, JevProvider) \
@@ -587,11 +591,20 @@ class LlmMcpController(GenericController):
 				from natural20.utils.jev_decision import jev_select_action
 				action = jev_select_action(prov, battle, entity)
 				if action is not None:
-					if getattr(action, "move_path", None):
-						from natural20.utils.movement import simplify_path
-						action.move_path = simplify_path(action.move_path)
-					if not action.move_path or len(action.move_path) < 2:
+					if getattr(action, "action_type", None) == "end_turn":
+						# Explicit pass: end the turn (the loop breaks on None).
 						return None
+					move_path = getattr(action, "move_path", None)
+					if move_path is not None:
+						# Movement leaf: simplify the path, require a real
+						# destination (only MoveAction carries move_path).
+						from natural20.utils.movement import simplify_path
+						action.move_path = simplify_path(move_path)
+						if len(action.move_path) < 2:
+							return None
+					# Non-movement leaves (attacks, defensive stances,
+					# interactions, ...) are fully specified and committed
+					# by the turn loop, mirroring GenericController semantics.
 					return action
 			except Exception as _e:
 				import logging
@@ -1452,21 +1465,30 @@ class LlmMcpController(GenericController):
 		if not available_actions:
 			return None
 
-		# If only one action, just take it
-		if len(available_actions) == 1:
+		prov = getattr(self, "llm_provider", None)
+		jev_live = prov is not None and JevProvider is not None and isinstance(prov, JevProvider) \
+				and getattr(prov, "is_available", False)
+
+		# If only one action, just take it -- unless JEV is driving the turn,
+		# in which case the model still gets to weigh it against pass.
+		if len(available_actions) == 1 and not jev_live:
 			return available_actions[0]
 
-		# Jev (TypeSafe "System One") recursive action-tree path: when the attached
-		# provider is a JevProvider, let the decision model walk the action builder's
-		# tree recursively (action type -> weapon/spell/... -> target) instead of
-		# picking a flat index. Any failure falls through to the flat path below.
-		prov = getattr(self, "llm_provider", None)
-		if prov is not None and JevProvider is not None and isinstance(prov, JevProvider) \
-				and getattr(prov, "is_available", False):
+		# Jev (TypeSafe "System One") action path: when the attached provider is a
+		# JevProvider, the action space is flattened to fully-specified,
+		# executable leaf actions (infeasible ones are rejected) and the
+		# decision model picks one in a single call; a single-legal-leaf tree
+		# is auto-selected without a round-trip. A chosen
+		# ``pass (end turn)`` returns ``None`` (end the turn). Any failure
+		# falls through to the flat path below.
+		if jev_live:
 			try:
 				from natural20.utils.jev_decision import jev_select_action
 				chosen = jev_select_action(prov, battle, entity, available_actions)
 				if chosen is not None:
+					if getattr(chosen, "action_type", None) == "end_turn":
+						# Explicit pass: end the turn without an action.
+						return None
 					chosen = self._maybe_enrich_action_targets(battle, entity, chosen)
 					if chosen is not None:
 						return chosen
@@ -1474,7 +1496,7 @@ class LlmMcpController(GenericController):
 				# Silent fallback; the flat index path below still applies.
 				import logging
 				logging.getLogger(__name__).debug(
-					"[LlmMcpController] jev recursive plan failed: %s", _e)
+					"[LlmMcpController] jev plan failed: %s", _e)
 
 		# Try LLM path first, then fallback to heuristic ranking
 		try:
@@ -1623,6 +1645,372 @@ class LlmMcpController(GenericController):
 		)
 		text = resp.choices[0].message.content or ""
 		return self._local_parse_choice_from_text(text, len(available_actions))
+
+	# ------------------------------------------------------------------ #
+	# Battle-state enrichment for LLM prompts                            #
+	# ------------------------------------------------------------------ #
+	@staticmethod
+	def _hp_bucket(hp, max_hp) -> str:
+		"""Coarse HP band so models don't have to do arithmetic:
+		dead / almost dead / low / medium / high / undamaged."""
+		try:
+			hp = int(hp)
+			max_hp = int(max_hp)
+		except (TypeError, ValueError):
+			return 'unknown'
+		if hp <= 0:
+			return 'dead'
+		if max_hp <= 0:
+			return 'unknown'
+		pct = hp / max_hp
+		if pct <= 0.15:
+			return 'almost dead'
+		if pct <= 0.35:
+			return 'low'
+		if pct <= 0.65:
+			return 'medium'
+		if pct <= 0.85:
+			return 'high'
+		return 'undamaged'
+
+	@staticmethod
+	def _ability_line(entity) -> str:
+		"""'STR 8 (-1) DEX 14 (+2) ...' from ability_scores, if present."""
+		scores = getattr(entity, 'ability_scores', None) or {}
+		if not scores:
+			return ''
+		try:
+			parts = []
+			for key, label in (('str', 'STR'), ('dex', 'DEX'), ('con', 'CON'),
+					('int', 'INT'), ('wis', 'WIS'), ('cha', 'CHA')):
+				val = scores.get(key)
+				if val is None:
+					continue
+				val = int(val)
+				mod = (val - 10) // 2
+				parts.append(f"{label} {val} ({mod:+d})")
+			return ' '.join(parts)
+		except Exception:
+			return ''
+
+	@staticmethod
+	def _pretty_item_name(name) -> str:
+		"""'vicious_rapier' -> 'Vicious Rapier'; passes pretty names through."""
+		try:
+			s = str(name).strip()
+			if not s:
+				return ''
+			return s.replace('_', ' ').title()
+		except Exception:
+			return str(name)
+
+	@staticmethod
+	def _gear_breakdown(entity, session):
+		"""Best-effort (weapons, to_hit, armors) for a combatant.
+
+		weapons: ['Scimitar (melee)', 'Shortbow (ranged 80/320 ft)', ...]
+		to_hit:  best attack bonus found (NPC 'actions' or PC weapon math)
+		armors:  ['Leather Armor', 'Shield']
+		"""
+		weapons: List[str] = []
+		armors: List[str] = []
+		to_hit: Optional[int] = None
+		props = getattr(entity, 'properties', None) or {}
+		equipped_names = [str(x) for x in (props.get('equipped') or [])]
+		for a in props.get('actions') or []:
+			if not isinstance(a, dict):
+				continue
+			at = str(a.get('type') or '')
+			if at not in ('melee_attack', 'ranged_attack', 'spell_attack'):
+				continue
+			# Honor 'if: equipped:<item>' gates when we can check them
+			if_cond = a.get('if')
+			if isinstance(if_cond, str) and if_cond.startswith('equipped:'):
+				if if_cond.split(':', 1)[1].strip() not in equipped_names:
+					continue
+			nm = a.get('name')
+			if not nm:
+				continue
+			nm = LlmMcpController._pretty_item_name(nm)
+			if at == 'ranged_attack':
+				rng = a.get('range')
+				rmax = a.get('range_max')
+				rng_txt = f"ranged {rng}" if rng else "ranged"
+				if rng and rmax:
+					rng_txt += f"/{rmax} ft"
+				weapons.append(f"{nm} ({rng_txt})")
+			elif at == 'spell_attack':
+				weapons.append(f"{nm} (spell)")
+			else:
+				weapons.append(f"{nm} (melee)")
+			try:
+				av = int(a.get('attack'))
+				if to_hit is None or av > to_hit:
+					to_hit = av
+			except (TypeError, ValueError):
+				pass
+		if not weapons and session is not None:
+			try:
+				for w in entity.equipped_weapons(session):
+					rng_txt = ''
+					try:
+						detail = session.load_weapon(w) or {}
+						if detail.get('type') == 'ranged_attack' and detail.get('range'):
+							rng_txt = f" (ranged {detail['range']}"
+							if detail.get('range_max'):
+								rng_txt += f"/{detail['range_max']} ft"
+							rng_txt += ')'
+						elif detail.get('type') == 'melee_attack':
+							rng_txt = ' (melee)'
+					except Exception:
+						pass
+					weapons.append(f"{LlmMcpController._pretty_item_name(w)}{rng_txt}")
+			except Exception:
+				pass
+		try:
+			for it in entity.equipped_armor():
+				nm = it.get('name') if isinstance(it, dict) else it
+				if nm:
+					nm = LlmMcpController._pretty_item_name(nm)
+					if nm not in armors:
+						armors.append(nm)
+		except Exception:
+			pass
+		return weapons, to_hit, armors
+
+	@staticmethod
+	def _traits_label(entity) -> str:
+		"""Class/race and notable traits, compact: 'Goblin (nimble escape)'
+		or 'fighter 1, high elf (dueling)'."""
+		try:
+			traits = []
+			props = getattr(entity, 'properties', None) or {}
+			npc_kind = str(props.get('kind') or '').strip()
+			if not npc_kind:
+				cls_list = entity.class_and_level() or []
+				if cls_list:
+					name, lvl = cls_list[0]
+					npc_kind = f"{name} {lvl}".strip() if lvl else str(name)
+			else:
+				cls_list = entity.class_and_level() or []
+				if cls_list and cls_list[0][0] != npc_kind.lower():
+					parts = [f"{c} {l}".strip() for c, l in cls_list if c]
+					if parts:
+						npc_kind = f"{npc_kind}, {', '.join(parts)}"
+			race_txt = ''
+			race = props.get('race')
+			if race is None and not entity.npc():
+				race = getattr(entity, 'race', None)
+			if isinstance(race, list):
+				race_txt = str(race[0]) if race else ''
+			elif race:
+				race_txt = str(race)
+			sub = props.get('subrace')
+			if sub:
+				# Subrace is more specific (high_elf -> High Elf); it implies the
+				# base race, so it replaces rather than appends.
+				race_txt = str(sub).replace('_', ' ')
+			if race_txt:
+				npc_kind = f"{npc_kind} {race_txt}".strip()
+			feat_src = None
+			if entity.npc():
+				feat_src = props.get('attributes')
+			else:
+				feat_src = getattr(entity, 'attributes', None)
+				if feat_src is None:
+					feat_src = props.get('attributes')
+			if isinstance(feat_src, list):
+				traits = [str(f).replace('_', ' ') for f in feat_src[:4] if f]
+			if not npc_kind and not traits:
+				return ''
+			label = npc_kind
+			if traits:
+				label += f" ({', '.join(traits)})"
+			return label
+		except Exception:
+			return ''
+
+	@staticmethod
+	def _conditions_label(battle, entity) -> str:
+		"""Active conditions/buffs/debuffs: sheet conditions + battle-state
+		statuses (e.g. dodging) + concealment."""
+		labels: List[str] = []
+		try:
+			labels.extend(entity.sheet_conditions())
+		except Exception:
+			pass
+		try:
+			st = battle.entity_state_for(entity)
+			if st:
+				for s in (st.get('statuses') or ()):
+					s = str(s).strip().lower()
+					if s and s not in [x.lower() for x in labels]:
+						if s == 'dodge':
+							s = 'dodging'
+						labels.append(s.title().replace('_', ' '))
+				if st.get('stealth'):
+					labels.append('hidden')
+		except Exception:
+			pass
+		try:
+			if entity.concealed() and 'Hidden' not in labels:
+				labels.append('Hidden')
+		except Exception:
+			pass
+		return ', '.join(labels) if labels else 'none'
+
+	@staticmethod
+	def _defenses_label(entity) -> str:
+		"""'resist: X, Y | immune: Z | vuln: W' (empty string if none)."""
+		try:
+			d = entity.sheet_defenses() or {}
+			parts = []
+			if d.get('resistances'):
+				parts.append("resist: " + ', '.join(d['resistances'][:4]))
+			if d.get('immunities'):
+				parts.append("immune: " + ', '.join(d['immunities'][:4]))
+			if d.get('vulnerabilities'):
+				parts.append("vuln: " + ', '.join(d['vulnerabilities'][:4]))
+			if d.get('condition_immunities'):
+				parts.append("immune to: " + ', '.join(d['condition_immunities'][:4]))
+			return ' | '.join(parts)
+		except Exception:
+			return ''
+
+	def _speed_ft(self, entity) -> Optional[int]:
+		try:
+			sp = entity.speed()
+			if callable(sp) and not isinstance(sp, (int, float)):
+				sp = sp()
+			return int(sp) if sp else None
+		except Exception:
+			props = getattr(entity, 'properties', None) or {}
+			try:
+				return int(props.get('speed')) if props.get('speed') else None
+			except (TypeError, ValueError):
+				return None
+
+	def _initiative_line(self, battle, entity) -> str:
+		"""Order of remaining combatants this round, e.g.
+		'init order: Uglug > Krizzit > (you) > Snikkit'."""
+		try:
+			order = list(getattr(battle, 'combat_order', None) or [])
+			if not order:
+				return ''
+			names = []
+			for e in order:
+				if e is entity:
+					names.append('(you)')
+				else:
+					names.append(getattr(e, 'name', '?'))
+			return 'init order: ' + ' > '.join(names)
+		except Exception:
+			return ''
+
+	def _self_sheet_lines(self, battle, entity, current_map) -> List[str]:
+		"""Multi-line 'character sheet' block for the acting entity:
+		identity, HP (+bucket), AC, to-hit, speed, ability scores, gear,
+		traits, conditions, damage defenses, and exact position."""
+		lines: List[str] = []
+		try:
+			pos_txt = 'n/a'
+			try:
+				pos = current_map.position_of(entity)
+				if pos:
+					pos_txt = f"({pos[0]}, {pos[1]})"
+			except Exception:
+				pass
+			ident = self._traits_label(entity) or entity.name
+			hp_b = self._hp_bucket(entity.hp(), entity.max_hp())
+			temp = 0
+			try:
+				temp = int(entity.temp_hp() or 0)
+			except Exception:
+				temp = 0
+			ac_txt = ''
+			try:
+				ac = entity.armor_class()
+				if ac:
+					ac_txt = f", AC {ac}"
+			except Exception:
+				pass
+			speed = self._speed_ft(entity)
+			speed_txt = f", speed {speed} ft" if speed else ''
+			lines.append(f"{entity.name}, {ident}, at {pos_txt}")
+			lines.append(f"HP {entity.hp()}/{entity.max_hp()} ({hp_b}), temp HP {temp}{ac_txt}{speed_txt}")
+			weapons, to_hit, armors = self._gear_breakdown(entity, self.session)
+			weapons_txt = ', '.join(weapons[:6]) if weapons else 'unarmed'
+			armors_txt = ', '.join(armors[:4]) if armors else 'none'
+			hit_txt = f", to hit +{to_hit}" if to_hit is not None else ''
+			lines.append(f"weapons: {weapons_txt}{hit_txt} | armor: {armors_txt}")
+			ab = self._ability_line(entity)
+			if ab:
+				lines.append(ab)
+			cond = self._conditions_label(battle, entity)
+			defenses = self._defenses_label(entity)
+			extra = f", conditions: {cond}"
+			if defenses:
+				extra += f" | {defenses}"
+			lines.append(extra.lstrip(', '))
+		except Exception:
+			lines.append(entity.name)
+		return lines
+
+	def _combatant_lines(self, battle, entity, ents, rel, current_map) -> List[str]:
+		"""One line per visible ally/enemy: kind, exact position, distance,
+		HP bucket, AC, to-hit, gear, and conditions."""
+		out: List[str] = []
+		for e in ents:
+			try:
+				if e is entity:
+					continue
+				if e.dead() or e.unconscious():
+					continue
+				pos_txt = 'n/a'
+				try:
+					pos = current_map.position_of(e)
+					if pos:
+						pos_txt = f"({pos[0]}, {pos[1]})"
+				except Exception:
+					pass
+				d_txt = ''
+				try:
+					m = battle.map_for(e)
+					if m:
+						d = int(round(m.distance(entity, e) * m.feet_per_grid))
+						d_txt = f", {d} ft away"
+				except Exception:
+					pass
+				kind = self._traits_label(e) or getattr(e, 'name', '?')
+				hp_b = self._hp_bucket(e.hp(), e.max_hp())
+				ac_txt = ''
+				try:
+					ac = e.armor_class()
+					if ac:
+						ac_txt = f", AC {ac}"
+				except Exception:
+					pass
+				weapons, to_hit, armors = self._gear_breakdown(e, self.session)
+				weapons_txt = ', '.join(weapons[:4]) if weapons else ''
+				hit_txt = f", to hit +{to_hit}" if to_hit is not None else ''
+				armors_txt = f", armor: {', '.join(armors[:3])}" if armors else ''
+				cond = self._conditions_label(battle, e)
+				if cond == 'none':
+					cond_txt = ''
+				else:
+					cond_txt = f", conditions: {cond}"
+				line = (f"{getattr(e, 'name', '?')}, {kind}, at {pos_txt}{d_txt}"
+						f" - HP {hp_b}{ac_txt}{hit_txt}")
+				if weapons_txt:
+					line += f", weapons: {weapons_txt}"
+				if armors_txt:
+					line += armors_txt
+				if cond_txt:
+					line += cond_txt
+				out.append(line)
+			except Exception:
+				out.append(f"{getattr(e, 'name', '?')} (state unavailable)")
+		return out
 
 	def _build_prompt(self, battle, entity, available_actions: List[Action]) -> str:
 		# Render a small text map around the entity for context
@@ -1792,17 +2180,9 @@ class LlmMcpController(GenericController):
 		hp_val = entity.hp()
 		max_hp_val = entity.max_hp()
 		hp = f"{hp_val}/{max_hp_val}"
-		cond = []
-		if entity.prone():
-			cond.append("prone")
-		# Dodge is tracked in battle state statuses
-		try:
-			st = battle.entity_state_for(entity)
-			if st and 'dodge' in st.get('statuses', set()):
-				cond.append("dodging")
-		except Exception:
-			pass
-		cond_text = ", ".join(cond) if cond else "none"
+		# Conditions / buffs / debuffs (sheet conditions + battle-state
+		# statuses like dodging + concealment)
+		cond_text = self._conditions_label(battle, entity)
 
 		# Nearby enemies summary
 		enemies = battle.opponents_of(entity)
@@ -1819,12 +2199,24 @@ class LlmMcpController(GenericController):
 			allies = []
 		vis_allies = [a for a in allies if battle.can_see(entity, a)]
 
+		def _compact_pos(pos):
+			try:
+				if pos:
+					return f" at ({pos[0]}, {pos[1]})"
+			except Exception:
+				pass
+			return ""
+
 		def ally_line(a, compact=False):
 			d = _dist_ft(entity, a)
 			a_group, a_team = self._team_info_for(battle, a, current_map)
 			ally_team = f"[{a_team}; group {a_group}]" if a_group is not None else f"[{a_team}]"
 			if compact:
-				return f"{a.name} {ally_team}"
+				try:
+					pos = current_map.position_of(a)
+				except Exception:
+					pos = None
+				return f"{a.name} {ally_team} (HP {self._hp_bucket(a.hp(), a.max_hp())}{_compact_pos(pos)})"
 			return f"{a.name} {ally_team}({a.hp()}/{a.max_hp()}{'' if d is None else f', {d} ft'})"
 
 		def enemy_line(e, compact=False):
@@ -1832,7 +2224,11 @@ class LlmMcpController(GenericController):
 			e_group, e_team = self._team_info_for(battle, e, current_map)
 			enemy_team = f"[{e_team}; group {e_group}]" if e_group is not None else f"[{e_team}]"
 			if compact:
-				return f"{e.name} {enemy_team}"
+				try:
+					pos = current_map.position_of(e)
+				except Exception:
+					pos = None
+				return f"{e.name} {enemy_team} (HP {self._hp_bucket(e.hp(), e.max_hp())}{_compact_pos(pos)})"
 			return f"{e.name} {enemy_team}({e.hp()}/{e.max_hp()}{'' if d is None else f', {d} ft'})"
 		ally_summ_full = ", ".join(ally_line(a, False) for a in vis_allies) or "(none visible)"
 		ally_summ_compact = ", ".join(ally_line(a, True) for a in vis_allies) or "(none visible)"
@@ -1850,26 +2246,68 @@ class LlmMcpController(GenericController):
 		resources = f"action={state.get('action', 0)}, bonus={state.get('bonus_action', 0)}, reaction={state.get('reaction', 0)}, movement={movement_left} ft"
 		hp_pct = (hp_val / max_hp_val) if (hp_val is not None and max_hp_val) else 1.0
 		concentration = self._concentration_label(entity)
-		# Nearest enemy distance
+		# Nearest enemy (distance + name)
 		nearest_ft = None
+		nearest_enemy = None
 		try:
 			if enemies:
-				dists = [v for v in (_dist_ft(entity, e) for e in enemies) if v is not None]
-				if dists:
-					nearest_ft = min(dists)
+				best = None
+				for e in enemies:
+					d = _dist_ft(entity, e)
+					if d is None:
+						continue
+					if best is None or d < best[0]:
+						best = (d, e)
+				if best:
+					nearest_ft, nearest_enemy = best
 		except Exception:
-			nearest_ft = None
+			nearest_ft, nearest_enemy = None, None
+		# Nearest ally distance (fallback/regrouping context)
+		nearest_ally_ft = None
+		try:
+			if allies:
+				ally_dists = [v for v in (_dist_ft(entity, a) for a in allies) if v is not None]
+				if ally_dists:
+					nearest_ally_ft = min(ally_dists)
+		except Exception:
+			nearest_ally_ft = None
+		# Concealment
+		hidden = False
+		try:
+			hidden = bool(state.get('stealth')) or bool(entity.concealed())
+		except Exception:
+			hidden = False
+		# Visible alive counts
+		try:
+			vis_ally_alive = sum(1 for a in vis_allies if not a.dead() and not a.unconscious())
+			vis_enemy_alive = sum(1 for e in vis_enemies if not e.dead() and not e.unconscious())
+		except Exception:
+			vis_ally_alive, vis_enemy_alive = len(vis_allies), len(vis_enemies)
 
 		# Spell slot summary (levels with slots only)
 		slot_summary = self._spell_slots_summary(entity)
+
+		# Rich battle state: own sheet + per-combatant profiles (HP
+		# buckets, AC, to-hit, gear, exact positions, conditions)
+		sheet_lines = self._self_sheet_lines(battle, entity, current_map)
+		ally_lines = self._combatant_lines(battle, entity, vis_allies, 'ally', current_map)
+		enemy_lines = self._combatant_lines(battle, entity, vis_enemies, 'enemy', current_map)
+		init_line = self._initiative_line(battle, entity)
 
 		instructions = self._combat_instructions_for(entity, my_group)
 
 		parts = [
 			f"Map (visible):\n{map_text}\n",
-			f"Round: {battle.current_round()} | You: {entity.name} HP {hp} ({int(hp_pct*100)}%), conditions: {cond_text}\n",
+			f"Round: {battle.current_round()}" + (f" | {init_line}" if init_line else "") + "\n",
+			"Your sheet:\n" + "".join(f"  {ln}\n" for ln in sheet_lines),
 			f"Your team: {my_team_label} [group {my_group if my_group is not None else 'unknown'}] | Friendly characters share your team/group; enemy characters are on opposing teams.\n",
-			f"Resources: {resources} | Engaged in melee: {'yes' if engaged else 'no'} | Concentration: {concentration} | Nearest enemy: {nearest_ft if nearest_ft is not None else 'n/a'} ft\n",
+			"Resources: " + resources
+			+ f" | Engaged in melee: {'yes' if engaged else 'no'} | Concentration: {concentration}"
+			+ f" | Nearest enemy: {nearest_ft if nearest_ft is not None else 'n/a'} ft"
+			+ (f" ({nearest_enemy.name})" if nearest_enemy is not None else "")
+			+ f" | Nearest ally: {nearest_ally_ft if nearest_ally_ft is not None else 'n/a'} ft"
+			+ f" | Hidden: {'yes' if hidden else 'no'}"
+			+ f" | Visible alive: {vis_ally_alive} allies, {vis_enemy_alive} enemies\n",
 		]
 		if slot_summary:
 			parts.append(f"Slots: {slot_summary}\n")
@@ -1916,8 +2354,8 @@ class LlmMcpController(GenericController):
 			parts.append(f"Character context: {backstory}\n")
 
 		parts.extend([
-			f"Visible allies: {ally_summ_full}\n",
-			f"Visible enemies: {enemy_summ_full}\n\n",
+			"Visible allies:\n" + ("".join(f"- {ln}\n" for ln in ally_lines) if ally_lines else "- (none visible)\n"),
+			"Visible enemies:\n" + ("".join(f"- {ln}\n" for ln in enemy_lines) if enemy_lines else "- (none visible)\n") + "\n",
 			f"Available actions (index: description):\n" + "\n".join(action_lines) + "\n\n",
 			f"{instructions}\n",
 			"Available tools:\n",
@@ -1940,9 +2378,13 @@ class LlmMcpController(GenericController):
 			recent_you_c = self._recent_actions(battle, entity, n=3)
 			recent_allies_c = self._recent_actions_for(battle, allies, n=3)
 			recent_enemies_c = self._recent_actions_for(battle, enemies, n=3)
+			try:
+				sheet_compact = ' | '.join(sheet_lines[:3] + ([sheet_lines[-1]] if len(sheet_lines) > 3 else []))
+			except Exception:
+				sheet_compact = entity.name
 			parts_c = [
 				f"Map (visible):\n{map_text}\n",
-				f"Round: {battle.current_round()} | You: {entity.name} HP {hp} ({int(hp_pct*100)}%), conditions: {cond_text}\n",
+				f"Round: {battle.current_round()}" + (f" | {init_line}" if init_line else "") + f" | You: {sheet_compact}\n",
 				f"Your team: {my_team_label} [group {my_group if my_group is not None else 'unknown'}]\n",
 				f"Resources: {resources} | Engaged in melee: {'yes' if engaged else 'no'} | Concentration: {concentration} | Nearest enemy: {nearest_ft if nearest_ft is not None else 'n/a'} ft\n",
 			]
