@@ -732,6 +732,12 @@ class Battle():
         state = self.entity_state_for(entity)
         if state is not None:
             state['extra_attacks_remaining'] = 0
+            # POV combat-log window: remember where the battle log stood when
+            # this entity's previous turn began, so consumers (the JEV
+            # planner state) can slice the entries witnessed "since last turn".
+            prev = state.get('turn_log_len')
+            state['last_turn_log_len'] = prev if isinstance(prev, int) else 0
+            state['turn_log_len'] = len(self.battle_log)
         if hasattr(entity, '_coordinated_strike_uid'):
             entity._coordinated_strike_uid = None
         

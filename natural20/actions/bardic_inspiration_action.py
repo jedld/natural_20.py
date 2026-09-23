@@ -71,6 +71,11 @@ class BardicInspirationAction(Action):
             "next": set_target,
         }
 
+    @staticmethod
+    def build(session, source):
+        action = BardicInspirationAction(session, source, 'bardic_inspiration')
+        return action.build_map()
+
     def validate(self, battle_map, target=None, battle=None):
         self.clear_validation_errors()
         chosen = target if target is not None else self.target

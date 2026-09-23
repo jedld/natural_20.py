@@ -26,7 +26,7 @@ class DodgeAction(Action):
 
     @staticmethod
     def build(session, source):
-        action = DodgeAction(session, source, 'attack')
+        action = DodgeAction(session, source, 'dodge')
         return action.build_map()
 
     def resolve(self, session, _map, opts=None):

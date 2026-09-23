@@ -179,12 +179,17 @@ class MoveAction(Action):
 
             grapple_effects = []
             if self.source.is_grappling():
-                grappled_movement = movement.movement.copy()
-                grappled_movement.pop()
-
-                for grappling_target in self.source.grappling_targets():
+                # The source's full path is [start, step1, ..., dest]. Each
+                # grappled target trails the source by one more step than the
+                # previous one (the first lags 1, the next 2, ...). Slice the
+                # trailing steps off instead of popping a shared list, so a
+                # short path or several grappled targets can't underflow.
+                source_path = movement.movement
+                for i, grappling_target in enumerate(self.source.grappling_targets()):
                     start_pos = map.entity_or_object_pos(grappling_target)
-                    grappled_entity_movement = [start_pos] + grappled_movement
+                    lag = i + 1
+                    lagged = source_path[:-lag] if len(source_path) > lag else []
+                    grappled_entity_movement = [start_pos] + lagged
 
                     grapple_effects.append({
                         'source': grappling_target,
@@ -197,8 +202,6 @@ class MoveAction(Action):
                         'move_cost': 0,
                         'position': grappled_entity_movement[-1]
                     })
-
-                    grappled_movement.pop()
             # print(f"budget: {movement_budget}  {movement.budget}")
             movement_cost = movement_budget - movement.budget
 

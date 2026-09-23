@@ -54,14 +54,15 @@ class GrappleAction(Action):
             return
 
         strength_roll = self.source.athletics_check(battle)
-        athletics_stats = (self.target.athletics_proficient() * self.target.proficiency_bonus()) + self.target.str_mod()
-        acrobatics_stats = (self.target.acrobatics_proficient() * self.target.proficiency_bonus()) + self.target.dex_mod()
+        athletics_stats = (target.athletics_proficient() * target.proficiency_bonus()) + target.str_mod()
+        acrobatics_stats = (target.acrobatics_proficient() * target.proficiency_bonus()) + target.dex_mod()
 
+        contested_roll = None
         grapple_success = False
-        if self.target.incapacitated() or (battle and not battle.opposing(self.source, target)):
+        if target.incapacitated() or (battle and not battle.opposing(self.source, target)):
             grapple_success = True
         else:
-            contested_roll = self.target.athletics_check(battle, description='die_roll.contest') if athletics_stats > acrobatics_stats else self.target.acrobatics_check(battle, description='die_roll.contest')
+            contested_roll = target.athletics_check(battle, description='die_roll.contest') if athletics_stats > acrobatics_stats else target.acrobatics_check(battle, description='die_roll.contest')
             grapple_success = strength_roll.result() >= contested_roll.result()
 
         self.result = [{

@@ -70,3 +70,20 @@ class TestGrappleAction(unittest.TestCase):
         DropGrappleAction.apply(self.battle, action.result[0], session=self.session)
         self.assertFalse(self.fighter.is_grappling())
         self.assertFalse(self.npc.grappled())
+
+    def test_resolve_incapacitated_target_auto_success(self):
+        self.npc.update_state('unconscious')
+        action = GrappleAction.build(self.session, self.fighter)['next'](self.npc)
+        self.battle.action(action)
+        item = action.result[0]
+        self.assertTrue(item['success'])
+        self.assertIsNone(item['target_roll'])
+
+    def test_resolve_same_side_target_auto_success(self):
+        ally = self.session.npc('goblin')
+        self.battle.add(ally, 'a', position='spawn_point_3', token='g2')
+        action = GrappleAction.build(self.session, self.fighter)['next'](ally)
+        self.battle.action(action)
+        item = action.result[0]
+        self.assertTrue(item['success'])
+        self.assertIsNone(item['target_roll'])

@@ -23,6 +23,11 @@ class DashAction(Action):
     def can(entity, battle, _options=None):
         return battle and entity.total_actions(battle) > 0
 
+    @staticmethod
+    def build(session, source):
+        action = DashAction(session, source, 'dash')
+        return action.build_map()
+
     def resolve(self, _session, _map, opts=None):
         self.result = [{
             'source': self.source,
