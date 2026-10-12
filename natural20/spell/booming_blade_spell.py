@@ -159,7 +159,7 @@ class BoomingBladeSpell(Spell):
         return result
 
     def _hit_thunder_dice(self, entity):
-        level = entity.level()
+        level = entity.cantrip_level()
         if level >= 17:
             return 3
         if level >= 11:

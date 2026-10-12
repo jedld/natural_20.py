@@ -200,6 +200,11 @@ class TestSpellAction(unittest.TestCase):
         self.assertEqual(self.npc.hp(), 5)
         self.assertEqual(target_advantage_condition(self.session, self.npc, self.entity, None, battle=self.battle), [-1, [[], ['chill_touch_disadvantage']]])
 
+        # attacks against anyone other than the caster are unaffected
+        other = self.session.npc('skeleton')
+        self.battle.add(other, 'a', position=[6, 5])
+        self.assertEqual(target_advantage_condition(self.session, self.npc, other, None, battle=self.battle), [0, [[], []]])
+
     def test_expeditious_retreat(self):
         action = SpellAction.build(self.session, self.entity)['next'](['expeditious_retreat', 0])
         action.resolve(self.session, self.battle_map, { "battle": self.battle})
@@ -603,9 +608,12 @@ class TestSpellAction(unittest.TestCase):
             "damage_die": "1d6+2",
             "damage_type": "piercing"
         }
+        hp_before = self.entity.hp()
         self.battle.execute_action(action)
         DieRoll.unfudge()
-        self.assertEqual(self.entity.hp(), 0)
+        # 10 + 4 = 14 hits AC 12, but Shield's +5 (AC 17) turns it into a miss.
+        self.assertEqual(self.entity.hp(), hp_before)
+        self.assertEqual(self.entity.armor_class(), 17)
 
     def test_shield_spell_async(self):
         class CustomReactionController(Controller):
@@ -639,6 +647,7 @@ class TestSpellAction(unittest.TestCase):
             "damage_die": "1d6+2",
             "damage_type": "piercing"
         }
+        hp_before = self.entity.hp()
         try:
             self.battle.action(action)
         except AsyncReactionHandler as e:
@@ -649,7 +658,8 @@ class TestSpellAction(unittest.TestCase):
                 action = self.battle.action(action)
         self.battle.commit(action)
         DieRoll.unfudge()
-        self.assertEqual(self.entity.hp(), 0)
+        self.assertEqual(self.entity.hp(), hp_before)
+        self.assertEqual(self.entity.armor_class(), 17)
 
     def test_autobuild(self):
         self.npc = self.session.npc('skeleton')

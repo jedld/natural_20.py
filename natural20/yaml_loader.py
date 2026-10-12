@@ -77,8 +77,7 @@ def campaign_import_roots(campaign_root: str | Path) -> list[Path]:
         if not game_file.is_file():
             return
         try:
-            with game_file.open("r", encoding="utf-8") as stream:
-                game_data = yaml.safe_load(stream) or {}
+            game_data = _read_yaml_cached(game_file.resolve()) or {}
         except yaml.YAMLError:
             # Malformed game.yml — skip import resolution for this root.
             return
@@ -213,8 +212,7 @@ def campaign_ruleset_id(campaign_root: str | Path | None) -> str:
     if not game_file.is_file():
         return "5e-2014"
     try:
-        with game_file.open("r", encoding="utf-8") as stream:
-            game_data = yaml.safe_load(stream) or {}
+        game_data = _read_yaml_cached(game_file.resolve()) or {}
     except OSError:
         return "5e-2014"
     if not isinstance(game_data, dict):
@@ -272,8 +270,7 @@ def deep_merge(base: Any, overlay: Any) -> Any:
 def _file_declares_inherit(path: Path) -> bool:
     if not path.is_file():
         return False
-    with path.open("r", encoding="utf-8") as stream:
-        data = yaml.safe_load(stream)
+    data = _read_yaml_cached(path.resolve())
     if not isinstance(data, dict):
         return False
     return any(key in data for key in INHERIT_KEYS)
@@ -410,6 +407,26 @@ def _apply_entry_inherits(data: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+_RAW_YAML_CACHE: dict[Path, tuple[tuple[int, int], Any]] = {}
+
+
+def _read_yaml_cached(resolved: Path) -> Any:
+    """Parse ``resolved`` once per (mtime, size); callers get a private deep copy.
+
+    Item catalogues are re-loaded on hot paths (e.g. every ``armor_class()``),
+    and pure-Python YAML parsing of them costs hundreds of milliseconds.
+    """
+    stat = resolved.stat()
+    signature = (stat.st_mtime_ns, stat.st_size)
+    cached = _RAW_YAML_CACHE.get(resolved)
+    if cached is None or cached[0] != signature:
+        with resolved.open("r", encoding="utf-8") as stream:
+            data = yaml.safe_load(stream)
+        cached = (signature, data)
+        _RAW_YAML_CACHE[resolved] = cached
+    return copy.deepcopy(cached[1])
+
+
 def load_yaml(
     path: str | Path,
     *,
@@ -427,8 +444,7 @@ def load_yaml(
 
     campaign = Path(campaign_root).resolve() if campaign_root is not None else None
 
-    with resolved.open("r", encoding="utf-8") as stream:
-        raw = yaml.safe_load(stream)
+    raw = _read_yaml_cached(resolved)
 
     if not isinstance(raw, dict):
         return raw

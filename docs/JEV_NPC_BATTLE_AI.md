@@ -289,6 +289,10 @@ existing switches decide *which entities* use an `llm` controller:
 - **Force all NPCs:** `NPC_LLM_COMBAT_ENABLED=1` makes
   `effective_npc_combat_controller()` return `llm` for every NPC regardless of
   the per-entity/campaign setting.
+- **Without env vars:** DM Console → **AI Settings** can define the `battle`
+  profile (`provider: jev`, endpoint, key), the default NPC controller, and
+  per-NPC controllers/profiles, persisted to the campaign `.ai.yaml`. Values
+  there take precedence over the env vars above; see [AI_CONFIG.md](AI_CONFIG.md).
 
 So the minimal "JEV is the default battle brain" setup is:
 

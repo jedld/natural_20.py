@@ -39,7 +39,7 @@ class SlowSpell(Spell):
         dc = entity.spell_save_dc('intelligence')
         results = []
         for target in targets:
-            save_roll = target.save_throw('wisdom', battle, {'is_magical': True})
+            save_roll = target.save_throw('wisdom', battle, {'is_magical': True, 'dc': dc})
             if save_roll.result() >= dc:
                 results.append({
                     'type': 'spell_miss',
@@ -87,7 +87,7 @@ class SlowSpell(Spell):
         if effect is None or battle is None or source is None:
             return
         dc = source.spell_save_dc('intelligence')
-        save_roll = entity.save_throw('wisdom', battle, {'is_magical': True})
+        save_roll = entity.save_throw('wisdom', battle, {'is_magical': True, 'dc': dc})
         if save_roll.result() >= dc:
             entity.dismiss_effect(effect)
 

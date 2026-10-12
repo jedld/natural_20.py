@@ -19,6 +19,7 @@ class ChillTouchSpellUndeadEffect:
     def attack_advantage_modifier(entity, opt=None):
         if opt['target'] == opt['effect'].source:
             return [[], ['chill_touch_disadvantage']]
+        return [[], []]
 
     @staticmethod
     def end_of_turn(entity, opt=None):
@@ -52,11 +53,11 @@ class ChillTouchSpell(AttackSpell):
     def _damage(self, battle, crit=False, opts=None):
         entity = self.source
         level = 1
-        if entity.level() >= 5:
+        if entity.cantrip_level() >= 5:
             level += 1
-        if entity.level() >= 11:
+        if entity.cantrip_level() >= 11:
             level += 1
-        if entity.level() >= 17:
+        if entity.cantrip_level() >= 17:
             level += 1
         return DieRoll.roll(f"{level}d8", crit=crit, battle=battle, entity=entity, description="dice_roll.spells.chill_touch")
 

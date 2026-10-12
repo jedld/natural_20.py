@@ -562,6 +562,10 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                 return None
             spell_range_ft = param.get("range", 60)
             require_los = param.get("require_los", False)
+            corpse_criteria = None
+            if param.get("require_corpse"):
+                from natural20.utils.corpses import corpse_criteria_from_param, corpses_at
+                corpse_criteria = corpse_criteria_from_param(param)
             cur_x, cur_y = map.position_of(entity)
             max_squares = max(0, int(spell_range_ft) // map.feet_per_grid)
             position_choices = []
@@ -576,6 +580,8 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                                                              passability_mode=True, inclusive=True):
                         continue
                     if _match and [nx, ny] not in _match:
+                        continue
+                    if corpse_criteria is not None and not corpses_at(map, nx, ny, **corpse_criteria):
                         continue
                     position_choices.append([nx, ny])
             params_list.append(position_choices)

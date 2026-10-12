@@ -1341,12 +1341,9 @@ def test_place_player_in_map_adds_new_entry(tmp_path: Path):
     }
     map_path = maps_dir / "hub.yml"
     _write_map(map_path, map_data)
+    _write_character(campaign, "hero_two", {"name": "Hero Two", "entity_uid": "hero_2"})
 
-    class _Session:
-        root_path = str(campaign)
-        game_properties = {"maps": {"hub": "maps/hub"}}
-
-    result = place_player_in_map(_Session(), "hub", entity_uid="hero_2", x=4, y=4)
+    result = place_player_in_map(_CharacterSession(campaign), "hub", entity_uid="hero_2", x=4, y=4)
     assert result["entity_uid"] == "hero_2"
 
     saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))
@@ -1354,6 +1351,73 @@ def test_place_player_in_map_adds_new_entry(tmp_path: Path):
     assert len(player_list) == 1
     assert player_list[0]["position"] == [4, 4]
     assert player_list[0]["overrides"]["entity_uid"] == "hero_2"
+    assert player_list[0]["sheet"] == "characters/hero_two.yml"
+
+
+def _write_character(campaign: Path, stem: str, data: dict) -> None:
+    characters_dir = campaign / "characters"
+    characters_dir.mkdir(parents=True, exist_ok=True)
+    (characters_dir / f"{stem}.yml").write_text(yaml.safe_dump(data), encoding="utf-8")
+
+
+class _CharacterSession:
+    def __init__(self, campaign: Path):
+        self.root_path = str(campaign)
+        self.game_properties = {"maps": {"hub": "maps/hub"}}
+
+    def _iter_category_files(self, category, include_templates=False):
+        return sorted((Path(self.root_path) / category).glob("*.yml"))
+
+
+def _empty_hub(tmp_path: Path) -> tuple[Path, Path]:
+    campaign = tmp_path / "demo"
+    (campaign / "maps").mkdir(parents=True)
+    map_path = campaign / "maps" / "hub.yml"
+    _write_map(map_path, {"map": {"base": ["....."] * 5}, "player": []})
+    return campaign, map_path
+
+
+def test_place_player_in_map_resolves_sheet_by_file_stem(tmp_path: Path):
+    campaign, map_path = _empty_hub(tmp_path)
+    _write_character(campaign, "rogue", {"name": "Rogue"})
+    _write_character(campaign, "wizard", {"name": "Wizard", "entity_uid": "wiz"})
+    place_player_in_map(_CharacterSession(campaign), "hub", entity_uid="wiz", x=1, y=1)
+
+    place_player_in_map(_CharacterSession(campaign), "hub", entity_uid="rogue", x=2, y=2)
+
+    players = yaml.safe_load(map_path.read_text(encoding="utf-8"))["player"]
+    assert [(p["overrides"]["entity_uid"], p["sheet"]) for p in players] == [
+        ("wiz", "characters/wizard.yml"),
+        ("rogue", "characters/rogue.yml"),
+    ]
+
+
+def test_place_player_in_map_uses_explicit_sheet(tmp_path: Path):
+    campaign, map_path = _empty_hub(tmp_path)
+    _write_character(campaign, "rogue", {"name": "Rogue"})
+
+    place_player_in_map(
+        _CharacterSession(campaign), "hub", entity_uid="pc-7", x=2, y=2, sheet="characters/rogue.yml"
+    )
+
+    players = yaml.safe_load(map_path.read_text(encoding="utf-8"))["player"]
+    assert players == [
+        {"position": [2, 2], "sheet": "characters/rogue.yml", "overrides": {"entity_uid": "pc-7"}}
+    ]
+
+
+def test_place_player_in_map_rejects_unknown_character(tmp_path: Path):
+    import pytest
+
+    campaign, map_path = _empty_hub(tmp_path)
+
+    with pytest.raises(ValueError):
+        place_player_in_map(_CharacterSession(campaign), "hub", entity_uid="ghost", x=1, y=1)
+    with pytest.raises(ValueError):
+        place_player_in_map(
+            _CharacterSession(campaign), "hub", entity_uid="ghost", x=1, y=1, sheet="characters/nope.yml"
+        )
+    assert yaml.safe_load(map_path.read_text(encoding="utf-8"))["player"] == []
 
 
 def test_place_player_in_map_matches_by_sheet(tmp_path: Path):
@@ -1402,12 +1466,9 @@ def test_place_player_in_map_creates_player_list(tmp_path: Path):
     }
     map_path = maps_dir / "hub.yml"
     _write_map(map_path, map_data)
+    _write_character(campaign, "hero_new", {"name": "Hero New"})
 
-    class _Session:
-        root_path = str(campaign)
-        game_properties = {"maps": {"hub": "maps/hub"}}
-
-    result = place_player_in_map(_Session(), "hub", entity_uid="hero_new", x=2, y=2)
+    result = place_player_in_map(_CharacterSession(campaign), "hub", entity_uid="hero_new", x=2, y=2)
     assert result["entity_uid"] == "hero_new"
 
     saved = yaml.safe_load(map_path.read_text(encoding="utf-8"))

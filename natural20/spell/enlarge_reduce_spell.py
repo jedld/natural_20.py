@@ -65,7 +65,7 @@ class EnlargeReduceSpell(Spell):
         dc = None
         if battle is not None and battle.opposing(entity, target):
             dc = entity.spell_save_dc('constitution')
-            save_roll = target.save_throw('constitution', battle, {'is_magical': True})
+            save_roll = target.save_throw('constitution', battle, {'is_magical': True, 'dc': dc})
             if save_roll.result() >= dc:
                 return [{
                     'type': 'spell_miss',

@@ -36,6 +36,26 @@ class TestGenericController(unittest.TestCase):
 
         self.assertIsInstance(choice, SecondWindAction)
 
+    def test_never_picks_unbuilt_spell_placeholder(self):
+        battle_map = Map(self.session, 'battle_sim')
+        battle = Battle(self.session, battle_map)
+        controller = GenericController(self.session)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position='spawn_point_1', token='F', controller=controller)
+        battle.start(combat_order=[fighter])
+        fighter.reset_turn(battle)
+
+        placeholder = SpellAction(self.session, fighter, 'spell')
+        self.assertIsNone(controller.select_action(battle, fighter, [placeholder]))
+
+        original = fighter.available_actions
+        fighter.available_actions = lambda *a, **k: [placeholder]
+        try:
+            moves = controller._compute_available_moves(fighter, battle)
+        finally:
+            fighter.available_actions = original
+        self.assertNotIn(placeholder, moves)
+
     def test_prefers_healing_spell_when_badly_hurt(self):
         battle_map = Map(self.session, 'battle_sim_objects')
         battle = Battle(self.session, battle_map)

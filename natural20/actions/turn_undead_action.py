@@ -74,7 +74,7 @@ class TurnUndeadAction(Action):
             destroy_cr_cap = None
 
         for target in targets:
-            roll = target.save_throw('wisdom', battle)
+            roll = target.save_throw('wisdom', battle, {'dc': dc})
             success = roll.result() >= dc
             destroyed = False
             if not success and destroy_cr_cap is not None:

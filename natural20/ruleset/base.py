@@ -119,3 +119,7 @@ class Ruleset(ABC):
     def phb_2024_grapple_move_cost(self) -> bool:
         """Size-based grappling movement cost from 2024 rules."""
         return bool(self._override("phb_2024_grapple_move_cost", False))
+
+    def grappled_attack_disadvantage(self) -> bool:
+        """2024 Grappled condition: disadvantage on attacks against anyone but the grappler."""
+        return bool(self._override("grappled_attack_disadvantage", False))

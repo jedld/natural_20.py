@@ -15,11 +15,11 @@ class EldritchBlastSpell(AttackSpell):
         entity = self.source
         # Eldritch Blast gains additional beams at levels 5, 11, and 17
         num_beams = 1
-        if entity.level() >= 17:
+        if entity.cantrip_level() >= 17:
             num_beams = 4
-        elif entity.level() >= 11:
+        elif entity.cantrip_level() >= 11:
             num_beams = 3
-        elif entity.level() >= 5:
+        elif entity.cantrip_level() >= 5:
             num_beams = 2
 
         def set_target(target):
@@ -56,11 +56,11 @@ class EldritchBlastSpell(AttackSpell):
         
         # Determine number of beams based on character level
         num_beams = 1
-        if entity.level() >= 17:
+        if entity.cantrip_level() >= 17:
             num_beams = 4
-        elif entity.level() >= 11:
+        elif entity.cantrip_level() >= 11:
             num_beams = 3
-        elif entity.level() >= 5:
+        elif entity.cantrip_level() >= 5:
             num_beams = 2
         
         # If we have fewer targets than beams, repeat the last target

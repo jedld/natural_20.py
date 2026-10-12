@@ -10,11 +10,11 @@ class SpareTheDyingSpell(Spell):
             action.target = target
             return action
         current_range = 15
-        if self.source.level() >= 5:
+        if self.source.cantrip_level() >= 5:
             current_range = 30
-        if self.source.level() >= 11:
+        if self.source.cantrip_level() >= 11:
             current_range = 45
-        if self.source.level() >= 17:
+        if self.source.cantrip_level() >= 17:
             current_range = 60
         return {
             'param': [

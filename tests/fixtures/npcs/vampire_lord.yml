@@ -1,0 +1,97 @@
+---
+kind: Vampire Lord
+description: Test creature exercising SRD vampire traits (legendary resistance, regeneration, misty escape, multiattack combos, grapple-instead, bite life drain, charm).
+size: medium
+race:
+- undead
+alignment: lawful_evil
+default_ac: 16
+max_hp: 144
+hp_die: 17d8+68
+speed: 30
+passive_perception: 17
+darkvision: 120
+token:
+  - V
+color: crimson
+ability:
+  str: 18
+  dex: 18
+  con: 18
+  int: 17
+  wis: 15
+  cha: 18
+saving_throw_proficiencies:
+- dexterity
+- wisdom
+- charisma
+cr: 13
+xp: 10000
+proficiency_bonus: 5
+legendary_resistance: 3
+regeneration:
+  hp: 20
+  suppressed_by: [radiant, holy_water]
+  blocked_by: [sunlight, running_water]
+misty_escape:
+  blocked_by: [sunlight, running_water]
+  recovery_seconds: 3600
+multiattack:
+- unarmed_strike,unarmed_strike2
+- unarmed_strike,bite
+actions:
+  - name: unarmed_strike
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 9
+    damage: 8
+    damage_die: 1d8+4
+    damage_type: bludgeoning
+    multiattack_group: 1
+    additional_damage:
+    - damage_die: 3d6
+      damage_type: necrotic
+    grapple_instead:
+      escape_dc: 18
+  - name: unarmed_strike2
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 9
+    damage: 8
+    damage_die: 1d8+4
+    damage_type: bludgeoning
+    multiattack_group: 1
+    additional_damage:
+    - damage_die: 3d6
+      damage_type: necrotic
+  - name: bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 9
+    damage: 7
+    damage_die: 1d6+4
+    damage_type: piercing
+    multiattack_group: 1
+    target_if: [willing, grappled_by_source, incapacitated, restrained]
+    additional_damage:
+    - damage_die: 3d6
+      damage_type: necrotic
+      life_drain: true
+  - name: charm
+    type: ranged_attack
+    range: 30
+    range_max: 30
+    targets: 1
+    force_hit: true
+    no_damage: true
+    damage: 0
+    damage_die: 0
+    damage_type: psychic
+    target_creature_types: [humanoid]
+    on_hit:
+    - save_dc: wisdom:17
+      fail: status:charmed
+      duration: 86400

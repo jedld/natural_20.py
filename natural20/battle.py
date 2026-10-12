@@ -12,6 +12,7 @@ from natural20.die_roll import DieRoll, Rollable
 from natural20.spell.effects.stench_effect import StenchEffect
 import pdb
 from natural20.uid_containers import EntitiesUIDMap
+from natural20.utils.legendary_actions import legendary_pool_size
 
 
 def build_opposing_groups(session):
@@ -374,6 +375,10 @@ class Battle():
         self.groups = {}
         self.late_comers = []
         self.battle_log = []
+        # UID of the creature whose manual legendary action window is open,
+        # plus UIDs still waiting for theirs after the current turn ended.
+        self.legendary_phase = None
+        self.pending_legendary_phases = []
         self.animation_log_enabled = animation_log_enabled
         self.animation_log = []
 
@@ -399,6 +404,29 @@ class Battle():
         return self.round
 
     def map_for(self, entity):
+        found = self._battle_map_for(entity)
+        if found is not None:
+            return found
+        return self._session_map_for(entity)
+
+    def _session_map_for(self, entity):
+        """Resolve maps the battle does not track yet (e.g. a combatant that
+        crossed into a map outside the battle's map set)."""
+        session = self.session
+        if session is None or not hasattr(session, 'maps_for_entity'):
+            return None
+        candidates = session.maps_for_entity(entity)
+        if not candidates:
+            return None
+        found = candidates[0]
+        ent = self.entity_by_uid(entity) if isinstance(entity, str) else entity
+        if ent is not None and ent in self.entities:
+            if self.maps is None:
+                self.maps = []
+            self.register_map(found)
+        return found
+
+    def _battle_map_for(self, entity):
         if not self.maps or len(self.maps) == 0:
             return None
 
@@ -447,7 +475,7 @@ class Battle():
             'active_perception': 0,
             'active_perception_disadvantage': 0,
             'free_object_interaction': 0,
-            'legendary_actions': 0,
+            'legendary_actions': legendary_pool_size(entity),
             'target_effect': {},
             'two_weapon': None,
             'martial_arts_pending': False,
@@ -487,14 +515,18 @@ class Battle():
 
     # remove an entity from the battle and from the map
     def remove(self, entity, from_map=False):
-        if self.current_turn_index == len(self.combat_order) - 1:
-            self.current_turn_index = 0
         if entity in self.entities:
             del self.entities[entity]
         if entity in self.late_comers:
             self.late_comers.remove(entity)
         if entity in self.combat_order:
+            removed_index = self.combat_order.index(entity)
             self.combat_order.remove(entity)
+            if isinstance(self.current_turn_index, int):
+                if removed_index < self.current_turn_index:
+                    self.current_turn_index -= 1
+                if self.current_turn_index >= len(self.combat_order):
+                    self.current_turn_index = 0
 
         if from_map:
             self.map_for(entity).remove(entity, battle=self)
@@ -746,6 +778,17 @@ class Battle():
         for effect in effects_list:
             effect.start_of_turn(entity)
 
+        from natural20.utils.monster_traits import apply_regeneration
+        apply_regeneration(entity, self)
+
+        from natural20.utils.grappling import prune_invalid_grapples
+        prune_invalid_grapples(entity, self)
+        for grappler in list(getattr(entity, 'grapples', None) or []):
+            prune_invalid_grapples(grappler, self)
+
+        from natural20.utils.summons import process_pending_summons
+        process_pending_summons(entity, self)
+
     def end_turn(self):
         current = self.current_turn()
         try:
@@ -755,24 +798,67 @@ class Battle():
             pass
         current.resolve_trigger('end_of_turn', {'battle': self})
         self.trigger_event('end_of_turn', self,  { "target" : current})
+        self._end_of_turn_fired = (self.round, self.current_turn_index)
 
         # reset legendary actions
         self.eval_legendary_action()
 
     def eval_legendary_action(self):
-        for entity in self.combat_order:
+        """Offer each legendary creature one legendary action at the end of
+        another creature's turn (SRD: one option at a time).
+
+        Controllers that need a human decision (``WebController``) call
+        :meth:`queue_legendary_phase` instead of returning an action; the
+        host then opens each window with :meth:`begin_legendary_phase`.
+        """
+        self.legendary_phase = None
+        self.pending_legendary_phases = []
+        for entity in list(self.combat_order):
             if entity == self.current_turn():
                 continue
 
-            if not entity.conscious():
+            if not entity.conscious() or entity.incapacitated():
                 continue
 
-            if entity.npc() and len(entity.legendary_actions) > 0:
+            if entity.npc() and len(getattr(entity, 'legendary_actions', None) or []) > 0:
                 controller = self.controller_for(entity)
                 if controller:
                     action = controller.legendary_action_listener(self, self.session, entity, self.map_for(entity), { "target" : self.current_turn() })
                     if action:
                         self.execute_action(action)
+
+    def queue_legendary_phase(self, entity):
+        uid = getattr(entity, 'entity_uid', None)
+        if uid and uid not in self.pending_legendary_phases and uid != self.legendary_phase:
+            self.pending_legendary_phases.append(uid)
+
+    def begin_legendary_phase(self):
+        """Open the next queued legendary action window; returns the
+        creature, or ``None`` when no creature can still act."""
+        from natural20.utils.legendary_actions import has_legendary_choice
+        self.legendary_phase = None
+        while self.pending_legendary_phases:
+            entity = self.entity_by_uid(self.pending_legendary_phases.pop(0))
+            if entity is None or entity not in self.entities:
+                continue
+            if not entity.conscious() or entity.incapacitated():
+                continue
+            if not has_legendary_choice(entity, self):
+                continue
+            self.legendary_phase = entity.entity_uid
+            return entity
+        return None
+
+    def end_legendary_phase(self):
+        self.legendary_phase = None
+
+    def legendary_phase_entity(self):
+        if not self.legendary_phase:
+            return None
+        return self.entity_by_uid(self.legendary_phase)
+
+    def in_legendary_phase(self, entity):
+        return bool(self.legendary_phase) and getattr(entity, 'entity_uid', None) == self.legendary_phase
 
     def battle_ends(self):
         """
@@ -860,13 +946,35 @@ class Battle():
         return inefficiency
 
     def next_turn(self, max_rounds=None):
-        self.trigger_event('end_of_turn', self, { "target" : self.current_turn()})
+        # ``end_turn`` already fired the end-of-turn event for this slot;
+        # firing it again would tick persistent zones (Grease, Web) twice.
+        if getattr(self, '_end_of_turn_fired', None) != (self.round, self.current_turn_index):
+            self.trigger_event('end_of_turn', self, { "target" : self.current_turn()})
+        self._end_of_turn_fired = None
         if self.started and self.battle_ends():
             self.session.event_manager.received_event({"source" : self, "event" : 'end_of_combat'})
             self.started = False
             # print('tpk')
             return 'tpk'
 
+        return self._advance_turn_index(max_rounds)
+
+    def skip_dead_turns(self):
+        """Advance past dead combatants without start/end-of-turn processing.
+
+        Dead creatures have no turn, so they neither open a legendary action
+        window nor tick end-of-turn effects. Unconscious creatures still take
+        their turn (death saving throws). Returns the new current combatant.
+        """
+        for _ in range(len(self.combat_order)):
+            current = self.current_turn()
+            if current is None or not current.dead():
+                return current
+            self._end_of_turn_fired = None
+            self._advance_turn_index()
+        return self.current_turn()
+
+    def _advance_turn_index(self, max_rounds=None):
         self.current_turn_index += 1
         if self.current_turn_index >= len(self.combat_order):
             self.current_turn_index = 0
@@ -883,6 +991,7 @@ class Battle():
 
     def while_active(self, max_rounds=None, callback=lambda x: x):
         while True:
+            self.skip_dead_turns()
             self.start_turn()
             if self.controller_for(self.current_turn()):
                 self.controller_for(self.current_turn()).begin_turn(self.current_turn())
@@ -904,6 +1013,7 @@ class Battle():
                 })
 
             current.resolve_trigger('end_of_turn')
+            self.eval_legendary_action()
             # print("Next turn")
             result = self.next_turn(max_rounds)
             # print(f"Result: {result}")
@@ -1069,7 +1179,7 @@ class Battle():
                 other_results = klass.apply(self, item, self.session)
                 if isinstance(other_results, list):
                     for result in other_results:
-                        if result not in action.result:
+                        if isinstance(result, dict) and result not in action.result:
                             action.result.append(result)
             if self.animation_log_enabled:
                 if item.get('perception_targets'):
@@ -1862,9 +1972,6 @@ class Battle():
 
             if not action.errors:
                 targets.append(k)
-            else:
-                print(f'{k}: action.errors')
-                print(action.errors)
 
         if include_objects:
             _map = self.map_for(entity)
@@ -1966,6 +2073,8 @@ class Battle():
             'late_comers': self.late_comers,
             'battle_log': self.battle_log,
             'animation_log': self.animation_log,
+            'legendary_phase': self.legendary_phase,
+            'pending_legendary_phases': list(self.pending_legendary_phases),
             'session': self.session,
             'maps': self.maps,
             'readied_actions': {
@@ -2029,6 +2138,8 @@ class Battle():
 
         battle.battle_log = data.get('battle_log', [])
         battle.animation_log = data.get('animation_log', [])
+        battle.legendary_phase = data.get('legendary_phase')
+        battle.pending_legendary_phases = list(data.get('pending_legendary_phases') or [])
 
         # Restore readied actions if present.
         readied = data.get('readied_actions') or {}

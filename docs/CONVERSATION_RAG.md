@@ -405,6 +405,17 @@ Behavior:
 
 Implementation: `natural20/utils/npc_hit_reaction.py`, `webapp/npc_damage_reaction.py`, `webapp/conversation_service.py`.
 
+### Kill reactions (NPC kills a player character)
+
+When a dialog NPC (`dialog: true`) kills a player character, its conversation LLM gets a chance to say one line aloud mid-battle (a taunt, gloat, or lament), or `[NO_RESPONSE]` if silence fits.
+
+Behavior:
+- The engine records attribution on every damaging blow (`natural20/utils/death_info.py`): `attributes['last_damage']`, `attributes['downed_by']` when a creature drops to 0 HP, and `attributes['death_info']` plus the `died` event's `death_info` at death. Causes: `massive_damage`, `damage_while_dying`, `failed_death_saves` (credited to whoever downed them), `killed`, or `unknown` (DM state change; no reaction).
+- `webapp/npc_kill_reaction.py` listens for `died` (registered from `register_battle_end_hook_handlers`). It resolves the killer and builds a system note with the victim (name, race, class/level), how they died (attack or spell, damage, damage type, critical), the killer's own condition, and the foes still standing or fallen. It then calls `ConversationService.handle_npc_kill_reaction` in a background task, so combat is never blocked.
+- The note is also injected into the NPC's conversation history, so later dialogue remembers the kill. The line is spoken at normal volume to everyone in hearing range (TTS when configured).
+- Each killer/victim pair gets at most one reaction per 60 seconds, so a `died` event delivered twice can't produce two taunts.
+- Disable per campaign with `npc_kill_reactions: {enabled: false}` in `game.yml`, or per NPC with `kill_reactions: false` in its YAML.
+
 ### `[SET_GOAL: ...]`
 
 Purpose:

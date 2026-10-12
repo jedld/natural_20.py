@@ -66,3 +66,6 @@ class Ruleset2024(Ruleset2014):
 
     def phb_2024_grapple_move_cost(self) -> bool:
         return bool(self._override("phb_2024_grapple_move_cost", True))
+
+    def grappled_attack_disadvantage(self) -> bool:
+        return bool(self._override("grappled_attack_disadvantage", True))

@@ -82,6 +82,27 @@ value `0` or `1`). Do not enable the 2024 label under `5e-2014`.
 
 Hook: `Ruleset.grapple_shove_resolution()` → `contested_check` or `target_saving_throw`.
 
+#### Grappler-side rules (`natural20/utils/grappling.py`)
+
+| | 2014 | 2024 |
+|---|---|---|
+| **Dragging** | Each square costs 1 extra (speed halved) unless the grappled creature is two or more sizes smaller | Same, and Tiny creatures are also exempt (`phb_2024_grapple_move_cost()`) |
+| **Release** | Free, any time (no action) | Same |
+| **Grapple ends** | Grappler incapacitated, grappled creature dies, or it ends up out of the grappler's reach | Same |
+| **Attacks** | No penalty for grappler or grappled | Grappled creature has disadvantage on attacks against anyone but its grappler (`grappled_attack_disadvantage()`) |
+
+`Entity.make_dead` releases every grappler holding the creature, and `Battle.start_turn` calls
+`prune_invalid_grapples` for the acting creature and its grapplers. Releases log
+`drop_grapple` with a `reason` (e.g. "target died"). A `grapple_instead` hit deals no damage,
+so it never calls `take_damage` (no death-save failure on an unconscious target).
+
+AI: `GenericController.grapple_release_action` frees held creatures that are dead, unconscious,
+or not hostile before choosing anything else (also before legendary actions). NPCs get one
+`DropGrappleAction` per held creature in `available_actions`, so LLM / JEV controllers can
+choose "release grapple on X (free)". The LLM sheet, the JEV state, and the LLM path tools
+(`movement_cost_ft`, reachable squares) include the doubled drag cost via
+`grapple_status_text` / `drag_cost_multiplier`.
+
 ### Weapon Mastery (SRD 5.2)
 
 Gated by `Ruleset.weapon_mastery_enabled()` (on for `5e-2024`). Weapon properties live in [`templates/rulesets/5e-2024/items/weapons.yml`](../templates/rulesets/5e-2024/items/weapons.yml). Class feature overlays: Fighter (3 known at 1st), Barbarian / Paladin / Ranger / Rogue (2 at 1st).

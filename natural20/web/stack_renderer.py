@@ -5,6 +5,8 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any, Optional
 
+from natural20.web.grapple_info import grapple_tile_attributes
+from natural20.web.death_save_info import death_save_tile_attributes
 from natural20.web.json_renderer import JsonRenderer
 
 
@@ -549,6 +551,8 @@ def _apply_overlay_entity_to_tile(tile, entity, floor, wx: int, wy: int, battle)
         'team_border_tint': team_border_tint,
         'objects': tile.get('objects') or [],
     })
+    tile.update(grapple_tile_attributes(entity))
+    tile.update(death_save_tile_attributes(entity))
 
 
 def _empty_underlay_tile(lx: int, ly: int) -> dict:

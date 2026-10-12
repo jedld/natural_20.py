@@ -260,6 +260,25 @@ def test_switch_map_for_user_does_not_move_companions():
     assert manager.current_map_for_user["alice"][0] == "town"
 
 
+def test_get_map_for_entity_finds_entity_outside_active_map_set(dual_set_session):
+    from webapp.game_management_components import GameEntityRegistry
+
+    session, _root = dual_set_session
+    pc = PlayerCharacter.load(session, "characters/high_elf_fighter")
+    session.maps["woods"].add(pc, 1, 1, group="a")
+    session.active_map_set = "root"
+    manager = SimpleNamespace(
+        logger=MagicMock(),
+        maps=session.maps,
+        game_session=session,
+        deferred_players={},
+    )
+    registry = GameEntityRegistry(manager)
+
+    assert registry.get_entity_by_uid(pc.entity_uid) is pc
+    assert registry.get_map_for_entity(pc) is session.maps["woods"]
+
+
 def test_mcp_registry_includes_dm_map_set():
     from webapp.mcp.routes import build_default_registry
 

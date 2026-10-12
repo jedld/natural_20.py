@@ -74,6 +74,10 @@ class SaveCheck:
         from natural20.effects.bardic_inspiration_effect import apply_bardic_inspiration_to_roll
         roll = apply_bardic_inspiration_to_roll(roll, entity, dc, 'ge', battle=battle)
         passed = roll.result() >= dc
+        if not passed:
+            from natural20.utils.monster_traits import try_legendary_resistance
+            roll = try_legendary_resistance(entity, roll, dc, ability, battle=battle)
+            passed = roll.result() >= dc
         if (
             not passed
             and getattr(entity, 'class_feature', None)

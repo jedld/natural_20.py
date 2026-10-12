@@ -188,7 +188,10 @@ class HoldPersonSpell(Spell):
   def _caster_spell_ability(entity, spell_action=None):
     spellcasting_class = getattr(spell_action, 'spellcasting_class', None)
     if spellcasting_class:
-      class_info = entity.session.load_class(spellcasting_class.lower())
+      try:
+        class_info = entity.session.load_class(str(spellcasting_class).lower())
+      except FileNotFoundError:
+        class_info = None
       if class_info:
         ability = class_info.get('spellcasting_ability')
         if ability:
@@ -206,6 +209,11 @@ class HoldPersonSpell(Spell):
       elif isinstance(getter, str) and getter:
         return getter
 
+    properties = getattr(entity, 'properties', None) or {}
+    for key in ('spell_ability', 'spellcasting_ability'):
+      if isinstance(properties, dict) and properties.get(key):
+        return properties[key]
+
     # Fall back to class YAML spellcasting_ability for the caster's classes.
     class_props = getattr(entity, 'class_properties', None) or {}
     for klass, props in class_props.items():
@@ -218,12 +226,17 @@ class HoldPersonSpell(Spell):
         classes = entity.c_class() or {}
       except Exception:
         classes = {}
-    if not classes:
+    if not classes or not isinstance(classes, (dict, list, tuple)):
       classes = (getattr(entity, 'properties', None) or {}).get('classes') or {}
+    if isinstance(classes, str):
+      classes = [classes]
     session = getattr(entity, 'session', None)
     if session is not None:
       for klass in classes:
-        class_info = session.load_class(str(klass).lower())
+        try:
+          class_info = session.load_class(str(klass).lower())
+        except FileNotFoundError:
+          continue
         if class_info and class_info.get('spellcasting_ability'):
           return class_info['spellcasting_ability']
 

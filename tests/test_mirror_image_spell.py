@@ -51,6 +51,29 @@ class MirrorImageSpellTestCase(unittest.TestCase):
         self.assertTrue(redirected)
         self.assertEqual(MirrorImageSpell._images_remaining(self.caster), 2)
 
+    def test_active_effect_survives_save_load(self):
+        from natural20.utils.serialization import Serialization
+
+        action = SpellAction.build(self.session, self.caster)['next'](['mirror_image', 1])['next'](self.caster)
+        action.resolve(self.session, self.battle_map, {'battle': self.battle})
+        self.battle.commit(action)
+        MirrorImageSpell._consume_image(self.caster)
+
+        serializer = Serialization()
+        yaml_str = serializer.serialize(self.session, self.battle, [self.battle_map])
+        _session, _battle, maps = serializer.deserialize(yaml_str)
+
+        caster = next(e for e in maps[0].entities if e.entity_uid == self.caster.entity_uid)
+        effect = next(
+            entry['effect']
+            for entries in caster.effects.values()
+            for entry in entries
+            if isinstance(entry.get('effect'), MirrorImageSpell)
+        )
+        self.assertEqual(effect.images_remaining, 2)
+        self.assertIs(effect.source, caster)
+        self.assertEqual(MirrorImageSpell._images_remaining(caster), 2)
+
 
 if __name__ == '__main__':
     unittest.main()

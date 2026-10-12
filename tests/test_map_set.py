@@ -432,6 +432,29 @@ def test_battle_maps_from_session_dict_are_active_set(tmp_path: Path):
     assert "woods" not in names
 
 
+def test_battle_map_for_adopts_combatant_map_outside_battle(tmp_path: Path):
+    from natural20.battle import Battle
+
+    _write_campaign(
+        tmp_path,
+        map_sets={
+            "root": {"label": "Town", "maps": ["town"]},
+            "wilds": {"label": "Wilds", "maps": ["woods"]},
+        },
+    )
+    session = Session(root_path=str(tmp_path))
+    session.active_map_set = "root"
+    pc = PlayerCharacter.load(session, "characters/high_elf_fighter")
+    woods = session.maps["woods"]
+    woods.add(pc, 1, 1, group="a")
+    battle = Battle(session, session.maps)
+    assert woods not in battle.maps
+    battle.add(pc, "a")
+
+    assert battle.map_for(pc) is woods
+    assert woods in battle.maps
+
+
 def test_active_map_set_roundtrips_in_session_dict(tmp_path: Path):
     _write_campaign(
         tmp_path,

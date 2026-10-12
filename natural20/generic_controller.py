@@ -19,12 +19,19 @@ from natural20.controller import Controller
 from natural20.ai.path_compute import PathCompute
 from natural20.utils.movement import retrieve_opportunity_attacks, simplify_path
 from natural20.utils.action_builder import autobuild
+from natural20.utils.legendary_actions import is_legendary_move, legendary_action_cost, mark_legendary_move
 from natural20.item_library.door_object import DoorObject
 from natural20.item_library.trap_door import TrapDoor
 import math
 import copy
 import pdb
 from typing import Optional
+
+def is_unbuilt_spell(action) -> bool:
+    """A bare ``SpellAction`` placeholder (menu stub with no spell chosen)
+    cannot be resolved; the AI must never pick it."""
+    return isinstance(action, SpellAction) and getattr(action, 'spell_action', None) is None
+
 
 class GenericController(Controller):
     # Consider a broader set so AI can open doors, reposition, or defend
@@ -59,16 +66,19 @@ class GenericController(Controller):
         self.valid_moves_types = valid_move_types or self.VALID_AI_MOVE_TYPES
 
     def to_dict(self):
+        # ``battle_data`` is per-battle tactical memory keyed by live Battle /
+        # entity objects; it can't round-trip through YAML and is rebuilt from
+        # observation, so it is not persisted.
         return {
             "session": self.session,
             "state": self.state,
-            "battle_data": self.battle_data
+            "battle_data": {}
         }
-    
+
     @staticmethod
     def from_dict(data):
         controller = GenericController(data['session'])
-        controller.battle_data = data['battle_data']
+        controller.state = data.get('state') or {}
         return controller
 
     # @param entity [Natural20::Entity]
@@ -83,18 +93,107 @@ class GenericController(Controller):
         return None
 
     def legendary_action_listener(self, battle, session, entity, map, event):
-        valid_actions = []
-        if entity.total_legendary_actions(battle) > 0:
-            actions = [s for s in entity.available_actions(session, battle, legendary_actions=True)]
-            for action in actions:
-                    valid_targets = battle.valid_targets_for(entity, action)
-                    if event['target'] in valid_targets:
-                        action.target = event['target']
-                        action.legendary_action = True
-                        valid_actions.append(action)
-            selected_action = self.select_action(battle, entity, valid_actions )
-            return selected_action
+        """Pick one legendary action at the end of another creature's turn.
+
+        Uses the fast tactical heuristic for every controller type (including
+        LLM-driven ones) so legendary windows never add a model round-trip.
+        """
+        if (entity.total_legendary_actions(battle) or 0) <= 0:
+            return None
+        from natural20.utils.grappling import ai_release_candidates, release
+        for held in ai_release_candidates(entity, battle):
+            release(entity, held, battle)
+        candidates = self.legendary_action_candidates(battle, session, entity)
+        return self.select_legendary_action(battle, entity, candidates)
+
+    def legendary_action_candidates(self, battle, session, entity):
+        candidates = []
+        for action in entity.available_actions(session, battle, legendary_actions=True):
+            if not isinstance(action, Action) or getattr(action, 'target', None) is None:
+                continue
+            action.legendary_action = True
+            candidates.append(action)
+        candidates.extend(self._legendary_move_candidates(battle, entity))
+        return candidates
+
+    def select_legendary_action(self, battle, entity, candidates) -> Optional[Action]:
+        best_attack, best_score = None, 0.0
+        moves = []
+        for action in candidates:
+            if isinstance(action, MoveAction):
+                moves.append(action)
+                continue
+            try:
+                if isinstance(action, AttackAction):
+                    score = action.ai_value(battle)
+                else:
+                    score = action.compute_hit_probability(battle) * action.avg_damage(battle)
+            except Exception:
+                score = 0.0
+            score /= legendary_action_cost(getattr(action, 'npc_action', None))
+            if score > best_score:
+                best_attack, best_score = action, score
+        if best_attack is not None:
+            return best_attack
+        if moves and entity.hp() > entity.max_hp() * 0.25:
+            return min(moves, key=lambda a: len(a.move_path))
         return None
+
+    def _legendary_move_candidates(self, battle, entity):
+        """Legendary ``type: move`` options that close to melee reach of the
+        nearest visible enemy, so later legendary strikes become possible."""
+        if not hasattr(entity, 'legendary_move_options'):
+            return []
+        options = entity.legendary_move_options(battle)
+        if not options:
+            return []
+        melee_reaches = [
+            int(a.get('range') or 5) for a in (entity.legendary_actions or [])
+            if not is_legendary_move(a) and a.get('type') == 'melee_attack'
+        ]
+        if not melee_reaches:
+            return []
+        current_map = battle.map_for(entity)
+        if current_map is None:
+            return []
+        feet = current_map.feet_per_grid or 5
+        reach = max(melee_reaches) / feet
+
+        enemies = [e for e in self._get_enemy_positions(battle, entity) if battle.map_for(e) == current_map]
+        if not enemies:
+            return []
+        if any(current_map.distance(entity, e) <= reach for e in enemies):
+            return []
+
+        max_x, max_y = current_map.size
+        destinations = set()
+        for enemy in enemies:
+            lx, ly = current_map.position_of(enemy)
+            size = enemy.token_size() if hasattr(enemy, 'token_size') else 1
+            for x in range(lx - 1, lx + size + 1):
+                for y in range(ly - 1, ly + size + 1):
+                    if not (0 <= x < max_x and 0 <= y < max_y):
+                        continue
+                    if not current_map.placeable(entity, x, y, battle, squeeze=False):
+                        continue
+                    if current_map.distance(entity, enemy, entity_1_pos=(x, y)) <= reach:
+                        destinations.add((x, y))
+        if not destinations:
+            return []
+
+        ex, ey = current_map.position_of(entity)
+        paths = PathCompute(battle, current_map, entity).compute_paths_to_multiple_destinations(ex, ey, list(destinations))
+        from natural20.utils.grappling import drag_cost_multiplier
+        max_steps = entity.speed() // (feet * drag_cost_multiplier(entity))
+        reachable = [p for p in paths.values() if p and 1 < len(p) <= max_steps + 1]
+        if not reachable:
+            return []
+        path = min(reachable, key=len)
+
+        action = MoveAction(self.session, entity, 'move')
+        action.move_path = [list(p) for p in path]
+        mark_legendary_move(action, min(options, key=legendary_action_cost))
+        return [action]
 
 
     def opportunity_attack_listener(self, battle, session, entity, map, event):
@@ -114,6 +213,7 @@ class GenericController(Controller):
     def select_action(self, battle, entity, available_actions = None) -> Optional[Action]:
         if available_actions is None:
             available_actions = []
+        available_actions = [a for a in available_actions if not is_unbuilt_spell(a)]
         if len(available_actions) > 0:
             action = self._sort_actions(entity, battle, available_actions)
             if len(action) > 0:
@@ -136,7 +236,21 @@ class GenericController(Controller):
             context.get('die'),
         )
 
+    def grapple_release_action(self, entity: Entity, battle) -> Optional[Action]:
+        """Free release of a held creature that only costs us speed."""
+        from natural20.utils.grappling import ai_release_candidates
+        from natural20.actions.grapple_action import DropGrappleAction
+        candidates = ai_release_candidates(entity, battle)
+        if not candidates:
+            return None
+        action = DropGrappleAction(self.session, entity, 'drop_grapple')
+        action.target = candidates[0]
+        return action
+
     def move_for(self, entity: Entity, battle) -> Optional[Action]:
+        release = self.grapple_release_action(entity, battle)
+        if release is not None:
+            return release
         # choose available moves at random and return it
         available_actions = self._compute_available_moves(entity, battle)
         # environment, entity = self._build_environment(battle, entity)
@@ -317,6 +431,8 @@ class GenericController(Controller):
         for action in available_actions:
             if action.action_type in self.valid_moves_types:
                 if getattr(action, 'disabled', False):
+                    continue
+                if is_unbuilt_spell(action):
                     continue
                 if getattr(action, 'target', None) is None and isinstance(action, (FirstAidAction, LayOnHandsAction, HelpAction, ShoveAction, GrappleAction)):
                     built_actions = autobuild(self.session, action.__class__, entity, battle, map=current_map)
@@ -673,8 +789,22 @@ class GenericController(Controller):
                     if support_score != 0:
                         sorted_actions.append((action, support_score))
                         continue
-                base_score = action.compute_hit_probability(battle) * action.avg_damage(battle)
+                if isinstance(action, AttackAction):
+                    base_score = action.ai_value(battle)
+                else:
+                    base_score = action.compute_hit_probability(battle) * action.avg_damage(battle)
                 sorted_actions.append((action, base_score))
+            elif action.action_type == 'speak':
+                # Speaking costs nothing, so it would otherwise be picked forever.
+                continue
+            elif action.action_type == 'summon_creatures':
+                sorted_actions.append((action, action.ai_value(battle, len(enemy_positions))))
+            elif action.action_type == 'dismiss_summons':
+                continue
+            elif action.action_type == 'drop_grapple':
+                # Pointless releases are handled by grapple_release_action();
+                # keep holding conscious enemies otherwise.
+                continue
             elif isinstance(action, MoveAction):
                 if not action.move_path or len(action.move_path) < 2:
                     sorted_actions.append((action, -2.0))

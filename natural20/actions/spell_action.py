@@ -79,15 +79,20 @@ class SpellAction(Action):
             'spellcasting_class': self.spellcasting_class
         }
         if self.target:
-            if isinstance(self.target, list):
-                hash['target'] = [t.entity_uid for t in self.target]
-            else:
-                hash['target'] = self.target.entity_uid
+            hash['target'] = SpellAction._serialize_target(self.target)
         if hasattr(self, 'using'):
             hash['using'] = self.using
         return hash
 
-    
+
+    @staticmethod
+    def _serialize_target(target):
+        """Entities become entity_uids; points (``[x, y]``) and other scalars pass through."""
+        if isinstance(target, (list, tuple)):
+            return [SpellAction._serialize_target(t) for t in target]
+        uid = getattr(target, 'entity_uid', None)
+        return uid if uid is not None else target
+
     @staticmethod
     def from_dict(data):
         action = SpellAction(data['session'], data['source'], data['action_type'])
@@ -164,6 +169,10 @@ class SpellAction(Action):
 
         if not battle:
             return True
+
+        # Casting times of a minute or longer cannot be completed during combat.
+        if resource not in ("action", "bonus_action", "reaction") and battle.ongoing():
+            return False
 
         # If a leveled spell has already been cast this turn, do not allow any
         # further spellcasting that consumes an action/bonus action.

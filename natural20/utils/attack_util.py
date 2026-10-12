@@ -50,7 +50,13 @@ def damage_event(item, battle):
     dmg = item['damage'].result() if isinstance(item['damage'], Rollable) else item['damage']
     dmg += item['sneak_attack'].result() if item.get('sneak_attack') is not None else 0
 
+    if item.get('critical') is not None:
+        critical = bool(item['critical'])
+    else:
+        critical = item['attack_roll'].nat_20() if item.get('attack_roll') else False
+
     session.event_manager.received_event({
+        'critical': critical,
         'source': item['source'],
         'attack_roll': item.get('attack_roll', None),
         'target': item['target'],
@@ -71,7 +77,8 @@ def damage_event(item, battle):
         'value': dmg
     })
 
-    critical = item['attack_roll'].nat_20() if item.get('attack_roll') else False
+    if item.get('grapple_instead') and not dmg:
+        return
 
     item['target'].take_damage(dmg, battle=battle, critical=critical,
                                session=session,

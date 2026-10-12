@@ -51,11 +51,11 @@ class ShockingGraspSpell(AttackSpell):
 
         if hit:
             level = 1
-            if entity.level() >= 5:
+            if entity.cantrip_level() >= 5:
                 level += 1
-            if entity.level() >= 11:
+            if entity.cantrip_level() >= 11:
                 level += 1
-            if entity.level() >= 17:
+            if entity.cantrip_level() >= 17:
                 level += 1
 
             damage_roll = DieRoll.roll(f"{level}d8", crit=attack_roll.nat_20(), battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.shocking_grasp')))

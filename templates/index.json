@@ -154,6 +154,516 @@
       "overrides": {
         "entity_uid": "cleric_l5_73cb41e5"
       }
+    },
+    {
+      "name": "wizard_l5_393a5da7",
+      "display_name": "Wizard L5 393a5da7",
+      "file": "characters/wizard_l5_393a5da7.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_393a5da7.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_393a5da7"
+      }
+    },
+    {
+      "name": "cleric_l5_2c13faf1",
+      "display_name": "Cleric L5 2c13faf1",
+      "file": "characters/cleric_l5_2c13faf1.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_2c13faf1.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_2c13faf1"
+      }
+    },
+    {
+      "name": "wizard_l5_ff262db3",
+      "display_name": "Wizard L5 ff262db3",
+      "file": "characters/wizard_l5_ff262db3.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_ff262db3.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_ff262db3"
+      }
+    },
+    {
+      "name": "cleric_l5_12204517",
+      "display_name": "Cleric L5 12204517",
+      "file": "characters/cleric_l5_12204517.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_12204517.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_12204517"
+      }
+    },
+    {
+      "name": "wizard_l5_e9ff4049",
+      "display_name": "Wizard L5 e9ff4049",
+      "file": "characters/wizard_l5_e9ff4049.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_e9ff4049.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_e9ff4049"
+      }
+    },
+    {
+      "name": "cleric_l5_078b5887",
+      "display_name": "Cleric L5 078b5887",
+      "file": "characters/cleric_l5_078b5887.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_078b5887.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_078b5887"
+      }
+    },
+    {
+      "name": "wizard_l5_6a042dd4",
+      "display_name": "Wizard L5 6a042dd4",
+      "file": "characters/wizard_l5_6a042dd4.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_6a042dd4.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_6a042dd4"
+      }
+    },
+    {
+      "name": "cleric_l5_37886566",
+      "display_name": "Cleric L5 37886566",
+      "file": "characters/cleric_l5_37886566.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_37886566.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_37886566"
+      }
+    },
+    {
+      "name": "wizard_l5_2f96cadd",
+      "display_name": "Wizard L5 2f96cadd",
+      "file": "characters/wizard_l5_2f96cadd.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_2f96cadd.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_2f96cadd"
+      }
+    },
+    {
+      "name": "cleric_l5_36504a44",
+      "display_name": "Cleric L5 36504a44",
+      "file": "characters/cleric_l5_36504a44.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_36504a44.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_36504a44"
+      }
+    },
+    {
+      "name": "wizard_l5_50c0939e",
+      "display_name": "Wizard L5 50c0939e",
+      "file": "characters/wizard_l5_50c0939e.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_50c0939e.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_50c0939e"
+      }
+    },
+    {
+      "name": "cleric_l5_bd3ce0a8",
+      "display_name": "Cleric L5 bd3ce0a8",
+      "file": "characters/cleric_l5_bd3ce0a8.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_bd3ce0a8.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_bd3ce0a8"
+      }
+    },
+    {
+      "name": "wizard_l5_e21b3c1c",
+      "display_name": "Wizard L5 e21b3c1c",
+      "file": "characters/wizard_l5_e21b3c1c.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_e21b3c1c.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_e21b3c1c"
+      }
+    },
+    {
+      "name": "cleric_l5_0a743c77",
+      "display_name": "Cleric L5 0a743c77",
+      "file": "characters/cleric_l5_0a743c77.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_0a743c77.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_0a743c77"
+      }
+    },
+    {
+      "name": "wizard_l5_c566a66a",
+      "display_name": "Wizard L5 c566a66a",
+      "file": "characters/wizard_l5_c566a66a.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_c566a66a.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_c566a66a"
+      }
+    },
+    {
+      "name": "cleric_l5_b6d8f067",
+      "display_name": "Cleric L5 b6d8f067",
+      "file": "characters/cleric_l5_b6d8f067.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_b6d8f067.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_b6d8f067"
+      }
+    },
+    {
+      "name": "wizard_l5_81b2e157",
+      "display_name": "Wizard L5 81b2e157",
+      "file": "characters/wizard_l5_81b2e157.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_81b2e157.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_81b2e157"
+      }
+    },
+    {
+      "name": "wizard_l5_2a205d7b",
+      "display_name": "Wizard L5 2a205d7b",
+      "file": "characters/wizard_l5_2a205d7b.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_2a205d7b.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_2a205d7b"
+      }
+    },
+    {
+      "name": "cleric_l5_d667ef05",
+      "display_name": "Cleric L5 d667ef05",
+      "file": "characters/cleric_l5_d667ef05.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_d667ef05.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_d667ef05"
+      }
+    },
+    {
+      "name": "wizard_l5_64883c09",
+      "display_name": "Wizard L5 64883c09",
+      "file": "characters/wizard_l5_64883c09.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_64883c09.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_64883c09"
+      }
+    },
+    {
+      "name": "cleric_l5_c2d352e5",
+      "display_name": "Cleric L5 c2d352e5",
+      "file": "characters/cleric_l5_c2d352e5.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_c2d352e5.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_c2d352e5"
+      }
+    },
+    {
+      "name": "wizard_l5_2dbb3f64",
+      "display_name": "Wizard L5 2dbb3f64",
+      "file": "characters/wizard_l5_2dbb3f64.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_2dbb3f64.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_2dbb3f64"
+      }
+    },
+    {
+      "name": "cleric_l5_72ef541c",
+      "display_name": "Cleric L5 72ef541c",
+      "file": "characters/cleric_l5_72ef541c.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_72ef541c.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_72ef541c"
+      }
+    },
+    {
+      "name": "wizard_l5_19f4d679",
+      "display_name": "Wizard L5 19f4d679",
+      "file": "characters/wizard_l5_19f4d679.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_19f4d679.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_19f4d679"
+      }
+    },
+    {
+      "name": "cleric_l5_464d5e8c",
+      "display_name": "Cleric L5 464d5e8c",
+      "file": "characters/cleric_l5_464d5e8c.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_464d5e8c.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_464d5e8c"
+      }
+    },
+    {
+      "name": "wizard_l5_0aef0ad9",
+      "display_name": "Wizard L5 0aef0ad9",
+      "file": "characters/wizard_l5_0aef0ad9.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_0aef0ad9.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_0aef0ad9"
+      }
+    },
+    {
+      "name": "cleric_l5_c2b3c0d3",
+      "display_name": "Cleric L5 c2b3c0d3",
+      "file": "characters/cleric_l5_c2b3c0d3.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_c2b3c0d3.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_c2b3c0d3"
+      }
+    },
+    {
+      "name": "wizard_l5_5ceab00e",
+      "display_name": "Wizard L5 5ceab00e",
+      "file": "characters/wizard_l5_5ceab00e.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_5ceab00e.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_5ceab00e"
+      }
+    },
+    {
+      "name": "cleric_l5_59d820a2",
+      "display_name": "Cleric L5 59d820a2",
+      "file": "characters/cleric_l5_59d820a2.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_59d820a2.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_59d820a2"
+      }
+    },
+    {
+      "name": "wizard_l5_e7b55638",
+      "display_name": "Wizard L5 e7b55638",
+      "file": "characters/wizard_l5_e7b55638.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_e7b55638.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_e7b55638"
+      }
+    },
+    {
+      "name": "cleric_l5_09ea4a8c",
+      "display_name": "Cleric L5 09ea4a8c",
+      "file": "characters/cleric_l5_09ea4a8c.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_09ea4a8c.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_09ea4a8c"
+      }
+    },
+    {
+      "name": "wizard_l5_eb1172cd",
+      "display_name": "Wizard L5 eb1172cd",
+      "file": "characters/wizard_l5_eb1172cd.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_eb1172cd.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_eb1172cd"
+      }
+    },
+    {
+      "name": "cleric_l5_f5de1205",
+      "display_name": "Cleric L5 f5de1205",
+      "file": "characters/cleric_l5_f5de1205.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_f5de1205.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_f5de1205"
+      }
+    },
+    {
+      "name": "wizard_l5_6c92e547",
+      "display_name": "Wizard L5 6c92e547",
+      "file": "characters/wizard_l5_6c92e547.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_6c92e547.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_6c92e547"
+      }
+    },
+    {
+      "name": "cleric_l5_8d751b8e",
+      "display_name": "Cleric L5 8d751b8e",
+      "file": "characters/cleric_l5_8d751b8e.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_8d751b8e.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_8d751b8e"
+      }
+    },
+    {
+      "name": "wizard_l5_45aebc39",
+      "display_name": "Wizard L5 45aebc39",
+      "file": "characters/wizard_l5_45aebc39.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_45aebc39.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_45aebc39"
+      }
+    },
+    {
+      "name": "cleric_l5_82835017",
+      "display_name": "Cleric L5 82835017",
+      "file": "characters/cleric_l5_82835017.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_82835017.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_82835017"
+      }
+    },
+    {
+      "name": "wizard_l5_217a1403",
+      "display_name": "Wizard L5 217a1403",
+      "file": "characters/wizard_l5_217a1403.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_217a1403.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_217a1403"
+      }
+    },
+    {
+      "name": "cleric_l5_06f7c626",
+      "display_name": "Cleric L5 06f7c626",
+      "file": "characters/cleric_l5_06f7c626.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_06f7c626.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_06f7c626"
+      }
+    },
+    {
+      "name": "wizard_l5_a5ce7a03",
+      "display_name": "Wizard L5 a5ce7a03",
+      "file": "characters/wizard_l5_a5ce7a03.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_a5ce7a03.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_a5ce7a03"
+      }
+    },
+    {
+      "name": "cleric_l5_f40a1cd1",
+      "display_name": "Cleric L5 f40a1cd1",
+      "file": "characters/cleric_l5_f40a1cd1.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_f40a1cd1.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_f40a1cd1"
+      }
+    },
+    {
+      "name": "wizard_l5_0ead95f8",
+      "display_name": "Wizard L5 0ead95f8",
+      "file": "characters/wizard_l5_0ead95f8.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_0ead95f8.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_0ead95f8"
+      }
+    },
+    {
+      "name": "cleric_l5_abc23c9a",
+      "display_name": "Cleric L5 abc23c9a",
+      "file": "characters/cleric_l5_abc23c9a.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_abc23c9a.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_abc23c9a"
+      }
+    },
+    {
+      "name": "wizard_l5_8472dfe2",
+      "display_name": "Wizard L5 8472dfe2",
+      "file": "characters/wizard_l5_8472dfe2.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_8472dfe2.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_8472dfe2"
+      }
+    },
+    {
+      "name": "cleric_l5_ff3f22db",
+      "display_name": "Cleric L5 ff3f22db",
+      "file": "characters/cleric_l5_ff3f22db.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_ff3f22db.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_ff3f22db"
+      }
+    },
+    {
+      "name": "wizard_l5_a5a2db6a",
+      "display_name": "Wizard L5 a5a2db6a",
+      "file": "characters/wizard_l5_a5a2db6a.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_a5a2db6a.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_a5a2db6a"
+      }
+    },
+    {
+      "name": "cleric_l5_6245a8a7",
+      "display_name": "Cleric L5 6245a8a7",
+      "file": "characters/cleric_l5_6245a8a7.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_6245a8a7.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_6245a8a7"
+      }
+    },
+    {
+      "name": "wizard_l5_96709d44",
+      "display_name": "Wizard L5 96709d44",
+      "file": "characters/wizard_l5_96709d44.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_96709d44.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_96709d44"
+      }
+    },
+    {
+      "name": "cleric_l5_d62da5fb",
+      "display_name": "Cleric L5 d62da5fb",
+      "file": "characters/cleric_l5_d62da5fb.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_d62da5fb.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_d62da5fb"
+      }
+    },
+    {
+      "name": "wizard_l5_6af002fd",
+      "display_name": "Wizard L5 6af002fd",
+      "file": "characters/wizard_l5_6af002fd.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_6af002fd.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_6af002fd"
+      }
+    },
+    {
+      "name": "cleric_l5_4ac8479b",
+      "display_name": "Cleric L5 4ac8479b",
+      "file": "characters/cleric_l5_4ac8479b.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_4ac8479b.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_4ac8479b"
+      }
     }
   ],
   "logins": [

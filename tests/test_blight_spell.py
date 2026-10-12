@@ -113,6 +113,16 @@ class BlightSpellTestCase(unittest.TestCase):
             spell._damage(self.battle, spell_action=action)
             self.assertEqual(mock_roll.call_args.args[0], '9d8')
 
+    def test_npc_caster_uses_yaml_spell_ability(self):
+        from natural20.spell.hold_person_spell import HoldPersonSpell
+        npc = self.session.npc('goblin', {'name': 'Hexer'})
+        npc.properties['spell_ability'] = 'intelligence'
+        self.assertIsInstance(npc.c_class(), str)
+        self.assertEqual(HoldPersonSpell._caster_spell_ability(npc), 'intelligence')
+
+        del npc.properties['spell_ability']
+        self.assertEqual(HoldPersonSpell._caster_spell_ability(npc), 'wisdom')
+
 
 if __name__ == '__main__':
     unittest.main()

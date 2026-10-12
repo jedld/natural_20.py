@@ -26,6 +26,7 @@ class AttackAction(Action):
         self.as_bonus_action = False
         self.hit_result = None
         self.knock_unconscious = False
+        self.grapple_instead = False
 
     def second_hand(self):
         return False
@@ -33,7 +34,8 @@ class AttackAction(Action):
     def to_dict(self):
         return {
             'action_type': self.action_type,
-            'target': self.target.entity_uid if self.target else None,
+            'source': getattr(self.source, 'entity_uid', self.source),
+            'target': getattr(self.target, 'entity_uid', self.target) if self.target else None,
             'using': self.using,
             'npc_action': (
                 self.npc_action.to_dict() 
@@ -44,17 +46,23 @@ class AttackAction(Action):
             'thrown': self.thrown,
             'second_hand': self.second_hand(),
             'knock_unconscious': bool(self.knock_unconscious),
+            'legendary_action': bool(self.legendary_action),
+            'grapple_instead': bool(self.grapple_instead),
         }
 
     @staticmethod
     def from_dict(hash):
-        action = AttackAction(hash['source'], hash['action_type'], hash['opts'])
-        action.target = hash['target']
-        action.using = hash['using']
-        action.npc_action = hash['npc_action']
-        action.as_reaction = hash['as_reaction']
-        action.thrown = hash['thrown']
+        # ``source``/``session`` are absent from older saves; they are relinked
+        # after load by ``relink_battle_log``.
+        action = AttackAction(hash.get('session'), hash.get('source'), hash['action_type'], hash.get('opts'))
+        action.target = hash.get('target')
+        action.using = hash.get('using')
+        action.npc_action = hash.get('npc_action')
+        action.as_reaction = hash.get('as_reaction')
+        action.thrown = hash.get('thrown')
         action.knock_unconscious = bool(hash.get('knock_unconscious'))
+        action.legendary_action = bool(hash.get('legendary_action'))
+        action.grapple_instead = bool(hash.get('grapple_instead'))
         return action
 
     @staticmethod
@@ -72,7 +80,9 @@ class AttackAction(Action):
             return entity.total_reactions(battle) > 0
 
         if battle and options.get('legendary_action'):
-            return entity.total_legendary_actions(battle) > 0
+            from natural20.utils.legendary_actions import legendary_action_cost
+            cost = legendary_action_cost(options.get('npc_action'))
+            return (entity.total_legendary_actions(battle) or 0) >= cost
 
         if battle is None:
             return True
@@ -102,6 +112,8 @@ class AttackAction(Action):
         action.as_reaction = self.as_reaction
         action.thrown = self.thrown
         action.knock_unconscious = bool(self.knock_unconscious)
+        action.grapple_instead = bool(self.grapple_instead)
+        action.legendary_action = bool(self.legendary_action)
         action.advantage_mod = self.advantage_mod
         action.attack_roll = self.attack_roll
         return action
@@ -123,7 +135,10 @@ class AttackAction(Action):
 
     def label(self):
         if self.npc_action:
-            return self.t('action.npc_action', name=str(self.action_type), action_name=self.npc_action['name'])
+            label = self.t('action.npc_action', name=str(self.action_type), action_name=self.npc_action['name'])
+            if self.grapple_instead:
+                label = f"{label} (grapple)"
+            return label
         else:
             weapon = self.session.load_weapon(self.opts.get('using') or self.using)
             attack_mod = self.source.attack_roll_mod(weapon)
@@ -203,6 +218,17 @@ class AttackAction(Action):
     def unarmed(self):
         weapon = self.get_attack_info(self.opts)
         return 'unarmed' in weapon.get('properties', [])
+
+    def validate(self, battle_map=None, target=None, battle=None):
+        super().validate(battle_map, target=target, battle=battle)
+        target = target if target is not None else self.target
+        if target is None or not hasattr(target, 'entity_uid'):
+            return
+        from natural20.utils.monster_traits import attack_target_issue
+        npc_action = self.npc_action if isinstance(self.npc_action, dict) else None
+        issue_key = attack_target_issue(self.source, target, npc_action)
+        if issue_key:
+            self.add_validation_issue(issue_key)
 
     def build_map(self):
         def set_weapon(weapon):
@@ -327,9 +353,11 @@ class AttackAction(Action):
             })
         elif item['type'] == 'effect':
             if item['effect'] == 'life_drain':
-                effect = LifeDrainEffect(battle, item['source'], item['context']['damage'].result())
-                item['source'].register_effect('hit_point_max_override', effect, effect=effect)
-                item['source'].register_event_hook('long_rest', effect)
+                from natural20.utils.monster_traits import reduce_max_hp
+                drained = (item['context'].get('info') or {}).get('_applied_damage')
+                if drained is None:
+                    drained = item['context']['damage'].result()
+                reduce_max_hp(item['source'], drained, battle)
             elif item['effect'] == 'engulf':
                 if not item['context'].get('source').has_casted_effect('engulf'):
                     if not item['source'].immune_to_condition('grappled'):
@@ -349,7 +377,8 @@ class AttackAction(Action):
             if item['target'].passive():
                 item['target'].is_passive = False
 
-            damage_event(item, battle)
+            if not (isinstance(item.get('npc_action'), dict) and item['npc_action'].get('no_damage')):
+                damage_event(item, battle)
             if item.get('maneuver') in ['disarming_attack', 'riposte']:
                 item['source'].consume_resource('superiority_dice')
             if (
@@ -388,6 +417,60 @@ class AttackAction(Action):
                     'target': target,
                     'item': disarmed_item,
                 })
+        elif item['type'] == 'additional_damage':
+            __class__._apply_additional_damage(battle, item, session)
+        elif item['type'] == 'grapple_on_hit':
+            target, source = item['target'], item['source']
+            if not target.dead() and not target.immune_to_condition('grappled'):
+                target.do_grappled_by(source)
+                if item.get('escape_dc'):
+                    target.attributes.setdefault('grapple_escape_dcs', {})[source.entity_uid] = int(item['escape_dc'])
+                session.event_manager.received_event({
+                    'event': 'grappled_on_hit',
+                    'source': source,
+                    'target': target,
+                    'escape_dc': item.get('escape_dc') or '-',
+                    'damage_type': item.get('damage_type') or 'weapon',
+                })
+        elif item['type'] == 'charmed':
+            from natural20.utils.monster_traits import apply_charm
+            context = item.get('context') or {}
+            apply_charm(
+                item['source'], context.get('source'),
+                save_dc=context.get('save_dc'),
+                duration=context.get('duration'),
+                repeat_save_when_harmed=context.get('repeat_save_when_harmed', True),
+            )
+
+    @staticmethod
+    def _apply_additional_damage(battle, item, session):
+        target, source = item['target'], item['source']
+        if target.dead():
+            return
+        amount = item['damage'].result() if hasattr(item['damage'], 'result') else int(item['damage'] or 0)
+        session.event_manager.received_event({
+            'event': 'additional_damage',
+            'source': source,
+            'target': target,
+            'value': amount,
+            'damage_type': item['damage_type'],
+            'attack_name': item.get('attack_name'),
+        })
+        target.take_damage(amount, battle=battle, damage_type=item['damage_type'],
+                           session=session, roll_info=item['damage'], item=item,
+                           critical=bool(item.get('critical')))
+        drained = int(item.get('_applied_damage', amount) or 0)
+        if item.get('life_drain') and drained > 0 and not target.object():
+            from natural20.utils.monster_traits import reduce_max_hp
+            session.event_manager.received_event({
+                'event': 'life_drain',
+                'source': source,
+                'target': target,
+                'value': drained,
+            })
+            reduce_max_hp(target, drained, battle)
+            if not source.dead():
+                source.heal(drained)
 
     def consume_resource(battle, item):
         if item.get('source'):
@@ -428,7 +511,9 @@ class AttackAction(Action):
             elif item.get('as_bonus_action'):
                 battle.consume(item['source'], 'bonus_action')
             elif item.get('as_legendary_action'):
-                battle.consume(item['source'], 'legendary_actions')
+                from natural20.utils.legendary_actions import legendary_action_cost
+                battle.consume(item['source'], 'legendary_actions',
+                               legendary_action_cost(item.get('npc_action')))
             elif item.get('second_hand'):
                 battle.consume(item['source'], 'bonus_action')
             else:
@@ -484,6 +569,18 @@ class AttackAction(Action):
 
             state = battle.entity_state_for(item['source'])
             if state:
+                if (
+                    state.get('multiattack_combos')
+                    and isinstance(item.get('npc_action'), dict)
+                    and item['npc_action'].get('multiattack_group')
+                    and not item.get('as_reaction')
+                    and not item.get('as_bonus_action')
+                    and not item.get('as_legendary_action')
+                ):
+                    from natural20.utils.multiattack import narrow_multiattack_groups
+                    narrow_multiattack_groups(state, item['attack_name'])
+                    if not any(state.get('multiattack', {}).values()):
+                        item['source'].clear_multiattack(battle)
                 for attacks in state.get('multiattack', {}).values():
                     if item['attack_name'] in attacks:
                         attacks.remove(item['attack_name'])
@@ -520,13 +617,85 @@ class AttackAction(Action):
     def avg_damage(self, battle, opts=None):
         if opts is None:
             opts = {}
-        _, _, _, damage_roll, _ = self.get_weapon_info(opts)
-        return DieRoll.roll(damage_roll).expected()
+        weapon, _, _, damage_roll, _ = self.get_weapon_info(opts)
+        from natural20.utils.monster_traits import additional_damage_entries, average_roll
+        total = 0.0
+        if damage_roll and not self.grapple_instead:
+            total += DieRoll.roll(damage_roll).expected()
+        for entry in additional_damage_entries(weapon):
+            total += average_roll(entry['damage_die'])
+        return total
+
+    def ai_value(self, battle):
+        """Expected value of this attack for heuristic controllers.
+
+        Adds to plain hit-chance x damage: life-drain healing when hurt, the
+        follow-up attack a grapple enables (e.g. a bite that needs a grappled
+        target), and save-or-condition riders such as Charm.
+        """
+        from natural20.utils.monster_traits import (
+            additional_damage_entries, attack_target_issue, average_roll, is_charmed_by,
+        )
+        hit_chance = self.compute_hit_probability(battle)
+        value = hit_chance * self.avg_damage(battle)
+        weapon = self.get_attack_info(self.opts) if (self.npc_action or self.using) else None
+        if not isinstance(weapon, dict):
+            return value
+        target = self.target
+        source = self.source
+        if source.hp() < source.max_hp():
+            drain = sum(average_roll(e['damage_die']) for e in additional_damage_entries(weapon) if e.get('life_drain'))
+            value += hit_chance * min(drain, source.max_hp() - source.hp()) * 0.5
+        if self.grapple_instead and target is not None and source not in (getattr(target, 'grapples', None) or []):
+            state = battle.entity_state_for(source) if battle else None
+            allowed = set()
+            for names in ((state or {}).get('multiattack') or {}).values():
+                allowed.update(names)
+            for follow_up in getattr(source, 'npc_actions', None) or []:
+                if follow_up is weapon or not follow_up.get('target_if'):
+                    continue
+                if allowed and follow_up['name'] not in allowed:
+                    continue
+                conditions = follow_up['target_if']
+                if isinstance(conditions, str):
+                    conditions = conditions.replace('|', ',').split(',')
+                if 'grappled_by_source' not in [str(c).strip() for c in conditions]:
+                    continue
+                if attack_target_issue(source, target, follow_up) is None:
+                    continue
+                follow = DieRoll.roll(follow_up['damage_die']).expected() if follow_up.get('damage_die') else 0
+                follow += sum(average_roll(e['damage_die']) for e in additional_damage_entries(follow_up))
+                value += hit_chance * follow
+                break
+        for effect in weapon.get('on_hit') or []:
+            outcome = str(effect.get('fail') or '')
+            if not outcome.startswith('status:') or target is None:
+                continue
+            condition = outcome.split(':', 1)[1]
+            if target.immune_to_condition(condition):
+                continue
+            if condition == 'charmed' and is_charmed_by(target, source):
+                continue
+            if condition in getattr(target, 'statuses', []):
+                continue
+            fail_chance = 1.0
+            if effect.get('save_dc'):
+                save_type, _, dc = str(effect['save_dc']).partition(':')
+                try:
+                    mod = int(target.saving_throw_mod(save_type) or 0)
+                    sign = '+' if mod >= 0 else ''
+                    fail_chance = 1.0 - DieRoll.roll(f"1d20{sign}{mod}").prob(int(dc))
+                except Exception:
+                    fail_chance = 0.5
+            weight = float(effect.get('ai_value', weapon.get('ai_value', 8)) or 0)
+            value += hit_chance * fail_chance * weight
+        return value
 
     def resolve(self, session, map, opts=None):
         if opts is None:
             opts = {}
         self.result.clear()
+        self.forced_miss = False
         battle = opts.get('battle')
         target = opts.get('target') or self.target
         if target is None:
@@ -613,11 +782,46 @@ class AttackAction(Action):
 
             target_ac, _cover_ac = effective_ac(battle, self.source, target)
 
-            _, events = after_attack_roll_hook(battle, target, self.source, self.attack_roll, target_ac, {'original_action': self })
+            force_miss, events = after_attack_roll_hook(battle, target, self.source, self.attack_roll, target_ac, {'original_action': self })
+            self.forced_miss = bool(force_miss)
             for event in events:
                 self.result.append(event)
 
         return self._resolve_hit(battle, target, weapon, self.attack_roll, damage_roll, attack_name, ammo_type, adv_info)
+
+    def _on_hit_riders(self, battle, target, weapon, attack_name, crit):
+        """``additional_damage`` and ``grapple_instead`` results for an NPC attack hit."""
+        from natural20.utils.monster_traits import additional_damage_entries, grapple_instead_config
+        results = []
+        # Riders are part of the same hit: they share its death-save failure
+        # and massive-damage accounting (see Entity.take_damage).
+        hit_state = self.hit_result.setdefault('_hit_state', {}) if isinstance(self.hit_result, dict) else {}
+        grapple = grapple_instead_config(weapon) if self.grapple_instead else None
+        if grapple is not None:
+            results.append({
+                'type': 'grapple_on_hit',
+                'source': self.source,
+                'target': target,
+                'battle': battle,
+                'escape_dc': grapple.get('escape_dc'),
+                'damage_type': weapon.get('damage_type'),
+            })
+        for entry in additional_damage_entries(weapon):
+            results.append({
+                'type': 'additional_damage',
+                'source': self.source,
+                'target': target,
+                'battle': battle,
+                'attack_name': attack_name,
+                'damage_type': entry.get('damage_type', 'necrotic'),
+                'damage': DieRoll.roll(str(entry['damage_die']), crit=crit,
+                                       description='dice_roll.additional_damage',
+                                       entity=self.source, battle=battle),
+                'life_drain': bool(entry.get('life_drain')),
+                'critical': crit,
+                '_hit_state': hit_state,
+            })
+        return results
 
     def _resolve_hit(self, battle, target, weapon, attack_roll, damage_roll, attack_name, ammo_type, adv_info):
         sneak_attack_roll = None
@@ -631,7 +835,8 @@ class AttackAction(Action):
             if nat is not None and nat >= 19:
                 crit = True
         if (not crit and attack_roll is not None
-                and getattr(target, 'paralyzed', lambda: False)()
+                and (getattr(target, 'paralyzed', lambda: False)()
+                     or getattr(target, 'unconscious', lambda: False)())
                 and weapon.get('type') == 'melee_attack' and battle is not None):
             attack_map = battle.map_for(self.source)
             if attack_map is not None and attack_map.distance(self.source, target) * attack_map.feet_per_grid <= 5:
@@ -742,6 +947,9 @@ class AttackAction(Action):
             maneuver = getattr(self, 'maneuver', None)
             superiority_roll = None
 
+        if self.grapple_instead and isinstance(weapon, dict) and weapon.get('grapple_instead'):
+            damage = DieRoll.roll("0")
+
         cover_ac_adjustments = 0
 
         if attack_roll:
@@ -756,7 +964,7 @@ class AttackAction(Action):
                     self.attack_roll, self.source, target_ac, 'ge', battle=battle,
                 )
                 attack_roll = self.attack_roll
-                hit = attack_roll.result() >= target_ac
+                hit = attack_roll.result() >= target_ac and not getattr(self, 'forced_miss', False)
                 if hit:
                     try:
                         from natural20.spell.mirror_image_spell import MirrorImageSpell
@@ -794,6 +1002,7 @@ class AttackAction(Action):
                     'cover_ac': cover_ac_adjustments,
                     'adv_info': adv_info,
                     'hit?': hit,
+                    'critical': crit,
                     'damage_type': weapon.get('damage_type', None),
                     'damage': damage,
                     'ammo': ammo_type,
@@ -806,6 +1015,8 @@ class AttackAction(Action):
                     'multiattack_hits': True,
                     'knock_unconscious': bool(self.knock_unconscious) and self.can_knock_unconscious(),
                 }
+                if self.grapple_instead and isinstance(weapon, dict) and weapon.get('grapple_instead'):
+                    self.hit_result['grapple_instead'] = True
                 if maneuver:
                     self.hit_result['maneuver'] = maneuver
                     self.hit_result['superiority_die_roll'] = superiority_roll
@@ -823,6 +1034,7 @@ class AttackAction(Action):
                     self.result.append(results)
 
             self.result.append(self.hit_result)
+            self.result.extend(self._on_hit_riders(battle, target, weapon, attack_name, crit))
 
             try:
                 from natural20.weapon_mastery import resolve_mastery_on_hit
@@ -834,7 +1046,7 @@ class AttackAction(Action):
 
             if maneuver == 'disarming_attack' and target is not None:
                 dc = self.source.maneuver_save_dc()
-                save_roll = target.save_throw('strength', battle=battle)
+                save_roll = target.save_throw('strength', battle=battle, opts={'dc': dc})
                 if save_roll.result() >= dc:
                     self.result.append({
                         'type': 'save_success',
@@ -886,7 +1098,7 @@ class AttackAction(Action):
                             'description': description
                         })
 
-                        save_roll = target.save_throw(save_type, battle=battle)
+                        save_roll = target.save_throw(save_type, battle=battle, opts={'dc': int(dc)})
                         if save_roll.result() >= int(dc):
                             self.result.append({
                                 'type': 'save_success',
@@ -914,7 +1126,10 @@ class AttackAction(Action):
                                                                     "target": target,
                                                                     "damage": damage,
                                                                     "source": self.source,
-                                                                    "flavor": effect['flavor_fail'],
+                                                                    "flavor": effect.get('flavor_fail'),
+                                                                    "save_dc": effect['save_dc'],
+                                                                    "duration": effect.get('duration'),
+                                                                    "repeat_save_when_harmed": effect.get('repeat_save_when_harmed', True),
                                                                     "info" : self.hit_result}))
                     else:
                         self.result.append(target.apply_effect(effect['fail'], {
@@ -922,7 +1137,8 @@ class AttackAction(Action):
                                                                     "target": target,
                                                                     "damage": damage,
                                                                     "source": self.source,
-                                                                    "flavor": effect['flavor_fail'],
+                                                                    "flavor": effect.get('flavor_fail'),
+                                                                    "duration": effect.get('duration'),
                                                                     "info" : self.hit_result}))
         else:
             self.result.append({
@@ -1083,7 +1299,7 @@ class AttackAction(Action):
         return damage_roll
     
     def to_h(self):
-        return {
+        payload = {
             "action_type": self.action_type,
             "target": self.target.entity_uid if self.target else None,
             "using": self.using,
@@ -1092,6 +1308,9 @@ class AttackAction(Action):
             "thrown": self.thrown,
             "second_hand": self.second_hand()
         }
+        if self.grapple_instead:
+            payload["grapple_instead"] = True
+        return payload
 
 
 class TwoWeaponAttackAction(AttackAction):

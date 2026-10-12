@@ -96,7 +96,7 @@ class StinkingCloudZone(PersistentAoEZone):
         if self._auto_succeeds_save(entity):
             return
 
-        roll = entity.save_throw('constitution', self.battle, {'is_magical': True})
+        roll = entity.save_throw('constitution', self.battle, {'is_magical': True, 'dc': self.dc})
         success = roll.result() >= self.dc
         lost_action = False
 

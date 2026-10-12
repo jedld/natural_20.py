@@ -370,6 +370,13 @@ class JevActionPlanner:
                 f"pos {pos}; movement {entity.available_movement(battle)} ft; speed {entity.speed()} ft"
             )
             try:
+                from natural20.utils.grappling import grapple_status_text
+                grapple_txt = grapple_status_text(entity)
+                if grapple_txt:
+                    lines.append(grapple_txt)
+            except Exception:
+                pass
+            try:
                 # Merge the per-turn battle-state markers (dodge/disengage) with
                 # the entity's own standing conditions (poisoned, prone,
                 # grappled, hidden, unconscious, ...) - those live on
@@ -627,6 +634,9 @@ class JevActionPlanner:
                 continue
             for a in built:
                 add(a)
+        from natural20.actions.summon_creatures_action import SummonCreaturesAction
+        for a in SummonCreaturesAction.options_for(session, self._entity, self._battle):
+            add(a)
         return self._with_pass(self._cap_leaves(leaves))
 
     def _with_pass(self, leaves: List[Tuple[str, Any, str]]) -> List[Tuple[str, Any, str]]:
@@ -721,6 +731,8 @@ class JevActionPlanner:
                     for e in battle.opponents_of(entity)
                 )
             if isinstance(action, SpellAction):
+                if getattr(action, 'spell_action', None) is None:
+                    return False
                 if getattr(action, 'target', None) is not None:
                     return True
                 if battle.valid_targets_for(entity, action):
@@ -1337,6 +1349,11 @@ def _leaf_desc(action, names=None) -> str:
             p = getattr(action, 'move_path', None)
             end = p[-1] if p else None
             return f"move to {tuple(end) if end else '?'}"
+        if getattr(action, 'action_type', None) == 'drop_grapple':
+            t = getattr(action, 'target', None)
+            return f"release grapple on {_target_name(t, names) if t is not None else 'all held creatures'} (free, restores full speed)"
+        if getattr(action, 'action_type', None) in ('summon_creatures', 'dismiss_summons'):
+            return action.describe()
         ti = getattr(action, 'target_item', None)
         if ti is not None:
             iname = getattr(ti, 'name', None) or 'item'

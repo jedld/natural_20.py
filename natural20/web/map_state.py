@@ -297,6 +297,13 @@ def entities_from_tiles(tiles: Iterable[dict], battle_map=None) -> list[dict]:
             'is_npc': bool(tile.get('is_npc')),
             'line_of_sight': bool(tile.get('line_of_sight', True)),
         }
+        if tile.get('grappled_by') or tile.get('grappling') or tile.get('grappled'):
+            entry['grappled'] = bool(tile.get('grappled'))
+            entry['grappled_by'] = [ref['id'] for ref in tile.get('grappled_by') or []]
+            entry['grappling'] = [ref['id'] for ref in tile.get('grappling') or []]
+            entry['grapple_tooltip'] = tile.get('grapple_tooltip') or ''
+        if isinstance(tile.get('death_saves'), dict):
+            entry['death_saves'] = dict(tile['death_saves'])
         light = visual_light_from_entity(_lookup_map_entity(battle_map, uid)) if battle_map is not None else None
         if light is None:
             light = tile.get('light') if isinstance(tile.get('light'), dict) else None

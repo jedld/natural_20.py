@@ -989,10 +989,14 @@ Spellcasters add `spell_ability` (or `spellcasting_ability`), `spell_slots`,
 and `prepared_spells`. The NPC stat block then shows the Monster Manual line
 `Its spellcasting ability is Wisdom (spell save DC 13, +5 to hit with spell attacks)`
 using 8 + proficiency bonus + ability modifier. Optional `spell_save_dc` and
-`spell_attack_bonus` override the computed values.
+`spell_attack_bonus` override the computed values. Set `spellcaster_level`
+(alias `caster_level`) to the stat block's "Nth-level spellcaster": cantrip
+damage scales from it (5th/11th/17th), not from CR. Without it, cantrips scale
+from `cr`, so a CR 15 vampire wizard would roll 3d8 Ray of Frost instead of 2d8.
 
 ```yaml
 spell_ability: wisdom
+spellcaster_level: 3
 spell_slots:
   '1': 2
 prepared_spells:
@@ -1059,6 +1063,196 @@ actions:
         fail: status:paralyzed
 ```
 
+#### Legendary Actions
+
+Legendary creatures list their options under `legendary_actions`. The pool
+(`legendary_action_count`, default 3) is full when the creature joins a battle
+and refills at the start of its turn. At the end of every *other* creature's
+turn the battle offers it one option (`Battle.eval_legendary_action`).
+
+```yaml
+legendary_action_count: 3          # optional, defaults to 3
+legendary_actions:
+  - name: move
+    type: move                     # moves up to its speed
+    description: Moves up to its speed without provoking opportunity attacks.
+    # provokes_opportunity_attacks: true   # opt in for creatures whose move does provoke
+  - name: claw                     # attack options use the same shape as `actions`
+    type: melee_attack
+    range: 5
+    attack: 9
+    damage_die: 1d8+4
+    damage_type: slashing
+  - name: bite
+    type: melee_attack
+    cost: 2                        # "Costs 2 Actions"; default 1
+    if: state:grappling
+    range: 5
+    attack: 9
+    damage_die: 1d6+4
+    damage_type: piercing
+```
+
+How the AI uses them (`GenericController.legendary_action_listener`, shared by
+the heuristic, LLM and JEV controllers so there's no extra model call per turn):
+
+- It attacks the best enemy in reach (not only the creature whose turn just
+  ended), scoring expected damage per legendary action spent. Options that
+  cost more than the remaining pool are not offered.
+- If no attack is possible and the creature has a melee legendary attack, a
+  `type: move` option walks it (full speed, paid from the pool, movement left
+  untouched) to the closest square within reach of a visible enemy. It won't
+  approach when below 25% HP.
+- The LLM turn prompt's `Resources` line shows `legendary=N/M [...]` so the
+  turn planner knows the pool exists.
+
+The VTT stat block shows `(Costs N Actions)` after options with `cost > 1`, and
+the combat log prefixes these actions with `[legendary action]`.
+
+**Manually controlled legendary creatures (VTT "manual" controller).** A
+`WebController` does not auto-pick; its `legendary_action_listener` queues the
+creature on `Battle.pending_legendary_phases`, and the webapp opens a
+*legendary action phase* (`Battle.legendary_phase` = the creature's UID) right
+after the turn ends instead of advancing initiative:
+
+- The turn panel shows a gold "Legendary Action" banner with the remaining pool
+  and an **End Legendary Action** button (other users see "X is taking a
+  legendary action…"); the initiative row is outlined in gold.
+- The creature's action bar only lists its legendary attacks (with an `L<cost>`
+  badge) and, if it has a `type: move` option, a Move that may use its full
+  speed (paid from the pool, no opportunity attacks unless
+  `provokes_opportunity_attacks: true`). Spells and items are hidden.
+- Performing one legendary action ends the window automatically (one option per
+  window, per the SRD); the next queued legendary creature gets its window, or
+  the battle moves to the next turn. **End Legendary Action** skips it.
+- The phase is saved with the battle, so a save made mid-phase resumes there.
+
+#### Monster traits and advanced NPC attacks (vampires, dragons, …)
+
+SRD stat-block traits are plain YAML keys on the NPC; the engine implements them
+generically in `natural20/utils/monster_traits.py` (no creature names in code).
+All state lives in `entity.attributes`, so it is saved/loaded with the game.
+
+```yaml
+legendary_resistance: 3            # N/day; listing `legendary_resistance` under
+                                   # `attributes` also works (= 3). Resets on long rest.
+regeneration:
+  hp: 20                           # regained at the start of its turn (needs >= 1 HP)
+  suppressed_by: [radiant, holy_water]   # damage types/attack names that stop it next turn
+  blocked_by: [sunlight, running_water]
+misty_escape:                      # 0 HP -> mist form instead of dying/unconscious
+  blocked_by: [sunlight, running_water]  # destroyed instead
+  coffin: {map: crypt, position: [4, 7]} # optional resting place (omit = reaches it off-map)
+  recovery_seconds: 3600           # paralyzed in the coffin, then regains 1 HP
+multiattack:                       # 2+ comma lists = allowed combinations
+  - claws,claws2                   # "two attacks, only one of which can be a bite"
+  - claws,bite
+actions:
+  - name: claws
+    type: melee_attack
+    attack: 9
+    damage_die: 1d8+4
+    damage_type: slashing
+    multiattack_group: 1
+    additional_damage:             # rider damage on hit (crit doubles its dice)
+      - damage_die: 4d6
+        damage_type: necrotic
+    grapple_instead:               # offers a "(grapple)" variant: no primary damage,
+      escape_dc: 18                # target grappled with a fixed escape DC
+  - name: bite
+    type: melee_attack
+    multiattack_group: 1
+    damage_die: 1d6+4
+    damage_type: piercing
+    target_if: [willing, grappled_by_source, incapacitated, restrained]   # any-of
+    additional_damage:
+      - damage_die: 3d6
+        damage_type: necrotic
+        life_drain: true           # target HP max -= damage taken, attacker heals it;
+                                   # max 0 kills. Cleared on the target's long rest.
+  - name: charm
+    type: ranged_attack
+    range: 30
+    force_hit: true
+    no_damage: true                # skip the 0-damage attack log line
+    target_creature_types: [humanoid]   # PCs count as humanoid
+    on_hit:
+      - save_dc: wisdom:17
+        fail: status:charmed       # source-linked charm (see below)
+        duration: 86400
+        repeat_save_when_harmed: true
+```
+
+Behaviour notes:
+
+- **Legendary Resistance** applies to any save rolled with a DC (`save_throw(..., opts={'dc': n})`,
+  `SaveCheck`, spell and attack riders). Pure probability estimates that call `save_throw`
+  without a DC never spend a use. The log reads "… uses Legendary Resistance to succeed instead".
+- **Sunlight / running water**: a creature is in sunlight with the `in_sunlight` status, a map
+  `sunlight: true`, or `sunlight: day` while the campaign clock is not night. Running water is the
+  `in_running_water` status or a square in the map's `running_water_squares`.
+- **Misty Escape** removes the creature from the battle and map, adds `mist_form`, and stores
+  `attributes.misty_escape.recover_at`; `Session.increment_game_time` revives it at 1 HP.
+- **Charmed** (`attributes.charmed_by[<charmer uid>]`, `charmed` status): the charmed creature
+  can't attack its charmer, counts as `willing` for that charmer's `target_if`, and repeats the
+  save whenever the charmer or a non-hostile ally of the charmer damages it.
+- **AI**: `AttackAction.ai_value` (used by `GenericController` for normal and legendary picks)
+  adds rider damage, life-drain healing when hurt, the follow-up a grapple unlocks (e.g. the
+  bite), and `P(fail save) x ai_value` (default 8) for `status:` riders. Speak is never chosen
+  as a combat action by the heuristic.
+- The VTT action bar shows the grapple variant with a **Grapple** badge; `/action` and MCP
+  `actions.execute` honour `grapple_instead: true` in the posted opts.
+- Active grapples are visible on the map: a chain links grappler and grappled tokens, and the
+  token badges and tile hover hint say who is grappling whom (with the escape DC when fixed).
+  See `docs/WEBAPP_BLUEPRINTS.md` → "Grapple indicators".
+- A `grapple_instead` hit deals no damage. The grapple ends automatically when the grappled
+  creature dies, the grappler is incapacitated, or the target leaves its reach. AI grapplers
+  drop dead, unconscious, or non-hostile creatures for free instead of dragging them at half
+  speed. See `docs/RULESETS.md` → "Grappler-side rules".
+
+#### Summoning allies (`summons`, e.g. Children of the Night)
+
+Abilities that call creatures (the SRD Vampire's *Children of the Night*, and similar)
+are a top-level `summons` list on the NPC — not an entry under `actions`. Engine code:
+`natural20/utils/summons.py` and `natural20/actions/summon_creatures_action.py`.
+
+```yaml
+summons:
+- name: children_of_the_night
+  label: Children of the Night
+  uses_per_day: 1            # omit = unlimited; recharges on a long rest
+  cost: action               # or bonus_action
+  blocked_by: [sunlight]     # same blockers as regeneration / misty_escape
+  requires: []               # optional: night (campaign clock), outdoors, indoors
+  arrival: 1d4               # rounds until they arrive (0 / omitted = immediately)
+  duration: 3600             # game seconds before they leave
+  dismiss: bonus_action      # cost to dismiss them (false = can't)
+  placement_radius: 6        # squares around the summoner to place them
+  options:                   # each option is a separate choice
+  - {npc: swarm_of_bats, count: 2d4}
+  - {npc: swarm_of_rats, count: 2d4}
+  - {npc: wolf, count: 3d6, requires: [outdoors]}
+```
+
+- **Outdoors** is the map property `outdoors: true`. A map with any `sunlight` setting
+  counts as outdoors unless it sets `outdoors: false`.
+- **Calling** spends the action and a use, and logs "X uses Children of the Night, calling N …
+  (arriving in R rounds)". The creatures are placed near the summoner at the start of its turn
+  once the arrival round comes (immediately outside combat). They join its group and roll
+  their own initiative. An AI summoner gives each one a fresh `GenericController`; a manually
+  controlled summoner shares its `WebController`, so the DM drives them too.
+- **Leaving**: they disappear when `duration` elapses, when the summoner dies (creatures still on
+  their way are cancelled), when the summoner takes a long rest, or through the
+  **Dismiss** action (`DismissSummonsAction`).
+- **AI**: `GenericController` scores each option by the expected damage the creatures add,
+  discounted by arrival time (zero when no enemy is visible). LLM/JEV prompts list the options
+  with the remaining uses and arrival delay.
+- **VTT**: the action bar shows one button per option ("Children of the Night: 2d4 Swarm of Bats").
+  `/action` with `SummonCreaturesAction` and no `choice` returns a `select_choice` prompt.
+- State lives in `attributes.summon_uses`, `attributes.pending_summons` and
+  `attributes.active_summons`. Summoned creatures carry `properties.summoner_uid`.
+  All of it is saved with the game.
+
 ### NPC Overrides in Maps
 
 When placing NPCs in a map, use `overrides` to customize their behavior
@@ -1124,6 +1318,7 @@ legend:
 | `hp` | int | Override max HP |
 | `passive` | bool | Non-hostile; won't initiate combat |
 | `dialog` | bool | Entity can be talked to |
+| `kill_reactions` | bool | Default true for dialog NPCs; `false` stops the NPC from speaking after it kills a PC |
 | `backstory` | string | LLM backstory prompt for conversation |
 | `outward_appearance` | string | Optional. Physical description (body, face, clothing, notable worn items) for `[OBSERVE]`, Look/perception notes, and NPC self-knowledge in conversation prompts. When omitted, the server derives a short description from race, class, gear, and kind. |
 | `conversation_handler` | string | `"llm"` for AI dialog |
@@ -1190,6 +1385,7 @@ sidekicks:
     owners: []                # claimed at login
     sidekick_class: sidekick_warrior   # optional; requires expansion pack
     role: attacker
+    auto_follow: true         # optional; trails the focused character out of combat
   - entity_uid: npc_guide
     selectable: false
     owners: [gomerin]         # second character for that user
@@ -1204,6 +1400,7 @@ sidekicks:
 - **Stat block:** sidekicks keep the NPC creature sheet (not a PC character sheet). Any player can open the full 5e stat block for a player-controlled NPC (sidekick, familiar, or assigned controller). Other NPCs show only portrait, name, and description (description follows `suppress_dialog_descriptions`).
 - **Death saves:** in-party sidekicks fall unconscious at 0 HP instead of dying immediately.
 - **Travel:** in-party sidekicks follow the party like companions (teleporter / map-set / `place_party`).
+- **Auto-follow:** an in-party sidekick with `auto_follow: true` trails the focused (POV) character out of combat, within 5 ft (chained in a line when several sidekicks follow). Toggled by DM via `dm.sidekick` / `POST /admin/sidekick` with `op: auto_follow` (plus `enabled`); the campaign YAML default applies at join. Synced by `webapp/sidekick_follow.py` on POV changes, party membership changes, and the NPC movement worker tick.
 
 Tasha’s Expert / Spellcaster / Warrior tables are **not** in core. Opt in with the `tashas_sidekicks` expansion pack (see [EXPANSION_PACKS.md](EXPANSION_PACKS.md)). Starting level is the average PC level; CR ≤ 1/2 is pack policy (DM `force` can override).
 
@@ -1234,6 +1431,25 @@ conversation beats from the fight. Disable per campaign with:
 battle_combat_recap:
   enabled: false
 ```
+
+When a `dialog: true` NPC kills a player character mid-battle, its conversation
+LLM is told who it killed and how (attack/spell, damage, critical, massive
+damage vs. bled out, who is still standing). It may speak one in-character line
+aloud, such as a taunt or lament, or stay silent. Opt an NPC out with
+`kill_reactions: false` in its YAML, or turn it off campaign-wide:
+
+```yaml
+npc_kill_reactions:
+  enabled: false
+```
+
+See `docs/CONVERSATION_RAG.md` → "Kill reactions".
+
+**Animate Dead on fallen PCs.** Animate Dead (1-minute cast, so out of combat
+only) can raise a dead player character as a zombie or skeleton under the
+caster's control. The PC's sheet, inventory, and login assignment are kept, but
+its token is hidden while the undead walks around. Destroying the undead drops
+the PC's corpse where the undead fell, so it can be looted or revived as usual.
 
 ```yaml
 journal:

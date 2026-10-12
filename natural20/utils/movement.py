@@ -1,4 +1,5 @@
 from natural20.entity import Entity
+from natural20.utils.grappling import drag_penalty
 import json
 import pdb
 
@@ -145,14 +146,8 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
             if entity.prone():
                 movement_budget -= 1
 
-            # phb grappling rules
-            if entity.is_grappling():
-                if phb_2024_rules:
-                    grapple_target_sizes = [_entity.size_identifier() - entity.size_identifier() for _entity in entity.grappling_targets()]
-                    if any(size >= -1 for size in grapple_target_sizes):
-                        movement_budget -= 1
-                else:
-                    movement_budget -= 1
+            if entity.is_grappling() and drag_penalty(entity, phb_2024_rules):
+                movement_budget -= 1
 
         if movement_budget < 0:
             impediment = 'movement_budget'

@@ -31,11 +31,11 @@ class GreenFlameBladeSpell(AttackSpell):
     def _primary_damage(self, battle, crit=False):
         entity = self.source
         level = 1
-        if entity.level() >= 5:
+        if entity.cantrip_level() >= 5:
             level += 1
-        if entity.level() >= 11:
+        if entity.cantrip_level() >= 11:
             level += 1
-        if entity.level() >= 17:
+        if entity.cantrip_level() >= 17:
             level += 1
         return DieRoll.roll(f"1d8 + {level}", crit=crit, battle=battle, entity=entity,
                             description=self.t('dice_roll.spells.green_flame_blade'))
@@ -43,11 +43,11 @@ class GreenFlameBladeSpell(AttackSpell):
     def _splash_damage(self, battle, crit=False):
         entity = self.source
         level = 1
-        if entity.level() >= 5:
+        if entity.cantrip_level() >= 5:
             level += 1
-        if entity.level() >= 11:
+        if entity.cantrip_level() >= 11:
             level += 1
-        if entity.level() >= 17:
+        if entity.cantrip_level() >= 17:
             level += 1
         return DieRoll.roll(f"1d8", crit=crit, battle=battle, entity=entity,
                             description=self.t('dice_roll.spells.green_flame_blade_splash'))

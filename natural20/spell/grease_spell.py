@@ -33,7 +33,7 @@ class GreaseZone(PersistentAoEZone):
         if entity is None or entity.dead():
             return
 
-        roll = entity.save_throw('dexterity', self.battle, {'is_magical': True})
+        roll = entity.save_throw('dexterity', self.battle, {'is_magical': True, 'dc': self.dc})
         success = roll.result() >= self.dc
         became_prone = False
 

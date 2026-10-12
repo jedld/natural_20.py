@@ -844,6 +844,14 @@ class Map(SerializableObject):
 
             for ofs_x in range(source_token_size):
                 for ofs_y in range(source_token_size):
+                    cell = self.tokens[pos_x + ofs_x][pos_y + ofs_y]
+                    try:
+                        occupant = cell['entity'] if cell else None
+                    except (KeyError, TypeError):
+                        occupant = None
+                    if (occupant is not None and occupant is not entity
+                            and getattr(occupant, 'entity_uid', None) != getattr(entity, 'entity_uid', None)):
+                        continue
                     self.tokens[pos_x + ofs_x][pos_y + ofs_y] = None
         elif entity in self.interactable_objects:
             self.interactable_objects.pop(entity)
@@ -1014,6 +1022,13 @@ class Map(SerializableObject):
         self.entities[entity] = [pos_x, pos_y]
         # Ensure entity is in the registry
         self.session.register_entity(entity)
+
+        from natural20.utils.corpses import is_animated_remains
+        if is_animated_remains(entity):
+            # Its body is walking around as an undead; stay registered on the
+            # map (so the PC is never re-materialized) but without a token.
+            self.invalidate_dynamic_lights()
+            return
 
         source_token_size = entity.token_size()
         self.tokens[pos_x][pos_y] = entity_data

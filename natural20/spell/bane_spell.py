@@ -51,9 +51,9 @@ class BaneSpell(Spell):
             targets = [targets]
 
         for target in targets:
-            save_roll = target.save_throw('charisma', battle)
             # Clerics use Wisdom for save DC calculation
             dc = entity.spell_save_dc('wisdom')
+            save_roll = target.save_throw('charisma', battle, {'dc': dc})
             if save_roll < dc:
                 results.append({
                     'source': entity,
